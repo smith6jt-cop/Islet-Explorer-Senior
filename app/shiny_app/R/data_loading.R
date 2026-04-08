@@ -452,12 +452,127 @@ reconstruct_groovy_df <- function(ad, sheet) {
   reconstruct_groovy_df_from_list(ad$uns, sheet)
 }
 
-#' Try loading from H5AD first, fall back to Excel
+#' Load master data from DuckDB-backed Parquet views (Phase 1)
+#'
+#' Rebuilds the same `list(markers, targets, comp, lgals3, phenotypes,
+#' donor_demographics, neighborhood)` structure the legacy H5AD loader
+#' returns, but pulls rows from the `islets`, `uns_targets`, `uns_markers`,
+#' and `uns_composition` DuckDB views registered in `00_globals.R`.
+#'
+#' This function materialises the groovy sheets into in-memory data frames
+#' (they are only ~5k-200k rows). The Parquet + DuckDB advantage is that the
+#' *islet* table and per-donor *tissue* table can be queried lazily and only
+#' the rows a module actually needs travel across the reticulate / pyarrow
+#' boundary. See `mod_spatial_server.R` and `spatial_helpers.R` for the lazy
+#' path.
+#'
+#' @param con A live `duckdb` connection (defaults to the session-shared `con`).
+#' @return list matching `load_master_h5ad()`.
+load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
+  if (is.null(con)) {
+    message("[DUCKDB] connection not available")
+    return(NULL)
+  }
+  if (!requireNamespace("DBI", quietly = TRUE)) {
+    message("[DUCKDB] DBI not available")
+    return(NULL)
+  }
+
+  tryCatch({
+    message("[DUCKDB] Loading islets + groovy sheets from Parquet views")
+    obs <- DBI::dbGetQuery(con, "SELECT * FROM islets")
+
+    read_view <- function(view) {
+      if (!DBI::dbExistsTable(con, view)) return(NULL)
+      tryCatch(DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", view)),
+               error = function(e) { message("[DUCKDB] ", view, ": ", conditionMessage(e)); NULL })
+    }
+
+    targets <- read_view("uns_targets")
+    markers <- read_view("uns_markers")
+    comp    <- read_view("uns_composition")
+
+    # Split LGALS3 rows out of the markers sheet (same convention as the H5AD path).
+    lgals3 <- NULL
+    if (!is.null(markers) && "marker" %in% names(markers)) {
+      m <- markers$marker == "LGALS3"
+      if (any(m, na.rm = TRUE)) {
+        lgals3 <- markers[m, , drop = FALSE]
+        markers <- markers[!m, , drop = FALSE]
+      }
+    }
+
+    # Phenotype proportions from .obs (prop_* columns)
+    phenotype_df <- tryCatch({
+      prop_cols <- grep("^prop_", colnames(obs), value = TRUE)
+      if (length(prop_cols) > 0 && "imageid" %in% colnames(obs) && "base_islet_id" %in% colnames(obs)) {
+        phen <- obs[, c("imageid", "base_islet_id", prop_cols), drop = FALSE]
+        phen$`Case ID` <- suppressWarnings(as.integer(as.character(phen$imageid)))
+        phen$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(phen$base_islet_id))
+        phen[, c("Case ID", "islet_key", prop_cols), drop = FALSE]
+      } else NULL
+    }, error = function(e) { message("[DUCKDB] phenotype extraction failed: ", e$message); NULL })
+
+    # Donor demographics (one row per donor)
+    donor_demographics <- tryCatch({
+      if (all(c("imageid", "age", "gender") %in% colnames(obs))) {
+        demo <- data.frame(
+          `Case ID` = suppressWarnings(as.integer(as.character(obs$imageid))),
+          age = suppressWarnings(as.numeric(obs$age)),
+          gender = as.character(obs$gender),
+          check.names = FALSE, stringsAsFactors = FALSE
+        )
+        demo[!duplicated(demo$`Case ID`), , drop = FALSE]
+      } else NULL
+    }, error = function(e) { message("[DUCKDB] demographics extraction failed: ", e$message); NULL })
+
+    # Neighborhood metrics + Leiden + pseudotime (same regex as load_master_h5ad)
+    neighborhood_df <- tryCatch({
+      nbr_cols <- grep(
+        "^peri_prop_|^peri_count_|^immune_|^cd8_|^tcell_|^enrich_z_|^min_dist_|^total_cells_peri|^total_cells_core|^immune_count_|^dpt_pseudotime$|^leiden_",
+        colnames(obs), value = TRUE
+      )
+      if (length(nbr_cols) > 0 && "imageid" %in% colnames(obs) && "base_islet_id" %in% colnames(obs)) {
+        nbr <- obs[, c("imageid", "base_islet_id", nbr_cols), drop = FALSE]
+        nbr$`Case ID` <- suppressWarnings(as.integer(as.character(nbr$imageid)))
+        nbr$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(nbr$base_islet_id))
+        nbr[, c("Case ID", "islet_key", nbr_cols), drop = FALSE]
+      } else NULL
+    }, error = function(e) { message("[DUCKDB] neighborhood extraction failed: ", e$message); NULL })
+
+    message("[DUCKDB] Loaded: targets=", if (!is.null(targets)) nrow(targets) else 0,
+            " markers=", if (!is.null(markers)) nrow(markers) else 0,
+            " comp=", if (!is.null(comp)) nrow(comp) else 0,
+            " lgals3=", if (!is.null(lgals3)) nrow(lgals3) else 0,
+            " phenotypes=", if (!is.null(phenotype_df)) ncol(phenotype_df) - 2 else 0,
+            " demographics=", if (!is.null(donor_demographics)) nrow(donor_demographics) else 0,
+            " neighborhood=", if (!is.null(neighborhood_df)) ncol(neighborhood_df) - 2 else 0)
+
+    list(markers = markers, targets = targets, comp = comp, lgals3 = lgals3,
+         phenotypes = phenotype_df, donor_demographics = donor_demographics,
+         neighborhood = neighborhood_df)
+  }, error = function(e) {
+    message("[DUCKDB] load_master_duckdb failed: ", conditionMessage(e))
+    NULL
+  })
+}
+
+#' Try loading from DuckDB/Parquet first, then H5AD, then Excel
 #' @param h5ad_path Path to enriched H5AD (or NULL to skip)
 #' @param excel_path Path to master_results.xlsx
 #' @return list(markers, targets, comp, lgals3) — same structure as load_master()
 load_master_auto <- function(h5ad_path = NULL, excel_path = master_path) {
-  # Try H5AD first
+  # Phase 1: Prefer DuckDB-backed Parquet views when available.
+  if (isTRUE(get0("USE_DUCKDB", envir = globalenv(), ifnotfound = FALSE))) {
+    result <- load_master_duckdb()
+    if (!is.null(result)) {
+      message("[DATA] Using DuckDB Parquet source")
+      return(result)
+    }
+    message("[DATA] DuckDB loader returned NULL; falling back to H5AD/Excel")
+  }
+
+  # Try H5AD next
   if (!is.null(h5ad_path) && file.exists(h5ad_path)) {
     result <- load_master_h5ad(h5ad_path)
     if (!is.null(result)) {

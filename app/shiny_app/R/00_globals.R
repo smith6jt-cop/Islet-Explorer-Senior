@@ -9,6 +9,13 @@ library(plotly)
 library(broom)
 library(jsonlite)
 
+# ---- Scaling feature flags ------------------------------------------------
+# Toggle these to fall back to the legacy in-memory code paths if something
+# regresses. They are read by data_loading.R, spatial_helpers.R, and the
+# stats/spatial modules.
+USE_DUCKDB <- isTRUE(as.logical(Sys.getenv("ISLET_USE_DUCKDB", "TRUE")))
+USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
+
 # Pixel size constant for coordinate conversion (micrometers per pixel)
 # GeoJSON polygons use pixel coordinates, while islet_spatial_lookup.csv uses micrometers
 PIXEL_SIZE_UM <- 0.3774  # micrometers per pixel
@@ -120,7 +127,114 @@ try({
 # Path constants
 master_path <- file.path("..", "..", "data", "master_results.xlsx")
 h5ad_path   <- file.path("..", "..", "data", "islet_explorer.h5ad")
+parquet_dir <- file.path("..", "..", "data", "parquet")
 project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE), error = function(e) NULL)
+
+# ---- DuckDB-backed data backend (Phase 1) ---------------------------------
+# A single read-only DuckDB connection is created once at app startup and
+# shared across all sessions. Parquet files produced by
+# `scripts/convert_h5ad_to_parquet.py` are exposed as virtual views so each
+# module can write lazy dbplyr pipelines (collect() only when an R-only
+# function needs materialised data). When Parquet files are missing or the
+# `USE_DUCKDB` flag is FALSE the app falls back to the existing
+# H5AD/Excel in-memory loader.
+con <- NULL
+if (isTRUE(USE_DUCKDB)) {
+  have_duckdb <- requireNamespace("duckdb", quietly = TRUE) &&
+                 requireNamespace("DBI", quietly = TRUE)
+  if (!have_duckdb) {
+    message("[DUCKDB] Package 'duckdb' not installed; falling back to H5AD loader.")
+    USE_DUCKDB <- FALSE
+  } else {
+    islets_parquet <- file.path(parquet_dir, "islets.parquet")
+    tissue_root    <- file.path(parquet_dir, "tissue")
+    if (!file.exists(islets_parquet)) {
+      message("[DUCKDB] ", islets_parquet, " not found; run scripts/convert_h5ad_to_parquet.py. ",
+              "Falling back to H5AD loader for this session.")
+      USE_DUCKDB <- FALSE
+    } else {
+      con <- tryCatch(
+        DBI::dbConnect(duckdb::duckdb(), read_only = TRUE),
+        error = function(e) { message("[DUCKDB] connect failed: ", conditionMessage(e)); NULL }
+      )
+      if (is.null(con)) {
+        USE_DUCKDB <- FALSE
+      } else {
+        # Optional spatial extension — used for point-in-bbox click queries on
+        # the tissue scatter. Swallow install errors so the app still boots
+        # offline (extension lives in DuckDB's CDN by default).
+        try(DBI::dbExecute(con, "INSTALL spatial; LOAD spatial;"), silent = TRUE)
+
+        try({
+          DBI::dbExecute(con, sprintf(
+            "CREATE OR REPLACE VIEW islets AS SELECT * FROM parquet_scan('%s')",
+            normalizePath(islets_parquet, winslash = "/", mustWork = TRUE)
+          ))
+          message("[DUCKDB] Registered view: islets -> ", islets_parquet)
+        }, silent = FALSE)
+
+        # Groovy tables — optional; only register if the converter emitted them.
+        for (sheet in c("targets", "markers", "composition")) {
+          pq <- file.path(parquet_dir, sprintf("uns_%s.parquet", sheet))
+          if (file.exists(pq)) {
+            try({
+              DBI::dbExecute(con, sprintf(
+                "CREATE OR REPLACE VIEW uns_%s AS SELECT * FROM parquet_scan('%s')",
+                sheet, normalizePath(pq, winslash = "/", mustWork = TRUE)
+              ))
+            }, silent = TRUE)
+          }
+        }
+
+        # Partitioned tissue dataset — register only if it exists so the
+        # Spatial tab can fall back to CSVs otherwise.
+        if (dir.exists(tissue_root)) {
+          tissue_glob <- normalizePath(file.path(tissue_root, "**", "*.parquet"),
+                                       winslash = "/", mustWork = FALSE)
+          try({
+            DBI::dbExecute(con, sprintf(
+              "CREATE OR REPLACE VIEW tissue AS SELECT * FROM parquet_scan('%s', hive_partitioning=1)",
+              tissue_glob
+            ))
+            message("[DUCKDB] Registered view: tissue -> ", tissue_root)
+          }, silent = TRUE)
+        }
+
+        # Ensure the connection is closed when the R process exits.
+        # (shiny::onStop is only valid inside a running app, so register a
+        # reg.finalizer on a harmless environment instead.)
+        reg.finalizer(globalenv(), function(e) {
+          try(DBI::dbDisconnect(con, shutdown = TRUE), silent = TRUE)
+        }, onexit = TRUE)
+      }
+    }
+  }
+}
+
+#' Helper: is the DuckDB backend active for this session?
+duckdb_active <- function() isTRUE(USE_DUCKDB) && !is.null(con)
+
+# ---- mirai worker pool for async tasks (Phase 4) --------------------------
+# Long-running work (statistical batteries, heatmap resampling) is dispatched
+# to a persistent mirai daemon pool so the UI stays responsive. Daemons are
+# started once at app load and torn down on exit.
+if (isTRUE(USE_MIRAI)) {
+  have_mirai <- requireNamespace("mirai", quietly = TRUE)
+  if (!have_mirai) {
+    message("[MIRAI] Package 'mirai' not installed; async stats disabled.")
+    USE_MIRAI <- FALSE
+  } else {
+    n_workers <- suppressWarnings(as.integer(Sys.getenv("ISLET_MIRAI_WORKERS", "4")))
+    if (!is.finite(n_workers) || n_workers < 1L) n_workers <- 4L
+    try({
+      mirai::daemons(n = n_workers, dispatcher = TRUE)
+      message("[MIRAI] Started ", n_workers, " daemon workers")
+    }, silent = TRUE)
+    reg.finalizer(globalenv(), function(e) {
+      try(mirai::daemons(0), silent = TRUE)
+    }, onexit = TRUE)
+  }
+}
 
 # Ensure reticulate/anndata can discover a Python binary when RETICULATE_PYTHON
 # isn't set (shiny-server environments often lack PATH).

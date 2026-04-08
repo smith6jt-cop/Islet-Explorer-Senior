@@ -209,6 +209,46 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       scatter_zoom$ymax <- NULL
     })
 
+    # Phase 3: pick the rendering backend for the tissue scatter.
+    # ggplot2 is the default (handles ~200K cells comfortably and supports
+    # the R-side brush zoom). When `ISLET_USE_RDECK=TRUE` and the rdeck
+    # package is installed, the WebGL backend is used instead. The switch
+    # happens in renderUI so existing outputs do not change.
+    output$tissue_scatter_container <- renderUI({
+      if (is_rdeck_available()) {
+        rdeck::rdeckOutput(ns("tissue_scatter_deck"), height = "700px")
+      } else {
+        plotOutput(ns("tissue_scatter"), height = "700px",
+                   dblclick = ns("scatter_dblclick"),
+                   brush = brushOpts(id = ns("scatter_brush"), resetOnNew = TRUE))
+      }
+    })
+
+    # ==== Card 2 (rdeck variant): WebGL tissue scatter for million-cell donors ====
+    output$tissue_scatter_deck <- if (requireNamespace("rdeck", quietly = TRUE)) {
+      rdeck::renderRdeck({
+        cells <- donor_cells()
+        req(cells)
+
+        # Apply region + phenotype filters (same semantics as ggplot path)
+        region_mode <- input$region_filter %||% "all"
+        selected_phenos <- input$pheno_filter
+        plot_df <- cells
+        if (!is.null(selected_phenos) && length(selected_phenos) > 0) {
+          plot_df <- plot_df[plot_df$phenotype %in% selected_phenos, , drop = FALSE]
+        }
+        if (region_mode == "core") {
+          plot_df <- plot_df[plot_df$cell_region == "core", , drop = FALSE]
+        } else if (region_mode == "core_peri") {
+          plot_df <- plot_df[plot_df$cell_region %in% c("core", "peri"), , drop = FALSE]
+        }
+        if (nrow(plot_df) == 0) return(NULL)
+        render_tissue_deck(plot_df, palette = palette())
+      })
+    } else {
+      NULL
+    }
+
     # ==== Card 2: Tissue Scatter Plot (ggplot2, rasterized) ====
     spatial_tissue_scatter_plot <- reactive({
       cells <- donor_cells()

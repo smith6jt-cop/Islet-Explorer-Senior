@@ -231,10 +231,116 @@ find_image_for_case <- function(case_id, www_dir, local_root) {
 }
 
 resolve_avivator_base <- function() {
-  # Return the URL path to the local avivator build under www/, or NULL if missing
+  # Phase 2: if the operator points us at a hosted Avivator instance (self-
+  # hosted or the public demo), use that. Falls back to the bundled static
+  # build under www/ for legacy single-box deployments.
+  env_url <- Sys.getenv("AVIVATOR_URL", "")
+  if (nzchar(env_url)) return(env_url)
+
   local_index <- file.path("www", "avivator", "index.html")
   if (file.exists(local_index)) return("avivator/index.html")
   NULL
+}
+
+# ---- Phase 2: OME-Zarr on MinIO ------------------------------------------
+# When images are hosted as OME-Zarr stores in an S3-compatible bucket we no
+# longer need nginx to serve large OME-TIFFs with Range headers. The Shiny
+# app just hands Avivator a fully-qualified URL pointing at the `.zarr`
+# directory.
+
+#' Base URL for the OME-Zarr bucket (MinIO or cloud S3).
+#'
+#' Defaults to the production MinIO deployment. Override per-environment via
+#' the `MINIO_IMAGE_URL` env var. Example values:
+#'
+#'   * MinIO on prod: http://10.15.152.7:9000/islet-images
+#'   * nginx-proxied: https://islet-explorer.example.org/images
+#'   * S3: https://islet-explorer.s3.amazonaws.com
+resolve_minio_base <- function() {
+  env_url <- Sys.getenv("MINIO_IMAGE_URL", "")
+  if (nzchar(env_url)) return(sub("/+$", "", env_url))
+  # Reasonable default that matches the production nginx location block.
+  "http://10.15.152.7:9000/islet-images"
+}
+
+#' Build the Zarr store URL for a given image name.
+#'
+#' `image_name` may include or omit the `.zarr` suffix. The returned URL is
+#' always fully qualified so Avivator/Viv can pass it straight to `source=`.
+build_zarr_image_url <- function(image_name) {
+  if (is.null(image_name) || !nzchar(image_name)) return(NULL)
+  base <- resolve_minio_base()
+  stem <- sub("\\.ome\\.tiff?$", "", image_name, ignore.case = TRUE)
+  stem <- sub("\\.zarr$", "", stem, ignore.case = TRUE)
+  paste0(base, "/", stem, ".zarr")
+}
+
+#' Construct the full iframe URL for Avivator, pointing at a Zarr store.
+#'
+#' Keeps the channel configuration payload (base64-encoded JSON) that the
+#' bundled Avivator build expects, so disease-specific channel assignments
+#' (INS/GCG/SST/DAPI) still apply.
+build_avivator_iframe_url <- function(image_name, channel_config_b64 = NULL) {
+  base <- resolve_avivator_base()
+  if (is.null(base)) return(NULL)
+  zarr_url <- build_zarr_image_url(image_name)
+  if (is.null(zarr_url)) return(base)
+
+  params <- list(
+    source = utils::URLencode(zarr_url, reserved = TRUE),
+    # image_url is retained so the legacy Avivator bundle (which reads this
+    # query key) still binds without a code change on the JS side.
+    image_url = utils::URLencode(zarr_url, reserved = FALSE)
+  )
+  if (!is.null(channel_config_b64) && nzchar(channel_config_b64)) {
+    params$channel_config <- utils::URLencode(channel_config_b64, reserved = TRUE)
+  }
+
+  query <- paste(
+    vapply(names(params), function(k) sprintf("%s=%s", k, params[[k]]), character(1)),
+    collapse = "&"
+  )
+  paste0(base, if (grepl("\\?", base)) "&" else "?", query)
+}
+
+#' List available OME-Zarr images.
+#'
+#' Priority order:
+#'   1. `ISLET_ZARR_MANIFEST` env var pointing at a newline-delimited file of
+#'      image stems (one per line) — most reliable for MinIO deployments.
+#'   2. `data/zarr_images/*.zarr` on the local filesystem (dev / prod where
+#'      the scaling conversion has been run).
+#'   3. Legacy `www/local_images/*.ome.tif[f]` (fallback for unconverted
+#'      deployments — the stems are still valid MinIO keys if the operator
+#'      has uploaded them).
+list_available_zarr_images <- function() {
+  manifest <- Sys.getenv("ISLET_ZARR_MANIFEST", "")
+  if (nzchar(manifest) && file.exists(manifest)) {
+    lines <- readLines(manifest, warn = FALSE)
+    lines <- trimws(lines)
+    lines <- lines[nzchar(lines) & !grepl("^#", lines)]
+    if (length(lines) > 0) return(lines)
+  }
+
+  zarr_root <- file.path("..", "..", "data", "zarr_images")
+  if (!is.null(project_root)) {
+    alt <- file.path(project_root, "data", "zarr_images")
+    if (dir.exists(alt)) zarr_root <- alt
+  }
+  if (dir.exists(zarr_root)) {
+    dirs <- list.dirs(zarr_root, full.names = FALSE, recursive = FALSE)
+    dirs <- sub("\\.zarr$", "", dirs, ignore.case = TRUE)
+    if (length(dirs) > 0) return(dirs)
+  }
+
+  # Last-resort legacy fallback: expose OME-TIFF stems.
+  legacy_dir <- file.path("www", "local_images")
+  if (dir.exists(legacy_dir)) {
+    files <- list.files(legacy_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
+    return(sub("\\.ome\\.tiff?$", "", files, ignore.case = TRUE))
+  }
+
+  character(0)
 }
 
 # Build a base64-encoded channel configuration understood by embedded Avivator.

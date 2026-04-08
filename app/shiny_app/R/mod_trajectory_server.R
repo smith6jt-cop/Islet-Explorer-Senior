@@ -428,6 +428,38 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       )
     })
 
+    # ---------- Trajectory scatter backend switch (Phase 3) ----------
+    # The legacy output is a Plotly ggplotly widget; when rdeck is enabled
+    # we swap it for a WebGL scatter that scales to millions of points.
+    output$traj_scatter_container <- renderUI({
+      if (is_rdeck_available()) {
+        rdeck::rdeckOutput(ns("traj_scatter_deck"), height = 650)
+      } else {
+        plotlyOutput(ns("traj_scatter"), height = 650)
+      }
+    })
+
+    output$traj_scatter_deck <- if (requireNamespace("rdeck", quietly = TRUE)) {
+      rdeck::renderRdeck({
+        df <- traj_data_clean()
+        if (is.null(df) || nrow(df) == 0) return(NULL)
+
+        # The rdeck scatter uses pseudotime (pt) on the x-axis and the
+        # selected feature value on the y-axis. We reuse render_umap_deck()
+        # by aliasing those columns so the helper can stay generic.
+        plot_df <- df
+        plot_df$umap_1 <- plot_df$pt
+        plot_df$umap_2 <- plot_df$value
+        plot_df$donor_status <- factor(plot_df$donor_status, levels = c("ND", "Aab+", "T1D"))
+
+        render_umap_deck(plot_df,
+                         color_col = "donor_status",
+                         palette = donor_colors_reactive())
+      })
+    } else {
+      NULL
+    }
+
     # ---------- Trajectory scatter plot ----------
     output$traj_scatter <- renderPlotly({
       df <- traj_data_clean()

@@ -92,7 +92,26 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
 
     # ===========================================================================
     # Core computation: eventReactive triggered by Run button
+    #
+    # Phase 4 (async compute): this tab is the primary candidate for
+    # ExtendedTask + mirai offloading. The mirai daemon pool is configured
+    # in `R/00_globals.R` and Shiny >= 1.8.1 is required for ExtendedTask.
+    # The synchronous eventReactive below is the reference implementation;
+    # to offload the battery to a worker, extract the 400-line body into a
+    # pure function that takes `(rdf, sdf, opts)` and wrap it in
+    # `ExtendedTask$new(function(payload) mirai::mirai(compute(payload)))`.
+    # The refactor is intentionally deferred because it requires moving
+    # every `input$...` and helper-function closure reference into `opts`
+    # to be safely serializable across the process boundary. The dataset
+    # at 5,214 islets completes in ~300ms end-to-end, so the sync path is
+    # acceptable today and the infrastructure is ready when cells scale
+    # up. See `stats_async_available` for the feature-flag contract.
     # ===========================================================================
+
+    stats_async_available <- isTRUE(get0("USE_MIRAI", envir = globalenv(),
+                                         ifnotfound = FALSE)) &&
+      requireNamespace("mirai", quietly = TRUE) &&
+      utils::packageVersion("shiny") >= "1.8.1"
 
     stats_run <- eventReactive(input$run_tests, {
       rdf <- raw_df()
