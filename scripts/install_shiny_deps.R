@@ -1,5 +1,10 @@
 pkgs <- c(
-  "shiny","readxl","dplyr","stringr","tidyr","ggplot2","plotly","broom","base64enc","cluster","sf"
+  "shiny","readxl","dplyr","stringr","tidyr","ggplot2","plotly","broom","base64enc","cluster","sf",
+  # Phase 16 statistics: mixed-effects model + post-hoc contrasts. Required by
+  # utils_stats.R (lmerTest::lmer) and mod_statistics_server.R (emmeans::emmeans).
+  # If missing in /usr/local/lib/R/site-library the shiny-server worker fails
+  # to initialize with HTTP 500 since user `shiny` can't see personal user libs.
+  "lmerTest","emmeans"
 )
 to_install <- setdiff(pkgs, rownames(installed.packages()))
 if (length(to_install)) install.packages(to_install, repos = "https://cloud.r-project.org")
