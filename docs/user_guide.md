@@ -100,7 +100,10 @@ The Trajectory tab uses a full-width layout (no sidebar). All controls are inlin
    - Selected feature (viridis inferno colormap, scaled to data min/max)
    - Pseudotime (DPT)
 
-2. **Donor Status Heatmap** — Mean marker expression across pseudotime bins, split by disease group. Shows how protein expression changes along the trajectory.
+2. **Pseudotime Strip (Dominant Status × Feature Intensity)** — A single horizontal strip below the UMAP scatter, divided into 25 pseudotime bins. Each bin encodes two variables at once:
+   - **Hue** = the *dominant* donor status in that bin, computed from per-status normalized density (count-in-bin divided by total islets for that status). Normalization corrects for cohort imbalance so dominance reflects enrichment relative to each status's pool, not raw count.
+   - **Intensity** (saturation toward white) = the bin-mean of the selected feature, robust 5–95th percentile clipped. Floor at 50% saturation so even the dimmest bin remains a clear tint, never white.
+   Hover for raw counts per status, normalized density per status, and the feature mean.
 
 3. **Multi-Feature Heatmap** — Z-scored expression of user-selected markers along pseudotime bins. Default markers: INS, GCG, SST, CD3e, CD8a, CD68, CD45, HLADR. Blue-white-red diverging colormap, z-scores clamped to [-2.5, 2.5].
 

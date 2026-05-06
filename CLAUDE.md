@@ -6,6 +6,12 @@ This file provides guidance to Claude Code when working with this repository.
 
 Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging data from nPOD donors. Tracks insulin loss and immune infiltration across ND -> Aab+ -> T1D progression. Features islet-level aggregated views, pseudotime trajectory, spatial neighborhood analysis, and single-cell drill-down.
 
+## Sub-directory CLAUDE.md files
+
+- `app/shiny_app/CLAUDE.md` — per-tab feature details (Spatial, Drill-Down, Statistics, AI Assistant, Trajectory phases)
+- `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes
+- `islet_analysis/CLAUDE.md` — Python analysis pipeline (phenotyping, aggregation, trajectory)
+
 ## App Architecture (Modular - Feb 2026)
 
 The Shiny app lives in `app/shiny_app/` and uses a modular architecture:
@@ -25,7 +31,7 @@ app/shiny_app/
     mod_plot_ui.R / mod_plot_server.R           # Plot tab (scatter, distribution, outliers, segmentation+drilldown panel)
     mod_trajectory_ui.R / mod_trajectory_server.R  # Trajectory tab (UMAP, heatmap, pseudotime, segmentation+drilldown panel)
     mod_viewer_ui.R / mod_viewer_server.R       # Viewer tab (OME-TIFF, Avivator iframe)
-    mod_statistics_ui.R / mod_statistics_server.R  # Statistics tab (5-section narrative: configure, results, size-dependent, confounders, methods)
+    mod_statistics_ui.R / mod_statistics_server.R  # Statistics tab (5-section narrative)
     spatial_helpers.R           # Per-donor tissue CSV loader with new.env() caching
     mod_spatial_ui.R / mod_spatial_server.R     # Spatial tab (3-panel: sidebar controls, tissue scatter, Leiden panel)
     mod_ai_assistant_ui.R / mod_ai_assistant_server.R  # AI chat panel
@@ -121,305 +127,13 @@ single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad  (2.6M cells, 3
         -> data/islet_explorer.h5ad  (all app data in one file, incl. leiden_* + leiden_umap_*)
 ```
 
-Note: `scripts/reaggregate_islets.py` replaces the manual notebook workflow (aggregation + trajectory + Leiden in one script). `islet_analysis/islets_core_clustered.h5ad` provides Leiden clustering (4 resolutions) + UMAP coords, merged by `build_h5ad_for_app.py` step 4.7.
+`scripts/reaggregate_islets.py` replaces the manual notebook workflow (aggregation + trajectory + Leiden in one script). `islet_analysis/islets_core_clustered.h5ad` provides Leiden clustering (4 resolutions) + UMAP coords, merged by `build_h5ad_for_app.py` step 4.7.
 
-### Pipeline Scripts & Notebooks
+See `scripts/CLAUDE.md` for per-script details, batch correction (Phase 17), and the two-pseudotime architecture (`dpt_pseudotime` core-only vs `dpt_pseudotime_combined` core+peri+structures).
 
-- `scripts/fix_tcell_subtypes.py` - Reclassifies CD4/CD8 T cells by marker gating (CD8a/CD4 >= 0.5); `--dry-run` flag for preview
-- `scripts/reaggregate_islets.py` - **Primary pipeline**: aggregation (min_cells=0) + trajectory + Leiden in one script
-- `scripts/compute_neighborhood_metrics.py` - Computes per-islet peri-islet metrics from single-cell H5AD
-- `scripts/extract_per_islet_cells.py` - Extracts per-islet cell CSVs for drill-down viewer
-- `scripts/extract_per_donor_tissue.py` - Extracts per-donor tissue CSVs (ALL cells: core+peri+tissue) for Spatial tab scatter
-- `scripts/build_h5ad_for_app.py` - Builds enriched H5AD (trajectory + groovy + neighborhood + Leiden)
-- `scripts/build_master_excel.py` - Builds master_results.xlsx from groovy TSV exports
-- `notebooks/scvi_qc_validation.ipynb` - Validates scVI batch correction (silhouette, LISI, UMAP)
-- `notebooks/rebuild_trajectory.ipynb` - Regenerates trajectory from fixed pipeline (superseded by reaggregate_islets.py)
-- `islet_analysis/fixed_islet_aggregation.py` - Core aggregation module (islet-level from single-cell, default min_cells=0)
+## Spatial / Statistics / Trajectory / AI tabs
 
-### Python Environment
-
-Pipeline scripts use the `scvi-env` conda environment:
-```bash
-conda activate scvi-env  # scanpy, anndata, scvi-tools, sklearn, scib-metrics, scipy, harmonypy
-```
-
-`harmonypy==0.2.0` is a downstream batch-correction dependency (added Apr 2026 — see `## Donor Batch Correction & Pseudotime Modes` below). One-time install: `pip install harmonypy` inside `scvi-env`.
-
-## Spatial Neighborhood Analysis (Phase 7, Feb 2026 — extended Apr 2026)
-
-### Peri-Islet Metrics (~100 columns, all phenotypes systematic)
-
-| Category | Columns | Description |
-|----------|---------|-------------|
-| Peri-islet composition | `peri_prop_*`, `peri_count_*`, `total_cells_peri` | Proportion & count for each of 21 phenotypes in 20µm expansion zone |
-| Aggregate immune metrics (legacy) | `immune_frac_peri/core`, `immune_ratio`, `cd8_to_macro_ratio`, `tcell_density_peri` | Immune fractions, ratios, density. Columns retained for compatibility but no longer surfaced in any UI. |
-| Enrichment z-scores (per phenotype) | `enrich_z_<phenotype>` | Poisson z (observed vs tissue-baseline) for **all 20 phenotypes** (excludes "Unknown"). Extended Apr 2026 from a hand-curated 7-immune subset. |
-| Distance metrics (per phenotype) | `min_dist_<phenotype>`, `min_dist_immune_mean` | Min distance from islet core centroid to nearest peri cell of each phenotype, plus the aggregate "any immune" mean across the 7 IMMUNE_TYPES. |
-
-### Data Flow
-
-`compute_neighborhood_metrics.py` reads single-cell H5AD -> `neighborhood_metrics.csv` (5,214 rows) -> merged into `islet_explorer.h5ad` `.obs` by `build_h5ad_for_app.py` (step 4.5) -> extracted in `data_loading.R` `load_master_h5ad()` -> merged into `comp` by `prep_data()` -> available in Plot composition selector (4 option groups) + Statistics tab + Spatial tab.
-
-### Key Details
-
-- All 5,214 islets have peri-islet data (100% coverage with min_cells=0 + require_paired=True)
-- Column naming sanitizes phenotype names: spaces -> `_`, `+` -> `plus` (e.g., `peri_prop_ECADplus`)
-- Immune signal validated: T1D immune_frac_peri (0.155) > Aab+ (0.106) > ND (0.069)
-- **Plot composition selector** has 3 option groups: Hormone Positivity, Phenotype Proportions, Peri-Islet Proportions. The 5 aggregate ratio metrics (immune_frac_*, immune_ratio, cd8_to_macro_ratio, tcell_density_peri) were removed (Apr 2026) in favour of phenotype-driven Spatial UI selectors.
-- **`IMMUNE_TYPES`** in `compute_neighborhood_metrics.py` (CD8a Tcell, CD4 Tcell, T cell, B cell, Macrophage, APCs, Immune) is intentionally narrow — drives only aggregates where "what counts as immune" needs definition. **`per_type_phenotypes`** (all `obs.phenotype.unique()` minus `PER_TYPE_EXCLUDE = {"Unknown"}`) drives `enrich_z_*` and `min_dist_*` per-phenotype loops.
-
-### Spatial Tab (Phase 9+13+15, mod_spatial_ui/server.R)
-
-Row 1: Controls sidebar (col-2) + Tissue Scatter (col-6) + Leiden Panel (col-4). Row 2-4: Neighborhood Analysis Cards (A/B/C).
-
-1. **Controls Sidebar** (col-2) -- donor selector, color-by (phenotype/Leiden), Leiden resolution, region filter (All/Core+Peri/Core), "Color background cells" checkbox, phenotype filter (checkboxes with All/None links), donor status checkboxes, phenotype + donor palette selectors, download button. All stacked vertically.
-2. **Tissue Scatter** (col-6) -- ggplot2 `renderPlot` (NOT plotly) showing ~177K cells/donor. Background tissue cells in light grey or colored by phenotype (toggle). Foreground (core/peri) colored by phenotype or Leiden cluster. `coord_fixed() + scale_y_reverse()`. Height: 800px. Supports brush-to-zoom (drag to select, double-click or Reset Zoom button to restore).
-3. **Leiden Panel** (col-4) -- plotly UMAP of 5,214 islets colored by selected Leiden resolution (0.3/0.5/0.8/1.0) + stacked bar chart of mean phenotype composition per cluster. UMAP uses raw marker PCA visualization coords (same as trajectory) for disease-stage separation.
-4. **Neighborhood Analysis Cards** (3 sections, conditionally rendered via `has_neighborhood()` guard). Apr 2026: all four card selectors are now phenotype-driven and dynamically populated from `prepared()$comp` columns — replaces previous hand-curated 7-immune-type lists.
-   - **Global controls bar**: Min cells/islet filter (`nbr_min_cells`), point size slider (`nbr_pt_size`), opacity slider (`nbr_pt_alpha`), live islet count display.
-   - **Card A: Peri-Islet Phenotype Enrichment** -- Bar chart (donor-level mean/median enrichment z-score per status for selected phenotype) + peri vs core proportion scatter. Inputs: `infiltration_phenotype`, `scatter_phenotype` (both populated server-side via `updateSelectInput` from all phenotypes with `enrich_z_*` columns).
-   - **Card B: Phenotype Composition & Enrichment** -- Grouped bar chart + heatmap across all 20 phenotypes × 3 stages, SEM/IQR error bars, median/mean toggle, z-clip checkbox. Region toggle: peri enrichment z-scores (diverging blue→red), core proportions (sequential white→red), peri proportions (sequential white→red). `enrichment_bars`, `enrichment_heatmap`. Shared `enrich_summary()` reactive iterates over `phenotype_options()`.
-   - **Card C: Phenotype Proximity to Islet** -- Distance box plots (per phenotype + "Immune (all)" aggregate) + signed-distance KDE. Inputs: `distance_metric` (built from `min_dist_*` columns) and `kde_immune_type` (built from `immune_distance_kde.csv` phenotype column).
-   - Section headings reuse `section_heading()` pattern from Statistics tab (gradient pill badge + title + subtitle).
-   - Documentation banners (light blue background) explain each analysis section.
-   - Distance NA values: caused by zero immune cells in peri-islet zone (20.1% NA for any immune, 88.6% for CD8+ T-cells). Biological, not a bug — ND has most NAs (least infiltration). Min-cells filter at ≥50 reduces NA from 20% to 6%.
-
-Wired as `spatial_server("spatial", prepared, active_palette, active_donor_colors)`.
-
-#### Neighborhood Cards Server Architecture
-- `nbr_comp()` shared reactive -- filters `prepared()$comp` by `input$groups` (donor status checkboxes) + `input$nbr_min_cells` (total_cells_core + total_cells_peri ≥ threshold). Reused by all 6 outputs.
-- `phenotype_options()` reactive (Apr 2026) -- builds a list of phenotype records from `prepared()$comp` columns. Each entry: `label` (recovered original phenotype name), `safe` (sanitised name used in column suffixes), `enrich` (`enrich_z_<safe>` col), `prop_core`, `peri_prop`, `peri_count`, `min_dist`. Replaces the previous static `immune_type_map` / `enrich_col_labels`. Recovers original phenotype label from sanitised column suffix by trying common transforms (`_` → space, `plus` → `+`) against existing `prop_*` columns.
-- `phenotype_choices()` reactive -- named vector for `selectInput` choices: names = labels, values = safe-names. All four card selectors (`infiltration_phenotype`, `scatter_phenotype`, `distance_metric`, `kde_immune_type`) populate via `updateSelectInput` from this.
-- `enrich_summary()` intermediate reactive -- iterates over `phenotype_options()` per cell type × donor status. Respects `input$enrich_region` (peri/core/peri_prop), `input$enrich_clip`, `input$enrich_stat`. Returns data.frame.
-- All 6 outputs use `donor_colors_reactive()` for palette syncing and respond to `input$groups`.
-- **Plotly categorical axis ordering**: Must set `categoryorder = "array", categoryarray = c("ND", "Aab+", "T1D")` on x-axis for violin/box/bar plots. Plotly defaults to alphabetical, which puts "Aab+" before "ND".
-
-#### Supporting Files
-- `spatial_helpers.R` -- `donor_tissue_available()`, `get_available_donors()`, `load_donor_tissue(imageid)` with `new.env()` caching
-- `data/donors/{imageid}.csv` -- 15 per-donor CSVs (5 cols: X_centroid, Y_centroid, phenotype, cell_region, islet_name), ~78 MB total
-- `islets_core_clustered.h5ad` -- Leiden clustering source (4 resolutions: leiden_0.3/0.5/0.8/1.0)
-
-#### Leiden Data Flow
-`islets_core_clustered.h5ad` (4 leiden_* cols + X_umap) -> `build_h5ad_for_app.py` step 4.7 -> `islet_explorer.h5ad` .obs (leiden_0.3/0.5/0.8/1.0 + leiden_umap_1/2) -> `data_loading.R` `load_master_h5ad()` (regex `^leiden_`) -> `prep_data()` merges into comp -> Spatial tab reads from `prepared()$comp`
-
-#### Tissue Scatter Design
-- Uses `ggplot2::renderPlot` NOT plotly -- 177K points would freeze plotly
-- Foreground/background layering: tissue cells at `size=0.15, alpha=0.3` in grey; core/peri at `size=0.4, alpha=0.6` in color
-- Leiden coloring maps `islet_name -> cluster` via islet-level lookup from `prepared()$comp`
-- **Brush-to-zoom**: `plotOutput(brush=brushOpts(...), dblclick=...)` + `reactiveValues(xmin,xmax,ymin,ymax)`. When zoomed, switches from `coord_fixed()` to `coord_cartesian(xlim, ylim)` with `sort()` on ylim for reversed y-axis. Reset on double-click, Reset Zoom button, or donor change.
-- **Phenotype filter**: `checkboxGroupInput` with All/None action links. Dynamically populated from donor's unique phenotypes. Filters both foreground and background cells.
-- Donor 6533 has 191 islets (9,815 core + 13,840 peri cells) — fully integrated after patching Parent annotations in canonical H5AD
-
-## Single-Cell Drill-Down (Phase 8, Feb 2026)
-
-### Per-Islet Cell Data
-
-`extract_per_islet_cells.py` reads single-cell H5AD -> outputs `data/cells/{imageid}_Islet_{N}.csv`:
-- 5,214 files (matching islets with cell data), ~203 MB total
-- 37 columns: `X_centroid`, `Y_centroid`, `phenotype`, `cell_region` (core/peri), `Cell Area`, `Nucleus Area`, + 31 protein markers
-- File naming matches `combined_islet_id` from `islet_spatial_lookup.csv`
-
-### Islet Viewer Panel (Segmentation + Drill-Down)
-
-When an islet is clicked, the viewer panel shows with controls on the left sidebar:
-- **Title**: `Islet_N (case_id, status, age, gender)` — donor info from `prepared()$comp`
-- **Left sidebar (col-2)**: Layer toggles (Single Cells, Peri Boundary, Structures), Color-by dropdown, Phenotype Palette, Show peri-islet cells. Falls back to boundary legend when no cell data.
-- **Center plot (col-6)**: Segmentation map with GeoJSON boundaries + optional single-cell overlay
-- **Right sidebar (col-4)**: Cell composition bar chart + cell count table (when Single Cells enabled)
-- `selected_islet()` carries `case_id`, `islet_key`, `centroid_x/y`, `donor_status`, `donor_age`, `donor_gender`
-
-### Coordinate Alignment
-
-Cell centroids (`X_centroid`, `Y_centroid`) are in micrometers. GeoJSON polygons are in pixels. Conversion: `x_px = X_centroid / PIXEL_SIZE_UM`. This matches the existing `render_islet_segmentation_plot()` coordinate system.
-
-### drilldown_helpers.R
-
-- `PHENOTYPE_COLORS` -- 21 phenotypes with distinctive hex palette (endocrine=warm, immune=cool, structural=neutral)
-- `drilldown_available()` -- checks if `data/cells/` exists with CSVs
-- `load_islet_cells(imageid, islet_key)` -- CSV loader with `new.env()` caching
-- `render_islet_drilldown_plot(info, cells, color_by, show_peri)` -- cells over `build_segmentation_base_plot()`. Uses `fill` aesthetic (shape 21) for phenotype/marker coloring, `alpha` for core/peri distinction (0.9/0.4). `colour` aesthetic reserved for structure boundaries.
-- `render_drilldown_summary(cells)` -- horizontal bar chart of phenotype composition
-
-### segmentation_helpers.R Refactor
-
-`build_segmentation_base_plot(info)` extracted from `render_islet_segmentation_plot()`. Returns ggplot with GeoJSON polygon layers + coord_sf (WITHOUT crosshairs or title). Reused by both `render_islet_segmentation_plot()` (adds crosshairs + title) and `render_islet_drilldown_plot()` (adds cell scatter layer).
-
-**Structure Legend**: `build_segmentation_base_plot()` combines all visible polygons into one sf with a `structure_type` column, uses `aes(colour = structure_type)` + `scale_colour_manual(name = "Structures")` with `key_glyph = "path"`. Display names: Islet, Peri Boundary, Nerve, Capillary, Lymphatic. The `colour` aesthetic is reserved for structures; drilldown cell scatter uses `fill` (shape 21) to avoid scale conflict.
-
-## Statistics Tab (Phase 6+14+16, Feb-Mar 2026)
-
-### Pseudoreplication Fix (Phase 16)
-
-The app has 5,214 islets from only **15 donors** (5 per group). Islets within a donor are correlated (shared biology, tissue processing, imaging). Phase 16 fixes this textbook pseudoreplication by:
-
-1. **Donor-level aggregation**: All tests use `aggregate_to_donor()` to compute per-donor means (N=15), not islet-level (N=5,214). This produces realistic p-values (0.01-0.05 range, not 1e-50).
-2. **Mixed-effects sensitivity**: `lmer_test_donor()` runs `lmerTest::lmer(value ~ donor_status + (1 | case_id))` on islet-level data with donor as random intercept. ICC quantifies donor-level clustering.
-3. **Min-cells filter**: Available on all 4 analysis tabs — Plot (`min_cells` in sidebar, filters `raw_df_base()`), Trajectory (`min_cells` in controls, filters `traj_data_clean()` by `total_cells`), Statistics (`stats_min_cells`), and Spatial (`nbr_min_cells`). All use `total_cells_core + total_cells_peri >= threshold` (Trajectory uses `total_cells` directly). Defaults to 1 (no filter).
-4. **Normality testing**: Shapiro-Wilk on donor-level means per group, with auto-suggestion for test type.
-5. **No-binning option**: `stats_no_binning` checkbox hides Section 3 (size-dependent analysis).
-6. **Bin slider fix**: Max increased from 75 to 150, step=5. Heatmap x-axis labels angled (-45°) to prevent overlap.
-7. **Per-bin donor-level**: `per_bin_donor_anova()` and `per_bin_donor_kendall()` aggregate to donor means within each bin. Bins with <2 donors per group are skipped (greyed out in heatmap).
-8. **Demographics redesign**: Age scatter shows all islets (not donor means) with Pearson r. Sex analysis uses box plot faceted by sex (replaces p-value table). Autoantibody analysis (Aab+ only): per-donor AAb profile table + feature by AAb count box plot. Use 'Sex' not 'Gender' in all user-facing labels.
-
-### Key Utilities (`utils_stats.R`)
-- `aggregate_to_donor(rdf, agg_fn)` -- Groups by `Case ID` + `donor_status`, computes mean/median of `value`, preserves age/gender
-- `lmer_test_donor(rdf)` -- Mixed-effects model, returns `list(p_value, icc, fit, error_msg)`. Uses `lmerTest::anova()` (Satterthwaite F-test). Returns diagnostic `error_msg` on failure (singular fit, convergence, missing packages). Yellow warning banner displayed in UI when `error_msg` is non-NULL.
-- `per_bin_donor_anova(df, ...)` -- Donor-level per-bin ANOVA. Skips bins where any group has <2 donors.
-- `per_bin_donor_kendall(df, ...)` -- Donor-level per-bin Kendall tau. Skips bins with <3 total donors.
-- `normality_tests(ddf)` -- Shapiro-Wilk per group, returns data.frame with `W`, `p_value`, `is_normal`
-
-### R Package Dependencies for Phase 16
-- `lmerTest` (3.2-1) -- Mixed-effects model with Satterthwaite df
-- `lme4` (1.1.37) -- `VarCorr()` for ICC computation
-
-### Shared Sidebar Architecture
-The Plot sidebar (mode, feature, region, donor status, AAb, age, gender filters) is visible on both the Plot and Statistics tabs. Achieved via `conditionalPanel` condition `"input.tabs == 'Plot' || input.tabs == 'Statistics'"` and matching JS `adjustLayout()` logic in `app.R`. The Statistics module consumes `plot_returns$raw_df` and `plot_returns$summary_df` directly -- no data duplication.
-
-### 5-Section Narrative Layout
-Numbered sections with `section_heading()` helper (gradient blue pill badge + bold title + grey subtitle + light blue bottom border):
-
-1. **Configure Analysis** -- Overview banner, Run/CSV buttons, test type, alpha, outliers, min-cells filter, normality test results, no-binning checkbox, bin width, diameter range. Two control rows.
-2. **Primary Results** -- Pseudoreplication info banner (ICC, mixed-effects p) + hypothesis table (col-4) + forest plot (col-4) + AUC (col-4). Cards equal-height via `display: flex` row.
-3. **Size-Dependent Patterns** -- Wrapped in `conditionalPanel` for no-binning toggle. Donor-level stratified tests heatmap + trend analysis. Angled x-axis labels.
-4. **Confounders & Deeper Analysis** -- Demographics (full-width card): donor summary table (N islets primary, N donors), age scatter (islet-level, all points), sex box plot (faceted by sex), autoantibody profile (Aab+ only, AAb count box plot + per-donor table), covariate model (donor-level)
-5. **Methods Reference** -- Updated to explain pseudoreplication, donor-level aggregation, ICC, mixed-effects, normality testing
-
-### Multiple Testing Correction
-Per-bin ANOVA and Kendall τ p-values are BH-corrected across bins via `p.adjust(method = "BH")`. Heatmap shows `-log10(q)` (corrected) with star annotations using corrected values. Trend plot significance coloring also uses corrected p-values.
-
-### Plotly Legend Positioning
-Forest plot uses `theme(legend.position = "none")` in ggplot (prevents ggplotly auto-placement), then `layout(margin = list(b = 60), legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.25))` in plotly. The `margin(b=60)` creates room below the x-axis title to prevent overlap. The trend plot uses `margin(b=100)` with legend at `y = -0.3` (`showlegend = TRUE`, no title).
-
-### Effect Size Utilities (`utils_stats.R`)
-- `cohens_d(x, y)` -- returns `list(d, ci_lo, ci_hi)` (NOT `ci_lower`/`ci_upper`)
-- `eta_squared(fit)` -- from `anova()` output
-- `pairwise_wilcox(df, group_col, value_col)` -- returns data.frame with columns `group1`, `group2`, `p_value` (NOT `p.adj`/`statistic`)
-
-## Interactive Features (Phase 5, Feb 2026)
-
-### Phenotype Composition Explorer
-Plot tab Composition mode exposes 21 cell-type proportions (`prop_*` from H5AD `.obs`) + 21 peri-islet proportions (`peri_prop_*`) + 5 immune metrics alongside 3 hormone fractions. Grouped `selectInput` with 4 option groups.
-
-### Age & Sex Demographic Filters
-Age slider and sex checkboxes in Plot sidebar (H5AD only). `renderUI` returns `NULL` when absent.
-
-### Multi-Feature Trajectory Heatmap
-Z-scored expression along pseudotime. Clamped [-2.5, 2.5], blue-white-red, dynamic height.
-
-### Segmentation + Drill-Down Pattern
-Click a point -> `selected_islet()` updates -> embedded panel renders inline with Boundaries/Single Cells toggle. Close button sets `selected_islet(NULL)`.
-
-## AI Assistant (Phase 10, Feb 2026)
-
-### Architecture
-
-The AI chat panel (`mod_ai_assistant_ui/server.R`) uses the University of Florida Navigator AI Toolkit via an OpenAI-compatible API. Wired as `ai_assistant_server("ai_chat")` in `app.R`.
-
-**Key files:**
-- `ai_helpers.R` -- Credential loading, API calls (streaming + non-streaming), model selection, error handling
-- `mod_ai_assistant_ui.R` -- Chat panel UI with model picker, textarea, send/reset buttons
-- `mod_ai_assistant_server.R` -- Chat history management, streaming callback, token budget tracking, `strip_markdown()` for plain-text display
-
-### UF Navigator API
-
-- **Endpoint**: `https://api.ai.it.ufl.edu/v1/chat/completions`
-- **Available models** (as of Feb 2026):
-  - `gpt-oss-20b` -- Fast model (default)
-  - `gpt-oss-120b` -- Large reasoning model (chain-of-thought in `reasoning_content`, answer in `content`)
-- **Authentication**: Bearer token from `KEY` env var (loaded from `.Renviron`)
-- **Base URL**: `BASE` env var in `.Renviron` (defaults to `https://api.openai.com/v1` if unset)
-
-### Reasoning Model Behavior (gpt-oss-120b)
-
-The 120b model is a reasoning model (similar to DeepSeek R1). Its API behavior differs from standard models:
-
-- **Non-streaming**: Response has `message.content` (final answer) + `message.reasoning_content` (chain-of-thought). Content may be `null` if `max_tokens` is too low for reasoning + answer.
-- **Streaming**: Chunks first arrive with `delta.reasoning_content` only (no `delta.content`). After reasoning completes, `delta.content` chunks appear with the actual answer. The streaming parser in `ai_helpers.R` shows "Thinking..." during the reasoning phase and displays the answer once content chunks arrive.
-
-### Credential Loading
-
-`ai_helpers.R` searches for `.Renviron` in priority order:
-1. `app/shiny_app/.Renviron` (deployment)
-2. Script directory `.Renviron`
-3. `R_ENVIRON_USER` env var
-4. `~/.Renviron`
-5. `~/.Renviron.local`
-6. `$HOME/.Renviron`
-
-Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
-
-### Model Fallback Logic
-
-`select_openai_models()` returns a candidate list. For each candidate, `call_openai_chat()` tries streaming first, then non-streaming. If a model returns HTTP 400/401/404 with "model" in the error, it falls back to the next candidate. The fallback model defaults to `gpt-oss-120b` (env var `OPENAI_DEFAULT_MODEL`).
-
-**Critical**: UF Navigator returns HTTP **401** (not 404) for model access denied. The fallback logic must include 401 in its status code checks.
-
-### Important AI Conventions
-
-- **Model names must match API**: Query `GET /v1/models` to verify available models. Do NOT hardcode model names without checking.
-- **Reasoning models need sufficient tokens**: `max_output_tokens` must be large enough for reasoning + answer. With `max_tokens=10`, a reasoning model may exhaust budget during chain-of-thought and return `content: null`.
-- **UF Navigator uses `/chat/completions` only**: The code detects `api.ai.it.ufl.edu` in the base URL and skips the `/responses` endpoint.
-- **Streaming parser must handle `reasoning_content`**: Standard delta parsing only checks `delta.content`. For reasoning models, `delta.reasoning_content` chunks arrive first — use a "Thinking..." indicator.
-- **Token budget**: Controlled by `OPENAI_TOKEN_BUDGET` env var. Chat panel shows cumulative usage and blocks requests when budget exhausted.
-- **Debug mode**: Set `DEBUG_CREDENTIALS=1` env var for verbose credential loading logs in the Shiny console.
-- **Plain-text display**: `strip_markdown()` in `mod_ai_assistant_server.R` removes markdown formatting (bold, headers, bullets, code blocks, links) from AI responses before display. Chat shows clean plain text, not raw markdown syntax.
-
-## Cell-Count-Weighted Trajectory (Phase 12, Mar 2026)
-
-### Problem
-60.8% of islets have ≤10 cells — their aggregated scVI embeddings are noisy. DPT operates on 10-dim scVI latent space but the scatter shows single-marker expression from `.X`. An islet can be "far" in latent space (unusual across ALL 31 markers → high DPT) while having normal INS expression. These islets are real biology but shouldn't get equal visual weight.
-
-### Solution: Cell-Count-Aware Visualization
-- **Point sizing**: `sqrt(total_cells)` — area proportional to cell count. Default in trajectory scatter.
-- **Weighted LOESS**: `weight = log1p(total_cells)` — well-measured islets drive trends, small islets contribute proportionally less. Raw counts too skewed (median=9, max=1,902) → `log1p` compresses 1,902:1 ratio to ~11:1.
-- **Hover tooltip**: Shows "Cells: N" on hover so users understand point placement.
-- **UI controls**: Point size selector: Cell Count (default) / Islet Diameter / Uniform.
-
-### Key Details
-- `total_cells` is in `adata_ins_root.h5ad` `.obs` (all 5,214 islets, min=1, max=1,902)
-- Added to `traj_data_clean()` result_df with NA guard (fills missing with 1)
-- `log1p(total_cells)` for LOESS weights — prevents extreme islets from distorting trend lines
-- `sqrt(total_cells)` for point sizing — area proportional, range [0.3×, 3.0×] base point size
-- All three trend line variants weighted: overall, by-donor (donor_id coloring), by-donor (donor_status coloring)
-- **Critical**: Raw `total_cells` as LOESS weight causes wild curves — a 1,902-cell islet dominates the fit. Always use `log1p()`.
-
-## Donor Batch Correction & Pseudotime Modes (Phase 17, Apr 2026)
-
-### scVI batch_key bug (root cause)
-
-`single_cell_analysis/SCVI_CODEX_v2.ipynb` cell 16 set `categorical_covariate_keys=["Age", "Gender"]` but **never passed `batch_key="imageid"`**, despite comments claiming otherwise. Result: scVI's batch decoder was never activated and donor-specific technical variance (staining, antibody lot, imaging gain) leaked into `X_scVI_mean`. Symptoms: donor 6356 (ND, 18.8% of cells) formed a standalone Leiden cluster at every resolution (80–92% dominance); Cramer's V donor↔cluster ≈ 0.4 with AMI(donor) > AMI(status).
-
-**Fix:** downstream Harmony correction (avoids scVI retrain on 2.6M cells). Two different θ values for two different goals.
-
-### Step 8: Harmony for Leiden clustering (θ=2)
-
-`scripts/reaggregate_islets.py` Step 8 applies `harmonypy.run_harmony` on `X_scVI_mean` with `batch=imageid`, `theta=2.0` before `sc.pp.neighbors`. Embedding stored as `obsm['X_scVI_harmony']`. Goal: donor-invariant islet cell-types. Post-fix metrics: Cramer's V dropped from 0.38 → 0.135, donor 6356's worst-cluster fraction 0.83 → 0.29, AMI(donor) 0.19 → 0.028. Status-orthogonality is fine/desired (clusters are cell-types, disease lives on pseudotime).
-
-### Step 5: Trajectory pseudotime (raw scVI core, robust medoid root)
-
-Step 5 uses **raw `X_scVI_mean`** (no Harmony) for the default core-only pseudotime. Empirical sweep showed even θ=0.1 compressed ND→T1D span more than it bought in donor noise reduction. Aab+ donor variance accepted as biology (Aab+ donors exhibit a heterogeneous range of islet types).
-
-**Robust root selection** (replaces single-islet `argmax(INS)` over ND): root = medoid of top-50 ND islets by INS in scVI space. Anchored by the centre-of-mass of "healthy ND, INS-high" islets and naturally draws from multiple donors. Current root: index 703, donor 6516, INS 0.663 (99.7th percentile).
-
-### Step 5b: Combined-mode pseudotime (Harmony θ=0.1 + structures α=0.15)
-
-Computes a SECOND pseudotime saved as `dpt_pseudotime_combined`. Input matrix: `[core_scVI(10) | peri_scVI(10) | α_struct · z(struct(16))]` = 36 dims. Structural block: (`prop`, `count`) × (Neural, Blood Vessel, Endothelial, Lymphatic) × (core, peri), z-scored, scaled by `ALPHA_STRUCT = 0.15`. Disease ordering breaks at α ≥ 0.20; α=0.15 is the largest weight preserving ND<Aab+<T1D ordering while strengthening immune/vascular marker correlations (CD3e, CD8a, CD31, CD34, PDPN). Light Harmony (θ=0.1) on the combined matrix; same medoid root as core mode.
-
-### App: Pseudotime mode selector
-
-`mod_trajectory_ui.R` adds a dropdown "Pseudotime mode" with two options: "Core only" (default) and "Core + Peri". `mod_trajectory_server.R::traj_with_pseudotime()` switches `obs$pseudotime` between `dpt_pseudotime` and `dpt_pseudotime_combined` based on `input$pt_mode`. The selector controls X-axis (pseudotime) only — Y-axis features remain the 31-marker panel.
-
-### Step 6 validation thresholds
-
-- INS Spearman r < −0.3 (PASS at −0.69 raw / −0.55 combined)
-- GCG Spearman r > 0.1 (relaxed from 0.2 because raw donor-amplified ~0.27 dropped post-fix)
-- ND<Aab+<T1D mean ordering
-- Donor eta² within status: ≤ 0.15 for ND/T1D, **≤ 0.25 for Aab+** (relaxed because Aab+ donors genuinely span heterogeneous islet types)
-- 6533 included
-
-### Important: don't claim "scVI is batch-corrected"
-
-Old comments in `reaggregate_islets.py` and `islet_analysis/CLAUDE.md` claimed "scVI latent has donor-level variation corrected out (Age+Gender covariates bijectively map to donors)". This is wrong — Age/Gender as `categorical_covariate_keys` don't activate batch correction; only `batch_key` does. Comments updated Apr 2026.
+Per-tab implementation details — Spatial Neighborhood Analysis (Phase 7), Single-Cell Drill-Down (Phase 8), Statistics Tab pseudoreplication fix (Phase 16), Cell-Count-Weighted Trajectory (Phase 12), Pseudotime Heatmap, AI Assistant (Phase 10) — live in `app/shiny_app/CLAUDE.md`.
 
 ## Important Conventions
 
@@ -434,23 +148,11 @@ Old comments in `reaggregate_islets.py` and `islet_analysis/CLAUDE.md` claimed "
 - **Case ID zero-padding**: GeoJSON files use `0112.geojson` (4-digit padded), data uses `112` (unpadded). `load_case_geojson()` and click handlers use `sprintf("%04d", ...)` fallback
 - **Log-scale with zeros**: Use `scales::pseudo_log_trans(base=10)` instead of `scale_y_log10()` -- zeros map to 0 (visible) instead of -Infinity (dropped)
 - **Plot defaults**: Point size = 3.0, transparency = 0.6
-- **Peri-islet data guard**: Always check `total_cells_peri > 0` before using peri metrics (all 5,214 islets have peri data with require_paired=True, but guard remains for robustness)
+- **Peri-islet data guard**: Always check `total_cells_peri > 0` before using peri metrics
 - **Column name sanitization**: Phenotype names use `_` for spaces, `plus` for `+` in peri-islet columns
 - **Single-cell Parent column**: `Islet_N` = core cells, `Islet_N_exp20um` = peri-islet cells
-- **CSS overflow for cards with dropdowns**: `selectInput` menus extend below their container. Add `overflow: visible;` to card styles or dropdowns get clipped behind cards.
-- **Font size minimums**: Use `h5` (not `h6`) with explicit `font-size: 15px` for panel headings. Legend items minimum 14-15px.
-- **Large scatter plots (>50K points)**: Use `ggplot2::renderPlot()` NOT `plotlyOutput()` -- plotly cannot handle 100K+ points interactively. Use small `size` (0.3-0.5) and low `alpha` (0.3-0.6).
-- **Tissue scatter coordinate convention**: `coord_fixed() + scale_y_reverse()` matches microscopy convention (y increases downward, spatial proportions preserved)
-- **Leiden cluster mapping for cells**: Islet-level Leiden assignments map to single cells via `islet_name` column lookup. Tissue background cells without an islet get `cluster = "tissue"` (grey).
-- **Per-donor tissue CSVs**: `data/donors/{imageid}.csv` with 5 columns (X_centroid, Y_centroid, phenotype, cell_region, islet_name). `cell_region` = core/peri/tissue.
-- **Leiden in H5AD**: 4 resolution columns (`leiden_0.3/0.5/0.8/1.0`) + 2 UMAP coords (`leiden_umap_1/2`). Extracted via `^leiden_` regex in `data_loading.R`.
-- **Leiden UMAP uses visualization coords**: `islets_core_clustered.h5ad` X_umap is copied from trajectory's raw marker PCA UMAP (min_dist=0.5, spread=2.0), NOT computed separately from scVI (which produces a blob). Leiden clustering itself still uses scVI neighbors.
-- **Donor palette syncing**: 3 non-namespaced `selectInput`s (`sidebar_donor_palette`, `traj_donor_palette`, `spatial_donor_palette`) synced bidirectionally via `observeEvent` + `updateSelectInput` in `app.R`. All feed `donor_palette_name()` -> `active_donor_colors()`.
-- **Trajectory legend uses reactive colors**: `donor_colors_reactive()` NOT hardcoded hex. Changes when palette selector updates.
-- **Spatial background cell coloring**: `color_background` checkbox. When checked + phenotype mode, background cells get phenotype colors at alpha=0.25. Palette must include both fg + bg phenotypes.
-- **Reticulate bridge crossing**: `ad$uns[[key]]` costs ~221ms per call. ALWAYS cache `uns <- ad$uns` as an R list first, then index. `reconstruct_groovy_df_from_list()` uses cached list; legacy `reconstruct_groovy_df()` is a thin wrapper.
-- **Deferred heavy file loading**: `annotations.tsv` (72 MB) lazy-loaded via `.seg_lazy` environment in `segmentation_helpers.R`. Only loaded on first fallback access (never in practice).
-- **Synthetic union rows need density**: `prep_data()` synthesizes `islet_union` rows by summing core+band. Must compute `area_um2`, `region_um2`, and `area_density = area_um2/region_um2` — setting these to `NA` causes Microenvironment Core+Peri to drop 12/15 donors (default metric is Density, NA filtered by `!is.na(value)`).
+
+App-specific UI conventions (CSS overflow, font minimums, large-scatter rendering, palette syncing, reticulate bridge, synthetic-union rows) live in `app/shiny_app/CLAUDE.md`.
 
 ## Deployment Architecture
 
@@ -475,27 +177,13 @@ Rscript -e 'shiny::runApp(".", port = 7777)'
 
 ## Running Pipeline Scripts
 
+See `scripts/CLAUDE.md` for the full per-script command list. Quick rebuild:
+
 ```bash
 conda activate scvi-env
-
-# Fix T cell subtypes in canonical H5AD (dry-run first, then apply)
-python scripts/fix_tcell_subtypes.py --dry-run
-python scripts/fix_tcell_subtypes.py
-
-# Full rebuild from single-cell H5AD (aggregate + trajectory + Leiden, ~15 min)
-python scripts/reaggregate_islets.py
-
-# Compute neighborhood metrics (reads 2.6M-cell H5AD, ~3 min)
-python scripts/compute_neighborhood_metrics.py
-
-# Extract per-islet cell CSVs (reads 2.6M-cell H5AD, ~5 min)
-python scripts/extract_per_islet_cells.py
-
-# Extract per-donor tissue CSVs for Spatial tab scatter (~2 min, independent of islet filtering)
-python scripts/extract_per_donor_tissue.py
-
-# Build enriched H5AD (merges trajectory + groovy + neighborhood + Leiden)
-python scripts/build_h5ad_for_app.py
+python scripts/reaggregate_islets.py          # ~15 min: aggregation + trajectory + Leiden
+python scripts/compute_neighborhood_metrics.py # ~3 min
+python scripts/build_h5ad_for_app.py          # ~1 min: merge into app H5AD
 ```
 
 ## Analysis Pipeline
@@ -506,7 +194,7 @@ See `docs/user_guide.md` for end-user documentation.
 
 ## Cross-Session Knowledge
 
-Cross-session development knowledge for this project lives in Claude's auto-memory at `~/.claude/projects/-home-smith6jt/memory/` (multi-project index in `MEMORY.md`, Islet-Explorer entries prefixed `islet_*`). The earlier `Skills_Registry/` submodule + `/advise` + `/retrospective` workflow was retired Apr 2026 in favour of the auto-memory mechanism.
+Cross-session development knowledge for this project lives in Claude's auto-memory at `~/.claude/projects/-home-smith6jt-panc-CODEX-Islet-Explorer/memory/` (index in `MEMORY.md`). The earlier `Skills_Registry/` submodule + `/advise` + `/retrospective` workflow was retired Apr 2026 in favour of the auto-memory mechanism.
 
 ## R Dependencies
 

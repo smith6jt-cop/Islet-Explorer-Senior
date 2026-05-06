@@ -1095,67 +1095,116 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       g
     })
 
-    # ---------- Heatmap: Donor Status Progression ----------
+    # ---------- Heatmap: Dominant Status × Feature Intensity ----------
+    # Hue per pseudotime bin = dominant donor_status, computed as the
+    # argmax of per-status NORMALIZED density (count_in_bin / total_for_status).
+    # Normalization corrects for global cohort imbalance
+    # (ND ~2300, Aab+ ~1668, T1D ~1246 islets) so dominance reflects
+    # enrichment relative to each status's pool, not raw count.
+    # Intensity per bin = bin-mean of selected feature, normalized via
+    # 5–95th percentile clip, blended in [INTENSITY_FLOOR, 1] toward the
+    # donor color so even the dimmest bin is a clear tint (never white).
+    # Rendered with ggplot + geom_tile to guarantee bars span [0, 1].
+    INTENSITY_FLOOR <- 0.50  # minimum blend factor — bars never go pale-white
     output$traj_heatmap <- renderPlotly({
       df <- traj_data_clean()
       if (is.null(df) || nrow(df) == 0) return(NULL)
 
-      # Create binned analysis
-      enc <- function(s) ifelse(s == "ND", 0, ifelse(s == "Aab+", 1, ifelse(s == "T1D", 2, NA_real_)))
-      df$ds_code <- enc(df$donor_status)
+      feature_name <- df$feature_name[1]
+      donor_cols   <- donor_colors_reactive()
+      n_bins       <- 25
+      brks         <- seq(0, 1, length.out = n_bins + 1)
+      bin_w        <- diff(brks)[1]
+      mids         <- head(brks, -1) + bin_w / 2
 
-      # pt is already rank-normalized to ~[0, 1] by traj_data_clean()
-      nb   <- 25
-      brks <- seq(0, 1, length.out = nb + 1)
-      df$pt_bin <- cut(pmax(0, pmin(1, df$pt)), breaks = brks, include.lowest = TRUE, right = FALSE)
-
-      # Calculate averages per bin using base R
+      df$pt_bin <- cut(pmax(0, pmin(1, df$pt)), breaks = brks,
+                       include.lowest = TRUE, right = FALSE)
       bin_levels <- levels(df$pt_bin)
-      hm_list <- list()
 
-      for (i in seq_along(bin_levels)) {
-        bin_name <- bin_levels[i]
-        bin_data <- df[!is.na(df$pt_bin) & df$pt_bin == bin_name, ]
+      status_levels <- c("ND", "Aab+", "T1D")
+      status_totals <- sapply(status_levels, function(s) sum(df$donor_status == s))
 
-        if (nrow(bin_data) >= 1) {
-          hm_list[[length(hm_list) + 1]] <- data.frame(
-            pt_bin            = factor(bin_name, levels = bin_levels),
-            avg_donor_status  = mean(bin_data$ds_code, na.rm = TRUE),
-            count             = nrow(bin_data),
-            stringsAsFactors  = FALSE
-          )
+      bin_rows <- lapply(seq_along(bin_levels), function(i) {
+        bd <- df[!is.na(df$pt_bin) & df$pt_bin == bin_levels[i], , drop = FALSE]
+        if (nrow(bd) == 0) {
+          return(data.frame(idx = i, x = mids[i], n = 0L,
+                            n_ND = 0L, n_Aab = 0L, n_T1D = 0L,
+                            dens_ND = 0, dens_Aab = 0, dens_T1D = 0,
+                            dominant = NA_character_, feat_mean = NA_real_,
+                            stringsAsFactors = FALSE))
         }
+        counts <- c(ND = sum(bd$donor_status == "ND"),
+                    `Aab+` = sum(bd$donor_status == "Aab+"),
+                    T1D = sum(bd$donor_status == "T1D"))
+        dens <- ifelse(status_totals > 0, counts / status_totals, 0)
+        names(dens) <- status_levels
+        dominant <- names(dens)[which.max(dens)]
+        data.frame(idx = i, x = mids[i], n = nrow(bd),
+                   n_ND = counts[["ND"]], n_Aab = counts[["Aab+"]], n_T1D = counts[["T1D"]],
+                   dens_ND = dens[["ND"]], dens_Aab = dens[["Aab+"]], dens_T1D = dens[["T1D"]],
+                   dominant = dominant,
+                   feat_mean = mean(bd$value, na.rm = TRUE),
+                   stringsAsFactors = FALSE)
+      })
+      hm <- do.call(rbind, bin_rows)
+      if (is.null(hm) || nrow(hm) == 0) return(NULL)
+
+      # Intensity from feature value, robust 5–95th percentile clip
+      q   <- stats::quantile(hm$feat_mean, c(0.05, 0.95), na.rm = TRUE)
+      rng <- diff(q)
+      raw_intensity <- if (is.finite(rng) && rng > 0) {
+        pmax(0, pmin(1, (hm$feat_mean - q[1]) / rng))
+      } else {
+        rep(1, nrow(hm))
       }
+      raw_intensity[!is.finite(raw_intensity)] <- INTENSITY_FLOOR
+      # Rescale so the lowest bin is INTENSITY_FLOOR-saturated (clearly tinted),
+      # the highest bin is fully saturated.
+      hm$intensity <- INTENSITY_FLOOR + (1 - INTENSITY_FLOOR) * raw_intensity
 
-      if (length(hm_list) == 0) return(NULL)
-      hm <- do.call(rbind, hm_list)
-      if (nrow(hm) == 0) return(NULL)
+      blend_to_white <- function(hex, t) {
+        rgb_full <- grDevices::col2rgb(hex) / 255
+        grDevices::rgb(red   = t * rgb_full[1] + (1 - t) * 1,
+                       green = t * rgb_full[2] + (1 - t) * 1,
+                       blue  = t * rgb_full[3] + (1 - t) * 1)
+      }
+      hm$fill <- mapply(function(dom, ity) {
+        if (is.na(dom) || is.null(donor_cols[[dom]])) return("#BBBBBB")
+        blend_to_white(donor_cols[[dom]], ity)
+      }, hm$dominant, hm$intensity, USE.NAMES = FALSE)
 
-      # Bin midpoints on [0, 1] (matches rank-normalized scatter x-axis)
-      all_mids <- head(brks, -1) + diff(brks)[1] / 2
-      bin_idx  <- match(as.character(hm$pt_bin), bin_levels)
-      hm$x     <- all_mids[bin_idx]
+      hm$hover <- sprintf(
+        paste0(
+          "PT: %.2f<br>Dominant: %s<br>",
+          "n: %d (ND %d, Aab+ %d, T1D %d)<br>",
+          "Normalized density: ND %.1f%%, Aab+ %.1f%%, T1D %.1f%%<br>",
+          "%s mean: %.3f"
+        ),
+        hm$x, ifelse(is.na(hm$dominant), "n/a", hm$dominant),
+        hm$n, hm$n_ND, hm$n_Aab, hm$n_T1D,
+        100 * hm$dens_ND, 100 * hm$dens_Aab, 100 * hm$dens_T1D,
+        feature_name, hm$feat_mean
+      )
 
-      # Build as plotly heatmap to match scatter margins exactly
-      # Colorscale: ND (blue) -> Aab+ (orange) -> T1D (green)
-      plot_ly() %>%
-        add_trace(
-          type = "heatmap",
-          x = hm$x,
-          y = list(""),
-          z = matrix(hm$avg_donor_status, nrow = 1),
-          colorscale = list(c(0, donor_colors_reactive()[["ND"]]),
-                            c(0.5, donor_colors_reactive()[["Aab+"]]),
-                            c(1, donor_colors_reactive()[["T1D"]])),
-          zmin = 0, zmax = 2,
-          showscale = FALSE,
-          hovertemplate = "PT: %{x:.2f}<br>Avg status: %{z:.2f}<extra></extra>"
-        ) %>%
+      g <- ggplot(hm, aes(x = x, y = 0.5, fill = fill, text = hover)) +
+        geom_tile(width = bin_w, height = 1) +
+        scale_fill_identity(guide = "none") +
+        scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+        guides(fill = "none") +
+        theme_void() +
+        theme(legend.position = "none",
+              plot.margin = margin(5, 20, 10, 60, "pt"))
+
+      ggplotly(g, tooltip = "text") %>%
         layout(
-          xaxis = list(range = c(0, 1), title = "", fixedrange = TRUE),
-          yaxis = list(title = "", showticklabels = FALSE, fixedrange = TRUE),
-          margin = list(l = 60, r = 20, t = 5, b = 30, pad = 5)
-        )
+          showlegend = FALSE,
+          xaxis = list(fixedrange = TRUE, showticklabels = FALSE,
+                       zeroline = FALSE, range = c(0, 1)),
+          yaxis = list(fixedrange = TRUE, showticklabels = FALSE,
+                       zeroline = FALSE, range = c(0, 1))
+        ) %>%
+        config(displayModeBar = FALSE)
     })
 
     # ---------- Multi-Feature Heatmap ----------

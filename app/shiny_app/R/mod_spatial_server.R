@@ -898,17 +898,19 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       cur_c <- isolate(input$distance_metric)
       sel_c <- if (!is.null(cur_c) && cur_c %in% dist_ch) cur_c else "min_dist_immune_mean"
       updateSelectInput(session, "distance_metric", choices = dist_ch, selected = sel_c)
-    })
 
-    # Card C-Right: KDE phenotypes — populate from CSV's distinct phenotype values.
-    observe({
+      # Card C-Right: KDE phenotypes — populated from CSV's distinct phenotypes.
+      # Lives inside this observer so it shares the phenotype_choices() reactive
+      # dependency, ensuring the update fires after the Card C renderUI has
+      # mounted the kde_immune_type selectInput on the client.
       kde_df <- load_immune_kde_data()
-      if (is.null(kde_df) || !"phenotype" %in% colnames(kde_df)) return()
-      phenos <- sort(unique(as.character(kde_df$phenotype)))
-      ch <- c("Immune (all)" = "all", stats::setNames(phenos, phenos))
-      cur <- isolate(input$kde_immune_type)
-      sel <- if (!is.null(cur) && cur %in% ch) cur else "all"
-      updateSelectInput(session, "kde_immune_type", choices = ch, selected = sel)
+      if (!is.null(kde_df) && "phenotype" %in% colnames(kde_df)) {
+        phenos <- sort(unique(as.character(kde_df$phenotype)))
+        ch_kde <- c("Immune (all)" = "all", stats::setNames(phenos, phenos))
+        cur_k <- isolate(input$kde_immune_type)
+        sel_k <- if (!is.null(cur_k) && cur_k %in% ch_kde) cur_k else "all"
+        updateSelectInput(session, "kde_immune_type", choices = ch_kde, selected = sel_k)
+      }
     })
 
     # ==== Card A-Left: Per-phenotype peri-zone enrichment z-score (donor-level) ====
