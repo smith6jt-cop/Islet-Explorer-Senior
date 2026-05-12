@@ -159,7 +159,7 @@ lmer_test_donor <- function(rdf) {
 
   error_msg <- NULL
   if (is.na(p_val)) error_msg <- "Could not extract p-value from model ANOVA table"
-  if (isSingular(fit)) error_msg <- paste0(error_msg %||% "", "Model is singular (zero donor variance)")
+  if (lme4::isSingular(fit)) error_msg <- paste0(error_msg %||% "", "Model is singular (zero donor variance)")
 
   list(p_value = p_val, icc = icc, fit = fit, error_msg = error_msg)
 }

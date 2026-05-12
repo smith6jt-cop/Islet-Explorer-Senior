@@ -102,20 +102,28 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         # proportions and enrichment uniformly across all phenotypes; the
         # ad-hoc curated ratios were removed in favour of that systematic UI.
         if (length(prop_cols) > 0 || length(peri_prop_cols) > 0) {
-          choices <- list("Hormone Positivity (QuPath threshold)" = base_choices)
+          choices <- list("Core — Hormone Positivity (QuPath threshold)" = base_choices)
           if (length(prop_cols) > 0) {
             prop_labels <- gsub("^prop_", "", prop_cols)
-            choices[["Phenotype Proportions (scVI)"]] <- setNames(prop_cols, prop_labels)
+            choices[["Core — Phenotype Proportions (scVI)"]] <- setNames(prop_cols, prop_labels)
           }
           if (length(peri_prop_cols) > 0) {
             peri_labels <- gsub("^peri_prop_", "", peri_prop_cols)
-            choices[["Peri-Islet Proportions"]] <- setNames(peri_prop_cols, peri_labels)
+            choices[["Peri-Islet — Phenotype Proportions (scVI)"]] <- setNames(peri_prop_cols, peri_labels)
           }
         } else {
           choices <- base_choices
         }
-        selectInput(ns("which"), "Population Measure", choices = choices,
-                    selected = if (!is.null(input$which) && input$which %in% unlist(choices)) input$which else "Ins_any")
+        tagList(
+          selectInput(ns("which"), "Population Measure", choices = choices,
+                      selected = if (!is.null(input$which) && input$which %in% unlist(choices)) input$which else "Ins_any"),
+          helpText(
+            "Core = cells within the islet boundary. Peri-Islet = cells within a 20 µm zone around the islet. ",
+            "No Core+Peri combined option in this mode — use ",
+            tags$em("Data Layer = Microenvironment"),
+            " for that."
+          )
+        )
       }
     })
 
@@ -129,11 +137,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         w <- input$which %||% ""
         if (startsWith(w, "peri_prop_")) {
           radioButtons(ns("metric"), "Metric",
-                       choices = c("Percentage", "Counts"),
+                       choices = c("% of peri cells" = "Percentage",
+                                   "Peri cell count" = "Counts"),
                        selected = "Percentage", inline = TRUE)
         } else {
           radioButtons(ns("metric"), "Metric",
-                       choices = c("Percentage", "Counts", "Density"),
+                       choices = c("% of core cells" = "Percentage",
+                                   "Core cell count" = "Counts",
+                                   "Core density (per mm²)" = "Density"),
                        selected = "Percentage", inline = TRUE)
         }
       }

@@ -295,6 +295,19 @@ ui <- fluidPage(
     .ai-chat-message.assistant .ai-chat-meta {
       color: #2c5aa0;
     }
+
+    /* --- Plotly modebar positioning -------------------------------------
+       The modebar (top-right hover controls) sits in the same vertical band
+       as the centered chart title, overlapping it on hover. Reserve a 28px
+       strip above each plotly figure so the modebar lives above the title.
+       Applies to every plot_ly + ggplotly fig in the app. */
+    .js-plotly-plot,
+    .html-widget.plotly {
+      padding-top: 28px;
+    }
+    .js-plotly-plot .plotly .modebar {
+      top: -28px !important;
+    }
   "))),
   tags$head(tags$style(HTML("
     .ai-chat-logo img {
