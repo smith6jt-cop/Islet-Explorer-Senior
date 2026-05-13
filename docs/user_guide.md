@@ -68,10 +68,11 @@ A single checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the P
 
 ### What you see when the filter is ON
 
-- Excluded points still render on Plot, Trajectory, and Spatial Card C as **faint grey × markers** ("ghost points") so you can see *where* in the distribution the exclusions are landing.
+- Excluded points still render on the Plot left scatter, the Plot right distribution panel, the Trajectory scatter, and the Spatial Card C box plot as **faint grey × markers** ("ghost points") so you can see *where* in the distribution the exclusions are landing.
 - Plot, Trajectory, Spatial Card A, and Spatial Card C show a **count badge** in or beneath the title: e.g. `"… — 4 outliers excluded (z > 3 per donor status)"`.
 - Statistics tab's Methods Reference section names the rule and reports the exact count for the current Run.
-- Plot and Trajectory each have an optional **"Show excluded-outlier table"** checkbox that lists Case ID, islet key, donor status, and the z-score for every flagged point.
+- **All four analysis tabs** have an optional **"Show excluded-outlier table"** checkbox: Plot (in the sidebar), Trajectory (above the scatter), Spatial Card A (Peri-Islet Enrichment) and Spatial Card C (Phenotype Proximity) — each next to its own phenotype/metric selector. Each table lists the flagged islets (Case ID, donor status, value, z-score or fence distance) and is shown directly below the corresponding plot.
+- Plot points and trajectory ghost-marker positions are stably jittered with a fixed seed, so toggling controls doesn't shuffle the cloud.
 
 ### What changes when the filter is OFF
 
@@ -108,15 +109,18 @@ The Plot tab is the primary exploration interface. It has a **sidebar** (left) a
 
 ### Main Panel
 
-- **Scatter/Distribution Plot**: Interactive Plotly scatter (diameter vs feature value) or distribution comparison (violin/box by disease stage)
-- **Outlier Table**: Lists extreme values for the selected feature
+- **Scatter (left)**: Interactive Plotly scatter, diameter vs selected feature, with binned summary lines per donor status. Excluded outliers (see [Outlier Handling](#outlier-handling)) appear as faint grey × ghost markers.
+- **Distribution (right)**: Violin or box plot of the same feature, grouped by donor status. Has its own **independent** "Exclude zero values" checkbox — toggling it no longer affects the left scatter. Outlier ghost × markers render here too.
+- **Outlier Table**: Lists excluded outliers for the selected feature. Hover the "Show excluded-outlier table" checkbox label in the sidebar for the rule.
 - **Click Interaction**: Click any data point to open the segmentation viewer (see [Single-Cell Drill-Down](#single-cell-drill-down))
 
 ### Tips
 
-- Use composition mode with "Peri-Islet Proportions" to visualize the cellular microenvironment around each islet
-- The "Immune Metrics" group provides pre-computed ratios that highlight immune infiltration differences between disease stages
-- Log-scale features (e.g., cell counts) use pseudo-log transformation so zero values remain visible at y=0
+- The two "Exclude zero values" checkboxes (one per panel) are independent — set them differently when you want the violin/box to include zeros but the binned scatter to exclude them, or vice-versa.
+- Point positions on both panels use seeded jitter, so the cloud doesn't shuffle when you toggle other controls.
+- Use composition mode with "Peri-Islet Proportions" to visualize the cellular microenvironment around each islet.
+- The "Immune Metrics" group provides pre-computed ratios that highlight immune infiltration differences between disease stages.
+- Log-scale features (e.g., cell counts) use pseudo-log transformation so zero values remain visible at y=0.
 
 ---
 
@@ -294,7 +298,7 @@ Below the tissue scatter and Leiden panel, three interactive analysis sections v
 - **Islet count**: Shows how many islets pass the current filters.
 
 **Card A: Peri-Islet Phenotype Enrichment**
-- **Left** (`Phenotype (peri enrichment z)` dropdown): Bar chart of donor-level mean/median enrichment z-score across disease stages for the selected phenotype. Shows Kruskal-Wallis p-value. Donor points overlay with summary bars (mean ± SEM or median ± IQR).
+- **Left** (`Phenotype (peri enrichment z)` dropdown): Bar chart of donor-level mean/median enrichment z-score across disease stages for the selected phenotype. Shows Kruskal-Wallis p-value. Donor points overlay with summary bars (mean ± SEM or median ± IQR). Outlier exclusion follows the global toggle (Tukey 1.5×IQR per donor status, zero-aware). A **"Show excluded-outlier table"** checkbox next to the phenotype selector reveals the list of excluded islets directly below the bar chart.
 - **Right** (`Phenotype (peri vs core)` dropdown): Scatter of peri-zone proportion vs core proportion for the selected phenotype, with dashed y=x diagonal. Sqrt-scale toggle and per-status trend-line option. Points above the line have higher core proportion than peri.
 - *Interpretation*: Pick any phenotype (Macrophage, CD8a Tcell, Beta cell, Endothelial, etc.) to see its peri-zone enrichment trajectory across ND→Aab+→T1D.
 
@@ -308,7 +312,7 @@ Below the tissue scatter and Leiden panel, three interactive analysis sections v
 - *Interpretation*: z > 0 means that phenotype is enriched near islets relative to the tissue-wide proportion. Useful for spotting structural changes (Endothelial, Lymphatic, Neural) alongside immune infiltration.
 
 **Card C: Phenotype Proximity to Islet**
-- **Left** (`Distance to nearest` dropdown): Box plot of minimum distance (μm) from islet core centroid to nearest peri-zone cells of the selected phenotype. Includes "Immune (all)" aggregate plus every individual phenotype with `min_dist_*` data. Shows non-NA counts per group. Outlier exclusion follows the global toggle (z > 3 per donor status applied to `log(1 + distance)`); excluded points still render as faint × markers. See [Outlier Handling](#outlier-handling).
+- **Left** (`Distance to nearest` dropdown): Box plot of minimum distance (μm) from islet core centroid to nearest peri-zone cells of the selected phenotype. Includes "Immune (all)" aggregate plus every individual phenotype with `min_dist_*` data. Shows non-NA counts per group. Outlier exclusion follows the global toggle (z > 3 per donor status applied to `log(1 + distance)`); excluded points still render as faint × markers. A **"Show excluded-outlier table"** checkbox next to the metric selector lists the excluded islets (Case ID, distance, z-score) below the box plot. See [Outlier Handling](#outlier-handling).
 - **Right** (`Phenotype` dropdown): KDE of signed distance from islet boundary for individual cells of the selected phenotype. Negative = inside islet (core), positive = outside (peri-islet). Dashed line at zero marks the boundary.
 - *Interpretation*: NA values in the box plot indicate islets with zero cells of that phenotype in the peri-islet zone (biological, not a data error — common for rare phenotypes like CD4 Tcell, B cell). Increase the min cells/islet filter to reduce NAs.
 
