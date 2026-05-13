@@ -14,7 +14,8 @@
 #   active_tab      -- reactive returning current tab name (e.g. "Plot")
 
 plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plot"),
-                        donor_colors_reactive = reactive(DONOR_COLORS)) {
+                        donor_colors_reactive = reactive(DONOR_COLORS),
+                        remove_outliers = reactive(TRUE)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -397,23 +398,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       bw <- suppressWarnings(as.numeric(input$binwidth))
       if (length(bw) != 1 || !is.finite(bw) || bw <= 0) bw <- 50
 
-      # Identify outliers (>3 SD per donor group) -- mark but do NOT remove
-      outlier_threshold <- 3
-      df$is_outlier <- FALSE
-      df$z_score <- NA_real_
-
-      for (grp in unique(df$donor_status)) {
-        idx <- which(df$donor_status == grp)
-        if (length(idx) < 3) next
-        grp_mean <- mean(df$value[idx], na.rm = TRUE)
-        grp_sd   <- sd(df$value[idx], na.rm = TRUE)
-        if (!is.finite(grp_sd) || grp_sd == 0) next
-        z <- (df$value[idx] - grp_mean) / grp_sd
-        df$z_score[idx] <- z
-        df$is_outlier[idx] <- !is.na(z) & abs(z) > outlier_threshold
-      }
-
-      outliers <- df[df$is_outlier, ]
+      # Flag outliers using the shared helper. z-score per donor status,
+      # threshold = 3. The exclusion flag controls whether outliers are
+      # dropped from summary_stats() downstream; ghost points always render.
+      df <- flag_outliers(df, value_col = "value", group_col = "donor_status",
+                          method = "zscore", threshold = 3,
+                          enabled = isTRUE(remove_outliers()))
+      summary <- summarize_outlier_filter(df)
+      outliers <- df[df$is_outlier, , drop = FALSE]
 
       # Store outliers for the sidebar table
       plot_outliers(
@@ -426,7 +418,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             Donor_Status  = outliers$donor_status,
             Diameter_um   = round(outliers$islet_diam_um, 1),
             Value         = round(outliers$value, 3),
-            Z_Score       = round(outliers$z_score, 2),
+            Z_Score       = round(outliers$outlier_score, 2),
             stringsAsFactors = FALSE
           )
         } else {
@@ -434,7 +426,10 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         }
       )
 
-      cat(sprintf("[PLOT] Identified %d outliers (>3 SD per group) - highlighted in plot\n", nrow(outliers)))
+      attr(df, "outlier_summary") <- summary
+      cat(sprintf("[PLOT] %d outliers flagged (%s)%s\n",
+                  summary$n_excluded, summary$label,
+                  if (summary$enabled) " — excluded from summary lines, drawn as ghost ×" else " — exclusion OFF"))
 
       # Attach diameter bins
       df <- bin_islet_sizes(df, "islet_diam_um", bw)
@@ -442,12 +437,17 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     })
 
     # ---- summary_df: mean/SE (or SD/IQR) per bin per group ----
+    # Excludes flagged outliers when the global filter is ON; otherwise
+    # all rows contribute to the binned summary.
     summary_df <- reactive({
       df <- plot_df()
       if (is.null(df) || !nrow(df)) return(data.frame())
       stat_choice <- input$stat %||% "mean_se"
       if (!stat_choice %in% c("mean_se", "mean_sd", "median_iqr")) {
         stat_choice <- "mean_se"
+      }
+      if ("is_outlier" %in% colnames(df) && isTRUE(remove_outliers())) {
+        df <- df[!df$is_outlier | is.na(df$is_outlier), , drop = FALSE]
       }
       summary_stats(df,
                     group_cols = c("donor_status", "diam_bin", "diam_mid"),
@@ -487,8 +487,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         )
       }
 
-      # Title
-      title_text <- if (identical(input$mode, "Microenvironment")) {
+      # Title (with outlier badge appended)
+      base_title <- if (identical(input$mode, "Microenvironment")) {
         # Extract class name from encoded "className|region" value
         wsel <- input$which %||% ""
         class_name <- strsplit(wsel, "\\|")[[1]][1]
@@ -509,6 +509,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         }
         paste0(nm, " vs Islet Size")
       }
+      outlier_summary <- attr(plot_df(), "outlier_summary")
+      title_text <- paste0(base_title, outlier_title_suffix(outlier_summary))
 
       # Pseudo-log transform: apply manually to avoid ggplotly axis corruption
       log_scale_on <- !is.null(input$log_scale) && input$log_scale
@@ -569,7 +571,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           if (!is.finite(mx) || mx < 0) 0 else mx
         }
 
-        # Normal points layer
+        # Normal points layer. Jitter is seeded so visual positions are
+        # stable across reactive re-renders (toggling zero-exclusion or the
+        # outlier filter doesn't shuffle the cloud).
         if (color_by == "donor_id") {
           if ("Case ID" %in% colnames(raw_normal)) {
             raw_normal$donor_id <- factor(raw_normal$`Case ID`)
@@ -578,14 +582,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             p <- p +
               geom_point(data = raw_normal,
                          aes(x = diam_mid, y = value, color = donor_id, key = islet_click_key),
-                         position = position_jitter(width = jw, height = jh),
+                         position = position_jitter(width = jw, height = jh, seed = 17),
                          size = input$pt_size, alpha = input$pt_alpha,
                          inherit.aes = FALSE)
           } else {
             p <- p +
               geom_point(data = raw_normal,
                          aes(x = diam_mid, y = value, color = donor_status, key = islet_click_key),
-                         position = position_jitter(width = jw, height = jh),
+                         position = position_jitter(width = jw, height = jh, seed = 17),
                          size = input$pt_size, alpha = input$pt_alpha,
                          inherit.aes = FALSE)
           }
@@ -593,20 +597,28 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           p <- p +
             geom_point(data = raw_normal,
                        aes(x = diam_mid, y = value, color = donor_status, key = islet_click_key),
-                       position = position_jitter(width = jw, height = jh),
+                       position = position_jitter(width = jw, height = jh, seed = 17),
                        size = input$pt_size, alpha = input$pt_alpha,
                        inherit.aes = FALSE)
         }
 
-        # Outliers (slightly larger, more visible)
+        # Ghost outliers: faint grey × markers so excluded points are still
+        # visible. Drawn last (on top) so reviewers can see WHERE in the
+        # distribution the exclusions land without those points pulling the
+        # summary trend lines. Distinct seed so ghost markers don't sit
+        # exactly on top of normal points of the same coordinate.
         if (nrow(raw_outliers) > 0) {
           p <- p +
             geom_point(data = raw_outliers,
-                       aes(x = diam_mid, y = value, color = donor_status, key = islet_click_key),
-                       position = position_jitter(width = jw, height = jh),
-                       size = input$pt_size * 1.2,
-                       alpha = min(1.0, input$pt_alpha * 1.5),
-                       inherit.aes = FALSE)
+                       aes(x = diam_mid, y = value, key = islet_click_key),
+                       position = position_jitter(width = jw, height = jh, seed = 31),
+                       shape = 4,
+                       size = input$pt_size * 1.1,
+                       stroke = 0.9,
+                       colour = "grey45",
+                       alpha = 0.55,
+                       inherit.aes = FALSE,
+                       show.legend = FALSE)
         }
       }
 
@@ -670,6 +682,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       # Convert to plotly with click source (namespaced for module compatibility)
       gg <- ggplotly(p, source = ns("plot_scatter"))
+      # Scrub the "colour: black" leak (from the shape-21 summary point's
+      # color = "black" parameter) and any duplicate donor_status lines.
+      gg <- strip_plotly_color_leak(gg)
       # Add thin black outlines to all marker traces
       for (i in seq_along(gg$x$data)) {
         tr <- gg$x$data[[i]]
@@ -724,8 +739,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     })
 
     # ---- Distribution violin/box plot ----
+    # Note: the right panel reads `raw_df_base()` (not `raw_df()`) so its
+    # "Exclude zero values" checkbox is fully independent of the left panel's
+    # equivalent \u2014 toggling one no longer affects the other. Outliers are
+    # flagged on the dist-specific subset so the helper sees the same
+    # distribution it is summarising, and ghost \u00d7 markers render at positions
+    # consistent with the current zero-exclusion state.
     output$dist <- renderPlotly({
-      rdf <- raw_df()
+      rdf <- raw_df_base()
       if (is.null(rdf) || nrow(rdf) == 0) return(NULL)
 
       req(input$mode, input$which)
@@ -739,8 +760,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                   input$which %||% "NULL",
                   dist_color_by_val %||% "NULL"))
 
-      # Apply exclude_zero_dist separately (raw_df already applies exclude_zero_top)
-      if (isTRUE(input$exclude_zero_dist) && !isTRUE(input$exclude_zero_top)) {
+      # Independent zero-exclusion for the Distribution panel.
+      if (isTRUE(input$exclude_zero_dist)) {
         rdf <- rdf %>% dplyr::filter(value != 0)
       }
 
@@ -755,6 +776,21 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         cat(sprintf("[DIST] Created donor_id with %d levels: %s\n",
                     length(levels(rdf$donor_id)),
                     paste(levels(rdf$donor_id), collapse = ", ")))
+      }
+
+      # Flag outliers on the dist-specific subset so badges and ghost markers
+      # reflect the zero-exclusion choice. The shared helper appends
+      # `is_outlier` + `outlier_score`; ghost rows are split off and drawn as
+      # a separate layer.
+      rdf <- flag_outliers(rdf, value_col = "value", group_col = "donor_status",
+                           method = "zscore", threshold = 3,
+                           enabled = isTRUE(remove_outliers()))
+      dist_summary <- summarize_outlier_filter(rdf)
+      rdf_ghost <- rdf[rdf$is_outlier, , drop = FALSE]
+      rdf <- rdf[!rdf$is_outlier | is.na(rdf$is_outlier), , drop = FALSE]
+      if (nrow(rdf_ghost) > 0 && !is.null(rdf_ghost$donor_status)) {
+        rdf_ghost$donor_status <- factor(rdf_ghost$donor_status,
+                                         levels = c("ND", "Aab+", "T1D"))
       }
 
       # Y-axis label
@@ -791,14 +827,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         scale_fill_manual(values = donor_colors_reactive(),
                           guide = "none")
 
-      # Individual points
+      # Individual points (kept = non-outliers). Jitter is seeded so the
+      # visual positions are stable across reactive re-renders \u2014 toggling
+      # other controls won't shuffle the cloud.
       if (isTRUE(input$dist_show_points)) {
         if (color_by == "donor_id" && "donor_id" %in% colnames(rdf)) {
           donor_colors <- get_donor_palette(levels(rdf$donor_id))
           cat(sprintf("[DIST] Applying donor_id colors for %d donors\n", length(donor_colors)))
           g <- g +
             geom_jitter(aes(x = donor_status, y = value, color = donor_id),
-                        width = 0.18,
+                        position = position_jitter(width = 0.18, seed = 17),
                         alpha = ifelse(is.null(input$dist_pt_alpha), 0.5, input$dist_pt_alpha),
                         size  = ifelse(is.null(input$dist_pt_size), 1.5, input$dist_pt_size),
                         stroke = 0, inherit.aes = FALSE) +
@@ -809,7 +847,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         } else {
           g <- g +
             geom_jitter(aes(x = donor_status, y = value, color = donor_status),
-                        width = 0.18,
+                        position = position_jitter(width = 0.18, seed = 17),
                         alpha = ifelse(is.null(input$dist_pt_alpha), 0.25, input$dist_pt_alpha),
                         size  = ifelse(is.null(input$dist_pt_size), 0.7, input$dist_pt_size),
                         stroke = 0, inherit.aes = FALSE) +
@@ -818,8 +856,29 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         }
       }
 
+      # Ghost \u00d7 layer: excluded outliers always rendered on the Distribution
+      # panel so users can see WHERE in the violin/box they live. Drawn last
+      # so they sit on top of the violin/box body.
+      if (nrow(rdf_ghost) > 0) {
+        ghost_size <- ifelse(is.null(input$dist_pt_size), 0.7, input$dist_pt_size) * 1.4
+        g <- g + geom_jitter(
+          data = rdf_ghost,
+          aes(x = donor_status, y = value),
+          inherit.aes = FALSE,
+          position = position_jitter(width = 0.18, seed = 31),
+          shape = 4,
+          size = ghost_size,
+          stroke = 0.9,
+          colour = "grey45",
+          alpha = 0.6,
+          show.legend = FALSE
+        )
+      }
+
+      title_text <- paste0("Distribution across donor groups",
+                           outlier_title_suffix(dist_summary))
       g <- g +
-        labs(x = "Donor Status", y = ylab, title = "Distribution across donor groups") +
+        labs(x = "Donor Status", y = ylab, title = title_text) +
         theme_minimal(base_size = 14) +
         theme(legend.position = if (color_by == "donor_id") "right" else "none")
 
@@ -830,6 +889,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       }
 
       p <- ggplotly(g, tooltip = c("x", "y", "colour"))
+      p <- strip_plotly_color_leak(p)
 
       # Suppress plotly's built-in box outlier markers
       if (!is.null(input$dist_type) && input$dist_type == "Box") {
@@ -867,25 +927,34 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
     # ---- Outlier info table in sidebar ----
     output$plot_outlier_info <- renderUI({
-      show_table <- input$show_plot_outlier_table %||% FALSE
+      show_table <- isTRUE(input$show_outlier_table)
       outlier_data <- plot_outliers()
+      filter_on <- isTRUE(remove_outliers())
 
-      if (show_table && !is.null(outlier_data) && nrow(outlier_data) > 0) {
-        tags$div(
-          style = "margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
-          tags$h6(
-            style = "margin-top: 0; color: #000000;",
-            sprintf("\u26a0\ufe0f %d Outlier%s Detected (>3 SD within group)",
-                    nrow(outlier_data),
-                    ifelse(nrow(outlier_data) > 1, "s", ""))),
-          tags$div(
-            style = "max-height: 200px; overflow-y: auto;",
-            renderTable(outlier_data)
-          )
-        )
-      } else {
-        NULL
+      if (!show_table) return(NULL)
+      if (is.null(outlier_data) || nrow(outlier_data) == 0) {
+        return(tags$div(
+          style = "margin-top: 12px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          "No outliers detected for the current selection."
+        ))
       }
+
+      header <- if (filter_on) {
+        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (z > 3 within donor status)",
+                nrow(outlier_data),
+                ifelse(nrow(outlier_data) > 1, "s", ""))
+      } else {
+        sprintf("\u24d8 %d Outlier%s Flagged (filter OFF \u2014 still in summary)",
+                nrow(outlier_data),
+                ifelse(nrow(outlier_data) > 1, "s", ""))
+      }
+
+      tags$div(
+        style = "margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
+        tags$h6(style = "margin-top: 0; color: #000000;", header),
+        tags$div(style = "max-height: 200px; overflow-y: auto;",
+          renderTable(outlier_data))
+      )
     })
 
     # ===========================================================================

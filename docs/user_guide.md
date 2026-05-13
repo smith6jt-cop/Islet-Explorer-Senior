@@ -9,16 +9,17 @@ Interactive web application for exploring pancreatic islet CODEX multiplexed ima
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Plot Tab](#plot-tab)
-3. [Trajectory Tab](#trajectory-tab)
-4. [Viewer Tab](#viewer-tab)
-5. [Statistics Tab](#statistics-tab)
-6. [Spatial Tab](#spatial-tab)
-7. [Single-Cell Drill-Down](#single-cell-drill-down)
-8. [AI Assistant](#ai-assistant)
-9. [Data Pipeline](#data-pipeline)
-10. [Deployment & Administration](#deployment--administration)
-11. [Troubleshooting](#troubleshooting)
+2. [Outlier Handling](#outlier-handling)
+3. [Plot Tab](#plot-tab)
+4. [Trajectory Tab](#trajectory-tab)
+5. [Viewer Tab](#viewer-tab)
+6. [Statistics Tab](#statistics-tab)
+7. [Spatial Tab](#spatial-tab)
+8. [Single-Cell Drill-Down](#single-cell-drill-down)
+9. [AI Assistant](#ai-assistant)
+10. [Data Pipeline](#data-pipeline)
+11. [Deployment & Administration](#deployment--administration)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -47,6 +48,40 @@ If the H5AD is unavailable, the app falls back to `data/master_results.xlsx` wit
 | **T1D** | Forest Green (#228833) | Type 1 diabetic donors |
 
 Colors are configurable via the **Donor Status Colors** palette selector (Paul Tol default, Bright, Okabe-Ito, Diverging). The selector is available on the Plot sidebar, Trajectory tab, and Spatial tab — all stay synced.
+
+---
+
+## Outlier Handling
+
+The app applies a single, consistent outlier rule across every tab so that scatter plots, trend lines, donor-level means, and statistical tests all agree about which points are "extreme."
+
+### The Rule
+
+**For each donor status (ND, Aab+, T1D), an islet is flagged as an outlier when its value is more than 3 standard deviations from that group's mean.** Computing the threshold per-status (rather than across all islets) prevents the Aab+ and T1D heterogeneity from being mistaken for one giant ND tail. Two cards use variants on the same idea:
+
+- **Spatial Card A (Peri-Islet Phenotype Enrichment)**: uses **Tukey 1.5×IQR** per donor status, computed on non-zero values only. Many phenotypes are absent from most islets, so a z-score rule would over-flag the zero mode; the IQR variant tolerates that.
+- **Spatial Card C (Phenotype Proximity to Islet)**: applies the z>3 rule to `log(1 + distance)` rather than raw distance, because distance distributions have a long right tail.
+
+### The Control
+
+A single checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the Plot sidebar and is mirrored above the Trajectory scatter and inside the Spatial Neighborhood Analysis bar. Toggling any one of them updates the other two, so the Plot, Trajectory, Statistics, and Spatial tabs always reflect the same setting. **Default: ON.** Hover the label for the full tooltip.
+
+### What you see when the filter is ON
+
+- Excluded points still render on Plot, Trajectory, and Spatial Card C as **faint grey × markers** ("ghost points") so you can see *where* in the distribution the exclusions are landing.
+- Plot, Trajectory, Spatial Card A, and Spatial Card C show a **count badge** in or beneath the title: e.g. `"… — 4 outliers excluded (z > 3 per donor status)"`.
+- Statistics tab's Methods Reference section names the rule and reports the exact count for the current Run.
+- Plot and Trajectory each have an optional **"Show excluded-outlier table"** checkbox that lists Case ID, islet key, donor status, and the z-score for every flagged point.
+
+### What changes when the filter is OFF
+
+- No points are flagged or hidden; ghost markers disappear; counts go to zero.
+- A small banner appears above the Trajectory scatter and below the Statistics "Outliers" status panel noting that the filter is off.
+- Trend lines, donor-level means, and all statistical tests run on the full data including extreme values.
+
+### Why this matters
+
+With 5,214 islets from only 15 donors, a single extreme islet within one donor can dominate the group mean and pull mixed-effects estimates. Keeping the rule visible (count badge + ghost × markers) means you can audit at a glance whether a striking effect is being driven by one or two unusual islets.
 
 ---
 
@@ -171,7 +206,7 @@ The tab uses a **5-section narrative layout** that walks you through a logical a
 - Test type selector with inline explanations:
   - **Parametric** (ANOVA / t-test): assumes roughly normal data within groups
   - **Non-parametric** (Kruskal-Wallis / Wilcoxon): no normality assumption; based on ranks
-- Additional controls: significance level (α), outlier removal (>3 SD), bin width, diameter range
+- Additional controls: significance level (α), bin width, diameter range. **Outlier removal** is controlled by the global toggle on the Plot sidebar (z > 3 per donor status, on by default); the Statistics tab shows an inline status banner reflecting the current setting. See [Outlier Handling](#outlier-handling) for the full rule.
 
 ### Section 2: Primary Results
 
@@ -264,7 +299,7 @@ Below the tissue scatter and Leiden panel, three interactive analysis sections v
 - *Interpretation*: Pick any phenotype (Macrophage, CD8a Tcell, Beta cell, Endothelial, etc.) to see its peri-zone enrichment trajectory across ND→Aab+→T1D.
 
 **Card B: Phenotype Composition & Enrichment**
-- **Left**: Grouped bar chart spanning ALL 20 phenotypes (drops "Unknown") × 3 disease stages. Toggle median/mean summary; clip extreme z > 5 (default on). Error bars show IQR (median) or SEM (mean).
+- **Left**: Grouped bar chart spanning ALL 20 phenotypes (drops "Unknown") × 3 disease stages. Toggle median/mean summary; `Clip extreme z > 5` is a **display saturation** that caps the visible axis so the chart isn't dominated by a few hugely enriched phenotypes — it is NOT outlier exclusion (see [Outlier Handling](#outlier-handling) for the actual rule). Error bars show IQR (median) or SEM (mean).
 - **Right**: Heatmap — phenotypes (columns) × disease stages (rows). Numeric values annotated on each cell.
 - **Region toggle**: Switch between:
   - *Peri-islet (enrichment z)*: Poisson z-scores comparing peri-islet vs tissue-wide. Diverging colorscale (blue = depleted, red = enriched). Default.
@@ -273,7 +308,7 @@ Below the tissue scatter and Leiden panel, three interactive analysis sections v
 - *Interpretation*: z > 0 means that phenotype is enriched near islets relative to the tissue-wide proportion. Useful for spotting structural changes (Endothelial, Lymphatic, Neural) alongside immune infiltration.
 
 **Card C: Phenotype Proximity to Islet**
-- **Left** (`Distance to nearest` dropdown): Box plot of minimum distance (μm) from islet core centroid to nearest peri-zone cells of the selected phenotype. Includes "Immune (all)" aggregate plus every individual phenotype with `min_dist_*` data. Shows non-NA counts per group. 99th percentile outlier clipping (toggle).
+- **Left** (`Distance to nearest` dropdown): Box plot of minimum distance (μm) from islet core centroid to nearest peri-zone cells of the selected phenotype. Includes "Immune (all)" aggregate plus every individual phenotype with `min_dist_*` data. Shows non-NA counts per group. Outlier exclusion follows the global toggle (z > 3 per donor status applied to `log(1 + distance)`); excluded points still render as faint × markers. See [Outlier Handling](#outlier-handling).
 - **Right** (`Phenotype` dropdown): KDE of signed distance from islet boundary for individual cells of the selected phenotype. Negative = inside islet (core), positive = outside (peri-islet). Dashed line at zero marks the boundary.
 - *Interpretation*: NA values in the box plot indicate islets with zero cells of that phenotype in the peri-islet zone (biological, not a data error — common for rare phenotypes like CD4 Tcell, B cell). Increase the min cells/islet filter to reduce NAs.
 

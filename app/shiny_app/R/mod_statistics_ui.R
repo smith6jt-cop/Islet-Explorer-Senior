@@ -60,7 +60,10 @@ statistics_ui <- function(id) {
                           choices = c("0.05", "0.01", "0.001"), selected = "0.05")
             ),
             column(2,
-              checkboxInput(ns("stats_remove_outliers"), "Remove outliers (>3 SD)", value = TRUE),
+              # Outlier toggle uses the synced global control in the Plot
+              # sidebar (`sidebar_remove_outliers`). The text below mirrors
+              # the rule applied so users don't need to switch tabs to confirm.
+              uiOutput(ns("stats_outlier_status")),
               numericInput(ns("stats_min_cells"), "Min cells/islet",
                            value = 1, min = 1, max = 200, step = 1),
               checkboxInput(ns("stats_no_binning"), "Skip size stratification", value = FALSE)

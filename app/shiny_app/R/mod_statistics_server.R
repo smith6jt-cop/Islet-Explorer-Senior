@@ -14,7 +14,8 @@
 #   bin_islet_sizes                                  -- data_loading.R
 
 statistics_server <- function(id, raw_df, summary_df, get_selection_description,
-                              donor_colors = reactive(DONOR_COLORS)) {
+                              donor_colors = reactive(DONOR_COLORS),
+                              remove_outliers = reactive(TRUE)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -35,6 +36,35 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
     # Dynamic section numbers: shift down by 1 when binning is skipped
     section_offset <- reactive({
       if (isTRUE(input$stats_no_binning)) -1L else 0L
+    })
+
+    # Status banner for the outlier toggle — mirrors the global control
+    # (lives in the Plot sidebar). Surfacing it inline on the Statistics
+    # tab means users don't have to switch tabs to confirm what rule is
+    # being applied to the tests below.
+    output$stats_outlier_status <- renderUI({
+      filter_on <- isTRUE(remove_outliers())
+      st <- tryCatch(stats_run(), error = function(e) NULL)
+      n_excl <- if (!is.null(st) && !is.null(st$outlier_summary)) st$outlier_summary$n_excluded else NA_integer_
+      label <- if (filter_on) "Outliers: excluded (z > 3 per donor status)" else "Outliers: kept (filter OFF)"
+      colour <- if (filter_on) "#5a4400" else "#6e6300"
+      bg     <- if (filter_on) "#fff3cd" else "#fdfbe7"
+      border <- if (filter_on) "#ffc107" else "#f0d97a"
+      count_text <- if (!is.na(n_excl) && n_excl > 0) {
+        sprintf(" · %d excluded last run", n_excl)
+      } else {
+        ""
+      }
+      tags$div(
+        title = GLOBAL_OUTLIER_TOOLTIP,
+        style = sprintf(paste0("background: %s; border: 1px solid %s; border-radius: 4px;",
+                               " padding: 6px 8px; margin-bottom: 8px; font-size: 12px;",
+                               " color: %s;"), bg, border, colour),
+        tags$strong(label),
+        tags$br(),
+        tags$span(style = "font-size: 11px;",
+          "Toggle in the Plot sidebar (synced across tabs).", count_text)
+      )
     })
 
     output$section_confounders_heading <- renderUI({
@@ -60,18 +90,16 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       alpha_num <- as.numeric(input$alpha)
       is_parametric <- identical(input$test_type, "Parametric")
 
-      # ---- Outlier removal (per donor group, >3 SD) ----
-      if (isTRUE(input$stats_remove_outliers)) {
-        keep <- rep(TRUE, nrow(rdf))
-        for (grp in unique(rdf$donor_status)) {
-          idx <- which(rdf$donor_status == grp)
-          if (length(idx) < 3) next
-          grp_mean <- mean(rdf$value[idx], na.rm = TRUE)
-          grp_sd   <- sd(rdf$value[idx], na.rm = TRUE)
-          if (!is.finite(grp_sd) || grp_sd == 0) next
-          keep[idx] <- is.na(rdf$value[idx]) | abs(rdf$value[idx] - grp_mean) <= (3 * grp_sd)
-        }
-        rdf <- rdf[keep, , drop = FALSE]
+      # ---- Outlier removal via shared helper (controlled by global toggle) ----
+      # The helper appends is_outlier + outlier_score columns; we drop the
+      # flagged rows when the global filter is ON. The count is saved on the
+      # result list so the methods text and download CSV can cite it.
+      rdf <- flag_outliers(rdf, value_col = "value", group_col = "donor_status",
+                           method = "zscore", threshold = 3,
+                           enabled = isTRUE(remove_outliers()))
+      outlier_summary_pre <- summarize_outlier_filter(rdf)
+      if (isTRUE(remove_outliers())) {
+        rdf <- rdf[!rdf$is_outlier | is.na(rdf$is_outlier), , drop = FALSE]
       }
 
       # ---- Min-cells filter (like spatial tab) ----
@@ -399,7 +427,8 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         norm_result      = norm_result,
         aab_summary      = aab_summary,
         aab_donor_summary = aab_donor_summary,
-        rdf              = rdf
+        rdf              = rdf,
+        outlier_summary  = outlier_summary_pre
       )
     }, ignoreInit = TRUE)
 
@@ -624,13 +653,15 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       pw$contrast <- factor(pw$contrast, levels = rev(pw$contrast))
       pw$sig_label <- ifelse(pw$sig, "Significant", "NS")
 
+      forest_title <- paste0("Pairwise Effect Sizes (conservative)",
+                             outlier_title_suffix(st$outlier_summary))
       g <- ggplot(pw, aes(x = cohens_d, y = contrast, color = sig_label)) +
         geom_vline(xintercept = 0, linetype = "dashed", color = "#999") +
         geom_point(size = 3) +
         geom_errorbarh(aes(xmin = d_ci_lo, xmax = d_ci_hi), height = 0.2) +
         scale_color_manual(values = c("Significant" = "#d62728", "NS" = "#1f77b4"),
                            name = "") +
-        labs(x = "Cohen's d (donor means)", y = NULL, title = "Pairwise Effect Sizes (conservative)") +
+        labs(x = "Cohen's d (donor means)", y = NULL, title = forest_title) +
         theme_minimal(base_size = 13) +
         theme(legend.position = "none")
 
@@ -1062,7 +1093,36 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         "Non-parametric tests: Kruskal-Wallis (global), pairwise Wilcoxon rank-sum (BH-corrected)."
       }
 
+      outlier_para <- {
+        os <- st$outlier_summary
+        if (is.null(os)) {
+          tagList(
+            tags$strong("Outlier handling: "),
+            "For each donor status (ND / Aab+ / T1D), islets whose value exceeds 3 standard deviations from the group mean are excluded from all donor-level aggregation, mixed-effects modelling, and stratified tests. ",
+            "The control lives in the Plot sidebar and is synced with the Trajectory and Spatial tabs. ",
+            "On the Plot and Trajectory scatters the same points still render as faint grey × markers so the exclusion is visible.",
+            tags$br()
+          )
+        } else if (isTRUE(os$enabled)) {
+          tagList(
+            tags$strong("Outlier handling: "),
+            sprintf("This run excluded %d islet%s (%s) before donor-level aggregation, mixed-effects modelling, and stratified tests. ",
+                    os$n_excluded, if (os$n_excluded == 1) "" else "s", os$label),
+            "The same rule is applied uniformly across the Plot, Trajectory, Statistics, and Spatial Card C tabs; Spatial Card A uses Tukey 1.5×IQR per donor status to tolerate zero-inflated phenotypes. ",
+            "Toggle the global control in the Plot sidebar to disable filtering.",
+            tags$br()
+          )
+        } else {
+          tagList(
+            tags$strong("Outlier handling: "),
+            "Filter is OFF for this run — all islets contribute to the tests below, including extreme values. Toggle the global control in the Plot sidebar to enable the z > 3 (per donor status) rule.",
+            tags$br()
+          )
+        }
+      }
+
       tags$div(style = "padding: 10px;",
+        tags$p(outlier_para),
         tags$p(
           tags$strong("Primary test (mixed-effects model): "),
           paste0("A linear mixed-effects model tests whether donor status (ND / Aab+ / T1D) predicts the feature value across all ",
@@ -1148,6 +1208,13 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
           # Methodology notes
           lines <- c(lines, "# METHODOLOGY")
           lines <- c(lines, paste0("# Primary: mixed-effects lmer (islet-level with donor random intercept)"))
+          os <- st$outlier_summary
+          if (!is.null(os)) {
+            lines <- c(lines, paste0("# Outlier rule: ",
+                                     if (isTRUE(os$enabled)) os$label else "OFF (filter disabled)",
+                                     "; excluded = ", os$n_excluded,
+                                     " of ", os$n_total, " input rows."))
+          }
           lines <- c(lines, paste0("# Total islets: ",
                                    formatC(st$n_islets, big.mark = ","),
                                    ", Donors: ", st$n_donors))

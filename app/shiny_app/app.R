@@ -504,11 +504,49 @@ server <- function(input, output, session) {
     get_donor_color_palette(donor_palette_name())
   })
 
+  # Global outlier filter (synced across Plot sidebar, Trajectory, Spatial).
+  # Defaults to TRUE so statistical tests and trend lines are not pulled by
+  # extreme points; users can toggle off to see raw distributions. The three
+  # non-namespaced inputs `sidebar_remove_outliers`, `traj_remove_outliers`,
+  # `spatial_remove_outliers` mirror this reactive; observers keep them in
+  # sync. Each module also reads `remove_outliers_global()` directly.
+  remove_outliers_rv <- reactiveVal(TRUE)
+
+  observeEvent(input$sidebar_remove_outliers, {
+    if (!identical(input$sidebar_remove_outliers, remove_outliers_rv())) {
+      remove_outliers_rv(isTRUE(input$sidebar_remove_outliers))
+      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
+      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
+    }
+  }, ignoreInit = TRUE)
+
+  observeEvent(input$traj_remove_outliers, {
+    if (!identical(input$traj_remove_outliers, remove_outliers_rv())) {
+      remove_outliers_rv(isTRUE(input$traj_remove_outliers))
+      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$traj_remove_outliers))
+      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$traj_remove_outliers))
+    }
+  }, ignoreInit = TRUE)
+
+  observeEvent(input$spatial_remove_outliers, {
+    if (!identical(input$spatial_remove_outliers, remove_outliers_rv())) {
+      remove_outliers_rv(isTRUE(input$spatial_remove_outliers))
+      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
+      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
+    }
+  }, ignoreInit = TRUE)
+
+  remove_outliers_global <- reactive({
+    isTRUE(remove_outliers_rv())
+  })
+
   # Plot module: returns list(raw_df, summary_df, get_selection_description)
-  plot_returns <- plot_server("plot", prepared, selected_islet, active_tab, active_donor_colors)
+  plot_returns <- plot_server("plot", prepared, selected_islet, active_tab, active_donor_colors,
+                              remove_outliers = remove_outliers_global)
 
   # Trajectory module
-  trajectory_server("traj", prepared, selected_islet, forced_image, active_tab, active_donor_colors)
+  trajectory_server("traj", prepared, selected_islet, forced_image, active_tab, active_donor_colors,
+                    remove_outliers = remove_outliers_global)
 
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
@@ -518,10 +556,12 @@ server <- function(input, output, session) {
                     raw_df                  = plot_returns$raw_df,
                     summary_df              = plot_returns$summary_df,
                     get_selection_description = plot_returns$get_selection_description,
-                    donor_colors             = active_donor_colors)
+                    donor_colors             = active_donor_colors,
+                    remove_outliers          = remove_outliers_global)
 
   # Spatial Neighborhood module
-  spatial_server("spatial", prepared, active_palette, active_donor_colors)
+  spatial_server("spatial", prepared, active_palette, active_donor_colors,
+                 remove_outliers = remove_outliers_global)
 
   # AI Assistant module (self-contained)
   ai_assistant_server("ai")

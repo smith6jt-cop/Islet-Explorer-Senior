@@ -41,8 +41,19 @@ plot_sidebar_ui <- function(id) {
                                "Mean\u00b1SD" = "mean_sd",
                                "Median + IQR" = "median_iqr"),
                    selected = "mean_se"),
-      checkboxInput(ns("show_plot_outlier_table"),
-                    "Show outlier table (if outliers detected)",
+      # Global outlier toggle (non-namespaced so it can be synced with the
+      # mirrored controls on the Trajectory and Spatial tabs). Defaults to ON;
+      # toggling it disables outlier exclusion across all tabs and statistical
+      # tests. The HTML title attribute provides a hover tooltip explaining
+      # the rule without requiring shinyBS.
+      tags$div(
+        title = GLOBAL_OUTLIER_TOOLTIP,
+        checkboxInput("sidebar_remove_outliers",
+                      "Exclude outliers (z > 3 per donor status)",
+                      value = TRUE)
+      ),
+      checkboxInput(ns("show_outlier_table"),
+                    "Show excluded-outlier table",
                     value = FALSE),
       uiOutput(ns("plot_outlier_info"))
     ),

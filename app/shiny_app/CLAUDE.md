@@ -124,6 +124,19 @@ The app has 5,214 islets from only **15 donors** (5 per group). Islets within a 
 - `cohens_d(x, y)` -- returns `list(d, ci_lo, ci_hi)` (NOT `ci_lower`/`ci_upper`)
 - `eta_squared(fit)` -- from `anova()` output
 - `pairwise_wilcox(df, group_col, value_col)` -- returns data.frame with columns `group1`, `group2`, `p_value` (NOT `p.adj`/`statistic`)
+- `flag_outliers(df, value_col, group_col, method, threshold, transform, exclude_zeros, enabled)` -- Single source of truth for outlier flagging. Appends `is_outlier` (logical) and `outlier_score` (z or fence-distance) columns. Attributes carry method/threshold/enabled for downstream summaries.
+- `summarize_outlier_filter(df)` -- Compact summary list for badges: `n_total`, `n_excluded`, `n_kept`, `method`, `threshold`, `enabled`, `label`.
+- `outlier_title_suffix(summary)` -- Formats the `" — N outliers excluded (label)"` string for plot titles. Returns `""` when no exclusion.
+- `GLOBAL_OUTLIER_TOOLTIP` -- String constant used as `title=` attribute on every outlier control across tabs.
+
+### Unified Outlier Handling (May 2026)
+- One non-namespaced checkbox per tab (`sidebar_remove_outliers`, `traj_remove_outliers`, `spatial_remove_outliers`) — synced bidirectionally via three `observeEvent`s in `app.R`. The synced reactive `remove_outliers_global()` is injected into every module server (`plot_server`, `trajectory_server`, `statistics_server`, `spatial_server`) as the `remove_outliers` argument.
+- Default: ON. Toggling propagates instantly to all four tabs.
+- Plot, Trajectory, Statistics, Spatial Card C: `flag_outliers(method = "zscore", threshold = 3)` per donor status. Card C transforms via `log1p` to handle the long-tailed distance distribution.
+- Spatial Card A: `flag_outliers(method = "iqr", threshold = 1.5, exclude_zeros = TRUE)` per donor status. Keeps the previous Tukey logic because phenotype enrichment is zero-inflated.
+- Visual surfacing: every affected plot shows a **count badge** in its title or subtitle and renders excluded points as **shape=4 grey × ghost markers** (Plot, Trajectory, Spatial Card C). Stats forest plot title shows the badge. Statistics Methods Reference paragraph names the rule and cites the exact `n_excluded` for the current Run. Download CSV header records `Outlier rule: …` and the count.
+- Spatial Card B's "Clip z > 5" checkbox is a **display saturation only** (caps the colour scale) — left alone, NOT an outlier control. Documented as such in `docs/user_guide.md`.
+- Trajectory bug fix: previously discarded outliers silently before plotting and logged only to console; now drawn as ghosts and counted in a badge above the scatter.
 
 ### R Package Dependencies for Phase 16
 - `lmerTest` (3.2-1) -- Mixed-effects model with Satterthwaite df

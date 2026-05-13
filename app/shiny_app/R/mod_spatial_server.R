@@ -8,10 +8,17 @@
 #   donor_tissue_available(), get_available_donors(), load_donor_tissue() — from spatial_helpers.R
 
 spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
-                           donor_colors_reactive = reactive(DONOR_COLORS)) {
+                           donor_colors_reactive = reactive(DONOR_COLORS),
+                           remove_outliers = reactive(TRUE)) {
 
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # ---- Outlier-table reactiveVals (parity with Plot/Trajectory) ----
+    # Populated inside the Card A and Card C renderPlotly bodies, consumed by
+    # the namespaced "Show excluded-outlier table" toggles below each card.
+    infiltration_outliers <- reactiveVal(NULL)
+    distance_outliers <- reactiveVal(NULL)
 
     # 20-color qualitative palette for Leiden clusters
     leiden_palette <- c(
@@ -735,12 +742,22 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       tagList(
         # ==== Global filter for neighborhood cards ====
+        # The "Exclude outliers" checkbox is the non-namespaced mirror of the
+        # Plot/Trajectory controls — wired up by app.R synchronisation
+        # observers so all three move together. Cards A (z-score) and C
+        # (z on log1p(distance)) honour it; Card B's "Clip z > 5" is a
+        # display saturation, kept separate.
         fluidRow(column(12,
           div(class = "card", style = "padding: 12px 15px; margin-bottom: 10px; margin-top: 10px; display: flex; align-items: center; gap: 20px; overflow: visible;",
             span(style = "font-weight: 600; font-size: 15px; white-space: nowrap;", "Neighborhood Analysis"),
             numericInput(ns("nbr_min_cells"), "Min cells/islet", value = 1, min = 1, max = 100, step = 1, width = "130px"),
             sliderInput(ns("nbr_pt_size"), "Point size", min = 2, max = 12, value = 5, step = 1, width = "150px"),
             sliderInput(ns("nbr_pt_alpha"), "Opacity", min = 0.1, max = 1.0, value = 0.4, step = 0.05, width = "150px"),
+            tags$div(title = GLOBAL_OUTLIER_TOOLTIP, style = "min-width: 260px;",
+              checkboxInput("spatial_remove_outliers",
+                            "Exclude outliers (z > 3 per donor status)",
+                            value = TRUE)
+            ),
             uiOutput(ns("nbr_islet_count"))
           )
         )),
@@ -759,9 +776,13 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                   selectInput(ns("infiltration_phenotype"), "Phenotype (peri enrichment z)",
                               choices = NULL, width = "100%")
                 ),
-                checkboxInput(ns("infiltration_outliers"), "Remove outliers", value = FALSE)
+                checkboxInput(ns("infiltration_show_outlier_table"),
+                              "Show excluded-outlier table", value = FALSE),
+                tags$small(style = "color: #666; flex-basis: 100%;",
+                  "Outlier exclusion follows the global toggle above (Tukey 1.5×IQR per donor status on non-zero values, to tolerate phenotypes absent from many islets).")
               ),
-              plotlyOutput(ns("infiltration_bars"), height = "400px")
+              plotlyOutput(ns("infiltration_bars"), height = "400px"),
+              uiOutput(ns("infiltration_outlier_info"))
             )
           ),
           column(6,
@@ -833,8 +854,12 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               # Populated server-side: "Immune (all)" + every phenotype with min_dist_*.
               selectInput(ns("distance_metric"), "Distance to nearest",
                           choices = NULL, width = "100%"),
-              checkboxInput(ns("distance_clip"), "Clip top 1% outliers", value = TRUE),
-              plotlyOutput(ns("distance_boxplot"), height = "420px")
+              checkboxInput(ns("distance_show_outlier_table"),
+                            "Show excluded-outlier table", value = FALSE),
+              tags$small(style = "color: #666;",
+                "Outlier exclusion follows the global toggle above (z > 3 per donor status on log(1+distance) to handle the right-tail skew). Excluded points still appear as faint × markers."),
+              plotlyOutput(ns("distance_boxplot"), height = "420px"),
+              uiOutput(ns("distance_outlier_info"))
             )
           ),
           column(6,
@@ -860,6 +885,83 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       n <- if (!is.null(comp)) nrow(comp) else 0
       span(style = "color: #555; font-size: 13px; white-space: nowrap;",
            paste0(formatC(n, big.mark = ","), " islets"))
+    })
+
+    # ---- Card A: excluded-outlier table ----
+    # Mirrors the Plot tab's plot_outlier_info pattern: yellow warning banner
+    # with header counts, body explanation, and a scrollable table. Three
+    # display states — table, no-outliers note, or filter-OFF flagged note.
+    output$infiltration_outlier_info <- renderUI({
+      if (!isTRUE(input$infiltration_show_outlier_table)) return(NULL)
+      tbl <- infiltration_outliers()
+      filter_on <- isTRUE(remove_outliers())
+
+      if (is.null(tbl) || nrow(tbl) == 0) {
+        return(tags$div(
+          style = "margin-top: 10px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          "No outliers detected for the current phenotype."
+        ))
+      }
+
+      header <- if (filter_on) {
+        sprintf("⚠️ %d Outlier%s Excluded (Tukey 1.5×IQR per donor status, zero-aware)",
+                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
+      } else {
+        sprintf("ⓘ %d Outlier%s Flagged (global filter OFF — still in summary)",
+                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
+      }
+      body_text <- if (filter_on) {
+        "The following islets were excluded from the donor-level enrichment summary because their value fell beyond the Tukey fences (Q1 − 1.5·IQR, Q3 + 1.5·IQR) of the non-zero distribution for their donor status:"
+      } else {
+        "These points would be excluded if the global outlier filter were turned on; they currently contribute to the donor-level summary:"
+      }
+
+      tags$div(
+        style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
+        tags$h6(style = "margin-top: 0; color: #000000;", header),
+        tags$p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
+        tags$div(style = "max-height: 220px; overflow-y: auto;",
+          renderTable(tbl, striped = TRUE, hover = TRUE, bordered = TRUE,
+                      spacing = "xs", width = "100%")
+        )
+      )
+    })
+
+    # ---- Card C: excluded-outlier table ----
+    output$distance_outlier_info <- renderUI({
+      if (!isTRUE(input$distance_show_outlier_table)) return(NULL)
+      tbl <- distance_outliers()
+      filter_on <- isTRUE(remove_outliers())
+
+      if (is.null(tbl) || nrow(tbl) == 0) {
+        return(tags$div(
+          style = "margin-top: 10px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          "No outliers detected for the current distance metric."
+        ))
+      }
+
+      header <- if (filter_on) {
+        sprintf("⚠️ %d Outlier%s Excluded (z > 3 per donor status on log(1+distance))",
+                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
+      } else {
+        sprintf("ⓘ %d Outlier%s Flagged (global filter OFF — still in box plot)",
+                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
+      }
+      body_text <- if (filter_on) {
+        "The following islets were excluded from the box plot because their log(1 + distance) z-score exceeded ±3 within their donor status. They still render on the plot as faint grey × markers:"
+      } else {
+        "These points would be excluded if the global outlier filter were turned on; they currently sit in the box plot's distribution:"
+      }
+
+      tags$div(
+        style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
+        tags$h6(style = "margin-top: 0; color: #000000;", header),
+        tags$p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
+        tags$div(style = "max-height: 220px; overflow-y: auto;",
+          renderTable(tbl, striped = TRUE, hover = TRUE, bordered = TRUE,
+                      spacing = "xs", width = "100%")
+        )
+      )
     })
 
     # ---- Populate dynamic phenotype dropdowns once data is available ----
@@ -936,23 +1038,40 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       df <- df[is.finite(df$value), , drop = FALSE]
       if (nrow(df) == 0) return(plotly_empty() %>% layout(title = "No data"))
 
-      # Outlier removal (per-group IQR on non-zero values to handle zero-inflated metrics)
-      if (isTRUE(input$infiltration_outliers)) {
-        keep <- logical(nrow(df))
-        for (grp in unique(df$status)) {
-          idx <- df$status == grp
-          vals <- df$value[idx]
-          nz <- vals[vals != 0]
-          if (length(nz) < 4) { keep[idx] <- TRUE; next }
-          q <- quantile(nz, c(0.25, 0.75), na.rm = TRUE)
-          iqr <- q[2] - q[1]
-          lo <- q[1] - 1.5 * iqr
-          hi <- q[2] + 1.5 * iqr
-          keep[idx] <- vals == 0 | (vals >= lo & vals <= hi)
-        }
-        df <- df[keep, , drop = FALSE]
-        if (nrow(df) == 0) return(plotly_empty() %>% layout(title = "No data after outlier removal"))
+      # Outlier handling via shared helper. Phenotype enrichment z-scores are
+      # zero-inflated for phenotypes absent from many islets, so we keep the
+      # Tukey IQR rule with zero-aware fences (zeros never excluded).
+      df <- flag_outliers(df, value_col = "value", group_col = "status",
+                          method = "iqr", threshold = 1.5,
+                          exclude_zeros = TRUE,
+                          enabled = isTRUE(remove_outliers()))
+      filter_summary <- summarize_outlier_filter(df)
+      filter_summary$label <- if (filter_summary$enabled) "Tukey 1.5×IQR per donor status (zero-aware)" else filter_summary$label
+      df_full <- df
+
+      # Populate the per-card outlier table reactiveVal (consumed by the
+      # `infiltration_outlier_info` renderUI below).
+      flagged <- df_full[isTRUE(attr(df_full, "outlier_enabled")) & df_full$is_outlier, , drop = FALSE]
+      if (!isTRUE(attr(df_full, "outlier_enabled"))) {
+        flagged <- df_full[df_full$is_outlier, , drop = FALSE]
       }
+      if (nrow(flagged) > 0) {
+        infiltration_outliers(data.frame(
+          Phenotype          = itm$label,
+          Case_ID            = flagged$case_id,
+          Donor_Status       = flagged$status,
+          Value              = round(flagged$value, 3),
+          Fence_Distance_IQR = round(flagged$outlier_score, 2),
+          stringsAsFactors   = FALSE
+        ))
+      } else {
+        infiltration_outliers(NULL)
+      }
+
+      if (isTRUE(remove_outliers())) {
+        df <- df[!df$is_outlier | is.na(df$is_outlier), , drop = FALSE]
+      }
+      if (nrow(df) == 0) return(plotly_empty() %>% layout(title = "No data after outlier removal"))
 
       # Aggregate to donor-level means
       donor_df <- df %>%
@@ -1011,8 +1130,16 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                        "<br>N donors: ", row$n)
         )
       }
+      excl_text <- if (filter_summary$enabled && filter_summary$n_excluded > 0) {
+        sprintf(" | %d excluded (%s)", filter_summary$n_excluded, filter_summary$label)
+      } else if (!filter_summary$enabled) {
+        " | outlier filter OFF"
+      } else {
+        ""
+      }
       p %>% layout(
-        title = list(text = paste0(metric_label, "<br><sup>Donor-level means \u00b1 SEM (N=donors) | ", p_label, "</sup>"),
+        title = list(text = paste0(metric_label,
+                                   "<br><sup>Donor-level means \u00b1 SEM (N=donors) | ", p_label, excl_text, "</sup>"),
                      font = list(size = 14)),
         xaxis = list(title = "", categoryorder = "array",
                      categoryarray = c("ND", "Aab+", "T1D")),
@@ -1267,6 +1394,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       df <- data.frame(
         value = comp[[metric]],
         status = comp$`Donor Status`,
+        case_id = if ("Case ID" %in% colnames(comp)) comp$`Case ID` else NA,
+        islet_key = if ("islet_key" %in% colnames(comp)) comp$islet_key else NA_character_,
         stringsAsFactors = FALSE
       )
 
@@ -1279,19 +1408,45 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       df <- df[is.finite(df$value), , drop = FALSE]
       if (nrow(df) == 0) return(plotly_empty() %>% layout(title = paste0(metric_label, " \u2014 all NA")))
 
-      # Clip top 1% outliers if requested
-      if (isTRUE(input$distance_clip) && nrow(df) > 0) {
-        q99 <- quantile(df$value, 0.99, na.rm = TRUE)
-        df <- df[df$value <= q99, , drop = FALSE]
+      # Outlier handling via shared helper, applied to log1p(distance) to
+      # tame the long right tail; ghost \u00d7 markers preserve visibility.
+      df <- flag_outliers(df, value_col = "value", group_col = "status",
+                          method = "zscore", threshold = 3,
+                          transform = "log1p",
+                          enabled = isTRUE(remove_outliers()))
+      filter_summary <- summarize_outlier_filter(df)
+      filter_summary$label <- if (filter_summary$enabled) "z > 3 per donor status on log(1+distance)" else filter_summary$label
+
+      # Populate the per-card outlier table reactiveVal (consumed by the
+      # `distance_outlier_info` renderUI below).
+      flagged <- df[df$is_outlier, , drop = FALSE]
+      if (nrow(flagged) > 0) {
+        distance_outliers(data.frame(
+          Phenotype     = metric_label,
+          Case_ID       = flagged$case_id,
+          Islet         = flagged$islet_key,
+          Donor_Status  = flagged$status,
+          Distance_um   = round(flagged$value, 1),
+          Z_Score_log1p = round(flagged$outlier_score, 2),
+          stringsAsFactors = FALSE
+        ))
+      } else {
+        distance_outliers(NULL)
       }
 
-      df$status <- factor(df$status, levels = intersect(status_order, unique(df$status)))
+      df_ghost <- df[df$is_outlier, , drop = FALSE]
+      df_box   <- if (isTRUE(remove_outliers())) df[!df$is_outlier, , drop = FALSE] else df
+
+      df_box$status <- factor(df_box$status, levels = intersect(status_order, unique(df_box$status)))
+      if (nrow(df_ghost) > 0) {
+        df_ghost$status <- factor(df_ghost$status, levels = levels(df_box$status))
+      }
       dcols <- donor_colors_reactive()
       pt_sz <- input$nbr_pt_size %||% 5
       pt_al <- input$nbr_pt_alpha %||% 0.4
 
       # Subtitle with N per group
-      n_labels <- sapply(levels(df$status), function(s) {
+      n_labels <- sapply(levels(df_box$status), function(s) {
         nv <- n_valid[s]
         nt <- n_total[s]
         if (is.na(nv)) nv <- 0
@@ -1300,10 +1455,17 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       })
       subtitle <- paste0("Non-NA: ", paste(n_labels, collapse = ", "),
                           " (", round(na_rate * 100, 0), "% NA overall)")
+      excl_suffix <- if (filter_summary$enabled && filter_summary$n_excluded > 0) {
+        sprintf(" | %d excluded (%s)", filter_summary$n_excluded, filter_summary$label)
+      } else if (!filter_summary$enabled) {
+        " | outlier filter OFF"
+      } else {
+        ""
+      }
 
       p <- plot_ly()
-      for (s in levels(df$status)) {
-        sub <- df[df$status == s, , drop = FALSE]
+      for (s in levels(df_box$status)) {
+        sub <- df_box[df_box$status == s, , drop = FALSE]
         if (nrow(sub) == 0) next
         p <- p %>% add_trace(
           y = sub$value, x = s, name = s,
@@ -1315,8 +1477,28 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           hoverinfo = "y"
         )
       }
+      # Ghost layer: excluded outliers as faint grey \u00d7 markers per group
+      if (nrow(df_ghost) > 0) {
+        for (s in levels(df_box$status)) {
+          gsub_ <- df_ghost[df_ghost$status == s, , drop = FALSE]
+          if (nrow(gsub_) == 0) next
+          p <- p %>% add_trace(
+            y = gsub_$value, x = rep(s, nrow(gsub_)),
+            type = "scatter", mode = "markers",
+            marker = list(symbol = "x", size = pt_sz * 1.2,
+                          color = "rgba(80,80,80,0.55)",
+                          line = list(color = "rgba(50,50,50,0.7)", width = 0.8)),
+            showlegend = FALSE,
+            hoverinfo = "text",
+            text = paste0("Excluded outlier \u00b7 z = ",
+                          sprintf("%.2f", gsub_$outlier_score),
+                          " \u00b7 distance = ", round(gsub_$value, 1), " \u00b5m"),
+            name = paste0(s, " (excluded)")
+          )
+        }
+      }
       p %>% layout(
-        title = list(text = paste0(metric_label, "<br><sup>", subtitle, "</sup>"),
+        title = list(text = paste0(metric_label, "<br><sup>", subtitle, excl_suffix, "</sup>"),
                      font = list(size = 14)),
         xaxis = list(title = "", categoryorder = "array",
                      categoryarray = c("ND", "Aab+", "T1D")),

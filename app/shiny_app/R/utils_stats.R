@@ -1,3 +1,216 @@
+# ---------- Unified outlier flagging (used by Plot, Trajectory, Statistics, Spatial) ----------
+#
+# Single source of truth for outlier identification across the app. Each tab
+# previously had its own inline loop with slightly different rules (z-score on
+# raw values vs Tukey IQR vs 99th-percentile clip). The unified rule is:
+#   For each donor_status group (ND, Aab+, T1D), exclude rows whose value is
+#   more than `threshold` SDs from that group's mean. Outliers are flagged on
+#   the returned data.frame; downstream code decides whether to render them as
+#   ghost points or drop them. The IQR fallback is kept for cards that need to
+#   tolerate zero-inflated distributions (Spatial Card A on phenotypes that are
+#   absent from most islets).
+#
+# Returns the input df with two appended columns:
+#   is_outlier    -- logical, TRUE for rows beyond the threshold
+#   outlier_score -- numeric, z-score (method="zscore") or signed distance to
+#                    the nearer IQR fence in IQR units (method="iqr"); NA for
+#                    rows we couldn't score (single-row groups, etc.)
+flag_outliers <- function(df,
+                          value_col = "value",
+                          group_col = "donor_status",
+                          method = c("zscore", "iqr"),
+                          threshold = NULL,
+                          transform = c("identity", "log1p"),
+                          exclude_zeros = FALSE,
+                          enabled = TRUE) {
+  method <- match.arg(method)
+  transform <- match.arg(transform)
+  if (is.null(threshold)) {
+    threshold <- if (method == "zscore") 3 else 1.5
+  }
+
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0) {
+    if (is.data.frame(df)) {
+      df$is_outlier <- logical(0)
+      df$outlier_score <- numeric(0)
+    }
+    attr(df, "outlier_method") <- method
+    attr(df, "outlier_threshold") <- threshold
+    attr(df, "outlier_enabled") <- isTRUE(enabled)
+    return(df)
+  }
+
+  df$is_outlier <- FALSE
+  df$outlier_score <- NA_real_
+
+  if (!isTRUE(enabled)) {
+    attr(df, "outlier_method") <- method
+    attr(df, "outlier_threshold") <- threshold
+    attr(df, "outlier_enabled") <- FALSE
+    return(df)
+  }
+
+  if (!value_col %in% colnames(df)) {
+    attr(df, "outlier_method") <- method
+    attr(df, "outlier_threshold") <- threshold
+    attr(df, "outlier_enabled") <- TRUE
+    return(df)
+  }
+
+  vals_raw <- suppressWarnings(as.numeric(df[[value_col]]))
+  vals <- if (transform == "log1p") {
+    ifelse(is.finite(vals_raw) & vals_raw >= 0, log1p(vals_raw), NA_real_)
+  } else {
+    vals_raw
+  }
+
+  if (group_col %in% colnames(df)) {
+    groups <- as.character(df[[group_col]])
+  } else {
+    groups <- rep("__all__", nrow(df))
+  }
+
+  for (grp in unique(groups)) {
+    idx <- which(groups == grp & is.finite(vals))
+    if (length(idx) < 3) next
+    grp_vals <- vals[idx]
+
+    if (exclude_zeros) {
+      nz_idx <- idx[grp_vals != 0]
+      nz_vals <- vals[nz_idx]
+      if (length(nz_vals) < 4) next
+      if (method == "zscore") {
+        m <- mean(nz_vals, na.rm = TRUE)
+        s <- sd(nz_vals, na.rm = TRUE)
+        if (!is.finite(s) || s == 0) next
+        z <- (vals[idx] - m) / s
+        df$outlier_score[idx] <- z
+        df$is_outlier[idx] <- !is.na(z) & (vals[idx] != 0) & abs(z) > threshold
+      } else {
+        q <- stats::quantile(nz_vals, c(0.25, 0.75), na.rm = TRUE)
+        iqr <- q[2] - q[1]
+        if (!is.finite(iqr) || iqr == 0) next
+        lo <- q[1] - threshold * iqr
+        hi <- q[2] + threshold * iqr
+        fence_dist <- ifelse(vals[idx] < q[1],
+                             (vals[idx] - q[1]) / iqr,
+                             ifelse(vals[idx] > q[2], (vals[idx] - q[2]) / iqr, 0))
+        df$outlier_score[idx] <- fence_dist
+        df$is_outlier[idx] <- !is.na(vals[idx]) & (vals[idx] != 0) &
+                              (vals[idx] < lo | vals[idx] > hi)
+      }
+    } else {
+      if (method == "zscore") {
+        m <- mean(grp_vals, na.rm = TRUE)
+        s <- sd(grp_vals, na.rm = TRUE)
+        if (!is.finite(s) || s == 0) next
+        z <- (grp_vals - m) / s
+        df$outlier_score[idx] <- z
+        df$is_outlier[idx] <- !is.na(z) & abs(z) > threshold
+      } else {
+        q <- stats::quantile(grp_vals, c(0.25, 0.75), na.rm = TRUE)
+        iqr <- q[2] - q[1]
+        if (!is.finite(iqr) || iqr == 0) next
+        lo <- q[1] - threshold * iqr
+        hi <- q[2] + threshold * iqr
+        fence_dist <- ifelse(grp_vals < q[1],
+                             (grp_vals - q[1]) / iqr,
+                             ifelse(grp_vals > q[2], (grp_vals - q[2]) / iqr, 0))
+        df$outlier_score[idx] <- fence_dist
+        df$is_outlier[idx] <- !is.na(grp_vals) & (grp_vals < lo | grp_vals > hi)
+      }
+    }
+  }
+
+  attr(df, "outlier_method") <- method
+  attr(df, "outlier_threshold") <- threshold
+  attr(df, "outlier_enabled") <- TRUE
+  df
+}
+
+# Build a one-line summary of an outlier-flagged data frame for badges/tooltips.
+summarize_outlier_filter <- function(df) {
+  if (is.null(df) || !is.data.frame(df) || !("is_outlier" %in% colnames(df))) {
+    return(list(n_total = 0L, n_excluded = 0L, n_kept = 0L,
+                method = NA_character_, threshold = NA_real_,
+                enabled = FALSE, label = ""))
+  }
+  n_total <- nrow(df)
+  n_excluded <- sum(isTRUE(attr(df, "outlier_enabled")) & df$is_outlier, na.rm = TRUE)
+  if (!isTRUE(attr(df, "outlier_enabled"))) n_excluded <- 0L
+  method <- attr(df, "outlier_method") %||% "zscore"
+  threshold <- attr(df, "outlier_threshold") %||% NA_real_
+  enabled <- isTRUE(attr(df, "outlier_enabled"))
+  label <- if (!enabled) {
+    "outlier filter OFF"
+  } else if (method == "zscore") {
+    sprintf("z > %g per donor status", threshold)
+  } else {
+    sprintf("Tukey %g×IQR per donor status", threshold)
+  }
+  list(n_total = n_total, n_excluded = as.integer(n_excluded),
+       n_kept = n_total - as.integer(n_excluded),
+       method = method, threshold = threshold,
+       enabled = enabled, label = label)
+}
+
+# Format a one-line suffix for plot titles. Empty string when no exclusion.
+outlier_title_suffix <- function(summary) {
+  if (is.null(summary) || !isTRUE(summary$enabled) || summary$n_excluded == 0) {
+    return("")
+  }
+  sprintf(" — %d outlier%s excluded (%s)",
+          summary$n_excluded,
+          if (summary$n_excluded == 1) "" else "s",
+          summary$label)
+}
+
+# Convenience: shared tooltip text for the global outlier control.
+GLOBAL_OUTLIER_TOOLTIP <- paste0(
+  "For each donor status (ND / Aab+ / T1D), islets whose value is more than ",
+  "3 standard deviations from that group's mean are excluded from trend lines, ",
+  "donor-level means, and statistical tests. Excluded points still appear on ",
+  "scatter and box plots as faint grey × markers. Counts are shown next to ",
+  "each plot title. Spatial Card A (infiltration) uses Tukey 1.5×IQR instead, ",
+  "to tolerate zero-inflated phenotypes; Spatial Card C distance plots apply ",
+  "the z-score rule on log(1 + distance)."
+)
+
+# ---------- Plotly hover-text scrubber ----------
+#
+# ggplot geoms with a hard-coded `color = "black"` parameter (e.g. shape=21
+# summary points, "overall" LOESS lines) cause ggplotly to surface the literal
+# string "colour: black" in the hover tooltip. The same conversion also emits
+# both the `fill` and inherited `colour` aesthetics for shape-21 points, so the
+# donor_status label can appear twice. This helper post-processes a ggplotly
+# object's traces and removes those artefacts. Safe to apply unconditionally.
+strip_plotly_color_leak <- function(gg) {
+  if (is.null(gg) || is.null(gg$x) || is.null(gg$x$data)) return(gg)
+
+  scrub <- function(s) {
+    if (is.null(s) || length(s) == 0) return(s)
+    s <- as.character(s)
+    # Drop any "colour: black" or "color: black" line (case-insensitive),
+    # collapsing the surrounding <br> separator so the tooltip stays compact.
+    s <- gsub("(?i)<br\\s*/?\\s*>\\s*colou?r:\\s*black\\s*(?=<br|$)", "", s, perl = TRUE)
+    s <- gsub("(?i)^\\s*colou?r:\\s*black\\s*<br\\s*/?\\s*>", "", s, perl = TRUE)
+    s <- gsub("(?i)^\\s*colou?r:\\s*black\\s*$", "", s, perl = TRUE)
+    # Collapse adjacent duplicate donor_status lines (handles the ggplotly
+    # case where both `fill` and `colour` aesthetics emit the same value).
+    s <- gsub("(donor_status:\\s*([^<]+))(<br\\s*/?\\s*>donor_status:\\s*\\2)+",
+              "\\1", s, perl = TRUE)
+    s
+  }
+
+  for (i in seq_along(gg$x$data)) {
+    tr <- gg$x$data[[i]]
+    if (!is.null(tr$text))          gg$x$data[[i]]$text          <- scrub(tr$text)
+    if (!is.null(tr$hovertemplate)) gg$x$data[[i]]$hovertemplate <- scrub(tr$hovertemplate)
+    if (!is.null(tr$hovertext))     gg$x$data[[i]]$hovertext     <- scrub(tr$hovertext)
+  }
+  gg
+}
+
 summary_stats <- function(df, group_cols, value_col, stat = c("mean_se","mean_sd","median_iqr")) {
   stat <- match.arg(stat)
   df %>% group_by(across(all_of(group_cols))) %>%

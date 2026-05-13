@@ -4,7 +4,16 @@ trajectory_ui <- function(id) {
     div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; color: #004085; font-size: 13px;",
       "Click any point on the pseudotime scatter plot to view the segmentation map for that islet."
     ),
-    checkboxInput(ns("show_outlier_table"), "Show outlier table (if outliers detected)", value = FALSE),
+    div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap;",
+      tags$div(
+        title = GLOBAL_OUTLIER_TOOLTIP,
+        checkboxInput("traj_remove_outliers",
+                      "Exclude outliers (z > 3 per donor status)",
+                      value = TRUE,
+                      width = "320px")
+      ),
+      checkboxInput(ns("show_outlier_table"), "Show excluded-outlier table", value = FALSE)
+    ),
     uiOutput(ns("traj_status")),
     fluidRow(
       # Left card: Scatterplot and heatmaps (narrowed from col-8)
@@ -56,6 +65,7 @@ trajectory_ui <- function(id) {
                           selected = "Paul Tol (default)")
             )
           ),
+          uiOutput(ns("traj_outlier_badge")),
           plotlyOutput(ns("traj_scatter"), height = 650),
           br(),
           plotlyOutput(ns("traj_heatmap"), height = 100),

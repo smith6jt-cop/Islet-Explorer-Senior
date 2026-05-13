@@ -193,10 +193,34 @@ viewer_server <- function(id, forced_image, current_tab) {
           )
         },
         if (!is.null(vi$image_url) && nzchar(vi$image_url)) {
-          tags$iframe(
-            id = "avivator_viewer", src = vi$iframe_src,
-            width = "100%", frameBorder = 0, allowfullscreen = NA,
-            style = "width:100%; height:calc(100vh - 180px); border:0;"
+          tags$div(
+            id = ns("viewer_wrap"),
+            style = "position: relative;",
+            tags$div(
+              style = "padding: 6px 10px; background-color: #f6f8fa; color: #666; font-size: 90%; margin-bottom: 6px; border: 1px solid #e1e4e8; border-radius: 3px;",
+              "Click inside the viewer to enable pan/zoom and wheel zoom."
+            ),
+            tags$iframe(
+              id = "avivator_viewer", src = vi$iframe_src,
+              width = "100%", frameBorder = 0, allowfullscreen = NA,
+              tabindex = "0", allow = "fullscreen",
+              style = "width:100%; height:calc(100vh - 180px); border:0;"
+            ),
+            tags$script(HTML(sprintf("(function(){
+  var wrap = document.getElementById('%s');
+  if (!wrap) return;
+  var iframe = wrap.querySelector('#avivator_viewer');
+  if (!iframe) return;
+  function focusViewer(){ try { if (iframe.contentWindow) iframe.contentWindow.focus(); } catch (e) {} }
+  iframe.addEventListener('load', focusViewer);
+  wrap.addEventListener('mouseenter', focusViewer);
+  wrap.addEventListener('wheel', function(){
+    try {
+      if (document.activeElement !== iframe) focusViewer();
+    } catch (e) {}
+  }, { passive: true });
+  setTimeout(focusViewer, 200);
+})();", ns("viewer_wrap"))))
           )
         } else {
           tags$div(

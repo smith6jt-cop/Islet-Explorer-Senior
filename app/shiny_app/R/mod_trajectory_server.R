@@ -1,5 +1,6 @@
 trajectory_server <- function(id, prepared, selected_islet, forced_image, active_tab = reactive("Trajectory"),
-                              donor_colors_reactive = reactive(DONOR_COLORS)) {
+                              donor_colors_reactive = reactive(DONOR_COLORS),
+                              remove_outliers = reactive(TRUE)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -24,6 +25,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     traj_load_attempted <- reactiveVal(FALSE)
     traj_coord_lookup <- reactiveVal(NULL)
     traj_outliers <- reactiveVal(NULL)
+    traj_outlier_summary <- reactiveVal(NULL)
 
     # ---------- Lazy H5AD loader ----------
     observe({
@@ -432,26 +434,15 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         return(plotly_empty() %>% layout(title = "No trajectory data available"))
       }
 
-      # Remove outliers (>3 SD per donor group) and store for reporting
-      df_original <- df
-      outlier_threshold <- 3
-      df$is_outlier <- FALSE
-      df$z_score <- NA_real_
+      # Flag outliers via the shared helper. Excluded points are drawn as
+      # ghost × markers (not deleted) so users can see WHERE the exclusions
+      # land along pseudotime; trend lines are drawn only from kept rows.
+      df <- flag_outliers(df, value_col = "value", group_col = "donor_status",
+                          method = "zscore", threshold = 3,
+                          enabled = isTRUE(remove_outliers()))
+      outlier_summary <- summarize_outlier_filter(df)
+      outliers <- df[df$is_outlier, , drop = FALSE]
 
-      for (grp in unique(df$donor_status)) {
-        idx <- which(df$donor_status == grp)
-        if (length(idx) < 3) next
-        grp_mean <- mean(df$value[idx], na.rm = TRUE)
-        grp_sd   <- sd(df$value[idx], na.rm = TRUE)
-        if (!is.finite(grp_sd) || grp_sd == 0) next
-        z <- (df$value[idx] - grp_mean) / grp_sd
-        df$z_score[idx] <- z
-        df$is_outlier[idx] <- !is.na(z) & abs(z) > outlier_threshold
-      }
-
-      outliers <- df[df$is_outlier, ]
-
-      # Store outliers in reactiveVal
       if (nrow(outliers) > 0) {
         traj_outliers(data.frame(
           Feature      = outliers$feature_name,
@@ -460,17 +451,24 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           Donor_Status = outliers$donor_status,
           Pseudotime   = round(outliers$pt, 3),
           Value        = round(outliers$value, 3),
-          Z_Score      = round(outliers$z_score, 2),
+          Z_Score      = round(outliers$outlier_score, 2),
           stringsAsFactors = FALSE
         ))
       } else {
         traj_outliers(NULL)
       }
 
-      # Remove outliers from plotting data
-      df <- df[!df$is_outlier, ]
+      # Split: kept rows feed the scatter, color scales, and trend lines.
+      # Outlier rows are rendered as a final ghost layer.
+      df_keep    <- df[!df$is_outlier, , drop = FALSE]
+      df_ghost   <- df[df$is_outlier, , drop = FALSE]
 
-      cat(sprintf("[TRAJECTORY] Removed %d outliers (>3 SD per group)\n", nrow(df_original) - nrow(df)))
+      cat(sprintf("[TRAJECTORY] %d outliers flagged (%s); %d kept, %d drawn as ghost ×\n",
+                  outlier_summary$n_excluded, outlier_summary$label,
+                  nrow(df_keep), nrow(df_ghost)))
+      traj_outlier_summary(outlier_summary)
+
+      df <- df_keep
 
       # Determine color mapping and aesthetics
       color_by   <- input$traj_color_by %||% "donor_status"
@@ -479,12 +477,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       alpha_val  <- input$traj_alpha %||% 0.6
       point_size <- input$traj_point_size_slider %||% 3.0
 
-      # Always apply jitter
+      # Always apply jitter — use the kept-rows range as the jitter scale
+      # so ghost points land in the same visual frame.
       set.seed(42)
       jitter_amount_x <- diff(range(df$pt, na.rm = TRUE)) * 0.012
       jitter_amount_y <- diff(range(df$value, na.rm = TRUE)) * 0.02
       df$pt    <- pmax(0, pmin(1, df$pt + runif(nrow(df), -jitter_amount_x, jitter_amount_x)))
       df$value <- df$value + runif(nrow(df), -jitter_amount_y, jitter_amount_y)
+      if (nrow(df_ghost) > 0) {
+        df_ghost$pt    <- pmax(0, pmin(1, df_ghost$pt + runif(nrow(df_ghost), -jitter_amount_x, jitter_amount_x)))
+        df_ghost$value <- df_ghost$value + runif(nrow(df_ghost), -jitter_amount_y, jitter_amount_y)
+      }
 
       # Log-transform cell counts for LOESS weights (raw counts too skewed: median=9, max=1902)
       df$loess_weight <- log1p(df$total_cells)
@@ -537,6 +540,23 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         g <- g + geom_point(alpha = alpha_val, size = point_size, stroke = 0)
       } else {
         g <- g + geom_point(alpha = alpha_val, stroke = 0)
+      }
+      # Ghost layer: excluded outliers as faint grey × markers. Drawn before
+      # trend lines so the LOESS curves visibly track the kept distribution.
+      if (nrow(df_ghost) > 0) {
+        df_ghost$hover_cells <- paste0("Excluded outlier · Cells: ", df_ghost$total_cells,
+                                       sprintf(" · z = %.2f", df_ghost$outlier_score))
+        df_ghost$click_key <- paste(df_ghost$case_id, df_ghost$islet_key, sep = "|")
+        g <- g + geom_point(
+          data = df_ghost,
+          aes(x = pt, y = value, text = hover_cells, key = click_key),
+          inherit.aes = FALSE,
+          shape = 4,
+          size = point_size * 1.1,
+          stroke = 0.9,
+          colour = "grey45",
+          alpha = 0.55
+        )
       }
       g <- g +
         theme_minimal(base_size = 14) +
@@ -640,6 +660,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       # Convert to plotly with custom data for reliable click handling
       p <- ggplotly(g, tooltip = c("x", "y", "colour", "text"), source = ns("traj_scatter"))
+      # Strip "colour: black" leak (from overall LOESS line's color="black"
+      # parameter) and collapse duplicate donor_status entries in hover text.
+      p <- strip_plotly_color_leak(p)
 
       # Store coordinate lookup as fallback for click handling
       if ("combined_islet_id" %in% colnames(df) && "case_id" %in% colnames(df)) {
@@ -902,29 +925,70 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     # Note: islet_segmentation_view renderPlot is at root level in app.R
     # (shared between Plot modal and Trajectory embedded panel)
 
-    # ---------- Outlier table ----------
+    # ---------- Outlier badge (above scatter) ----------
+    output$traj_outlier_badge <- renderUI({
+      summary <- traj_outlier_summary()
+      if (is.null(summary)) return(NULL)
+      suffix <- outlier_title_suffix(summary)
+      if (!nzchar(suffix)) {
+        if (!isTRUE(summary$enabled)) {
+          return(tags$div(
+            style = "background: #fdfbe7; border: 1px solid #f0d97a; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #6e6300;",
+            tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
+              "\u24d8 Outlier filter OFF \u2014 all points contribute to trend lines.")
+          ))
+        }
+        return(NULL)
+      }
+      tags$div(
+        style = "background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #5a4400;",
+        tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
+          sprintf("\u26a0 %d outlier%s excluded from trend lines (%s) \u2014 drawn as grey \u00d7 markers.",
+                  summary$n_excluded,
+                  if (summary$n_excluded == 1) "" else "s",
+                  summary$label))
+      )
+    })
+
+    # ---------- Outlier table (below scatter) ----------
     output$traj_outlier_info <- renderUI({
       show_table <- isTRUE(input$show_outlier_table)
+      if (!show_table) return(NULL)
       outlier_data <- traj_outliers()
+      summary <- traj_outlier_summary()
+      filter_on <- isTRUE(summary$enabled)
 
-      if (show_table && !is.null(outlier_data) && nrow(outlier_data) > 0) {
-        tagList(
-          div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 10px; margin-top: 10px; color: #000000;",
-            h5(style = "color: #000000; margin-top: 0;",
-               sprintf("\u26a0\ufe0f %d Outlier%s Removed (>3 SD within group)",
-                       nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""))),
-            p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;",
-              "The following data points were excluded from the plot because they exceed 3 standard deviations from their group mean:"),
-            div(style = "max-height: 200px; overflow-y: auto;",
-              renderTable({
-                outlier_data
-              }, striped = TRUE, hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
-            )
+      if (is.null(outlier_data) || nrow(outlier_data) == 0) {
+        return(tagList(
+          div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 8px 12px; margin-top: 10px; color: #004085; font-size: 12px;",
+            "No outliers detected for the current selection.")
+        ))
+      }
+
+      header <- if (filter_on) {
+        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (z > 3 within donor status)",
+                nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""))
+      } else {
+        sprintf("\u24d8 %d Outlier%s Flagged (filter OFF \u2014 still in trend)",
+                nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""))
+      }
+      body_text <- if (filter_on) {
+        "The following data points were excluded from trend lines and rendered as faint \u00d7 markers because they exceed 3 standard deviations from their donor-status mean:"
+      } else {
+        "These points would be excluded if the global outlier filter were turned on; currently they are kept and contribute to trend lines:"
+      }
+
+      tagList(
+        div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 10px; margin-top: 10px; color: #000000;",
+          h5(style = "color: #000000; margin-top: 0;", header),
+          p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
+          div(style = "max-height: 200px; overflow-y: auto;",
+            renderTable({
+              outlier_data
+            }, striped = TRUE, hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
           )
         )
-      } else {
-        NULL
-      }
+      )
     })
 
     # ---------- Legend for trajectory scatter ----------
