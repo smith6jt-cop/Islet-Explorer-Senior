@@ -20,14 +20,24 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
     ns <- session$ns
 
     # Helper: section heading (mirrors the one in UI but available server-side)
-    section_heading <- function(step, title, subtitle) {
+    # `tip` (NULL or character): if supplied, renders a small "(?)" icon with a
+    # native browser tooltip describing the section's contents.
+    section_heading <- function(step, title, subtitle, tip = NULL) {
+      tip_icon <- if (!is.null(tip) && nzchar(tip)) {
+        span("?", title = tip,
+             style = paste0("display: inline-block; margin-left: 6px; width: 18px; height: 18px;",
+                            " line-height: 18px; text-align: center; font-size: 12px; font-weight: 700;",
+                            " color: #4477AA; background: #eaf2fa; border: 1px solid #c0d4e8;",
+                            " border-radius: 50%; cursor: help;"))
+      } else NULL
       div(style = "margin-bottom: 14px; margin-top: 22px; padding-bottom: 8px; border-bottom: 2px solid #d0e0f0;",
         div(style = "display: flex; align-items: baseline; gap: 10px;",
           span(step,
                style = paste0("display: inline-block; background: linear-gradient(135deg, #4477AA, #5599CC);",
                               " color: white; font-weight: 700; font-size: 14px; padding: 2px 10px;",
                               " border-radius: 12px; min-width: 24px; text-align: center;")),
-          span(title, style = "font-weight: 700; font-size: 17px; color: #333;")
+          span(title, style = "font-weight: 700; font-size: 17px; color: #333;"),
+          tip_icon
         ),
         p(subtitle, style = "margin: 4px 0 0 0; color: #777; font-size: 13px;")
       )
@@ -70,13 +80,18 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
     output$section_confounders_heading <- renderUI({
       step <- 4L + section_offset()
       section_heading(as.character(step), "Confounders & Deeper Analysis",
-                      "Check whether demographics explain the effect, and compare integrated area under the curve across groups.")
+                      "Check whether demographics explain the effect, and compare integrated area under the curve across groups.",
+                      tip = paste0("Demographic confounders (age, sex, AAb count) and a covariate-adjusted ",
+                                   "donor-level linear model. Sex-stratified pairwise tests are BH-corrected ",
+                                   "across the 6 contrasts (3 pairs x 2 sexes)."))
     })
 
     output$section_methods_heading <- renderUI({
       step <- 5L + section_offset()
       section_heading(as.character(step), "Methods Reference",
-                      "Technical details about tests, corrections, and guidelines.")
+                      "Technical details about tests, corrections, and guidelines.",
+                      tip = paste0("Full methods text. Updates dynamically with the current test type, ",
+                                   "outlier rule, zero-exclusion state, and binning settings."))
     })
 
     # ===========================================================================
@@ -100,6 +115,18 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       outlier_summary_pre <- summarize_outlier_filter(rdf)
       if (isTRUE(remove_outliers())) {
         rdf <- rdf[!rdf$is_outlier | is.na(rdf$is_outlier), , drop = FALSE]
+      }
+
+      # ---- Zero-value exclusion (sensitivity for zero-inflated features) ----
+      # Removes rows whose feature value == 0 before any donor-level aggregation,
+      # mixed-effects modelling, demographics, and per-bin tests. AUC is read
+      # from the Plot tab's summary_df and is NOT affected.
+      exclude_zero <- isTRUE(input$stats_exclude_zero)
+      zero_dropped <- 0L
+      if (exclude_zero) {
+        n_before <- nrow(rdf)
+        rdf <- rdf[is.finite(rdf$value) & rdf$value != 0, , drop = FALSE]
+        zero_dropped <- as.integer(n_before - nrow(rdf))
       }
 
       # ---- Min-cells filter (like spatial tab) ----
@@ -319,7 +346,10 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
           }
         }
 
-        # Sex-stratified tests on donor-level data
+        # Sex-stratified tests on donor-level data.
+        # Pairwise tests are run UNADJUSTED within each sex, then BH-corrected
+        # across all 6 contrasts (3 pairs x 2 sexes) so the family-wise FDR is
+        # controlled the same way as the primary pairwise table.
         if (has_gender) {
           genders_present <- unique(na.omit(as.character(ddf$gender)))
           gender_rows <- lapply(genders_present, function(gen) {
@@ -329,13 +359,22 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
             low_power <- any(n_per_grp[n_per_grp > 0] < 3)
             pw <- if (is_parametric) {
               tryCatch({
-                pt <- pairwise.t.test(sub$value, sub$donor_status, p.adjust.method = "BH")
+                pt <- pairwise.t.test(sub$value, sub$donor_status, p.adjust.method = "none")
                 mat <- as.data.frame(as.table(pt$p.value))
                 colnames(mat) <- c("group1", "group2", "p_value")
                 mat[!is.na(mat$p_value), , drop = FALSE]
               }, error = function(e) NULL)
             } else {
-              pairwise_wilcox(sub, "donor_status", "value")
+              tryCatch({
+                pw_raw <- pairwise.wilcox.test(sub$value, sub$donor_status,
+                                               p.adjust.method = "none", exact = FALSE)
+                mat <- as.data.frame(as.table(pw_raw$p.value))
+                colnames(mat) <- c("group1", "group2", "p_value")
+                mat <- mat[!is.na(mat$p_value), , drop = FALSE]
+                mat$group1 <- as.character(mat$group1)
+                mat$group2 <- as.character(mat$group2)
+                mat
+              }, error = function(e) NULL)
             }
             if (is.null(pw) || nrow(pw) == 0) return(NULL)
             pw$gender <- gen
@@ -344,6 +383,9 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
             pw
           })
           gender_strat <- do.call(rbind, gender_rows)
+          if (!is.null(gender_strat) && nrow(gender_strat) > 0) {
+            gender_strat$p_adj <- p.adjust(gender_strat$p_value, method = "BH")
+          }
         }
       }
 
@@ -428,7 +470,9 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         aab_summary      = aab_summary,
         aab_donor_summary = aab_donor_summary,
         rdf              = rdf,
-        outlier_summary  = outlier_summary_pre
+        outlier_summary  = outlier_summary_pre,
+        exclude_zero     = exclude_zero,
+        zero_dropped     = zero_dropped
       )
     }, ignoreInit = TRUE)
 
@@ -448,6 +492,14 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       p_col <- if (is.na(primary_p)) "#999" else if (primary_p < st$alpha) "#d62728" else "#2e7d32"
       icc_label <- if (is.na(st$icc)) "" else sprintf("  ICC = %.2f", st$icc)
 
+      zero_badge <- if (isTRUE(st$exclude_zero)) {
+        tags$span(style = paste0("background: #fff3e0; color: #6a3a00; padding: 4px 10px; ",
+                                 "border: 1px solid #ffcc80; border-radius: 4px;"),
+                  sprintf("Zero-valued excluded (%s islet%s dropped)",
+                          formatC(st$zero_dropped, format = "d", big.mark = ","),
+                          if (st$zero_dropped == 1) "" else "s"))
+      } else NULL
+
       tags$div(style = "display: flex; gap: 15px; align-items: center; flex-wrap: wrap;",
         tags$span(style = "background: #e3f2fd; padding: 4px 10px; border-radius: 4px; font-weight: 600;",
                   st$feature_name),
@@ -456,7 +508,8 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
                          " islets, ", st$n_donors, " donors", icc_label)),
         tags$span(style = paste0("background: ", p_col, "; color: white; padding: 4px 10px; border-radius: 4px;"),
                   paste0("Mixed-effects p = ",
-                         if (is.na(primary_p)) "N/A" else formatC(primary_p, format = "e", digits = 2)))
+                         if (is.na(primary_p)) "N/A" else formatC(primary_p, format = "e", digits = 2))),
+        zero_badge
       )
     })
 
@@ -653,8 +706,13 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       pw$contrast <- factor(pw$contrast, levels = rev(pw$contrast))
       pw$sig_label <- ifelse(pw$sig, "Significant", "NS")
 
+      zero_suffix <- if (isTRUE(st$exclude_zero) && st$zero_dropped > 0) {
+        sprintf(" — %s zero-valued dropped",
+                formatC(st$zero_dropped, format = "d", big.mark = ","))
+      } else ""
       forest_title <- paste0("Pairwise Effect Sizes (conservative)",
-                             outlier_title_suffix(st$outlier_summary))
+                             outlier_title_suffix(st$outlier_summary),
+                             zero_suffix)
       g <- ggplot(pw, aes(x = cohens_d, y = contrast, color = sig_label)) +
         geom_vline(xintercept = 0, linetype = "dashed", color = "#999") +
         geom_point(size = 3) +
@@ -898,7 +956,10 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       rdf_plot$donor_status <- factor(rdf_plot$donor_status, levels = c("ND", "Aab+", "T1D"))
       rdf_plot$gender <- factor(rdf_plot$gender, levels = c("M", "F"), labels = c("Male", "Female"))
 
-      # Build subtitle with stratified p-values (if available)
+      # Build subtitle with stratified p-values (if available).
+      # p_adj is BH-corrected across the 6 contrasts (3 pairs x 2 sexes); we
+      # report the minimum adjusted p per sex so users see whether ANY contrast
+      # survived the family-wise correction.
       gs <- st$gender_strat
       sub_label <- ""
       if (!is.null(gs) && nrow(gs) > 0) {
@@ -906,14 +967,16 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         for (gen in unique(as.character(gs$gender))) {
           sub_gs <- gs[gs$gender == gen, , drop = FALSE]
           if (nrow(sub_gs) > 0) {
-            min_p <- min(sub_gs$p_value, na.rm = TRUE)
+            min_padj_col <- if ("p_adj" %in% colnames(sub_gs)) "p_adj" else "p_value"
+            min_p <- min(sub_gs[[min_padj_col]], na.rm = TRUE)
             lp <- sub_gs$low_power[1]
             suffix <- if (isTRUE(lp)) " (low power)" else ""
-            p_labels <- c(p_labels, sprintf("%s: min p=%s%s", gen,
+            p_labels <- c(p_labels, sprintf("%s: min q=%s%s", gen,
                                             formatC(min_p, format = "e", digits = 1), suffix))
           }
         }
-        sub_label <- paste(p_labels, collapse = "  |  ")
+        sub_label <- paste0(paste(p_labels, collapse = "  |  "),
+                            "   (BH-corrected across 6 contrasts)")
       }
 
       g <- ggplot(rdf_plot, aes(x = donor_status, y = value, fill = donor_status)) +
@@ -1121,8 +1184,29 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         }
       }
 
+      zero_para <- if (isTRUE(st$exclude_zero)) {
+        tagList(
+          tags$strong("Zero-value exclusion: "),
+          sprintf("This run dropped %s islet%s with value == 0 before donor-level aggregation, mixed-effects modelling, demographics, and per-bin tests. ",
+                  formatC(st$zero_dropped, format = "d", big.mark = ","),
+                  if (st$zero_dropped == 1) "" else "s"),
+          "Useful for zero-inflated features (rare phenotypes or peri-islet enrichment z-scores where many islets register 0). ",
+          tags$strong("Note: "), "AUC is computed from the Plot-tab summary curves and is not affected by this filter.",
+          tags$br()
+        )
+      } else {
+        tagList(
+          tags$strong("Zero-value exclusion: "),
+          "Filter is OFF for this run — all finite values contribute to the tests, including zero-valued islets. ",
+          "Toggle ", tags$em("Exclude zero-valued islets"),
+          " in Section 1 to re-run on the non-zero subset (recommended for zero-inflated features).",
+          tags$br()
+        )
+      }
+
       tags$div(style = "padding: 10px;",
         tags$p(outlier_para),
+        tags$p(zero_para),
         tags$p(
           tags$strong("Primary test (mixed-effects model): "),
           paste0("A linear mixed-effects model tests whether donor status (ND / Aab+ / T1D) predicts the feature value across all ",
@@ -1152,10 +1236,11 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
           tags$strong("Normality: "), "Shapiro-Wilk test on donor-level means per group. ",
           "With n = 5, this test has limited power, so failure to reject normality does not guarantee it.",
           tags$br(),
-          tags$strong("Stratified analysis: "), "ANOVA and Kendall \u03c4 on donor-level means within each diameter bin. ",
+          tags$strong("Stratified analysis: "), "ANOVA, pairwise tests, and Kendall \u03c4 on donor-level means within each diameter bin. ",
           "Kendall \u03c4 correlates disease stage (ND=0, Aab+=1, T1D=2) with the feature value: ",
           "\u03c4 > 0 means the feature increases with disease progression, \u03c4 < 0 means it decreases. ",
-          "P-values are BH-corrected across bins. Bins with <2 donors per group are untestable (greyed out).",
+          "P-values are BH-corrected across bins. A bin is tested only if at least 2 donor-status groups ",
+          "each have \u2265 2 donors with finite values (same rule for the heatmap and the trend plot).",
           tags$br(),
           tags$strong("Multiple comparisons: "), "Benjamini-Hochberg (FDR) correction applied to pairwise p-values.",
           tags$br(),
@@ -1166,8 +1251,8 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
             tags$strong("Demographic covariates: "),
             "Age-feature scatter shows all islets (note: correlated within donors). ",
             "Sex analysis uses box plots by donor status, faceted by sex. ",
-            "Sex-stratified pairwise tests report minimum p-value ",
-            "(low power with ~2-3 donors per sex per group). ",
+            "Sex-stratified pairwise tests are BH-corrected across all 6 contrasts (3 pairs × 2 sexes); ",
+            "the subtitle reports the minimum adjusted q per sex (low power with ~2-3 donors per sex per group). ",
             if (!is.null(st$age_model_p)) {
               "A linear model on donor means adjusting for age and sex tests whether donor_status retains significance."
             } else {
@@ -1215,6 +1300,9 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
                                      "; excluded = ", os$n_excluded,
                                      " of ", os$n_total, " input rows."))
           }
+          lines <- c(lines, paste0("# Zero-value filter: ",
+                                   if (isTRUE(st$exclude_zero)) "ON" else "OFF",
+                                   "; N dropped = ", st$zero_dropped))
           lines <- c(lines, paste0("# Total islets: ",
                                    formatC(st$n_islets, big.mark = ","),
                                    ", Donors: ", st$n_donors))
@@ -1280,6 +1368,12 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
           if (!is.null(st$age_corr)) {
             cat("\n# Age-Feature Correlation (all islets)\n", file = file, append = TRUE)
             write.table(st$age_corr, file, append = TRUE, sep = ",", row.names = FALSE, quote = TRUE)
+          }
+
+          if (!is.null(st$gender_strat) && nrow(st$gender_strat) > 0) {
+            cat("\n# Sex-Stratified Pairwise (BH-corrected across 6 contrasts: 3 pairs x 2 sexes)\n",
+                file = file, append = TRUE)
+            write.table(st$gender_strat, file, append = TRUE, sep = ",", row.names = FALSE, quote = TRUE)
           }
 
           if (!is.null(st$aab_donor_summary)) {

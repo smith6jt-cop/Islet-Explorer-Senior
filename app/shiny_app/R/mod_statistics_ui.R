@@ -7,16 +7,26 @@ statistics_ui <- function(id) {
 
   ns <- NS(id)
 
-  # Helper: numbered section heading with subtitle
+  # Helper: numbered section heading with subtitle and optional tooltip
+  # `tip` (NULL or character): if supplied, renders a small "(?)" icon next to
+  # the title with a native browser tooltip describing the section's contents.
 
-  section_heading <- function(step, title, subtitle) {
+  section_heading <- function(step, title, subtitle, tip = NULL) {
+    tip_icon <- if (!is.null(tip) && nzchar(tip)) {
+      span("?", title = tip,
+           style = paste0("display: inline-block; margin-left: 6px; width: 18px; height: 18px;",
+                          " line-height: 18px; text-align: center; font-size: 12px; font-weight: 700;",
+                          " color: #4477AA; background: #eaf2fa; border: 1px solid #c0d4e8;",
+                          " border-radius: 50%; cursor: help;"))
+    } else NULL
     div(style = "margin-bottom: 14px; margin-top: 22px; padding-bottom: 8px; border-bottom: 2px solid #d0e0f0;",
       div(style = "display: flex; align-items: baseline; gap: 10px;",
         span(step,
              style = paste0("display: inline-block; background: linear-gradient(135deg, #4477AA, #5599CC);",
                             " color: white; font-weight: 700; font-size: 14px; padding: 2px 10px;",
                             " border-radius: 12px; min-width: 24px; text-align: center;")),
-        span(title, style = "font-weight: 700; font-size: 17px; color: #333;")
+        span(title, style = "font-weight: 700; font-size: 17px; color: #333;"),
+        tip_icon
       ),
       p(subtitle, style = "margin: 4px 0 0 0; color: #777; font-size: 13px;")
     )
@@ -24,9 +34,35 @@ statistics_ui <- function(id) {
 
   tagList(
 
+    # ===== Top: General-use description banner =====
+    div(class = "card",
+        style = paste0("padding: 14px 18px; margin-bottom: 18px; ",
+                       "background: linear-gradient(135deg, #f4f8fc 0%, #eaf2fa 100%); ",
+                       "border-left: 4px solid #4477AA;"),
+      h4("About this tab",
+         style = "margin: 0 0 6px 0; font-size: 16px; color: #2c4760;"),
+      p(style = "margin: 0 0 6px 0; font-size: 13px; line-height: 1.5; color: #333;",
+        tags$strong("What it does."), " Compares the selected feature across ",
+        tags$strong("ND, Aab+, and T1D"), " donors (N=15 total) using a donor-aware workflow ",
+        "that avoids pseudoreplication. The primary test is a ",
+        tags$strong("linear mixed-effects model"), " with donor as a random intercept; ",
+        "a donor-level ANOVA / Kruskal-Wallis on per-donor means is reported as a conservative cross-check."),
+      p(style = "margin: 0 0 6px 0; font-size: 13px; line-height: 1.5; color: #333;",
+        tags$strong("What you get."), " Hypothesis testing table, effect-size forest plot, ",
+        "trapezoidal AUC, size-stratified per-bin tests, Kendall τ trend across disease stage, ",
+        "and confounder checks (age, sex, AAb count, covariate-adjusted model)."),
+      p(style = "margin: 0; font-size: 13px; line-height: 1.5; color: #333;",
+        tags$strong("How to use it."), " Pick a feature in the sidebar (shared with the Plot tab). ",
+        "Choose Parametric or Non-parametric and an α, optionally toggle ",
+        tags$em("Exclude zero-valued islets"), " for zero-inflated features, then click ",
+        tags$strong("Run Statistics"), ". Hover the ", tags$em("(?)"), " icon on each section for a one-line description.")
+    ),
+
     # ===== SECTION 1: Configure Analysis =====
     section_heading("1", "Configure Analysis",
-                    "Select your test parameters, then click Run Statistics."),
+                    "Select your test parameters, then click Run Statistics.",
+                    tip = paste0("Pick test type, α, min-cells, diameter range, and optional ",
+                                 "zero exclusion. Click Run Statistics to rebuild every output below.")),
 
     fluidRow(
       column(12,
@@ -66,7 +102,15 @@ statistics_ui <- function(id) {
               uiOutput(ns("stats_outlier_status")),
               numericInput(ns("stats_min_cells"), "Min cells/islet",
                            value = 1, min = 1, max = 200, step = 1),
-              checkboxInput(ns("stats_no_binning"), "Skip size stratification", value = FALSE)
+              checkboxInput(ns("stats_no_binning"), "Skip size stratification", value = FALSE),
+              checkboxInput(ns("stats_exclude_zero"),
+                            "Exclude zero-valued islets",
+                            value = FALSE),
+              tags$small(style = "color: #888; display: block; margin-top: -6px; line-height: 1.3;",
+                "Filters value == 0 before all Statistics-tab tests. ",
+                "Useful for zero-inflated features (rare phenotypes, ",
+                "peri-islet enrichment z-scores). AUC reads the Plot-tab summary ",
+                "and is not affected.")
             ),
             column(3,
               sliderInput(ns("bin_width"), "Per-bin width (\u00b5m)",
@@ -88,7 +132,11 @@ statistics_ui <- function(id) {
 
     # ===== SECTION 2: Primary Results =====
     section_heading("2", "Primary Results",
-                    "Donor-level tests (N=15) to avoid pseudoreplication, with mixed-effects sensitivity analysis."),
+                    "Donor-level tests (N=15) to avoid pseudoreplication, with mixed-effects sensitivity analysis.",
+                    tip = paste0("Mixed-effects model (donor random intercept) is the primary test. ",
+                                 "Donor-level ANOVA / Kruskal on per-donor means is the conservative ",
+                                 "cross-check. Forest plot shows pairwise Cohen's d with 95% CI. ",
+                                 "AUC integrates the binned per-status means.")),
 
     uiOutput(ns("pseudorep_banner")),
 
@@ -121,7 +169,10 @@ statistics_ui <- function(id) {
       condition = sprintf("!input['%s']", ns("stats_no_binning")),
 
     section_heading("3", "Size-Dependent Patterns",
-                    "Does the group effect depend on islet size? Each diameter bin is tested independently (donor-level means per bin)."),
+                    "Does the group effect depend on islet size? Each diameter bin is tested independently (donor-level means per bin).",
+                    tip = paste0("Per-bin ANOVA and Kendall τ on donor means within each diameter bin. ",
+                                 "BH-corrected across bins. A bin is tested only if at least 2 donor-status ",
+                                 "groups each have >= 2 donors.")),
 
     fluidRow(style = "display: flex; flex-wrap: wrap;",
       column(6,
@@ -143,7 +194,8 @@ statistics_ui <- function(id) {
             tags$strong("\u03c4 > 0:"), " feature increases ND \u2192 Aab+ \u2192 T1D. ",
             tags$strong("\u03c4 < 0:"), " feature decreases. ",
             tags$strong("\u03c4 \u2248 0:"), " no monotonic trend. ",
-            "Bins with <3 donors are skipped."),
+            "A bin is tested only if at least 2 donor-status groups each have >= 2 donors ",
+            "(same rule as the heatmap)."),
           plotlyOutput(ns("trend_plot"), height = "400px")
         )
       )

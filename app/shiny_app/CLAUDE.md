@@ -118,8 +118,9 @@ The app has 5,214 islets from only **15 donors** (5 per group). Islets within a 
 ### Key Utilities (`utils_stats.R`)
 - `aggregate_to_donor(rdf, agg_fn)` -- Groups by `Case ID` + `donor_status`, computes mean/median of `value`, preserves age/gender
 - `lmer_test_donor(rdf)` -- Mixed-effects model, returns `list(p_value, icc, fit, error_msg)`. Uses `lmerTest::anova()` (Satterthwaite F-test). Returns diagnostic `error_msg` on failure (singular fit, convergence, missing packages).
-- `per_bin_donor_anova(df, ...)` -- Donor-level per-bin ANOVA. Skips bins where any group has <2 donors.
-- `per_bin_donor_kendall(df, ...)` -- Donor-level per-bin Kendall tau. Skips bins with <3 total donors.
+- `per_bin_donor_anova(df, ...)` -- Donor-level per-bin ANOVA. Skips bins unless ≥2 donor-status groups each have ≥2 donors (shared coverage rule).
+- `per_bin_donor_kendall(df, ...)` -- Donor-level per-bin Kendall tau. Same coverage rule as `per_bin_donor_anova()` so the heatmap and trend plot include the same bins (May 2026 harmonization).
+- `code_donor_status(x)` -- Maps `ND/Aab+/T1D` → `0/1/2` for Kendall trend coding. Single source of truth, used by both `per_bin_kendall()` and `per_bin_donor_kendall()`.
 - `normality_tests(ddf)` -- Shapiro-Wilk per group, returns data.frame with `W`, `p_value`, `is_normal`
 - `cohens_d(x, y)` -- returns `list(d, ci_lo, ci_hi)` (NOT `ci_lower`/`ci_upper`)
 - `eta_squared(fit)` -- from `anova()` output
@@ -149,16 +150,32 @@ The app has 5,214 islets from only **15 donors** (5 per group). Islets within a 
 ### Shared Sidebar Architecture
 The Plot sidebar (mode, feature, region, donor status, AAb, age, gender filters) is visible on both the Plot and Statistics tabs. Achieved via `conditionalPanel` condition `"input.tabs == 'Plot' || input.tabs == 'Statistics'"` and matching JS `adjustLayout()` logic in `app.R`. The Statistics module consumes `plot_returns$raw_df` and `plot_returns$summary_df` directly -- no data duplication.
 
+### Zero-Value Exclusion (May 2026)
+- UI: `stats_exclude_zero` checkbox in Section 1 controls row (`mod_statistics_ui.R`). Default OFF.
+- Server: `stats_run()` filters `value != 0` immediately after outlier flagging and before min-cells / diameter / aggregation. State and drop count (`zero_dropped`) propagate through the result list.
+- Scope: applies to mixed-effects model, donor-level ANOVA / Kruskal, pairwise Cohen's d, per-bin tests, demographics regressions, and the covariate-adjusted model. Does NOT alter AUC (read from the Plot tab's `summary_df`) or the normality table (computed before filtering would change power conclusions for a comparison user's reference).
+- Surfacing: overview banner shows an orange "Zero-valued excluded (N dropped)" badge; forest plot title appends `— N zero-valued dropped`; Methods Reference inserts a dedicated paragraph; CSV header records `Zero-value filter: ON/OFF; N dropped = …`.
+- Use case: zero-inflated features (rare phenotypes, peri-islet enrichment z-scores) where many islets register exactly 0. Lets users sanity-check whether group differences survive on the non-zero subset.
+
+### Sex-Stratified Tests — BH Correction (May 2026)
+- Pairwise tests within each sex are run UNADJUSTED (`p.adjust.method = "none"`) and then BH-corrected across all 6 contrasts (3 pairs × 2 sexes) in `gender_strat$p_adj`. Replaces the prior "minimum raw p, no correction" reporting.
+- `gender_plot` subtitle reports minimum BH-adjusted q per sex with a `(BH-corrected across 6 contrasts)` annotation. The `low_power` flag (n=2-3 donors per sex × group) remains as a separate badge.
+- CSV export includes a `# Sex-Stratified Pairwise (BH-corrected across 6 contrasts: 3 pairs x 2 sexes)` section.
+
 ### 5-Section Narrative Layout
 
-1. **Configure Analysis** -- Overview banner, Run/CSV buttons, test type, alpha, outliers, min-cells filter, normality test results, no-binning checkbox, bin width, diameter range.
+A "About this tab" banner above Section 1 describes the tab's purpose, primary test (mixed-effects with donor random intercept), and how to use it. Each section heading carries a `(?)` icon with a native-tooltip one-line description (helper: `section_heading(step, title, subtitle, tip = NULL)` in both `mod_statistics_ui.R` and `mod_statistics_server.R`).
+
+1. **Configure Analysis** -- Overview banner, Run/CSV buttons, test type, alpha, outliers, min-cells filter, no-binning checkbox, **zero-exclusion checkbox**, bin width, diameter range, normality test results.
 2. **Primary Results** -- Pseudoreplication info banner (ICC, mixed-effects p) + hypothesis table (col-4) + forest plot (col-4) + AUC (col-4). Cards equal-height via `display: flex` row.
-3. **Size-Dependent Patterns** -- Wrapped in `conditionalPanel` for no-binning toggle. Donor-level stratified tests heatmap + trend analysis.
-4. **Confounders & Deeper Analysis** -- Demographics: donor summary table, age scatter (islet-level, all points), sex box plot (faceted by sex), autoantibody profile (Aab+ only), covariate model (donor-level)
-5. **Methods Reference** -- Pseudoreplication, donor-level aggregation, ICC, mixed-effects, normality testing
+3. **Size-Dependent Patterns** -- Wrapped in `conditionalPanel` for no-binning toggle. Donor-level stratified tests heatmap + trend analysis. Heatmap and trend plot share a single coverage rule (≥2 groups × ≥2 donors).
+4. **Confounders & Deeper Analysis** -- Demographics: donor summary table, age scatter (islet-level, all points), sex box plot (faceted by sex, BH-corrected across 6 contrasts), autoantibody profile (Aab+ only), covariate model (donor-level)
+5. **Methods Reference** -- Pseudoreplication, donor-level aggregation, ICC, mixed-effects, normality testing, zero-value exclusion state, harmonized per-bin rule.
 
 ### Multiple Testing Correction
-Per-bin ANOVA and Kendall τ p-values are BH-corrected across bins via `p.adjust(method = "BH")`. Heatmap shows `-log10(q)` (corrected) with star annotations using corrected values.
+- Per-bin ANOVA, Kendall τ, and pairwise tests are BH-corrected across bins via `p.adjust(method = "BH")`. Heatmap shows `-log10(q)` (corrected) with star annotations using corrected values.
+- Donor-level pairwise contrasts are BH-corrected across the 3 pairs.
+- Sex-stratified pairwise contrasts are BH-corrected across all 6 contrasts (3 pairs × 2 sexes).
 
 ### Plotly Legend Positioning
 Forest plot uses `theme(legend.position = "none")` in ggplot (prevents ggplotly auto-placement), then `layout(margin = list(b = 60), legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.25))` in plotly. The `margin(b=60)` creates room below the x-axis title to prevent overlap. The trend plot uses `margin(b=100)` with legend at `y = -0.3`.

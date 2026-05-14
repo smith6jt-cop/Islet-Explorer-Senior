@@ -201,6 +201,8 @@ Embedded OME-TIFF viewer (Avivator) for full-resolution multiplexed imaging data
 
 Rigorous statistical analysis of the currently selected feature from the Plot sidebar. The Statistics tab **shares the Plot sidebar** — changing the feature, filters, or disease groups in the sidebar updates both Plot and Statistics simultaneously.
 
+An **"About this tab"** banner at the top summarises what the tab does, the donor cohort (N=15), and the primary test (a donor-aware mixed-effects model with donor as a random intercept). Each section heading carries a small **(?)** icon — hover it for a one-line description of that section's contents.
+
 The tab uses a **5-section narrative layout** that walks you through a logical analytical flow, with numbered headings and brief explanations at each step.
 
 ### Section 1: Configure Analysis
@@ -211,6 +213,7 @@ The tab uses a **5-section narrative layout** that walks you through a logical a
   - **Parametric** (ANOVA / t-test): assumes roughly normal data within groups
   - **Non-parametric** (Kruskal-Wallis / Wilcoxon): no normality assumption; based on ranks
 - Additional controls: significance level (α), bin width, diameter range. **Outlier removal** is controlled by the global toggle on the Plot sidebar (z > 3 per donor status, on by default); the Statistics tab shows an inline status banner reflecting the current setting. See [Outlier Handling](#outlier-handling) for the full rule.
+- **Exclude zero-valued islets** (checkbox, default OFF): filters `value == 0` rows before every Statistics-tab test (mixed-effects, donor-level ANOVA / Kruskal, pairwise Cohen's d, per-bin tests, demographics regressions, covariate-adjusted model). Useful for zero-inflated features — rare phenotype proportions, peri-islet enrichment z-scores, or any metric where many islets register exactly 0. The overview banner shows an orange "Zero-valued excluded (N dropped)" badge when active; the forest-plot title and the Methods Reference paragraph cite the same count. **AUC is read from the Plot tab's binned summary and is not affected by this filter** — toggling re-runs the hypothesis-testing pipeline but leaves the AUC card untouched.
 
 ### Section 2: Primary Results
 
@@ -226,6 +229,7 @@ Stratified analysis testing whether group differences depend on islet size (effe
 
 - **Stratified Tests by Islet Diameter**: Heatmap of BH-corrected q-values (ANOVA and Kendall τ) computed within each diameter bin. Identifies which size ranges drive or lack group differences. P-values are corrected across bins to control false discovery rate.
 - **Trend Analysis (Kendall τ)**: Measures correlation between disease stage (ND=0, Aab+=1, T1D=2) and the feature value within each size bin. τ > 0 means the feature increases with disease progression; τ < 0 means it decreases. Points colored by significance (red = significant, grey = NS).
+- **Bin coverage rule**: The heatmap and the trend plot use the same rule — a bin is tested only if at least 2 donor-status groups each have ≥ 2 donors with finite values after filtering. Bins that fail this rule are silently omitted from both plots so the coverage stays in sync.
 
 ### Section 4: Confounders & Deeper Analysis
 
@@ -233,7 +237,7 @@ Full-width **Demographics** card (H5AD only, hidden for Excel fallback):
 
 - **Donor Summary Table**: N islets (primary), N donors, age median/range, % male/female per disease group
 - **Age vs Feature** (left): Islet-level scatter plot (all ~5,214 islets) with overall linear regression line and Pearson correlation. Subtitle notes that islets are correlated within donors.
-- **Sex vs Feature** (right): Box plot of feature value by donor status, faceted by sex (Male/Female). Sex-stratified p-values shown in subtitle.
+- **Sex vs Feature** (right): Box plot of feature value by donor status, faceted by sex (Male/Female). Sex-stratified pairwise tests are **BH-corrected across all 6 contrasts** (3 pairs × 2 sexes); the subtitle reports the minimum adjusted q per sex (low-power sex × group cells, n=2-3 donors, are flagged but still corrected jointly).
 - **Autoantibody Profile** (Aab+ only, hidden when no AAb data): Per-donor table showing which AAbs are positive, total AAb count, N islets, and mean feature value. Box plot of feature by number of positive autoantibodies (1, 2, 3+) with Kruskal-Wallis test.
 - **Covariate-Adjusted Model**: Donor-level linear model adjusting for age and sex, testing whether donor status retains significance.
 

@@ -246,6 +246,17 @@ summary_stats <- function(df, group_cols, value_col, stat = c("mean_se","mean_sd
     )
 }
 
+# Map donor_status to ordinal trend code used by Kendall tau.
+# ND -> 0, Aab+ -> 1, T1D -> 2. Other labels return NA.
+# Used by per_bin_kendall() and per_bin_donor_kendall() so the encoding lives
+# in one place. If donor cohort labels ever change, update only here.
+code_donor_status <- function(x) {
+  x <- as.character(x)
+  ifelse(x == "ND", 0,
+    ifelse(x == "Aab+", 1,
+      ifelse(x == "T1D", 2, NA_real_)))
+}
+
 per_bin_anova <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
   if (nrow(df) == 0) return(tibble(bin = character(), mid = numeric(), p_anova = numeric()))
   bmeta <- df %>% filter(!is.na(.data[[bin_col]])) %>%
@@ -270,16 +281,12 @@ per_bin_anova <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid
 
 per_bin_kendall <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
   if (nrow(df) == 0) return(tibble(bin = character(), mid = numeric(), p_kendall = numeric(), tau = numeric()))
-  code_group <- function(x) {
-    x <- as.character(x)
-    ifelse(x == "ND", 0, ifelse(x == "Aab+", 1, ifelse(x == "T1D", 2, NA_real_)))
-  }
   bmeta <- df %>% filter(!is.na(.data[[bin_col]])) %>% group_by(.data[[bin_col]]) %>%
     summarise(mid = suppressWarnings(as.numeric(first(na.omit(.data[[mid_col]])))), .groups = "drop")
   res <- lapply(seq_len(nrow(bmeta)), function(i) {
     b <- bmeta[[bin_col]][i]
     sub <- df %>% filter(.data[[bin_col]] == b)
-    x <- code_group(sub[[group_col]])
+    x <- code_donor_status(sub[[group_col]])
     y <- suppressWarnings(as.numeric(sub[[value_col]]))
     keep <- is.finite(x) & is.finite(y)
     x <- x[keep]; y <- y[keep]
@@ -378,6 +385,12 @@ lmer_test_donor <- function(rdf) {
 }
 
 #' Per-bin ANOVA on donor-level means within each bin
+#
+# Shared coverage rule (used by per_bin_donor_anova and per_bin_donor_kendall):
+#   A bin is tested only if, after aggregating to donor means within the bin,
+#   at least 2 donor_status groups each have >= 2 donors. Bins that fail this
+#   rule are silently omitted so the heatmap (ANOVA + pairwise rows) and the
+#   trend plot (Kendall tau) include the same bins.
 per_bin_donor_anova <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
   if (nrow(df) == 0) return(tibble(bin = character(), mid = numeric(), p_anova = numeric()))
   if (!"Case ID" %in% colnames(df)) return(per_bin_anova(df, bin_col, group_col, value_col, mid_col))
@@ -409,13 +422,13 @@ per_bin_donor_anova <- function(df, bin_col, group_col, value_col, mid_col = "di
 }
 
 #' Per-bin Kendall tau on donor-level means within each bin
+#
+# Coverage rule matches per_bin_donor_anova: a bin is tested only if at least
+# 2 donor_status groups each have >= 2 donors with finite values. This keeps
+# the trend plot's bins aligned with the heatmap.
 per_bin_donor_kendall <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
   if (nrow(df) == 0) return(tibble(bin = character(), mid = numeric(), p_kendall = numeric(), tau = numeric()))
   if (!"Case ID" %in% colnames(df)) return(per_bin_kendall(df, bin_col, group_col, value_col, mid_col))
-  code_group <- function(x) {
-    x <- as.character(x)
-    ifelse(x == "ND", 0, ifelse(x == "Aab+", 1, ifelse(x == "T1D", 2, NA_real_)))
-  }
   bmeta <- df %>% filter(!is.na(.data[[bin_col]])) %>% group_by(.data[[bin_col]]) %>%
     summarise(mid = suppressWarnings(as.numeric(first(na.omit(.data[[mid_col]])))), .groups = "drop")
   res <- lapply(seq_len(nrow(bmeta)), function(i) {
@@ -425,11 +438,17 @@ per_bin_donor_kendall <- function(df, bin_col, group_col, value_col, mid_col = "
     ddf <- sub %>%
       dplyr::group_by(`Case ID`, .data[[group_col]]) %>%
       dplyr::summarise(value = mean(.data[[value_col]], na.rm = TRUE), .groups = "drop")
-    x <- code_group(ddf[[group_col]])
+    x <- code_donor_status(ddf[[group_col]])
     y <- ddf$value
     keep <- is.finite(x) & is.finite(y)
     x <- x[keep]; y <- y[keep]
-    if (length(unique(x)) < 2 || length(y) < 3) return(NULL)
+    if (length(y) < 3) return(NULL)
+    # Match per_bin_donor_anova coverage: at least 2 distinct groups present,
+    # each present group with >= 2 donors. ANOVA cannot estimate within-group
+    # variance otherwise; we apply the same rule here so the heatmap and trend
+    # plot include the same bins.
+    code_counts <- table(x)
+    if (length(code_counts) < 2 || any(code_counts < 2)) return(NULL)
     ct <- tryCatch(cor.test(x, y, method = "kendall", exact = FALSE), error = function(e) NULL)
     if (is.null(ct)) return(NULL)
     tibble(bin = as.character(b), mid = bmeta$mid[i], p_kendall = unname(ct$p.value), tau = unname(ct$estimate))
