@@ -232,13 +232,14 @@ Click a point -> `selected_islet()` updates -> embedded panel renders inline wit
 
 ### Metric Label Vocabulary (May 2026)
 Sidebar radio labels and axis titles are unit-explicit — never use the bare word "density" without naming the denominator. Canonical phrasing:
-- **Counts** → `"Cells per islet (core)"` / `"Cells per islet (peri)"` / `"Structures per islet"`
-- **Composition density** → `"Cells per mm² of core area"` (selector) and `"Cells per mm² (core area)"` (y-axis). Denominator is the *estimated* core area π·(diam/2)².
-- **Microenvironment density** → `"Structures per mm² of region"` (selector) and `"Structures per mm² (region area)"` (y-axis). Denominator is the *measured* QuPath region area for the active Region filter (core/peri/union).
+- **Composition Counts** → `"Cells per islet (core)"` / `"Cells per islet (peri)"`
+- **Composition Density** → selector `"Cells per mm² of core area"`, y-axis `"Cells per mm² (core area)"`. Denominator is the *estimated* core area π·(diam/2)².
+- **Microenvironment Counts** → selector `"Count per islet"`; y-axis names the class: `"Count of Nerve per islet"` / `"Count of Capillary per islet"` / `"Count of Lymphatic per islet"`.
+- **Microenvironment Density** → selector `"Area / mm² of region"`; y-axis names the class: `"Area of Nerve / mm² (µm² per mm² of region)"`, etc. **Value computed from `area_um2 / region_um2 * 1e6`** (µm² of structure per mm² of region), NOT from object counts. These targets (Nerve / Capillary / Lymphatic) are area-valued, not discretely countable.
 - **Peri composition** has no density option (peri area not measured).
 - **Spatial Card C distance KDE** y-axis is `"Cells per µm of distance (KDE × N)"`, not a per-area density.
 
-A `helpText` block under the Plot metric selector restates the active mode's denominator. Keep this phrasing if you add new metrics.
+A `helpText` block under the Plot metric selector restates the active mode's denominator. Keep this phrasing if you add new metrics. The y-axis class name is parsed from `input$which` (encoded as `className|region`).
 
 ## AI Assistant (Phase 10, Feb 2026)
 

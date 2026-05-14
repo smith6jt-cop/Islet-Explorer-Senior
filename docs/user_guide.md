@@ -130,7 +130,8 @@ The word *density* is reused in several places with different denominators. Each
 
 - **Cells per islet (core / peri)** — a raw count tallied inside the islet's core or 20 µm peri-islet zone. Not divided by area. Surfaced by the Metric = "Cells per islet" choice.
 - **Cells per mm² (core area)** — phenotype cells divided by the *estimated* core area, π · (diameter/2)². Surfaced by Metric = "Cells per mm² of core area" in Composition mode. Density is unavailable for Peri-Islet Proportions because the peri zone area is not measured.
-- **Structures per mm² (region area)** — Microenvironment-mode metric. Structures (nerves, capillaries, lymphatics, etc.) divided by the *measured* QuPath region area for the active Region filter (core, peri, or core+peri). Not derived from diameter.
+- **Area of {Nerve|Capillary|Lymphatic} / mm² (region area)** — Microenvironment-mode density. The value is the µm² of structure area divided by the *measured* QuPath region area in mm² (i.e. `area_um2 / region_um2 × 10⁶`). The y-axis names whichever class is selected. This is NOT a count of objects per area — these structures are area-valued (a single nerve may be segmented into several pieces, so counting is unreliable).
+- **Count of {Nerve|Capillary|Lymphatic} per islet** — Microenvironment-mode count. Number of QuPath-detected objects of the selected class within the islet region. Provided alongside the area-density metric, but the area metric is usually the more biologically meaningful read-out.
 - **Cells per µm of distance (Spatial Card C)** — the signed-distance KDE on Card C is a kernel density rescaled by N, so the y-axis is cells per µm of distance from the islet edge — *not* a per-area density. Useful for comparing distance distributions across disease stages; do not read it as cells/mm².
 - Log-scale features (e.g., cell counts) use pseudo-log transformation so zero values remain visible at y=0.
 

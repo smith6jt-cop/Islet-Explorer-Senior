@@ -132,13 +132,13 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       if (identical(input$mode, "Microenvironment")) {
         tagList(
           radioButtons(ns("metric"), "Metric",
-                       choices = c("Structures per islet"         = "Counts",
-                                   "Structures per mm² of region" = "Density"),
+                       choices = c("Count per islet"      = "Counts",
+                                   "Area / mm² of region" = "Density"),
                        selected = "Density", inline = TRUE),
           helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
-                   "Per islet = count tallied within the islet. ",
-                   "Per mm² of region = structures ÷ segmented region area ",
-                   "(core, peri, or core+peri — from QuPath, not estimated from diameter).")
+                   "Count per islet = number of objects (e.g. Nerve, Capillary, Lymphatic) tallied within the islet. ",
+                   "Area / mm² of region = µm² of structure ÷ segmented region area in mm² ",
+                   "(uses QuPath-measured area_um2 / region_um2, not object counts).")
         )
       } else {
         # Composition — hide Density for peri_prop_* (no peri area available)
@@ -253,8 +253,13 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         df <- df %>%
           dplyr::mutate(value = as.numeric(
             if (metric == "Counts") count else {
+              # Density = structure area per region area, scaled to µm²/mm²
+              # (i.e. area_density * 1e6). Uses measured area_um2/region_um2,
+              # NOT object count — these structures (Nerve/Capillary/Lymphatic)
+              # are area-valued, not discretely countable.
               reg <- suppressWarnings(as.numeric(region_um2))
-              ifelse(is.finite(reg) & reg > 0, as.numeric(count) / reg * 1e6, NA_real_)
+              a   <- suppressWarnings(as.numeric(area_um2))
+              ifelse(is.finite(reg) & reg > 0 & is.finite(a), a / reg * 1e6, NA_real_)
             }
           ))
       } else {
@@ -495,8 +500,11 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
         metric <- input$metric %||% "Density"
-        if (metric == "Counts") "Structures per islet"
-                          else  "Structures per mm\u00b2 (region area)"
+        wsel <- input$which %||% ""
+        class_name <- strsplit(wsel, "\\|")[[1]][1]
+        if (!nzchar(class_name)) class_name <- "structure"
+        if (metric == "Counts") paste0("Count of ", class_name, " per islet")
+                          else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
       } else {
         metric <- input$metric %||% "Percentage"
         switch(metric,
@@ -815,8 +823,11 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
         metric <- input$metric %||% "Density"
-        if (metric == "Counts") "Structures per islet"
-                          else  "Structures per mm\u00b2 (region area)"
+        wsel <- input$which %||% ""
+        class_name <- strsplit(wsel, "\\|")[[1]][1]
+        if (!nzchar(class_name)) class_name <- "structure"
+        if (metric == "Counts") paste0("Count of ", class_name, " per islet")
+                          else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
       } else {
         metric <- input$metric %||% "Percentage"
         switch(metric,
