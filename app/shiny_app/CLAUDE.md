@@ -131,12 +131,13 @@ The app has 5,214 islets from only **15 donors** (5 per group). Islets within a 
 - `GLOBAL_OUTLIER_TOOLTIP` -- String constant used as `title=` attribute on every outlier control across tabs.
 - `strip_plotly_color_leak(gg)` -- Scrubs each trace's `text`/`hovertemplate`/`hovertext` to remove `colour:\s*black` (and `color:\s*black`) lines, plus collapses adjacent duplicate `donor_status:\s*<value>` lines. Apply after every `ggplotly()` call where any geom uses `color = "black"` as a parameter (currently: Plot scatter, Plot distribution panel, Trajectory scatter). Defensive — no-op when no leak is present.
 
-### Unified Outlier Handling (May 2026)
-- One non-namespaced checkbox per tab (`sidebar_remove_outliers`, `traj_remove_outliers`, `spatial_remove_outliers`) — synced bidirectionally via three `observeEvent`s in `app.R`. The synced reactive `remove_outliers_global()` is injected into every module server (`plot_server`, `trajectory_server`, `statistics_server`, `spatial_server`) as the `remove_outliers` argument.
-- Default: ON. Toggling propagates instantly to all four tabs.
+### Unified Outlier Handling (May 2026 — Statistics decoupled May 14)
+- One non-namespaced checkbox per tab (`sidebar_remove_outliers`, `traj_remove_outliers`, `spatial_remove_outliers`) — synced bidirectionally via three `observeEvent`s in `app.R`. The synced reactive `remove_outliers_global()` is injected into `plot_server`, `trajectory_server`, and `spatial_server` as the `remove_outliers` argument.
+- **Statistics tab is independent**: a namespaced checkbox `stats_remove_outliers` lives inside `mod_statistics_ui.R` Section 1 controls and is read via `input$stats_remove_outliers` inside `stats_run()`. It does NOT sync with the Plot/Trajectory/Spatial toggle. The `statistics_server()` function still accepts the `remove_outliers` argument for backward compatibility but ignores it — kept so the `app.R` call site doesn't need to change.
+- Default: ON for all four toggles. Toggling the Plot sidebar propagates to Trajectory and Spatial but leaves Statistics alone (and vice versa).
 - Plot, Trajectory, Statistics, Spatial Card C: `flag_outliers(method = "zscore", threshold = 3)` per donor status. Card C transforms via `log1p` to handle the long-tailed distance distribution.
 - Spatial Card A: `flag_outliers(method = "iqr", threshold = 1.5, exclude_zeros = TRUE)` per donor status. Keeps the previous Tukey logic because phenotype enrichment is zero-inflated.
-- Visual surfacing: every affected plot shows a **count badge** in its title or subtitle and renders excluded points as **shape=4 grey × ghost markers** (Plot, Trajectory, Spatial Card C). Stats forest plot title shows the badge. Statistics Methods Reference paragraph names the rule and cites the exact `n_excluded` for the current Run. Download CSV header records `Outlier rule: …` and the count.
+- Visual surfacing: every affected plot shows a **count badge** in its title or subtitle and renders excluded points as **shape=4 grey × ghost markers** (Plot, Trajectory, Spatial Card C). Stats forest plot title shows the badge; the Statistics outlier checkbox carries a small caption beneath it reporting `N excluded last Run` (or a yellow "Filter OFF" notice). Statistics Methods Reference paragraph names the local rule and cites the exact `n_excluded` for the current Run. Download CSV header records `Outlier rule: …` and the count.
 - Spatial Card B's "Clip z > 5" checkbox is a **display saturation only** (caps the colour scale) — left alone, NOT an outlier control. Documented as such in `docs/user_guide.md`.
 - Trajectory bug fix: previously discarded outliers silently before plotting and logged only to console; now drawn as ghosts and counted in a badge above the scatter.
 - **Spatial per-card outlier tables** (May 13 follow-up): Cards A and C now expose `infiltration_show_outlier_table` and `distance_show_outlier_table` checkboxes that surface the list of excluded islets in a yellow warning panel below each plot. Reactive state lives in module-scope `infiltration_outliers` / `distance_outliers` `reactiveVal`s, populated inside each renderPlotly after the `flag_outliers()` call. Renders three states: table, "no outliers detected" blue note, or filter-OFF amber label. Matches the Plot/Trajectory `show_outlier_table` UX exactly.
@@ -228,6 +229,16 @@ Age slider and sex checkboxes in Plot sidebar (H5AD only). `renderUI` returns `N
 
 ### Segmentation + Drill-Down Pattern
 Click a point -> `selected_islet()` updates -> embedded panel renders inline with Boundaries/Single Cells toggle. Close button sets `selected_islet(NULL)`.
+
+### Metric Label Vocabulary (May 2026)
+Sidebar radio labels and axis titles are unit-explicit — never use the bare word "density" without naming the denominator. Canonical phrasing:
+- **Counts** → `"Cells per islet (core)"` / `"Cells per islet (peri)"` / `"Structures per islet"`
+- **Composition density** → `"Cells per mm² of core area"` (selector) and `"Cells per mm² (core area)"` (y-axis). Denominator is the *estimated* core area π·(diam/2)².
+- **Microenvironment density** → `"Structures per mm² of region"` (selector) and `"Structures per mm² (region area)"` (y-axis). Denominator is the *measured* QuPath region area for the active Region filter (core/peri/union).
+- **Peri composition** has no density option (peri area not measured).
+- **Spatial Card C distance KDE** y-axis is `"Cells per µm of distance (KDE × N)"`, not a per-area density.
+
+A `helpText` block under the Plot metric selector restates the active mode's denominator. Keep this phrasing if you add new metrics.
 
 ## AI Assistant (Phase 10, Feb 2026)
 

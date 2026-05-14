@@ -79,7 +79,8 @@ statistics_ui <- function(id) {
             )
           ),
           hr(style = "margin: 10px 0;"),
-          # Row 1: Analysis settings
+          # Row 1: Controls, evenly spaced across the card.
+          # Each control gets its own column; long captions sit under each input.
           fluidRow(
             column(2,
               radioButtons(ns("test_type"), "Test Type",
@@ -91,34 +92,58 @@ statistics_ui <- function(id) {
                 tags$strong("Non-parametric"), " (Kruskal-Wallis / Wilcoxon): no normality assumption; based on ranks."
               )
             ),
-            column(1,
+            column(2,
               selectInput(ns("alpha"), "\u03b1",
-                          choices = c("0.05", "0.01", "0.001"), selected = "0.05")
+                          choices = c("0.05", "0.01", "0.001"), selected = "0.05"),
+              numericInput(ns("stats_min_cells"), "Min cells/islet",
+                           value = 1, min = 1, max = 200, step = 1)
             ),
             column(2,
-              # Outlier toggle uses the synced global control in the Plot
-              # sidebar (`sidebar_remove_outliers`). The text below mirrors
-              # the rule applied so users don't need to switch tabs to confirm.
-              uiOutput(ns("stats_outlier_status")),
-              numericInput(ns("stats_min_cells"), "Min cells/islet",
-                           value = 1, min = 1, max = 200, step = 1),
-              checkboxInput(ns("stats_no_binning"), "Skip size stratification", value = FALSE),
+              # Local outlier toggle (independent of the Plot / Trajectory /
+              # Spatial global control). Lets users compare with and without
+              # outlier removal without switching tabs.
+              checkboxInput(ns("stats_remove_outliers"),
+                            "Exclude outliers",
+                            value = TRUE),
+              tags$small(style = "color: #888; display: block; margin-top: -6px; line-height: 1.3;",
+                "Local to Statistics: ", tags$strong("z > 3"), " per donor status. ",
+                "Excluded points are dropped from every test below."),
+              uiOutput(ns("stats_outlier_count"))
+            ),
+            column(2,
+              checkboxInput(ns("stats_no_binning"),
+                            "Skip size stratification",
+                            value = FALSE),
+              tags$small(style = "color: #888; display: block; margin-top: -6px; line-height: 1.3;",
+                "Hide the per-bin (size-dependent) section.")
+            ),
+            column(2,
               checkboxInput(ns("stats_exclude_zero"),
                             "Exclude zero-valued islets",
                             value = FALSE),
               tags$small(style = "color: #888; display: block; margin-top: -6px; line-height: 1.3;",
-                "Filters value == 0 before all Statistics-tab tests. ",
-                "Useful for zero-inflated features (rare phenotypes, ",
-                "peri-islet enrichment z-scores). AUC reads the Plot-tab summary ",
-                "and is not affected.")
+                "Filters value == 0 before all tests. ",
+                "Useful for zero-inflated features. ",
+                "AUC reads the Plot summary and is not affected.")
             ),
-            column(3,
+            column(2,
+              # Reserved for future analytics summary / placeholder; keeps the
+              # row at 12 columns and prevents the last control from feeling
+              # orphaned next to a wide blank.
+              tags$div()
+            )
+          ),
+          # Row 2: Sliders (need width)
+          fluidRow(
+            column(6,
               sliderInput(ns("bin_width"), "Per-bin width (\u00b5m)",
-                          min = 5, max = 150, value = 50, step = 5)
+                          min = 5, max = 150, value = 50, step = 5,
+                          width = "100%")
             ),
-            column(3,
+            column(6,
               sliderInput(ns("stats_diam_range"), "Diameter range (\u00b5m)",
-                          min = 0, max = 500, value = c(0, 350), step = 10)
+                          min = 0, max = 500, value = c(0, 350), step = 10,
+                          width = "100%")
             )
           ),
           fluidRow(

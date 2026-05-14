@@ -48,33 +48,29 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       if (isTRUE(input$stats_no_binning)) -1L else 0L
     })
 
-    # Status banner for the outlier toggle — mirrors the global control
-    # (lives in the Plot sidebar). Surfacing it inline on the Statistics
-    # tab means users don't have to switch tabs to confirm what rule is
-    # being applied to the tests below.
-    output$stats_outlier_status <- renderUI({
-      filter_on <- isTRUE(remove_outliers())
+    # Compact caption beneath the local outlier toggle: shows how many islets
+    # the most recent Run excluded, or an "OFF" notice when the toggle is off.
+    # The toggle itself (`stats_remove_outliers`) lives in the UI and is local
+    # to the Statistics tab — independent of the Plot / Trajectory / Spatial
+    # synced control.
+    output$stats_outlier_count <- renderUI({
+      filter_on <- isTRUE(input$stats_remove_outliers)
+      if (!filter_on) {
+        return(tags$div(
+          style = paste0("background: #fdfbe7; border: 1px solid #f0d97a;",
+                         " border-radius: 4px; padding: 4px 6px; margin-top: 6px;",
+                         " font-size: 11px; color: #6e6300;"),
+          "Filter OFF — extreme islets contribute to every test."))
+      }
       st <- tryCatch(stats_run(), error = function(e) NULL)
       n_excl <- if (!is.null(st) && !is.null(st$outlier_summary)) st$outlier_summary$n_excluded else NA_integer_
-      label <- if (filter_on) "Outliers: excluded (z > 3 per donor status)" else "Outliers: kept (filter OFF)"
-      colour <- if (filter_on) "#5a4400" else "#6e6300"
-      bg     <- if (filter_on) "#fff3cd" else "#fdfbe7"
-      border <- if (filter_on) "#ffc107" else "#f0d97a"
-      count_text <- if (!is.na(n_excl) && n_excl > 0) {
-        sprintf(" · %d excluded last run", n_excl)
-      } else {
-        ""
-      }
+      label <- if (!is.na(n_excl)) sprintf("%d islet%s excluded last Run.",
+                                            n_excl, if (n_excl == 1) "" else "s")
+               else "Run Statistics to see how many islets are excluded."
       tags$div(
-        title = GLOBAL_OUTLIER_TOOLTIP,
-        style = sprintf(paste0("background: %s; border: 1px solid %s; border-radius: 4px;",
-                               " padding: 6px 8px; margin-bottom: 8px; font-size: 12px;",
-                               " color: %s;"), bg, border, colour),
-        tags$strong(label),
-        tags$br(),
-        tags$span(style = "font-size: 11px;",
-          "Toggle in the Plot sidebar (synced across tabs).", count_text)
-      )
+        style = paste0("margin-top: 6px; font-size: 11px; color: #2e7d32;",
+                       " font-style: italic;"),
+        label)
     })
 
     output$section_confounders_heading <- renderUI({
@@ -105,15 +101,18 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       alpha_num <- as.numeric(input$alpha)
       is_parametric <- identical(input$test_type, "Parametric")
 
-      # ---- Outlier removal via shared helper (controlled by global toggle) ----
-      # The helper appends is_outlier + outlier_score columns; we drop the
-      # flagged rows when the global filter is ON. The count is saved on the
+      # ---- Outlier removal via shared helper (controlled by LOCAL toggle) ----
+      # `stats_remove_outliers` lives in the Statistics tab Section 1 controls
+      # and is independent of the Plot / Trajectory / Spatial synced toggle.
+      # The helper appends is_outlier + outlier_score columns; flagged rows
+      # are dropped when the local filter is ON. The count is saved on the
       # result list so the methods text and download CSV can cite it.
+      stats_filter_on <- isTRUE(input$stats_remove_outliers)
       rdf <- flag_outliers(rdf, value_col = "value", group_col = "donor_status",
                            method = "zscore", threshold = 3,
-                           enabled = isTRUE(remove_outliers()))
+                           enabled = stats_filter_on)
       outlier_summary_pre <- summarize_outlier_filter(rdf)
-      if (isTRUE(remove_outliers())) {
+      if (stats_filter_on) {
         rdf <- rdf[!rdf$is_outlier | is.na(rdf$is_outlier), , drop = FALSE]
       }
 
@@ -1162,8 +1161,9 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
           tagList(
             tags$strong("Outlier handling: "),
             "For each donor status (ND / Aab+ / T1D), islets whose value exceeds 3 standard deviations from the group mean are excluded from all donor-level aggregation, mixed-effects modelling, and stratified tests. ",
-            "The control lives in the Plot sidebar and is synced with the Trajectory and Spatial tabs. ",
-            "On the Plot and Trajectory scatters the same points still render as faint grey × markers so the exclusion is visible.",
+            "The control is local to the Statistics tab (Section 1 ", tags$em("Exclude outliers"),
+            " checkbox) and operates independently of the Plot / Trajectory / Spatial synced toggle. ",
+            "On the Plot and Trajectory scatters, outliers still render as faint grey × markers when their own filter is on.",
             tags$br()
           )
         } else if (isTRUE(os$enabled)) {
@@ -1171,14 +1171,16 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
             tags$strong("Outlier handling: "),
             sprintf("This run excluded %d islet%s (%s) before donor-level aggregation, mixed-effects modelling, and stratified tests. ",
                     os$n_excluded, if (os$n_excluded == 1) "" else "s", os$label),
-            "The same rule is applied uniformly across the Plot, Trajectory, Statistics, and Spatial Card C tabs; Spatial Card A uses Tukey 1.5×IQR per donor status to tolerate zero-inflated phenotypes. ",
-            "Toggle the global control in the Plot sidebar to disable filtering.",
+            "The control is local to the Statistics tab (Section 1 ", tags$em("Exclude outliers"),
+            " checkbox); the Plot / Trajectory / Spatial tabs share their own synced toggle. ",
+            "Spatial Card A uses Tukey 1.5×IQR per donor status to tolerate zero-inflated phenotypes.",
             tags$br()
           )
         } else {
           tagList(
             tags$strong("Outlier handling: "),
-            "Filter is OFF for this run — all islets contribute to the tests below, including extreme values. Toggle the global control in the Plot sidebar to enable the z > 3 (per donor status) rule.",
+            "Filter is OFF for this run — all islets contribute to the tests below, including extreme values. Re-enable the ",
+            tags$em("Exclude outliers"), " checkbox in Section 1 to apply the z > 3 (per donor status) rule.",
             tags$br()
           )
         }

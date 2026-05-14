@@ -64,7 +64,9 @@ The app applies a single, consistent outlier rule across every tab so that scatt
 
 ### The Control
 
-A single checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the Plot sidebar and is mirrored above the Trajectory scatter and inside the Spatial Neighborhood Analysis bar. Toggling any one of them updates the other two, so the Plot, Trajectory, Statistics, and Spatial tabs always reflect the same setting. **Default: ON.** Hover the label for the full tooltip.
+A checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the Plot sidebar and is mirrored above the Trajectory scatter and inside the Spatial Neighborhood Analysis bar. Toggling any one of them updates the other two, so the Plot, Trajectory, and Spatial tabs always reflect the same setting. **Default: ON.** Hover the label for the full tooltip.
+
+The **Statistics tab has its own dedicated outlier toggle** ("Exclude outliers" checkbox in Section 1: Configure Analysis). It uses the same z > 3 rule but operates independently of the Plot / Trajectory / Spatial synced toggle — you can analyse Statistics with outliers excluded while keeping them visible (as ghost ×) in the Plot scatter, or vice versa. A small caption beneath the Statistics checkbox reports how many islets the most recent Run excluded.
 
 ### What you see when the filter is ON
 
@@ -77,7 +79,7 @@ A single checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the P
 ### What changes when the filter is OFF
 
 - No points are flagged or hidden; ghost markers disappear; counts go to zero.
-- A small banner appears above the Trajectory scatter and below the Statistics "Outliers" status panel noting that the filter is off.
+- A small banner appears above the Trajectory scatter noting that the Plot/Trajectory/Spatial filter is off; the Statistics tab shows its own yellow "Filter OFF" caption beneath its dedicated checkbox.
 - Trend lines, donor-level means, and all statistical tests run on the full data including extreme values.
 
 ### Why this matters
@@ -99,6 +101,7 @@ The Plot tab is the primary exploration interface. It has a **sidebar** (left) a
     - **Hormone Positivity (QuPath threshold)** — Ins_any, Glu_any, Stt_any
     - **Phenotype Proportions (scVI)** — 21 phenotype proportions from single-cell data
     - **Peri-Islet Proportions** — Proportions of each phenotype in the 20 μm expansion zone around the islet
+- **Metric** (Composition / Microenvironment): Picks the y-axis unit. Labels spell out the denominator explicitly so "density" is never ambiguous — see [Density terminology](#density-terminology) below.
 - **Region**: Filter by tissue region (core only, peri-islet, or all)
 - **Donor Status**: Select disease groups to include (ND, Aab+, T1D)
 - **AAb Filter**: Filter by autoantibody positivity (when available)
@@ -120,6 +123,15 @@ The Plot tab is the primary exploration interface. It has a **sidebar** (left) a
 - Point positions on both panels use seeded jitter, so the cloud doesn't shuffle when you toggle other controls.
 - Use composition mode with "Peri-Islet Proportions" to visualize the cellular microenvironment around each islet.
 - The "Immune Metrics" group provides pre-computed ratios that highlight immune infiltration differences between disease stages.
+
+### Density terminology
+
+The word *density* is reused in several places with different denominators. Each axis label now spells the denominator out, but for reference:
+
+- **Cells per islet (core / peri)** — a raw count tallied inside the islet's core or 20 µm peri-islet zone. Not divided by area. Surfaced by the Metric = "Cells per islet" choice.
+- **Cells per mm² (core area)** — phenotype cells divided by the *estimated* core area, π · (diameter/2)². Surfaced by Metric = "Cells per mm² of core area" in Composition mode. Density is unavailable for Peri-Islet Proportions because the peri zone area is not measured.
+- **Structures per mm² (region area)** — Microenvironment-mode metric. Structures (nerves, capillaries, lymphatics, etc.) divided by the *measured* QuPath region area for the active Region filter (core, peri, or core+peri). Not derived from diameter.
+- **Cells per µm of distance (Spatial Card C)** — the signed-distance KDE on Card C is a kernel density rescaled by N, so the y-axis is cells per µm of distance from the islet edge — *not* a per-area density. Useful for comparing distance distributions across disease stages; do not read it as cells/mm².
 - Log-scale features (e.g., cell counts) use pseudo-log transformation so zero values remain visible at y=0.
 
 ---
@@ -212,7 +224,7 @@ The tab uses a **5-section narrative layout** that walks you through a logical a
 - Test type selector with inline explanations:
   - **Parametric** (ANOVA / t-test): assumes roughly normal data within groups
   - **Non-parametric** (Kruskal-Wallis / Wilcoxon): no normality assumption; based on ranks
-- Additional controls: significance level (α), bin width, diameter range. **Outlier removal** is controlled by the global toggle on the Plot sidebar (z > 3 per donor status, on by default); the Statistics tab shows an inline status banner reflecting the current setting. See [Outlier Handling](#outlier-handling) for the full rule.
+- Additional controls: significance level (α), min cells/islet, bin width, diameter range. **Outlier removal** is controlled by a dedicated "Exclude outliers" checkbox local to the Statistics tab (z > 3 per donor status, on by default). The control is independent of the Plot / Trajectory / Spatial synced toggle, so you can analyse Statistics with outliers excluded while keeping them visible elsewhere. A small caption under the checkbox reports the most recent exclusion count (or a yellow "Filter OFF" notice). See [Outlier Handling](#outlier-handling) for the full rule.
 - **Exclude zero-valued islets** (checkbox, default OFF): filters `value == 0` rows before every Statistics-tab test (mixed-effects, donor-level ANOVA / Kruskal, pairwise Cohen's d, per-bin tests, demographics regressions, covariate-adjusted model). Useful for zero-inflated features — rare phenotype proportions, peri-islet enrichment z-scores, or any metric where many islets register exactly 0. The overview banner shows an orange "Zero-valued excluded (N dropped)" badge when active; the forest-plot title and the Methods Reference paragraph cite the same count. **AUC is read from the Plot tab's binned summary and is not affected by this filter** — toggling re-runs the hypothesis-testing pipeline but leaves the AUC card untouched.
 
 ### Section 2: Primary Results

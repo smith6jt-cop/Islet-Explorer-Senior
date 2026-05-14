@@ -130,23 +130,41 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
     output$metric_selector <- renderUI({
       if (identical(input$mode, "Microenvironment")) {
-        radioButtons(ns("metric"), "Metric",
-                     choices = c("Counts", "Density"),
-                     selected = "Density", inline = TRUE)
+        tagList(
+          radioButtons(ns("metric"), "Metric",
+                       choices = c("Structures per islet"         = "Counts",
+                                   "Structures per mm² of region" = "Density"),
+                       selected = "Density", inline = TRUE),
+          helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+                   "Per islet = count tallied within the islet. ",
+                   "Per mm² of region = structures ÷ segmented region area ",
+                   "(core, peri, or core+peri — from QuPath, not estimated from diameter).")
+        )
       } else {
         # Composition — hide Density for peri_prop_* (no peri area available)
         w <- input$which %||% ""
         if (startsWith(w, "peri_prop_")) {
-          radioButtons(ns("metric"), "Metric",
-                       choices = c("% of peri cells" = "Percentage",
-                                   "Peri cell count" = "Counts"),
-                       selected = "Percentage", inline = TRUE)
+          tagList(
+            radioButtons(ns("metric"), "Metric",
+                         choices = c("% of peri cells"        = "Percentage",
+                                     "Cells per islet (peri)" = "Counts"),
+                         selected = "Percentage", inline = TRUE),
+            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+                     "Per islet = phenotype cells tallied in the 20 µm peri-islet zone. ",
+                     "Density (cells/mm²) is unavailable for peri because peri area is not measured.")
+          )
         } else {
-          radioButtons(ns("metric"), "Metric",
-                       choices = c("% of core cells" = "Percentage",
-                                   "Core cell count" = "Counts",
-                                   "Core density (per mm²)" = "Density"),
-                       selected = "Percentage", inline = TRUE)
+          tagList(
+            radioButtons(ns("metric"), "Metric",
+                         choices = c("% of core cells"           = "Percentage",
+                                     "Cells per islet (core)"     = "Counts",
+                                     "Cells per mm² of core area" = "Density"),
+                         selected = "Percentage", inline = TRUE),
+            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+                     "Per islet = phenotype cells tallied in the islet core. ",
+                     "Per mm² of core area = phenotype cells ÷ estimated core area ",
+                     "(π · (diameter/2)²).")
+          )
         }
       }
     })
@@ -477,12 +495,13 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
         metric <- input$metric %||% "Density"
-        if (metric == "Counts") "Structure count" else "Structure density (per mm\u00b2)"
+        if (metric == "Counts") "Structures per islet"
+                          else  "Structures per mm\u00b2 (region area)"
       } else {
         metric <- input$metric %||% "Percentage"
         switch(metric,
-          "Counts"     = "Cell count",
-          "Density"    = "Cell density (per mm\u00b2)",
+          "Counts"     = "Cells per islet (core)",
+          "Density"    = "Cells per mm\u00b2 (core area)",
           "Percentage" = "% composition"
         )
       }
@@ -796,12 +815,13 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
         metric <- input$metric %||% "Density"
-        if (metric == "Counts") "Structure count" else "Structure density (per mm\u00b2)"
+        if (metric == "Counts") "Structures per islet"
+                          else  "Structures per mm\u00b2 (region area)"
       } else {
         metric <- input$metric %||% "Percentage"
         switch(metric,
-          "Counts"     = "Cell count",
-          "Density"    = "Cell density (per mm\u00b2)",
+          "Counts"     = "Cells per islet (core)",
+          "Density"    = "Cells per mm\u00b2 (core area)",
           "Percentage" = "% composition"
         )
       }

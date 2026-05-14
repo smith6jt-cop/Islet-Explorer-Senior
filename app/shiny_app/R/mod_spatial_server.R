@@ -1577,7 +1577,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           hoverinfo = "text",
           text = paste0(s, " (n=", formatC(n_cells, big.mark = ","), ")",
                        "<br>dist = ", round(d$x, 1), " \u00b5m",
-                       "<br>count density = ", round(d$y, 2))
+                       "<br>cells/\u00b5m = ", round(d$y, 2))
         )
       }
       # Vertical line at zero (islet boundary)
@@ -1592,7 +1592,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                      font = list(size = 14)),
         xaxis = list(title = "Signed distance (\u00b5m) \u2014 inside islet \u2190 0 \u2192 outside",
                      zeroline = FALSE),
-        yaxis = list(title = "Cell count density"),
+        yaxis = list(title = "Cells per µm of distance (KDE × N)"),
         legend = list(title = list(text = "Status"))
       )
     })
