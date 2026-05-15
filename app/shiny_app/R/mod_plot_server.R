@@ -97,6 +97,13 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         comp_cols <- colnames(prepared()$comp)
         prop_cols <- grep("^prop_", comp_cols, value = TRUE)
         peri_prop_cols <- grep("^peri_prop_", comp_cols, value = TRUE)
+        # Combined (core+peri) is computed on the fly. prep_data() builds a
+        # safe-name -> (core_col, peri_col) lookup that handles the divergent
+        # column naming (prop_* keeps spaces/+, peri_prop_* sanitizes them).
+        combined_pairs <- prepared()$combined_pairs
+        combined_vals <- if (!is.null(combined_pairs) && nrow(combined_pairs) > 0) {
+          setNames(paste0("combined_prop_", combined_pairs$stem), combined_pairs$label)
+        } else character(0)
         # Note: aggregate immune ratio metrics (immune_frac_*, immune_ratio,
         # cd8_to_macro_ratio, tcell_density_peri) are intentionally NOT
         # surfaced here. The Spatial tab now exposes phenotype-level peri
@@ -112,6 +119,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             peri_labels <- gsub("^peri_prop_", "", peri_prop_cols)
             choices[["Peri-Islet — Phenotype Proportions (scVI)"]] <- setNames(peri_prop_cols, peri_labels)
           }
+          if (length(combined_vals) > 0) {
+            choices[["Core+Peri — Phenotype Proportions (scVI)"]] <- combined_vals
+          }
         } else {
           choices <- base_choices
         }
@@ -120,9 +130,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                       selected = if (!is.null(input$which) && input$which %in% unlist(choices)) input$which else "Ins_any"),
           helpText(
             "Core = cells within the islet boundary. Peri-Islet = cells within a 20 µm zone around the islet. ",
-            "No Core+Peri combined option in this mode — use ",
-            tags$em("Data Layer = Microenvironment"),
-            " for that."
+            "Core+Peri = phenotype cells pooled across both zones, with the matching pooled denominator."
           )
         )
       }
@@ -141,29 +149,45 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                    "(uses QuPath-measured area_um2 / region_um2, not object counts).")
         )
       } else {
-        # Composition — hide Density for peri_prop_* (no peri area available)
+        # Composition — Density uses QuPath-measured region areas (core_region_um2,
+        # peri_region_um2) for all three region variants. Peri-islet area is the
+        # QuPath `_exp20um` annotation area, merged in via prep_data().
         w <- input$which %||% ""
-        if (startsWith(w, "peri_prop_")) {
+        if (startsWith(w, "combined_prop_")) {
           tagList(
             radioButtons(ns("metric"), "Metric",
-                         choices = c("% of peri cells"        = "Percentage",
-                                     "Cells per islet (peri)" = "Counts"),
+                         choices = c("% of all (core+peri) cells"      = "Percentage",
+                                     "Cells per islet (core+peri)"     = "Counts",
+                                     "Cells per mm² of core+peri area" = "Density"),
+                         selected = "Percentage", inline = TRUE),
+            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+                     "Per islet = phenotype cells in core + 20 µm peri-islet zone. ",
+                     "Per mm² of core+peri area = phenotype cells ÷ (core_region_um2 + peri_region_um2), ",
+                     "using QuPath-measured annotation areas.")
+          )
+        } else if (startsWith(w, "peri_prop_")) {
+          tagList(
+            radioButtons(ns("metric"), "Metric",
+                         choices = c("% of peri cells"          = "Percentage",
+                                     "Cells per islet (peri)"   = "Counts",
+                                     "Cells per mm² of peri area" = "Density"),
                          selected = "Percentage", inline = TRUE),
             helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
                      "Per islet = phenotype cells tallied in the 20 µm peri-islet zone. ",
-                     "Density (cells/mm²) is unavailable for peri because peri area is not measured.")
+                     "Per mm² of peri area = peri cells ÷ peri_region_um2 (QuPath-measured ",
+                     "`_exp20um` annotation area).")
           )
         } else {
           tagList(
             radioButtons(ns("metric"), "Metric",
-                         choices = c("% of core cells"           = "Percentage",
+                         choices = c("% of core cells"            = "Percentage",
                                      "Cells per islet (core)"     = "Counts",
                                      "Cells per mm² of core area" = "Density"),
                          selected = "Percentage", inline = TRUE),
             helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
                      "Per islet = phenotype cells tallied in the islet core. ",
-                     "Per mm² of core area = phenotype cells ÷ estimated core area ",
-                     "(π · (diameter/2)²).")
+                     "Per mm² of core area = core cells ÷ core_region_um2 ",
+                     "(QuPath-measured islet annotation area).")
           )
         }
       }
@@ -221,10 +245,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       # Resolve defaults before branching so initial renders don't error
       if (identical(mode, "Cell Populations")) {
+        cc <- colnames(pd$comp)
+        prop_in_comp <- grep("^prop_", cc, value = TRUE)
+        peri_prop_in_comp <- grep("^peri_prop_", cc, value = TRUE)
+        combined_vals <- if (!is.null(pd$combined_pairs) && nrow(pd$combined_pairs) > 0) {
+          paste0("combined_prop_", pd$combined_pairs$stem)
+        } else character(0)
         valid_comp <- c("Ins_any", "Glu_any", "Stt_any",
-                         grep("^prop_|^peri_prop_", colnames(pd$comp), value = TRUE),
+                         prop_in_comp, peri_prop_in_comp, combined_vals,
                          intersect(c("immune_frac_peri", "immune_frac_core", "immune_ratio",
-                                     "cd8_to_macro_ratio", "tcell_density_peri"), colnames(pd$comp)))
+                                     "cd8_to_macro_ratio", "tcell_density_peri"), cc))
         if (!is.character(w) || length(w) != 1 || !nzchar(w) ||
             !(w %in% valid_comp)) {
           w <- "Ins_any"
@@ -268,7 +298,49 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         df <- pd$comp %>%
           dplyr::filter(`Donor Status` %in% groups) %>%
           dplyr::filter(is.finite(islet_diam_um))
-        if (startsWith(w, "peri_prop_")) {
+        # QuPath-measured annotation areas (µm²) joined by prep_data().
+        # Density uses these directly rather than the π·(d/2)² estimate so
+        # core / peri / core+peri are all measured on the same scale.
+        core_area_um2 <- if ("core_region_um2" %in% colnames(df)) {
+          suppressWarnings(as.numeric(df$core_region_um2))
+        } else NA_real_
+        peri_area_um2 <- if ("peri_region_um2" %in% colnames(df)) {
+          suppressWarnings(as.numeric(df$peri_region_um2))
+        } else NA_real_
+        if (startsWith(w, "combined_prop_")) {
+          stem <- sub("^combined_prop_", "", w)
+          # Look up the original prop_* column via the pre-built pair table —
+          # column naming diverges (prop_* keeps spaces/+, peri_prop_* sanitizes).
+          pair <- if (!is.null(pd$combined_pairs)) {
+            pd$combined_pairs[pd$combined_pairs$stem == stem, , drop = FALSE]
+          } else NULL
+          core_col <- if (!is.null(pair) && nrow(pair) >= 1) pair$core_col[1] else paste0("prop_", stem)
+          peri_col <- if (!is.null(pair) && nrow(pair) >= 1) pair$peri_col[1] else paste0("peri_prop_", stem)
+          core_prop <- if (core_col %in% colnames(df)) suppressWarnings(as.numeric(df[[core_col]])) else NA_real_
+          peri_prop <- if (peri_col %in% colnames(df)) suppressWarnings(as.numeric(df[[peri_col]])) else NA_real_
+          core_total <- suppressWarnings(as.numeric(df$total_cells_core))
+          peri_total <- if ("total_cells_peri" %in% colnames(df)) suppressWarnings(as.numeric(df$total_cells_peri)) else NA_real_
+          # Treat NA cell totals / proportions as 0 so an islet with no peri zone
+          # still contributes its core, and vice versa
+          core_n <- ifelse(is.finite(core_prop) & is.finite(core_total), core_prop * core_total, 0)
+          peri_n <- ifelse(is.finite(peri_prop) & is.finite(peri_total), peri_prop * peri_total, 0)
+          ctot <- ifelse(is.finite(core_total), core_total, 0)
+          ptot <- ifelse(is.finite(peri_total), peri_total, 0)
+          combined_n <- core_n + peri_n
+          combined_total <- ctot + ptot
+          if (metric == "Counts") {
+            df <- df %>% dplyr::mutate(value = round(combined_n))
+          } else if (metric == "Density") {
+            ca <- ifelse(is.finite(core_area_um2), core_area_um2, 0)
+            pa <- ifelse(is.finite(peri_area_um2), peri_area_um2, 0)
+            combined_area <- ca + pa
+            df <- df %>% dplyr::mutate(value = ifelse(combined_area > 0,
+              combined_n / combined_area * 1e6, NA_real_))
+          } else {
+            df <- df %>% dplyr::mutate(value = ifelse(combined_total > 0,
+              100.0 * combined_n / combined_total, NA_real_))
+          }
+        } else if (startsWith(w, "peri_prop_")) {
           raw_val <- suppressWarnings(as.numeric(df[[w]]))
           # peri_prop_ are relative to peri-islet cells, use total_cells_peri
           peri_total <- if ("total_cells_peri" %in% colnames(df)) {
@@ -279,8 +351,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           if (metric == "Counts") {
             df <- df %>% dplyr::mutate(value = round(raw_val * peri_total))
           } else if (metric == "Density") {
-            # Peri-islet area not available; defensive fallback to percentage
-            df <- df %>% dplyr::mutate(value = raw_val * 100.0)
+            df <- df %>% dplyr::mutate(value = ifelse(is.finite(peri_area_um2) & peri_area_um2 > 0,
+              raw_val * peri_total / peri_area_um2 * 1e6, NA_real_))
           } else {
             df <- df %>% dplyr::mutate(value = raw_val * 100.0)
           }
@@ -290,9 +362,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           if (metric == "Counts") {
             df <- df %>% dplyr::mutate(value = round(raw_val * core_total))
           } else if (metric == "Density") {
-            area <- pi * (suppressWarnings(as.numeric(df$islet_diam_um)) / 2)^2
-            df <- df %>% dplyr::mutate(value = ifelse(area > 0,
-              raw_val * core_total / area * 1e6, NA_real_))
+            df <- df %>% dplyr::mutate(value = ifelse(is.finite(core_area_um2) & core_area_um2 > 0,
+              raw_val * core_total / core_area_um2 * 1e6, NA_real_))
           } else {
             df <- df %>% dplyr::mutate(value = raw_val * 100.0)
           }
@@ -314,8 +385,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           if (metric == "Counts") {
             df <- df %>% dplyr::mutate(value = num)
           } else if (metric == "Density") {
-            area <- pi * (suppressWarnings(as.numeric(df$islet_diam_um)) / 2)^2
-            df <- df %>% dplyr::mutate(value = ifelse(area > 0, num / area * 1e6, NA_real_))
+            df <- df %>% dplyr::mutate(value = ifelse(is.finite(core_area_um2) & core_area_um2 > 0,
+              num / core_area_um2 * 1e6, NA_real_))
           } else {
             df <- df %>%
               dplyr::mutate(value = ifelse(is.finite(num) & is.finite(den) & den > 0,
@@ -507,10 +578,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                           else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
       } else {
         metric <- input$metric %||% "Percentage"
+        wsel <- input$which %||% ""
+        region_tag <- if (startsWith(wsel, "combined_prop_")) "core+peri"
+                       else if (startsWith(wsel, "peri_prop_")) "peri"
+                       else "core"
         switch(metric,
-          "Counts"     = "Cells per islet (core)",
-          "Density"    = "Cells per mm\u00b2 (core area)",
-          "Percentage" = "% composition"
+          "Counts"     = paste0("Cells per islet (", region_tag, ")"),
+          "Density"    = paste0("Cells per mm\u00b2 (", region_tag, " area)"),
+          "Percentage" = if (region_tag == "core+peri") "% of all (core+peri) cells"
+                         else if (region_tag == "peri")    "% of peri cells"
+                         else                              "% of core cells"
         )
       }
 
@@ -523,7 +600,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       } else {
         wsel <- input$which
         if (is.null(wsel) || length(wsel) != 1 || !nzchar(wsel)) wsel <- "Ins_any"
-        if (startsWith(wsel, "peri_prop_")) {
+        if (startsWith(wsel, "combined_prop_")) {
+          nm <- paste0(gsub("^combined_prop_", "", wsel), " core+peri proportion")
+        } else if (startsWith(wsel, "peri_prop_")) {
           nm <- paste0(gsub("^peri_prop_", "", wsel), " peri-islet proportion")
         } else if (startsWith(wsel, "prop_")) {
           nm <- paste0(gsub("^prop_", "", wsel), " proportion")
@@ -830,10 +909,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                           else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
       } else {
         metric <- input$metric %||% "Percentage"
+        wsel <- input$which %||% ""
+        region_tag <- if (startsWith(wsel, "combined_prop_")) "core+peri"
+                       else if (startsWith(wsel, "peri_prop_")) "peri"
+                       else "core"
         switch(metric,
-          "Counts"     = "Cells per islet (core)",
-          "Density"    = "Cells per mm\u00b2 (core area)",
-          "Percentage" = "% composition"
+          "Counts"     = paste0("Cells per islet (", region_tag, ")"),
+          "Density"    = paste0("Cells per mm\u00b2 (", region_tag, " area)"),
+          "Percentage" = if (region_tag == "core+peri") "% of all (core+peri) cells"
+                         else if (region_tag == "peri")    "% of peri cells"
+                         else                              "% of core cells"
         )
       }
 

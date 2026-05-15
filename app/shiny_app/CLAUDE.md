@@ -222,7 +222,7 @@ Z-scored expression along pseudotime. Clamped [-2.5, 2.5], blue-white-red, dynam
 ## Plot Tab Features (Phase 5, Feb 2026)
 
 ### Phenotype Composition Explorer
-Plot tab Composition mode exposes 21 cell-type proportions (`prop_*` from H5AD `.obs`) + 21 peri-islet proportions (`peri_prop_*`) + 5 immune metrics alongside 3 hormone fractions. Grouped `selectInput` with 4 option groups.
+Plot tab Cell Populations mode exposes 21 cell-type proportions (`prop_*` from H5AD `.obs`) + 21 peri-islet proportions (`peri_prop_*`) + 21 core+peri combined proportions (`combined_prop_*`, computed on the fly in `raw_df_base()`) alongside 3 hormone fractions. Grouped `selectInput` with up to 4 option groups (Hormone Positivity, Core, Peri-Islet, Core+Peri). The Combined group's choices are the intersection of `prop_*` and `peri_prop_*` stems — one entry per phenotype that has both region values.
 
 ### Age & Sex Demographic Filters
 Age slider and sex checkboxes in Plot sidebar (H5AD only). `renderUI` returns `NULL` when absent.
@@ -232,11 +232,11 @@ Click a point -> `selected_islet()` updates -> embedded panel renders inline wit
 
 ### Metric Label Vocabulary (May 2026)
 Sidebar radio labels and axis titles are unit-explicit — never use the bare word "density" without naming the denominator. Canonical phrasing:
-- **Composition Counts** → `"Cells per islet (core)"` / `"Cells per islet (peri)"`
-- **Composition Density** → selector `"Cells per mm² of core area"`, y-axis `"Cells per mm² (core area)"`. Denominator is the *estimated* core area π·(diam/2)².
+- **Cell Populations Counts** → `"Cells per islet (core)"` / `"Cells per islet (peri)"` / `"Cells per islet (core+peri)"`.
+- **Cell Populations Density** → selector `"Cells per mm² of core area"` / `"… peri area"` / `"… core+peri area"`; y-axis `"Cells per mm² (core area)"` / `"(peri area)"` / `"(core+peri area)"`. Denominator is the QuPath-measured annotation area (`core_region_um2`, `peri_region_um2`, or their sum), joined into `comp` by `prep_data()` from `targets_all` rows. Peri-islet area comes from the `_exp20um` annotation in `annotations.tsv`.
 - **Microenvironment Counts** → selector `"Count per islet"`; y-axis names the class: `"Count of Nerve per islet"` / `"Count of Capillary per islet"` / `"Count of Lymphatic per islet"`.
 - **Microenvironment Density** → selector `"Area / mm² of region"`; y-axis names the class: `"Area of Nerve / mm² (µm² per mm² of region)"`, etc. **Value computed from `area_um2 / region_um2 * 1e6`** (µm² of structure per mm² of region), NOT from object counts. These targets (Nerve / Capillary / Lymphatic) are area-valued, not discretely countable.
-- **Peri composition** has no density option (peri area not measured).
+- **Core+Peri combined proportions** → computed on the fly: `value = (prop_X · total_cells_core + peri_prop_X · total_cells_peri)` divided by either `(total_cells_core + total_cells_peri)` (Percentage) or `(core_region_um2 + peri_region_um2)` (Density). NA totals/areas are treated as 0 so islets with only one zone still contribute.
 - **Spatial Card C distance KDE** y-axis is `"Cells per µm of distance (KDE × N)"`, not a per-area density.
 
 A `helpText` block under the Plot metric selector restates the active mode's denominator. Keep this phrasing if you add new metrics. The y-axis class name is parsed from `input$which` (encoded as `className|region`).

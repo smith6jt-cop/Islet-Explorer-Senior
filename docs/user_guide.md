@@ -121,15 +121,15 @@ The Plot tab is the primary exploration interface. It has a **sidebar** (left) a
 
 - The two "Exclude zero values" checkboxes (one per panel) are independent — set them differently when you want the violin/box to include zeros but the binned scatter to exclude them, or vice-versa.
 - Point positions on both panels use seeded jitter, so the cloud doesn't shuffle when you toggle other controls.
-- Use composition mode with "Peri-Islet Proportions" to visualize the cellular microenvironment around each islet.
+- Use Cell Populations mode with "Peri-Islet Proportions" to visualize the cellular microenvironment around each islet. Use "Core+Peri — Phenotype Proportions" to pool both zones into a single per-islet value (cells from core + peri divided by the matching pooled cell count or pooled annotation area).
 - The "Immune Metrics" group provides pre-computed ratios that highlight immune infiltration differences between disease stages.
 
 ### Density terminology
 
 The word *density* is reused in several places with different denominators. Each axis label now spells the denominator out, but for reference:
 
-- **Cells per islet (core / peri)** — a raw count tallied inside the islet's core or 20 µm peri-islet zone. Not divided by area. Surfaced by the Metric = "Cells per islet" choice.
-- **Cells per mm² (core area)** — phenotype cells divided by the *estimated* core area, π · (diameter/2)². Surfaced by Metric = "Cells per mm² of core area" in Composition mode. Density is unavailable for Peri-Islet Proportions because the peri zone area is not measured.
+- **Cells per islet (core / peri / core+peri)** — a raw count tallied inside the islet's core, the 20 µm peri-islet zone, or both pooled together. Not divided by area. Surfaced by the Metric = "Cells per islet" choice.
+- **Cells per mm² (core / peri / core+peri area)** — phenotype cells divided by the QuPath-measured annotation area in mm². Core uses `core_region_um2` (the islet boundary annotation), peri uses `peri_region_um2` (the `_exp20um` ring annotation), and core+peri uses their sum. Surfaced by Metric = "Cells per mm² …" in Cell Populations mode for all three region variants.
 - **Area of {Nerve|Capillary|Lymphatic} / mm² (region area)** — Microenvironment-mode density. The value is the µm² of structure area divided by the *measured* QuPath region area in mm² (i.e. `area_um2 / region_um2 × 10⁶`). The y-axis names whichever class is selected. This is NOT a count of objects per area — these structures are area-valued (a single nerve may be segmented into several pieces, so counting is unreliable).
 - **Count of {Nerve|Capillary|Lymphatic} per islet** — Microenvironment-mode count. Number of QuPath-detected objects of the selected class within the islet region. Provided alongside the area-density metric, but the area metric is usually the more biologically meaningful read-out.
 - **Cells per µm of distance (Spatial Card C)** — the signed-distance KDE on Card C is a kernel density rescaled by N, so the y-axis is cells per µm of distance from the islet edge — *not* a per-area density. Useful for comparing distance distributions across disease stages; do not read it as cells/mm².

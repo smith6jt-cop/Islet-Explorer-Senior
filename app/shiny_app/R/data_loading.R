@@ -56,10 +56,19 @@ prep_data <- function(master) {
     dplyr::filter(tolower(type) == "islet_core") %>%
     dplyr::select(`Case ID`, `Donor Status`, islet_key, core_region_um2 = region_um2) %>%
     dplyr::distinct()
+  # Peri-islet (20 µm expansion) annotation area, measured by QuPath alongside core
+  peri_area <- targets %>%
+    dplyr::filter(tolower(type) == "islet_band") %>%
+    dplyr::select(`Case ID`, `Donor Status`, islet_key, peri_region_um2 = region_um2) %>%
+    dplyr::distinct()
   # Diameter is computed ONLY from core area; if no core exists, diameter is NA
   size_area <- core_area %>%
     dplyr::mutate(islet_diam_um = compute_diameter_um(core_region_um2)) %>%
     dplyr::select(`Case ID`, `Donor Status`, islet_key, islet_diam_um)
+  # Pre-built bundle of per-islet region areas + diameter for downstream joins
+  region_areas <- size_area %>%
+    { safe_left_join(., core_area, by = c("Case ID", "Donor Status", "islet_key"), context = "region_areas:core_area") } %>%
+    { safe_left_join(., peri_area, by = c("Case ID", "Donor Status", "islet_key"), context = "region_areas:peri_area") }
 
   # Targets: keep all region types and later filter by user selection
   targets_all <- targets %>%
@@ -216,7 +225,7 @@ prep_data <- function(master) {
   comp <- master$comp %>% add_islet_key() %>% dplyr::filter(!is.na(islet_key))
   comp <- comp %>% dplyr::select(dplyr::all_of(c("Case ID", "Donor Status")), dplyr::all_of(aab_cols_comp), islet_key, cells_total, Ins_single, Glu_single, Stt_single,
                           Multi_Pos, Triple_Neg, Ins_any, Glu_any, Stt_any)
-  comp <- comp %>% { safe_left_join(., size_area, by = c("Case ID", "Donor Status", "islet_key"), context = "comp:size_area") }
+  comp <- comp %>% { safe_left_join(., region_areas, by = c("Case ID", "Donor Status", "islet_key"), context = "comp:region_areas") }
 
   # Merge phenotype proportions into comp (H5AD only; NULL from Excel path)
   if (!is.null(master$phenotypes) && nrow(master$phenotypes) > 0) {
@@ -242,11 +251,49 @@ prep_data <- function(master) {
     message("[prep-data] Merged donor demographics (age, gender)")
   }
 
+  # Combined (core+peri) phenotype pair table. peri_prop_* columns sanitize
+  # the phenotype name (spaces -> _, + -> plus) but prop_* columns keep the
+  # original label, so a direct stem intersection misses ~half the pairs. Build
+  # a lookup that resolves each peri-style safe-name back to its prop_* core
+  # column by trying un-sanitization candidates (mirrors the Spatial tab's
+  # phenotype_options() resolver). Consumed by mod_plot_server.R Cell
+  # Populations selector and raw_df_base() Combined branch.
+  combined_pairs <- (function() {
+    cn <- colnames(comp)
+    peri_cols <- grep("^peri_prop_", cn, value = TRUE)
+    if (length(peri_cols) == 0) return(NULL)
+    rows <- lapply(peri_cols, function(pc) {
+      safe <- sub("^peri_prop_", "", pc)
+      candidates <- unique(c(
+        gsub("plus", "+", gsub("_", " ", safe), fixed = TRUE),
+        gsub("_", " ", safe),
+        gsub("plus", "+", safe, fixed = TRUE),
+        safe
+      ))
+      core_col <- NA_character_; label <- safe
+      for (cand in candidates) {
+        guess <- paste0("prop_", cand)
+        if (guess %in% cn) { core_col <- guess; label <- cand; break }
+      }
+      data.frame(stem = safe, core_col = core_col, peri_col = pc,
+                 label = label, stringsAsFactors = FALSE)
+    })
+    out <- dplyr::bind_rows(rows)
+    out <- out[!is.na(out$core_col), , drop = FALSE]
+    out <- out[order(out$label), , drop = FALSE]
+    rownames(out) <- NULL
+    out
+  })()
+  if (!is.null(combined_pairs) && nrow(combined_pairs) > 0) {
+    message("[prep-data] Built combined core+peri lookup for ", nrow(combined_pairs), " phenotypes")
+  }
+
   message("[prep-final] size_area=", paste(class(size_area), collapse='/'),
     " targets_all=", paste(class(targets_all), collapse='/'),
     " markers_all=", paste(class(markers_all), collapse='/'),
     " comp=", paste(class(comp), collapse='/'))
-  list(core_area = size_area, targets_all = targets_all, markers_all = markers_all, comp = comp)
+  list(core_area = size_area, targets_all = targets_all, markers_all = markers_all,
+       comp = comp, combined_pairs = combined_pairs)
 }
 
 # Simple NA audit
