@@ -57,21 +57,21 @@ The app applies a single, consistent outlier rule across every tab so that scatt
 
 ### The Rule
 
-**For each donor status (ND, Aab+, T1D), an islet is flagged as an outlier when its value is more than 3 standard deviations from that group's mean.** Computing the threshold per-status (rather than across all islets) prevents the Aab+ and T1D heterogeneity from being mistaken for one giant ND tail. Two cards use variants on the same idea:
+**For each donor status (ND, Aab+, T1D), an islet is flagged as an outlier when its robust |z| — the Iglewicz–Hoaglin modified z-score, `0.6745·(value − median)/MAD` — exceeds the value chosen on the per-tab "Outlier z-threshold" slider (default 3, range 0.5–10, step 0.5).** Median and MAD (Median Absolute Deviation) are used instead of mean and SD so the rule is robust to right-skew and detects extremes on **both** the high and the low side of the distribution. When MAD = 0 (zero-inflated groups), the rule falls back to classical mean/SD per group. Computing the threshold per-status (rather than across all islets) prevents the Aab+ and T1D heterogeneity from being mistaken for one giant ND tail. The slider is synced across Plot, Trajectory, and Spatial; Statistics has its own independent slider. Two cards use variants on the same idea:
 
 - **Spatial Card A (Peri-Islet Phenotype Enrichment)**: uses **Tukey 1.5×IQR** per donor status, computed on non-zero values only. Many phenotypes are absent from most islets, so a z-score rule would over-flag the zero mode; the IQR variant tolerates that.
-- **Spatial Card C (Phenotype Proximity to Islet)**: applies the z>3 rule to `log(1 + distance)` rather than raw distance, because distance distributions have a long right tail.
+- **Spatial Card C (Phenotype Proximity to Islet)**: applies the |z| > slider rule to `log(1 + distance)` rather than raw distance, because distance distributions have a long right tail.
 
 ### The Control
 
-A checkbox **"Exclude outliers (z > 3 per donor status)"** lives on the Plot sidebar and is mirrored above the Trajectory scatter and inside the Spatial Neighborhood Analysis bar. Toggling any one of them updates the other two, so the Plot, Trajectory, and Spatial tabs always reflect the same setting. **Default: ON.** Hover the label for the full tooltip.
+A checkbox **"Exclude outliers"** plus an **"Outlier z-threshold"** slider lives on the Plot sidebar and is mirrored above the Trajectory scatter and inside the Spatial Neighborhood Analysis bar. Toggling the checkbox or moving the slider on any one of them updates the other two, so the Plot, Trajectory, and Spatial tabs always reflect the same setting. **Default: checkbox OFF, slider 3.0.** Hover the label for the full tooltip.
 
-The **Statistics tab has its own dedicated outlier toggle** ("Exclude outliers" checkbox in Section 1: Configure Analysis). It uses the same z > 3 rule but operates independently of the Plot / Trajectory / Spatial synced toggle — you can analyse Statistics with outliers excluded while keeping them visible (as ghost ×) in the Plot scatter, or vice versa. A small caption beneath the Statistics checkbox reports how many islets the most recent Run excluded.
+The **Statistics tab has its own dedicated outlier checkbox + slider** (Section 1: Configure Analysis). It uses the same z-score rule but operates independently of the Plot / Trajectory / Spatial synced controls — you can analyse Statistics with outliers excluded at a stricter threshold while keeping the Plot scatter at default, or vice versa. A small caption beneath the Statistics checkbox reports how many islets the most recent Run excluded.
 
 ### What you see when the filter is ON
 
 - Excluded points still render on the Plot left scatter, the Plot right distribution panel, the Trajectory scatter, and the Spatial Card C box plot as **faint grey × markers** ("ghost points") so you can see *where* in the distribution the exclusions are landing.
-- Plot, Trajectory, Spatial Card A, and Spatial Card C show a **count badge** in or beneath the title: e.g. `"… — 4 outliers excluded (z > 3 per donor status)"`.
+- Plot, Trajectory, Spatial Card A, and Spatial Card C show a **count badge** in or beneath the title: e.g. `"… — 4 outliers excluded (|z| > 3 per donor status)"`. The badge always reflects the live slider value, and the count includes outliers on both ends of the distribution.
 - Statistics tab's Methods Reference section names the rule and reports the exact count for the current Run.
 - **All four analysis tabs** have an optional **"Show excluded-outlier table"** checkbox: Plot (in the sidebar), Trajectory (above the scatter), Spatial Card A (Peri-Islet Enrichment) and Spatial Card C (Phenotype Proximity) — each next to its own phenotype/metric selector. Each table lists the flagged islets (Case ID, donor status, value, z-score or fence distance) and is shown directly below the corresponding plot.
 - Plot points and trajectory ghost-marker positions are stably jittered with a fixed seed, so toggling controls doesn't shuffle the cloud.
@@ -130,8 +130,7 @@ The word *density* is reused in several places with different denominators. Each
 
 - **Cells per islet (core / peri / core+peri)** — a raw count tallied inside the islet's core, the 20 µm peri-islet zone, or both pooled together. Not divided by area. Surfaced by the Metric = "Cells per islet" choice.
 - **Cells per mm² (core / peri / core+peri area)** — phenotype cells divided by the QuPath-measured annotation area in mm². Core uses `core_region_um2` (the islet boundary annotation), peri uses `peri_region_um2` (the `_exp20um` ring annotation), and core+peri uses their sum. Surfaced by Metric = "Cells per mm² …" in Cell Populations mode for all three region variants.
-- **Area of {Nerve|Capillary|Lymphatic} / mm² (region area)** — Microenvironment-mode density. The value is the µm² of structure area divided by the *measured* QuPath region area in mm² (i.e. `area_um2 / region_um2 × 10⁶`). The y-axis names whichever class is selected. This is NOT a count of objects per area — these structures are area-valued (a single nerve may be segmented into several pieces, so counting is unreliable).
-- **Count of {Nerve|Capillary|Lymphatic} per islet** — Microenvironment-mode count. Number of QuPath-detected objects of the selected class within the islet region. Provided alongside the area-density metric, but the area metric is usually the more biologically meaningful read-out.
+- **{Nerve|Capillary|Lymphatic} area (% of region area)** — the only Microenvironment-mode metric. The *fraction* of the selected region (core, peri-islet, or core+peri) occupied by structure annotation, expressed as a percent: `100 × area_um2 / region_um2`. The y-axis names whichever class and region is selected (e.g. `"Nerve area (% of core area)"`). Counts of these structures are NOT exposed — Nerve / Capillary / Lymphatic are area-valued, and a single nerve may be segmented into several pieces, so object counts depend on segmentation morphology, not biology.
 - **Cells per µm of distance (Spatial Card C)** — the signed-distance KDE on Card C is a kernel density rescaled by N, so the y-axis is cells per µm of distance from the islet edge — *not* a per-area density. Useful for comparing distance distributions across disease stages; do not read it as cells/mm².
 - Log-scale features (e.g., cell counts) use pseudo-log transformation so zero values remain visible at y=0.
 
@@ -159,6 +158,8 @@ The Trajectory tab uses a full-width layout (no sidebar). All controls are inlin
 
 3. **Multi-Feature Heatmap** — Z-scored expression of user-selected markers along pseudotime bins. Default markers: INS, GCG, SST, CD3e, CD8a, CD68, CD45, HLADR. Blue-white-red diverging colormap, z-scores clamped to [-2.5, 2.5].
 
+**Y-axis scale on the scatter** — Marker values are **scVI-normalized expression** (bounded roughly `0–1`), aggregated as the **mean across the cells in each islet**. They are *not* raw fluorescence intensity and *not* z-scores. Values almost never reach zero because (1) the scVI output for an individual cell rarely sits at exactly 0, and (2) averaging the cells in an islet smooths out any remaining zeros. The **multi-feature heatmap** below the scatter, by contrast, IS z-scored per marker across pseudotime bins (intentional — it standardizes markers for cross-marker comparison).
+
 4. **Click Interaction** — Click any UMAP point to:
    - Highlight the selected islet
    - Open the segmentation viewer panel
@@ -174,7 +175,7 @@ The Trajectory tab uses a full-width layout (no sidebar). All controls are inlin
   - *Core + Peri* — DPT computed from a 36-d input combining core scVI (10) + peri scVI (10) + 16 structural cell densities (Neural, Blood Vessel, Endothelial, Lymphatic in core and peri, weighted at α=0.15), with light Harmony (θ=0.1) on imageid. Strengthens immune/vascular marker correlations (CD3e, CD8a, CD31, CD34, PDPN) at a small cost to INS-driven span.
 - **Point size by**: Cell Count (default), Islet Diameter, or Uniform
   - *Cell Count* sizes points by `sqrt(total_cells)` — small islets (3-10 cells) appear as tiny dots, large islets (100+ cells) as large dots. This honestly represents measurement quality.
-- **Point transparency**: Adjustable alpha (0.1-1.0)
+- **Point transparency**: 0 (fully opaque) to 0.95 (highly transparent). Default 0.4. Moving the slider right increases transparency.
 - **Point size**: Base point size slider (0.5-5.0)
 - **Min cells/islet**: Filter out islets with fewer than N total cells. Default: 1 (no filter). Increase to focus on well-measured islets.
 
@@ -225,7 +226,7 @@ The tab uses a **5-section narrative layout** that walks you through a logical a
 - Test type selector with inline explanations:
   - **Parametric** (ANOVA / t-test): assumes roughly normal data within groups
   - **Non-parametric** (Kruskal-Wallis / Wilcoxon): no normality assumption; based on ranks
-- Additional controls: significance level (α), min cells/islet, bin width, diameter range. **Outlier removal** is controlled by a dedicated "Exclude outliers" checkbox local to the Statistics tab (z > 3 per donor status, on by default). The control is independent of the Plot / Trajectory / Spatial synced toggle, so you can analyse Statistics with outliers excluded while keeping them visible elsewhere. A small caption under the checkbox reports the most recent exclusion count (or a yellow "Filter OFF" notice). See [Outlier Handling](#outlier-handling) for the full rule.
+- Additional controls: significance level (α), min cells/islet, bin width, diameter range. **Outlier removal** is controlled by a dedicated "Exclude outliers" checkbox + "Outlier z-threshold" slider local to the Statistics tab (z above the slider value per donor status, **off by default**, slider default 3.0). The controls are independent of the Plot / Trajectory / Spatial synced toggle, so you can analyse Statistics with outliers excluded while keeping them visible elsewhere. A small caption under the checkbox reports the most recent exclusion count (or a yellow "Filter OFF" notice). See [Outlier Handling](#outlier-handling) for the full rule.
 - **Exclude zero-valued islets** (checkbox, default OFF): filters `value == 0` rows before every Statistics-tab test (mixed-effects, donor-level ANOVA / Kruskal, pairwise Cohen's d, per-bin tests, demographics regressions, covariate-adjusted model). Useful for zero-inflated features — rare phenotype proportions, peri-islet enrichment z-scores, or any metric where many islets register exactly 0. The overview banner shows an orange "Zero-valued excluded (N dropped)" badge when active; the forest-plot title and the Methods Reference paragraph cite the same count. **AUC is read from the Plot tab's binned summary and is not affected by this filter** — toggling re-runs the hypothesis-testing pipeline but leaves the AUC card untouched.
 
 ### Section 2: Primary Results

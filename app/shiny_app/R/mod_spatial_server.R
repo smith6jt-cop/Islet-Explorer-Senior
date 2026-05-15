@@ -8,8 +8,9 @@
 #   donor_tissue_available(), get_available_donors(), load_donor_tissue() — from spatial_helpers.R
 
 spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
-                           donor_colors_reactive = reactive(DONOR_COLORS),
-                           remove_outliers = reactive(TRUE)) {
+                           donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
+                           remove_outliers = reactive(FALSE),
+                           outlier_threshold = reactive(3.0)) {
 
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -752,11 +753,15 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
             span(style = "font-weight: 600; font-size: 15px; white-space: nowrap;", "Neighborhood Analysis"),
             numericInput(ns("nbr_min_cells"), "Min cells/islet", value = 1, min = 1, max = 100, step = 1, width = "130px"),
             sliderInput(ns("nbr_pt_size"), "Point size", min = 2, max = 12, value = 5, step = 1, width = "150px"),
-            sliderInput(ns("nbr_pt_alpha"), "Opacity", min = 0.1, max = 1.0, value = 0.4, step = 0.05, width = "150px"),
-            tags$div(title = GLOBAL_OUTLIER_TOOLTIP, style = "min-width: 260px;",
+            sliderInput(ns("nbr_pt_alpha"), "Point transparency", min = 0, max = 0.95, value = 0.6, step = 0.05, width = "150px"),
+            tags$div(title = GLOBAL_OUTLIER_TOOLTIP, style = "min-width: 200px;",
               checkboxInput("spatial_remove_outliers",
-                            "Exclude outliers (z > 3 per donor status)",
-                            value = TRUE)
+                            "Exclude outliers",
+                            value = FALSE)
+            ),
+            tags$div(style = "min-width: 230px;",
+              sliderInput("spatial_outlier_z", "Outlier z-threshold",
+                          min = 0.5, max = 10, value = 3, step = 0.5, width = "220px")
             ),
             uiOutput(ns("nbr_islet_count"))
           )
@@ -857,7 +862,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               checkboxInput(ns("distance_show_outlier_table"),
                             "Show excluded-outlier table", value = FALSE),
               tags$small(style = "color: #666;",
-                "Outlier exclusion follows the global toggle above (z > 3 per donor status on log(1+distance) to handle the right-tail skew). Excluded points still appear as faint × markers."),
+                "Outlier exclusion follows the global toggle above (robust |z| from median/MAD on log(1+distance), per donor status — two-sided; threshold from the slider). Excluded points still appear as faint × markers."),
               plotlyOutput(ns("distance_boxplot"), height = "420px"),
               uiOutput(ns("distance_outlier_info"))
             )
@@ -940,15 +945,17 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         ))
       }
 
+      thr <- suppressWarnings(as.numeric(outlier_threshold()))
+      if (!is.finite(thr)) thr <- 3
       header <- if (filter_on) {
-        sprintf("⚠️ %d Outlier%s Excluded (z > 3 per donor status on log(1+distance))",
-                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
+        sprintf("⚠️ %d Outlier%s Excluded (|z| > %g per donor status on log(1+distance))",
+                nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""), thr)
       } else {
         sprintf("ⓘ %d Outlier%s Flagged (global filter OFF — still in box plot)",
                 nrow(tbl), ifelse(nrow(tbl) > 1, "s", ""))
       }
       body_text <- if (filter_on) {
-        "The following islets were excluded from the box plot because their log(1 + distance) z-score exceeded ±3 within their donor status. They still render on the plot as faint grey × markers:"
+        sprintf("The following islets were excluded from the box plot because their robust |z| on log(1 + distance) exceeded %g within their donor status (both high- and low-side tails). They still render on the plot as faint grey × markers:", thr)
       } else {
         "These points would be excluded if the global outlier filter were turned on; they currently sit in the box plot's distribution:"
       }
@@ -1193,7 +1200,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       max_val <- max(c(df$peri_plot, df$core_plot), na.rm = TRUE) * 1.05
 
       pt_sz <- input$nbr_pt_size %||% 5
-      pt_al <- input$nbr_pt_alpha %||% 0.4
+      pt_al <- 1 - (input$nbr_pt_alpha %||% 0.6)
 
       p <- plot_ly()
       for (s in levels(df$status)) {
@@ -1411,11 +1418,14 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       # Outlier handling via shared helper, applied to log1p(distance) to
       # tame the long right tail; ghost \u00d7 markers preserve visibility.
       df <- flag_outliers(df, value_col = "value", group_col = "status",
-                          method = "zscore", threshold = 3,
+                          method = "zscore", threshold = outlier_threshold(),
                           transform = "log1p",
                           enabled = isTRUE(remove_outliers()))
       filter_summary <- summarize_outlier_filter(df)
-      filter_summary$label <- if (filter_summary$enabled) "z > 3 per donor status on log(1+distance)" else filter_summary$label
+      filter_summary$label <- if (filter_summary$enabled) {
+        sprintf("|z| > %g per donor status on log(1+distance)",
+                suppressWarnings(as.numeric(outlier_threshold())))
+      } else filter_summary$label
 
       # Populate the per-card outlier table reactiveVal (consumed by the
       # `distance_outlier_info` renderUI below).
@@ -1443,7 +1453,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       }
       dcols <- donor_colors_reactive()
       pt_sz <- input$nbr_pt_size %||% 5
-      pt_al <- input$nbr_pt_alpha %||% 0.4
+      pt_al <- 1 - (input$nbr_pt_alpha %||% 0.6)
 
       # Subtitle with N per group
       n_labels <- sapply(levels(df_box$status), function(s) {

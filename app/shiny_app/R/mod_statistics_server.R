@@ -108,8 +108,12 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
       # are dropped when the local filter is ON. The count is saved on the
       # result list so the methods text and download CSV can cite it.
       stats_filter_on <- isTRUE(input$stats_remove_outliers)
+      stats_z_threshold <- {
+        v <- suppressWarnings(as.numeric(input$stats_outlier_z))
+        if (is.finite(v) && v >= 0.5) v else 3.0
+      }
       rdf <- flag_outliers(rdf, value_col = "value", group_col = "donor_status",
-                           method = "zscore", threshold = 3,
+                           method = "zscore", threshold = stats_z_threshold,
                            enabled = stats_filter_on)
       outlier_summary_pre <- summarize_outlier_filter(rdf)
       if (stats_filter_on) {
@@ -1157,30 +1161,34 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
 
       outlier_para <- {
         os <- st$outlier_summary
+        local_thr <- {
+          v <- suppressWarnings(as.numeric(input$stats_outlier_z))
+          if (is.finite(v) && v >= 0.5) v else 3
+        }
         if (is.null(os)) {
           tagList(
             tags$strong("Outlier handling: "),
-            "For each donor status (ND / Aab+ / T1D), islets whose value exceeds 3 standard deviations from the group mean are excluded from all donor-level aggregation, mixed-effects modelling, and stratified tests. ",
+            sprintf("For each donor status (ND / Aab+ / T1D), islets whose robust |z| (median/MAD modified z-score) exceeds %g are excluded from all donor-level aggregation, mixed-effects modelling, and stratified tests. Detection is two-sided — both high and low extremes are flagged. When MAD = 0 (zero-inflated groups) the rule falls back to classical mean/SD. ", local_thr),
             "The control is local to the Statistics tab (Section 1 ", tags$em("Exclude outliers"),
-            " checkbox) and operates independently of the Plot / Trajectory / Spatial synced toggle. ",
+            " checkbox + threshold slider) and operates independently of the Plot / Trajectory / Spatial synced toggle. ",
             "On the Plot and Trajectory scatters, outliers still render as faint grey × markers when their own filter is on.",
             tags$br()
           )
         } else if (isTRUE(os$enabled)) {
           tagList(
             tags$strong("Outlier handling: "),
-            sprintf("This run excluded %d islet%s (%s) before donor-level aggregation, mixed-effects modelling, and stratified tests. ",
+            sprintf("This run excluded %d islet%s (%s, robust median/MAD; mean/SD fallback when MAD = 0) before donor-level aggregation, mixed-effects modelling, and stratified tests. ",
                     os$n_excluded, if (os$n_excluded == 1) "" else "s", os$label),
             "The control is local to the Statistics tab (Section 1 ", tags$em("Exclude outliers"),
-            " checkbox); the Plot / Trajectory / Spatial tabs share their own synced toggle. ",
+            " checkbox + threshold slider); the Plot / Trajectory / Spatial tabs share their own synced controls. ",
             "Spatial Card A uses Tukey 1.5×IQR per donor status to tolerate zero-inflated phenotypes.",
             tags$br()
           )
         } else {
           tagList(
             tags$strong("Outlier handling: "),
-            "Filter is OFF for this run — all islets contribute to the tests below, including extreme values. Re-enable the ",
-            tags$em("Exclude outliers"), " checkbox in Section 1 to apply the z > 3 (per donor status) rule.",
+            sprintf("Filter is OFF for this run — all islets contribute to the tests below, including extreme values. Re-enable the "),
+            tags$em("Exclude outliers"), sprintf(" checkbox in Section 1 to apply the |z| > %g (per donor status, median/MAD) rule.", local_thr),
             tags$br()
           )
         }

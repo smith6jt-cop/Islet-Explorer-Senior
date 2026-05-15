@@ -41,16 +41,18 @@ plot_sidebar_ui <- function(id) {
                                "Mean\u00b1SD" = "mean_sd",
                                "Median + IQR" = "median_iqr"),
                    selected = "mean_se"),
-      # Global outlier toggle (non-namespaced so it can be synced with the
-      # mirrored controls on the Trajectory and Spatial tabs). Defaults to ON;
-      # toggling it disables outlier exclusion across all tabs and statistical
-      # tests. The HTML title attribute provides a hover tooltip explaining
-      # the rule without requiring shinyBS.
+      # Global outlier toggle + z-threshold slider (non-namespaced so they
+      # can be synced with the mirrored controls on the Trajectory and Spatial
+      # tabs). Defaults to OFF; the threshold slider value (default 3, range
+      # 0.5–10, step 0.5) feeds the z-score `flag_outliers()` calls across all
+      # three tabs. Title attribute carries the global tooltip.
       tags$div(
         title = GLOBAL_OUTLIER_TOOLTIP,
         checkboxInput("sidebar_remove_outliers",
-                      "Exclude outliers (z > 3 per donor status)",
-                      value = TRUE)
+                      "Exclude outliers",
+                      value = FALSE),
+        sliderInput("sidebar_outlier_z", "Outlier z-threshold",
+                    min = 0.5, max = 10, value = 3, step = 0.5)
       ),
       checkboxInput(ns("show_outlier_table"),
                     "Show excluded-outlier table",
@@ -64,7 +66,7 @@ plot_sidebar_ui <- function(id) {
       # Non-namespaced: global donor palette choice synced via app.R observers
       selectInput("sidebar_donor_palette", "Donor Status Colors",
                   choices = names(DONOR_PALETTES),
-                  selected = "Paul Tol (default)")
+                  selected = "Bright")
     ),
     conditionalPanel(
       condition = "input.tabs != 'Statistics'", ns = NS(NULL),
@@ -118,7 +120,7 @@ plot_main_ui <- function(id, extra_panel = NULL) {
               sliderInput(ns("pt_size"), "Point size",
                           min = 0.3, max = 4.0, value = 3.0, step = 0.1),
               sliderInput(ns("pt_alpha"), "Point transparency",
-                          min = 0.05, max = 1.0, value = 0.6, step = 0.05),
+                          min = 0, max = 0.95, value = 0.4, step = 0.05),
               radioButtons(ns("add_smooth"), "Trend line",
                            choices = c("None", "LOESS"),
                            selected = "None", inline = TRUE)

@@ -472,7 +472,7 @@ server <- function(input, output, session) {
   })
 
   # Active donor color palette (global, consumed by Plot, Trajectory, Statistics, Spatial)
-  donor_palette_name <- reactiveVal("Paul Tol (default)")
+  donor_palette_name <- reactiveVal("Bright")
   DONOR_PALETTE_CHOICES <- names(DONOR_PALETTES)
 
   # Sync all donor palette selectors (Plot sidebar, Trajectory, Spatial)
@@ -505,12 +505,13 @@ server <- function(input, output, session) {
   })
 
   # Global outlier filter (synced across Plot sidebar, Trajectory, Spatial).
-  # Defaults to TRUE so statistical tests and trend lines are not pulled by
-  # extreme points; users can toggle off to see raw distributions. The three
-  # non-namespaced inputs `sidebar_remove_outliers`, `traj_remove_outliers`,
-  # `spatial_remove_outliers` mirror this reactive; observers keep them in
-  # sync. Each module also reads `remove_outliers_global()` directly.
-  remove_outliers_rv <- reactiveVal(TRUE)
+  # Defaults to FALSE so the raw distribution renders out of the box; users
+  # opt in via the checkbox when they want to exclude tails from trends and
+  # tests. The three non-namespaced inputs `sidebar_remove_outliers`,
+  # `traj_remove_outliers`, `spatial_remove_outliers` mirror this reactive;
+  # observers keep them in sync. Modules read `remove_outliers_global()` and
+  # the threshold reactive `outlier_z_global()` directly.
+  remove_outliers_rv <- reactiveVal(FALSE)
 
   observeEvent(input$sidebar_remove_outliers, {
     if (!identical(input$sidebar_remove_outliers, remove_outliers_rv())) {
@@ -540,13 +541,54 @@ server <- function(input, output, session) {
     isTRUE(remove_outliers_rv())
   })
 
+  # Global outlier z-threshold slider (synced across Plot / Trajectory /
+  # Spatial). Default 3.0 (legacy behavior). Range 0.5–10, step 0.5. Feeds
+  # `flag_outliers(threshold = …)` for every z-score site. Spatial Card A's
+  # IQR rule (1.5×) is intentionally NOT routed through this — different
+  # scale, kept fixed for zero-inflated phenotype enrichment.
+  outlier_z_rv <- reactiveVal(3.0)
+
+  observeEvent(input$sidebar_outlier_z, {
+    val <- suppressWarnings(as.numeric(input$sidebar_outlier_z))
+    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
+      outlier_z_rv(val)
+      updateSliderInput(session, "traj_outlier_z", value = val)
+      updateSliderInput(session, "spatial_outlier_z", value = val)
+    }
+  }, ignoreInit = TRUE)
+
+  observeEvent(input$traj_outlier_z, {
+    val <- suppressWarnings(as.numeric(input$traj_outlier_z))
+    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
+      outlier_z_rv(val)
+      updateSliderInput(session, "sidebar_outlier_z", value = val)
+      updateSliderInput(session, "spatial_outlier_z", value = val)
+    }
+  }, ignoreInit = TRUE)
+
+  observeEvent(input$spatial_outlier_z, {
+    val <- suppressWarnings(as.numeric(input$spatial_outlier_z))
+    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
+      outlier_z_rv(val)
+      updateSliderInput(session, "sidebar_outlier_z", value = val)
+      updateSliderInput(session, "traj_outlier_z", value = val)
+    }
+  }, ignoreInit = TRUE)
+
+  outlier_z_global <- reactive({
+    val <- suppressWarnings(as.numeric(outlier_z_rv()))
+    if (is.finite(val) && val >= 0.5) val else 3.0
+  })
+
   # Plot module: returns list(raw_df, summary_df, get_selection_description)
   plot_returns <- plot_server("plot", prepared, selected_islet, active_tab, active_donor_colors,
-                              remove_outliers = remove_outliers_global)
+                              remove_outliers = remove_outliers_global,
+                              outlier_threshold = outlier_z_global)
 
   # Trajectory module
   trajectory_server("traj", prepared, selected_islet, forced_image, active_tab, active_donor_colors,
-                    remove_outliers = remove_outliers_global)
+                    remove_outliers = remove_outliers_global,
+                    outlier_threshold = outlier_z_global)
 
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
@@ -561,7 +603,8 @@ server <- function(input, output, session) {
 
   # Spatial Neighborhood module
   spatial_server("spatial", prepared, active_palette, active_donor_colors,
-                 remove_outliers = remove_outliers_global)
+                 remove_outliers = remove_outliers_global,
+                 outlier_threshold = outlier_z_global)
 
   # AI Assistant module (self-contained)
   ai_assistant_server("ai")

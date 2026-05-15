@@ -8,9 +8,13 @@ trajectory_ui <- function(id) {
       tags$div(
         title = GLOBAL_OUTLIER_TOOLTIP,
         checkboxInput("traj_remove_outliers",
-                      "Exclude outliers (z > 3 per donor status)",
-                      value = TRUE,
-                      width = "320px")
+                      "Exclude outliers",
+                      value = FALSE,
+                      width = "200px")
+      ),
+      tags$div(style = "min-width: 240px;",
+        sliderInput("traj_outlier_z", "Outlier z-threshold",
+                    min = 0.5, max = 10, value = 3, step = 0.5, width = "230px")
       ),
       checkboxInput(ns("show_outlier_table"), "Show excluded-outlier table", value = FALSE)
     ),
@@ -49,7 +53,7 @@ trajectory_ui <- function(id) {
             ),
             column(3,
               sliderInput(ns("traj_alpha"), "Point transparency:",
-                         min = 0.1, max = 1.0, value = 0.6, step = 0.05),
+                         min = 0, max = 0.95, value = 0.4, step = 0.05),
               sliderInput(ns("traj_point_size_slider"), "Point size:",
                          min = 0.5, max = 5.0, value = 3.0, step = 0.1),
               numericInput(ns("min_cells"), "Min cells/islet",
@@ -62,7 +66,7 @@ trajectory_ui <- function(id) {
               ),
               selectInput("traj_donor_palette", "Donor Status Colors",
                           choices = names(DONOR_PALETTES),
-                          selected = "Paul Tol (default)")
+                          selected = "Bright")
             )
           ),
           uiOutput(ns("traj_outlier_badge")),

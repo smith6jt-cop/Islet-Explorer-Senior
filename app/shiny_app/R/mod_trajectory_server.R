@@ -1,6 +1,7 @@
 trajectory_server <- function(id, prepared, selected_islet, forced_image, active_tab = reactive("Trajectory"),
-                              donor_colors_reactive = reactive(DONOR_COLORS),
-                              remove_outliers = reactive(TRUE)) {
+                              donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
+                              remove_outliers = reactive(FALSE),
+                              outlier_threshold = reactive(3.0)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -438,7 +439,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       # ghost × markers (not deleted) so users can see WHERE the exclusions
       # land along pseudotime; trend lines are drawn only from kept rows.
       df <- flag_outliers(df, value_col = "value", group_col = "donor_status",
-                          method = "zscore", threshold = 3,
+                          method = "zscore", threshold = outlier_threshold(),
                           enabled = isTRUE(remove_outliers()))
       outlier_summary <- summarize_outlier_filter(df)
       outliers <- df[df$is_outlier, , drop = FALSE]
@@ -474,7 +475,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       color_by   <- input$traj_color_by %||% "donor_status"
       size_by    <- input$traj_point_size %||% "uniform"
       trend_type <- input$traj_show_trend %||% "by_donor"
-      alpha_val  <- input$traj_alpha %||% 0.6
+      alpha_val  <- 1 - (input$traj_alpha %||% 0.4)
       point_size <- input$traj_point_size_slider %||% 3.0
 
       # Always apply jitter — use the kept-rows range as the jitter scale
@@ -648,7 +649,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       # Labels
       selected_feature <- input$traj_feature %||% "Selected feature"
-      metric_label <- "Expression Level"
+      metric_label <- "— normalized expression (mean per islet, 0–1)"
       x_label <- "Pseudotime (rank-normalized)"
 
       g <- g + labs(
@@ -965,15 +966,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         ))
       }
 
+      thr <- suppressWarnings(as.numeric(outlier_threshold()))
+      if (!is.finite(thr)) thr <- 3
       header <- if (filter_on) {
-        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (z > 3 within donor status)",
-                nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""))
+        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (|z| > %g within donor status)",
+                nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""), thr)
       } else {
         sprintf("\u24d8 %d Outlier%s Flagged (filter OFF \u2014 still in trend)",
                 nrow(outlier_data), ifelse(nrow(outlier_data) > 1, "s", ""))
       }
       body_text <- if (filter_on) {
-        "The following data points were excluded from trend lines and rendered as faint \u00d7 markers because they exceed 3 standard deviations from their donor-status mean:"
+        sprintf("The following data points were excluded from trend lines and rendered as faint \u00d7 markers because their robust |z| (median/MAD modified z-score) exceeds %g \u2014 flagged on both the high and low side of the donor-status distribution:", thr)
       } else {
         "These points would be excluded if the global outlier filter were turned on; currently they are kept and contribute to trend lines:"
       }

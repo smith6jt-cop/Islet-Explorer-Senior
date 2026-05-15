@@ -70,20 +70,45 @@ flag_outliers <- function(df,
     groups <- rep("__all__", nrow(df))
   }
 
+  # Track which scaling rule(s) actually fired across groups. `stat_seen`
+  # accumulates the names; the attribute set below names "modified_z",
+  # "classical_z", or "modified_z (some groups: classical_z fallback)".
+  stat_seen <- character(0)
+
   for (grp in unique(groups)) {
     idx <- which(groups == grp & is.finite(vals))
     if (length(idx) < 3) next
     grp_vals <- vals[idx]
+
+    # Helper: compute a robust signed z-like score for method="zscore". Uses
+    # Iglewicz-Hoaglin modified z = 0.6745 * (x - median) / MAD, which is
+    # robust to right-skew (mean/SD pulled by long tails leaves the lower
+    # bound mathematically unreachable on non-negative data; median/MAD does
+    # not). Falls back to classical mean/SD when MAD = 0 (zero-inflated /
+    # constant groups). 0.6745 rescales MAD to a normal-distribution-equivalent
+    # SD so the slider threshold is comparable to a classical z.
+    robust_zscore <- function(ref_vals, score_vals) {
+      med <- stats::median(ref_vals, na.rm = TRUE)
+      mad <- stats::median(abs(ref_vals - med), na.rm = TRUE)
+      if (is.finite(mad) && mad > 0) {
+        list(z = 0.6745 * (score_vals - med) / mad, statistic = "modified_z")
+      } else {
+        m <- mean(ref_vals, na.rm = TRUE)
+        s <- sd(ref_vals, na.rm = TRUE)
+        if (!is.finite(s) || s == 0) return(NULL)
+        list(z = (score_vals - m) / s, statistic = "classical_z")
+      }
+    }
 
     if (exclude_zeros) {
       nz_idx <- idx[grp_vals != 0]
       nz_vals <- vals[nz_idx]
       if (length(nz_vals) < 4) next
       if (method == "zscore") {
-        m <- mean(nz_vals, na.rm = TRUE)
-        s <- sd(nz_vals, na.rm = TRUE)
-        if (!is.finite(s) || s == 0) next
-        z <- (vals[idx] - m) / s
+        rz <- robust_zscore(nz_vals, vals[idx])
+        if (is.null(rz)) next
+        z <- rz$z
+        stat_seen <- unique(c(stat_seen, rz$statistic))
         df$outlier_score[idx] <- z
         df$is_outlier[idx] <- !is.na(z) & (vals[idx] != 0) & abs(z) > threshold
       } else {
@@ -101,10 +126,10 @@ flag_outliers <- function(df,
       }
     } else {
       if (method == "zscore") {
-        m <- mean(grp_vals, na.rm = TRUE)
-        s <- sd(grp_vals, na.rm = TRUE)
-        if (!is.finite(s) || s == 0) next
-        z <- (grp_vals - m) / s
+        rz <- robust_zscore(grp_vals, grp_vals)
+        if (is.null(rz)) next
+        z <- rz$z
+        stat_seen <- unique(c(stat_seen, rz$statistic))
         df$outlier_score[idx] <- z
         df$is_outlier[idx] <- !is.na(z) & abs(z) > threshold
       } else {
@@ -125,6 +150,15 @@ flag_outliers <- function(df,
   attr(df, "outlier_method") <- method
   attr(df, "outlier_threshold") <- threshold
   attr(df, "outlier_enabled") <- TRUE
+  attr(df, "outlier_statistic") <- if (method != "zscore") {
+    "iqr"
+  } else if (length(stat_seen) == 0) {
+    "modified_z"
+  } else if (length(stat_seen) == 1) {
+    stat_seen
+  } else {
+    "modified_z (classical_z fallback used for some groups)"
+  }
   df
 }
 
@@ -144,7 +178,7 @@ summarize_outlier_filter <- function(df) {
   label <- if (!enabled) {
     "outlier filter OFF"
   } else if (method == "zscore") {
-    sprintf("z > %g per donor status", threshold)
+    sprintf("|z| > %g per donor status", threshold)
   } else {
     sprintf("Tukey %g×IQR per donor status", threshold)
   }
@@ -167,13 +201,15 @@ outlier_title_suffix <- function(summary) {
 
 # Convenience: shared tooltip text for the global outlier control.
 GLOBAL_OUTLIER_TOOLTIP <- paste0(
-  "For each donor status (ND / Aab+ / T1D), islets whose value is more than ",
-  "3 standard deviations from that group's mean are excluded from trend lines, ",
-  "donor-level means, and statistical tests. Excluded points still appear on ",
-  "scatter and box plots as faint grey × markers. Counts are shown next to ",
-  "each plot title. Spatial Card A (infiltration) uses Tukey 1.5×IQR instead, ",
-  "to tolerate zero-inflated phenotypes; Spatial Card C distance plots apply ",
-  "the z-score rule on log(1 + distance)."
+  "For each donor status (ND / Aab+ / T1D), islets whose robust |z| from the ",
+  "group's median and MAD (modified z-score) exceeds the slider threshold are ",
+  "excluded from trend lines, donor-level means, and statistical tests. ",
+  "Detection is two-sided — both high and low extremes are flagged. When MAD = 0 ",
+  "(zero-inflated groups), the rule falls back to classical mean/SD. Excluded ",
+  "points still appear on scatter and box plots as faint grey × markers; counts ",
+  "are shown next to each plot title. Spatial Card A (infiltration) uses Tukey ",
+  "1.5×IQR instead, to tolerate zero-inflated phenotypes; Spatial Card C distance ",
+  "plots apply the z-score rule on log(1 + distance)."
 )
 
 # ---------- Plotly hover-text scrubber ----------

@@ -99,15 +99,18 @@ statistics_ui <- function(id) {
                            value = 1, min = 1, max = 200, step = 1)
             ),
             column(2,
-              # Local outlier toggle (independent of the Plot / Trajectory /
-              # Spatial global control). Lets users compare with and without
-              # outlier removal without switching tabs.
+              # Local outlier toggle + threshold slider (independent of the
+              # Plot / Trajectory / Spatial global controls). Lets users
+              # compare with and without outlier removal without switching
+              # tabs.
               checkboxInput(ns("stats_remove_outliers"),
                             "Exclude outliers",
-                            value = TRUE),
+                            value = FALSE),
+              sliderInput(ns("stats_outlier_z"), "Outlier z-threshold",
+                          min = 0.5, max = 10, value = 3, step = 0.5),
               tags$small(style = "color: #888; display: block; margin-top: -6px; line-height: 1.3;",
-                "Local to Statistics: ", tags$strong("z > 3"), " per donor status. ",
-                "Excluded points are dropped from every test below."),
+                "Local to Statistics: ", tags$strong("z above the slider value"),
+                " per donor status. Excluded points are dropped from every test below."),
               uiOutput(ns("stats_outlier_count"))
             ),
             column(2,

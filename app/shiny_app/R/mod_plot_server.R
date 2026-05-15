@@ -14,8 +14,9 @@
 #   active_tab      -- reactive returning current tab name (e.g. "Plot")
 
 plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plot"),
-                        donor_colors_reactive = reactive(DONOR_COLORS),
-                        remove_outliers = reactive(TRUE)) {
+                        donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
+                        remove_outliers = reactive(FALSE),
+                        outlier_threshold = reactive(3.0)) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -138,16 +139,11 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
     output$metric_selector <- renderUI({
       if (identical(input$mode, "Microenvironment")) {
-        tagList(
-          radioButtons(ns("metric"), "Metric",
-                       choices = c("Count per islet"      = "Counts",
-                                   "Area / mm² of region" = "Density"),
-                       selected = "Density", inline = TRUE),
-          helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
-                   "Count per islet = number of objects (e.g. Nerve, Capillary, Lymphatic) tallied within the islet. ",
-                   "Area / mm² of region = µm² of structure ÷ segmented region area in mm² ",
-                   "(uses QuPath-measured area_um2 / region_um2, not object counts).")
-        )
+        # Microenvironment exposes a single metric (% of region area
+        # occupied by the structure). No radio shown — Nerve / Capillary /
+        # Lymphatic are area-valued, so the area fraction is the only
+        # measurement that makes biological sense.
+        return(NULL)
       } else {
         # Composition — Density uses QuPath-measured region areas (core_region_um2,
         # peri_region_um2) for all three region variants. Peri-islet area is the
@@ -279,19 +275,17 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                         class == target_class,
                         tolower(type) == region_tag) %>%
           dplyr::filter(is.finite(islet_diam_um))
-        metric <- input$metric %||% "Density"
+        # Microenvironment value = % of region area occupied by the
+        # structure (annotation area within the bounds of core / peri /
+        # core+peri). Counts are not exposed — Nerve / Capillary / Lymphatic
+        # are area-valued (a single nerve may segment into several pieces),
+        # so object counts depend on segmentation morphology, not biology.
         df <- df %>%
-          dplyr::mutate(value = as.numeric(
-            if (metric == "Counts") count else {
-              # Density = structure area per region area, scaled to µm²/mm²
-              # (i.e. area_density * 1e6). Uses measured area_um2/region_um2,
-              # NOT object count — these structures (Nerve/Capillary/Lymphatic)
-              # are area-valued, not discretely countable.
-              reg <- suppressWarnings(as.numeric(region_um2))
-              a   <- suppressWarnings(as.numeric(area_um2))
-              ifelse(is.finite(reg) & reg > 0 & is.finite(a), a / reg * 1e6, NA_real_)
-            }
-          ))
+          dplyr::mutate(value = {
+            reg <- suppressWarnings(as.numeric(region_um2))
+            a   <- suppressWarnings(as.numeric(area_um2))
+            ifelse(is.finite(reg) & reg > 0 & is.finite(a), 100 * a / reg, NA_real_)
+          })
       } else {
         # Composition
         metric <- input$metric %||% "Percentage"
@@ -493,10 +487,11 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       if (length(bw) != 1 || !is.finite(bw) || bw <= 0) bw <- 50
 
       # Flag outliers using the shared helper. z-score per donor status,
-      # threshold = 3. The exclusion flag controls whether outliers are
-      # dropped from summary_stats() downstream; ghost points always render.
+      # threshold from the live slider. The exclusion flag controls whether
+      # outliers are dropped from summary_stats() downstream; ghost points
+      # always render.
       df <- flag_outliers(df, value_col = "value", group_col = "donor_status",
-                          method = "zscore", threshold = 3,
+                          method = "zscore", threshold = outlier_threshold(),
                           enabled = isTRUE(remove_outliers()))
       summary <- summarize_outlier_filter(df)
       outliers <- df[df$is_outlier, , drop = FALSE]
@@ -570,12 +565,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
-        metric <- input$metric %||% "Density"
         wsel <- input$which %||% ""
-        class_name <- strsplit(wsel, "\\|")[[1]][1]
-        if (!nzchar(class_name)) class_name <- "structure"
-        if (metric == "Counts") paste0("Count of ", class_name, " per islet")
-                          else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
+        parts <- strsplit(wsel, "\\|")[[1]]
+        class_name <- if (length(parts) >= 1 && nzchar(parts[1])) parts[1] else "Structure"
+        region_tag <- if (length(parts) >= 2) parts[2] else "islet_core"
+        region_lbl <- switch(region_tag,
+                             islet_core  = "core",
+                             islet_band  = "peri-islet",
+                             islet_union = "core+peri",
+                             "region")
+        paste0(class_name, " area (% of ", region_lbl, " area)")
       } else {
         metric <- input$metric %||% "Percentage"
         wsel <- input$which %||% ""
@@ -689,14 +688,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
               geom_point(data = raw_normal,
                          aes(x = diam_mid, y = value, color = donor_id, key = islet_click_key),
                          position = position_jitter(width = jw, height = jh, seed = 17),
-                         size = input$pt_size, alpha = input$pt_alpha,
+                         size = input$pt_size, alpha = 1 - input$pt_alpha,
                          inherit.aes = FALSE)
           } else {
             p <- p +
               geom_point(data = raw_normal,
                          aes(x = diam_mid, y = value, color = donor_status, key = islet_click_key),
                          position = position_jitter(width = jw, height = jh, seed = 17),
-                         size = input$pt_size, alpha = input$pt_alpha,
+                         size = input$pt_size, alpha = 1 - input$pt_alpha,
                          inherit.aes = FALSE)
           }
         } else {
@@ -704,7 +703,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             geom_point(data = raw_normal,
                        aes(x = diam_mid, y = value, color = donor_status, key = islet_click_key),
                        position = position_jitter(width = jw, height = jh, seed = 17),
-                       size = input$pt_size, alpha = input$pt_alpha,
+                       size = input$pt_size, alpha = 1 - input$pt_alpha,
                        inherit.aes = FALSE)
         }
 
@@ -824,7 +823,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             sliderInput(ns("dist_pt_size"), "Point size",
                         min = 0.3, max = 4.0, value = 3.0, step = 0.1),
             sliderInput(ns("dist_pt_alpha"), "Point transparency",
-                        min = 0.05, max = 1.0, value = 0.6, step = 0.05)
+                        min = 0, max = 0.95, value = 0.4, step = 0.05)
           ),
           column(4,
             selectInput(ns("dist_color_by"), "Color points by:",
@@ -889,7 +888,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       # `is_outlier` + `outlier_score`; ghost rows are split off and drawn as
       # a separate layer.
       rdf <- flag_outliers(rdf, value_col = "value", group_col = "donor_status",
-                           method = "zscore", threshold = 3,
+                           method = "zscore", threshold = outlier_threshold(),
                            enabled = isTRUE(remove_outliers()))
       dist_summary <- summarize_outlier_filter(rdf)
       rdf_ghost <- rdf[rdf$is_outlier, , drop = FALSE]
@@ -901,12 +900,16 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       # Y-axis label
       ylab <- if (identical(input$mode, "Microenvironment")) {
-        metric <- input$metric %||% "Density"
         wsel <- input$which %||% ""
-        class_name <- strsplit(wsel, "\\|")[[1]][1]
-        if (!nzchar(class_name)) class_name <- "structure"
-        if (metric == "Counts") paste0("Count of ", class_name, " per islet")
-                          else  paste0("Area of ", class_name, " / mm\u00b2 (\u00b5m\u00b2 per mm\u00b2 of region)")
+        parts <- strsplit(wsel, "\\|")[[1]]
+        class_name <- if (length(parts) >= 1 && nzchar(parts[1])) parts[1] else "Structure"
+        region_tag <- if (length(parts) >= 2) parts[2] else "islet_core"
+        region_lbl <- switch(region_tag,
+                             islet_core  = "core",
+                             islet_band  = "peri-islet",
+                             islet_union = "core+peri",
+                             "region")
+        paste0(class_name, " area (% of ", region_lbl, " area)")
       } else {
         metric <- input$metric %||% "Percentage"
         wsel <- input$which %||% ""
@@ -953,7 +956,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           g <- g +
             geom_jitter(aes(x = donor_status, y = value, color = donor_id),
                         position = position_jitter(width = 0.18, seed = 17),
-                        alpha = ifelse(is.null(input$dist_pt_alpha), 0.5, input$dist_pt_alpha),
+                        alpha = 1 - ifelse(is.null(input$dist_pt_alpha), 0.5, input$dist_pt_alpha),
                         size  = ifelse(is.null(input$dist_pt_size), 1.5, input$dist_pt_size),
                         stroke = 0, inherit.aes = FALSE) +
             scale_color_manual(values = donor_colors,
@@ -964,7 +967,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           g <- g +
             geom_jitter(aes(x = donor_status, y = value, color = donor_status),
                         position = position_jitter(width = 0.18, seed = 17),
-                        alpha = ifelse(is.null(input$dist_pt_alpha), 0.25, input$dist_pt_alpha),
+                        alpha = 1 - ifelse(is.null(input$dist_pt_alpha), 0.75, input$dist_pt_alpha),
                         size  = ifelse(is.null(input$dist_pt_size), 0.7, input$dist_pt_size),
                         stroke = 0, inherit.aes = FALSE) +
             scale_color_manual(values = donor_colors_reactive(),
@@ -1055,10 +1058,12 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         ))
       }
 
+      thr <- suppressWarnings(as.numeric(outlier_threshold()))
+      if (!is.finite(thr)) thr <- 3
       header <- if (filter_on) {
-        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (z > 3 within donor status)",
+        sprintf("\u26a0\ufe0f %d Outlier%s Excluded (|z| > %g within donor status)",
                 nrow(outlier_data),
-                ifelse(nrow(outlier_data) > 1, "s", ""))
+                ifelse(nrow(outlier_data) > 1, "s", ""), thr)
       } else {
         sprintf("\u24d8 %d Outlier%s Flagged (filter OFF \u2014 still in summary)",
                 nrow(outlier_data),

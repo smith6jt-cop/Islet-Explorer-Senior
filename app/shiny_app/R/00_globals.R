@@ -29,8 +29,8 @@ DONOR_PALETTES <- list(
   "Diverging"          = DONOR_COLORS_CLASSIC
 )
 
-get_donor_color_palette <- function(name = "Paul Tol (default)") {
-  DONOR_PALETTES[[name]] %||% DONOR_COLORS
+get_donor_color_palette <- function(name = "Bright") {
+  DONOR_PALETTES[[name]] %||% DONOR_COLORS_BRIGHT
 }
 
 # Load sf package for GeoJSON/spatial operations (islet segmentation viewer)

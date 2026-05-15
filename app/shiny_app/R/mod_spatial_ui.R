@@ -54,7 +54,7 @@ spatial_ui <- function(id) {
                       selected = "High Contrast"),
           selectInput("spatial_donor_palette", "Donor Status",
                       choices = names(DONOR_PALETTES),
-                      selected = "Paul Tol (default)"),
+                      selected = "Bright"),
           hr(style = "margin: 8px 0;"),
           downloadButton(ns("download_spatial"), "Download CSV", style = "width: 100%; font-size: 13px;")
         )
