@@ -2,7 +2,7 @@
 
 Interactive web application for exploring pancreatic islet CODEX multiplexed imaging data from nPOD donors. Tracks insulin loss, immune infiltration, and cellular microenvironment changes across the ND → Aab+ → T1D disease progression.
 
-**Production URL**: `http://10.15.152.7:8080/islet-explorer/`
+**Production URL**: `http://<server-ip>:8080/islet-explorer/`
 
 ---
 

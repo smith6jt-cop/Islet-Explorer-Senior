@@ -27,7 +27,7 @@ from sklearn.neighbors import NearestNeighbors
 import warnings
 warnings.filterwarnings("ignore")
 
-os.chdir("/home/smith6jt/panc_CODEX/Islet-Explorer")
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RESULTS_DIR = "scripts/scvi_comparison_results"
 
 # ── Load data ──────────────────────────────────────────────

@@ -43,5 +43,5 @@
   - Groovy data stored in .uns as column arrays — reconstructed into DataFrames by reconstruct_groovy_df()
   - Same output interface: load_master_auto() returns list(markers, targets, comp, lgals3) — identical to load_master(), so prep_data() needs
   zero changes
-  - Python env: Both notebooks use the scvi-env conda environment (/home/smith6jt/miniconda3/envs/scvi-env/) which has scanpy, anndata, scvi,
+  - Python env: Both notebooks use the scvi-env conda environment which has scanpy, anndata, scvi,
   sklearn, and scib-metrics installed

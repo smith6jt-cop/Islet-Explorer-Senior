@@ -126,7 +126,7 @@ project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE),
 # isn't set (shiny-server environments often lack PATH).
 if (!nzchar(Sys.getenv("RETICULATE_PYTHON", ""))) {
   candidate_python <- NULL
-  venv_path <- "/home/smith6jt/.local/share/islet-explorer-py/bin/python"
+  venv_path <- file.path(path.expand("~"), ".local", "share", "islet-explorer-py", "bin", "python")
   if (file.exists(venv_path)) candidate_python <- venv_path
   if (is.null(candidate_python) || !nzchar(candidate_python)) {
     candidate_python <- Sys.getenv("PYTHON", Sys.which("python3"))

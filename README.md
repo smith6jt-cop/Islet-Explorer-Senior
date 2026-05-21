@@ -42,7 +42,7 @@ Rscript scripts/install_shiny_deps.R
 R -q -e "shiny::runApp('app/shiny_app', launch.browser=TRUE)"
 ```
 
-**Production URL**: `http://10.15.152.7:8080/islet-explorer/`
+**Production URL**: `http://<server-ip>:8080/islet-explorer/`
 
 ## Installation
 

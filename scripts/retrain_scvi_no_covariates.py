@@ -23,7 +23,7 @@ import anndata as ad
 import warnings
 warnings.filterwarnings("ignore")
 
-os.chdir("/home/smith6jt/panc_CODEX/Islet-Explorer")
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Save all output to a file
 RESULTS_DIR = "scripts/scvi_comparison_results"

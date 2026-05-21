@@ -164,7 +164,7 @@ No other tool in the surveyed landscape combines all of the following in one int
 | **Multi-organ comparison** | HuBMAP, scProAtlas, HPA | We are pancreas-only (by design) |
 | **Genomics/eQTL integration** | TIGER, Islet Regulome, IGW | We have protein data, not genomic |
 | **Large donor cohorts** | TIGER (500+), IGW (188), nPOD (560+) | We have 1,015 islets but fewer unique donors |
-| **Public open access** | Most tools above | We are currently internal (10.15.152.7:8080) |
+| **Public open access** | Most tools above | We are currently internal (<server-ip>:8080) |
 | **Spatial neighborhood analysis** | scProAtlas, scimap | We show segmentation but don't quantify cell-cell spatial relationships |
 | **Multi-dataset harmonization** | PanKBase (planned), HCA | We serve one CODEX dataset |
 | **Gigapixel whole-slide browsing** | Pancreatlas, nPOD (Aperio) | Our Avivator viewer shows individual OME-TIFFs, not whole slides |

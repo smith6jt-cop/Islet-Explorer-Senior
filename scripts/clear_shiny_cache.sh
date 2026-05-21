@@ -2,6 +2,8 @@
 # Script to clear shiny-server cache and restart services
 # Usage: ./clear_shiny_cache.sh
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 echo "=== Clearing Shiny Server Cache ==="
 
 # 1. Clear any temporary R files and caches
@@ -18,7 +20,7 @@ fi
 
 # 3. Update modification time on app.R to force reload
 echo "Touching app.R to force reload..."
-touch /home/smith6jt/panc_CODEX/Islet-Explorer/app/shiny_app/app.R
+touch "$REPO_ROOT/app/shiny_app/app.R"
 
 # 4. If running as root, restart shiny-server
 if [ "$EUID" -eq 0 ]; then
@@ -34,7 +36,7 @@ fi
 # 5. Clear any APP_LOADED_FLAG files
 echo "Clearing app load flags..."
 find /srv/shiny-server -name "APP_LOADED_FLAG" -delete 2>/dev/null || true
-find /home/smith6jt/panc_CODEX/Islet-Explorer -name "APP_LOADED_FLAG" -delete 2>/dev/null || true
+find "$REPO_ROOT" -name "APP_LOADED_FLAG" -delete 2>/dev/null || true
 
 echo "=== Cache clearing complete ==="
-echo "App version: $(grep 'APP_VERSION' /home/smith6jt/panc_CODEX/Islet-Explorer/app/shiny_app/app.R)"
+echo "App version: $(grep 'APP_VERSION' "$REPO_ROOT/app/shiny_app/app.R")"
