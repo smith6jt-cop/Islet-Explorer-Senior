@@ -156,7 +156,7 @@ App-specific UI conventions (CSS overflow, font minimums, large-scatter renderin
 
 ## Deployment Architecture
 
-- **Production URL**: `http://10.15.152.7:8080/islet-explorer/`
+- **Production URL**: `http://<server-ip>:8080/islet-explorer/`
 - nginx (port 8080) reverse-proxies `/islet-explorer/` -> shiny-server (port 3838)
 - shiny-server serves from symlink: `/srv/shiny-server/islet-explorer` -> `app/shiny_app/`
 - Changes take effect when shiny-server spawns a fresh R worker (no restart needed; kill stale workers if needed)
@@ -166,7 +166,7 @@ App-specific UI conventions (CSS overflow, font minimums, large-scatter renderin
 
 Production (always use this):
 ```
-http://10.15.152.7:8080/islet-explorer/
+http://<server-ip>:8080/islet-explorer/
 ```
 
 Development only:
@@ -194,7 +194,7 @@ See `docs/user_guide.md` for end-user documentation.
 
 ## Cross-Session Knowledge
 
-Cross-session development knowledge for this project lives in Claude's auto-memory at `~/.claude/projects/-home-smith6jt-panc-CODEX-Islet-Explorer/memory/` (index in `MEMORY.md`). The earlier `Skills_Registry/` submodule + `/advise` + `/retrospective` workflow was retired Apr 2026 in favour of the auto-memory mechanism.
+Cross-session development knowledge for this project lives in Claude's auto-memory (see `MEMORY.md`). The earlier `Skills_Registry/` submodule + `/advise` + `/retrospective` workflow was retired Apr 2026 in favour of the auto-memory mechanism.
 
 ## R Dependencies
 
