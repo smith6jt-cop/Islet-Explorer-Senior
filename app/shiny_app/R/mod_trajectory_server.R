@@ -560,7 +560,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         )
       }
       g <- g +
-        theme_minimal(base_size = 14) +
+        theme_islet() +
         theme(
           legend.position = "none",
           plot.margin = unit(c(5, 5, 5, 5), "pt"),
@@ -679,14 +679,23 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       # Layout and register click events
+      fonts <- plotly_islet_fonts()
       p %>%
         layout(
           showlegend = FALSE,
           title = NULL,
-          margin = list(l = 60, r = 20, t = 20, b = 50, pad = 5),
-          xaxis = list(fixedrange = FALSE, automargin = TRUE, range = c(0, 1)),
-          yaxis = list(fixedrange = FALSE, automargin = TRUE)
+          font = fonts$global,
+          margin = list(l = 80, r = 20, t = 30, b = 70, pad = 5),
+          xaxis = list(fixedrange = FALSE, automargin = TRUE, range = c(0, 1),
+                       title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          yaxis = list(fixedrange = FALSE, automargin = TRUE,
+                       title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          legend = list(font = fonts$legend_text,
+                        title = list(font = fonts$legend_title))
         ) %>%
+        plotly_islet_config("trajectory_scatter") %>%
         event_register("plotly_click")
     })
 
@@ -899,7 +908,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           ),
           # Center: plot
           column(6,
-            plotOutput("islet_segmentation_view", height = "550px")
+            plotOutput("islet_segmentation_view", height = "550px"),
+            div(style = "text-align: right; margin-top: 6px;",
+              downloadButton("dl_islet_segmentation_view", "Download PNG",
+                             class = "btn-sm btn-outline-primary"))
           ),
           # Right: composition sidebar
           column(4,
@@ -909,6 +921,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                 div(style = "padding: 12px; background-color: #f8f9fa; border-radius: 5px;",
                   h5("Cell Composition", style = "margin-top: 0; font-size: 16px;"),
                   plotOutput("islet_drilldown_summary", height = "300px"),
+                  div(style = "text-align: right; margin-top: 6px;",
+                    downloadButton("dl_islet_drilldown_summary", "Download PNG",
+                                   class = "btn-sm btn-outline-primary")),
                   tableOutput("islet_drilldown_table")
                 )
               )
@@ -1096,7 +1111,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     })
 
     # ---------- UMAP: Donor Status ----------
-    output$traj_umap_donor <- renderPlot({
+    traj_umap_donor_plot <- reactive({
       df <- traj_data_clean()
       if (is.null(df) || nrow(df) == 0) return(NULL)
 
@@ -1116,17 +1131,23 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         coord_fixed() +
         labs(x = "UMAP 1", y = "UMAP 2", title = "UMAP: Donor Status") +
         guides(color = guide_legend(override.aes = list(size = 3))) +
-        theme_minimal(base_size = 15) +
+        theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
-              panel.grid = element_blank(), axis.line = element_blank(),
-              axis.title = element_text(size = 14),
-              plot.title = element_text(size = 15, face = "bold"),
-              legend.text = element_text(size = 13),
-              legend.title = element_text(size = 14))
+              panel.grid = element_blank(), axis.line = element_blank())
     })
+    output$traj_umap_donor <- renderPlot({ traj_umap_donor_plot() })
+    output$dl_umap_donor <- downloadHandler(
+      filename = function() islet_png_filename("trajectory_umap_donor"),
+      content = function(file) {
+        p <- traj_umap_donor_plot(); if (is.null(p)) return()
+        ggplot2::ggsave(file, plot = p,
+                        width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+      }
+    )
 
     # ---------- UMAP: Selected Feature ----------
-    output$traj_umap_feature <- renderPlot({
+    traj_umap_feature_plot <- reactive({
       df <- traj_data_clean()
       if (is.null(df) || nrow(df) == 0) return(NULL)
 
@@ -1146,13 +1167,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         labs(x = "UMAP 1", y = "UMAP 2",
              title = paste("UMAP:", selected_feature),
              color = "Expression") +
-        theme_minimal(base_size = 15) +
+        theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
-              panel.grid = element_blank(), axis.line = element_blank(),
-              axis.title = element_text(size = 14),
-              plot.title = element_text(size = 15, face = "bold"),
-              legend.text = element_text(size = 13),
-              legend.title = element_text(size = 14))
+              panel.grid = element_blank(), axis.line = element_blank())
 
       # Continuous colormap scaled to data min/max
       val_range <- range(df$value, na.rm = TRUE)
@@ -1161,6 +1178,16 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       g
     })
+    output$traj_umap_feature <- renderPlot({ traj_umap_feature_plot() })
+    output$dl_umap_feature <- downloadHandler(
+      filename = function() islet_png_filename("trajectory_umap_feature"),
+      content = function(file) {
+        p <- traj_umap_feature_plot(); if (is.null(p)) return()
+        ggplot2::ggsave(file, plot = p,
+                        width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+      }
+    )
 
     # ---------- Heatmap: Dominant Status × Feature Intensity ----------
     # Hue per pseudotime bin = dominant donor_status, computed as the
@@ -1318,7 +1345,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     })
 
     # Multi-row heatmap renderPlot
-    output$traj_multi_heatmap <- renderPlot({
+    traj_multi_heatmap_plot <- reactive({
       mfd <- traj_multi_feature_data()
       if (is.null(mfd)) return(NULL)
 
@@ -1383,16 +1410,29 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                              name = "Z-score", na.value = "#f7f7f7") +
         scale_x_continuous(limits = c(pt_range[1], pt_range[2]), expand = c(0, 0)) +
         labs(x = "Pseudotime", y = "", title = "Multi-Feature Expression Along Pseudotime") +
-        theme_minimal() +
+        theme_islet() +
         theme(
           panel.grid = element_blank(),
-          plot.title = element_text(size = 12, hjust = 0.5),
-          axis.text.y = element_text(size = 11)
+          plot.title = element_text(hjust = 0.5),
+          axis.text.y = element_text(size = max(ISLET_FONT_SIZES$dense_min, ISLET_FONT_SIZES$axis_text - 2))
         )
-    }, height = function() {
-      n <- length(input$multi_heatmap_markers %||% character(0))
-      max(150, 40 + n * 30)
     })
+    output$traj_multi_heatmap <- renderPlot({ traj_multi_heatmap_plot() },
+      height = function() {
+        n <- length(input$multi_heatmap_markers %||% character(0))
+        max(220, 60 + n * 36)
+      })
+    output$dl_multi_heatmap <- downloadHandler(
+      filename = function() islet_png_filename("trajectory_multi_heatmap"),
+      content = function(file) {
+        p <- traj_multi_heatmap_plot(); if (is.null(p)) return()
+        n <- length(input$multi_heatmap_markers %||% character(0))
+        h <- max(6, 1 + n * 0.4)
+        ggplot2::ggsave(file, plot = p,
+                        width = ISLET_HEATMAP_PNG_DIMS$width, height = h,
+                        dpi = ISLET_HEATMAP_PNG_DIMS$dpi, units = ISLET_HEATMAP_PNG_DIMS$units)
+      }
+    )
 
   })
 }

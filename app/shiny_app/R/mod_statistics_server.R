@@ -723,12 +723,20 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         scale_color_manual(values = c("Significant" = "#d62728", "NS" = "#1f77b4"),
                            name = "") +
         labs(x = "Cohen's d (donor means)", y = NULL, title = forest_title) +
-        theme_minimal(base_size = 13) +
+        theme_islet() +
         theme(legend.position = "none")
 
+      fonts <- plotly_islet_fonts()
       ggplotly(g, tooltip = c("x", "y", "colour")) %>%
-        layout(margin = list(b = 60),
-               legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.25))
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               margin = list(b = 80),
+               legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.25,
+                             font = fonts$legend_text,
+                             title = list(font = fonts$legend_title))) %>%
+        plotly_islet_config("statistics_forest_plot")
     })
 
     # ===========================================================================
@@ -797,19 +805,28 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
 
       mid_labels <- as.character(round(all_mids))
 
+      fonts <- plotly_islet_fonts()
       plot_ly(
         x = mid_labels, y = row_names, z = z_mat,
         type = "heatmap",
         colorscale = list(c(0, "#f7fbff"), c(0.5, "#6baed6"), c(1, "#08306b")),
-        colorbar = list(title = "-log10(q)"),
+        colorbar = list(title = list(text = "-log10(q)", font = fonts$colorbar_title),
+                        tickfont = fonts$axis_tick),
         text = text_mat, texttemplate = "%{text}",
+        textfont = list(size = ISLET_FONT_SIZES$dense_min),
         hovertemplate = "Bin: %{x} \u00b5m<br>Test: %{y}<br>-log10(q): %{z:.2f}<extra></extra>"
       ) %>%
         layout(
-          xaxis = list(title = "Diameter bin midpoint (\u00b5m)", tickangle = -45),
-          yaxis = list(title = "", categoryorder = "array", categoryarray = rev(row_names)),
-          title = "Stratified Significance (BH-corrected, donor-level)"
-        )
+          font = fonts$global,
+          xaxis = list(title = list(text = "Diameter bin midpoint (\u00b5m)", font = fonts$axis_title),
+                       tickfont = fonts$axis_tick, tickangle = -45),
+          yaxis = list(title = list(text = "", font = fonts$axis_title),
+                       tickfont = fonts$axis_tick,
+                       categoryorder = "array", categoryarray = rev(row_names)),
+          title = list(text = "Stratified Significance (BH-corrected, donor-level)",
+                       font = fonts$title)
+        ) %>%
+        plotly_islet_config("statistics_bin_heatmap")
     })
 
     # ===========================================================================
@@ -830,14 +847,21 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         geom_point(size = 3) +
         scale_color_manual(values = c("Significant" = "#d62728", "NS" = "#aaaaaa"), name = "") +
         labs(x = "Diameter bin midpoint (\u00b5m)", y = "Kendall \u03c4") +
-        theme_minimal(base_size = 13) +
+        theme_islet() +
         theme(legend.position = "none")
 
+      fonts <- plotly_islet_fonts()
       ggplotly(g, tooltip = c("x", "y", "colour")) %>%
-        layout(margin = list(b = 100),
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               margin = list(b = 110),
                legend = list(orientation = "h", x = 0.5, xanchor = "center",
-                             y = -0.3, font = list(size = 12)),
-               showlegend = TRUE)
+                             y = -0.3, font = fonts$legend_text,
+                             title = list(font = fonts$legend_title)),
+               showlegend = TRUE) %>%
+        plotly_islet_config("statistics_trend_plot")
     })
 
     # ===========================================================================
@@ -938,11 +962,19 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         labs(x = "Donor Age (years)", y = st$feature_name, color = NULL,
              title = "Age vs Feature (all islets)",
              subtitle = corr_label) +
-        theme_minimal(base_size = 12) +
+        theme_islet() +
         theme(legend.position = "bottom")
 
+      fonts <- plotly_islet_fonts()
       ggplotly(g, tooltip = c("x", "y", "colour")) %>%
-        layout(legend = list(orientation = "h", x = 0.2, y = -0.2))
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               legend = list(orientation = "h", x = 0.2, y = -0.2,
+                             font = fonts$legend_text,
+                             title = list(font = fonts$legend_title))) %>%
+        plotly_islet_config("statistics_age_scatter")
     })
 
     output$gender_plot <- renderPlotly({
@@ -989,11 +1021,17 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         labs(x = NULL, y = st$feature_name,
              title = "Feature by Donor Status & Sex",
              subtitle = sub_label) +
-        theme_minimal(base_size = 12) +
+        theme_islet() +
         theme(legend.position = "none")
 
+      fonts <- plotly_islet_fonts()
       ggplotly(g, tooltip = c("y")) %>%
-        layout(margin = list(b = 50))
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               margin = list(b = 60)) %>%
+        plotly_islet_config("statistics_sex_box")
     })
 
     output$aab_donor_table <- renderTable({
@@ -1042,10 +1080,16 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
              title = "Feature by AAb Count (Aab+ islets)",
              subtitle = paste0("N = ", nrow(aab_df), " islets from ",
                                length(unique(aab_df$`Case ID`)), " Aab+ donors. ", p_label)) +
-        theme_minimal(base_size = 12) +
+        theme_islet() +
         theme(legend.position = "none")
 
-      ggplotly(g, tooltip = c("y"))
+      fonts <- plotly_islet_fonts()
+      ggplotly(g, tooltip = c("y")) %>%
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick)) %>%
+        plotly_islet_config("statistics_aab_plot")
     })
 
     output$covariate_results <- renderUI({
@@ -1086,10 +1130,16 @@ statistics_server <- function(id, raw_df, summary_df, get_selection_description,
         scale_fill_manual(values = donor_colors()) +
         labs(x = "Donor Status", y = "Area Under Curve (AUC)",
              title = "Integrated Area by Donor Group") +
-        theme_minimal(base_size = 14) +
+        theme_islet() +
         theme(legend.position = "none")
 
-      ggplotly(g, tooltip = c("x", "y"))
+      fonts <- plotly_islet_fonts()
+      ggplotly(g, tooltip = c("x", "y")) %>%
+        layout(font = fonts$global,
+               title = list(font = fonts$title),
+               xaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick),
+               yaxis = list(title = list(font = fonts$axis_title), tickfont = fonts$axis_tick)) %>%
+        plotly_islet_config("statistics_auc_plot")
     })
 
     output$auc_table <- renderTable({

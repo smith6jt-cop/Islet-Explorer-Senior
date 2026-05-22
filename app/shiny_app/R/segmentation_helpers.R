@@ -469,11 +469,10 @@ build_segmentation_base_plot <- function(info, buffer_um = 150,
   if (!show_structures) skip_classes <- c(skip_classes, "Nerve", "Capillary", "Lymphatic")
 
   p <- ggplot2::ggplot() +
-    ggplot2::theme_minimal(base_size = 12) +
+    theme_islet() +
     ggplot2::theme(
       panel.grid = ggplot2::element_blank(),
-      axis.text = ggplot2::element_text(size = 9),
-      plot.title = ggplot2::element_text(hjust = 0.5, size = 14, face = "bold")
+      plot.title = ggplot2::element_text(hjust = 0.5, size = ISLET_FONT_SIZES$title, face = "bold")
     ) +
     ggplot2::coord_sf(xlim = xlim_range, ylim = rev(ylim_range), expand = FALSE)
 
@@ -580,9 +579,7 @@ render_islet_segmentation_plot <- function(info, show_peri_boundary = TRUE, show
     ) +
     ggplot2::theme(
       legend.position = "right",
-      legend.key.size = ggplot2::unit(0.9, "cm"),
-      legend.title = ggplot2::element_text(size = 16, face = "bold"),
-      legend.text = ggplot2::element_text(size = 14)
+      legend.key.size = ggplot2::unit(0.9, "cm")
     )
 
   p

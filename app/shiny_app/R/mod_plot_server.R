@@ -748,7 +748,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       p <- p +
         labs(x = "Islet diameter (\u00b5m)", y = ylab, color = NULL, title = title_text) +
-        theme_minimal(base_size = 14) +
+        theme_islet() +
         theme(legend.position = c(1, 1),
               legend.justification = c(1, 1),
               legend.direction = "vertical")
@@ -806,10 +806,21 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           gg$x$data[[i]]$legendgroup <- cleaned
         }
       }
+      fonts <- plotly_islet_fonts()
       gg <- gg %>%
-        layout(legend = list(orientation = "h", x = 0, y = -0.25,
-                             xanchor = "left", yanchor = "top"),
-               margin = list(b = 80)) %>%
+        layout(
+          font = fonts$global,
+          title = list(font = fonts$title),
+          xaxis = list(title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          yaxis = list(title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          legend = list(orientation = "h", x = 0, y = -0.25,
+                        xanchor = "left", yanchor = "top",
+                        font = fonts$legend_text,
+                        title = list(font = fonts$legend_title)),
+          margin = list(b = 100)) %>%
+        plotly_islet_config("plot_scatter") %>%
         event_register("plotly_click")
 
       gg
@@ -998,7 +1009,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                            outlier_title_suffix(dist_summary))
       g <- g +
         labs(x = "Donor Status", y = ylab, title = title_text) +
-        theme_minimal(base_size = 14) +
+        theme_islet() +
         theme(legend.position = if (color_by == "donor_id") "right" else "none")
 
       if (!is.null(input$dist_log_scale) && input$dist_log_scale) {
@@ -1040,7 +1051,20 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           p$x$data[[i]]$legendgroup <- cleaned
         }
       }
-      p <- p %>% layout(showlegend = isTRUE(color_by == "donor_id"))
+      fonts <- plotly_islet_fonts()
+      p <- p %>%
+        layout(
+          showlegend = isTRUE(color_by == "donor_id"),
+          font = fonts$global,
+          title = list(font = fonts$title),
+          xaxis = list(title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          yaxis = list(title = list(font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          legend = list(font = fonts$legend_text,
+                        title = list(font = fonts$legend_title))
+        ) %>%
+        plotly_islet_config("plot_distribution")
       p
     })
 
@@ -1256,7 +1280,10 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           ),
           # Center: plot
           column(6,
-            plotOutput("islet_segmentation_view", height = "650px")
+            plotOutput("islet_segmentation_view", height = "650px"),
+            div(style = "text-align: right; margin-top: 6px;",
+              downloadButton("dl_islet_segmentation_view", "Download PNG",
+                             class = "btn-sm btn-outline-primary"))
           ),
           # Right: composition sidebar
           column(4,
@@ -1266,6 +1293,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                 div(style = "padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
                   h5("Cell Composition", style = "margin-top: 0; font-size: 17px;"),
                   plotOutput("islet_drilldown_summary", height = "400px"),
+                  div(style = "text-align: right; margin-top: 6px;",
+                    downloadButton("dl_islet_drilldown_summary", "Download PNG",
+                                   class = "btn-sm btn-outline-primary")),
                   hr(),
                   tableOutput("islet_drilldown_table")
                 )

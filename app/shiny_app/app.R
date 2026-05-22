@@ -610,7 +610,7 @@ server <- function(input, output, session) {
   ai_assistant_server("ai")
 
   # ---- Unified segmentation + drilldown plot (root-level, used by both Plot and Trajectory panels) ----
-  output$islet_segmentation_view <- renderPlot({
+  islet_segmentation_view_plot <- reactive({
     req(selected_islet())
     info <- selected_islet()
     show_peri_bd <- if (!is.null(input$drilldown_show_peri_boundary)) input$drilldown_show_peri_boundary else TRUE
@@ -651,8 +651,22 @@ server <- function(input, output, session) {
       }
     )
   })
+  output$islet_segmentation_view <- renderPlot({ islet_segmentation_view_plot() })
+  output$dl_islet_segmentation_view <- downloadHandler(
+    filename = function() {
+      info <- selected_islet()
+      stem <- if (!is.null(info)) paste0("islet_", info$case_id, "_", info$islet_key) else "islet_segmentation"
+      islet_png_filename(stem)
+    },
+    content = function(file) {
+      p <- islet_segmentation_view_plot(); if (is.null(p)) return()
+      ggplot2::ggsave(file, plot = p,
+                      width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
+                      dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+    }
+  )
 
-  output$islet_drilldown_summary <- renderPlot({
+  islet_drilldown_summary_plot <- reactive({
     req(selected_islet())
     info <- selected_islet()
     cells <- load_islet_cells(info$case_id, info$islet_key)
@@ -663,6 +677,20 @@ server <- function(input, output, session) {
     }
     tryCatch(render_drilldown_summary(cells, palette = active_palette()), error = function(e) NULL)
   })
+  output$islet_drilldown_summary <- renderPlot({ islet_drilldown_summary_plot() })
+  output$dl_islet_drilldown_summary <- downloadHandler(
+    filename = function() {
+      info <- selected_islet()
+      stem <- if (!is.null(info)) paste0("islet_", info$case_id, "_", info$islet_key, "_composition") else "islet_composition"
+      islet_png_filename(stem)
+    },
+    content = function(file) {
+      p <- islet_drilldown_summary_plot(); if (is.null(p)) return()
+      ggplot2::ggsave(file, plot = p,
+                      width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
+                      dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+    }
+  )
 
   output$islet_drilldown_table <- renderTable({
     req(selected_islet())

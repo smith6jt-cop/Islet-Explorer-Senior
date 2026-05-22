@@ -72,7 +72,10 @@ spatial_ui <- function(id) {
           tags$small("Drag to zoom, double-click to reset.", style = "color: #888; display: block; margin-bottom: 5px;"),
           plotOutput(ns("tissue_scatter"), height = "700px",
                      dblclick = ns("scatter_dblclick"),
-                     brush = brushOpts(id = ns("scatter_brush"), resetOnNew = TRUE))
+                     brush = brushOpts(id = ns("scatter_brush"), resetOnNew = TRUE)),
+          div(style = "text-align: right; margin-top: 8px;",
+            downloadButton(ns("dl_tissue_scatter"), "Download PNG",
+                           class = "btn-sm btn-outline-primary"))
         )
       ),
 
@@ -88,7 +91,10 @@ spatial_ui <- function(id) {
             ),
             column(6,
               h5("Donor Status", style = "font-size: 13px; margin-top: 0;"),
-              plotOutput(ns("spatial_umap_donor"), height = 300)
+              plotOutput(ns("spatial_umap_donor"), height = 300),
+              div(style = "text-align: right; margin-top: 6px;",
+                downloadButton(ns("dl_spatial_umap_donor"), "Download PNG",
+                               class = "btn-sm btn-outline-primary"))
             )
           ),
           hr(style = "margin: 8px 0;"),

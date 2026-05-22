@@ -231,9 +231,7 @@ render_islet_drilldown_plot <- function(info, cells, color_by = "phenotype", sho
   p +
     ggplot2::theme(
       legend.position = "right",
-      legend.key.size = ggplot2::unit(0.9, "cm"),
-      legend.title = ggplot2::element_text(size = 16, face = "bold"),
-      legend.text = ggplot2::element_text(size = 14)
+      legend.key.size = ggplot2::unit(0.9, "cm")
     )
 }
 
@@ -274,7 +272,7 @@ render_drilldown_summary <- function(cells, palette = PHENOTYPE_COLORS) {
       ggplot2::scale_colour_manual(values = c("core" = "grey20", "peri" = "white"), name = "Region") +
       ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "Cell count") +
-      ggplot2::theme_minimal(base_size = 16) +
+      theme_islet() +
       ggplot2::theme(legend.position = "bottom")
   } else {
     ggplot2::ggplot(counts, ggplot2::aes(x = phenotype, y = count, fill = phenotype)) +
@@ -282,6 +280,6 @@ render_drilldown_summary <- function(cells, palette = PHENOTYPE_COLORS) {
       ggplot2::scale_fill_manual(values = pal, guide = "none") +
       ggplot2::coord_flip() +
       ggplot2::labs(x = NULL, y = "Cell count") +
-      ggplot2::theme_minimal(base_size = 16)
+      theme_islet()
   }
 }

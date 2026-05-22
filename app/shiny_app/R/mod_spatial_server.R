@@ -210,7 +210,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     })
 
     # ==== Card 2: Tissue Scatter Plot (ggplot2, rasterized) ====
-    output$tissue_scatter <- renderPlot({
+    spatial_tissue_scatter_plot <- reactive({
       cells <- donor_cells()
       req(cells)
 
@@ -351,16 +351,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           x = expression(paste("X centroid (", mu, "m)")),
           y = expression(paste("Y centroid (", mu, "m)"))
         ) +
-        ggplot2::theme_minimal(base_size = 18) +
+        theme_islet() +
         ggplot2::theme(
           legend.position = "right",
-          legend.key.size = ggplot2::unit(0.7, "cm"),
-          legend.title = ggplot2::element_text(size = 18, face = "bold"),
-          legend.text = ggplot2::element_text(size = 15),
-          plot.title = ggplot2::element_text(size = 22, face = "bold"),
-          plot.subtitle = ggplot2::element_text(size = 16, color = "#555")
+          legend.key.size = ggplot2::unit(0.7, "cm")
         )
-    }, height = 800)
+    })
+
+    output$tissue_scatter <- shiny::renderPlot({ spatial_tissue_scatter_plot() }, height = 800)
+    output$dl_tissue_scatter <- shiny::downloadHandler(
+      filename = function() islet_png_filename(paste0("spatial_tissue_donor_", input$donor %||% "all")),
+      content = function(file) {
+        p <- spatial_tissue_scatter_plot(); if (is.null(p)) return()
+        ggplot2::ggsave(file, plot = p,
+                        width = 12, height = 10,
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+      }
+    )
 
     # ==== Card 3: Leiden UMAP (plotly, 1015 islets) ====
     output$leiden_not_available <- renderUI({
@@ -412,6 +419,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       res_label <- gsub("^leiden_", "", leiden_col)
 
+      fonts <- plotly_islet_fonts()
       plot_ly(plot_df, x = ~umap1, y = ~umap2, color = ~cluster,
               colors = pal,
               text = ~paste0("Cluster: ", cluster, "<br>",
@@ -421,24 +429,26 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               type = "scatter", mode = "markers",
               marker = list(size = 3, opacity = 0.7)) %>%
         layout(
+          font = fonts$global,
           title = list(text = paste0("Leiden ", res_label, " (", nrow(plot_df), " islets)"),
-                       font = list(size = 15)),
-          xaxis = list(title = list(text = "UMAP 1", font = list(size = 14)),
+                       font = fonts$title),
+          xaxis = list(title = list(text = "UMAP 1", font = fonts$axis_title),
                        zeroline = FALSE, showgrid = FALSE, showticklabels = FALSE,
                        showline = FALSE, constrain = "domain"),
-          yaxis = list(title = list(text = "UMAP 2", font = list(size = 14)),
+          yaxis = list(title = list(text = "UMAP 2", font = fonts$axis_title),
                        zeroline = FALSE, showgrid = FALSE, showticklabels = FALSE,
                        showline = FALSE, scaleanchor = "x", scaleratio = 1,
                        constrain = "domain"),
-          legend = list(title = list(text = "Cluster", font = list(size = 11)),
-                        font = list(size = 10),
+          legend = list(title = list(text = "Cluster", font = fonts$legend_title),
+                        font = fonts$legend_text,
                         itemsizing = "trace",
                         tracegroupgap = 2)
-        )
+        ) %>%
+        plotly_islet_config(paste0("leiden_umap_", res_label))
     })
 
     # ==== Donor Status UMAP (static ggplot, mirrors trajectory tab) ====
-    output$spatial_umap_donor <- renderPlot({
+    spatial_umap_donor_plot <- reactive({
       req(has_leiden())
       pd <- prepared()
       comp <- pd$comp
@@ -467,13 +477,20 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         coord_fixed() +
         labs(x = "UMAP 1", y = "UMAP 2", color = "Status") +
         guides(color = guide_legend(override.aes = list(size = 3))) +
-        theme_minimal(base_size = 15) +
+        theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
-              panel.grid = element_blank(), axis.line = element_blank(),
-              axis.title = element_text(size = 14),
-              legend.text = element_text(size = 13),
-              legend.title = element_text(size = 14))
+              panel.grid = element_blank(), axis.line = element_blank())
     })
+    output$spatial_umap_donor <- renderPlot({ spatial_umap_donor_plot() })
+    output$dl_spatial_umap_donor <- downloadHandler(
+      filename = function() islet_png_filename("spatial_umap_donor"),
+      content = function(file) {
+        p <- spatial_umap_donor_plot(); if (is.null(p)) return()
+        ggplot2::ggsave(file, plot = p,
+                        width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+      }
+    )
 
     # ==== Card 3 (bottom): Cluster Composition ====
     output$cluster_composition <- renderPlotly({
@@ -548,16 +565,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       ordered_phenos <- c(ordered_phenos, setdiff(keep_phenos, canonical_order))
       bar_df$phenotype <- factor(bar_df$phenotype, levels = rev(ordered_phenos))
 
+      fonts <- plotly_islet_fonts()
       plot_ly(bar_df, x = ~cluster, y = ~proportion, color = ~phenotype,
               colors = pal,
               type = "bar") %>%
         layout(
+          font = fonts$global,
           barmode = "stack",
-          title = list(text = "Mean Phenotype Composition by Cluster", font = list(size = 13)),
-          xaxis = list(title = "Cluster"),
-          yaxis = list(title = "Mean Proportion", range = c(0, 1)),
-          legend = list(font = list(size = 9), title = list(text = ""))
-        )
+          title = list(text = "Mean Phenotype Composition by Cluster", font = fonts$title),
+          xaxis = list(title = list(text = "Cluster", font = fonts$axis_title),
+                       tickfont = fonts$axis_tick),
+          yaxis = list(title = list(text = "Mean Proportion", font = fonts$axis_title),
+                       tickfont = fonts$axis_tick, range = c(0, 1)),
+          legend = list(font = list(size = max(ISLET_FONT_SIZES$dense_min,
+                                                ISLET_FONT_SIZES$legend_text - 2)),
+                        title = list(text = "", font = fonts$legend_title))
+        ) %>%
+        plotly_islet_config("cluster_composition")
     })
 
     # ---- Download handler ----
@@ -1144,16 +1168,22 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       } else {
         ""
       }
+      fonts <- plotly_islet_fonts()
       p %>% layout(
+        font = fonts$global,
         title = list(text = paste0(metric_label,
                                    "<br><sup>Donor-level means \u00b1 SEM (N=donors) | ", p_label, excl_text, "</sup>"),
-                     font = list(size = 14)),
-        xaxis = list(title = "", categoryorder = "array",
+                     font = fonts$title),
+        xaxis = list(title = list(text = "", font = fonts$axis_title),
+                     tickfont = fonts$axis_tick,
+                     categoryorder = "array",
                      categoryarray = c("ND", "Aab+", "T1D")),
-        yaxis = list(title = metric_label),
+        yaxis = list(title = list(text = metric_label, font = fonts$axis_title),
+                     tickfont = fonts$axis_tick),
         barmode = "overlay",
         showlegend = FALSE
-      )
+      ) %>%
+        plotly_islet_config(paste0("spatial_infiltration_", itm$safe))
     })
 
     # ==== Card A-Right: Peri vs Core Proportion Scatter ====
@@ -1243,17 +1273,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       y_title <- paste0(scale_note, cols$label, " (Core)")
 
       # Diagonal y=x reference
+      fonts <- plotly_islet_fonts()
       p %>% add_trace(
         x = c(0, max_val), y = c(0, max_val),
         type = "scatter", mode = "lines",
         line = list(dash = "dash", color = "#999", width = 1),
         showlegend = FALSE, hoverinfo = "none"
       ) %>% layout(
-        title = list(text = paste0("Peri vs Core: ", cols$label), font = list(size = 14)),
-        xaxis = list(title = x_title, range = c(0, max_val)),
-        yaxis = list(title = y_title, range = c(0, max_val)),
-        legend = list(title = list(text = "Status"))
-      )
+        font = fonts$global,
+        title = list(text = paste0("Peri vs Core: ", cols$label), font = fonts$title),
+        xaxis = list(title = list(text = x_title, font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, range = c(0, max_val)),
+        yaxis = list(title = list(text = y_title, font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, range = c(0, max_val)),
+        legend = list(title = list(text = "Status", font = fonts$legend_title),
+                      font = fonts$legend_text)
+      ) %>%
+        plotly_islet_config(paste0("spatial_infiltration_scatter_", itm$safe))
     })
 
     # ==== Card B-Left: Enrichment/Proportion Grouped Bar Chart ====
@@ -1307,17 +1343,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                   line = list(color = "#999", dash = "dash", width = 1)))
       } else list()
 
+      fonts <- plotly_islet_fonts()
       p %>% layout(
+        font = fonts$global,
         barmode = "group",
         title = list(text = paste0(title_prefix, "<br><sup>Donor-level means, ", error_label, " (N=donors)</sup>"),
-                     font = list(size = 14)),
-        xaxis = list(title = "", tickangle = -30,
+                     font = fonts$title),
+        xaxis = list(title = list(text = "", font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, tickangle = -30,
                      categoryorder = "array",
                      categoryarray = unique(es$cell_type)),
-        yaxis = list(title = y_label),
-        legend = list(title = list(text = "Status")),
+        yaxis = list(title = list(text = y_label, font = fonts$axis_title),
+                     tickfont = fonts$axis_tick),
+        legend = list(title = list(text = "Status", font = fonts$legend_title),
+                      font = fonts$legend_text),
         shapes = shapes
-      )
+      ) %>%
+        plotly_islet_config("spatial_enrichment_bars")
     })
 
     # ==== Card B-Right: Enrichment/Proportion Heatmap ====
@@ -1365,20 +1407,27 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         title_text <- paste0(input$enrich_stat %||% "Median", " ", region_label, " Proportion")
       }
 
+      fonts <- plotly_islet_fonts()
       plot_ly(
         x = colnames(mat), y = rownames(mat), z = mat,
         type = "heatmap",
         colorscale = colorscale,
         zmin = zmin, zmax = zmax,
         text = text_mat, texttemplate = "%{text}",
+        textfont = list(size = ISLET_FONT_SIZES$dense_min),
         hovertemplate = paste0("%{x}<br>%{y}<br>", cb_title, " = %{z:.4f}<extra></extra>"),
         showscale = TRUE,
-        colorbar = list(title = cb_title)
+        colorbar = list(title = list(text = cb_title, font = fonts$colorbar_title),
+                        tickfont = fonts$axis_tick)
       ) %>% layout(
-        title = list(text = title_text, font = list(size = 14)),
-        xaxis = list(title = "", tickangle = -30),
-        yaxis = list(title = "", autorange = "reversed")
-      )
+        font = fonts$global,
+        title = list(text = title_text, font = fonts$title),
+        xaxis = list(title = list(text = "", font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, tickangle = -30),
+        yaxis = list(title = list(text = "", font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, autorange = "reversed")
+      ) %>%
+        plotly_islet_config("spatial_enrichment_heatmap")
     })
 
     # ==== Card C-Left: Distance Box Plots ====
@@ -1507,14 +1556,19 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           )
         }
       }
+      fonts <- plotly_islet_fonts()
       p %>% layout(
+        font = fonts$global,
         title = list(text = paste0(metric_label, "<br><sup>", subtitle, excl_suffix, "</sup>"),
-                     font = list(size = 14)),
-        xaxis = list(title = "", categoryorder = "array",
+                     font = fonts$title),
+        xaxis = list(title = list(text = "", font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, categoryorder = "array",
                      categoryarray = c("ND", "Aab+", "T1D")),
-        yaxis = list(title = paste0("Distance (\u00b5m)")),
+        yaxis = list(title = list(text = paste0("Distance (\u00b5m)"), font = fonts$axis_title),
+                     tickfont = fonts$axis_tick),
         showlegend = FALSE
-      )
+      ) %>%
+        plotly_islet_config(paste0("spatial_distance_box_", gsub("[^A-Za-z0-9_]", "_", metric)))
     })
 
     # ==== Card C-Right: Immune Cell Distance KDE (signed distance from islet boundary) ====
@@ -1597,14 +1651,21 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         line = list(color = "#333", width = 1.5, dash = "dash"),
         showlegend = FALSE, hoverinfo = "none"
       )
+      fonts <- plotly_islet_fonts()
       p %>% layout(
+        font = fonts$global,
         title = list(text = paste0(type_label, " Distance from Islet"),
-                     font = list(size = 14)),
-        xaxis = list(title = "Signed distance (\u00b5m) \u2014 inside islet \u2190 0 \u2192 outside",
-                     zeroline = FALSE),
-        yaxis = list(title = "Cells per µm of distance (KDE × N)"),
-        legend = list(title = list(text = "Status"))
-      )
+                     font = fonts$title),
+        xaxis = list(title = list(text = "Signed distance (\u00b5m) \u2014 inside islet \u2190 0 \u2192 outside",
+                                  font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, zeroline = FALSE),
+        yaxis = list(title = list(text = "Cells per µm of distance (KDE × N)",
+                                  font = fonts$axis_title),
+                     tickfont = fonts$axis_tick),
+        legend = list(title = list(text = "Status", font = fonts$legend_title),
+                      font = fonts$legend_text)
+      ) %>%
+        plotly_islet_config(paste0("spatial_distance_kde_", gsub("[^A-Za-z0-9_]", "_", type_label)))
     })
 
   })

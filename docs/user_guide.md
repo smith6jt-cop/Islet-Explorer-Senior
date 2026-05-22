@@ -10,16 +10,17 @@ Interactive web application for exploring pancreatic islet CODEX multiplexed ima
 
 1. [Overview](#overview)
 2. [Outlier Handling](#outlier-handling)
-3. [Plot Tab](#plot-tab)
-4. [Trajectory Tab](#trajectory-tab)
-5. [Viewer Tab](#viewer-tab)
-6. [Statistics Tab](#statistics-tab)
-7. [Spatial Tab](#spatial-tab)
-8. [Single-Cell Drill-Down](#single-cell-drill-down)
-9. [AI Assistant](#ai-assistant)
-10. [Data Pipeline](#data-pipeline)
-11. [Deployment & Administration](#deployment--administration)
-12. [Troubleshooting](#troubleshooting)
+3. [Downloading Figures](#downloading-figures)
+4. [Plot Tab](#plot-tab)
+5. [Trajectory Tab](#trajectory-tab)
+6. [Viewer Tab](#viewer-tab)
+7. [Statistics Tab](#statistics-tab)
+8. [Spatial Tab](#spatial-tab)
+9. [Single-Cell Drill-Down](#single-cell-drill-down)
+10. [AI Assistant](#ai-assistant)
+11. [Data Pipeline](#data-pipeline)
+12. [Deployment & Administration](#deployment--administration)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -85,6 +86,42 @@ The **Statistics tab has its own dedicated outlier checkbox + slider** (Section 
 ### Why this matters
 
 With 5,214 islets from only 15 donors, a single extreme islet within one donor can dominate the group mean and pull mixed-effects estimates. Keeping the rule visible (count badge + ghost × markers) means you can audit at a glance whether a striking effect is being driven by one or two unusual islets.
+
+---
+
+## Downloading Figures
+
+Every plot in the app can be downloaded as a publication-ready PNG.
+
+### Interactive plots (plotly — most of the app)
+
+Hover over the plot and a small toolbar appears in the top-right of the plot. The **camera icon** ("Download plot as PNG") exports the current view at **2800 × 1800 px** — high enough resolution for slides, posters, and figure panels. Filenames are descriptive (e.g. `statistics_forest_plot.png`, `spatial_distance_kde_All_Immune_Cells.png`). The plotly logo is hidden so it never appears in your exports.
+
+If you have zoomed or panned the plot before clicking the camera, the downloaded PNG reflects that view.
+
+### Static plots (ggplot — large scatters, heatmaps, segmentation)
+
+A few plots are rendered statically because they would overwhelm an interactive viewer (the 177K-cell tissue scatter, the islet segmentation map, the multi-feature pseudotime heatmap, the cell-composition bars). For each of these you'll find a **"Download PNG"** button immediately under the plot:
+
+| Plot | Where | PNG dimensions |
+|------|-------|----------------|
+| Tissue scatter | Spatial tab | 3600 × 3000 px (12 × 10 in @ 300 dpi) |
+| Islet segmentation map | Plot tab + Trajectory tab (when an islet is selected) | 3000 × 2100 px |
+| Cell composition bars | Plot tab + Trajectory tab (when an islet is selected) | 3000 × 2100 px |
+| Trajectory UMAP (donor status) | Trajectory tab | 3000 × 2100 px |
+| Trajectory UMAP (selected feature) | Trajectory tab | 3000 × 2100 px |
+| Multi-feature pseudotime heatmap | Trajectory tab | 3600 × variable px (height scales with marker count) |
+| Spatial donor-status UMAP | Spatial tab | 3000 × 2100 px |
+
+All PNGs are 300 dpi — sized to drop directly into a manuscript or fit a full-screen slide without resampling. Filenames include a timestamp so repeated downloads don't overwrite.
+
+### CSV downloads
+
+Sidebar "Download CSV" buttons on the Plot, Statistics, and Spatial tabs export the underlying numeric data with the active filters (donor status, min-cells, outlier filter state) applied. The CSV header records the active outlier rule and any zero-value exclusion, so the export is self-documenting for a methods section.
+
+### Font sizes
+
+All plots use a consistent font baseline (16pt body text, 18pt titles, ≥12pt for the densest heatmap labels) so text remains legible whether you read it on screen or at presentation scale.
 
 ---
 

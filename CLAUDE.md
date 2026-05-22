@@ -8,7 +8,9 @@ Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging d
 
 ## Sub-directory CLAUDE.md files
 
-- `app/shiny_app/CLAUDE.md` — per-tab feature details (Spatial, Drill-Down, Statistics, AI Assistant, Trajectory phases)
+- `app/shiny_app/CLAUDE.md` — per-tab feature details (Drill-Down, Trajectory, Plot, AI Assistant) + conventions including the May 2026 font-standardisation system
+  - `app/shiny_app/docs/spatial.md` — Spatial Neighborhood Analysis deep reference (split out May 2026)
+  - `app/shiny_app/docs/statistics.md` — Statistics Tab deep reference (split out May 2026)
 - `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes
 - `islet_analysis/CLAUDE.md` — Python analysis pipeline (phenotyping, aggregation, trajectory)
 
@@ -148,6 +150,7 @@ Per-tab implementation details — Spatial Neighborhood Analysis (Phase 7), Sing
 - **Case ID zero-padding**: GeoJSON files use `0112.geojson` (4-digit padded), data uses `112` (unpadded). `load_case_geojson()` and click handlers use `sprintf("%04d", ...)` fallback
 - **Log-scale with zeros**: Use `scales::pseudo_log_trans(base=10)` instead of `scale_y_log10()` -- zeros map to 0 (visible) instead of -Infinity (dropped)
 - **Plot defaults**: Point size = 3.0, transparency = 0.6
+- **Plot fonts & downloads**: Every plot uses `theme_islet()` (ggplot) and `plotly_islet_fonts()` + `plotly_islet_config()` (plotly) — single source of truth in `app/shiny_app/R/00_globals.R`. Base 16pt / titles 18pt / axes 14-16pt / legends 14-16pt / heatmap rows 12pt min. Plotly modebar PNG downloads ship 2800 × 1800 px (scale=2). ggplot `renderPlot` outputs that should be downloadable are refactored into a `reactive()` consumed by both `renderPlot` and a `downloadHandler` using `ggsave(..., width=10, height=7, dpi=300)` (heatmaps 12 × 8). See `app/shiny_app/CLAUDE.md` § "Plot Fonts & Publication-Quality Downloads".
 - **Peri-islet data guard**: Always check `total_cells_peri > 0` before using peri metrics
 - **Column name sanitization**: Phenotype names use `_` for spaces, `plus` for `+` in peri-islet columns
 - **Single-cell Parent column**: `Islet_N` = core cells, `Islet_N_exp20um` = peri-islet cells

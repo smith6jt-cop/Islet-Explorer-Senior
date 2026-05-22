@@ -79,7 +79,10 @@ trajectory_ui <- function(id) {
             column(8, uiOutput(ns("multi_heatmap_marker_selector"))),
             column(4, sliderInput(ns("multi_heatmap_nbins"), "Number of bins:", min = 10, max = 40, value = 20, step = 5))
           ),
-          plotOutput(ns("traj_multi_heatmap"), height = "auto")
+          plotOutput(ns("traj_multi_heatmap"), height = "auto"),
+          div(style = "text-align: right; margin-top: 8px;",
+            downloadButton(ns("dl_multi_heatmap"), "Download PNG",
+                           class = "btn-sm btn-outline-primary"))
         )
       ),
       # Right column: UMAPs stacked + segmentation viewer below
@@ -88,11 +91,17 @@ trajectory_ui <- function(id) {
           fluidRow(
             column(6,
               h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0;"),
-              plotOutput(ns("traj_umap_donor"), height = 500)
+              plotOutput(ns("traj_umap_donor"), height = 500),
+              div(style = "text-align: right; margin-top: 6px;",
+                downloadButton(ns("dl_umap_donor"), "Download PNG",
+                               class = "btn-sm btn-outline-primary"))
             ),
             column(6,
               h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 0;"),
-              plotOutput(ns("traj_umap_feature"), height = 500)
+              plotOutput(ns("traj_umap_feature"), height = 500),
+              div(style = "text-align: right; margin-top: 6px;",
+                downloadButton(ns("dl_umap_feature"), "Download PNG",
+                               class = "btn-sm btn-outline-primary"))
             )
           )
         ),
