@@ -692,6 +692,35 @@ server <- function(input, output, session) {
     }
   )
 
+  # ---- Marker-rule legend for the phenotypes present in the selected islet ----
+  output$islet_drilldown_rules <- renderUI({
+    req(selected_islet())
+    info <- selected_islet()
+    cells <- load_islet_cells(info$case_id, info$islet_key)
+    req(cells, "phenotype" %in% colnames(cells))
+    present <- sort(unique(as.character(cells$phenotype)))
+    if (length(present) == 0) return(NULL)
+    pal <- active_palette()
+    rows <- lapply(present, function(nm) {
+      colour <- if (!is.null(pal) && nm %in% names(pal)) pal[[nm]] else "#CCCCCC"
+      rule_html <- format_phenotype_rule(nm, "html")
+      tags$div(
+        style = "display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eef0f3;",
+        tags$span(style = sprintf("display:inline-block; width:12px; height:12px; min-width:12px; margin-top:4px; background:%s; border:1px solid #888; border-radius:2px;", colour)),
+        tags$div(
+          tags$div(style = "font-weight:600; color:#333; font-size:13px;", nm),
+          tags$div(style = "font-size:12px; color:#444; line-height:1.35;", rule_html)
+        )
+      )
+    })
+    tags$details(
+      style = "margin-top: 10px; padding: 8px 10px; background:#fafbfd; border:1px solid #e2e8f0; border-radius: 4px; font-size: 13px;",
+      tags$summary(style = "cursor: pointer; font-weight: 600; color: #4477AA;",
+                   "Marker rules for phenotypes in this islet"),
+      tags$div(style = "margin-top: 8px;", rows)
+    )
+  })
+
   output$islet_drilldown_table <- renderTable({
     req(selected_islet())
     info <- selected_islet()
@@ -710,6 +739,22 @@ server <- function(input, output, session) {
       data.frame(Region = "All", Cells = nrow(cells))
     }
   }, striped = TRUE, spacing = "s")
+
+  # ---- Phenotype Rules modal (shared across all tabs) ----
+  # Each tab's `phenotype_rules_button("show_phenotype_rules_<tab>")` fires one
+  # of these observers; they all open the same modal so users see a single
+  # source of truth for marker -> celltype gating.
+  for (id in c("show_phenotype_rules_plot",
+               "show_phenotype_rules_traj",
+               "show_phenotype_rules_spatial",
+               "show_phenotype_rules_stats",
+               "show_phenotype_rules_viewer")) {
+    local({
+      input_id <- id
+      observeEvent(input[[input_id]], { showModal(phenotype_rules_modal_ui()) },
+                   ignoreInit = TRUE)
+    })
+  }
 }
 
 shinyApp(ui, server)

@@ -803,7 +803,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                 div(style = "flex: 1; min-width: 180px;",
                   # Populated server-side from phenotype_choices().
                   selectInput(ns("infiltration_phenotype"), "Phenotype (peri enrichment z)",
-                              choices = NULL, width = "100%")
+                              choices = NULL, width = "100%"),
+                  uiOutput(ns("infiltration_pheno_hint"))
                 ),
                 checkboxInput(ns("infiltration_show_outlier_table"),
                               "Show excluded-outlier table", value = FALSE),
@@ -820,7 +821,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                 div(style = "flex: 1; min-width: 180px;",
                   # Populated server-side from phenotype_choices().
                   selectInput(ns("scatter_phenotype"), "Phenotype (peri vs core)",
-                              choices = NULL, width = "100%")
+                              choices = NULL, width = "100%"),
+                  uiOutput(ns("scatter_pheno_hint"))
                 ),
                 checkboxInput(ns("scatter_sqrt"), "Sqrt scale", value = TRUE),
                 checkboxInput(ns("scatter_trend"), "Trend lines", value = FALSE)
@@ -883,6 +885,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               # Populated server-side: "Immune (all)" + every phenotype with min_dist_*.
               selectInput(ns("distance_metric"), "Distance to nearest",
                           choices = NULL, width = "100%"),
+              uiOutput(ns("distance_pheno_hint")),
               checkboxInput(ns("distance_show_outlier_table"),
                             "Show excluded-outlier table", value = FALSE),
               tags$small(style = "color: #666;",
@@ -896,6 +899,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               # Populated server-side from the KDE CSV's distinct phenotypes.
               selectInput(ns("kde_immune_type"), "Phenotype",
                           choices = NULL, width = "100%"),
+              uiOutput(ns("kde_pheno_hint")),
               plotlyOutput(ns("immune_distance_kde"), height = "420px")
             )
           )
@@ -1044,6 +1048,54 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         sel_k <- if (!is.null(cur_k) && cur_k %in% ch_kde) cur_k else "all"
         updateSelectInput(session, "kde_immune_type", choices = ch_kde, selected = sel_k)
       }
+    })
+
+    # ---- Inline marker-rule hints under the four phenotype selectors ----
+    # Each looks up the selected phenotype's label via phenotype_options() and
+    # renders phenotype_hint_ui(). "Immune (all)" aggregates have no single
+    # rule — we display a description instead.
+    .lookup_pheno_label <- function(safe_or_metric) {
+      if (is.null(safe_or_metric) || !nzchar(safe_or_metric)) return(NULL)
+      if (safe_or_metric == "min_dist_immune_mean" || safe_or_metric == "all") {
+        return("Immune (all)")
+      }
+      opts <- phenotype_options()
+      # Direct match by safe-name
+      for (o in opts) if (identical(o$safe, safe_or_metric)) return(o$label)
+      # Match by min_dist column
+      for (o in opts) if (identical(o$min_dist, safe_or_metric)) return(o$label)
+      # Fallback: assume it's already a label
+      safe_or_metric
+    }
+    .hint_for <- function(label, inline_id) {
+      if (is.null(label)) return(NULL)
+      if (identical(label, "Immune (all)")) {
+        return(shiny::tags$div(
+          style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; background-color: #f7f9fc; border-left: 3px solid #4477AA; border-radius: 3px; font-size: 13px; color: #333; line-height: 1.4;",
+          shiny::tags$strong(style = "color:#4477AA;", "Markers: "),
+          shiny::tags$em("Aggregate of all immune phenotypes (any of CD20, CD3e, CD68, CD163, CD8a, CD4, HLADR positive)."),
+          shiny::tags$span(style = "color:#888;", " · "),
+          shiny::actionLink(inline_id, "see all rules →",
+                            style = "font-size: 12px; color: #4477AA;")
+        ))
+      }
+      phenotype_hint_ui(label, show_modal_link = inline_id)
+    }
+    output$infiltration_pheno_hint <- renderUI({
+      .hint_for(.lookup_pheno_label(input$infiltration_phenotype),
+                ns("show_phenotype_rules_inline_a"))
+    })
+    output$scatter_pheno_hint <- renderUI({
+      .hint_for(.lookup_pheno_label(input$scatter_phenotype),
+                ns("show_phenotype_rules_inline_scatter"))
+    })
+    output$distance_pheno_hint <- renderUI({
+      .hint_for(.lookup_pheno_label(input$distance_metric),
+                ns("show_phenotype_rules_inline_dist"))
+    })
+    output$kde_pheno_hint <- renderUI({
+      .hint_for(.lookup_pheno_label(input$kde_immune_type),
+                ns("show_phenotype_rules_inline_kde"))
     })
 
     # ==== Card A-Left: Per-phenotype peri-zone enrichment z-score (donor-level) ====
@@ -1667,6 +1719,19 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       ) %>%
         plotly_islet_config(paste0("spatial_distance_kde_", gsub("[^A-Za-z0-9_]", "_", type_label)))
     })
+
+    # ---- Inline "see all rules" links under Card A/C phenotype hints ----
+    for (id in c("show_phenotype_rules_inline_a",
+                 "show_phenotype_rules_inline_scatter",
+                 "show_phenotype_rules_inline_dist",
+                 "show_phenotype_rules_inline_kde")) {
+      local({
+        nm <- id
+        observeEvent(input[[nm]],
+                     { showModal(phenotype_rules_modal_ui()) },
+                     ignoreInit = TRUE)
+      })
+    }
 
   })
 }

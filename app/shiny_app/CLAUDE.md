@@ -178,6 +178,70 @@ Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
 - **Synthetic union rows need density**: `prep_data()` synthesizes `islet_union` rows by summing core+band. Must compute `area_um2`, `region_um2`, and `area_density = area_um2/region_um2` — setting these to `NA` causes Microenvironment Core+Peri to drop 12/15 donors (default metric is Density, NA filtered by `!is.na(value)`).
 - **`updateSelectInput` after `renderUI`**: Server-side updates targeting an input that lives inside a `renderUI`-mounted block must share a reactive dependency with the renderUI, or fire only after the UI has mounted on the client. Putting the update inside its own naked `observe({})` can race the UI mount and silently leave the dropdown empty. Pattern: nest the `updateSelectInput` inside the same observer that builds the choices reactive.
 
+## Phenotype Rules — Marker Definitions in the UI (May 2026)
+
+Source of truth: `data/phenotype_rules.csv`. Parsed once at startup in
+`R/00_globals.R` into `PHENOTYPE_RULES_CSV` (19 phenotypes, marker columns
+`CD99, INS, GCG, SST, SMA, CD20, CD3e, CD68, CD163, CD8a, CD4, HLADR, PDPN,
+CD34, CD31, B3TUBB, CD56`). The composer walks each phenotype's parent chain
+(e.g. `CD8 T cell` → `T cell` → `Immune`) and unions positive/negative
+constraints, then strips redundant `anypos` groups that are supersets of a
+stricter constraint downstream. Four residual phenotypes (`ECAD+`, `APCs`,
+`Structural`, `Unknown`) have no CSV row — they live in `PHENOTYPE_RESIDUALS`
+with hand-written descriptions.
+
+Naming aliases: PHENOTYPE_COLORS (drilldown_helpers.R) uses
+`CD8a Tcell` / `CD4 Tcell` / `Blood Vessel` / `SMA+`; the CSV uses
+`CD8 T cell` / `CD4 T cell` / `Blood vessel` / `Smooth Muscle`. The
+`PHENOTYPE_ALIASES` map normalises PHENOTYPE_COLORS → CSV before lookup.
+
+Helpers:
+
+- `get_phenotype_rule(name)` — returns `list(parent, pos, neg, anypos_groups,
+  description)` for either CSV form or PHENOTYPE_COLORS form. Handles aliases
+  and residuals.
+- `format_phenotype_rule(name, style = "inline" | "html" | "plain")` — formats
+  the rule as `"CD3e+, CD8a+  —  CD4−, CD20−"` (inline), styled HTML
+  (`<strong>` positives, muted negatives), or plain text for plot subtitles.
+- `extract_phenotype_from_column(col)` — resolves a sanitised column name
+  (e.g. `prop_CD8a_Tcell`, `peri_prop_Beta_cell`, `min_dist_Macrophage`,
+  `enrich_z_B_cell`) back to a phenotype label by stripping known prefixes
+  and reversing `_`→space / `plus`→`+`.
+- `phenotype_hint_ui(name, show_modal_link = "<id>")` — small blue inline
+  hint block embedded under each phenotype selector. The trailing
+  "see all rules" actionLink triggers the same modal as the tab-top button.
+- `phenotype_rules_button(input_id)` — pill-styled actionLink placed at the
+  top of every tab. Each tab uses a unique non-namespaced id
+  (`show_phenotype_rules_<tab>`); a single shared loop in `app.R`
+  registers an `observeEvent` per id that fires `showModal(phenotype_rules_modal_ui())`.
+- `phenotype_rules_modal_ui()` — returns the modal: a sortable table of all
+  23 phenotype names (19 CSV + 4 residuals) with category, positive markers,
+  negative markers, and notes.
+
+Per-tab integration:
+
+- **Plot tab** (`mod_plot_server.R::output$which_ui`) — when in `"Cell
+  Populations"` mode, parses `input$which` via `extract_phenotype_from_column()`
+  and emits `phenotype_hint_ui()` directly under the metric `selectInput`.
+- **Spatial Card A** — `output$infiltration_pheno_hint` and
+  `output$scatter_pheno_hint` look up the selected `safe` name via
+  `phenotype_options()` and emit the hint UI.
+- **Spatial Card C** — `output$distance_pheno_hint` and `output$kde_pheno_hint`
+  follow the same pattern. The aggregate `"Immune (all)"` selection emits a
+  custom description rather than a per-phenotype rule.
+- **Drill-down composition panel** — root-level `output$islet_drilldown_rules`
+  in `app.R` renders an expandable `<details>` element listing colour-coded
+  swatches + rules for every phenotype present in the clicked islet. Embedded
+  via `uiOutput("islet_drilldown_rules")` inside both the Plot and Trajectory
+  `segmentation_viewer_panel` renderUIs.
+
+When adding a new phenotype-selecting input anywhere in the app, follow the
+existing pattern: resolve the selected value to a label via
+`extract_phenotype_from_column()` (or your existing `phenotype_options()`
+record), then emit `phenotype_hint_ui(label, show_modal_link = ns("…"))` and
+register an `observeEvent(input$…, showModal(phenotype_rules_modal_ui()))` to
+wire the inline link.
+
 ## Plot Fonts & Publication-Quality Downloads (May 2026)
 
 Single source of truth in `R/00_globals.R`:

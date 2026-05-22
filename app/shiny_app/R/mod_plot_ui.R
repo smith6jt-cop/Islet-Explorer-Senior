@@ -83,6 +83,7 @@ plot_main_ui <- function(id, extra_panel = NULL) {
   ns <- NS(id)
   tagList(
     column(10,
+      phenotype_rules_button("show_phenotype_rules_plot"),
       div(style = "display: flex; gap: 10px; margin-bottom: 15px;",
         div(style = "flex: 1; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 12px; color: #004085; font-size: 13px;",
           "Enable \"Show individual points\" then click any point on the ",

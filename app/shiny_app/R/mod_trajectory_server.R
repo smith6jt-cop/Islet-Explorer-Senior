@@ -924,7 +924,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                   div(style = "text-align: right; margin-top: 6px;",
                     downloadButton("dl_islet_drilldown_summary", "Download PNG",
                                    class = "btn-sm btn-outline-primary")),
-                  tableOutput("islet_drilldown_table")
+                  tableOutput("islet_drilldown_table"),
+                  uiOutput("islet_drilldown_rules")
                 )
               )
             }

@@ -9,18 +9,19 @@ Interactive web application for exploring pancreatic islet CODEX multiplexed ima
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Outlier Handling](#outlier-handling)
-3. [Downloading Figures](#downloading-figures)
-4. [Plot Tab](#plot-tab)
-5. [Trajectory Tab](#trajectory-tab)
-6. [Viewer Tab](#viewer-tab)
-7. [Statistics Tab](#statistics-tab)
-8. [Spatial Tab](#spatial-tab)
-9. [Single-Cell Drill-Down](#single-cell-drill-down)
-10. [AI Assistant](#ai-assistant)
-11. [Data Pipeline](#data-pipeline)
-12. [Deployment & Administration](#deployment--administration)
-13. [Troubleshooting](#troubleshooting)
+2. [Cell Phenotypes & Marker Rules](#cell-phenotypes--marker-rules)
+3. [Outlier Handling](#outlier-handling)
+4. [Downloading Figures](#downloading-figures)
+5. [Plot Tab](#plot-tab)
+6. [Trajectory Tab](#trajectory-tab)
+7. [Viewer Tab](#viewer-tab)
+8. [Statistics Tab](#statistics-tab)
+9. [Spatial Tab](#spatial-tab)
+10. [Single-Cell Drill-Down](#single-cell-drill-down)
+11. [AI Assistant](#ai-assistant)
+12. [Data Pipeline](#data-pipeline)
+13. [Deployment & Administration](#deployment--administration)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -49,6 +50,37 @@ If the H5AD is unavailable, the app falls back to `data/master_results.xlsx` wit
 | **T1D** | Forest Green (#228833) | Type 1 diabetic donors |
 
 Colors are configurable via the **Donor Status Colors** palette selector (Paul Tol default, Bright, Okabe-Ito, Diverging). The selector is available on the Plot sidebar, Trajectory tab, and Spatial tab — all stay synced.
+
+---
+
+## Cell Phenotypes & Marker Rules
+
+Every cell in the app is classified into one of 21 phenotypes by gating it against a set of CODEX protein markers. The full rule set lives in `data/phenotype_rules.csv` (canonical) and is the single source of truth used by the upstream phenotyping pipeline.
+
+### How to read a rule
+
+Each phenotype is defined by which markers must be **positive** (`+`) and which must be **negative** (`−`). Rules are hierarchical: a sub-phenotype inherits its parent's constraints. For example, the displayed rule for `CD8 T cell` is the union of its row (`CD8a+`, `CD4−`) and its parent `T cell` row (`CD3e+`, `CD20−`, `CD68−`, `CD163−`, …) and so on. Some categories use **any-of** logic (e.g. `Endothelial` requires at least one of `PDPN+ / CD34+ / CD31+`); the rule text spells that out explicitly when it applies.
+
+### Where the rules appear in the app
+
+- **"Phenotype rules — marker definitions" button** at the top of every tab (Plot, Trajectory, Viewer, Spatial, Statistics) opens a single reference table listing all 21 phenotypes with their positive and negative markers. This is the canonical reference; use it whenever you need to remind yourself what a phenotype label means.
+- **Inline hint under every phenotype selector** — when you change the "Population Measure" (Plot tab) or any of the Spatial Card A / Card C phenotype dropdowns, a small blue box appears underneath showing the active phenotype's rule (e.g. `CD8 T cell` → `CD3e+, CD8a+  —  SMA−, CD20−, CD68−, CD163−, CD4−, …`).
+- **Drill-down composition panel** (right rail of the islet viewer on Plot + Trajectory tabs) — under the per-islet cell count table, an expandable "Marker rules for phenotypes in this islet" section lists every phenotype actually present in the selected islet, colour-coded to match the bar chart, with its full rule.
+
+### The 18 markers used by the gating CSV
+
+`CD99, INS, GCG, SST, SMA, CD20, CD3e, CD68, CD163, CD8a, CD4, HLADR, PDPN, CD34, CD31, B3TUBB, CD56`. The H5AD/scVI panel contains 31 markers; the additional ones (e.g. `CD45`, `ColIV`, `B-catenin`, hormone subunits) are available for visualisation on the Trajectory tab but are not part of the phenotype gating rules.
+
+### Residual categories
+
+A few phenotype labels you will see in plots are not formally gated by the CSV:
+
+- **ECAD+** — epithelial cells (E-cadherin+); residual ductal/exocrine bucket from the upstream single-cell pipeline.
+- **APCs** — antigen-presenting cells aggregate (HLADR+ myeloid lineage). Used by neighborhood metrics.
+- **Structural** — fallback for fibroblast/stroma-like cells negative for every endocrine and immune marker.
+- **Unknown** — cells matching no rule above.
+
+These are described as such inside the in-app modal so users know when a label is a residual bucket rather than a strictly gated phenotype.
 
 ---
 

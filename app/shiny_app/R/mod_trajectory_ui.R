@@ -1,6 +1,7 @@
 trajectory_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    phenotype_rules_button("show_phenotype_rules_traj"),
     div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; color: #004085; font-size: 13px;",
       "Click any point on the pseudotime scatter plot to view the segmentation map for that islet."
     ),

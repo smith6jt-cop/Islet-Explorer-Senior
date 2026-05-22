@@ -126,9 +126,15 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         } else {
           choices <- base_choices
         }
+        cur_w <- if (!is.null(input$which) && input$which %in% unlist(choices)) input$which else "Ins_any"
+        pheno_label <- extract_phenotype_from_column(cur_w)
+        hint <- if (!is.null(pheno_label) && !is.null(get_phenotype_rule(pheno_label))) {
+          phenotype_hint_ui(pheno_label, show_modal_link = ns("show_phenotype_rules_inline"))
+        }
         tagList(
           selectInput(ns("which"), "Population Measure", choices = choices,
-                      selected = if (!is.null(input$which) && input$which %in% unlist(choices)) input$which else "Ins_any"),
+                      selected = cur_w),
+          hint,
           helpText(
             "Core = cells within the islet boundary. Peri-Islet = cells within a 20 µm zone around the islet. ",
             "Core+Peri = phenotype cells pooled across both zones, with the matching pooled denominator."
@@ -1297,7 +1303,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                     downloadButton("dl_islet_drilldown_summary", "Download PNG",
                                    class = "btn-sm btn-outline-primary")),
                   hr(),
-                  tableOutput("islet_drilldown_table")
+                  tableOutput("islet_drilldown_table"),
+                  uiOutput("islet_drilldown_rules")
                 )
               )
             }
@@ -1365,6 +1372,10 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       return(desc)
     }
+
+    # ---- Inline "see all rules" link under the Population Measure hint ----
+    observeEvent(input$show_phenotype_rules_inline,
+                 { showModal(phenotype_rules_modal_ui()) }, ignoreInit = TRUE)
 
     # ===========================================================================
     # Return values for other modules (Statistics, etc.)

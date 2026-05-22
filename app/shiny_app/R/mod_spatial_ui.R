@@ -21,6 +21,7 @@ spatial_ui <- function(id) {
   }
 
   tagList(
+    phenotype_rules_button("show_phenotype_rules_spatial"),
     # ==== ROW 1 (existing): Controls + Scatter + Leiden ====
     fluidRow(style = "display: flex; flex-wrap: wrap;",
       # ---- Left sidebar: Controls ----
