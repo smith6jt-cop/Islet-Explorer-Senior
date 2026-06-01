@@ -124,14 +124,49 @@ project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE),
 
 # Ensure reticulate/anndata can discover a Python binary when RETICULATE_PYTHON
 # isn't set (shiny-server environments often lack PATH).
+#
+# The interpreter MUST have the python `anndata` module, otherwise read_h5ad()
+# throws and load_master_auto() silently falls back to the Excel source — which
+# lacks the prop_*/peri_prop_* columns, gutting the Plot tab's cell-type
+# selector. We therefore can't just grab the first python on PATH: the deploying
+# user's venv (which ships anndata) may live under a different home than the one
+# running the app. shiny-server runs as `shiny` (home /home/shiny), so the old
+# path.expand("~") lookup found nothing and fell through to a bare system
+# python3 with no anndata. Search several candidate locations and pick the first
+# interpreter that can actually `import anndata`.
 if (!nzchar(Sys.getenv("RETICULATE_PYTHON", ""))) {
-  candidate_python <- NULL
-  venv_path <- file.path(path.expand("~"), ".local", "share", "islet-explorer-py", "bin", "python")
-  if (file.exists(venv_path)) candidate_python <- venv_path
-  if (is.null(candidate_python) || !nzchar(candidate_python)) {
-    candidate_python <- Sys.getenv("PYTHON", Sys.which("python3"))
-    if (!nzchar(candidate_python)) candidate_python <- Sys.which("python")
+  .venv_rel <- file.path(".local", "share", "islet-explorer-py", "bin", "python")
+  .py_candidates <- unique(c(
+    file.path(path.expand("~"), .venv_rel),               # current user's venv
+    Sys.glob(file.path("/home", "*", .venv_rel)),         # any user's venv (deployment)
+    Sys.glob(file.path("/srv", "*", .venv_rel)),
+    Sys.getenv("PYTHON", ""),
+    Sys.which("python3"),
+    Sys.which("python")
+  ))
+  .py_candidates <- .py_candidates[nzchar(.py_candidates) & file.exists(.py_candidates)]
+
+  .py_has_anndata <- function(py) {
+    status <- suppressWarnings(tryCatch(
+      system2(py, c("-c", shQuote("import anndata")),
+              stdout = FALSE, stderr = FALSE),
+      error = function(e) 1L))
+    identical(as.integer(status), 0L)
   }
+
+  candidate_python <- ""
+  for (.py in .py_candidates) {
+    if (.py_has_anndata(.py)) { candidate_python <- .py; break }
+  }
+  # If none advertised anndata (e.g. the capability probe couldn't run), fall
+  # back to the first existing candidate so behaviour is no worse than before.
+  if (!nzchar(candidate_python) && length(.py_candidates)) {
+    candidate_python <- .py_candidates[[1]]
+    message("[PYTHON] WARNING: no candidate interpreter could import anndata; ",
+            "H5AD loading may fail and fall back to Excel. Set RETICULATE_PYTHON ",
+            "to a python that has the anndata module.")
+  }
+
   if (nzchar(candidate_python)) {
     Sys.setenv(RETICULATE_PYTHON = candidate_python)
     message("[PYTHON] RETICULATE_PYTHON=", candidate_python)

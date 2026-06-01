@@ -106,8 +106,9 @@ plot_main_ui <- function(id, extra_panel = NULL) {
           plotlyOutput(ns("plt"), height = "100%")
         ),
         div(style = "flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 35%; border-top: 1px solid #eee; padding-top: 10px;",
-          fluidRow(
-            column(6,
+          div(style = "display: flex; gap: 18px; align-items: stretch;",
+            # Slider column 1
+            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column;",
               sliderInput(ns("binwidth"), "Diameter bin width (\u00b5m)",
                           min = 1, max = 75, value = 50, step = 1),
               sliderInput(ns("diam_range"), "Islet diameter range (\u00b5m)",
@@ -117,7 +118,8 @@ plot_main_ui <- function(id, extra_panel = NULL) {
                                       "Donor ID" = "donor_id"),
                           selected = "donor_status")
             ),
-            column(6,
+            # Slider column 2
+            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column;",
               sliderInput(ns("pt_size"), "Point size",
                           min = 0.3, max = 4.0, value = 3.0, step = 0.1),
               sliderInput(ns("pt_alpha"), "Point transparency",
@@ -125,13 +127,14 @@ plot_main_ui <- function(id, extra_panel = NULL) {
               radioButtons(ns("add_smooth"), "Trend line",
                            choices = c("None", "LOESS"),
                            selected = "None", inline = TRUE)
+            ),
+            # Checkbox column 3 \u2014 vertical stack spanning the full height of the sliders
+            div(style = "flex: 0 0 auto; min-width: 165px; display: flex; flex-direction: column; justify-content: space-between; border-left: 1px solid #eee; padding-left: 16px;",
+              checkboxInput(ns("exclude_zero_top"), "Exclude zero values", value = FALSE),
+              checkboxInput(ns("show_points"), "Show individual points", value = FALSE),
+              checkboxInput(ns("log_scale"), "Log scale y-axis", value = FALSE),
+              checkboxInput(ns("log_scale_x"), "Log2 scale x-axis", value = FALSE)
             )
-          ),
-          div(style = "display: flex; flex-wrap: wrap; gap: 15px; justify-content: flex-end;",
-            checkboxInput(ns("exclude_zero_top"), "Exclude zero values", value = FALSE),
-            checkboxInput(ns("show_points"), "Show individual points", value = FALSE),
-            checkboxInput(ns("log_scale"), "Log scale y-axis", value = FALSE),
-            checkboxInput(ns("log_scale_x"), "Log2 scale x-axis", value = FALSE)
           )
         )
       )
