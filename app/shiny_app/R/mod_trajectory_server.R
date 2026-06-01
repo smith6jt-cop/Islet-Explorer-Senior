@@ -696,7 +696,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                         title = list(font = fonts$legend_title))
         ) %>%
         plotly_islet_config("trajectory_scatter") %>%
-        event_register("plotly_click")
+        event_register("plotly_click") %>%
+        islet_click_bridge(ns("traj_native_click"))
     })
 
     # ---------- Click handler for trajectory scatter ----------
@@ -759,63 +760,22 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         }
       }
 
-      if (is.null(case_id) || is.null(islet_key) || is.na(case_id) || is.na(islet_key)) {
-        showNotification("Could not identify clicked islet", type = "warning", duration = 3)
-        return()
-      }
+      cat("[TRAJ CLICK] resolved key:", paste(case_id, islet_key, sep = "|"), "\n")
+      # Centroid lookup + zero-pad fallback + donor join + selected_islet() —
+      # shared with the Plot handler and the native-click bridge.
+      select_islet_from_key(case_id, islet_key, prepared, selected_islet)
+    })
 
-      # Look up centroid coordinates from spatial lookup
-      spatial_match <- islet_spatial_lookup[
-        islet_spatial_lookup$case_id == case_id & islet_spatial_lookup$islet_key == islet_key,
-      ]
-
-      # Try zero-padded variant (e.g. "112" -> "0112")
-      if (nrow(spatial_match) == 0) {
-        case_id_num <- suppressWarnings(as.integer(case_id))
-        if (!is.na(case_id_num)) {
-          case_id_padded <- sprintf("%04d", case_id_num)
-          spatial_match <- islet_spatial_lookup[
-            islet_spatial_lookup$case_id == case_id_padded & islet_spatial_lookup$islet_key == islet_key,
-          ]
-          if (nrow(spatial_match) > 0) case_id <- case_id_padded
-        }
-      }
-
-      if (nrow(spatial_match) == 0) {
-        showNotification(paste("Spatial data not found for", islet_key, "in case", case_id),
-                         type = "warning", duration = 3)
-        return()
-      }
-
-      centroid_x <- spatial_match$centroid_x_um[1]
-      centroid_y <- spatial_match$centroid_y_um[1]
-
-      cat("[TRAJ CLICK] Centroid: x=", centroid_x, ", y=", centroid_y, "\n")
-
-      # Look up donor info from prepared data
-      pd <- prepared()
-      donor_status_val <- NULL
-      donor_age <- NULL
-      donor_gender <- NULL
-      if (!is.null(pd$comp) && "Case ID" %in% colnames(pd$comp)) {
-        donor_row <- pd$comp[pd$comp$`Case ID` == as.integer(case_id), , drop = FALSE]
-        if (nrow(donor_row) > 0) {
-          if ("Donor Status" %in% colnames(donor_row)) donor_status_val <- as.character(donor_row$`Donor Status`[1])
-          if ("age" %in% colnames(donor_row)) donor_age <- donor_row$age[1]
-          if ("gender" %in% colnames(donor_row)) donor_gender <- as.character(donor_row$gender[1])
-        }
-      }
-
-      # Store selected islet info - triggers embedded viewer to update
-      selected_islet(list(
-        case_id      = case_id,
-        islet_key    = islet_key,
-        centroid_x   = centroid_x,
-        centroid_y   = centroid_y,
-        donor_status = donor_status_val,
-        donor_age    = donor_age,
-        donor_gender = donor_gender
-      ))
+    # macOS-proof native-click bridge (see islet_click_bridge in 00_globals.R).
+    # Fires on a native click even when plotly_click is suppressed by plotly's
+    # click/drag discrimination on macOS.
+    observeEvent(input$traj_native_click, {
+      nc <- input$traj_native_click
+      if (is.null(nc) || is.null(nc$key) || !nzchar(as.character(nc$key)[1])) return()
+      cat("[TRAJ CLICK] native bridge; key:", as.character(nc$key)[1], "\n")
+      parts <- strsplit(as.character(nc$key)[1], "\\|")[[1]]
+      if (length(parts) < 2) return()
+      select_islet_from_key(parts[1], parts[2], prepared, selected_islet)
     })
 
     # ---------- Segmentation viewer panel ----------

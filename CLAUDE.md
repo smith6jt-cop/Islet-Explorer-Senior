@@ -89,6 +89,7 @@ These are read by the root-level `renderPlot` outputs in `app.R`.
 - Plot module: `source = ns("plot_scatter")` with `event_register("plotly_click")`
 - Trajectory module: `source = ns("traj_scatter")` with `event_register("plotly_click")`
 - Both use namespaced sources; `event_data()` calls must use matching `ns()` prefix
+- **macOS native-click bridge (Jun 2026)**: `plotly_click` is suppressed on macOS, so both scatters also pipe `islet_click_bridge(ns("<plot|traj>_native_click"))` (native mousedown/mouseup → `Shiny.setInputValue`) after `event_register`. The new server observers and the legacy plotly_click handler both call the shared `select_islet_from_key()` (`segmentation_helpers.R`). See `app/shiny_app/CLAUDE.md` § "macOS Native-Click Bridge + Shared Resolver".
 
 ## Key Data Files
 
@@ -155,8 +156,9 @@ Per-tab implementation details — Spatial Neighborhood Analysis (Phase 7), Sing
 - **Peri-islet data guard**: Always check `total_cells_peri > 0` before using peri metrics
 - **Column name sanitization**: Phenotype names use `_` for spaces, `plus` for `+` in peri-islet columns
 - **Single-cell Parent column**: `Islet_N` = core cells, `Islet_N_exp20um` = peri-islet cells
+- **macOS plotly clicks & Viewer iframe (Jun 2026)**: `plotly_click` is suppressed on macOS — drill-down uses a native-click bridge (`islet_click_bridge()` in `00_globals.R`). The Viewer iframe is mounted once and its `src` updated in place via `session$sendCustomMessage` to avoid recreating the WebGL canvas (macOS WebRender flicker). Details + the `reactiveVal`-dedup gotcha in `app/shiny_app/CLAUDE.md`.
 
-App-specific UI conventions (CSS overflow, font minimums, large-scatter rendering, palette syncing, reticulate bridge, synthetic-union rows) live in `app/shiny_app/CLAUDE.md`.
+App-specific UI conventions (CSS overflow, font minimums, large-scatter rendering, palette syncing, reticulate bridge, synthetic-union rows, macOS click bridge & Viewer iframe persistence) live in `app/shiny_app/CLAUDE.md`.
 
 ## Deployment Architecture
 

@@ -245,6 +245,60 @@ plotly_islet_config <- function(p, filename_root = "islet_explorer_plot",
   )
 }
 
+# Robust click bridge for plotly scatters used by the islet drill-down.
+# On macOS, plotly's own click/drag discrimination can suppress `plotly_click`
+# entirely, so the server-side observer never fires (the symptom: clicking a
+# point does nothing, no notification). This attaches a native mousedown/mouseup
+# listener — which always fires regardless of platform — and, on a click-like
+# gesture (movement < 6px), reads the hovered point's `key` ("case_id|islet_key",
+# from the ggplot key aes) and pushes it to `input_id` via Shiny.setInputValue.
+# The legacy plotly_click handler is kept too, so working platforms are
+# unaffected. Pipe after the plotly build:
+#   p %>% islet_click_bridge(session$ns("plot_native_click"))
+islet_click_bridge <- function(p, input_id) {
+  js <- sprintf("
+function(el, x){
+  // el is the plotly graph div; fall back to a child .js-plotly-plot if not.
+  var gd = (el && typeof el.on === 'function') ? el
+           : (el && el.querySelector ? el.querySelector('.js-plotly-plot') : el);
+  if (!gd) gd = el;
+  // onRender re-runs on every plot re-render; attach listeners only once per
+  // graph div (plotly reuses the same node) so a click doesn't fire N times.
+  if (gd.__isletBridge) return;
+  gd.__isletBridge = true;
+  var lastKey = null, downKey = null, downX = 0, downY = 0;
+  function keyOf(pt){
+    try {
+      if (pt && pt.data && pt.data.key && pt.data.key[pt.pointNumber] != null)
+        return pt.data.key[pt.pointNumber];
+    } catch(e){}
+    return null;
+  }
+  // plotly's live hover state — robust even if the plotly_hover event timing
+  // is off, since at mousedown the cursor is over the target point.
+  function hoverKey(){
+    try { if (gd && gd._hoverdata && gd._hoverdata.length) return keyOf(gd._hoverdata[0]); } catch(e){}
+    return null;
+  }
+  if (gd && typeof gd.on === 'function') {
+    gd.on('plotly_hover', function(d){
+      if (d && d.points && d.points.length){ var k = keyOf(d.points[0]); if (k != null) lastKey = k; }
+    });
+    gd.on('plotly_unhover', function(){ lastKey = null; });
+    gd.on('plotly_click', function(){ console.log('[ISLET] plotly_click fired'); });
+  }
+  (gd || el).addEventListener('mousedown', function(e){ downX = e.clientX; downY = e.clientY; downKey = lastKey || hoverKey(); }, true);
+  (gd || el).addEventListener('mouseup', function(e){
+    if (Math.abs(e.clientX - downX) > 5 || Math.abs(e.clientY - downY) > 5) return;
+    var k = downKey || lastKey || hoverKey();
+    if (k == null) return;
+    console.log('[ISLET] native click -> ' + k);
+    Shiny.setInputValue('%s', {key: k, nonce: (Date.now() + Math.random())}, {priority: 'event'});
+  }, true);
+}", input_id)
+  htmlwidgets::onRender(p, js)
+}
+
 # Standard PNG download dimensions for ggplot ggsave() in downloadHandlers.
 # Default: 10x7 in at 300 dpi -> 3000x2100 px. Heatmaps use wider 12x8.
 ISLET_PNG_DIMS  <- list(width = 10, height = 7, dpi = 300, units = "in")

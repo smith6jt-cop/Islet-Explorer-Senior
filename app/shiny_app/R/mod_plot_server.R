@@ -827,7 +827,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                         title = list(font = fonts$legend_title)),
           margin = list(b = 100)) %>%
         plotly_islet_config("plot_scatter") %>%
-        event_register("plotly_click")
+        event_register("plotly_click") %>%
+        islet_click_bridge(ns("plot_native_click"))
 
       gg
     })
@@ -1112,88 +1113,41 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     # Click handler: scatter plot -> embedded segmentation panel
     # ===========================================================================
 
+    # Parse a plotly "case_id|islet_key" key and open the drill-down via the
+    # shared resolver. `key_null_msg` (when supplied) is shown if no key is
+    # present — used by the plotly_click path to nudge users to enable points.
+    open_islet_from_key <- function(click_key, key_null_msg = NULL) {
+      if (is.null(click_key) || length(click_key) == 0 ||
+          is.na(click_key[1]) || !nzchar(as.character(click_key[1]))) {
+        if (!is.null(key_null_msg)) showNotification(key_null_msg, type = "message", duration = 3)
+        return(invisible(FALSE))
+      }
+      key_parts <- strsplit(as.character(click_key[1]), "\\|")[[1]]
+      if (length(key_parts) < 2) {
+        showNotification("Could not parse islet identifier", type = "warning", duration = 3)
+        return(invisible(FALSE))
+      }
+      select_islet_from_key(key_parts[1], key_parts[2], prepared, selected_islet)
+    }
+
+    # Legacy plotly_click path (works on Linux/Windows).
     observeEvent(event_data("plotly_click", source = ns("plot_scatter")), {
       click_data <- event_data("plotly_click", source = ns("plot_scatter"))
       if (is.null(click_data)) return()
+      cat("[PLOT CLICK] plotly_click received; key:",
+          if (is.null(click_data$key)) "NULL" else as.character(click_data$key)[1], "\n")
+      open_islet_from_key(click_data$key,
+                          key_null_msg = "Click on individual points to view segmentation (enable 'Show individual points')")
+    })
 
-      # Guard: sf package required
-      if (!SF_AVAILABLE) {
-        showNotification("Segmentation requires 'sf' package", type = "warning", duration = 5)
-        return()
-      }
-
-      if (is.null(islet_spatial_lookup)) {
-        showNotification("Islet spatial lookup data not available", type = "warning", duration = 5)
-        return()
-      }
-
-      # Parse key (format: "case_id|islet_key")
-      click_key <- click_data$key
-      if (is.null(click_key) || is.na(click_key) || !nzchar(click_key)) {
-        showNotification("Click on individual points to view segmentation (enable 'Show individual points')",
-                         type = "message", duration = 3)
-        return()
-      }
-
-      key_parts <- strsplit(click_key, "\\|")[[1]]
-      if (length(key_parts) < 2) {
-        showNotification("Could not parse islet identifier", type = "warning", duration = 3)
-        return()
-      }
-
-      case_id   <- key_parts[1]
-      islet_key <- key_parts[2]
-
-      # Look up centroid from spatial lookup
-      spatial_match <- islet_spatial_lookup[
-        islet_spatial_lookup$case_id == case_id &
-          islet_spatial_lookup$islet_key == islet_key, ]
-
-      if (nrow(spatial_match) == 0) {
-        # Try zero-padded variant (e.g. "112" -> "0112")
-        case_id_num <- suppressWarnings(as.integer(case_id))
-        if (!is.na(case_id_num)) {
-          case_id_padded <- sprintf("%04d", case_id_num)
-          spatial_match <- islet_spatial_lookup[
-            islet_spatial_lookup$case_id == case_id_padded &
-              islet_spatial_lookup$islet_key == islet_key, ]
-          if (nrow(spatial_match) > 0) case_id <- case_id_padded
-        }
-      }
-
-      if (nrow(spatial_match) == 0) {
-        showNotification(paste("Spatial data not found for", islet_key, "in case", case_id),
-                         type = "warning", duration = 3)
-        return()
-      }
-
-      centroid_x <- spatial_match$centroid_x_um[1]
-      centroid_y <- spatial_match$centroid_y_um[1]
-
-      # Look up donor info from prepared data
-      pd <- prepared()
-      donor_status_val <- NULL
-      donor_age <- NULL
-      donor_gender <- NULL
-      if (!is.null(pd$comp) && "Case ID" %in% colnames(pd$comp)) {
-        donor_row <- pd$comp[pd$comp$`Case ID` == as.integer(case_id), , drop = FALSE]
-        if (nrow(donor_row) > 0) {
-          if ("Donor Status" %in% colnames(donor_row)) donor_status_val <- as.character(donor_row$`Donor Status`[1])
-          if ("age" %in% colnames(donor_row)) donor_age <- donor_row$age[1]
-          if ("gender" %in% colnames(donor_row)) donor_gender <- as.character(donor_row$gender[1])
-        }
-      }
-
-      # Update shared reactiveVal — triggers embedded segmentation panel below
-      selected_islet(list(
-        case_id      = case_id,
-        islet_key    = islet_key,
-        centroid_x   = centroid_x,
-        centroid_y   = centroid_y,
-        donor_status = donor_status_val,
-        donor_age    = donor_age,
-        donor_gender = donor_gender
-      ))
+    # macOS-proof native-click bridge: islet_click_bridge() pushes the hovered
+    # point's key here on a native click, bypassing plotly's click/drag
+    # discrimination (which can suppress plotly_click on macOS).
+    observeEvent(input$plot_native_click, {
+      nc <- input$plot_native_click
+      if (is.null(nc) || is.null(nc$key)) return()
+      cat("[PLOT CLICK] native bridge; key:", as.character(nc$key)[1], "\n")
+      open_islet_from_key(nc$key)
     })
 
     # ---- Embedded segmentation viewer panel (below Distribution card) ----

@@ -42,6 +42,20 @@ Cell centroids (`X_centroid`, `Y_centroid`) are in micrometers. GeoJSON polygons
 
 **Structure Legend**: combines all visible polygons into one sf with a `structure_type` column, uses `aes(colour = structure_type)` + `scale_colour_manual(name = "Structures")` with `key_glyph = "path"`. Display names: Islet, Peri Boundary, Nerve, Capillary, Lymphatic. The `colour` aesthetic is reserved for structures; drilldown cell scatter uses `fill` (shape 21) to avoid scale conflict.
 
+### macOS Native-Click Bridge + Shared Resolver (Jun 2026)
+
+**Problem**: On macOS, plotly's click/drag discrimination suppresses `plotly_click` entirely, so the server `observeEvent(event_data("plotly_click", ...))` never fires — clicking a point did nothing (no notification). Both Plot and Trajectory drill-down were affected (Trajectory's key→customdata→coord fallbacks all live *inside* the plotly_click observer, so a suppressed event bypassed them too). Works on Linux/Windows; macOS-only — no platform-conditional code, so the cause is the macOS browser event layer.
+
+**Fix** — `islet_click_bridge(p, input_id)` in `00_globals.R`:
+- `htmlwidgets::onRender` that listens for native DOM `mousedown`/`mouseup` (which always fire, immune to plotly's drag suppression). On a click-like gesture (movement < 6px) it reads the hovered islet's key and pushes `{key, nonce}` to a Shiny input via `Shiny.setInputValue(..., {priority:'event'})`.
+- Key source: the ggplot `key` aes (`"case_id|islet_key"`), read as `pt.data.key[pt.pointNumber]` from the cached `plotly_hover` event AND from plotly's live `gd._hoverdata` at mousedown (belt-and-suspenders).
+- Piped after each scatter's `event_register("plotly_click")`: Plot uses `ns("plot_native_click")`, Trajectory `ns("traj_native_click")`. The legacy `plotly_click` handler is kept for platforms where it already works.
+- **`gd.__isletBridge` attach-once guard**: `onRender` re-runs on every plot re-render and would stack listeners (one click → N fires). Guard at the top: `if (gd.__isletBridge) return; gd.__isletBridge = true;`.
+
+**Gotcha**: ggplotly surfaces the `key` aes to the browser ONLY on the **individual-point marker traces** (`gd.data[i].key`), NOT on summary-point/line traces — so the Plot tab needs "Show individual points" ON for a click to resolve a key. Verified headlessly (chromote): trace keys like `112|Islet_1`; a real native gesture fires exactly one `[PLOT CLICK] native bridge` / `[TRAJ CLICK] native bridge` and renders the panel.
+
+**Shared resolver** — `select_islet_from_key(case_id, islet_key, prepared, selected_islet)` in `segmentation_helpers.R`: the common tail of both drill-down paths (SF/lookup guards, centroid lookup with zero-padded case-id fallback, donor-metadata join, `selected_islet(list(...))`). Called by both the legacy plotly_click observers and the new native-click observers in Plot + Trajectory.
+
 ## Statistics Tab
 
 See [`docs/statistics.md`](docs/statistics.md) for full details — pseudoreplication fix (Phase 16), `utils_stats.R` reference, unified outlier handling, zero-value exclusion, sex-stratified BH correction, 5-section narrative layout, multiple-testing correction.
@@ -160,6 +174,22 @@ Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
 - **Debug mode**: Set `DEBUG_CREDENTIALS=1` env var for verbose credential loading logs.
 - **Plain-text display**: `strip_markdown()` in `mod_ai_assistant_server.R` removes markdown formatting from AI responses before display.
 
+## Viewer Tab (Avivator) — iframe Persistence (Jun 2026)
+
+The Viewer embeds a local Avivator build (`www/avivator`, Vite bundle) in an `<iframe>` to render OME-TIFFs. Files: `mod_viewer_server.R`, `mod_viewer_ui.R`, `viewer_helpers.R`.
+
+**Problem (macOS-only flashing)**: a single `renderUI` emitted the dropdown AND the iframe together, so any reactive invalidation destroyed + recreated the `<iframe>` (a WebGL canvas). Repeated canvas add/remove flickers heavily under Firefox's WebRender compositor on macOS (Mozilla bug #1555544); Retina also doubles deck.gl's drawing buffer (`useDevicePixels`).
+
+**Architecture (the fix)**:
+- **Split outputs**: `output$image_selector` (dropdown; depends on the stable available-images list) and `output$viewer_frame` (iframe; mounts once).
+- **Mount-once iframe**: `viewer_frame` depends on `has_image_stable()` (flip-only boolean, below) + `current_tab()`, and reads the URL via `isolate(viewer_info()$iframe_src)` so it does NOT re-render when the image URL changes.
+- **In-place src update**: `observeEvent(viewer_info()$iframe_src, ...)` → `session$sendCustomMessage("islet_update_viewer_src", list(id, src))`. A JS handler registered once in `mod_viewer_ui.R` sets `iframe.src` only when it differs from a `data-relsrc` attribute (dedup). Switching images updates the existing node — never recreates it (verified via chromote: same DOM node, src updated).
+- **`probe_viewer_asset` gated** behind `VIEWER_DEBUG_ENABLED` (it's a blocking `curl` HEAD); `session$clientData` URL reads `isolate()`d (origin is fixed per session).
+
+**CRITICAL gotcha — flip-only boolean**: a plain `reactive()` boolean invalidates its dependents whenever its INPUTS change (Shiny propagates on invalidation, NOT value-equality). So a `has_image` reactive reading `input$selected_image` made `viewer_frame` re-render (recreate the iframe) on every image switch. Fix: mirror it into a `reactiveVal` via `observe({ has_image_stable(isTRUE(has_image_now())) })` — `reactiveVal` dedups, so it only propagates when the boolean actually FLIPS (no-image → image), keeping the iframe alive across image switches.
+
+**Secondary mitigation** (if macOS flicker persists after the above): rebuild Avivator with `useDevicePixels: false`. The bundle only reads `image_url` + `channel_config` query params, so this can't be toggled at runtime.
+
 ## App-Specific Conventions
 
 - **CSS overflow for cards with dropdowns**: `selectInput` menus extend below their container. Add `overflow: visible;` to card styles or dropdowns get clipped behind cards.
@@ -177,6 +207,8 @@ Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
 - **Deferred heavy file loading**: `annotations.tsv` (72 MB) lazy-loaded via `.seg_lazy` environment in `segmentation_helpers.R`.
 - **Synthetic union rows need density**: `prep_data()` synthesizes `islet_union` rows by summing core+band. Must compute `area_um2`, `region_um2`, and `area_density = area_um2/region_um2` — setting these to `NA` causes Microenvironment Core+Peri to drop 12/15 donors (default metric is Density, NA filtered by `!is.na(value)`).
 - **`updateSelectInput` after `renderUI`**: Server-side updates targeting an input that lives inside a `renderUI`-mounted block must share a reactive dependency with the renderUI, or fire only after the UI has mounted on the client. Putting the update inside its own naked `observe({})` can race the UI mount and silently leave the dropdown empty. Pattern: nest the `updateSelectInput` inside the same observer that builds the choices reactive.
+- **`reactiveVal` to stabilise a `renderUI` boolean**: a `reactive()` boolean re-fires its dependents whenever its INPUTS change, even if the value is unchanged — so a `renderUI` keyed on it rebuilds (destroying child DOM, including iframes/WebGL canvases). Mirror the boolean into a `reactiveVal` via an `observe`; `reactiveVal` dedups, so the `renderUI` only re-renders when the boolean truly flips. See § "Viewer Tab (Avivator) — iframe Persistence".
+- **Robust plotly clicks**: `plotly_click` can be suppressed on macOS (clicking does nothing, no notification). Use `islet_click_bridge()` (native mousedown/mouseup → `Shiny.setInputValue`) for click-to-select, and guard `onRender` with an attach-once flag so listeners don't stack. See § "macOS Native-Click Bridge".
 
 ## Phenotype Rules — Marker Definitions in the UI (May 2026)
 

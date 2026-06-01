@@ -438,6 +438,78 @@ get_islet_annotations <- function(case_id, islet_key) {
 # Load spatial lookup eagerly (small file, always needed)
 islet_spatial_lookup <- load_islet_spatial_lookup()
 
+# Resolve a clicked islet (case_id + islet_key) to the selected_islet payload
+# and set it. Shared tail of the Plot and Trajectory click handlers (both the
+# legacy plotly_click observers and the native-click bridge) so the centroid
+# lookup, zero-padded case-id fallback, and donor-metadata join live in one
+# place. `prepared` is the core data reactive; `selected_islet` is the shared
+# reactiveVal. Returns TRUE on success; shows a notification and returns FALSE
+# otherwise (suppress with notify = FALSE).
+select_islet_from_key <- function(case_id, islet_key, prepared, selected_islet, notify = TRUE) {
+  note <- function(msg, type = "warning", duration = 3) {
+    if (notify) showNotification(msg, type = type, duration = duration)
+  }
+  if (!SF_AVAILABLE) {
+    note("Segmentation requires the 'sf' package", "warning", 5); return(FALSE)
+  }
+  if (is.null(islet_spatial_lookup)) {
+    note("Islet spatial lookup data not available", "warning", 5); return(FALSE)
+  }
+  if (is.null(case_id) || is.null(islet_key) ||
+      is.na(case_id) || is.na(islet_key) ||
+      !nzchar(as.character(case_id)) || !nzchar(as.character(islet_key))) {
+    note("Could not identify clicked islet"); return(FALSE)
+  }
+  case_id <- as.character(case_id)
+  islet_key <- as.character(islet_key)
+
+  spatial_match <- islet_spatial_lookup[
+    islet_spatial_lookup$case_id == case_id &
+      islet_spatial_lookup$islet_key == islet_key, ]
+
+  # Try zero-padded variant (data uses "112"; GeoJSON/lookup may use "0112")
+  if (nrow(spatial_match) == 0) {
+    case_id_num <- suppressWarnings(as.integer(case_id))
+    if (!is.na(case_id_num)) {
+      case_id_padded <- sprintf("%04d", case_id_num)
+      spatial_match <- islet_spatial_lookup[
+        islet_spatial_lookup$case_id == case_id_padded &
+          islet_spatial_lookup$islet_key == islet_key, ]
+      if (nrow(spatial_match) > 0) case_id <- case_id_padded
+    }
+  }
+
+  if (nrow(spatial_match) == 0) {
+    note(paste("Spatial data not found for", islet_key, "in case", case_id)); return(FALSE)
+  }
+
+  centroid_x <- spatial_match$centroid_x_um[1]
+  centroid_y <- spatial_match$centroid_y_um[1]
+
+  # Donor metadata from prepared()$comp
+  pd <- prepared()
+  donor_status_val <- NULL; donor_age <- NULL; donor_gender <- NULL
+  if (!is.null(pd$comp) && "Case ID" %in% colnames(pd$comp)) {
+    donor_row <- pd$comp[pd$comp$`Case ID` == suppressWarnings(as.integer(case_id)), , drop = FALSE]
+    if (nrow(donor_row) > 0) {
+      if ("Donor Status" %in% colnames(donor_row)) donor_status_val <- as.character(donor_row$`Donor Status`[1])
+      if ("age" %in% colnames(donor_row)) donor_age <- donor_row$age[1]
+      if ("gender" %in% colnames(donor_row)) donor_gender <- as.character(donor_row$gender[1])
+    }
+  }
+
+  selected_islet(list(
+    case_id      = case_id,
+    islet_key    = islet_key,
+    centroid_x   = centroid_x,
+    centroid_y   = centroid_y,
+    donor_status = donor_status_val,
+    donor_age    = donor_age,
+    donor_gender = donor_gender
+  ))
+  TRUE
+}
+
 # Reusable GeoJSON base plot builder
 # Returns a ggplot with polygon layers + coord_sf (no crosshairs or title).
 # Used by both render_islet_segmentation_plot() and render_islet_drilldown_plot().

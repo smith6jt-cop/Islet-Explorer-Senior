@@ -2,73 +2,89 @@ viewer_server <- function(id, forced_image, current_tab) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    # Avivator static build location is fixed for the session (file existence
+    # check) — compute once, non-reactively.
+    avivator_base <- resolve_avivator_base()
+    iframe_id <- ns("avivator_viewer")
+    wrap_id   <- ns("viewer_wrap")
+
+    # Images available to pick from (www/local_images + LOCAL_IMAGE_ROOT).
+    available_images_r <- reactive({
+      imgs <- character(0)
+      images_dir <- file.path("www", "local_images")
+      if (dir.exists(images_dir)) {
+        imgs <- c(imgs, list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE))
+      }
+      local_root <- Sys.getenv("LOCAL_IMAGE_ROOT", unset = "")
+      if (nzchar(local_root) && dir.exists(local_root)) {
+        imgs <- unique(c(imgs, list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)))
+      }
+      imgs
+    })
+
+    # The basename currently being viewed (forced image wins, then the user's
+    # dropdown choice, then the first available image).
+    selected_basename_r <- reactive({
+      fi <- forced_image()
+      if (!is.null(fi) && nzchar(fi)) return(fi)
+      si <- input$selected_image
+      if (!is.null(si) && nzchar(si)) return(si)
+      ai <- available_images_r()
+      if (length(ai) > 0) return(ai[[1]])
+      NULL
+    })
+
+    # Coarse "is there something to show" flag. Computed reactively, then
+    # mirrored into a reactiveVal so it only invalidates dependents when the
+    # boolean actually FLIPS. Switching between images keeps it TRUE, so
+    # output$viewer_frame does NOT re-render — which would destroy + recreate
+    # the WebGL <iframe> and cause the macOS WebRender flicker. Image-URL
+    # changes are instead pushed into the existing iframe (see observeEvent).
+    has_image_now <- reactive({
+      sb <- selected_basename_r()
+      !is.null(avivator_base) && !is.null(sb) && nzchar(sb)
+    })
+    has_image_stable <- reactiveVal(FALSE)
+    observe({ has_image_stable(isTRUE(has_image_now())) })
+
     viewer_info <- reactive({
-      forced_img <- forced_image()
-      env_info <- detect_environment(session)
-      base <- resolve_avivator_base()
-
       info <- list(
-        base = base, selection = NULL, mode = "picker", ok = FALSE,
+        base = avivator_base, selection = NULL, ok = FALSE,
         iframe_src = NULL, image_url = NULL, image_public_url = NULL,
-        image_rel = NULL, image_app_url = NULL, asset_diag = NULL, env = env_info
+        image_rel = NULL, image_app_url = NULL, asset_diag = NULL, env = NULL
       )
-      if (is.null(base)) return(info)
+      if (is.null(avivator_base)) return(info)
 
-      cat("[VIEWER] Environment detection - reverse_proxy:", env_info$is_reverse_proxy,
-          "hostname:", env_info$hostname, "pathname:", env_info$pathname, "\n")
+      sel_basename <- selected_basename_r()
 
-      params <- list()
       rel_url <- NULL
-
-      sel_basename <- forced_img
-      if (is.null(sel_basename)) sel_basename <- input$selected_image
-
-      cat("[VIEWER] === Image Selection Debug ===\n")
-      cat("[VIEWER] Forced image:", if (is.null(forced_img)) "NULL" else paste0("'", forced_img, "'"), "\n")
-      cat("[VIEWER] Input image:", if (is.null(input$selected_image)) "NULL" else paste0("'", input$selected_image, "'"), "\n")
-      cat("[VIEWER] Selected basename:", if (is.null(sel_basename)) "NULL" else paste0("'", sel_basename, "'"), "\n")
-
       if (!is.null(sel_basename) && nzchar(sel_basename)) {
-        rel_url <- NULL
         www_candidate <- file.path("www", "local_images", sel_basename)
         resource_candidate <- NULL
         if (!is.null(local_images_root) && dir.exists(local_images_root)) {
           resource_candidate <- file.path(local_images_root, sel_basename)
         }
-
         if (file.exists(www_candidate)) {
           rel_url <- paste("local_images", sel_basename, sep = "/")
-          cat("[VIEWER] Using www/local_images asset:", www_candidate, "\n")
         } else if (!is.null(resource_candidate) && file.exists(resource_candidate)) {
           rel_url <- paste("images", sel_basename, sep = "/")
-          cat("[VIEWER] Using /images resource asset:", resource_candidate, "\n")
-        }
-
-        if (!is.null(rel_url)) {
-          info$selection <- sel_basename
         } else {
           rel_url <- paste("local_images", sel_basename, sep = "/")
-          info$selection <- sel_basename
-          cat("[VIEWER] WARNING: image not found on disk, falling back to rel:", rel_url, "\n")
         }
-      }
-
-      asset_diag <- probe_viewer_asset(session, rel_url)
-      info$asset_diag <- asset_diag
-      if (!is.null(asset_diag$rel_path)) {
-        cat("[VIEWER] Asset diag: exists=", asset_diag$file_exists,
-            "size=", asset_diag$file_size,
-            "http=", asset_diag$http_status %||% "NA",
-            if (!is.null(asset_diag$http_error)) paste("err=", asset_diag$http_error) else "", "\n")
+        info$selection <- sel_basename
       }
 
       resolved_app_url <- NULL
       resolved_public_url <- NULL
       if (!is.null(rel_url) && nzchar(rel_url)) {
         info$image_rel <- rel_url
-        resolved_app_url <- build_app_absolute_url(session, rel_url)
-        resolved_public_url <- build_public_http_url(session, rel_url)
-        info$image_app_url <- resolved_app_url
+        # The session URL origin (protocol/host/port/pathname) is fixed for the
+        # lifetime of the session. Isolate the clientData reads so any churn in
+        # session$clientData$url_* cannot re-trigger this reactive — which would
+        # otherwise rebuild the viewer iframe and flicker the WebGL canvas.
+        resolved_app_url    <- isolate(build_app_absolute_url(session, rel_url))
+        resolved_public_url <- isolate(build_public_http_url(session, rel_url))
+        info$image_app_url    <- resolved_app_url
         info$image_public_url <- resolved_public_url
       }
 
@@ -81,12 +97,9 @@ viewer_server <- function(id, forced_image, current_tab) {
         sel_url <- default_image_url
       }
 
+      params <- list()
       if (!is.null(sel_url)) {
         params[["image_url"]] <- utils::URLencode(sel_url, reserved = FALSE)
-        info$image_param <- sel_url
-        if (is.null(info$image_public_url)) {
-          info$image_public_url <- if (!identical(sel_url, resolved_app_url)) sel_url else NULL
-        }
         info$image_url <- resolved_app_url %||% sel_url
       }
 
@@ -100,65 +113,33 @@ viewer_server <- function(id, forced_image, current_tab) {
         parts <- vapply(names(params), function(nm) sprintf("%s=%s", nm, params[[nm]]), character(1))
         query <- paste(parts, collapse = "&")
       }
-      info$iframe_src <- if (!is.null(query)) paste0(base, "?", query) else base
+      info$iframe_src <- if (!is.null(query)) paste0(avivator_base, "?", query) else avivator_base
       info$ok <- TRUE
+
+      # Diagnostics only — detect_environment() and probe_viewer_asset() both
+      # read session$clientData / do a blocking curl HEAD, so keep them off the
+      # hot path unless explicitly debugging.
+      if (VIEWER_DEBUG_ENABLED) {
+        info$env <- isolate(detect_environment(session))
+        info$asset_diag <- isolate(probe_viewer_asset(session, rel_url))
+        cat("[VIEWER] sel:", sel_basename %||% "NULL",
+            "rel:", rel_url %||% "NULL",
+            "src:", info$iframe_src %||% "NULL", "\n")
+      }
       info
     })
 
-    output$local_image_picker <- renderUI({
+    # ---- Image picker (mounts once; independent of the iframe) --------------
+    output$image_selector <- renderUI({
       tab <- current_tab()
       if (is.null(tab) || tab != "Viewer") return(NULL)
+      if (is.null(avivator_base)) return(NULL)  # missing-build message lives in viewer_frame
 
-      vi <- viewer_info()
-      cat("[VIEWER RENDER] Base:", vi$base, "Image URL (app):", vi$image_url,
-          "Public:", vi$image_public_url %||% "NULL", "\n")
-
-      if (is.null(vi$base)) {
-        return(tagList(
-          tags$div(style = "color:#b00;", "Local Avivator static build not found under shiny/www/avivator."),
-          tags$div(style = "color:#666; font-size:90%;",
-                   "To install: run scripts/install_avivator.sh (requires Node >= 18) or place a prebuilt bundle under shiny/www/avivator.")
-        ))
-      }
-
-      available_images <- character(0)
-      images_dir <- file.path("www", "local_images")
-      if (dir.exists(images_dir)) {
-        image_files <- list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
-        available_images <- c(available_images, image_files)
-      }
-      local_root <- Sys.getenv("LOCAL_IMAGE_ROOT", unset = "")
-      if (nzchar(local_root) && dir.exists(local_root)) {
-        root_files <- list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
-        available_images <- unique(c(available_images, root_files))
-      }
-
-      image_basename <- NULL
-      if (!is.null(vi$image_rel)) {
-        image_basename <- basename(vi$image_rel)
-      } else if (!is.null(vi$image_url)) {
-        image_basename <- basename(vi$image_url)
-      }
-
-      if (!is.null(image_basename) && nzchar(image_basename)) {
-        local_image_path <- file.path("www", "local_images", image_basename)
-        file_exists <- file.exists(local_image_path)
-        cat("[VIEWER DEBUG] Looking for image file:", local_image_path, "Exists:", file_exists, "\n")
-        if (file_exists) {
-          file_size_gb <- round(file.info(local_image_path)$size / (1024^3), 2)
-          cat("[VIEWER DEBUG] Image size:", file_size_gb, "GB\n")
-        }
-      }
-
-      current_selection <- if (!is.null(forced_image())) {
-        forced_image()
-      } else if (!is.null(input$selected_image)) {
-        input$selected_image
-      } else if (length(available_images) > 0) {
-        available_images[1]
-      } else {
-        NULL
-      }
+      available_images <- available_images_r()
+      # isolate(): the selector reflects the current choice on first mount but
+      # must not take a reactive dependency on it, or picking an image would
+      # rebuild the dropdown.
+      current_selection <- isolate(selected_basename_r())
 
       tagList(
         if (length(available_images) > 0) {
@@ -177,6 +158,7 @@ viewer_server <- function(id, forced_image, current_tab) {
           )
         },
         if (VIEWER_DEBUG_ENABLED) {
+          vi <- isolate(viewer_info())
           tags$details(
             style = "margin: 10px 0;",
             tags$summary("Viewer debug info"),
@@ -191,25 +173,59 @@ viewer_server <- function(id, forced_image, current_tab) {
               ), auto_unbox = TRUE, pretty = TRUE)
             )
           )
-        },
-        if (!is.null(vi$image_url) && nzchar(vi$image_url)) {
-          tags$div(
-            id = ns("viewer_wrap"),
-            style = "position: relative;",
-            tags$div(
-              style = "padding: 6px 10px; background-color: #f6f8fa; color: #666; font-size: 90%; margin-bottom: 6px; border: 1px solid #e1e4e8; border-radius: 3px;",
-              "Click inside the viewer to enable pan/zoom and wheel zoom."
-            ),
-            tags$iframe(
-              id = "avivator_viewer", src = vi$iframe_src,
-              width = "100%", frameBorder = 0, allowfullscreen = NA,
-              tabindex = "0", allow = "fullscreen",
-              style = "width:100%; height:calc(100vh - 180px); border:0;"
-            ),
-            tags$script(HTML(sprintf("(function(){
+        }
+      )
+    })
+
+    # ---- Avivator iframe (mounts once when an image first becomes available) -
+    output$viewer_frame <- renderUI({
+      tab <- current_tab()
+      if (is.null(tab) || tab != "Viewer") return(NULL)
+
+      if (is.null(avivator_base)) {
+        return(tagList(
+          tags$div(style = "color:#b00;", "Local Avivator static build not found under shiny/www/avivator."),
+          tags$div(style = "color:#666; font-size:90%;",
+                   "To install: run scripts/install_avivator.sh (requires Node >= 18) or place a prebuilt bundle under shiny/www/avivator.")
+        ))
+      }
+
+      # Depend on the FLIP-only boolean (mounts once); read the URL via isolate
+      # so this renderUI does NOT re-fire — and recreate the iframe — when the
+      # src changes. URL changes are pushed in place via the observeEvent below.
+      ready <- has_image_stable()
+      if (!isTRUE(ready)) {
+        return(tags$div(
+          style = "padding: 20px; text-align: center; color: #666;",
+          "Select an image from the dropdown above to view it in AVIVATOR."
+        ))
+      }
+
+      src0 <- isolate(viewer_info()$iframe_src)
+      if (is.null(src0) || !nzchar(src0)) {
+        return(tags$div(
+          style = "padding: 20px; text-align: center; color: #666;",
+          "Select an image from the dropdown above to view it in AVIVATOR."
+        ))
+      }
+
+      tags$div(
+        id = wrap_id,
+        style = "position: relative;",
+        tags$div(
+          style = "padding: 6px 10px; background-color: #f6f8fa; color: #666; font-size: 90%; margin-bottom: 6px; border: 1px solid #e1e4e8; border-radius: 3px;",
+          "Click inside the viewer to enable pan/zoom and wheel zoom."
+        ),
+        tags$iframe(
+          id = iframe_id, src = src0, `data-relsrc` = src0,
+          width = "100%", frameBorder = 0, allowfullscreen = NA,
+          tabindex = "0", allow = "fullscreen",
+          style = "width:100%; height:calc(100vh - 180px); border:0;"
+        ),
+        tags$script(HTML(sprintf("(function(){
   var wrap = document.getElementById('%s');
   if (!wrap) return;
-  var iframe = wrap.querySelector('#avivator_viewer');
+  var iframe = wrap.querySelector('#%s');
   if (!iframe) return;
   function focusViewer(){ try { if (iframe.contentWindow) iframe.contentWindow.focus(); } catch (e) {} }
   iframe.addEventListener('load', focusViewer);
@@ -220,15 +236,16 @@ viewer_server <- function(id, forced_image, current_tab) {
     } catch (e) {}
   }, { passive: true });
   setTimeout(focusViewer, 200);
-})();", ns("viewer_wrap"))))
-          )
-        } else {
-          tags$div(
-            style = "padding: 20px; text-align: center; color: #666;",
-            "Select an image from the dropdown above to view it in AVIVATOR."
-          )
-        }
+})();", wrap_id, iframe_id)))
       )
     })
+
+    # ---- Push src changes into the existing iframe (no DOM recreation) -------
+    observeEvent(viewer_info()$iframe_src, {
+      src <- viewer_info()$iframe_src
+      if (is.null(src) || !nzchar(src)) return()
+      session$sendCustomMessage("islet_update_viewer_src",
+                                list(id = iframe_id, src = src))
+    }, ignoreNULL = TRUE)
   })
 }
