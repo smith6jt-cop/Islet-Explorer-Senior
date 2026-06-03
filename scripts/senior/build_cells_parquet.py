@@ -50,7 +50,8 @@ def sanitize(name: str) -> str:
     return re.sub(r"[^0-9A-Za-z]+", "_", name).strip("_")
 
 
-def build_sql(csv_path: Path, out_dir: Path, limit: int | None) -> tuple[str, dict]:
+def build_sql(csv_path: Path, out_dir: Path, limit: int | None,
+              min_cell_area: float) -> tuple[str, dict]:
     cols = header_cols(csv_path)
     mm = marker_means(cols)
     if not mm:
@@ -77,6 +78,12 @@ def build_sql(csv_path: Path, out_dir: Path, limit: int | None) -> tuple[str, di
     src = (f"read_csv('{csv_path}', header=true, all_varchar=true, "
            f"ignore_errors=true)")
     inner = f"SELECT\n  {sel}\nFROM {src}"
+    if min_cell_area and min_cell_area > 0:
+        # Drop degenerate sub-cell segmentation objects: QuPath emits NaN
+        # intensities for these tiny artifacts. Real cells have area
+        # p1=12.3, median=57.9 µm²; the NaN population is all <1.9 µm².
+        area = "TRY_CAST(\"Cell: Area µm^2\" AS DOUBLE)"
+        inner += f"\nWHERE isfinite({area}) AND {area} >= {min_cell_area}"
     if limit:
         inner += f"\nLIMIT {limit}"
     cells_dir = out_dir / "cells"
@@ -91,10 +98,12 @@ def main(argv=None) -> int:
     ap.add_argument("--csv", type=Path, default=CSV_DEFAULT)
     ap.add_argument("--out", type=Path, default=OUT_DEFAULT)
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--min-cell-area", type=float, default=5.0,
+                    help="Drop cells below this Cell:Area µm^2 (segmentation debris; 0 to disable)")
     ap.add_argument("--threads", type=int, default=8)
     a = ap.parse_args(argv)
-    sql, mm = build_sql(a.csv, a.out, a.limit)
-    print(f"[info] markers={len(mm)} out={a.out}/cells limit={a.limit}")
+    sql, mm = build_sql(a.csv, a.out, a.limit, a.min_cell_area)
+    print(f"[info] markers={len(mm)} out={a.out}/cells limit={a.limit} min_cell_area={a.min_cell_area}")
     a.out.mkdir(parents=True, exist_ok=True)  # DuckDB COPY PARTITION_BY needs the parent to exist
     con = duckdb.connect()
     con.execute(f"PRAGMA threads={a.threads}")
