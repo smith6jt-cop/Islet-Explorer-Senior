@@ -71,6 +71,20 @@ def build_sql(csv_path: Path, out_dir: Path, limit: int | None,
         "regexp_extract(\"Parent\", 'Islet_([0-9]+)', 1) AS islet_num",
         "TRY_CAST(\"Cell: Area µm^2\" AS DOUBLE) AS cell_area",
         "TRY_CAST(\"Nucleus: Area µm^2\" AS DOUBLE) AS nucleus_area",
+        # extra morphology + signed-distance columns (needed by fixed_islet_aggregation / 3B)
+        "TRY_CAST(\"Cell: Length µm\" AS DOUBLE) AS cell_length",
+        "TRY_CAST(\"Cell: Circularity\" AS DOUBLE) AS cell_circularity",
+        "TRY_CAST(\"Cell: Solidity\" AS DOUBLE) AS cell_solidity",
+        "TRY_CAST(\"Cell: Max diameter µm\" AS DOUBLE) AS cell_maxdiam",
+        "TRY_CAST(\"Cell: Min diameter µm\" AS DOUBLE) AS cell_mindiam",
+        "TRY_CAST(\"Nucleus: Length µm\" AS DOUBLE) AS nucleus_length",
+        "TRY_CAST(\"Nucleus: Circularity\" AS DOUBLE) AS nucleus_circularity",
+        "TRY_CAST(\"Nucleus: Solidity\" AS DOUBLE) AS nucleus_solidity",
+        "TRY_CAST(\"Nucleus: Max diameter µm\" AS DOUBLE) AS nucleus_maxdiam",
+        "TRY_CAST(\"Nucleus: Min diameter µm\" AS DOUBLE) AS nucleus_mindiam",
+        "TRY_CAST(\"Nucleus/Cell area ratio\" AS DOUBLE) AS nc_area_ratio",
+        "TRY_CAST(\"Signed distance to annotation Islet µm\" AS DOUBLE) AS dist_islet",
+        "TRY_CAST(\"Signed distance to annotation Tissue µm\" AS DOUBLE) AS dist_tissue",
     ]
     for orig, marker in mm.items():
         selects.append(f'TRY_CAST("{orig}" AS DOUBLE) AS "{sanitize(marker)}"')
