@@ -236,6 +236,20 @@ if (isTRUE(USE_MIRAI)) {
   }
 }
 
+# --- Make scaling globals visible to helpers that look them up in globalenv() ---
+# Shiny auto-sources the R/ directory into a *support environment*, NOT the true
+# globalenv(). Several helpers (data_loading.R, spatial_helpers.R,
+# mod_statistics_server.R, rdeck_helpers.R) resolve these via
+# get0(envir = globalenv()); without this mirror the running app silently falls
+# back to the H5AD loader (and rdeck/mirai/partition-pruning never engage).
+# Export the finalised values into the real global environment.
+local({
+  ge <- globalenv()
+  for (nm in c("USE_DUCKDB", "USE_MIRAI", "con", "DONOR_COLORS")) {
+    if (exists(nm, inherits = TRUE)) assign(nm, get(nm, inherits = TRUE), envir = ge)
+  }
+})
+
 # Ensure reticulate/anndata can discover a Python binary when RETICULATE_PYTHON
 # isn't set (shiny-server environments often lack PATH).
 #

@@ -121,10 +121,15 @@ def build_islet_table(adata: ad.AnnData) -> pd.DataFrame:
 
     # Promote the obs index so we can treat it like a column in DuckDB / dbplyr.
     obs_index_name = obs.index.name or "islet_id"
-    obs = obs.reset_index().rename(columns={"index": obs_index_name})
-    if obs_index_name not in obs.columns:
-        # reset_index sometimes uses the original name if it existed
-        obs.insert(0, obs_index_name, adata.obs.index.astype(str))
+    if obs_index_name in obs.columns:
+        # The obs index duplicates an existing column (islets_*_fixed.h5ad uses
+        # index name == column 'islet_id'); keep the column and drop the index.
+        obs = obs.reset_index(drop=True)
+    else:
+        obs = obs.reset_index().rename(columns={"index": obs_index_name})
+        if obs_index_name not in obs.columns:
+            # reset_index sometimes uses the original name if it existed
+            obs.insert(0, obs_index_name, adata.obs.index.astype(str))
 
     # Attach obsm arrays. Only the columns the Shiny app currently cares about
     # are materialised here. Add more as new panels require them.

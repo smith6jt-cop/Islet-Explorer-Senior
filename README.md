@@ -1,10 +1,10 @@
-# Islet Explorer
+# Islet Explorer Senior
 
-Interactive R Shiny application for exploring pancreatic islet CODEX multiplexed imaging data from nPOD donors. Tracks insulin loss, immune infiltration, and cellular microenvironment changes across the ND → Aab+ → T1D disease progression.
+The big-data, multimodal successor to Islet Explorer — an interactive R Shiny application for exploring nPOD pancreas data at scale (PhenoCycler/CODEX protein now; Xenium 5K spatial transcriptomics and post-Xenium IF to follow). Backed by a DuckDB + Parquet data layer (with mirai async and optional rdeck WebGL) so it scales from thousands of islets toward millions of cells. Tracks insulin loss, immune infiltration, and cellular microenvironment changes across the ND → Aab+ → T1D disease progression.
 
 <div align="center">
 
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue.svg)](https://github.com/smith6jt-cop/Islet-Explorer)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue.svg)](https://github.com/smith6jt-cop/Islet-Explorer-Senior)
 [![R Shiny](https://img.shields.io/badge/R-Shiny-blue.svg)](https://shiny.rstudio.com/)
 
 </div>

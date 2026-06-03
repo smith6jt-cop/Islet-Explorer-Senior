@@ -7,6 +7,7 @@
 ui <- fluidPage(
   useShinyjs(),
   tags$head(
+    tags$title("Islet Explorer Senior"),
     # Favicons for browser tab, bookmarks, and mobile pinning. Browsers pick
     # the most appropriate sized PNG based on context; the ICO is the legacy
     # default location for tools that hard-fetch /favicon.ico. Apple touch
