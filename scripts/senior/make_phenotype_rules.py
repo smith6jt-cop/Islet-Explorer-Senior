@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Lineage markers used for gating (subset of the 59; checkpoint/state markers
 # like PD-1/LAG3/TOX/Ki67/PCNA are overlays, not lineage gates).
-MARKERS = ["INS","GCG","SST","IAPP","Pan_Cytokeratin","EpCAM","Ker8_18",
+MARKERS = ["INS","GCG","SST","Pan_Cytokeratin","EpCAM","Ker8_18",
            "Keratin_5","TP63","SOX2","CD31","CD34","Podoplanin","SMA","Vimentin",
            "Collagen_IV","B3TUBB","CD56","CD3e","CD8","CD4","FOXP3","CD20",
            "CD79a","CD68","CD163","Iba1","CD206","M2Gal3","CD11c","CD209",
@@ -23,7 +23,7 @@ MARKERS = ["INS","GCG","SST","IAPP","Pan_Cytokeratin","EpCAM","Ker8_18",
 
 # (parent_class, phenotype_name, {marker: gate})
 RULES = [
-    ("all", "Endocrine", {"INS":"anypos","GCG":"anypos","SST":"anypos","IAPP":"anypos"}),
+    ("all", "Endocrine", {"INS":"anypos","GCG":"anypos","SST":"anypos"}),  # IAPP dropped (unreliable: GMM over-called it)
     ("Endocrine", "Beta cell",  {"INS":"pos"}),
     ("Endocrine", "Alpha cell", {"GCG":"pos"}),
     ("Endocrine", "Delta cell", {"SST":"pos"}),
