@@ -47,6 +47,18 @@ def main():
         sub.obs["Gender"] = sub.obs["Sex"].values
     print(f"[3B] aggregating {sub.n_obs:,} cells x {sub.n_vars} markers (raw MFI means)")
 
+    # Attach the per-cell scVI latent (trained by train_scvi_senior.py, row-aligned to
+    # the phenotyped h5ad) so create_islet_dataset_fixed averages it into X_scVI_mean —
+    # the load-bearing trajectory input (rebuild_trajectory.ipynb).
+    latent = BASE / "X_scVI_singlecell.npy"
+    if latent.exists():
+        z = np.load(latent)
+        assert z.shape[0] == sub.n_obs, f"latent rows {z.shape[0]} != cells {sub.n_obs} (re-train)"
+        sub.obsm["X_scVI"] = z.astype(np.float32)
+        print(f"[3B] attached X_scVI {z.shape} -> X_scVI_mean will be computed per islet")
+    else:
+        print(f"[3B] WARNING: {latent} not found — no X_scVI_mean (trajectory cannot be fixed)")
+
     core, peri = create_islet_dataset_fixed(sub, region="separate",
                                             min_cells=0, require_paired=True)
     core.write_h5ad(BASE / "islets_core_senior.h5ad")
