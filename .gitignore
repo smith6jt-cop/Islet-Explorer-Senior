@@ -1,5 +1,6 @@
 # Data and large binary outputs
 data/
+/data
 pdfs/
 *.pdf
 *.Rout
