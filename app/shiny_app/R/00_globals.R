@@ -18,7 +18,11 @@ USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
 
 # Pixel size constant for coordinate conversion (micrometers per pixel)
 # GeoJSON polygons use pixel coordinates, while islet_spatial_lookup.csv uses micrometers
-PIXEL_SIZE_UM <- 0.3774  # micrometers per pixel
+# The QuPath structure GeoJSONs (results/*__<donor>_..._resolution__1.geojson) are
+# exported at a ~2x-downsampled pyramid level: empirically 0.5078 µm/px (median over
+# 2,355 islets, 3 donors; full-res base is ~0.2539). islet_spatial_lookup.csv is in µm,
+# so this constant maps lookup µm -> GeoJSON pixel space. (Junior CODEX was 0.3774.)
+PIXEL_SIZE_UM <- 0.5078  # micrometers per pixel (IO60panc2nd GeoJSON resolution #1)
 
 # Donor status color palettes
 DONOR_COLORS <- c("ND" = "#4477AA", "Aab+" = "#CC6633", "T1D" = "#228833")

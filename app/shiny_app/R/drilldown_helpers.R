@@ -26,6 +26,20 @@ PHENOTYPE_COLORS <- c(
   "T cell"        = "#0096C7",  # light blue
   "B cell"        = "#48CAE4",  # sky blue
   "Immune"        = "#3A5A8C",  # medium blue
+  # --- Senior scimap phenotype names (IO60panc2nd: 25 phenotypes) ---
+  "Blood vessel"             = "#BC4749",  # brick red
+  "CD8 T cell"               = "#023E8A",  # navy
+  "CD4 T cell"               = "#0077B6",  # blue
+  "Dendritic cell"           = "#2A9D8F",  # teal
+  "Epithelial"               = "#6A994E",  # olive green
+  "Fibroblast"               = "#B08968",  # tan-brown
+  "Granulocyte"              = "#E76F51",  # burnt orange
+  "M2 macrophage"            = "#1D3557",  # dark navy
+  "NK cell"                  = "#7209B7",  # violet
+  "Regulatory T cell"        = "#06A77D",  # emerald
+  "Smooth muscle"            = "#C49792",  # mauve
+  "Stromal"                  = "#9B9B9B",  # gray
+  "likely-Regulatory T cell" = "#90BE6D",  # light green
   "Unknown"       = "#CCCCCC"   # light gray
 )
 

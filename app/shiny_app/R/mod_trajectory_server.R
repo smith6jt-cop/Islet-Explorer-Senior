@@ -91,6 +91,18 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       )
       obs2 <- as.data.frame(obs[, cols, drop = FALSE])
 
+      # Senior islet h5ads carry imageid + base_islet_id but NOT the Junior-style
+      # combined_islet_id ("<imageid>_Islet_N"); synthesize it so downstream
+      # consumers (result_df, click keys) have a non-empty column.
+      if (!"combined_islet_id" %in% names(obs2)) {
+        if (all(c("imageid", "base_islet_id") %in% names(obs2))) {
+          obs2$combined_islet_id <- paste0(as.character(obs2$imageid), "_",
+                                            as.character(obs2$base_islet_id))
+        } else {
+          obs2$combined_islet_id <- NA_character_
+        }
+      }
+
       # Parse combined_islet_id for Case ID and islet_key
       if (!"Case ID" %in% names(obs2)) obs2$`Case ID` <- NA_character_
 
