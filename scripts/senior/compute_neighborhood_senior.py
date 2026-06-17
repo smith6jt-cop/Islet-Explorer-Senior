@@ -10,7 +10,7 @@ Output: ~/IO60panc2nd/senior_data/neighborhood_metrics.csv
 import sys
 from pathlib import Path
 
-SEN = Path("/home/smith6jt/panc_CODEX/Islet-Explorer-Senior")
+SEN = Path(__file__).resolve().parents[2]  # repo root: scripts/senior/<file> -> ../../
 sys.path.insert(0, str(SEN / "scripts"))
 import compute_neighborhood_metrics as cnm  # noqa: E402
 

@@ -60,7 +60,7 @@ Branch pipelines:
 | Source | Location | Description |
 |--------|----------|-------------|
 | Single-cell H5AD | `single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad` | 2.6M cells, scVI-embedded (note: scVI training was not batch_key-aware; downstream Harmony in reaggregate_islets.py corrects donor variance for clustering and combined-mode pseudotime), phenotyped |
-| Groovy TSV exports | `panc_CODEX/results/groovy_exports/` | QuPath islet measurements (15 donors × 4 types) |
+| Groovy TSV exports | `~/panc_CODEX/results/groovy_exports/` *(Junior legacy — Senior uses no groovy)* | QuPath islet measurements (15 donors × 4 types); Senior derives composition/markers directly from the phenotyped single-cell H5AD (`~/IO60panc2nd/senior_data/singlecell_protein_phenotyped.h5ad`) instead |
 | GeoJSON boundaries | `data/json/*.geojson` | Islet segmentation polygons |
 | Spatial lookup | `data/islet_spatial_lookup.csv` | Islet centroid coordinates |
 

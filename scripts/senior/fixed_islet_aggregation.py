@@ -672,13 +672,14 @@ def merge_islet_peri_datasets(adata_islet, adata_peri):
     return adata_merged
 
 
-# Example usage:
+# Example usage (illustrative demo only — the Senior pipeline drives aggregation
+# via scripts/senior/aggregate_islets.py, which imports the functions above).
 if __name__ == "__main__":
     import scanpy as sc
     import os
 
-    # Load your scVI-processed single-cell data
-    base_dir = '/home/smith6jt/panc_CODEX'
+    # Load your scVI-processed single-cell data (override with ISLET_BASE_DIR)
+    base_dir = os.environ.get("ISLET_BASE_DIR", os.path.expanduser("~/IO60panc2nd"))
     adata_scvi = sc.read_h5ad(os.path.join(base_dir, 'single_cell_analysis',
                                             'CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad'))
 
