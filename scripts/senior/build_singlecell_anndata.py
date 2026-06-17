@@ -11,7 +11,7 @@ Junior's scimap input:
                         + donor metadata (Donor Status, Age, Sex, AAb)
   uns['all_markers']  = marker list
 
-Output: ~/IO60panc2nd/senior_data/singlecell_protein.h5ad
+Output: data/singlecell_protein.h5ad
 """
 from __future__ import annotations
 import argparse
@@ -23,9 +23,9 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as pads
 
-CELLS = Path.home() / "IO60panc2nd" / "senior_data" / "cells"
+CELLS = Path(__file__).resolve().parents[2] / "data" / "cells"
 DONOR_META = Path.home() / "IO60panc2nd" / "donor_metadata_panc.xlsx"
-OUT = Path.home() / "IO60panc2nd" / "senior_data" / "singlecell_protein.h5ad"
+OUT = Path(__file__).resolve().parents[2] / "data" / "singlecell_protein.h5ad"
 
 # Non-marker columns in the parquet (everything else is a marker mean).
 META_COLS = ["donor_id", "image", "object_id", "X_centroid", "Y_centroid",

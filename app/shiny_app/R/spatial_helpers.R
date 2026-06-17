@@ -14,7 +14,7 @@
 .donor_tissue_cache <- new.env(parent = emptyenv())
 
 # Path to per-donor tissue CSVs (legacy fallback)
-DONORS_DIR <- file.path("..", "..", "data", "donors")
+DONORS_DIR <- file.path("..", "..", "data", "app_data", "donors")
 
 #' Check whether the `tissue` DuckDB view exists in the shared connection.
 duckdb_tissue_available <- function() {

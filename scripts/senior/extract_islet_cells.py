@@ -17,7 +17,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 CELLS_OUT = SD / "app_data" / "cells"
 

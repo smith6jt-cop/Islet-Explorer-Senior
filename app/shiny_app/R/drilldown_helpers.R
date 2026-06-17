@@ -134,7 +134,7 @@ get_phenotype_palette <- function(name = "Original") {
 drilldown_cache <- new.env()
 
 # Path to per-islet cell CSVs
-CELLS_DIR <- file.path("..", "..", "data", "cells")
+CELLS_DIR <- file.path("..", "..", "data", "app_data", "cells")
 
 #' Check if single-cell drill-down data is available
 drilldown_available <- function() {

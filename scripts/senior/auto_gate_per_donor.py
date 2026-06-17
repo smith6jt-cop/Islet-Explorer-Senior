@@ -29,9 +29,9 @@ Smoke (one donor, capped):
   python scripts/senior/auto_gate_per_donor.py --donors 6374 --max-cells-per-donor 200000 \
          --out /tmp/pheno_6374_smoke.h5ad --diagnostics-pdf /tmp/gates_6374.pdf --validate-rescale
 Full:
-  python scripts/senior/auto_gate_per_donor.py --out ~/IO60panc2nd/senior_data/singlecell_protein_phenotyped.h5ad \
-         --gates-out ~/IO60panc2nd/senior_data/per_donor_gates.csv \
-         --diagnostics-pdf ~/IO60panc2nd/senior_data/per_donor_gate_diagnostics.pdf
+  python scripts/senior/auto_gate_per_donor.py --out data/singlecell_protein_phenotyped.h5ad \
+         --gates-out data/per_donor_gates.csv \
+         --diagnostics-pdf data/per_donor_gate_diagnostics.pdf
 """
 from __future__ import annotations
 import argparse
@@ -41,7 +41,7 @@ import pandas as pd
 import anndata as ad
 import scimap as sm
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 INP = BASE / "singlecell_protein.h5ad"
 RULES = Path(__file__).resolve().parent / "phenotype_rules_senior.csv"
 

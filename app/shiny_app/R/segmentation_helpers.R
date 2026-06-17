@@ -27,9 +27,9 @@ load_case_geojson <- function(case_id) {
   # Try each candidate: uncompressed first, then compressed
   json_path <- NULL
   for (cid in candidate_ids) {
-    p <- file.path("..", "..", "data", "json", paste0(cid, ".geojson"))
+    p <- file.path("..", "..", "data", "app_data", "json", paste0(cid, ".geojson"))
     if (file.exists(p)) { json_path <- p; break }
-    p <- file.path("..", "..", "data", "gson", paste0(cid, ".geojson.gz"))
+    p <- file.path("..", "..", "data", "app_data", "gson", paste0(cid, ".geojson.gz"))
     if (file.exists(p)) { json_path <- p; break }
   }
 
@@ -172,7 +172,7 @@ get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buf
 
 # Load segmentation annotations from data directory
 load_segmentation_data <- function() {
-  seg_path <- file.path("..", "..", "data", "annotations.tsv")
+  seg_path <- file.path("..", "..", "data", "app_data", "annotations.tsv")
   if (!file.exists(seg_path)) {
     cat("[SEGMENTATION] Annotations file not found at", seg_path, "\n")
     return(NULL)
@@ -204,7 +204,7 @@ load_segmentation_data <- function() {
 
 # Load spatial lookup for trajectory zoom-to-islet
 load_islet_spatial_lookup <- function() {
-  lookup_path <- file.path("..", "..", "data", "islet_spatial_lookup.csv")
+  lookup_path <- file.path("..", "..", "data", "app_data", "islet_spatial_lookup.csv")
   if (!file.exists(lookup_path)) {
     cat("[SPATIAL] islet_spatial_lookup.csv not found at", lookup_path, "\n")
     return(NULL)

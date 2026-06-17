@@ -17,7 +17,7 @@ X_centroid / Y_centroid, and X = raw MFI (for marker coherence). Optionally othe
 
 Usage:
   python scripts/senior/validate_phenotypes.py --input <phenotyped.h5ad> --label phenotype \
-         --out-prefix ~/IO60panc2nd/senior_data/validation
+         --out-prefix data/validation
 """
 from __future__ import annotations
 import argparse

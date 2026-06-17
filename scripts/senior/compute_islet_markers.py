@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 
 

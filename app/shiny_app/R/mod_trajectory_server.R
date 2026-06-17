@@ -8,9 +8,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     # ---------- H5AD Path Resolution ----------
     resolve_traj_path <- function() {
       cand <- c(
-        file.path("..", "..", "data", "adata_ins_root.h5ad"),
+        file.path("..", "..", "data", "app_data", "adata_ins_root.h5ad"),
         file.path("..", "..", "scripts", "adata_ins_root.h5ad"),
-        if (!is.null(project_root)) file.path(project_root, "data", "adata_ins_root.h5ad") else NULL,
+        if (!is.null(project_root)) file.path(project_root, "data", "app_data", "adata_ins_root.h5ad") else NULL,
         if (!is.null(project_root)) file.path(project_root, "scripts", "adata_ins_root.h5ad") else NULL,
         Sys.getenv("ADATA_PATH", unset = "")
       )

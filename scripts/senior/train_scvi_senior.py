@@ -20,7 +20,7 @@ SKIPPED to keep the latent row-aligned 1:1 with the 23.28M-cell phenotyped h5ad
 notebook and unused by scVI, so it is omitted.
 
 Reads via h5py (the 23 GB file is anndata-0.11 format; scvi-env's anndata is older).
-Writes the latent to senior_data/X_scVI_singlecell.npy (+ saves the model dir).
+Writes the latent to data/X_scVI_singlecell.npy (+ saves the model dir).
 
 Run in the `scvi-env` conda env (scvi-tools 1.4, torch+cuda). GPU: RTX 4000 Ada.
     python scripts/senior/train_scvi_senior.py --smoke   # 150k cells, 2 epochs (API/GPU check)
@@ -36,7 +36,7 @@ import pandas as pd
 import scanpy as sc
 import scvi
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 LATENT_OUT = SD / "X_scVI_singlecell.npy"
 MODEL_DIR = SD / "scvi_model_senior"

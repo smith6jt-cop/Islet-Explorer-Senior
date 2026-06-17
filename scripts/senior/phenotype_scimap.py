@@ -24,7 +24,7 @@ import anndata as ad
 import scimap as sm
 from sklearn.mixture import GaussianMixture
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 INP = BASE / "singlecell_protein.h5ad"
 SEEDED = BASE / "singlecell_protein_seeded.h5ad"
 PHENO = BASE / "singlecell_protein_phenotyped.h5ad"

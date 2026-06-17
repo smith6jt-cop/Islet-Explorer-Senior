@@ -26,7 +26,7 @@ per-donor log1p densities with gate lines) + <out_prefix>_cluster_heatmap.png.
 
 Usage:
   python scripts/senior/marker_reliability_audit.py --per-donor-cells 50000 \
-         --out-prefix ~/IO60panc2nd/senior_data/marker_audit
+         --out-prefix data/marker_audit
 """
 from __future__ import annotations
 import argparse
@@ -37,7 +37,7 @@ import anndata as ad
 import scanpy as sc
 from sklearn.mixture import GaussianMixture
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 INP = BASE / "singlecell_protein.h5ad"
 
 

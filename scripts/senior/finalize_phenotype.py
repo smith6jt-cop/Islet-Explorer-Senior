@@ -27,10 +27,10 @@ Inputs:
 
 Usage:
   python scripts/senior/finalize_phenotype.py \
-     --full-h5ad ~/IO60panc2nd/senior_data/singlecell_protein.h5ad \
-     --subsample-parquet ~/IO60panc2nd/senior_data/cluster_subsample_cells.parquet \
-     --astir-parquet ~/IO60panc2nd/senior_data/astir_full_cells.parquet \
-     --out ~/IO60panc2nd/senior_data/singlecell_protein_phenotyped.h5ad
+     --full-h5ad data/singlecell_protein.h5ad \
+     --subsample-parquet data/cluster_subsample_cells.parquet \
+     --astir-parquet data/astir_full_cells.parquet \
+     --out data/singlecell_protein_phenotyped.h5ad
 """
 from __future__ import annotations
 import argparse

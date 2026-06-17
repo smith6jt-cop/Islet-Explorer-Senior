@@ -92,26 +92,28 @@ clusters once, then propagate to all 23 M cells with a fast classifier on the no
 ```bash
 # Phase 0 — fast per-donor gating (scimap env)
 conda run -n scimap python scripts/senior/auto_gate_per_donor.py \
-    --out ~/IO60panc2nd/senior_data/singlecell_protein_phenotyped.h5ad \
-    --gates-out ~/IO60panc2nd/senior_data/per_donor_gates.csv \
-    --diagnostics-pdf ~/IO60panc2nd/senior_data/per_donor_gate_diagnostics.pdf
+    --out data/singlecell_protein_phenotyped.h5ad \
+    --gates-out data/per_donor_gates.csv \
+    --diagnostics-pdf data/per_donor_gate_diagnostics.pdf
 # (review the PDF; correct mis-gated markers in overrides.csv; re-run with --gate-overrides overrides.csv)
 
 # Phase 1a — cluster + annotate (scvi-env)
 conda run -n scvi-env python scripts/senior/cluster_annotate.py \
     --max-cells-per-donor 150000 --harmony --resolution 2.0 \
-    --out-prefix ~/IO60panc2nd/senior_data/cluster_subsample
+    --out-prefix data/cluster_subsample
 
 # Phase 1b — Astir cross-check (astir-env)
 conda run -n scvi-env python scripts/senior/rules_to_astir_yaml.py --out scripts/senior/astir_markers.yaml
 conda run -n astir-env python scripts/senior/run_astir.py --epochs 200 \
-    --markers scripts/senior/astir_markers.yaml --out-prefix ~/IO60panc2nd/senior_data/astir_full
+    --markers scripts/senior/astir_markers.yaml --out-prefix data/astir_full
 ```
 
 Envs: `scimap` (scimap 2.3.5, scanpy, harmonypy) · `scvi-env` (scanpy 1.11, leidenalg, harmonypy,
 torch+CUDA) · `astir-env` (astir 0.1.5, torch+CUDA, pyarrow).
 
-## 8b. Marker-reliability audit + curated multi-donor results (completed)
+> **⚠️ CORRECTION (2026-06-17, user ground truth):** Sections 8b–8d below describe a workflow that was *built and run mechanically*, but these data have **NOT** undergone successful, quality-controlled phenotyping. There was **no genuine expert cluster annotation** — `cluster_labels_curated.csv` was not a real expert review, and the "13/13 marker-coherent / validated end-to-end" results are a weak no-ground-truth coherence check, **not** sign-off. Treat every "completed / curated / validated" claim in §8b–8d as **draft/automated only**; the current app phenotypes are provisional. The methodology and empirical findings in §1–§7 remain valid. Genuine QC'd phenotyping (clustering + a real expert review; immune subtyping via Junior's scimap gating method; Astir skipped) is the approved plan `~/.claude/plans/review-the-recent-plans-sprightly-lagoon.md`.
+
+## 8b. Marker-reliability audit + multi-donor clustering (draft — NOT expert-QC'd)
 
 `marker_reliability_audit.py` scored all 59 markers across the 15 donors with two signals: gate
 statistics (per-donor GMM positive-fraction, separation, cross-donor CV) and a **gate-free
@@ -145,7 +147,7 @@ trains a classifier on the labelled subsample and propagates to all 23 M cells (
 Astir labels into a confidence + flag) → `validate_phenotypes.py` for the no-ground-truth checks →
 `aggregate_islets.py` unchanged.
 
-## 8d. Final run with curated cluster labels (completed)
+## 8d. Draft run with auto-curated cluster labels (NOT a genuine expert review)
 
 The 40 clusters were read against the full panel (high-specificity audit markers) and relabelled in
 `cluster_labels_curated.csv` (+ `_with_rationale.csv`) — fixing several auto-calls (cluster 30 = clearly
@@ -169,7 +171,7 @@ loss — near-complete beta destruction in T1D) and **immune fraction ND 9.3 % �
 clusters (higher resolution or targeted immune subclustering), and review the 14 `Unassigned` clusters on
 the image.
 
-## 8c. Full 23 M scale-up — validated end-to-end
+## 8c. Full 23 M scale-up — ran mechanically (NOT validated by expert QC)
 
 `finalize_phenotype.py` trained a classifier on the 484k labelled subsample cells and propagated to all
 **23,280,387 cells** in chunks (mean classifier confidence **0.906**; 13 GB phenotyped h5ad written),
@@ -181,7 +183,7 @@ review (curated `leiden,phenotype` CSV) is what produces the final phenotyping.
 
 The 59-plex panel cannot be phenotyped by any plug-and-play automated method because several markers are
 intrinsically poorly gated (SOX2/EpCAM over; PanCK/INS/CD3e under) — triangulated across gating, Astir,
-and the marker audit. The robust path, now implemented and validated end-to-end, is: **cluster reliably
+and the marker audit. The robust path (scripts implemented; the human cluster-review step has **not** genuinely been done — see §8b correction) is: **cluster reliably
 (multivariate, Harmony-batch-corrected, audit-curated features) → auto-suggest cluster labels + subtype
 alternatives + confidence → review ~40 clusters on the heatmap → propagate to 23 M + fuse methods +
 validate.** This replaces the 59-slider × 15-donor napari grind with ~40 heatmap-guided cluster

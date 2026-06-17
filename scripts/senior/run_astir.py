@@ -27,7 +27,7 @@ import pandas as pd
 import anndata as ad
 import yaml
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 INP = BASE / "singlecell_protein.h5ad"
 YAML_DEFAULT = Path(__file__).resolve().parent / "astir_markers.yaml"
 

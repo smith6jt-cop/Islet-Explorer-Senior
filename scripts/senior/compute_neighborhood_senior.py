@@ -5,7 +5,7 @@
 enrichment-z / min-distance) with Senior's phenotype labels and data paths. No
 groovy. Run in the `scimap` conda env.
 
-Output: ~/IO60panc2nd/senior_data/neighborhood_metrics.csv
+Output: data/neighborhood_metrics.csv
 """
 import sys
 from pathlib import Path
@@ -14,7 +14,7 @@ SEN = Path(__file__).resolve().parents[2]  # repo root: scripts/senior/<file> ->
 sys.path.insert(0, str(SEN / "scripts"))
 import compute_neighborhood_metrics as cnm  # noqa: E402
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 
 # Senior's immune phenotype labels (drives the aggregate immune_* metrics).
 cnm.IMMUNE_TYPES = [

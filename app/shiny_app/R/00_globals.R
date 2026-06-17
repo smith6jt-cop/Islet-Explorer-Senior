@@ -129,9 +129,9 @@ try({
 }, silent = TRUE)
 
 # Path constants
-master_path <- file.path("..", "..", "data", "master_results.xlsx")
-h5ad_path   <- file.path("..", "..", "data", "islet_explorer.h5ad")
-parquet_dir <- file.path("..", "..", "data", "parquet")
+master_path <- file.path("..", "..", "data", "app_data", "master_results.xlsx")
+h5ad_path   <- file.path("..", "..", "data", "app_data", "islet_explorer.h5ad")
+parquet_dir <- file.path("..", "..", "data", "app_data", "parquet")
 project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE), error = function(e) NULL)
 
 # ---- DuckDB-backed data backend (Phase 1) ---------------------------------
@@ -456,7 +456,7 @@ islet_png_filename <- function(stem) {
 # hand-written descriptions in PHENOTYPE_RESIDUALS below. The alias map
 # normalises PHENOTYPE_COLORS keys -> CSV keys for the four known mismatches.
 
-PHENOTYPE_RULES_PATH <- file.path("..", "..", "data", "phenotype_rules.csv")
+PHENOTYPE_RULES_PATH <- file.path("..", "..", "data", "app_data", "phenotype_rules.csv")
 
 # PHENOTYPE_COLORS-form -> CSV-form (and back via reverse lookup). Used to
 # resolve a UI label to its rule row.

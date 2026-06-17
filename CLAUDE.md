@@ -41,11 +41,15 @@ app/shiny_app/
   app_original.R               # Backup of pre-modularization monolithic app (5,397 lines)
 ```
 
+### Data Directory Layout (Senior, relocated Jun 2026)
+
+`data/` is now a **real directory at the repo root** (was `~/IO60panc2nd/senior_data`, one level up; moved in and gitignored — never committed; ~21 GB). It holds the raw/intermediate pipeline files at top level (`singlecell_protein.h5ad`, `cells/` parquet, `islet_explorer_senior.h5ad`, `cluster_*`, `marker_audit_*`, …) **plus** a curated **`data/app_data/`** subdirectory that is the app's view (per-islet drill-down CSVs, GeoJSONs, `islet_spatial_lookup.csv`, and relative symlinks `islet_explorer.h5ad`→`../islet_explorer_senior.h5ad`, `adata_ins_root.h5ad`→`../islets_core_senior.h5ad`, `parquet`, `phenotype_rules.csv`). **The app reads from `data/app_data/`** (R paths use `file.path("..","..","data","app_data", …)`); the **Senior pipeline scripts** read/write `data/` top-level via `Path(__file__).resolve().parents[2] / "data"` (move-proof, no absolute paths).
+
 ### Data Loading (H5AD with Excel Fallback)
 
 The app uses `load_master_auto()` which tries H5AD first, falls back to Excel:
-- `h5ad_path` -> `data/islet_explorer.h5ad` (built by `scripts/build_h5ad_for_app.py`)
-- `master_path` -> `data/master_results.xlsx` (built by `scripts/build_master_excel.py`)
+- `h5ad_path` -> `data/app_data/islet_explorer.h5ad` (Senior; -> `../islet_explorer_senior.h5ad`)
+- `master_path` -> `data/app_data/master_results.xlsx` (Excel fallback; absent in Senior)
 
 Both produce the same `list(markers, targets, comp, lgals3, phenotypes, donor_demographics, neighborhood)` structure consumed by `prep_data()`. The `phenotypes`, `donor_demographics`, and `neighborhood` elements are extracted from H5AD `.obs` and are `NULL` when loading from Excel (graceful fallback).
 

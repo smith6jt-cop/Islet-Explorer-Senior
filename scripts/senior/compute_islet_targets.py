@@ -16,7 +16,7 @@ import anndata as ad
 
 BASE = Path.home() / "IO60panc2nd"
 ANN = BASE / "AnnotationsMeasurements.csv"
-SD = BASE / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 
 
 def donor_of(img):

@@ -8,8 +8,8 @@ h5ad; expression aggregated is the RAW MFI (from .raw), grouped by imageid+Islet
 (core) / _exp20um (peri), require_paired=True (same convention as Junior's 5,214).
 
 Outputs:
-  ~/IO60panc2nd/senior_data/islets_core_senior.h5ad
-  ~/IO60panc2nd/senior_data/islets_peri_senior.h5ad
+  data/islets_core_senior.h5ad
+  data/islets_peri_senior.h5ad
 """
 from __future__ import annotations
 import sys
@@ -21,7 +21,7 @@ import anndata as ad
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fixed_islet_aggregation import create_islet_dataset_fixed
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 PHENO = BASE / "singlecell_protein_phenotyped.h5ad"
 
 # map Senior's morphology column names -> the names create_islet_dataset_fixed expects

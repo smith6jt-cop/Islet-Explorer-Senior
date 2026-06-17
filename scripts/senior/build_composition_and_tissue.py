@@ -3,13 +3,13 @@
 3D Senior: stream the phenotyped single-cell h5ad ONCE (per contiguous donor
 block) to produce two app inputs at once:
 
-  1. senior_data/islet_composition.parquet
+  1. data/islet_composition.parquet
        per-core-islet hormone-coexpression counts (cells_total, Ins/Glu/Stt
        _single/_any, Multi_Pos, Triple_Neg) — the 'composition' groovy sheet
        analog. Hormone positivity = scimap-rescaled X > 0.5 (the gate), same
        convention as compute_islet_markers.py.
 
-  2. senior_data/parquet/tissue/case_id=<donor>/part-0.parquet
+  2. data/parquet/tissue/case_id=<donor>/part-0.parquet
        per-donor tissue cells for the Spatial tab scatter, with EXACTLY the
        columns load_donor_tissue() selects: X_centroid, Y_centroid, phenotype,
        cell_region, islet_name.
@@ -28,7 +28,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 TISSUE_ROOT = SD / "parquet" / "tissue"
 

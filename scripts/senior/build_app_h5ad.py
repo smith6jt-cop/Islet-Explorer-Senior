@@ -4,7 +4,7 @@
 mirroring Junior's data/islet_explorer.h5ad schema (groovy .uns sheets +
 enriched .obs) but built from the Senior islet-level datasets (NO groovy export).
 
-Inputs (senior_data/):
+Inputs (data/):
   islets_core_senior.h5ad   -- 9,130 core islets: obs prop_*/count_* (25 phenos),
                                demographics, areas/diam, dpt/DC/leiden, posfrac_*;
                                obsm X_umap / marker_pos_frac (59) / phenotype_*
@@ -14,7 +14,7 @@ Inputs (senior_data/):
   neighborhood_metrics.csv  -- 108 peri-islet metrics keyed by combined_islet_id
 
 Output:
-  senior_data/islet_explorer_senior.h5ad
+  data/islet_explorer_senior.h5ad
 
 Groovy sheets reproduced (consumed by prep_data() via reconstruct_groovy_df):
   targets     : per islet x {core,band} x class{Nerve,Capillary,Lymphatic}
@@ -33,7 +33,7 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 OUT = SD / "islet_explorer_senior.h5ad"
 AAB_COLS = ["AAb_GADA", "AAb_IA2A", "AAb_ZnT8A", "AAb_mIAA"]
 TARGET_CLASSES = ["Nerve", "Capillary", "Lymphatic"]  # structural classes (areas deferred)

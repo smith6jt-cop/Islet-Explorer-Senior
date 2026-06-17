@@ -23,7 +23,7 @@ import pandas as pd
 import scanpy as sc
 from scipy.stats import spearmanr
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 F = SD / "islets_core_senior.h5ad"
 
 

@@ -28,7 +28,7 @@ from pathlib import Path
 import duckdb
 
 CSV_DEFAULT = Path.home() / "IO60panc2nd" / "Cellmeasurements.csv"
-OUT_DEFAULT = Path.home() / "IO60panc2nd" / "senior_data"
+OUT_DEFAULT = Path(__file__).resolve().parents[2] / "data"
 
 
 def header_cols(csv_path: Path) -> list[str]:

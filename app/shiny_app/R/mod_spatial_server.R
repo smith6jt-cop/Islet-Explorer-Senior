@@ -1668,7 +1668,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     .kde_data_env <- new.env(parent = emptyenv())
     load_immune_kde_data <- function() {
       if (!is.null(.kde_data_env$data)) return(.kde_data_env$data)
-      kde_path <- file.path("..", "..", "data", "immune_distance_kde.csv")
+      kde_path <- file.path("..", "..", "data", "app_data", "immune_distance_kde.csv")
       if (!file.exists(kde_path)) return(NULL)
       .kde_data_env$data <- read.csv(kde_path, stringsAsFactors = FALSE)
       .kde_data_env$data

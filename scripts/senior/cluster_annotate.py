@@ -24,7 +24,7 @@ Smoke (single donor, no batch correction needed):
          --resolution 1.5 --out-prefix /tmp/clust_6374
 Subsample-cluster for full-cohort (stratified, then propagate separately):
   python scripts/senior/cluster_annotate.py --max-cells-per-donor 150000 --harmony \
-         --resolution 1.5 --out-prefix ~/IO60panc2nd/senior_data/cluster_subsample
+         --resolution 1.5 --out-prefix data/cluster_subsample
 """
 from __future__ import annotations
 import argparse
@@ -34,7 +34,7 @@ import pandas as pd
 import anndata as ad
 import scanpy as sc
 
-BASE = Path.home() / "IO60panc2nd" / "senior_data"
+BASE = Path(__file__).resolve().parents[2] / "data"
 INP = BASE / "singlecell_protein.h5ad"
 RULES = Path(__file__).resolve().parent / "phenotype_rules_senior.csv"
 

@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-SD = Path.home() / "IO60panc2nd" / "senior_data"
+SD = Path(__file__).resolve().parents[2] / "data"
 RESULTS = Path.home() / "IO60panc2nd" / "results"
 APPDATA = SD / "app_data"
 JSON_OUT = APPDATA / "json"
