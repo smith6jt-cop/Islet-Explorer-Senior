@@ -91,7 +91,7 @@ def parse_rules(rules_path):
 AUDIT_BACKGROUND = {"SOX2", "EpCAM", "E_cadherin", "DAPI", "Beta_actin", "Bcl_2", "PCNA", "Ki67"}
 
 
-def annotate_cluster(zrow, children, sig, lineage_floor=0.3, lineage_margin=0.1,
+def annotate_cluster(zrow, children, sig, lineage_floor=0.3, lineage_margin=0.05,
                      drop=AUDIT_BACKGROUND, root="all"):
     """Annotate a cluster's mean z-profile against the rules hierarchy. Gives a best-guess for
     EVERY cluster (a starting point for heatmap QC) rather than rejecting most to 'Unassigned'.
@@ -126,7 +126,11 @@ def annotate_cluster(zrow, children, sig, lineage_floor=0.3, lineage_margin=0.1,
     ranked_L = sorted(((L, lin_strength(L)) for L in lineages), key=lambda kv: kv[1], reverse=True)
     n_strong = sum(1 for L in lineages if max((zrow[m] for m in opos(L)), default=-9) > 1.0)
     topL, topS = ranked_L[0]
-    lin_margin = float(topS - (ranked_L[1][1] if len(ranked_L) > 1 else topS - 1))
+    # margin only vs lineages with >=2 own-pos markers: a degenerate single-marker
+    # lineage (e.g. Neural=B3TUBB) must not spuriously win the near-tie test and
+    # dump a real cluster to "ambiguous".
+    others = [s for L, s in ranked_L if L != topL and len(opos(L)) >= 2]
+    lin_margin = float(topS - (max(others) if others else topS - 1))
     if topS < lineage_floor:
         return "Unassigned (low signal)", ["Unassigned"], lin_margin, n_strong, []
     if lin_margin < lineage_margin:    # near-tie across lineages -> genuinely ambiguous/non-specific
@@ -166,9 +170,16 @@ def load_subset(path, donors, max_cells_per_donor, donor_col):
 
 
 def normalize_embed(adata, donor_col, cofactor, n_pcs, use_harmony, resolution, seed=0,
-                    exclude_markers=None):
-    X = adata.X if isinstance(adata.X, np.ndarray) else adata.X.toarray()
-    X = np.arcsinh(np.asarray(X, dtype=np.float64) / cofactor)
+                    exclude_markers=None, winsor_pct=99.5):
+    X = np.asarray(adata.X if isinstance(adata.X, np.ndarray) else adata.X.toarray(), dtype=np.float64)
+    # Tail-pulling: this panel's raw MFI is heavy-tailed, so a few very bright cells
+    # inflate the per-marker mean/SD and wash the dim majority toward 0 (binary lineage
+    # markers become uninterpretable). Winsorize each marker's bright tail, then arcsinh
+    # with a cofactor matched to the MFI scale (~150, not 5 — medians are 10s-100s).
+    if winsor_pct is not None and winsor_pct < 100:
+        hi = np.percentile(X, winsor_pct, axis=0)
+        X = np.minimum(X, hi)
+    X = np.arcsinh(X / cofactor)
     adata.layers["arcsinh"] = X.astype(np.float32)       # keep ALL markers for annotation scoring
     # per-marker z-score for the embedding; high-background markers (per the reliability audit) may be
     # dropped from the clustering FEATURES while staying in the arcsinh layer for rule scoring.
@@ -200,7 +211,10 @@ def main(argv=None):
     ap.add_argument("--donor-col", default="imageid")
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--max-cells-per-donor", type=int, default=None)
-    ap.add_argument("--cofactor", type=float, default=5.0)
+    ap.add_argument("--cofactor", type=float, default=150.0,
+                    help="arcsinh cofactor matched to MFI scale (raw medians are 10s-100s, so ~150, not 5)")
+    ap.add_argument("--winsor-pct", type=float, default=99.5,
+                    help="per-marker upper-tail winsorize percentile (pulls heavy tails in; <100 to enable)")
     ap.add_argument("--n-pcs", type=int, default=30)
     ap.add_argument("--harmony", action="store_true")
     ap.add_argument("--resolution", type=float, default=2.0)
@@ -217,7 +231,7 @@ def main(argv=None):
         raise SystemExit(f"[err] rule markers missing: {missing}")
 
     adata, rep = normalize_embed(adata, a.donor_col, a.cofactor, a.n_pcs, a.harmony, a.resolution,
-                                 exclude_markers=a.exclude_markers)
+                                 exclude_markers=a.exclude_markers, winsor_pct=a.winsor_pct)
 
     # cluster-mean arcsinh, z-scored across clusters
     arc = adata.layers["arcsinh"]

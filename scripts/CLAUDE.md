@@ -82,3 +82,71 @@ python scripts/extract_per_donor_tissue.py
 # Build enriched H5AD (merges trajectory + groovy + neighborhood + Leiden)
 python scripts/build_h5ad_for_app.py
 ```
+
+## RESTORE per-image intensity normalization (Jun 2026)
+
+`scripts/senior/restore_normalize.py` applies **RESTORE** (Chang Lab / OHSU) to the
+59-plex protein single-cell data for nine mutually-exclusive markers spanning the broad
+pancreas cell types (`DEFAULT_MARKER_PAIRS`, `[target ← reference]`):
+- **immune** (background from each other): CD3e (T)←CD163, CD20 (B)←CD3e, CD163 (mac)←CD3e
+- **exocrine** Pan_Cytokeratin ← Vimentin · **mesenchyme** Vimentin ← Pan_Cytokeratin
+  (epithelial/stromal Spearman ≈ −0.5, the broadest exclusivity in the tissue)
+- **endocrine** INS (β) ← Pan_Cytokeratin · GCG (α) ← Pan_Cytokeratin
+- **endothelium** CD31 ← Pan_Cytokeratin · **muscle/pericyte** SMA ← Pan_Cytokeratin
+
+Pan_Cytokeratin marks ~91% of cells (acinar/ductal) and is cleanly negative in every
+non-epithelial population → the abundant universal reference. **CD99 was dropped** (96%+
+detectable; not lineage-exclusive in this panel — was a poor islet proxy). Markers vetted
+from data: CD56/CD34/EpCAM/SST/IAPP/CD11b/B3TUBB rejected (too broad / weak signal).
+
+RESTORE pairs each target with a mutually-exclusive *reference* whose positive cells are,
+by biology, target-negative, so the target intensity in that population is background; per
+image it splits background vs signal with KMeans/GMM/SSC and sets `threshold = mean + 3·σ`
+of the target-negative cluster. Corrects per-image autofluorescence drift; operates on
+**RAW MFI** (RESTORE's `idx_select` uses an absolute `>50` floor — do NOT log-transform).
+
+**Vendored, not pip-installed** (its `setup.py` is a broken placeholder template):
+```bash
+git clone https://github.com/smith6jt-cop/RESTORE.git external/RESTORE   # pinned @ 38df59b
+pip install spams-bin   # SSC model needs `spams`; prebuilt wheel matched cp313 in scvi-env
+```
+`external/` is gitignored. The script injects lightweight stubs for RESTORE's
+figure/notebook-only imports (`holoviews`, `selenium`, `tqdm.notebook`) so the vendored
+source runs headless **unmodified** with `save_figs=False`, and prepends
+`external/RESTORE/python_code` to `sys.path` (resolves both `RESTORE` and the bundled
+`ssc` sparse-subspace-clustering namespace package).
+
+**Model choice — SSC (default).** All three models are computed and saved, but on this
+panel KMeans/GMM put the abundant immune markers (CD3e/CD20/CD163) at/above the 99.9th
+intensity percentile (~0.3–1% positive — implausible). SSC lands at the background→signal
+shoulder (plausible per-image fractions). `--model` overrides.
+
+**Robustness guard (default on).** Some image×marker SSC thresholds are degenerate —
+abundant markers (Pan_Cytokeratin/Vimentin) overshoot to the tail, INS undershoots
+(24/135 in the 9-marker run, e.g. Pan_CK/Vim → 3000–6400 vs ~850 median). `--robust`
+(default) imputes any threshold `>factor×` or `<1/factor×` the cohort median (default
+factor 3) with the cohort median, logged per imputation; raw per-model thresholds in the
+CSV are left untouched. `--no-robust` keeps pure per-image RESTORE thresholds.
+
+**Biological validation (independent).** Per-image RESTORE fractions recover both T1D
+hallmarks: β-cell INS⁺ falls ND 3.4% → Aab+ 2.3% → T1D 0.5% (insulin loss), and T-cell
+CD3e⁺ rises ND 0.8% → T1D 3.0% (immune infiltration). Note Pan_Cytokeratin⁺ (~20–35%) is
+conservative for the exocrine compartment — `mean + 3σ` flags only high-confidence cells.
+
+Mutually-exclusive pairs live in the `DEFAULT_MARKER_PAIRS` constant (`[target,
+reference]`); override with `--marker-pairs 'CD3e:CD163,INS:Pan_Cytokeratin'`.
+
+Reads `data/cells/donor_id=*/data_0.parquet` (raw MFI); writes:
+- `data/restore/threshs.pkl` — native RESTORE `threshs[batch][scene][marker][model]`
+- `data/restore_thresholds.csv` — tidy, all 3 models × 15 images × 9 markers (405 rows)
+- `data/restore_gated/donor_id=*/data_0.parquet` — per cell, for each marker: `<m>_pos`,
+  `<m>_norm` (= raw / threshold, so threshold → 1.0, harmonized across images), `<m>_log2r`
+- `data/restore/qc/*.png` (per-image histograms + threshold + positive-fraction heatmaps)
+  and `data/restore/positive_fractions.csv`
+
+```bash
+conda activate scvi-env
+python scripts/senior/restore_normalize.py                                # full 9-marker run (~5 min)
+python scripts/senior/restore_normalize.py --limit-scenes 1 --skip-apply  # single-image dry run
+python scripts/senior/restore_normalize.py --reuse-threshs --no-robust    # re-apply, pure thresholds (fast)
+```
