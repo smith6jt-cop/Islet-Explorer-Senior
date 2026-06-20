@@ -149,4 +149,60 @@ conda activate scvi-env
 python scripts/senior/restore_normalize.py                                # full 9-marker run (~5 min)
 python scripts/senior/restore_normalize.py --limit-scenes 1 --skip-apply  # single-image dry run
 python scripts/senior/restore_normalize.py --reuse-threshs --no-robust    # re-apply, pure thresholds (fast)
+python scripts/senior/restore_normalize.py --donors 6539 --no-robust \
+    --cells-dir data/cells_redsea --out-dir data/restore_redsea ...       # re-RESTORE on REDSEA-corrected cells
 ```
+
+## Pixel-level REDSEA spillover correction (Jun 2026)
+
+`scripts/senior/redsea_full.py` (scvi-env; needs `imagecodecs` for LZW qptiff decode) corrects
+**lateral signal spillover** across shared cell boundaries — the cause of the "pan-positive
+bright" cells that produced the fake "Unassigned" fraction. It reimplements REDSEA (Bai et al.
+2021) **scalably** (the reference `redseapy` uses a dense cellNum² matrix + whole-image imread +
+pixel loops — impossible at 0.5–2.6M cells/image). Validated on 6539; see the three figures
+`data/redsea_{full_validation,residual_investigation,doublet_investigation}.png`.
+
+**Step A — per-cell geometry export (`~/IO60panc2nd/scripts/export_cells_geojson.groovy`).**
+Headless QuPath Groovy: `getDetectionObjects()` → `exportObjectsToGeoJson(cells, path,
+"FEATURE_COLLECTION", "EXCLUDE_MEASUREMENTS")`. Each feature `id` == `object_id` UUID; polygon
+coords are full-res pixels. **Close the QuPath GUI first** (it holds ~400 GB RAM). QuPath `script`
+accepts only ONE `--image`, so loop per donor:
+```bash
+while IFS= read -r img; do
+  ~/QuPath/bin/QuPath script --project ~/IO60panc2nd/project.qpproj --image "$img" \
+     ~/IO60panc2nd/scripts/export_cells_geojson.groovy
+done < donor_images.txt          # -> data/redsea_scratch/geojson/cells__<image>.geojson
+```
+
+**Step B — rasterize + compensate (`redsea_full.py`).** Per donor: rasterize GeoJSON → int32
+instance mask (skimage.draw, NOT cv2 which can't fill uint32) → read qptiff series0/level0 ONE
+channel at a time (`tifffile`) → whole-cell + 1-px-boundary `np.bincount` sums → 8-connected
+sparse contact matrix (gap-bridged: cells aren't gapless, ~23% of px are foreground) → compensate
+→ `data/cells_redsea/donor_id=*/data_0.parquet` (`object_id` + 59 corrected means). Alignment
+verified: full-res means reproduce QuPath's own at r≈0.998 (join on `object_id`, never coords).
+```bash
+python scripts/senior/redsea_full.py --donor 6539 --keep-mask          # one donor (~8 min, 59 ch)
+python scripts/senior/redsea_full.py --donor 6539 --save-intermediates # dump data/edge/contact for fast re-tuning
+python scripts/senior/redsea_full.py --donor 6539 --from-intermediates --alpha 0.5  # re-compensate (instant)
+python scripts/senior/redsea_full.py --all
+```
+
+**Compensation math + the two non-obvious decisions (empirical, validated):**
+`corrected_mean = clip(data − α·(F @ edge), 0) / cell_area_px`, where `data`/`edge` are whole-cell
+/ 1-px-boundary channel SUMS, `F` = row-normalized contact (`F @ edge` is the *recipient* form —
+NOT `F.T`).
+- **Subtract-ONLY (`--comp-mode 0`, default), not textbook subtract+reinforce.** Reinforce
+  (`+edge`) is a structural **no-op in confluent tissue** at every band thickness — touching cells
+  share an ambiguous boundary so `+edge` cancels `−F@edge`. Reinforce only helps background-separated
+  MIBI cells.
+- **Thin 1-px band (`--edge-radius 0`, default) + `α=1`.** A thick band over-erodes small cells; the
+  1-px rim is the natural boundary, and α=1 is full subtraction (no arbitrary tuning).
+
+**Validate (`redsea_full_validate.py`)** with **broad mutually-exclusive compartments**
+(Epithelial / Immune / Endocrine / Stromal-vascular) — NOT the 9 individual markers, because
+Vimentin/CD31/SMA are not lineage-exclusive (CD31+SMA+Vimentin = a real vessel wall). On 6539:
+impossible cross-compartment≥3 0.46→0.05% and multi-immune 0.59→0.06% (~89% removed), single-
+compartment cells 90% preserved. Residual co-expression is ~90% real Vimentin⁺ vascular biology;
+"Beta+Alpha doublets" are residual islet-core spillover (normal-sized, not merges), 76% resolved by
+`argmax(INS,GCG)`. Then re-run `restore_normalize.py --cells-dir data/cells_redsea` (cohort robust)
+and proceed to broad-lineage argmax phenotyping.
