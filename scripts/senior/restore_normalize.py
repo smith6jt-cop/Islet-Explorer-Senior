@@ -3,23 +3,52 @@
 RESTORE per-image intensity normalization of mutually-exclusive markers.
 
 Applies RESTORE (Chang Lab / OHSU; github.com/smith6jt-cop/RESTORE, vendored at
-external/RESTORE @ commit 38df59b) to the 59-plex protein single-cell data, for the
-mutually-exclusive markers spanning the broad pancreas cell types:
-    immune:      CD3e (T), CD20 (B), CD163 (macrophage)  -- background from each other
+external/RESTORE @ commit 38df59b) to the 59-plex protein single-cell data. **Pan_Cytokeratin**
+(the abundant ~91% acinar majority) is the universal negative control for markers whose
+background is brightness/autofluorescence-driven; the lone CD3e exception keeps a clean
+exclusive immune reference (see below):
     exocrine:    Pan_Cytokeratin (acinar/ductal)         -- background from Vimentin
-    mesenchyme:  Vimentin (stroma/fibroblast)            -- background from Pan_Cytokeratin
+    mesenchyme:  Vimentin (stroma/fibroblast)            -- background from acinar (Pan_CK)
     endocrine:   INS (beta), GCG (alpha)                 -- background from acinar (Pan_CK)
     endothelium: CD31                                    -- background from acinar (Pan_CK)
     muscle:      SMA (smooth muscle/pericyte)            -- background from acinar (Pan_CK)
-(CD99 was dropped -- broadly expressed, not lineage-exclusive in this panel. See
-DEFAULT_MARKER_PAIRS; override with --marker-pairs.)
+    immune:      CD20 (B), CD163 (macrophage)            -- background from acinar (Pan_CK)
+                 CD3e (T)                                -- background from CD163 (clean exclusive)
+(CD99 was dropped -- broadly expressed, not lineage-exclusive in this panel.)
 
 RESTORE pairs each target marker with a mutually-exclusive *reference* marker. Cells
 positive for the reference are, by biology, negative for the target, so the target
 intensity within the reference-positive population is pure background/autofluorescence.
 Per image, three 2-cluster models (KMeans, GMM, SSC) split background vs signal and the
 threshold is set to  mean + 3*sigma  of the target intensity in the target-negative
-cluster. This corrects per-image autofluorescence drift that biases fixed-cutoff gating.
+cluster. This corrects per-image autofluorescence drift AND the per-cell background that
+scales with cell brightness/autofluorescence, both of which bias fixed-cutoff gating.
+
+WHY Pan_Cytokeratin for CD20/CD163 (the fix, Jun 2026): their background SCALES WITH CELL
+BRIGHTNESS (CD20 MFI vs cytokeratin/DAPI Pearson r~0.5), so bright acinar cells carry elevated
+CD20/CD163 background. The negative control must SPAN that bright range. Pan_Cytokeratin+
+acinar cells are abundant, immune-negative, and bright (3.4x brighter in Ker8_18 than CD3e+
+T cells) -> they represent the brightness-scaling background. The previous "immune-vs-immune"
+references (CD20<-CD3e, CD163<-CD3e) used the dim, rare T-cell population as the negative
+control, so RESTORE never saw the bright-acinar background -> threshold too low -> ~55%+ of the
+Immune broad-lineage class in donor 6539 were bright acinar FALSE POSITIVES. Pan_Cytokeratin
+removes them (CD20+ -87%) AND sharpens the disease signal (CD20/CD163 T1D/ND ratio 1.3x->~2.5x).
+
+WHY CD3e is the EXCEPTION (keeps CD163, verified on the real cohort): CD3e was never a
+bright-acinar false-positive (strong, specific; norm~3). Pan_Cytokeratin is POSITIVELY
+correlated with CD3e (autofluorescence coupling, ref-qc pearson ~0.39), which drags the SSC
+threshold too low and DESTROYS the validated T-cell infiltration biology (T-gain collapses
+4.5x->0.9x in the real SSC cohort — a crude mean+3sigma approximation had wrongly suggested it
+improved). CD3e keeps CD163 (macrophages — cleanly mutually exclusive, negatively correlated),
+preserving ND 0.9% -> T1D 4.1% (4.5x). Principle: Pan_CK references the markers whose background
+is brightness/autofluorescence-driven; a clean specific marker keeps a clean exclusive reference.
+See `reference_exclusivity_qc()` for the data-driven audit (svd_ratio, pearson sign, abundance).
+
+Deliberate deviation from the paper's literal red-flag: RESTORE (PMC7062831) recommends
+rejecting POSITIVELY-correlated "mutually-exclusive" pairs as non-specific staining. Here
+the positive CD20<->Pan_CK correlation IS the autofluorescence/brightness coupling we WANT
+RESTORE to learn from (not antibody cross-reactivity), so Pan_Cytokeratin is kept as the
+immune reference despite the positive correlation. The QC reports it; it does not auto-reject.
 
 Operates on RAW QuPath mean intensities (RESTORE's idx_select uses an absolute >50 floor
 and clusters on raw 2D intensities -- do NOT log-transform the input).
@@ -66,23 +95,34 @@ BASE = Path(__file__).resolve().parents[2] / "data"
 VENDOR = Path(__file__).resolve().parents[2] / "external" / "RESTORE" / "python_code"
 
 # Default mutually-exclusive pairs: [target, reference].
-# The reference's positive cells define the target's background. References are chosen
-# to be abundant, cleanly target-negative populations (T cells / macrophages).
+# The reference's positive cells define the target's background. Pan_Cytokeratin (the abundant
+# ~91% acinar majority) is the UNIVERSAL negative control: abundant, cleanly target-negative for
+# every non-epithelial lineage, AND bright (so it spans the brightness-scaling background). Every
+# lineage marker references it, except Pan_Cytokeratin itself (reciprocal Vimentin).
 DEFAULT_MARKER_PAIRS = [
-    # --- immune lineages (background from other immune cells) ---
-    ["CD3e",            "CD163"],            # T cells              <- macrophages
-    ["CD20",            "CD3e"],             # B cells              <- T cells
-    ["CD163",           "CD3e"],             # macrophages         <- T cells
-    # --- broad pancreas compartments. Pan_Cytokeratin marks ~91% of cells (acinar/
-    #     ductal exocrine) and is cleanly negative in every non-epithelial population,
-    #     so it is the abundant universal reference; epithelium uses the reciprocal
-    #     mesenchymal Vimentin (epithelial/stromal corr ~ -0.5, the broadest exclusivity)
+    # --- exocrine / mesenchyme reciprocal pair ---
     ["Pan_Cytokeratin", "Vimentin"],         # exocrine epithelium <- mesenchyme
-    ["Vimentin",        "Pan_Cytokeratin"],  # mesenchyme/stroma   <- epithelium
+    ["Vimentin",        "Pan_Cytokeratin"],  # mesenchyme/stroma   <- acinar
+    # --- endocrine / endothelium / muscle <- acinar (validated; recovers beta-loss) ---
     ["INS",             "Pan_Cytokeratin"],  # endocrine beta      <- acinar
     ["GCG",             "Pan_Cytokeratin"],  # endocrine alpha     <- acinar
     ["CD31",            "Pan_Cytokeratin"],  # endothelium         <- acinar
     ["SMA",             "Pan_Cytokeratin"],  # smooth muscle/pericyte <- acinar
+    # --- immune (Jun 2026 fix). CD20/CD163 were the false-positive problem: their background is
+    #     bright-acinar AUTOFLUORESCENCE (MFI scales with cell brightness), so the dim T-cell
+    #     reference missed it -> bright acinar cells false-positive. Pan_Cytokeratin+ acinar is the
+    #     bright, abundant negative control that captures it -> false positives removed AND sharper
+    #     ND->T1D signal (CD20 T1D/ND 1.3x->2.5x, CD163 1.3x->2.4x). CD3e is the EXCEPTION: it was
+    #     already clean/specific (never a bright-acinar false-positive), and Pan_Cytokeratin is
+    #     POSITIVELY correlated with CD3e (autofluorescence coupling) which drags its SSC threshold
+    #     too low and DESTROYS the validated T-cell infiltration biology (real cohort: T-gain
+    #     4.5x->0.9x). So CD3e keeps a cleanly mutually-exclusive immune reference (CD163, negatively
+    #     correlated) that preserves the T-gain. Principle: Pan_CK references the markers whose
+    #     background is brightness/autofluorescence-driven; a clean specific marker keeps a clean
+    #     exclusive reference. ---
+    ["CD3e",            "CD163"],            # T cells             <- macrophages (unchanged; Pan_CK breaks T-gain)
+    ["CD20",            "Pan_Cytokeratin"],  # B cells             <- acinar (was CD3e)
+    ["CD163",           "Pan_Cytokeratin"],  # macrophages         <- acinar (was CD3e)
 ]
 
 MODEL_COLORS = {"KMeans": "magenta", "GMM": "blue", "SSC": "green"}
@@ -131,6 +171,28 @@ def _install_headless_stubs():
     tn = types.ModuleType("tqdm.notebook")
     tn.tqdm = tqdm.tqdm
     sys.modules.setdefault("tqdm.notebook", tn)
+
+
+def patch_restore_sigma(Normalization, sigma_map, default=3.0):
+    """RESTORE hardcodes sigma_weight=3 (threshold = neg_mean + 3·neg_σ) — right for sparse
+    markers but too CONSERVATIVE for abundant structural markers (Pan_Cytokeratin/Vimentin),
+    which then flag only ~18% positive vs the true acinar/stromal majority. Monkeypatch the two
+    threshold helpers so the target marker's sigma_weight comes from `sigma_map` (per target
+    marker), leaving the vendored source untouched. marker_pair[0] is the target."""
+    import functools
+    if not sigma_map:
+        return
+    for fname in ("get_GMM_thresh", "get_clustering_thresh"):
+        orig = getattr(Normalization, fname)
+
+        def make(orig):
+            @functools.wraps(orig)
+            def wrapper(self, data, marker_pair, model, sigma_weight, color, batch):
+                sw = sigma_map.get(marker_pair[0], default)
+                return orig(self, data, marker_pair, model, sw, color, batch)
+            return wrapper
+        setattr(Normalization, fname, make(orig))
+    print(f"[sigma] per-marker sigma_weight override: {sigma_map} (default {default})")
 
 
 def import_restore():
@@ -184,6 +246,106 @@ def build_restore_input(cells_dir, markers, subsample, seed, limit_scenes=None, 
     data = pd.concat(frames, ignore_index=True)
     print(f"[input] total RESTORE input: {len(data):,} cells / {data['scene'].nunique()} images")
     return data
+
+
+# --------------------------------------------------------------------------- #
+# Reference exclusivity QC (data-driven audit of the mutually-exclusive pairs)
+# --------------------------------------------------------------------------- #
+def _idx_select(T, R, ratio_x=0.75, ratio_y=0.5):
+    """Replicate RESTORE's idx_select prefilter (RESTORE.py get_marker_pair_thresh): keep cells
+    with notable expression in at least one of the pair (>50 floor + quantile box)."""
+    return (((T > 50) & (R > np.quantile(R, ratio_y))) |
+            ((R > 50) & (T > np.quantile(T, ratio_x))))
+
+
+def reference_exclusivity_qc(cells_dir, pairs, subsample, seed, out_dir, donors=None):
+    """Data-driven audit of each [target, reference] pair (RESTORE paper, PMC7062831 §Methods).
+    Over a pooled subsample, per pair reports:
+      - svd_ratio r = σ2/σ1 on the log1p + z-scored, idx_select-prefiltered 2D [T,R] cloud
+        (r→1 circular/mutually-exclusive; r→0 elongated/correlated),
+      - pearson on the log1p cloud (sign: +corr = autofluorescence/brightness coupling OR antibody
+        cross-reactivity; −corr = clean exclusivity),
+      - reference abundance frac(R>50)/frac(R>200) — does the reference span the BRIGHT range that
+        carries the brightness-scaling background?
+      - target background in R-positive cells (median/p95) + the implied mean+3σ threshold,
+      - median dist_islet of R-positive cells (peri-islet contamination check — flags e.g. why
+        Vimentin is a poor INS reference: its R+ cells sit near islets and carry INS spillover).
+    AUDITS the curated references; does NOT auto-select. The paper's literal "reject +correlation"
+    rule would wrongly reject Pan_Cytokeratin for the immune markers — that +correlation IS the
+    autofluorescence we WANT the negative control to capture (deliberate, documented deviation).
+    Writes <out_dir>/reference_selection_qc.csv + <out_dir>/qc/reference_selection_qc.png."""
+    rng = np.random.default_rng(seed)
+    markers = sorted({m for pair in pairs for m in pair})
+    frames = []
+    for donor, f in donor_files(cells_dir, None, donors):
+        df = pd.read_parquet(f, columns=["object_id"] + markers)
+        n = len(df)
+        if subsample and n > subsample:
+            df = df.iloc[rng.choice(n, size=subsample, replace=False)]
+        df = df.reset_index(drop=True)
+        df["object_id"] = df["object_id"].astype(str)
+        try:  # dist_islet lives in canonical data/cells (cells_redsea lacks it); join by object_id
+            raw = pd.read_parquet(BASE / "cells" / f"donor_id={donor}" / "data_0.parquet",
+                                  columns=["object_id", "dist_islet"])
+            raw["object_id"] = raw["object_id"].astype(str)
+            df = df.merge(raw, on="object_id", how="left")
+        except Exception:
+            df["dist_islet"] = np.nan
+        frames.append(df)
+    pool = pd.concat(frames, ignore_index=True)
+
+    rows = []
+    for target, ref in pairs:
+        T = pool[target].to_numpy(np.float64); R = pool[ref].to_numpy(np.float64)
+        sel = _idx_select(T, R)
+        lt = np.log1p(T[sel]); lr = np.log1p(R[sel])
+        M = np.vstack([(lt - lt.mean()) / (lt.std() or 1.0),
+                       (lr - lr.mean()) / (lr.std() or 1.0)]).T
+        s = np.linalg.svd(M, compute_uv=False)
+        r = float(s[1] / s[0]) if s[0] > 0 else np.nan
+        pear = float(np.corrcoef(np.log1p(T), np.log1p(R))[0, 1])
+        refpos = R >= np.quantile(R, 0.75)          # reference-positive = the negative control
+        bg = T[refpos]
+        di = pool["dist_islet"].to_numpy(np.float64)[refpos]
+        rows.append(dict(
+            target=target, reference=ref,
+            svd_ratio=round(r, 3), pearson_log=round(pear, 3),
+            ref_frac_gt50=round(float((R > 50).mean()), 3),
+            ref_frac_gt200=round(float((R > 200).mean()), 3),
+            bg_median=round(float(np.median(bg)), 1),
+            bg_p95=round(float(np.percentile(bg, 95)), 1),
+            thr_mean3sd=round(float(bg.mean() + 3 * bg.std()), 1),
+            refpos_dist_islet_med=round(float(np.nanmedian(di)), 1) if np.isfinite(di).any() else np.nan,
+            flag_not_exclusive=bool(np.isfinite(r) and r < 0.4),
+            flag_pos_corr=bool(pear > 0.3),
+        ))
+    qc = pd.DataFrame(rows)
+    out_csv = Path(out_dir) / "reference_selection_qc.csv"
+    qc.to_csv(out_csv, index=False)
+    print(f"[ref-qc] wrote {out_csv}")
+    print(qc.to_string(index=False))
+
+    try:
+        fig, ax = plt.subplots(1, 3, figsize=(18, 0.45 * len(qc) + 2))
+        y = np.arange(len(qc)); lab = [f"{t}<-{rf}" for t, rf in zip(qc.target, qc.reference)]
+        ax[0].barh(y, qc.svd_ratio, color="#3366CC"); ax[0].axvline(0.4, color="r", ls="--")
+        ax[0].set_yticks(y); ax[0].set_yticklabels(lab); ax[0].invert_yaxis()
+        ax[0].set_xlabel("SVD ratio σ2/σ1  (→1 = mutually exclusive)"); ax[0].set_title("Exclusivity")
+        ax[1].barh(y, qc.pearson_log, color="#EE7733")
+        ax[1].axvline(0.3, color="r", ls="--"); ax[1].axvline(0, color="k", lw=0.6)
+        ax[1].set_yticks(y); ax[1].set_yticklabels([]); ax[1].invert_yaxis()
+        ax[1].set_xlabel("Pearson (log cloud)"); ax[1].set_title("+corr = autofluor / cross-react")
+        ax[2].barh(y, qc.ref_frac_gt200, color="#117733")
+        ax[2].set_yticks(y); ax[2].set_yticklabels([]); ax[2].invert_yaxis()
+        ax[2].set_xlabel("frac(reference > 200 MFI)"); ax[2].set_title("Reference spans bright range?")
+        fig.suptitle("RESTORE reference audit — Pan_Cytokeratin is the abundant, bright, "
+                     "mutually-exclusive universal negative control", fontsize=12)
+        fig.tight_layout(); fig.savefig(Path(out_dir) / "qc" / "reference_selection_qc.png",
+                                        dpi=130, bbox_inches="tight")
+        plt.close(fig)
+    except Exception as e:
+        print("[ref-qc] figure failed:", e)
+    return qc
 
 
 # --------------------------------------------------------------------------- #
@@ -360,6 +522,10 @@ def main(argv=None):
                          "background->signal shoulder. All 3 are saved in the CSV.")
     ap.add_argument("--marker-pairs", default=None,
                     help="override pairs, e.g. 'CD3e:CD163,CD99:CD163'")
+    ap.add_argument("--marker-sigma", default=None,
+                    help="per-target-marker sigma_weight override (threshold = neg_mean + sigma·neg_σ), "
+                         "e.g. 'Pan_Cytokeratin:1.0,Vimentin:1.5' to capture the abundant structural "
+                         "majority that mean+3σ misses (default 3.0 for all)")
     ap.add_argument("--limit-scenes", type=int, default=None,
                     help="process only the first N images (dry run)")
     ap.add_argument("--donors", nargs="*", default=None,
@@ -377,6 +543,9 @@ def main(argv=None):
     ap.add_argument("--reuse-threshs", action="store_true",
                     help="reuse an existing threshs.pkl in --out-dir (skip RESTORE fit; "
                          "deterministic, so safe for re-applying with different options)")
+    ap.add_argument("--ref-qc", action=argparse.BooleanOptionalAction, default=True,
+                    help="write the data-driven reference-exclusivity audit "
+                         "(reference_selection_qc.csv + figure); --no-ref-qc to skip")
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args(argv)
 
@@ -387,6 +556,9 @@ def main(argv=None):
     print(f"[config] markers={markers}  chosen_model={a.model}  subsample={a.subsample}")
 
     Normalization, _ = import_restore()
+    if a.marker_sigma:
+        sigma_map = {k: float(v) for k, v in (p.split(":") for p in a.marker_sigma.split(","))}
+        patch_restore_sigma(Normalization, sigma_map)
     qc_dir = a.out_dir / "qc"
     qc_dir.mkdir(parents=True, exist_ok=True)
 
@@ -415,6 +587,9 @@ def main(argv=None):
     print("[step4] QC plots ...")
     qc_histograms(data, thr_df, markers, qc_dir)
     qc_threshold_heatmap(thr_df, markers, a.model, qc_dir)
+    if a.ref_qc:
+        print("[step4] reference-exclusivity audit ...")
+        reference_exclusivity_qc(a.cells_dir, pairs, a.subsample, a.seed, a.out_dir, a.donors)
     print(f"[step4] wrote QC -> {qc_dir}")
 
     if a.skip_apply:

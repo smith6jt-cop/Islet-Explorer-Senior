@@ -4,6 +4,29 @@ _Evaluation + implementation of an automated cell-typing workflow to replace man
 gating. Grounded in a 13-agent research/design/verification pass and empirical tests on donor 6374
 (200,000 cells). June 2026._
 
+> **⚠️ STATUS UPDATE (late June 2026) — §§3–8 below are SUPERSEDED.** The global-clustering /
+> per-marker-gating / Astir approach evaluated below was abandoned: it produced 25–34% **"Unassigned,"**
+> which the user (correctly) rejected as a symptom of **upstream artifacts, not a real category**. The
+> current pipeline fixes those artifacts in order **REDSEA → RESTORE → broad-lineage assignment**, then
+> per-lineage subclustering. It types **every cell with ZERO "Unassigned."** Full detail in
+> `scripts/CLAUDE.md`; summary:
+>
+> 1. **REDSEA** (`scripts/senior/redsea_full.py`) — scalable pixel-level lateral-spillover correction
+>    (the "pan-positive bright" cells were boundary spillover). Validated on 15 donors; impossible
+>    cross-compartment co-positives −89%, biology preserved.
+> 2. **RESTORE** (`scripts/senior/restore_normalize.py`) — per-image + autofluorescence normalization via
+>    mutually-exclusive marker pairs. **Pan_Cytokeratin is the universal negative control** (abundant,
+>    immune-negative, bright); the immune **false-positive** bug (bright-acinar autofluorescence tipping a
+>    flat threshold) was fixed by **CD20/CD163 ← Pan_Cytokeratin**, with **CD3e ← CD163** kept (Pan_CK
+>    destroys CD3e's T-gain). T1D biology preserved & sharpened.
+> 3. **Broad lineage** (`scripts/senior/assign_broad_lineage.py`) — hierarchical `_pos` + structural
+>    argmax → Epithelial / Fibroblast / Immune / Endocrine / Endothelial / Muscle, 0 Unassigned.
+> 4. **Next:** per-lineage Harmony+Leiden subclustering (Step 2); inspect in QuPath via
+>    `export_broad_class_for_qupath.py` + `scripts/groovy/import_broad_lineage.groovy` (UUID match).
+>
+> The §§3–8 evaluation below remains a useful record of *why* the clustering/gating/Astir routes were
+> ruled out on this panel (marker quality, batch effects), but is **not** the current method.
+
 ## 1. Problem
 
 Phenotyping 23.28 M cells × 59 protein markers (15 donors) currently requires manually dragging

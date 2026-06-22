@@ -88,16 +88,39 @@ python scripts/build_h5ad_for_app.py
 `scripts/senior/restore_normalize.py` applies **RESTORE** (Chang Lab / OHSU) to the
 59-plex protein single-cell data for nine mutually-exclusive markers spanning the broad
 pancreas cell types (`DEFAULT_MARKER_PAIRS`, `[target ← reference]`):
-- **immune** (background from each other): CD3e (T)←CD163, CD20 (B)←CD3e, CD163 (mac)←CD3e
 - **exocrine** Pan_Cytokeratin ← Vimentin · **mesenchyme** Vimentin ← Pan_Cytokeratin
   (epithelial/stromal Spearman ≈ −0.5, the broadest exclusivity in the tissue)
 - **endocrine** INS (β) ← Pan_Cytokeratin · GCG (α) ← Pan_Cytokeratin
 - **endothelium** CD31 ← Pan_Cytokeratin · **muscle/pericyte** SMA ← Pan_Cytokeratin
+- **immune** CD20 (B) ← Pan_Cytokeratin · CD163 (mac) ← Pan_Cytokeratin · CD3e (T) ← CD163
 
 Pan_Cytokeratin marks ~91% of cells (acinar/ductal) and is cleanly negative in every
 non-epithelial population → the abundant universal reference. **CD99 was dropped** (96%+
 detectable; not lineage-exclusive in this panel — was a poor islet proxy). Markers vetted
 from data: CD56/CD34/EpCAM/SST/IAPP/CD11b/B3TUBB rejected (too broad / weak signal).
+
+**Immune negative-control fix (Jun 2026) — the key correction.** The immune markers were
+originally referenced *immune-vs-immune* (CD20←CD3e, CD163←CD3e). That was the bug: CD20/CD163
+**background scales with cell brightness/autofluorescence** (CD20 MFI vs cytokeratin/DAPI Pearson
+r≈0.5), but the dim, rare T-cell reference never saw the **bright-acinar** background → threshold
+too low → **~55%+ of the Immune broad-lineage class were bright acinar FALSE POSITIVES** (donor
+6539; `data/immune_false_positive_investigation.png`). Fix: reference CD20/CD163 against
+**Pan_Cytokeratin** — the abundant, immune-negative, *bright* acinar population that represents the
+brightness-scaling background. Result (`data/restore_reference_fix_validation.png`): bright-acinar
+false positives removed (CD20⁺ −87%) AND the disease signal **sharpened** (CD20/CD163 T1D/ND ratio
+1.3×→~2.5×); Immune broad composition ND 8.9%→3.9%, T1D 13.9%→10.5% (real infiltration preserved).
+**CD3e is the deliberate EXCEPTION — it KEEPS CD163.** CD3e was already clean/specific (never a
+bright-acinar false positive) and Pan_Cytokeratin is *positively* correlated with it (autofluorescence
+coupling, ref-qc pearson ≈0.39), which drags the SSC threshold too low and **destroys the validated
+T-cell infiltration biology** (real SSC cohort: T-gain 4.5×→0.9×; a crude mean+3σ approximation had
+wrongly suggested it improved — always validate on the real SSC run, not the approximation). With
+CD3e←CD163 the T-gain is preserved (ND 0.9%→T1D 4.1%, 4.5×). **Principle: Pan_Cytokeratin references
+the markers whose background is brightness/autofluorescence-driven; a clean, specific marker keeps a
+clean, mutually-exclusive (negatively-correlated) reference.** `reference_exclusivity_qc()` writes the
+data-driven audit (`data/restore/reference_selection_qc.csv`: svd_ratio σ2/σ1, pearson sign, reference
+abundance, peri-islet contamination check). Deliberate deviation from the RESTORE paper's literal
+"reject positively-correlated pairs" rule: here a positive CD20↔Pan_CK correlation IS the
+autofluorescence we want the negative control to capture, not antibody cross-reactivity.
 
 RESTORE pairs each target with a mutually-exclusive *reference* whose positive cells are,
 by biology, target-negative, so the target intensity in that population is background; per
@@ -206,3 +229,51 @@ compartment cells 90% preserved. Residual co-expression is ~90% real Vimentin⁺
 "Beta+Alpha doublets" are residual islet-core spillover (normal-sized, not merges), 76% resolved by
 `argmax(INS,GCG)`. Then re-run `restore_normalize.py --cells-dir data/cells_redsea` (cohort robust)
 and proceed to broad-lineage argmax phenotyping.
+
+## Senior phenotyping — broad lineage assignment (Step 1, Jun 2026)
+
+`scripts/senior/assign_broad_lineage.py` (scvi-env) types every one of the 23.3M cells into one of
+six **mutually-exclusive** broad lineages with **ZERO "Unassigned"** (the user mandate: fix the
+upstream cause, don't invent a junk category). Input: `data/restore_gated_redsea/` (REDSEA-corrected,
+re-RESTORE'd `_pos`/`_norm`) + `data/cells/` (region/islet context). Output:
+`data/phenotype/broad/donor_id=*/` + `data/phenotype/broad_lineage_composition.png`.
+
+**Hierarchical rule** (not plain argmax — see below): (1) Endocrine if INS|GCG `_pos`; (2) Immune
+elif CD3e|CD20|CD163 `_pos`; (3) Endothelial elif CD31 `_pos`; (4) else structural background =
+argmax of (Pan_Cytokeratin, Vimentin, SMA) `_norm` → Epithelial / **Fibroblast** / Muscle, with
+cells below ALL structural thresholds defaulted to Epithelial (`epi_default` flag). Why not a plain
+six-way `_norm` argmax: RESTORE's mean+3σ flags only the brightest ~20% of any ABUNDANT marker, so
+the dim acinar majority is sub-threshold and a naive argmax scatters them to low-threshold markers
+(empirically ~90% of "Immune" calls were such cells). The `epi_default` cells are *validated*
+epithelial (median Ker8_18 549 vs 113 in positively-typed cells); acinar/ductal/fibroblast resolution
+is deferred to Step-2 clustering. Composition (mean %): ND Epi 70 / Fibroblast 10 / Immune 4 /
+Endocrine 4 / Endothelial 9 / Muscle 3; T1D shows the immune gain (Immune 10.5%) + β-loss.
+
+**Taxonomy note — "Fibroblast" (was "Mesenchymal" → "Stromal" → "Fibroblast").** The six classes must
+be MUTUALLY-EXCLUSIVE siblings that survive subclassing. "Mesenchymal" names a developmental *state*
+(the M in EMT), not a resident compartment; "Stromal" is an *umbrella* that overlaps Endothelial/
+Muscle/Immune (stroma = the parenchyma's complement). "Fibroblast" is the exclusive terminal
+compartment for the Vimentin⁺ connective-tissue cells (pancreatic stellate cells are its members).
+The same rename was propagated to `make_phenotype_rules.py` (the legacy hierarchical rules: the
+"Stromal" parent dissolved into Muscle + Fibroblast top-level siblings). The app's
+`drilldown_helpers.R` "Stromal" color is provisional/deployed-data and reconciled at the Step-5 app
+rebuild (TODO breadcrumb left there). NB watch the numpy fixed-width-string gotcha: build the broad-call
+array as `<U16` or assigning a longer label (e.g. "Endothelial") silently truncates.
+
+## Senior phenotyping — QuPath visual inspection (Jun 2026)
+
+To eyeball broad-lineage calls on the images in QuPath 0.7, match by the detection **UUID**
+(`PathObject.getID()` == our `object_id`) — exact, no centroid rounding:
+- `scripts/senior/export_broad_class_for_qupath.py` → `data/phenotype/qupath_class/pheno_class_<donor>.csv`
+  (`object_id, broad_lineage, image`).
+- `scripts/groovy/import_broad_lineage.groovy` (QuPath 0.7): reads that folder (hard-coded path,
+  `donorsToImport` filter), matches the open image's detections by UUID, sets the PathClass + lineage
+  colors directly, self-reports matched/missing. Non-destructive (in-memory unless saved). Replaces the
+  fragile CytoMAP centroid-import + separate set-class step.
+- `scripts/groovy/view phenotypes.groovy` (rewritten for 0.7): checkbox show/hide per class via
+  `OverlayOptions.setPathClassHidden(...)` (the old `hiddenClassesProperty()` was removed in 0.7).
+- Legacy `scripts/groovy/import clusters and cell neighborhoods.groovy` + `set_broad_lineage_class.groovy`
+  + `export_phenotype_for_qupath.py` (measurement-based CytoMAP path) kept but superseded by the UUID path.
+QuPath 0.7 API gotchas (verified via `javap` on the jars): `MeasurementList.put(String,double)` (not
+`putMeasurement`), `Dialogs.promptForDirectory` single-arg removed (hard-code the folder),
+`PathClass.setColor(int,int,int)`.

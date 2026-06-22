@@ -11,8 +11,8 @@ Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging d
 - `app/shiny_app/CLAUDE.md` — per-tab feature details (Drill-Down, Trajectory, Plot, AI Assistant) + conventions including the May 2026 font-standardisation system
   - `app/shiny_app/docs/spatial.md` — Spatial Neighborhood Analysis deep reference (split out May 2026)
   - `app/shiny_app/docs/statistics.md` — Statistics Tab deep reference (split out May 2026)
-- `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes
-- `islet_analysis/CLAUDE.md` — Python analysis pipeline (phenotyping, aggregation, trajectory)
+- `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes, **and the Senior phenotyping pipeline (REDSEA spillover → RESTORE normalization → broad-lineage assignment → QuPath inspection)**
+  - (`islet_analysis/` was removed; its content folded into `scripts/senior/` + `scripts/CLAUDE.md`)
 
 ## App Architecture (Modular - Feb 2026)
 
@@ -137,6 +137,25 @@ single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad  (2.6M cells, 3
 `scripts/reaggregate_islets.py` replaces the manual notebook workflow (aggregation + trajectory + Leiden in one script). `islet_analysis/islets_core_clustered.h5ad` provides Leiden clustering (4 resolutions) + UMAP coords, merged by `build_h5ad_for_app.py` step 4.7.
 
 See `scripts/CLAUDE.md` for per-script details, batch correction (Phase 17), and the two-pseudotime architecture (`dpt_pseudotime` core-only vs `dpt_pseudotime_combined` core+peri+structures).
+
+### Senior phenotyping pipeline (current, Jun 2026) — supersedes the provisional auto-labels
+
+The Senior 59-plex data is being **re-phenotyped from scratch** because global clustering produced a large fake "Unassigned" fraction caused by **upstream artifacts**, fixed in order **REDSEA → RESTORE → broad lineage** (full detail in `scripts/CLAUDE.md`):
+
+```
+data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
+  |-- QuPath per-cell GeoJSON export (~/IO60panc2nd/scripts/export_cells_geojson.groovy)
+  |-- scripts/senior/redsea_full.py        pixel-level lateral-spillover correction (subtract-only, 1px band, α=1)
+  |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; alignment r≈0.998)
+  |-- scripts/senior/restore_normalize.py   per-image + autofluorescence normalization (mutually-exclusive refs)
+  |     -> data/restore_redsea/, data/restore_gated_redsea/donor_id=*/  ({m}_pos/_norm/_log2r)
+  |     -> Pan_Cytokeratin is the universal negative control; CD20/CD163←Pan_CK, CD3e←CD163 (immune fix)
+  +-- scripts/senior/assign_broad_lineage.py  every cell typed, 0 Unassigned (hierarchical _pos + structural argmax)
+        -> data/phenotype/broad/donor_id=*/  (Epithelial/Fibroblast/Immune/Endocrine/Endothelial/Muscle)
+        -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
+```
+
+**Status:** REDSEA + RESTORE done & validated (15 donors); broad lineage (Step 1) done. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `restore_reference_fix_validation.png`, `immune_false_positive_investigation.png`, `broad_lineage_composition.png`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
 
 ## Spatial / Statistics / Trajectory / AI tabs
 

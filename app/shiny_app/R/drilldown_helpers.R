@@ -38,6 +38,9 @@ PHENOTYPE_COLORS <- c(
   "NK cell"                  = "#7209B7",  # violet
   "Regulatory T cell"        = "#06A77D",  # emerald
   "Smooth muscle"            = "#C49792",  # mauve
+  # TODO(Step-5 rebuild): provisional label from the old scheme. New phenotyping uses
+  # "Fibroblast" for the Vimentin+ broad class (see assign_broad_lineage.py); reconcile/remove
+  # this "Stromal" entry when the live app switches to the REDSEA→RESTORE→broad-lineage data.
   "Stromal"                  = "#9B9B9B",  # gray
   "likely-Regulatory T cell" = "#90BE6D",  # light green
   "Unknown"       = "#CCCCCC"   # light gray

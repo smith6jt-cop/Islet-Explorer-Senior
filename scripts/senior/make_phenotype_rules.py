@@ -55,11 +55,17 @@ RULES = [
     ("Endothelial", "Blood vessel", {"CD31":"anypos","CD34":"anypos"}),
     ("Endothelial", "Lymphatic", {"Podoplanin":"pos"}),
 
-    ("all", "Stromal", {"INS":"allneg","GCG":"allneg","SST":"allneg","CD3e":"allneg",
-                        "CD31":"allneg","Pan_Cytokeratin":"allneg",
-                        "SMA":"anypos","Vimentin":"anypos","Collagen_IV":"anypos"}),
-    ("Stromal", "Smooth muscle", {"SMA":"pos"}),
-    ("Stromal", "Fibroblast", {"SMA":"allneg","Vimentin":"anypos","Collagen_IV":"anypos"}),
+    # Muscle and Fibroblast are SEPARATE top-level siblings (matching the broad-lineage scheme
+    # in assign_broad_lineage.py). The former "Stromal" parent was an UMBRELLA — stroma includes
+    # vessels/mural/immune, so it overlapped its own siblings; "Fibroblast" is the exclusive
+    # terminal compartment for the Vimentin⁺ connective-tissue cells. SMA⁺ → Muscle; SMA⁻Vim⁺ → Fibroblast.
+    ("all", "Muscle", {"INS":"allneg","GCG":"allneg","SST":"allneg","CD3e":"allneg",
+                       "CD31":"allneg","Pan_Cytokeratin":"allneg","SMA":"pos"}),
+    ("Muscle", "Smooth muscle", {"SMA":"pos"}),
+
+    ("all", "Fibroblast", {"INS":"allneg","GCG":"allneg","SST":"allneg","CD3e":"allneg",
+                           "CD31":"allneg","Pan_Cytokeratin":"allneg",
+                           "SMA":"allneg","Vimentin":"anypos","Collagen_IV":"anypos"}),
 
     ("all", "Neural", {"CD3e":"allneg","B3TUBB":"pos"}),
 ]
