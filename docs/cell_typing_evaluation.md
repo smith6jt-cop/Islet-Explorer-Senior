@@ -26,6 +26,12 @@ gating. Grounded in a 13-agent research/design/verification pass and empirical t
 >
 > The §§3–8 evaluation below remains a useful record of *why* the clustering/gating/Astir routes were
 > ruled out on this panel (marker quality, batch effects), but is **not** the current method.
+>
+> **NOTE (2026-06-29):** the scripts referenced in §§3–8 (`auto_gate_per_donor.py`,
+> `cluster_annotate.py`, `run_astir.py`, `finalize_phenotype.py`, `marker_reliability_audit.py`,
+> `validate_phenotypes.py`, `rules_to_astir_yaml.py`, `make_phenotype_rules.py`) were **archived to
+> `archive/phenotyping_legacy/`** — the `scripts/senior/...` paths below are historical. The current
+> pipeline is reproduced end-to-end in **`notebooks/senior_phenotyping_redsea_restore.ipynb`**.
 
 ## 1. Problem
 

@@ -5,8 +5,9 @@ PhenoCycler pancreas data (23.3M cells, 15 donor images).
 
 Why: global clustering on this panel produces a large fake "Unassigned" fraction driven by
 a ~22% "pan-positive bright" population = lateral signal bleeding across shared cell
-boundaries. `redsea_approx.py` proved spillover is real (impossible co-positives collapse)
-but the centroid-distance table approximation over-erodes true single-positives. REDSEA
+boundaries. `archive/phenotyping_legacy/redsea_approx.py` proved spillover is real (impossible
+co-positives collapse) but the centroid-distance table approximation over-erodes true
+single-positives. REDSEA
 (Bai et al. 2021) corrects it at the source using the segmentation boundary, but the
 reference `redseapy` does not scale (dense cellNum^2 matrix, whole-image imread, pure-python
 pixel loops). This reimplements the SAME math scalably:

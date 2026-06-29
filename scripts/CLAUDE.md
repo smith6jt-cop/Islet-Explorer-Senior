@@ -254,8 +254,9 @@ be MUTUALLY-EXCLUSIVE siblings that survive subclassing. "Mesenchymal" names a d
 (the M in EMT), not a resident compartment; "Stromal" is an *umbrella* that overlaps Endothelial/
 Muscle/Immune (stroma = the parenchyma's complement). "Fibroblast" is the exclusive terminal
 compartment for the Vimentin⁺ connective-tissue cells (pancreatic stellate cells are its members).
-The same rename was propagated to `make_phenotype_rules.py` (the legacy hierarchical rules: the
-"Stromal" parent dissolved into Muscle + Fibroblast top-level siblings). The app's
+The same rename was propagated to `make_phenotype_rules.py` (now archived under
+`archive/phenotyping_legacy/`; the legacy hierarchical rules: the "Stromal" parent dissolved into
+Muscle + Fibroblast top-level siblings). The app's
 `drilldown_helpers.R` "Stromal" color is provisional/deployed-data and reconciled at the Step-5 app
 rebuild (TODO breadcrumb left there). NB watch the numpy fixed-width-string gotcha: build the broad-call
 array as `<U16` or assigning a longer label (e.g. "Endothelial") silently truncates.
@@ -272,8 +273,40 @@ To eyeball broad-lineage calls on the images in QuPath 0.7, match by the detecti
   fragile CytoMAP centroid-import + separate set-class step.
 - `scripts/groovy/view phenotypes.groovy` (rewritten for 0.7): checkbox show/hide per class via
   `OverlayOptions.setPathClassHidden(...)` (the old `hiddenClassesProperty()` was removed in 0.7).
-- Legacy `scripts/groovy/import clusters and cell neighborhoods.groovy` + `set_broad_lineage_class.groovy`
-  + `export_phenotype_for_qupath.py` (measurement-based CytoMAP path) kept but superseded by the UUID path.
+- Legacy `import clusters and cell neighborhoods.groovy` + `set_broad_lineage_class.groovy`
+  + `export_phenotype_for_qupath.py` (measurement-based CytoMAP path) were **archived 2026-06-29**
+  under `archive/phenotyping_legacy/` — superseded by the UUID path above.
 QuPath 0.7 API gotchas (verified via `javap` on the jars): `MeasurementList.put(String,double)` (not
 `putMeasurement`), `Dialogs.promptForDirectory` single-arg removed (hard-code the folder),
 `PathClass.setColor(int,int,int)`.
+
+## Reproducible pipeline notebook (2026-06-29)
+
+`notebooks/senior_phenotyping_redsea_restore.ipynb` runs the whole pipeline end-to-end as a **thin
+orchestrator**: each step shells out to the live `scripts/senior/*.py` (single source of truth — no
+logic duplicated), wrapped in an idempotent `run_step()` that **skips any stage whose outputs already
+exist** (flip the `FORCE` dict to recompute), bookended by cells that load the parquet outputs and
+render QC figures. Kernel: `scvi-env`. The RESTORE step passes the REDSEA dirs explicitly
+(`--cells-dir data/cells_redsea --out-dir data/restore_redsea --gated-dir data/restore_gated_redsea`).
+The final cell is a **cell-type × marker dotplot** (9 RESTORE markers; dot size = % `_pos`, color =
+mean `_norm`) **+ heatmap** (full 59-marker panel, z-scored per marker). Verified end-to-end:
+23,325,515 cells, **0 "Unassigned"**, `epi_default` 50.8%.
+**Gotcha:** 13/15 `data/cells_redsea/` donors carry a few NaN edge-cells (59–531 each); a plain
+`numpy.sum` NaN-poisons the whole marker column, so per-cell aggregation must use `np.nansum` +
+finite-count (`restore_gated_redsea` has no NaN). The executed copy (`*_executed.ipynb`) is gitignored.
+
+## Archived / deprecated phenotyping files (2026-06-29)
+
+The predecessors of the unified pipeline were moved to **`archive/phenotyping_legacy/`** (git history
+preserved; nothing in `scripts/senior/` imports them). They were the three superseded approaches that
+produced the fake "Unassigned" fraction — per-donor **auto-gating** (`auto_gate_per_donor.py`,
+`phenotype_scimap.py`), global **Leiden clustering** (`cluster_annotate.py`, `finalize_phenotype.py`),
+and the **Astir/consensus** typer (`run_astir.py`, `astir_markers.yaml`, `rules_to_astir_yaml.py`) —
+plus their support scripts (`make_phenotype_rules.py`, `marker_reliability_audit.py`,
+`redsea_approx.py` table-level proof, `validate_phenotypes.py`, `phenotype_rules_senior.csv`), the
+legacy QuPath companions (`export_phenotype_for_qupath.py`, `set_broad_lineage_class.groovy`,
+`import clusters and cell neighborhoods.groovy`), and the Junior-era phenotyping notebooks
+(`CODEX_Panc_scimap_Analysis.ipynb`, `CODEX_Panc_Analysis.ipynb`, `napari_gating_senior.ipynb`,
+`Comb_Xen_Phen.ipynb`, `phenotype_rules1.csv`, `phenotype_rules2.csv`). See
+`archive/phenotyping_legacy/README.md` for the full what-replaced-what table. The end-to-end live
+pipeline is reproduced in **`notebooks/senior_phenotyping_redsea_restore.ipynb`**.

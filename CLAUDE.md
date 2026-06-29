@@ -157,6 +157,8 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
 
 **Status:** REDSEA + RESTORE done & validated (15 donors); broad lineage (Step 1) done. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `restore_reference_fix_validation.png`, `immune_false_positive_investigation.png`, `broad_lineage_composition.png`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
 
+**Reproducible notebook (Jun 2026):** `notebooks/senior_phenotyping_redsea_restore.ipynb` runs the full pipeline end-to-end (idempotent thin orchestrator over the live `scripts/senior/*.py`) and ends with a **cell-type × marker dotplot + heatmap**. The superseded gating/clustering/Astir scripts were archived to **`archive/phenotyping_legacy/`** (see `scripts/CLAUDE.md`). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
+
 ## Spatial / Statistics / Trajectory / AI tabs
 
 Per-tab implementation details — Spatial Neighborhood Analysis (Phase 7), Single-Cell Drill-Down (Phase 8), Statistics Tab pseudoreplication fix (Phase 16), Cell-Count-Weighted Trajectory (Phase 12), Pseudotime Heatmap, AI Assistant (Phase 10) — live in `app/shiny_app/CLAUDE.md`.
