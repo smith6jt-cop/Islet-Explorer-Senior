@@ -2,7 +2,7 @@
 
 Deep details for the modular Shiny app under `app/shiny_app/`. The top-level `CLAUDE.md` covers the entrypoint architecture, root-level outputs, shared reactive state, and data loading. This file documents per-tab features and conventions.
 
-**Per-tab capability status** (what actually works on the current data, verified by launching the dev server + screenshotting every tab, 2026-06-29) lives in [`docs/capability_status.md`](docs/capability_status.md). Headline: Plot / Statistics / Spatial / Drill-Down work; Viewer is empty-but-graceful (no OME-TIFFs); **Trajectory is broken** (see below). All tabs still serve the OLD provisional fine-phenotype labels by design — the new broad-lineage outputs are notebook-only.
+**Per-tab capability status** (what actually works on the current data, verified by launching the dev server + screenshotting every tab, 2026-06-29) lives in [`docs/capability_status.md`](docs/capability_status.md). Headline: all 5 data tabs work; Viewer is empty-but-graceful (no OME-TIFFs); **Trajectory works** but was slow to first render — vectorized 2026-06-29 (see below). All tabs still serve the OLD provisional fine-phenotype labels by design — the new broad-lineage outputs are notebook-only.
 
 ## Spatial Neighborhood Analysis
 
@@ -64,13 +64,13 @@ See [`docs/statistics.md`](docs/statistics.md) for full details — pseudoreplic
 
 ## Trajectory Tab Features
 
-> **⚠️ KNOWN ISSUE (2026-06-29, Senior data):** the Trajectory tab currently renders **no data** —
-> it loads `adata_ins_root.h5ad` (9,130 obs) but reports *"Joined 0 rows (0 unique islets) of 0 islet
-> metrics"* and shows *"No trajectory data available"* with empty UMAPs. The AnnData is intact (the
-> same 9,130 islets render on Spatial's Leiden UMAP), so the defect is the **islet-key join** between
-> the trajectory source and the islet-metrics table — fix the join key (or rebuild the trajectory
-> h5ad so its islet index matches the metrics) before any app data refresh. See
-> [`docs/capability_status.md`](docs/capability_status.md).
+> **PERF FIX (2026-06-29, Senior data):** the Trajectory tab was **slow to first render** (~10–30s),
+> not broken — `traj_data_clean` called `get_islet_annotations()` once per islet (9,130×), each
+> scanning the full 9.6k-row `islet_spatial_lookup` (~88M comparisons **per render**). Replaced with a
+> single vectorized `match()` (identical result, O(n)) → renders instantly. NB the data + islet-key
+> join were always fine (keys are `Islet_755` on both sides; `prep_data()` adds `islet_key`, `traj()`
+> synthesizes `combined_islet_id`); the "0 islet metrics" in an early screenshot was just the
+> pre-`input$traj_feature` frame. See [`docs/capability_status.md`](docs/capability_status.md).
 
 ### Cell-Count-Weighted Trajectory (Phase 12, Mar 2026)
 

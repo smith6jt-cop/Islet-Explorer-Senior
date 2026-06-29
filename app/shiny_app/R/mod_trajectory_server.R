@@ -351,23 +351,19 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         result_df$islet_diam_um <- NA_real_
       }
 
-      # Add spatial coordinates from segmentation data
+      # Add spatial coordinates from the islet spatial lookup. VECTORIZED single match():
+      # this replaced a per-row get_islet_annotations() loop that scanned the full 9.6k-row
+      # lookup once per islet (~9130 x 9677 comparisons) and made the tab take ~10-30s to first
+      # render (every feature/filter change re-ran it). One match() is O(n) and renders instantly.
       if (!is.null(islet_spatial_lookup)) {
-        result_df$centroid_x_um <- NA_real_
-        result_df$centroid_y_um <- NA_real_
-        result_df$has_spatial <- FALSE
-
-        for (i in seq_len(nrow(result_df))) {
-          annot <- get_islet_annotations(result_df$case_id[i], result_df$islet_key[i])
-          if (!is.null(annot)) {
-            result_df$centroid_x_um[i] <- annot$centroid_x
-            result_df$centroid_y_um[i] <- annot$centroid_y
-            result_df$has_spatial[i] <- TRUE
-          }
-        }
-
+        sl_key <- paste(as.character(islet_spatial_lookup$case_id), islet_spatial_lookup$islet_key)
+        rd_key <- paste(as.character(result_df$case_id), result_df$islet_key)
+        mi <- match(rd_key, sl_key)
+        result_df$centroid_x_um <- as.numeric(islet_spatial_lookup$centroid_x_um[mi])
+        result_df$centroid_y_um <- as.numeric(islet_spatial_lookup$centroid_y_um[mi])
+        result_df$has_spatial   <- !is.na(mi)
         cat("[traj_data_clean] Added spatial coordinates for",
-            sum(result_df$has_spatial), "islets\n")
+            sum(result_df$has_spatial), "islets (vectorized)\n")
       }
 
       # Filter valid rows

@@ -6,7 +6,7 @@ On the REDSEA-corrected, re-RESTORE'd data, each cell is typed by a HIERARCHICAL
 cell typed — no "Unassigned" bucket; the user mandate is to fix the upstream cause, not invent
 a junk category):
 
-  1. Endocrine    if INS or GCG `_pos`              (islet hormones — specific, sparse)
+  1. Endocrine    if INS/GCG/SST `_pos`             (islet hormones β/α/δ — specific, sparse)
   2. Immune       elif CD3e/CD20/CD163 `_pos`        (leukocytes — specific, sparse)
   3. Endothelial  elif CD31 `_pos`                   (vessels — specific)
   4. else STRUCTURAL background → argmax of (Pan_Cytokeratin, Vimentin, SMA) `_norm`
@@ -65,7 +65,7 @@ LINEAGES = {
     "Epithelial": ["Pan_Cytokeratin"],
     "Fibroblast": ["Vimentin"],
     "Immune": ["CD3e", "CD20", "CD163"],
-    "Endocrine": ["INS", "GCG"],
+    "Endocrine": ["INS", "GCG", "SST"],
     "Endothelial": ["CD31"],
     "Muscle": ["SMA"],
 }
@@ -106,7 +106,7 @@ def assign_donor(donor, gated_f):
     struct_call[~struct_pos] = "Epithelial"
 
     # hierarchy: specific _pos lineages take precedence over the structural background
-    endocrine = pos["INS"] | pos["GCG"]
+    endocrine = pos["INS"] | pos["GCG"] | pos["SST"]   # +SST delta cells (else mis-typed Epi/Immune)
     immune = pos["CD3e"] | pos["CD20"] | pos["CD163"]
     endoth = pos["CD31"]
     broad = struct_call.copy()

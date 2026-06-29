@@ -238,7 +238,8 @@ upstream cause, don't invent a junk category). Input: `data/restore_gated_redsea
 re-RESTORE'd `_pos`/`_norm`) + `data/cells/` (region/islet context). Output:
 `data/phenotype/broad/donor_id=*/` + `data/phenotype/broad_lineage_composition.png`.
 
-**Hierarchical rule** (not plain argmax — see below): (1) Endocrine if INS|GCG `_pos`; (2) Immune
+**Hierarchical rule** (not plain argmax — see below): (1) Endocrine if INS|GCG|SST `_pos` (β/α/δ; SST
+added 2026-06-29 — δ-cells were else mis-typed Epithelial/Immune, +139k Endocrine cells); (2) Immune
 elif CD3e|CD20|CD163 `_pos`; (3) Endothelial elif CD31 `_pos`; (4) else structural background =
 argmax of (Pan_Cytokeratin, Vimentin, SMA) `_norm` → Epithelial / **Fibroblast** / Muscle, with
 cells below ALL structural thresholds defaulted to Epithelial (`epi_default` flag). Why not a plain

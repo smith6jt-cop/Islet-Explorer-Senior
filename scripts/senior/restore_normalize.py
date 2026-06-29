@@ -106,6 +106,7 @@ DEFAULT_MARKER_PAIRS = [
     # --- endocrine / endothelium / muscle <- acinar (validated; recovers beta-loss) ---
     ["INS",             "Pan_Cytokeratin"],  # endocrine beta      <- acinar
     ["GCG",             "Pan_Cytokeratin"],  # endocrine alpha     <- acinar
+    ["SST",             "Pan_Cytokeratin"],  # endocrine delta     <- acinar (sparse, specific like INS/GCG)
     ["CD31",            "Pan_Cytokeratin"],  # endothelium         <- acinar
     ["SMA",             "Pan_Cytokeratin"],  # smooth muscle/pericyte <- acinar
     # --- immune (Jun 2026 fix). CD20/CD163 were the false-positive problem: their background is
