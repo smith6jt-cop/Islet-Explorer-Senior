@@ -149,6 +149,21 @@ CELL_DIST_MARKER_COLORS <- c(
   Vimentin = "#9C755F", Pan_Cytokeratin = "#BAB0AC"
 )
 
+# Symmetric-log distance axis for the Density view: near-linear within ±C µm
+# (fine bins across the islet interior + peri-islet zone) and log-compressed far
+# out (coarse bins for bulk tissue). T(x) = sign(x)·log10(1 + |x|/C); T(0) = 0.
+CD_SYMLOG_C   <- 25
+cd_symlog     <- function(x) sign(x) * log10(1 + abs(x) / CD_SYMLOG_C)
+cd_symlog_inv <- function(t) sign(t) * CD_SYMLOG_C * (10^abs(t) - 1)
+#' Nice real-µm tick positions (mapped into symlog space) spanning [lo, hi],
+#' always including 0 (the islet border).
+cd_symlog_ticks <- function(lo, hi) {
+  cand <- c(-2000, -1000, -500, -200, -100, -50, -20, -10, 0, 10, 20, 50, 100, 200, 500, 1000, 2000)
+  cand <- cand[cand >= lo & cand <= hi]
+  if (!(0 %in% cand)) cand <- sort(unique(c(cand, 0)))
+  list(vals = cd_symlog(cand), text = format(cand, trim = TRUE, scientific = FALSE))
+}
+
 # Shared SQL helpers.
 .cd_esc <- function(x) gsub("'", "''", x, fixed = TRUE)
 # NB: `dist_islet` is signed and often negative, so the bin offset MUST be
@@ -160,11 +175,12 @@ CELL_DIST_MARKER_COLORS <- c(
 #' @param mode "phenotype" or "marker".
 #' @param group a phenotype label, a RESTORE marker name, or "__all__" (all cells).
 #' @param statuses character subset of c("ND","Aab+","T1D").
-#' @param n_bins number of distance bins.
+#' @param n_bins number of distance bins (uniform in symlog space).
 #' @return NULL when the view is missing or no status is selected; otherwise
-#'   list(hist = data.frame(donor_status, x, dens, n) | NULL, lo, hi, bw,
-#'   n_by_status (named)). `hist` is NULL when the selection is empty.
-query_cell_distance_hist <- function(mode, group, statuses, n_bins = 160L) {
+#'   list(hist = data.frame(donor_status, x [symlog], real_x [µm], dens, n) | NULL,
+#'   lo, hi [real µm], n_by_status (named)). `hist` is NULL when the selection is
+#'   empty. `x` is the symlog-space plot position; map ticks with cd_symlog_ticks().
+query_cell_distance_hist <- function(mode, group, statuses, n_bins = 100L) {
   con <- .cd_con()
   if (is.null(con) || !cell_distance_view_ready()) return(NULL)
   statuses <- statuses[statuses %in% c("ND", "Aab+", "T1D")]
@@ -186,15 +202,23 @@ query_cell_distance_hist <- function(mode, group, statuses, n_bins = 160L) {
 
   lim <- q(sprintf("SELECT quantile_cont(dist_islet,0.01) lo, quantile_cont(dist_islet,0.99) hi FROM cell_distance WHERE %s", wsel))
   if (is.null(lim) || !is.finite(lim$lo) || !is.finite(lim$hi) || lim$hi <= lim$lo) return(NULL)
-  bw <- (lim$hi - lim$lo) / n_bins
-  agg <- q(sprintf("WITH pop AS (SELECT donor_status, dist_islet FROM cell_distance WHERE %s AND dist_islet BETWEEN %f AND %f) SELECT donor_status, floor((dist_islet - (%f))/%f) AS binx, count(*) AS n FROM pop GROUP BY 1,2",
-                   wsel, lim$lo, lim$hi, lim$lo, bw))
+  # Bin uniformly in symlog space → fine bins across the islet border, coarse in
+  # far tissue. The SQL computes T(dist)=sign(dist)*log10(1+|dist|/C) inline.
+  tlo <- cd_symlog(lim$lo); thi <- cd_symlog(lim$hi)
+  if (!is.finite(tlo) || !is.finite(thi) || thi <= tlo) return(NULL)
+  dt <- (thi - tlo) / n_bins
+  agg <- q(sprintf("WITH pop AS (SELECT donor_status, dist_islet FROM cell_distance WHERE %s AND dist_islet BETWEEN %f AND %f) SELECT donor_status, floor((sign(dist_islet)*log10(1+abs(dist_islet)/%f) - (%f))/%f) AS binx, count(*) AS n FROM pop GROUP BY 1,2",
+                   wsel, lim$lo, lim$hi, CD_SYMLOG_C, tlo, dt))
   if (is.null(agg) || nrow(agg) == 0)
-    return(list(hist = NULL, lo = lim$lo, hi = lim$hi, bw = bw, n_by_status = integer(0)))
+    return(list(hist = NULL, lo = lim$lo, hi = lim$hi, n_by_status = integer(0)))
 
-  agg$x <- lim$lo + (agg$binx + 0.5) * bw
-  agg$dens <- agg$n / bw                     # cells per µm of distance
-  list(hist = agg, lo = lim$lo, hi = lim$hi, bw = bw,
+  tc <- tlo + (agg$binx + 0.5) * dt
+  agg$x <- tc                                        # plot position (symlog space)
+  agg$real_x <- cd_symlog_inv(tc)                    # real µm (hover + ticks)
+  rlo <- cd_symlog_inv(tlo + agg$binx * dt)
+  rhi <- cd_symlog_inv(tlo + (agg$binx + 1) * dt)
+  agg$dens <- agg$n / (rhi - rlo)                    # cells per real µm of distance
+  list(hist = agg, lo = lim$lo, hi = lim$hi,
        n_by_status = tapply(agg$n, agg$donor_status, sum))
 }
 
@@ -227,17 +251,22 @@ query_cell_distance_composition <- function(markers, statuses, n_bins = 16L) {
   # ubiquitous in bulk tissue and would otherwise stretch the axis to ~1.4 mm,
   # compressing the whole inside→outside boundary transition into one bar.
   lo <- max(lim$lo, -100); hi <- min(lim$hi, 300)
+  # Always straddle 0 (the islet border) with interior + peri context, even when
+  # the selected markers live entirely outside (e.g. CD31) or inside (INS).
+  lo <- min(lo, -30); hi <- max(hi, 30)
   if (hi <= lo) return(NULL)
   bw <- (hi - lo) / n_bins
   sums <- paste(sprintf('SUM(CASE WHEN "%s_pos" THEN 1 ELSE 0 END) AS "%s"', markers, markers), collapse = ", ")
   pos_cols <- paste(sprintf('"%s_pos"', markers), collapse = ", ")
-  wide <- q(sprintf("WITH pop AS (SELECT donor_status, dist_islet, %s FROM cell_distance WHERE donor_status IN (%s) AND dist_islet BETWEEN %f AND %f) SELECT donor_status, floor((dist_islet - (%f))/%f) AS binx, %s FROM pop GROUP BY 1,2",
-                    pos_cols, status_sql, lo, hi, lo, bw, sums))
+  # Anchor bin edges at 0 via floor(dist/bw) so a bar boundary sits exactly on
+  # the islet border (the render draws the border line at x = 0).
+  wide <- q(sprintf("WITH pop AS (SELECT donor_status, dist_islet, %s FROM cell_distance WHERE donor_status IN (%s) AND dist_islet BETWEEN %f AND %f) SELECT donor_status, floor(dist_islet/%f) AS binx, %s FROM pop GROUP BY 1,2",
+                    pos_cols, status_sql, lo, hi, bw, sums))
   if (is.null(wide) || nrow(wide) == 0) return(list(comp = NULL, lo = lo, hi = hi, bw = bw, markers = markers))
   long <- do.call(rbind, lapply(markers, function(m) data.frame(
     donor_status = as.character(wide$donor_status), binx = wide$binx, marker = m,
     n = as.numeric(wide[[m]]), stringsAsFactors = FALSE)))
-  long$x <- lo + (long$binx + 0.5) * bw
+  long$x <- (long$binx + 0.5) * bw
   list(comp = long, lo = lo, hi = hi, bw = bw, markers = markers)
 }
 

@@ -1755,8 +1755,6 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         markers <- res$markers
         status_order <- c("ND", "Aab+", "T1D")
         present <- intersect(status_order, unique(comp$donor_status))
-        lab_levels <- unique(sprintf("%d", round(comp$x[order(comp$binx)])))
-        comp$xlab <- sprintf("%d", round(comp$x))
         mcols <- CELL_DIST_MARKER_COLORS
         panels <- lapply(present, function(s) {
           ss <- comp[comp$donor_status == s, , drop = FALSE]
@@ -1765,19 +1763,27 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
             sub <- ss[ss$marker == m, , drop = FALSE]
             sub <- sub[order(sub$binx), , drop = FALSE]
             pp <- pp %>% add_trace(
-              x = sub$xlab, y = sub$n, type = "bar", textposition = "none",
+              x = sub$x, y = sub$n, type = "bar", textposition = "none",
               name = m, legendgroup = m, showlegend = identical(s, present[1]),
               marker = list(color = unname(mcols[m])),
               hoverinfo = "text",
-              hovertext = paste0(s, " · ", m, "+<br>dist ≈ ", sub$xlab, " µm<br>",
+              hovertext = paste0(s, " · ", m, "+<br>dist ≈ ", round(sub$x), " µm<br>",
                                  formatC(sub$n, big.mark = ","), " cells")
             )
           }
+          # Islet-border line at 0 (a bar boundary sits exactly here, always shown).
+          tot <- stats::aggregate(n ~ binx, ss, sum)
+          ymax <- if (nrow(tot)) max(tot$n) else 1
+          pp <- pp %>% add_trace(
+            x = c(0, 0), y = c(0, ymax * 1.02), type = "scatter", mode = "lines",
+            line = list(color = "#333", width = 1.4, dash = "dash"),
+            showlegend = FALSE, hoverinfo = "none"
+          )
           pp %>% layout(
             barmode = "stack",
             yaxis = list(title = list(text = s, font = fonts$axis_title), tickfont = fonts$axis_tick),
-            xaxis = list(type = "category", categoryorder = "array", categoryarray = lab_levels,
-                         title = list(text = x_title, font = fonts$axis_title), tickfont = fonts$axis_tick)
+            xaxis = list(title = list(text = x_title, font = fonts$axis_title),
+                         tickfont = fonts$axis_tick, zeroline = FALSE)
           )
         })
         fig <- if (length(panels) == 1) panels[[1]]
@@ -1823,7 +1829,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           line = list(color = dcols[s], width = 2.5),
           fill = "tozeroy", fillcolor = paste0(dcols[s], "22"),
           hoverinfo = "text",
-          text = paste0(s, "<br>dist = ", round(hs$x, 1), " µm<br>cells/µm = ", round(hs$dens, 2))
+          text = paste0(s, "<br>dist = ", round(hs$real_x, 1), " µm<br>cells/µm = ", round(hs$dens, 2))
         )
       }
       p <- p %>% add_trace(
@@ -1831,11 +1837,14 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         line = list(color = "#333", width = 1.5, dash = "dash"),
         showlegend = FALSE, hoverinfo = "none"
       )
+      ticks <- cd_symlog_ticks(res$lo, res$hi)   # real-µm labels at symlog positions
       p %>% layout(
         font = fonts$global,
         title = list(text = paste0(type_label, " — Distance from Islet"), font = fonts$title),
-        xaxis = list(title = list(text = x_title, font = fonts$axis_title),
-                     tickfont = fonts$axis_tick, zeroline = FALSE),
+        xaxis = list(title = list(text = "Signed distance (µm, symlog) — inside islet ← 0 → outside",
+                                  font = fonts$axis_title),
+                     tickfont = fonts$axis_tick, zeroline = FALSE,
+                     tickmode = "array", tickvals = ticks$vals, ticktext = ticks$text),
         yaxis = list(title = list(text = "Cells per µm of distance", font = fonts$axis_title),
                      tickfont = fonts$axis_tick),
         legend = list(title = list(text = "Status", font = fonts$legend_title),
