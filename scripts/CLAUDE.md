@@ -83,6 +83,23 @@ root was a saturated **3-cell** islet. Fixes (land now, execute at the next rebu
 - `notebooks/rebuild_trajectory.ipynb` - Regenerates trajectory from fixed pipeline (superseded by reaggregate_islets.py)
 - `islet_analysis/fixed_islet_aggregation.py` - Core aggregation module (islet-level from single-cell, default min_cells=0)
 
+### Spatial Card C — per-cell distance parquet (Jul 2026)
+
+- `scripts/senior/build_cell_distance_parquet.py` — builds `data/parquet/cell_distance/case_id=*`
+  (per-cell `donor_status, cell_region, phenotype, dist_islet` + 10 RESTORE `{m}_pos` booleans; 23.3M
+  cells, ~244 MB) for the Spatial-tab **Card C right** plot (per-cell signed distance to nearest islet:
+  Density by phenotype / RESTORE-marker+ / all, and a marker-Composition small-multiples bar view). It
+  joins three sources per donor: **signed `dist_islet` + `object_id`** from `data/cells/donor_id=*`;
+  **reliable `phenotype`** from `data/parquet/tissue/case_id=*` by **row order** (its own
+  `classification` is ~9–90% NULL — unusable); and the **RESTORE `_pos` calls** for 10 lineage markers
+  (INS, GCG, SST, CD3e, CD20, CD163, CD31, SMA, Vimentin, Pan_Cytokeratin) from
+  `data/restore_gated_redsea/donor_id=*` by **`object_id`** (calibrated per-image threshold on
+  REDSEA-corrected MFI — supersedes the earlier raw-intensity percentile). **Asserts** per-row
+  coordinate agreement (`|Δ|<1 µm`) so a future reorder of cells↔tissue fails loudly. Donor→status from
+  `islets_core_senior.h5ad` obs. Run: `python scripts/senior/build_cell_distance_parquet.py` (~2 min).
+  Registered as the `cell_distance` DuckDB view (`app/shiny_app/R/00_globals.R`). Detail in
+  `app/shiny_app/docs/spatial.md`.
+
 ## Python Environment
 
 Pipeline scripts use the `scvi-env` conda environment:

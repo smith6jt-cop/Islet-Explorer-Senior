@@ -6,7 +6,7 @@ Deep details for the modular Shiny app under `app/shiny_app/`. The top-level `CL
 
 ## Spatial Neighborhood Analysis
 
-See [`docs/spatial.md`](docs/spatial.md) for full details — peri-islet metrics, tab layout (Phase 9+13+15), neighborhood-card server architecture, KDE selector race fix, tissue scatter design.
+See [`docs/spatial.md`](docs/spatial.md) for full details — peri-islet metrics, tab layout (Phase 9+13+15), neighborhood-card server architecture, tissue scatter design, and the **Card C right plot rebuild (Jul 2026)**: per-cell signed-distance-to-islet from the DuckDB `cell_distance` view, with a **plot-type toggle** — **Density** (a phenotype, a **RESTORE-marker+** subset, or all cells, split by status; "All" option; own disease-status toggle decoupled from the sidebar) and **Composition** (several RESTORE markers as small-multiple stacked bars per status, showing marker composition vs distance). Marker positivity = **RESTORE `_pos`** (per-image threshold on REDSEA-corrected MFI). Gotchas: the SQL bin offset is parenthesised because `dist_islet` is signed (a leading `--` opens a SQL comment); bar traces need `hovertext` + `textposition="none"` or the hover string renders on the bars.
 
 ## Single-Cell Drill-Down (Phase 8, Feb 2026)
 

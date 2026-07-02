@@ -204,6 +204,22 @@ if (isTRUE(USE_DUCKDB)) {
           }, silent = TRUE)
         }
 
+        # Per-cell signed-distance dataset for the Spatial Card C right plot:
+        # donor_status, cell_region, phenotype, dist_islet + 10 RESTORE `{m}_pos`
+        # booleans, built by scripts/senior/build_cell_distance_parquet.py.
+        # Partition-pruned; registered only if present so the app degrades
+        # gracefully (the plot shows a "data missing" message) when absent.
+        cell_distance_root <- file.path(parquet_dir, "cell_distance")
+        if (dir.exists(cell_distance_root)) {
+          try({
+            DBI::dbExecute(con, sprintf(
+              "CREATE OR REPLACE VIEW cell_distance AS SELECT * FROM parquet_scan('%s', hive_partitioning=1)",
+              normalizePath(file.path(cell_distance_root, "**", "*.parquet"), winslash = "/", mustWork = FALSE)
+            ))
+            message("[DUCKDB] Registered view: cell_distance -> ", cell_distance_root)
+          }, silent = TRUE)
+        }
+
         # Ensure the connection is closed when the R process exits.
         # (shiny::onStop is only valid inside a running app, so register a
         # reg.finalizer on a harmless environment instead.)
