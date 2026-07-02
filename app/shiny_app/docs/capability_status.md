@@ -14,14 +14,27 @@ did**, not a code read. Screenshots are in `docs/img/capability/`.
   `get_islet_annotations` loop, each scanning the full 9.6k-row spatial lookup (~88M comparisons per
   render). **Fixed 2026-06-29** by vectorizing that lookup into one `match()` (renders instantly).
   The "islet-key join" was a red herring — the keys (`Islet_755` both sides) match perfectly.
-- **Viewer is empty** by design (no OME-TIFF images deployed) — it degrades gracefully.
+- **Viewer now serves per-donor OME-TIFFs for the full 22-donor cohort** (Jul 2026). The `.qptiff`
+  slides are converted to pyramidal, tiled OME-TIFF via `scripts/senior/convert_viewer_ometiff.sh`
+  (bioformats2raw 0.12.1 → raw2ometiff 0.10.0, Baseline series only, LZW) into
+  `/data/islet_ome_tiff/<case_id>.ome.tiff` (+ `<case_id>.offsets.json`), surfaced through the
+  `www/local_images` symlink. Donor **6539 verified end-to-end** in Avivator (islets render;
+  INS/GCG/SST/DAPI defaults correct; 2 mm scale bar; 5-level pyramid) —
+  `/data/islet_ome_tiff/verification_6539.png`. All 22 convert via the resumable batch
+  (`… all22`). The cohort **mixes panels** (batch-1 SST@35 / batch-2 SST@1, some 58-ch) so the
+  channel_config was made **name-based** (`build_channel_config_b64` emits INS/GCG/SST/DAPI by name;
+  Avivator resolves them against each image's own OME-XML) — correct defaults for every donor.
+  **Avivator requires HTTP Range (206)** — production nginx/shiny-server provides it; the dev
+  `runApp` (httpuv) does **not**, so images render only under the deployed server, not `shiny::runApp`.
 - **Every tab still serves the OLD provisional fine phenotypes** (Beta cell, Alpha cell,
   M2 macrophage, NK cell, Regulatory T cell, Stromal, …). The new REDSEA/RESTORE/broad-lineage
   outputs are **intentionally not wired into the app** — they live only in the phenotyping notebook
   (`notebooks/senior_phenotyping_redsea_restore.ipynb`). No app data rebuild was requested.
 
 Startup log confirmed: DuckDB views `islets` + `tissue` registered; 4 mirai workers; 9,677 islet
-spatial records; 35 channel names; `www/local_images` absent.
+spatial records. The channel sidecar is now the **59-channel Senior panel** (`app/shiny_app/Channel_names`,
+regenerated from the qptiff biomarker order; the old 35-plex Junior file is backed up as
+`Channel_names.junior35.bak`); `www/local_images` → `/data/islet_ome_tiff`.
 
 ## Per-tab matrix
 
@@ -29,7 +42,7 @@ spatial records; 35 channel names; `www/local_images` absent.
 |-----|---------|-----------------------|-------|
 | **Plot** | ✅ Works | `plot.png` | Sidebar filters, "Insulin⁺ fraction vs Islet Size" scatter (clean ND↘ / Aab+↗ / T1D-low biology), donor-group violin, AI panel — all render. Drill-down controls present (9,706 per-islet CSVs + 15 GeoJSONs on disk). |
 | **Trajectory** | ✅ Works (was slow) | `trajectory.png` (8s, mid-load) → after 30s the pseudotime scatter (INS vs pseudotime, ND/Aab+/T1D + trend lines) + both UMAPs render fully. Slow first render was vectorized away 2026-06-29. |
-| **Viewer** | ⚠️ Empty (graceful) | `viewer.png` | "No images found. Place OME-TIFF files in `www/local_images/` or set `LOCAL_IMAGE_ROOT`." UI renders; no images deployed. Not a bug — missing optional data. |
+| **Viewer** | ✅ Works (images added Jul 2026) | `verification_6539.png` | Per-donor 59-plex OME-TIFFs from `convert_viewer_ometiff.sh`, served via `www/local_images` → `/data/islet_ome_tiff`. Donor 6539 verified rendering in Avivator with correct INS/GCG/SST/DAPI defaults + `6539.offsets.json` (Viv IFD index). Requires Range-serving (prod nginx/shiny-server), not `runApp`. |
 | **Statistics** | ✅ Works | `statistics.png` | Full narrative + Configure Analysis controls + Run Statistics / Download CSV. Result panels (Hypothesis Testing, Effect-Size Forest, AUC) populate **on demand** after Run Statistics; the donor-aware (N=15) mixed-effects workflow is wired. |
 | **Spatial** | ✅ Works | `spatial.png` | Tissue scatter renders **145,651 foreground cells** for donor 115 via the **DuckDB tissue backend** (no per-donor CSV fallback needed); Leiden UMAP (9,130 islets, clusters 0–14), Donor-Status UMAP, and "Mean Phenotype Composition by Cluster" all render. |
 | **Drill-Down** *(embedded in Plot/Trajectory)* | ✅ Works via Plot | — | Per-islet segmentation + single-cell overlay is driven by a click on a scatter point. Functional from **Plot** (cell CSVs + GeoJSONs present); unusable from **Trajectory** only because that scatter is empty. |

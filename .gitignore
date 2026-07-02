@@ -8,7 +8,9 @@ gson/
 single_cell_analysis/*.h5ad
 single_cell_analysis/*.tsv
 app/shiny_app/www/local_images/
+app/shiny_app/www/local_images
 local_images/
+app/shiny_app/Channel_names.junior35.bak
 app/shiny_app/www/segmentation_data/
 AI_Markdown/
 analysis_output/*

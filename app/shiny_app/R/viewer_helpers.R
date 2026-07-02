@@ -354,43 +354,27 @@ list_available_zarr_images <- function() {
 #       { index: 13, name: "SST",  color: "#FFCC00", visible: true }
 #     ]
 #   }
-build_channel_config_b64 <- function(names_vec) {
-  if (is.null(names_vec) || length(names_vec) == 0) return(NULL)
-
-  # Helper: RGB ints (0..255) to hex string
+build_channel_config_b64 <- function(names_vec = NULL) {
+  # Emit the default-on marker set BY NAME only (no positional `channelNames`
+  # override, no hardcoded per-channel indices). The embedded Avivator resolves
+  # each primaryChannel against the SELECTED image's own OME-XML channel names
+  # (its `findIndex(name)` fallback), and — with `channelNames` omitted — keeps
+  # each image's own channel labels. This is required because the cohort mixes
+  # panels: batch-1 slides are 59-ch with SST@35, batch-2 slides put SST@1 and
+  # some are 58-ch (GCG@45). A single positional sidecar mislabels/mis-defaults
+  # batch-2; name resolution is correct for every donor regardless of panel.
+  # `names_vec` is accepted for backward compatibility but no longer used.
   rgb_hex <- function(r, g, b) sprintf("#%02X%02X%02X", as.integer(r), as.integer(g), as.integer(b))
-  # Palette for key channels
-  hex_red    <- rgb_hex(228,  26,  28)  # INS
-  hex_blue   <- rgb_hex( 55, 126, 184)  # GCG
-  hex_yellow <- rgb_hex(255, 204,   0)  # SST
-  hex_grey   <- rgb_hex(127, 127, 127)  # DAPI
 
-  # Locate indices for the key channels (names_vec is 1-based by channel number)
-  find_idx0 <- function(tag) {
-    hit <- which(toupper(names_vec) == tag)
-    if (length(hit) == 0) return(NA_integer_)
-    (hit[[1]] - 1L) # zero-based for viewer
-  }
-  idx0_dapi <- find_idx0("DAPI")
-  idx0_ins  <- find_idx0("INS")
-  idx0_gcg  <- find_idx0("GCG")
-  idx0_sst  <- find_idx0("SST")
-
-  prim <- list()
-  add_pc <- function(idx0, name, hex) {
-    if (!is.na(idx0) && idx0 >= 0) prim[[length(prim)+1]] <<- list(index = idx0, name = name, color = hex, visible = TRUE)
-  }
   # Order: INS (red), GCG (blue), SST (yellow), DAPI (grey)
-  add_pc(idx0_ins,  "INS",  hex_red)
-  add_pc(idx0_gcg,  "GCG",  hex_blue)
-  add_pc(idx0_sst,  "SST",  hex_yellow)
-  add_pc(idx0_dapi, "DAPI", hex_grey)
-
-  # Build config
-  cfg <- list(
-    channelNames = as.list(as.character(names_vec)),
-    primaryChannels = prim
+  prim <- list(
+    list(name = "INS",  color = rgb_hex(228,  26,  28), visible = TRUE),
+    list(name = "GCG",  color = rgb_hex( 55, 126, 184), visible = TRUE),
+    list(name = "SST",  color = rgb_hex(255, 204,   0), visible = TRUE),
+    list(name = "DAPI", color = rgb_hex(127, 127, 127), visible = TRUE)
   )
+
+  cfg <- list(primaryChannels = prim)
   js <- jsonlite::toJSON(cfg, auto_unbox = TRUE)
   base64enc::base64encode(charToRaw(js))
 }
