@@ -11,7 +11,7 @@ Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging d
 - `app/shiny_app/CLAUDE.md` — per-tab feature details (Drill-Down, Trajectory, Plot, AI Assistant) + conventions including the May 2026 font-standardisation system
   - `app/shiny_app/docs/spatial.md` — Spatial Neighborhood Analysis deep reference (split out May 2026)
   - `app/shiny_app/docs/statistics.md` — Statistics Tab deep reference (split out May 2026)
-- `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes, **and the Senior phenotyping pipeline (REDSEA spillover → RESTORE normalization → broad-lineage assignment → QuPath inspection)**
+- `scripts/CLAUDE.md` — pipeline scripts, batch correction, pseudotime modes, **the Senior phenotyping pipeline (REDSEA spillover → RESTORE normalization → broad-lineage assignment → QuPath inspection)**, and the **Senior trajectory batch-correction + robustness fix (Jul 2026)** — scVI `batch_key`, Harmony θ-sweep, robust root, hard gates, combined mode
   - (`islet_analysis/` was removed; its content folded into `scripts/senior/` + `scripts/CLAUDE.md`)
 
 ## App Architecture (Modular - Feb 2026)

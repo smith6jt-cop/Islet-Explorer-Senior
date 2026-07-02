@@ -36,6 +36,40 @@ Computes a SECOND pseudotime saved as `dpt_pseudotime_combined`. Input matrix: `
 
 Old comments in `reaggregate_islets.py` and `islet_analysis/CLAUDE.md` claimed "scVI latent has donor-level variation corrected out (Age+Gender covariates bijectively map to donors)". This is wrong — Age/Gender as `categorical_covariate_keys` don't activate batch correction; only `batch_key` does. Comments updated Apr 2026.
 
+## Senior trajectory batch-correction + robustness fix (Jul 2026)
+
+The **deployed Senior** trajectory (`data/islets_core_senior.h5ad`, **9,130 islets × 59
+markers** — not the stale Junior 5,214/31 the older docs describe; read by the app via the
+symlink `data/app_data/adata_ins_root.h5ad → ../islets_core_senior.h5ad`) was found to be a
+**donor/slide batch axis, not disease progression**: batch η²=0.988 vs disease η²=0.103;
+within-status donor η² ND 0.99 / T1D 0.97; ND<Aab+<T1D ordering FAILED (Aab+ 0.76 > T1D 0.65);
+root was a saturated **3-cell** islet. Fixes (land now, execute at the next rebuild):
+
+- **`train_scvi_senior.py`** — the root cause. Now `setup_anndata(batch_key="imageid")` (was
+  `categorical_covariate_keys=["Age","Gender"]`, **no batch_key** → batch decoder never fired,
+  per-image staining/gain drift leaked into `X_scVI_mean`). Age/Gender dropped (collinear with
+  imageid). **Input must be REDSEA+RESTORE-corrected MFI** (`--corrected-mfi-dir data/cells_redsea`
+  overlays it by `object_id`, or PHENO's `raw/X` already holds it) so `batch_key` isn't doing
+  double duty against spillover REDSEA already removes.
+- **`compute_trajectory_senior.py`** (rewritten) — ports the proven Junior recipe:
+  (1) **Harmony θ-sweep** `{0,0.1,0.5,1.0}` on `X_scVI_mean` (batch=imageid) → neighbors on
+  `X_scVI_harmony_pt` (k=30, cosine); picks the smallest θ passing the gates (harmonypy `Z_corr`
+  is `(d,N)` — always `.T`). (2) **Robust root** = medoid of top-50 ND-by-INS islets with
+  `total_cells ≥ 20` (kills the 3-cell root). (3) **`low_cell_qc` flag** + a `≥5`-cell
+  **sensitivity check** (dataset size unchanged → core↔peri pairing + app keying intact).
+  (4) **Hard gates that RAISE before write** (fail → `*.rejected.h5ad` + exit 1, `--force` to
+  override): INS ρ<−0.3; GCG ρ>0.1; **T1D>ND** median + one-sided MWU p<0.05 (**Aab+ excluded
+  — single donor 6521**); within-status donor η² ≤0.15 (ND,T1D); root sanity. Metrics persist to
+  `uns['trajectory_validation']` (surfaced as a validity caption in the Trajectory tab).
+  (5) **Combined "Core+Peri" pseudotime** (Step-5b port) → `dpt_pseudotime_combined`
+  (`STRUCT_PHENOTYPES` reconciled to the new broad-lineage taxonomy); written only if it passes
+  the same gates. (6) Display `X_umap` from raw-marker PCA (not the donor-separated scVI blob).
+- **Prototype validation** (on a stand-in composition latent, since the real scVI latent is
+  currently missing): θ=1.0 took within-status η² ND 0.54→0.07 / T1D 0.92→0.09, batch η²
+  0.99→0.18, ordering ND<Aab+<T1D restored, INS ρ −0.55, root a 41-cell multi-donor medoid.
+- **Cohort caveat (surfaced, not fixed):** Aab+ = a single donor (6521, 399 islets) → excluded
+  from the hard ordering/η² gates and labelled n=1 in the app.
+
 ## Pipeline Scripts & Notebooks
 
 - `scripts/fix_tcell_subtypes.py` - Reclassifies CD4/CD8 T cells by marker gating (CD8a/CD4 >= 0.5); `--dry-run` flag for preview

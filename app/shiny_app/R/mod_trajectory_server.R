@@ -430,9 +430,43 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       ndist <- if (is.null(jn)) 0 else nrow(dplyr::distinct(jn, case_id, islet_key))
       src <- if (!is.null(traj_path) && file.exists(traj_path)) traj_path else cur
 
-      tags$div(style = "color:#555;",
-        sprintf("Loaded AnnData (%d obs). Joined %d rows (%d unique islets) of %d islet metrics. Source: %s",
-                nrow(tr$obs), nj, ndist, nm, basename(src))
+      # Pseudotime validity caption from uns['trajectory_validation'] (written by
+      # compute_trajectory_senior.py). Absent on older data -> caption is omitted.
+      g <- function(x) { if (is.null(x)) return(NA_real_); suppressWarnings(as.numeric(x)[1]) }
+      tv <- tryCatch(tr$uns[["trajectory_validation"]], error = function(e) NULL)
+      valid_caption <- NULL
+      if (!is.null(tv) && !is.null(tv[["core"]])) {
+        cm <- tv[["core"]]
+        hard <- isTRUE(as.logical(cm[["hard_pass"]])[1])
+        badge_col <- if (hard) "#228833" else "#CC6633"
+        badge_txt <- if (hard) "validated" else "check gates"
+        valid_caption <- tags$div(
+          style = "color:#555; font-size:12px; margin-top:4px;",
+          tags$span(style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col), badge_txt),
+          sprintf("Pseudotime (θ=%s): INS ρ=%+.2f · T1D>ND p=%.0e · within-status batch η² ND=%.2f/T1D=%.2f",
+                  ifelse(is.na(g(tv[["chosen_theta"]])), "?", format(g(tv[["chosen_theta"]]))),
+                  g(cm[["spearman_INS"]]), g(cm[["mwu_T1D_gt_ND_p"]]),
+                  g(cm[["within_status_eta2_ND"]]), g(cm[["within_status_eta2_T1D"]]))
+        )
+      }
+
+      # Note when the user asked for combined mode but the data lacks that column.
+      mode_note <- NULL
+      if (identical(input$pt_mode, "combined") &&
+          !("dpt_pseudotime_combined" %in% names(tr$obs))) {
+        mode_note <- tags$div(style = "color:#CC6633; font-size:12px; margin-top:2px;",
+          "Core + Peri pseudotime is not available in this dataset — showing Core only.")
+      }
+
+      tagList(
+        tags$div(style = "color:#555;",
+          sprintf("Loaded AnnData (%d obs). Joined %d rows (%d unique islets) of %d islet metrics. Source: %s",
+                  nrow(tr$obs), nj, ndist, nm, basename(src))
+        ),
+        valid_caption,
+        mode_note,
+        tags$div(style = "color:#777; font-size:11px; margin-top:2px; font-style:italic;",
+          "Aab+ is a single donor (6521); its pseudotime reflects one individual and is excluded from the ordering statistic.")
       )
     })
 
@@ -1028,7 +1062,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           div(style = "display: flex; align-items: center;",
             div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["T1D"]])),
             span("T1D", style = "font-size: 15px;")
-          )
+          ),
+          div(style = "font-size: 11px; color: #777; margin-top: 8px; font-style: italic;",
+            "Aab+ = 1 donor (n=399 islets)")
         )
       } else if (color_by == "donor_id") {
         df <- traj_data_clean()

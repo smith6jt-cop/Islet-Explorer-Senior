@@ -84,7 +84,7 @@ See [`docs/statistics.md`](docs/statistics.md) for full details — pseudoreplic
 - **UI controls**: Point size selector: Cell Count (default) / Islet Diameter / Uniform.
 
 #### Key Details
-- `total_cells` is in `adata_ins_root.h5ad` `.obs` (all 5,214 islets, min=1, max=1,902)
+- `total_cells` is in `adata_ins_root.h5ad` `.obs` (Senior: all 9,130 islets, min=1, max=2,261)
 - Added to `traj_data_clean()` result_df with NA guard (fills missing with 1)
 - `log1p(total_cells)` for LOESS weights — prevents extreme islets from distorting trend lines
 - All three trend line variants weighted: overall, by-donor (donor_id coloring), by-donor (donor_status coloring)
@@ -92,7 +92,9 @@ See [`docs/statistics.md`](docs/statistics.md) for full details — pseudoreplic
 
 ### Pseudotime Mode Selector (Phase 17, Apr 2026)
 
-`mod_trajectory_ui.R` has a "Pseudotime mode" dropdown with two options: "Core only" (default, `dpt_pseudotime`) and "Core + Peri" (`dpt_pseudotime_combined`). `mod_trajectory_server.R::traj_with_pseudotime()` switches `obs$pseudotime` based on `input$pt_mode`. The selector controls X-axis (pseudotime) only — Y-axis features remain the 31-marker panel. See `scripts/CLAUDE.md` for the upstream pipeline that produces these two pseudotimes.
+`mod_trajectory_ui.R` has a "Pseudotime mode" dropdown with two options: "Core only" (default, `dpt_pseudotime`) and "Core + Peri" (`dpt_pseudotime_combined`). `mod_trajectory_server.R::traj_with_pseudotime()` switches `obs$pseudotime` based on `input$pt_mode`. The selector controls X-axis (pseudotime) only — Y-axis features remain the marker panel. See `scripts/CLAUDE.md` for the upstream pipeline that produces these two pseudotimes.
+
+**Batch-correction + validity surfacing (Jul 2026).** The deployed Senior pseudotime was a batch axis (batch η²=0.988); `compute_trajectory_senior.py` was rewritten (Harmony θ-sweep + robust root + hard gates + the now-real combined mode — see `scripts/CLAUDE.md` § "Senior trajectory batch-correction + robustness fix"). App-side: `output$traj_status` renders a **validity caption** from `uns['trajectory_validation']` (θ, INS ρ, T1D>ND p, within-status batch η²; green "validated" / amber "check gates" badge), a note when "Core + Peri" is picked but the column is absent (older data → silent fallback to core), and an **Aab+ = 1-donor caveat** (also under the donor-status legend). All are `NULL`-guarded, so they no-op on the current pre-rebuild data that lacks `trajectory_validation` / `dpt_pseudotime_combined`. Until the next data rebuild the tab still shows the OLD batch-driven `dpt_pseudotime`.
 
 ### Pseudotime Heatmap: Dominant Status × Feature Intensity (May 2026)
 
