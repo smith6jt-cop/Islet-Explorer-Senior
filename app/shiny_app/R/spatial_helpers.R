@@ -200,7 +200,14 @@ query_cell_distance_hist <- function(mode, group, statuses, n_bins = 100L) {
           else sprintf("phenotype = '%s'", .cd_esc(group))
   wsel <- paste0("donor_status IN (", status_sql, ")", if (!is.null(cond)) paste0(" AND ", cond) else "")
 
-  lim <- q(sprintf("SELECT quantile_cont(dist_islet,0.01) lo, quantile_cont(dist_islet,0.99) hi FROM cell_distance WHERE %s", wsel))
+  # Asymmetric range: the inside-islet distances are physically bounded (islet
+  # radius, ~-90 µm) and are the interesting near-border region, so DON'T
+  # percentile-clip the low end — a 1% clip sits ABOVE zero for populations that
+  # live mostly outside (CD3e, CD8, macrophages …) and would hide their real but
+  # sparse intra-islet cells. `least(0.1%-quantile, -50)` always shows ≥50 µm of
+  # interior (deeper for inside-rich INS/Beta), while trimming rare -170 µm
+  # outliers. The unbounded far-tissue tail is still clipped at the 99th pct.
+  lim <- q(sprintf("SELECT least(quantile_cont(dist_islet,0.001), -50) lo, quantile_cont(dist_islet,0.99) hi FROM cell_distance WHERE %s", wsel))
   if (is.null(lim) || !is.finite(lim$lo) || !is.finite(lim$hi) || lim$hi <= lim$lo) return(NULL)
   # Bin uniformly in symlog space → fine bins across the islet border, coarse in
   # far tissue. The SQL computes T(dist)=sign(dist)*log10(1+|dist|/C) inline.
