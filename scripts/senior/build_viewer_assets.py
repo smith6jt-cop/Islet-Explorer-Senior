@@ -40,8 +40,20 @@ JSON_OUT = APPDATA / "json"
 CLASS_MAP = {"Islets": "Islet"}
 STRUCTURE_MAP = {"Blood_vessel": "Capillary", "Nerve": "Nerve", "Lymphatic": "Lymphatic"}  # v1.1
 
-DONORS = ["115", "6374", "6380", "6436", "6442", "6457", "6461", "6476",
-          "6482", "6493", "6521", "6539", "6551", "6579", "6593"]
+def discover_donors():
+    """Auto-discover the cohort from the tissue partitions (case_id=<donor>), so adding
+    donors needs no code edit. Falls back to the cells partitions if tissue isn't built."""
+    for sub in ("parquet/tissue", "cells"):
+        base = SD / sub
+        if base.exists():
+            key = "case_id" if sub.endswith("tissue") else "donor_id"
+            ds = sorted(p.name.split("=")[1] for p in base.glob(f"{key}=*"))
+            if ds:
+                return ds
+    return []
+
+
+DONORS = discover_donors()
 
 
 def token_to_case(token):

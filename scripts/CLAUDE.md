@@ -70,6 +70,48 @@ root was a saturated **3-cell** islet. Fixes (land now, execute at the next rebu
 - **Cohort caveat (surfaced, not fixed):** Aab+ = a single donor (6521, 399 islets) → excluded
   from the hard ordering/η² gates and labelled n=1 in the app.
 
+## 22-donor cohort expansion (Jul 2026) — code prep for the full rerun
+
+Cohort growing **15 → 22 donors** (batch 2: +6450/6505 = Aab+, +6523/6534/6566/6591/6623 = T1D;
+new split ND 8 / Aab+ 3 / T1D 11). Plan: `~/.claude/plans/be-sure-the-pseudotime-gentle-brook.md`.
+Code landed now; runs when the QuPath 22-donor exports are ready. Confirmed decisions: **58 common
+markers** (batch 1 has CD38, batch 2 has b-Catenin1 — a physical panel change → drop both);
+**full app rebuild with the 6 broad lineages** (Step-2 fine subclustering deferred); **REDSEA
+re-runs all 22**; **archive 15-donor outputs by move + delete the 44 GB `redsea_scratch/`**.
+
+- `scripts/senior/build_phenotyped_h5ad.py` (**new — GAP #1 fix**): no script produced
+  `singlecell_protein_phenotyped.h5ad`; this joins `data/phenotype/broad/` into
+  `singlecell_protein.h5ad` by `object_id` → `obs['phenotype'] = broad_lineage`. Verified: all
+  23.28M cells match (0 Unassigned). **Follow-up:** `compute_islet_markers.py` /
+  `build_composition_and_tissue.py` still threshold `X>0.5` (old scimap-rescaled X) — must be
+  reconciled to RESTORE `_pos` since X is now raw MFI (RESTORE covers 10 markers; the rest need a
+  per-marker threshold).
+- `scripts/senior/build_singlecell_anndata.py`: now takes the **marker INTERSECTION** across donor
+  partitions (`get_fragments().physical_schema`) → uniform 58-marker panel, no NaN column.
+- `scripts/senior/build_viewer_assets.py`: hard-coded 15-donor `DONORS` list (**GAP #2**) replaced
+  with `discover_donors()` auto-glob of `parquet/tissue/case_id=*` (falls back to `cells/`).
+- `scripts/senior/compute_trajectory_senior.py`: within-status donor η² gate is now **data-driven**
+  — gates any status with ≥2 donors, so **Aab+ (now 3 donors) enters the gate** automatically
+  (was hard-excluded as a single donor); hard ordering stays ND<T1D, ND<Aab+<T1D is informational.
+- `scripts/senior/archive_15donor.sh` (**new**): dry-run by default (`--apply` to execute); moves
+  cohort/derived 15-donor outputs → `data/archive_15donor_<date>/`, deletes `redsea_scratch/` +
+  the deprecated pre-REDSEA `restore/`/`restore_gated/` family. `cells/`+`cells_redsea/` left in
+  place (regenerated over) unless `--archive-cells`.
+
+## Viewer OME-TIFF conversion (Jul 2026)
+
+`scripts/senior/convert_viewer_ometiff.sh` converts the 59-plex `.qptiff` slides
+(`/home/smith6jt/IO60panc2nd/Images/`) to pyramidal, tiled OME-TIFF for the app's **Viewer** tab.
+bioformats2raw 0.12.1 → raw2ometiff 0.10.0 (zip-app launchers under `scripts/tools/`, **no Docker**,
+Java 21); `-s 0 --use-existing-resolutions` (Baseline series only, reuse qptiff pyramid) →
+`raw2ometiff --compression LZW` → `/data/islet_ome_tiff/<case_id>.ome.tiff` (+ a
+`<case_id>.offsets.json` Viv IFD index via `generate-tiff-offsets`). Idempotent/resumable; intermediate
+Zarr on `/data/tmp_b2r` (`/home` is too small). `bash scripts/senior/convert_viewer_ometiff.sh all15`
+(skips already-done). The **`Channel_names` sidecar had to be regenerated** to the 59-channel Senior
+order (was the 35-plex Junior panel) — full detail incl. per-batch panel differences and the
+**HTTP-Range (206) serving caveat** (prod nginx/shiny-server yes, dev `runApp`/httpuv no) in
+`app/shiny_app/CLAUDE.md` § "Viewer Tab (Avivator) — producing the OME-TIFFs".
+
 ## Pipeline Scripts & Notebooks
 
 - `scripts/fix_tcell_subtypes.py` - Reclassifies CD4/CD8 T cells by marker gating (CD8a/CD4 >= 0.5); `--dry-run` flag for preview

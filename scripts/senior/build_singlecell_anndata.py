@@ -47,9 +47,20 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     ds = pads.dataset(str(CELLS), format="parquet", partitioning="hive")
-    markers = [c for c in ds.schema.names if c not in META_COLS]
+    # Marker INTERSECTION across donor partitions. The batches differ by one marker
+    # (batch-1 has CD38, batch-2 has b-Catenin1), so the unified dataset schema is a
+    # 60-marker UNION with a null column per cohort — which would NaN-poison X and break
+    # scVI. Take only markers present in EVERY partition -> uniform 58-marker panel.
+    frag_markers = [set(f.physical_schema.names) - set(META_COLS) for f in ds.get_fragments()]
+    common = set.intersection(*frag_markers) if frag_markers else set()
+    union = set.union(*frag_markers) if frag_markers else set()
+    dropped = sorted(union - common)
+    markers = [c for c in ds.schema.names if c in common and c not in META_COLS]
+    if dropped:
+        print(f"[panel] dropping batch-specific markers {dropped} -> {len(markers)} common markers")
     print(f"[info] {len(markers)} markers; loading parquet ...")
-    tbl = ds.to_table()
+    keep_cols = [c for c in ds.schema.names if c in markers or c in META_COLS]
+    tbl = ds.to_table(columns=keep_cols)          # exclude the batch-specific null columns
     # cast markers to float32 in Arrow (halves memory before to_pandas)
     for m in markers:
         i = tbl.schema.get_field_index(m)

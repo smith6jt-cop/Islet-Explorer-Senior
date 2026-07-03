@@ -196,6 +196,49 @@ def patch_restore_sigma(Normalization, sigma_map, default=3.0):
     print(f"[sigma] per-marker sigma_weight override: {sigma_map} (default {default})")
 
 
+def patch_restore_cluster_cap(Normalization, cap, seed=0):
+    """Subsample-AFTER-idx_select. RESTORE pre-subsampled each image to a flat 15k BEFORE
+    idx_select, so a pair whose idx_select cloud is a small fraction of the image got a tiny,
+    unstable negative-control and a wobbly threshold (e.g. CD3e's threshold swung ~10x and only
+    converged near full data). We instead feed FULL per-image data (build_restore_input, no
+    pre-subsample) so idx_select adapts to whatever the donor actually contains — making NO
+    assumption about which markers are rare or abundant, and respecting real donor biology (e.g.
+    a pancreatitis donor with very high T-cell content) — then cap the resulting idx_select cloud
+    to `cap` cells HERE, right before clustering, so SSC/GMM/KMeans stay tractable. get_GMM_thresh
+    and get_clustering_thresh receive the post-idx_select `marker_pair_data` as their first arg."""
+    if not cap:
+        return
+    import functools
+    rng = np.random.default_rng(seed)
+    for fname in ("get_GMM_thresh", "get_clustering_thresh"):
+        orig = getattr(Normalization, fname)
+
+        def make(orig):
+            @functools.wraps(orig)
+            def wrapper(self, data, marker_pair, model, sigma_weight, color, batch):
+                if data is not None and len(data) > cap:
+                    data = data[rng.choice(len(data), size=cap, replace=False)]
+                return orig(self, data, marker_pair, model, sigma_weight, color, batch)
+            return wrapper
+        setattr(Normalization, fname, make(orig))
+    print(f"[cluster-cap] idx_select cloud capped to {cap:,} cells before clustering "
+          "(subsample-AFTER-idx_select; full image feeds idx_select)")
+
+
+def patch_restore_no_kde(Normalization):
+    """RESTORE.py:221 computes a scipy gaussian_kde over the FULL post-idx_select cloud purely
+    to color a scatter it only saves when save_figs=True. gaussian_kde evaluation is O(n^2); on
+    full-image idx_select clouds (~1.3M cells) that stalls for HOURS per marker pair (holoviews
+    is already stubbed, so the scatter itself is a no-op — the KDE was the sole remaining cost).
+    With save_figs=False the density is discarded, so replace gaussian_kde with a length-
+    preserving zero-density stub. Thresholds are unaffected (they come from the clustering, which
+    runs on a representative sample via patch_restore_cluster_cap)."""
+    import sys
+    R = sys.modules[Normalization.__module__]        # the vendored RESTORE.RESTORE module
+    R.gaussian_kde = lambda dataT: (lambda q: np.zeros(np.asarray(q).shape[-1]))
+    print("[kde-stub] figure-only gaussian_kde neutralized (was O(n^2) on the full idx_select cloud)")
+
+
 def import_restore():
     _install_headless_stubs()
     if str(VENDOR) not in sys.path:
@@ -236,6 +279,20 @@ def build_restore_input(cells_dir, markers, subsample, seed, limit_scenes=None, 
     frames = []
     for donor, f in donor_files(cells_dir, limit_scenes, donors):
         df = pd.read_parquet(f, columns=markers)
+        n_raw = len(df)
+        # REDSEA leaves a few "edge-cell" artifacts that are NaN across ALL markers (whole-cell
+        # correction failed). Those must go, because RESTORE's idx_select (RESTORE.py
+        # get_marker_pair_thresh) uses np.quantile, which is NOT NaN-aware — a single sampled NaN
+        # makes the quantile NaN, empties the selection, and KMeans crashes on 0 samples.
+        # We drop ONLY all-marker-NaN edge cells, NOT cells that merely lack one measurement:
+        # raw QuPath marker means have no NaN, so a PARTIAL-NaN cell would be unexpected — warn
+        # (loudly) rather than silently discard a partially-valid cell.
+        allnan = df.isna().all(axis=1)
+        partial = df.isna().any(axis=1) & ~allnan
+        if partial.any():
+            print(f"[input] WARN {donor}: {int(partial.sum())} PARTIAL-NaN cells (some markers "
+                  "valid) — investigate upstream; they are dropped so the quantile stays finite")
+        df = df[~df.isna().any(axis=1)]
         n = len(df)
         if subsample and n > subsample:
             df = df.iloc[rng.choice(n, size=subsample, replace=False)]
@@ -243,7 +300,8 @@ def build_restore_input(cells_dir, markers, subsample, seed, limit_scenes=None, 
         df["scene"] = donor
         df["batch"] = 0
         frames.append(df)
-        print(f"[input] image {donor}: {n:,} cells -> {len(df):,} sampled")
+        drop = n_raw - n
+        print(f"[input] image {donor}: {n_raw:,} cells ({drop:,} NaN dropped) -> {len(df):,} sampled")
     data = pd.concat(frames, ignore_index=True)
     print(f"[input] total RESTORE input: {len(data):,} cells / {data['scene'].nunique()} images")
     return data
@@ -280,6 +338,7 @@ def reference_exclusivity_qc(cells_dir, pairs, subsample, seed, out_dir, donors=
     frames = []
     for donor, f in donor_files(cells_dir, None, donors):
         df = pd.read_parquet(f, columns=["object_id"] + markers)
+        df = df.dropna(subset=markers)          # drop REDSEA NaN edge-cells (see build_restore_input)
         n = len(df)
         if subsample and n > subsample:
             df = df.iloc[rng.choice(n, size=subsample, replace=False)]
@@ -514,7 +573,9 @@ def main(argv=None):
     ap.add_argument("--gated-dir", type=Path, default=BASE / "restore_gated",
                     help="partitioned per-cell gated + normalized output")
     ap.add_argument("--subsample", type=int, default=15000,
-                    help="cells per image for threshold estimation (SSC-tractable)")
+                    help="cap on the post-idx_select cloud fed to clustering per image×pair "
+                         "(SSC-tractable). idx_select itself runs on the FULL image, so this is a "
+                         "subsample-AFTER-idx_select cap, not a pre-subsample of the whole image")
     ap.add_argument("--model", default="SSC", choices=["GMM", "KMeans", "SSC"],
                     help="model whose threshold drives gating + normalization. "
                          "SSC is the default: on this panel GMM/KMeans place the "
@@ -560,11 +621,16 @@ def main(argv=None):
     if a.marker_sigma:
         sigma_map = {k: float(v) for k, v in (p.split(":") for p in a.marker_sigma.split(","))}
         patch_restore_sigma(Normalization, sigma_map)
+    # subsample-AFTER-idx_select: cap the post-idx_select cloud at --subsample cells, and feed
+    # FULL per-image data to idx_select (pass subsample=None to build_restore_input) so the
+    # negative-control is representative for every pair regardless of marker/cell frequencies.
+    patch_restore_cluster_cap(Normalization, a.subsample, a.seed)
+    patch_restore_no_kde(Normalization)   # kill the figure-only O(n^2) KDE on the full cloud
     qc_dir = a.out_dir / "qc"
     qc_dir.mkdir(parents=True, exist_ok=True)
 
-    print("[step1] building RESTORE input ...")
-    data = build_restore_input(a.cells_dir, markers, a.subsample, a.seed, a.limit_scenes, a.donors)
+    print("[step1] building RESTORE input (full images; idx_select runs on all cells) ...")
+    data = build_restore_input(a.cells_dir, markers, None, a.seed, a.limit_scenes, a.donors)
 
     pkl = a.out_dir / "threshs.pkl"
     if a.reuse_threshs and pkl.exists():

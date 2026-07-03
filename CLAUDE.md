@@ -6,6 +6,18 @@ This file provides guidance to Claude Code when working with this repository.
 
 Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging data from nPOD donors. Tracks insulin loss and immune infiltration across ND -> Aab+ -> T1D progression. Features islet-level aggregated views, pseudotime trajectory, spatial neighborhood analysis, and single-cell drill-down.
 
+## ⚠️ Working rule — no frequency/uniformity assumptions
+
+**Never assume marker or cell-type frequencies, and never treat per-donor variation as an error to
+normalize toward a cohort norm — donor biology is genuinely variable.** e.g. donor **6476** (lone
+**pancreatitis** donor) has real extreme CD3e; **CD3e is sparser than CD163** (not the reverse);
+positivity is **RESTORE-threshold-defined**, not a raw-MFI floor. Validate a per-donor threshold/call
+against **that donor's own data** (its histograms, negative-control population, spatial coherence),
+not against other donors. Justify method changes on methodological grounds (stability/representativeness),
+not on "this donor should look like the others."
+
+**In-flight work:** the 15→22 donor rebuild is mid-pipeline — see [`docs/HANDOFF_22donor_rebuild.md`](docs/HANDOFF_22donor_rebuild.md) for current state, next steps, and the note that `data/` + raw inputs are NOT in git.
+
 ## Sub-directory CLAUDE.md files
 
 - `app/shiny_app/CLAUDE.md` — per-tab feature details (Drill-Down, Trajectory, Plot, AI Assistant) + conventions including the May 2026 font-standardisation system

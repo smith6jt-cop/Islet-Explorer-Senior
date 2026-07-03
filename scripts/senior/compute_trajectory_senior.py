@@ -25,9 +25,11 @@ a saturated 3-cell islet. Root causes and the fixes applied here:
   5. "Core + Peri" combined pseudotime now computed (Step-5b port) so the app's
      selector is real, not a silent no-op.
 
-COHORT CAVEAT (surfaced, not "fixed"): Aab+ = a single donor (6521, 399 islets).
-Its pseudotime reflects one individual, so Aab+ is EXCLUDED from the hard ordering /
-eta^2 gates (reported informationally only).
+COHORT NOTE: the within-status donor eta^2 gate is data-driven — it covers every
+disease status with >=2 donors and skips (reports only) any status with a single donor.
+So when Aab+ was one donor (6521) it was reported-not-gated; with the 22-donor cohort
+(Aab+ = 3 donors: 6521/6450/6505) Aab+ enters the eta^2 gate automatically. The hard
+ordering gate stays on the robust ND<T1D endpoints; ND<Aab+<T1D is informational.
 
 Islet Leiden (Spatial tab) unchanged: Harmony(theta=2, batch=imageid) on X_scVI_mean
 -> separate graph -> leiden at 4 resolutions. Run in `scimap` (or scvi-env) env.
@@ -67,17 +69,21 @@ def eta2(y, groups):
     return float(ssb / sst) if sst > 0 else float("nan")
 
 
-def within_status_batch_eta2(pt, status, donor, statuses=("ND", "T1D"), min_islets=3):
-    """Per-status donor eta^2 using only donors with >= min_islets islets."""
+def within_status_batch_eta2(pt, status, donor, statuses=None, min_islets=3, min_donors=2):
+    """Per-status donor eta^2, only for statuses with >= min_donors donors (each with
+    >= min_islets islets). A status with too few donors -> NaN (reported, never gated).
+    statuses=None -> every status present. This is what makes Aab+ enter the gate
+    automatically once it has >=2 donors (was hard-excluded when Aab+ = 1 donor)."""
+    status, donor, pt = np.asarray(status), np.asarray(donor), np.asarray(pt)
+    if statuses is None:
+        statuses = list(np.unique(status))
     out = {}
     for stt in statuses:
-        m = np.asarray(status) == stt
-        pt_s, d_s = np.asarray(pt)[m], np.asarray(donor)[m]
+        m = status == stt
+        pt_s, d_s = pt[m], donor[m]
         keep = np.isin(d_s, [d for d in np.unique(d_s) if (d_s == d).sum() >= min_islets])
-        if keep.sum() < min_islets or len(np.unique(d_s[keep])) < 2:
-            out[stt] = float("nan")
-        else:
-            out[stt] = eta2(pt_s[keep], d_s[keep])
+        n_don = len(np.unique(d_s[keep])) if keep.any() else 0
+        out[stt] = eta2(pt_s[keep], d_s[keep]) if n_don >= min_donors else float("nan")
     return out
 
 
@@ -144,9 +150,11 @@ def compute_core_dpt(a, theta, ins_idx):
     )
 
 
-def evaluate_gates(a, pt, ins_idx, root, exclude_aab=True):
-    """Return a metrics dict + per-gate booleans + hard_pass. Aab+ excluded from the
-    hard ordering / eta^2 gates (single donor -> structurally unreliable)."""
+def evaluate_gates(a, pt, ins_idx, root):
+    """Return a metrics dict + per-gate booleans + hard_pass. The within-status donor
+    eta^2 gate covers every status with >=2 donors (data-driven), so Aab+ is gated once
+    it has >=2 donors and skipped (reported only) when it is a single donor. The hard
+    ordering gate stays on the robust ND<T1D endpoints; ND<Aab+<T1D is informational."""
     ds = a.obs["donor_status"].astype(str).to_numpy()
     don = a.obs["imageid"].astype(str).to_numpy()
     tc = a.obs["total_cells"].to_numpy()
@@ -164,26 +172,34 @@ def evaluate_gates(a, pt, ins_idx, root, exclude_aab=True):
         mwu_p = float(mannwhitneyu(t1d_pt, nd_pt, alternative="greater").pvalue)
     except ValueError:
         mwu_p = float("nan")
-    wse = within_status_batch_eta2(pt, ds, don, ("ND", "T1D"))
+    wse = within_status_batch_eta2(pt, ds, don)          # all statuses; NaN where <2 donors
     means = {s: float(pt[ds == s].mean()) for s in ["ND", "Aab+", "T1D"] if (ds == s).any()}
+    # statuses that actually enter the eta^2 gate (>=2 donors -> finite eta^2)
+    gated_statuses = [s for s in ("ND", "Aab+", "T1D") if np.isfinite(wse.get(s, float("nan")))]
+    # informational monotonic ordering across whatever endpoints/stages are present
+    ordered_means = [means[s] for s in ("ND", "Aab+", "T1D") if s in means]
+    ordering_monotonic = all(ordered_means[i] <= ordered_means[i + 1]
+                             for i in range(len(ordered_means) - 1))
 
     g_ins = r_ins < -0.3
     g_gcg = (not np.isfinite(r_gcg)) or (r_gcg > 0.1)
     g_order = (med_t1d > med_nd) and (np.isfinite(mwu_p) and mwu_p < 0.05)
-    g_eta = all((not np.isfinite(wse[s])) or (wse[s] <= ETA2_GATE) for s in ("ND", "T1D"))
+    g_eta = all(wse[s] <= ETA2_GATE for s in gated_statuses) if gated_statuses else True
     g_root = (ds[root] == "ND") and (tc[root] >= ROOT_MIN_CELLS)
     hard = bool(g_ins and g_gcg and g_order and g_eta and g_root)
 
     metrics = dict(
         spearman_INS=r_ins, spearman_GCG=r_gcg,
         median_pt_ND=med_nd, median_pt_T1D=med_t1d, mwu_T1D_gt_ND_p=mwu_p,
-        within_status_eta2_ND=wse["ND"], within_status_eta2_T1D=wse["T1D"],
+        within_status_eta2_ND=wse.get("ND", float("nan")),
+        within_status_eta2_Aab=wse.get("Aab+", float("nan")),
+        within_status_eta2_T1D=wse.get("T1D", float("nan")),
         eta2_disease=eta2(pt, ds), eta2_batch=eta2(pt, don),
-        mean_pt_by_status=means, root_index=int(root),
+        mean_pt_by_status=means, ordering_monotonic=bool(ordering_monotonic),
+        gated_statuses=gated_statuses, root_index=int(root),
         root_donor=str(don[root]), root_cells=int(tc[root]),
         gate_INS=bool(g_ins), gate_GCG=bool(g_gcg), gate_ordering=bool(g_order),
         gate_within_status_eta2=bool(g_eta), gate_root=bool(g_root), hard_pass=hard,
-        aab_excluded_from_hard_gates=bool(exclude_aab),
     )
     return metrics
 
@@ -195,7 +211,9 @@ def _print_gates(tag, m):
     print(f"  median pt  T1D {m['median_pt_T1D']:.3f} > ND {m['median_pt_ND']:.3f} "
           f"(MWU p={m['mwu_T1D_gt_ND_p']:.1e}) -> {'PASS' if m['gate_ordering'] else 'FAIL'}")
     print(f"  within-status donor eta^2  ND={m['within_status_eta2_ND']:.3f} "
-          f"T1D={m['within_status_eta2_T1D']:.3f}  (<= {ETA2_GATE}) -> {'PASS' if m['gate_within_status_eta2'] else 'FAIL'}")
+          f"Aab+={m['within_status_eta2_Aab']:.3f} T1D={m['within_status_eta2_T1D']:.3f}  "
+          f"(<= {ETA2_GATE}, gated: {m['gated_statuses']}) -> {'PASS' if m['gate_within_status_eta2'] else 'FAIL'}")
+    print(f"  [info] ND<Aab+<T1D monotonic: {m['ordering_monotonic']}")
     print(f"  root: donor={m['root_donor']} cells={m['root_cells']} -> {'PASS' if m['gate_root'] else 'FAIL'}")
     print(f"  [info] eta2 disease={m['eta2_disease']:.3f} batch={m['eta2_batch']:.3f} "
           f"means={ {k: round(v,3) for k,v in m['mean_pt_by_status'].items()} }")
@@ -414,7 +432,9 @@ def main():
         "chosen_theta": float(theta),
         "theta_sweep": {str(t): sweep[t] for t in sweep},
         "sensitivity": sens,
-        "aab_note": "Aab+ is a single donor (6521); excluded from hard ordering/eta^2 gates.",
+        "gate_note": ("within-status donor eta^2 gates every status with >=2 donors; "
+                      "a single-donor status is reported but not gated. Hard ordering is "
+                      "ND<T1D (MWU); ND<Aab+<T1D is informational."),
     }
 
     if not core_metrics["hard_pass"] and not args.force:

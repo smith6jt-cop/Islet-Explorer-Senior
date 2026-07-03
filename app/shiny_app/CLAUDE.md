@@ -186,6 +186,47 @@ Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
 - **Debug mode**: Set `DEBUG_CREDENTIALS=1` env var for verbose credential loading logs.
 - **Plain-text display**: `strip_markdown()` in `mod_ai_assistant_server.R` removes markdown formatting from AI responses before display.
 
+## Viewer Tab (Avivator) — producing the OME-TIFFs (Jul 2026)
+
+The Viewer serves **one pyramidal OME-TIFF per donor** for the **full 22-donor cohort** from the
+Akoya `.qptiff` slides in `/home/smith6jt/IO60panc2nd/Images/`. Pipeline:
+**`scripts/senior/convert_viewer_ometiff.sh`** (bioformats2raw 0.12.1 → raw2ometiff 0.10.0 zip-app
+launchers under `scripts/tools/`, **no Docker**, Java 21). Per donor it runs
+`bioformats2raw -s 0 --use-existing-resolutions` (Baseline series only — drops the qptiff
+Thumbnail/Macro/Label so Avivator shows one image; reuses the qptiff's own 5-level pyramid) then
+`raw2ometiff --compression LZW` → `/data/islet_ome_tiff/<case_id>.ome.tiff` (LZW = lossless, ≈ input
+size; `/home` is too small at ~305 GB, `/data` is 18 TB), then generates a `<case_id>.offsets.json`
+Viv IFD index via the `generate-tiff-offsets` package. Idempotent (skip-if-exists) + resumable;
+intermediate Zarr goes to `/data/tmp_b2r`. The `MAP` covers all 22 case_ids (`115`→`HDL115pancLN…`,
+`6476`→`_Scan2`, batch-2 `6450`→`6450panc…`, etc.); targets: `all22` (or `all15`, or explicit ids).
+~30 min for a 35 GB slide (≈ hours for the whole cohort).
+
+**Wiring:** `app/shiny_app/www/local_images` is a symlink → `/data/islet_ome_tiff`; the modular
+Viewer enumerates that dir live (no manifest) and lists `<case_id>.ome.tiff` in the dropdown.
+
+**Channel config — name-based, panel-agnostic (the load-bearing fix).** The cohort **mixes panels**:
+batch-1 slides (15) are 59-ch with **SST@35**, CD38@16; batch-2 slides (7) put **SST@1**, and 3 are
+**58-ch** (GCG@45, no CD38/b-Catenin1) while 4 are 59-ch (GCG@46, b-Catenin1@16). DAPI@0/INS@13 are
+common. So a *positional* channel_config is wrong for batch-2. `build_channel_config_b64()`
+(`viewer_helpers.R`) therefore emits the four default-on markers **by NAME only** — no positional
+`channelNames` override, no hardcoded indices. The bundled Avivator resolves each primaryChannel via
+its `findIndex(name)` fallback against the **selected image's own OME-XML channel names** (which
+raw2ometiff carries over from the qptiff `<Biomarker>` XML), and with `channelNames` omitted it keeps
+each image's own labels. Result: INS(red)/GCG(blue)/SST(yellow)/DAPI(grey) default-on correctly for
+**every donor regardless of panel**. Verified on batch-1 `6539`; batch-2 resolves the same way.
+The `Channel_names` sidecar (regenerated to the 59-ch Senior order; Junior 35-plex saved as
+`Channel_names.junior35.bak`) is now **vestigial for the viewer** — `build_channel_config_b64` ignores
+its argument. No per-channel patching needed.
+
+**Serving requires HTTP Range (206).** Avivator/Viv streams pyramid tiles via Range. Production
+(nginx :8080 → shiny-server :3838) serves Range; the dev `shiny::runApp` (httpuv 1.6.16) returns
+**200 with the full body** for every www file — so images render under the deployed server, **not**
+under `runApp`. To verify a render locally, serve `/data/islet_ome_tiff` through a Range-capable
+static server and load `www/avivator/index.html?image_url=…&channel_config=…` (Avivator derives the
+offsets URL by `ome.tif(f)`→`offsets.json`, so the sidecar must be `<case_id>.offsets.json`, NOT
+`<case_id>.ome.offsets.json` — the repo's `scripts/make_offsets_json.py` produces the wrong name AND
+shape; use `generate-tiff-offsets` instead). Verified figure: `/data/islet_ome_tiff/verification_6539.png`.
+
 ## Viewer Tab (Avivator) — iframe Persistence (Jun 2026)
 
 The Viewer embeds a local Avivator build (`www/avivator`, Vite bundle) in an `<iframe>` to render OME-TIFFs. Files: `mod_viewer_server.R`, `mod_viewer_ui.R`, `viewer_helpers.R`.
