@@ -7,13 +7,19 @@
 #   bioformats2raw  -s 0 --use-existing-resolutions  <qptiff> <zarr>   (Baseline series only)
 #   raw2ometiff     --compression LZW               <zarr>  <out.ome.tiff>
 #
-# Output: /data/islet_ome_tiff/<case_id>.ome.tiff  (LZW = lossless; matches source MFI).
+# Output: $OUT_DIR/<case_id>.ome.tiff  (LZW = lossless; matches source MFI).
 # The <case_id> basename is what the Viewer dropdown lists and what
 # find_image_for_case() substring-matches for the drill-down "jump to Viewer" path.
 #
 # Design notes:
-#   * /home has little free space; ALL heavy I/O (intermediate Zarr + final TIFF)
-#     lives on /data (18 TB). TMPDIR base is on /data too.
+#   * STORAGE — the intermediate Zarr is thousands of small chunk files (random I/O);
+#     it MUST live on SSD/NVMe. On a spinning disk it saturates the drive and stalls
+#     the whole box (dirty-page backlog → every `sync` hangs; this happened on the
+#     18 TB /data HDD, 2026-07-02). So TMPBASE defaults to NVMe and the script
+#     HARD-ERRORS if TMPBASE is on a rotational disk. The final OME-TIFF is one big
+#     sequential write; OUT_DIR defaults to NVMe too and only WARNS if it's an HDD.
+#     A flock guarantees ONE conversion at a time — concurrent writers on one spindle
+#     are what compounded the stall.
 #   * Idempotent: a donor whose final .ome.tiff already exists is skipped, so the
 #     batch is resumable after an interrupt. Partial output is written to a
 #     .partial path and atomically mv'd on success.
@@ -26,18 +32,19 @@
 #   scripts/senior/convert_viewer_ometiff.sh 6539 6374 115     # several
 #   scripts/senior/convert_viewer_ometiff.sh all15             # all 15 app donors
 #
-# Env overrides: OUT_DIR, TMPBASE, IMAGES_DIR, TILE, COMPRESSION, B2R_MAX_WORKERS,
-#                MIN_FREE_GB (df guard).
+# Env overrides: OUT_DIR, TMPBASE (both default to NVMe; TMPBASE MUST be SSD/NVMe),
+#                IMAGES_DIR, TILE, COMPRESSION, B2R_MAX_WORKERS, MIN_FREE_GB, LOCKFILE.
 set -uo pipefail
 
 # ---- config ---------------------------------------------------------------
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGES_DIR="${IMAGES_DIR:-/home/smith6jt/IO60panc2nd/Images}"
-OUT_DIR="${OUT_DIR:-/data/islet_ome_tiff}"
-TMPBASE="${TMPBASE:-/data/tmp_b2r}"
+# Default OUT_DIR/TMPBASE to NVMe — NEVER the /data HDD (see "STORAGE" note above). Override per run.
+OUT_DIR="${OUT_DIR:-$HOME/islet_ome_tiff}"       # final OME-TIFFs (persistent; put on NVMe)
+TMPBASE="${TMPBASE:-/tmp/b2r_scratch}"           # intermediate Zarr — MUST be SSD/NVMe (/tmp is NVMe here)
 TILE="${TILE:-1024}"
 COMPRESSION="${COMPRESSION:-LZW}"
-MIN_FREE_GB="${MIN_FREE_GB:-300}"        # abort a slide if /data free < this
+MIN_FREE_GB="${MIN_FREE_GB:-300}"                # abort a slide if OUT_DIR free < this
 # Python with generate-tiff-offsets (Viv IFD index -> <case_id>.offsets.json). Optional.
 OFFSETS_PYTHON="${OFFSETS_PYTHON:-/home/smith6jt/miniconda3/envs/xenium_analysis/bin/python}"
 
@@ -87,6 +94,33 @@ esac
 [[ -x "$B2R" ]] || { echo "ERROR: bioformats2raw launcher not found under scripts/tools/ — run scripts/get_bioformats2raw.sh or unzip the release." >&2; exit 1; }
 [[ -x "$R2O" ]] || { echo "ERROR: raw2ometiff launcher not found under scripts/tools/." >&2; exit 1; }
 mkdir -p "$OUT_DIR" "$TMPBASE"
+
+# ---- storage safety: keep heavy random I/O off spinning disks --------------
+is_rotational() {  # true if the path's backing block device is an HDD (ROTA=1)
+  local src; src=$(df --output=source "$1" 2>/dev/null | tail -1)
+  [[ -n "$src" ]] && [[ "$(lsblk -no ROTA "$src" 2>/dev/null | head -1 | tr -d ' ')" == "1" ]]
+}
+if is_rotational "$TMPBASE"; then
+  echo "ERROR: TMPBASE ($TMPBASE) is on a ROTATIONAL disk (HDD). bioformats2raw writes thousands of" >&2
+  echo "       small Zarr chunk files (random I/O) — on an HDD that saturates the disk and stalls the" >&2
+  echo "       whole machine (dirty-page backlog → every sync hangs). Point TMPBASE at SSD/NVMe:" >&2
+  echo "         TMPBASE=/tmp/b2r_scratch $0 $*" >&2
+  exit 1
+fi
+if is_rotational "$OUT_DIR"; then
+  echo "WARNING: OUT_DIR ($OUT_DIR) is on a ROTATIONAL disk (HDD). The final OME-TIFF is a large" >&2
+  echo "         sequential write (a CMR HDD handles it) and serving is read-only, but you asked to" >&2
+  echo "         keep output off the HDD. Set OUT_DIR to NVMe to avoid it entirely." >&2
+fi
+
+# ---- single-instance lock: never run two conversions on one spindle --------
+LOCKFILE="${LOCKFILE:-/tmp/convert_viewer_ometiff.lock}"
+exec 9>"$LOCKFILE"
+if ! flock -n 9; then
+  echo "ERROR: another conversion holds the lock ($LOCKFILE). Refusing to run concurrently —" >&2
+  echo "       parallel writers on one disk are what compounded the 2026-07-02 stall." >&2
+  exit 1
+fi
 
 log() { echo "[$(date '+%F %T')] $*"; }
 free_gb() { df -PBG "$1" | awk 'NR==2{gsub("G","",$4); print $4}'; }
