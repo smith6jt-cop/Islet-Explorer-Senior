@@ -355,6 +355,59 @@ Muscle + Fibroblast top-level siblings). The app's
 rebuild (TODO breadcrumb left there). NB watch the numpy fixed-width-string gotcha: build the broad-call
 array as `<U16` or assigning a longer label (e.g. "Endothelial") silently truncates.
 
+## False-endocrine fix — hormone over-calling, NOT keratin spillover (Jul 2026)
+
+The Step-1 identity heatmap's **Endocrine row lit for the keratin block** (Pan_CK/Ker8_18) turned out to be
+**FALSE endocrine**, not keratin spillover onto real β-cells. RESTORE's per-image hormone threshold lands
+**in the noise** for β-loss (T1D) donors — there is no separated bright INS population, so it forces a
+threshold into the noise tail and calls thousands of **acinar** cells INS⁺ at `_norm≈1.1` (barely over
+threshold), which then show their own real keratin. User-confirmed: donor **6380 has no INS cells**, yet the
+un-fixed pipeline called **11,905 INS⁺** there (all `_norm≈1.15`, 100% in tissue, 0 islets with ≥5
+co-INS⁺). The keratin-vs-strength relationship is monotonic (median corrected Pan_CK of INS⁺ cells: `_norm`
+1–1.5 → **765**, 10+ real β → **126**), so weak calls **are** acinar. **Real β-cells (strong `_norm`) are
+already keratin-clean** → the pixel-REDSEA keratin lever solves a non-problem.
+
+**Discriminators (all agree, per-donor):** hormone `_norm` strength (real β 8–25 vs false ~1.1); islet
+coherence (real endocrine cluster in islets, false scatter in tissue); per-image separation (p99/p90 of
+corrected intensity: ND 6539 INS ~80, β-loss 6380 ~2). Per-donor biology is preserved (hard rule): T1D
+**6593 keeps 22,904 strong-`_norm` INS⁺ = real residual β** — never normalized toward a cohort β-null.
+
+**THE FIX = a threshold-relative hormone-strength floor** (per-image-adaptive since `_norm`=raw/threshold):
+call Endocrine only when INS/GCG/SST `_norm ≥ K` (rejects the noise-floor false β) **+ bright CD99
+`_norm ≥ 3`** for the PP/ε/EC endocrine we lack specific markers for. **Operating point K=5** (user choice),
+**committed cohort-wide (22 donors)**:
+- `scripts/senior/assign_broad_lineage.py` — gained argparse (`--gated-dir/--out-dir/--extra-gated-dir/
+  --hormone-min-norm/--cd99-bright`); the endocrine rule is now `INS/GCG/SST _norm ≥ K | CD99_norm ≥ 3`
+  (was `_pos`). Re-typed `data/phenotype/broad` at `--hormone-min-norm 5`.
+- `scripts/senior/apply_hormone_floor.py` (**new**) — rewrites `{INS,GCG,SST}_pos = (_norm ≥ K)` in
+  `restore_gated_redsea` (leaves `_norm`/`_log2r` and all other columns untouched); re-applyable after any
+  RESTORE re-run. Applied at K=5 so `_pos` consumers (Spatial-tab `cell_distance`) see the fix too.
+- **Bright CD99** needs `data/restore_gated_redsea_extra` (CD99/B3TUBB/MPO ← Pan_Cytokeratin): produce via
+  `restore_normalize.py --marker-pairs 'CD99:Pan_Cytokeratin,B3TUBB:Pan_Cytokeratin,MPO:Pan_Cytokeratin'
+  --cells-dir data/cells_redsea --gated-dir data/restore_gated_redsea_extra --no-robust --no-ref-qc`.
+
+**Validation (per-donor, `scripts/senior/redsea_reassess_diag.py` = the yardstick):** 6380 INS-driven endocrine
+11,905 → **31**; real β kept (6539 8,084, 6593 22,904); endocrine islet-coherence ND 65→**94%**, T1D 39→
+**61%**; GCG(α) coherence 59→94% (removes scattered false α, keeps real); Endocrine-cell **keratin Pan_CK
+−62% / Ker8_18 −56%, hormones INS +97% / GCG +71%**; re-plotted heatmap Endocrine row now hormone-defined
+(INS/GCG/SST/CD99) with Pan_CK neutral. Figures in `data/redsea_reassess/`
+(`false_endocrine_diag`, `endocrine_profile_fix`, `retype_fix_compare`, `redsea_reassess_baseline`).
+
+**Hallmark metric fix:** the CD3e T-gain was hidden by the **mean** (6476 pancreatitis ND has real CD3e⁺
+0.37, dominating the ND mean). Use the **median** → both β-loss (INS ND 0.028→T1D 0.005) and CD3e T-gain
+(ND 0.007→T1D 0.024) show; 6476 is plotted separately, not hidden. **Pan_CK is NOT a definitive acinar
+marker (overly bright)** — do not over-weight "acinar keratin retention" as a guardrail.
+
+**Committed state (deployed data, gitignored):** old typing/gating archived to `data/phenotype/broad.pre_hormonefloor`
+and `data/restore_gated_redsea.pre_hormonefloor`; `cell_distance` rebuilt from the floored `_pos`.
+`scripts/senior/redsea_full.py` per-channel-α + receptivity-gate (the abandoned keratin lever) is kept
+**additive and default bit-identical** (verified mean|diff| 7e-11 vs deployed) — off by default, can revert.
+**`marker_taxonomy.py` + `plot_celltype_markers.py` were MOVED `scripts/` → `scripts/senior/`** (their
+`Path(__file__).parents[2]/"data"` only resolves to `<repo>/data` from `scripts/senior/`, and they import
+`marker_taxonomy` as a sibling). **Follow-up:** the app h5ad still serves the old provisional fine labels; it
+picks up the corrected broad lineages at the next `build_phenotyped_h5ad`/Step-2 rebuild. `data/parquet/tissue`
+is still 15-donor, so `cell_distance` covers 15 until the 22-donor tissue build.
+
 ## Senior phenotyping — QuPath visual inspection (Jun 2026)
 
 To eyeball broad-lineage calls on the images in QuPath 0.7, match by the detection **UUID**

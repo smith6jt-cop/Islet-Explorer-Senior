@@ -207,18 +207,96 @@ def contact_matrix_gapbridge(mask, n, grow):
 
 
 # --------------------------------------------------------------------------- compensate
-def compensate(data, edge, sizes, M, comp_mode, alpha):
-    """REDSEA compensation. corrected_sum = data + comp_mode*edge - alpha*(F @ edge), clamp>=0.
+DEFAULT_GATE_CHANNELS = ["Pan_Cytokeratin", "Ker8_18", "Keratin_5", "Vimentin"]
+
+
+def parse_alpha_per_channel(spec, cols, default):
+    """Build a length-C per-channel alpha vector from 'Name=val,Name2=val2' (unlisted -> `default`).
+    Warns on any name not in `cols`. Returns None if spec is falsy (caller uses the scalar `default`)."""
+    if not spec:
+        return None
+    a = np.full(len(cols), float(default), dtype=np.float64)
+    ci = {c: k for k, c in enumerate(cols)}
+    for tok in str(spec).split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        name, _, val = tok.partition("=")
+        name = name.strip()
+        if name not in ci:
+            log(f"  [alpha] WARNING: channel '{name}' not in the panel — ignored")
+            continue
+        a[ci[name]] = float(val)
+    return a
+
+
+def build_gate(args, cols):
+    """Config for the receptivity (directional) gate, or None when disabled. `channels` is a bool[C]
+    mask of the aggressor channels to gate (default the keratins + Vimentin); other channels always
+    subtract fully (w=1)."""
+    if not getattr(args, "gate_brightness", False):
+        return None
+    want = (args.gate_channels.split(",") if getattr(args, "gate_channels", None)
+            else DEFAULT_GATE_CHANNELS)
+    want = {c.strip() for c in want if c.strip()}
+    chan = np.array([c in want for c in cols], dtype=bool)
+    missing = want - set(cols)
+    if missing:
+        log(f"  [gate] WARNING: gate channels not in panel — ignored: {sorted(missing)}")
+    log(f"  [gate] receptivity gate ON: kappa={args.gate_kappa} "
+        f"channels={[c for c in cols if c in want]}")
+    return {"channels": chan, "kappa": float(args.gate_kappa)}
+
+
+def receptivity_weight(data, edge, sizes, bandcount, gate):
+    """Per-cell/per-channel weight w[i,c] in [0,1] scaling the spillover subtraction, from each cell's
+    OWN spillover signature — no global reference (self-calibrating per cell).
+
+    A spillover VICTIM has its signal concentrated at the shared boundary: the 1-px band is much brighter
+    than the interior (neighbour keratin bleeding in). A real SOURCE is uniform: band ~= interior. So the
+    fractional excess of band-over-interior density is the receptivity:
+        band_density  = edge / bandcount                        (mean channel in the boundary band)
+        int_density   = (data - edge) / (sizes - bandcount)     (mean channel in the interior)
+        excess        = clip((band_density - int_density) / band_density, 0, 1)     # 0 uniform .. 1 rim-only
+        w             = clip(kappa * excess, 0, 1)
+    Victims (band >> interior) -> w->1 -> subtract the neighbour spillover; real acinar/vessel/fibroblast
+    cells (uniform bright) -> w->0 -> PROTECTED. `kappa` scales aggressiveness (higher cleans more). Cells
+    with no band (isolated) already have F-row 0, so their subtraction is 0 regardless. Non-gated channels
+    get w=1 (unchanged full subtraction)."""
+    if bandcount is None:
+        raise ValueError("receptivity gate needs per-cell bandcount — regenerate intermediates with the "
+                         "current code (--save-intermediates) or run with --keep-mask so it recomputes")
+    bc = np.maximum(bandcount, 1.0)[:, None]
+    ia = np.maximum(sizes - bandcount, 1.0)[:, None]
+    band_density = edge / bc
+    int_density = np.clip((data - edge) / ia, 0, None)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        excess = np.where(band_density > 0, (band_density - int_density) / band_density, 0.0)
+    excess = np.clip(excess, 0.0, 1.0)
+    w = np.clip(gate["kappa"] * excess, 0.0, 1.0)
+    return np.where(gate["channels"][None, :], w, 1.0)
+
+
+def compensate(data, edge, sizes, M, comp_mode, alpha, bandcount=None, gate=None):
+    """REDSEA compensation. corrected_sum = data + comp_mode*edge - (alpha [* w]) * (F @ edge), clamp>=0.
       comp_mode=1 : subtract + reinforce (the redseapy default; reinforces own boundary)
       comp_mode=0 : subtract only (remove incoming neighbour spillover; no reinforce)
-    F is row-normalized contact (F[i,j]=contact[i,j]/rowsum_i); isolated cells -> F row 0
-    (passthrough). Returns (corrected_mean[N,C], clamp_frac[C], n_isolated)."""
+    F is row-normalized contact (F[i,j]=contact[i,j]/rowsum_i); isolated cells -> F row 0 (passthrough).
+    `alpha` : scalar OR length-C vector (per-channel subtraction strength), broadcast over the columns
+              of (F @ edge) [N×C]. `gate` : None (w=1, backward-identical) or a receptivity-gate config
+              (needs `bandcount`) that protects bright-interior cells channel-wise. The DEFAULT call
+              (scalar alpha, gate=None) is bit-identical to the original single-alpha REDSEA.
+    Returns (corrected_mean[N,C], clamp_frac[C], n_isolated)."""
     rowsum = np.asarray(M.sum(1)).ravel()
     inv = np.zeros_like(rowsum)
     nz = rowsum > 0
     inv[nz] = 1.0 / rowsum[nz]
     F = sp.diags(inv) @ M                           # rows sum to 1 (recipient form); F @ edge, NOT F.T
-    corrected_sum = data + comp_mode * edge - alpha * (F @ edge)
+    incoming = F @ edge                             # N×C spillover each cell RECEIVES from neighbours
+    sub = np.asarray(alpha, dtype=np.float64) * incoming     # scalar or (C,) broadcasts over columns
+    if gate is not None:
+        sub = sub * receptivity_weight(data, edge, sizes, bandcount, gate)
+    corrected_sum = data + comp_mode * edge - sub
     np.clip(corrected_sum, 0, None, out=corrected_sum)
     with np.errstate(invalid="ignore", divide="ignore"):
         corrected = corrected_sum / sizes[:, None]
@@ -227,29 +305,41 @@ def compensate(data, edge, sizes, M, comp_mode, alpha):
     return corrected, clamp_frac, int((~nz).sum())
 
 
-def save_intermediates(donor, oids, cols, data, edge, sizes, M):
+def save_intermediates(donor, oids, cols, data, edge, sizes, M, bandcount=None):
     INTER_DIR.mkdir(parents=True, exist_ok=True)
     p = INTER_DIR / f"{donor}.npz"
     M = M.tocsr()
+    extra = {} if bandcount is None else {"bandcount": np.asarray(bandcount, dtype=np.float32)}
     np.savez_compressed(p, oids=np.array(oids, dtype=object), cols=np.array(cols),
                         data=data.astype(np.float32), edge=edge.astype(np.float32),
                         sizes=sizes, m_data=M.data, m_indices=M.indices, m_indptr=M.indptr,
-                        m_shape=np.array(M.shape))
-    log(f"[{donor}] saved intermediates -> {p}")
+                        m_shape=np.array(M.shape), **extra)
+    log(f"[{donor}] saved intermediates -> {p}" + ("" if bandcount is None else " (+bandcount)"))
 
 
 def load_intermediates(donor):
+    """Returns (oids, cols, data, edge, sizes, M, bandcount). `bandcount` is None for pre-gate .npz files
+    (regenerate with --save-intermediates, or the caller recomputes it from the mask)."""
     z = np.load(INTER_DIR / f"{donor}.npz", allow_pickle=True)
     M = sp.csr_matrix((z["m_data"], z["m_indices"], z["m_indptr"]), shape=tuple(z["m_shape"]))
+    bandcount = z["bandcount"].astype(np.float64) if "bandcount" in z.files else None
     return (list(z["oids"]), list(z["cols"]), z["data"].astype(np.float64),
-            z["edge"].astype(np.float64), z["sizes"].astype(np.float64), M)
+            z["edge"].astype(np.float64), z["sizes"].astype(np.float64), M, bandcount)
 
 
-def write_corrected(donor, oids, cols, corrected, sizes):
+def bandcount_from_mask(mask, n, edge_radius):
+    """Recompute per-cell boundary-band pixel counts from a persisted mask (for old intermediates that
+    predate bandcount). Mirrors the band construction in process_donor."""
+    inner = find_boundaries(mask, mode="inner", connectivity=2, background=0)
+    band = binary_dilation(inner, diamond(edge_radius)) & (mask > 0)
+    return np.bincount(mask.ravel()[np.flatnonzero(band.ravel())], minlength=n + 1)[1:].astype(np.float64)
+
+
+def write_corrected(donor, oids, cols, corrected, sizes, out_base=None):
     out = pd.DataFrame({"object_id": oids, "donor_id": donor, "cell_area_px": sizes})
     for k, c in enumerate(cols):
         out[c] = corrected[:, k]
-    out_dir = OUT_DIR / f"donor_id={donor}"
+    out_dir = (out_base or OUT_DIR) / f"donor_id={donor}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out.to_parquet(out_dir / "data_0.parquet", index=False)
     log(f"[{donor}] wrote {out_dir/'data_0.parquet'} ({len(out):,} rows)")
@@ -282,6 +372,7 @@ def process_donor(donor: str, args):
     band_idx = np.flatnonzero(band.ravel())
     mask_flat = mask.ravel()
     mask_band = mask_flat[band_idx]
+    bandcount = np.bincount(mask_band, minlength=n + 1)[1:].astype(np.float64)  # per-cell band-px count
     log(f"[{donor}] boundary band: {band_idx.size:,} px ({100*band_idx.size/mask.size:.1f}% of image), {time.time()-t0:.0f}s")
     del inner, band
 
@@ -304,18 +395,23 @@ def process_donor(donor: str, args):
     M = contact_matrix_gapbridge(mask, n, args.gap_bridge)
     log(f"[{donor}] contact matrix (gap_bridge={args.gap_bridge}): {M.nnz:,} contacts, {time.time()-t0:.0f}s")
     if args.save_intermediates:
-        save_intermediates(donor, oids, cols, data, edge, sizes, M)
+        save_intermediates(donor, oids, cols, data, edge, sizes, M, bandcount)
 
-    # 5) compensate
-    corrected, clamp_frac, n_isolated = compensate(data, edge, sizes, M, args.comp_mode, args.alpha)
-    log(f"[{donor}] compensate(mode={args.comp_mode}, alpha={args.alpha}): {n_isolated} isolated cells")
+    # 5) compensate (scalar alpha by default; optional per-channel vector + brightness gate)
+    alpha = parse_alpha_per_channel(args.alpha_per_channel, cols, args.alpha)
+    alpha = args.alpha if alpha is None else alpha
+    gate = build_gate(args, cols)
+    corrected, clamp_frac, n_isolated = compensate(data, edge, sizes, M, args.comp_mode, alpha,
+                                                   bandcount=bandcount, gate=gate)
+    log(f"[{donor}] compensate(mode={args.comp_mode}, alpha={'vector' if np.ndim(alpha) else alpha}, "
+        f"gate={'on' if gate else 'off'}): {n_isolated} isolated cells")
 
     # ---- alignment sanity vs the existing parquet (correlation of UNcorrected mean) ----
     uncorr = np.where(sizes[:, None] > 0, data / np.where(sizes[:, None] == 0, 1, sizes[:, None]), np.nan)
     sanity = alignment_check(donor, oids, cols, uncorr, sizes, px_um)
 
     # 6) write corrected parquet (one row per object_id)
-    write_corrected(donor, oids, cols, corrected, sizes)
+    write_corrected(donor, oids, cols, corrected, sizes, args.out_dir)
 
     if args.keep_mask:
         MASK_DIR.mkdir(parents=True, exist_ok=True)
@@ -373,6 +469,22 @@ def main(argv=None):
                     help="spillover subtraction strength (1.0 = natural full subtraction at the "
                          "1-px boundary: collapses impossible co-positives ~83%% while preserving "
                          "single-lineage cells; see redsea_full_validate.py)")
+    ap.add_argument("--alpha-per-channel", default=None,
+                    help="per-channel subtraction strengths, e.g. "
+                         "'Pan_Cytokeratin=2,Ker8_18=2,Keratin_5=1.5,Vimentin=1.5'. Channels not listed "
+                         "use --alpha; default None -> the scalar --alpha for every channel (unchanged).")
+    ap.add_argument("--gate-brightness", action="store_true",
+                    help="enable the receptivity (brightness) gate: scale each cell's spillover "
+                         "subtraction by 1-min(interior/(kappa*ref),1) so cells bright in their OWN "
+                         "interior (real acinar keratin / vessel-fibroblast Vimentin) are PROTECTED and "
+                         "dim victims are fully cleaned. Off by default (w=1 -> bit-identical output).")
+    ap.add_argument("--gate-channels", default=None,
+                    help="comma-separated channels to brightness-gate (default: the keratins + Vimentin).")
+    ap.add_argument("--gate-kappa", type=float, default=1.0,
+                    help="receptivity-gate aggressiveness; higher -> clean more cells (w saturates faster).")
+    ap.add_argument("--out-dir", type=Path, default=OUT_DIR,
+                    help="corrected-cells output dir (default data/cells_redsea; point elsewhere for an "
+                         "alpha-sweep sim so the deployed corrected data is not overwritten).")
     ap.add_argument("--gap-bridge", type=int, default=1,
                     help="bridge background gaps <= N px when building the contact graph "
                          "(cells are not gapless here; 0 disables)")
@@ -381,6 +493,9 @@ def main(argv=None):
                     help="dump data/edge/sizes/contact to scratch for fast --from-intermediates re-runs")
     ap.add_argument("--from-intermediates", action="store_true",
                     help="skip raster+channels; reload saved intermediates and just (re)compensate")
+    ap.add_argument("--recompute-contacts", action="store_true",
+                    help="with --from-intermediates, rebuild the contact graph from the mask instead of "
+                         "reusing the saved (already gap-bridged) M — only needed to sweep --gap-bridge.")
     a = ap.parse_args(argv)
 
     if a.all:
@@ -393,17 +508,33 @@ def main(argv=None):
     for d in donors:
         try:
             if a.from_intermediates:
-                oids, cols, data, edge, sizes, M = load_intermediates(d)
-                if a.gap_bridge > 0 and (MASK_DIR / f"{d}.tif").exists():
+                oids, cols, data, edge, sizes, M, bandcount = load_intermediates(d)
+                mask = None
+                # the saved M is already gap-bridged at save time; only rebuild it if explicitly asked
+                # (e.g. sweeping gap_bridge). Reusing it makes an alpha/gate sweep instant.
+                if a.recompute_contacts and a.gap_bridge > 0 and (MASK_DIR / f"{d}.tif").exists():
                     mask = tifffile.imread(MASK_DIR / f"{d}.tif")
                     M = contact_matrix_gapbridge(mask, len(oids), a.gap_bridge)
-                    del mask
                     log(f"[{d}] recomputed gap-bridged contacts: {M.nnz:,}")
-                corrected, clamp_frac, n_iso = compensate(data, edge, sizes, M, a.comp_mode, a.alpha)
-                log(f"[{d}] recompensate(mode={a.comp_mode}, alpha={a.alpha}): {n_iso} isolated; "
-                    "top-clamped: " + ", ".join(f"{cols[i]}={clamp_frac[i]*100:.1f}%"
-                                                 for i in np.argsort(clamp_frac)[-5:][::-1]))
-                write_corrected(d, oids, cols, corrected, sizes)
+                alpha = parse_alpha_per_channel(a.alpha_per_channel, cols, a.alpha)
+                alpha = a.alpha if alpha is None else alpha
+                gate = build_gate(a, cols)
+                if gate is not None and bandcount is None:      # old .npz predates bandcount -> recompute
+                    if mask is None and (MASK_DIR / f"{d}.tif").exists():
+                        mask = tifffile.imread(MASK_DIR / f"{d}.tif")
+                    if mask is None:
+                        raise SystemExit("gate needs bandcount but intermediates predate it and no mask "
+                                         "exists — regenerate with --save-intermediates --keep-mask")
+                    bandcount = bandcount_from_mask(mask, len(oids), a.edge_radius)
+                    log(f"[{d}] recomputed bandcount from mask")
+                del mask
+                corrected, clamp_frac, n_iso = compensate(data, edge, sizes, M, a.comp_mode, alpha,
+                                                          bandcount=bandcount, gate=gate)
+                log(f"[{d}] recompensate(mode={a.comp_mode}, alpha={'vector' if np.ndim(alpha) else alpha}, "
+                    f"gate={'on' if gate else 'off'}): {n_iso} isolated; top-clamped: " +
+                    ", ".join(f"{cols[i]}={clamp_frac[i]*100:.1f}%"
+                              for i in np.argsort(clamp_frac)[-5:][::-1]))
+                write_corrected(d, oids, cols, corrected, sizes, a.out_dir)
             else:
                 process_donor(d, a)
         except SystemExit as e:

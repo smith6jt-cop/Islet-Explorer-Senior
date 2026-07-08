@@ -15,6 +15,9 @@ library(jsonlite)
 # stats/spatial modules.
 USE_DUCKDB <- isTRUE(as.logical(Sys.getenv("ISLET_USE_DUCKDB", "TRUE")))
 USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
+# AI Assistant panel: OFF by default so public deployments don't expose the UF
+# Navigator API key (KEY/BASE). Set ISLET_ENABLE_AI=TRUE (e.g. local dev) to show it.
+AI_ENABLED <- isTRUE(as.logical(Sys.getenv("ISLET_ENABLE_AI", "FALSE")))
 
 # Pixel size constant for coordinate conversion (micrometers per pixel)
 # GeoJSON polygons use pixel coordinates, while islet_spatial_lookup.csv uses micrometers

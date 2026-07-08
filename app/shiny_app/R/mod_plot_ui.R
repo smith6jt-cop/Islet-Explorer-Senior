@@ -140,7 +140,8 @@ plot_main_ui <- function(id, extra_panel = NULL) {
       )
     ),
     # Right card: Distribution comparison
-    column(4,
+    # Widen to fill the row when no extra panel (e.g. AI chat) is present.
+    column(if (is.null(extra_panel)) 6 else 4,
       div(class = "card",
           style = "margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px;",
         h5("Distribution Comparison", style = "margin-top: 0; color: #333;"),

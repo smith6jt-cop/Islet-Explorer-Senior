@@ -382,7 +382,7 @@ ui <- fluidPage(
       tabsetPanel(id = "tabs",
         tabPanel("Plot",
           fluidRow(
-            plot_main_ui("plot", extra_panel = column(2, ai_assistant_ui("ai")))
+            plot_main_ui("plot", extra_panel = if (AI_ENABLED) column(2, ai_assistant_ui("ai")) else NULL)
           )
         ),
         tabPanel("Trajectory",
@@ -607,8 +607,8 @@ server <- function(input, output, session) {
                  remove_outliers = remove_outliers_global,
                  outlier_threshold = outlier_z_global)
 
-  # AI Assistant module (self-contained)
-  ai_assistant_server("ai")
+  # AI Assistant module (self-contained; gated so public builds omit it — see AI_ENABLED)
+  if (AI_ENABLED) ai_assistant_server("ai")
 
   # ---- Unified segmentation + drilldown plot (root-level, used by both Plot and Trajectory panels) ----
   islet_segmentation_view_plot <- reactive({

@@ -48,6 +48,7 @@ Outputs: data/phenotype/broad/donor_id=*/data_0.parquet
          data/phenotype/broad_lineage_composition.png
 """
 from __future__ import annotations
+import argparse
 import glob
 from pathlib import Path
 import numpy as np
@@ -60,6 +61,9 @@ BASE = Path(__file__).resolve().parents[2] / "data"
 META = Path("/home/smith6jt/IO60panc2nd/donor_metadata_panc.xlsx")
 GATED = BASE / "restore_gated_redsea"
 OUT = BASE / "phenotype" / "broad"
+GATED_EXTRA = BASE / "restore_gated_redsea_extra"   # CD99/B3TUBB/MPO gating (bright CD99 = PP/eps/EC endocrine)
+CD99_BRIGHT = 3.0                                    # bright CD99 (>= 3x threshold) adds the endocrine we lack markers for
+HORMONE_MIN_NORM_DEFAULT = 1.0                       # 1.0 = raw RESTORE positivity; >1 rejects noise-floor false endocrine
 
 LINEAGES = {
     "Epithelial": ["Pan_Cytokeratin"],
@@ -83,10 +87,18 @@ def status_map():
 STRUCT = ["Epithelial", "Fibroblast", "Muscle"]
 
 
-def assign_donor(donor, gated_f):
+def assign_donor(donor, gated_f, extra_dir=GATED_EXTRA, hormone_min_norm=HORMONE_MIN_NORM_DEFAULT,
+                 cd99_bright=CD99_BRIGHT):
     g = pd.read_parquet(gated_f)
     norm = {m: g[f"{m}_norm"].to_numpy(np.float64) for ms in LINEAGES.values() for m in ms}
     pos = {m: g[f"{m}_pos"].to_numpy(bool) for ms in LINEAGES.values() for m in ms}
+    # bright CD99 (PP/eps/EC endocrine we lack specific markers for), aligned to g by object_id
+    ef = Path(extra_dir) / f"donor_id={donor}" / "data_0.parquet"
+    if ef.exists():
+        e = pd.read_parquet(ef, columns=["object_id", "CD99_norm"]); e["object_id"] = e["object_id"].astype(str)
+        cd99_norm = e.set_index("object_id")["CD99_norm"].reindex(g["object_id"].astype(str)).to_numpy(np.float64)
+    else:
+        cd99_norm = np.zeros(len(g), np.float64)
     scores = {L: np.max([norm[m] for m in LINEAGES[L]], axis=0) for L in LNAMES}
 
     # structural background: argmax over Pan_Cytokeratin / Vimentin / SMA _norm
@@ -105,8 +117,12 @@ def assign_donor(donor, gated_f):
     struct_pos = pos["Pan_Cytokeratin"] | pos["Vimentin"] | pos["SMA"]
     struct_call[~struct_pos] = "Epithelial"
 
-    # hierarchy: specific _pos lineages take precedence over the structural background
-    endocrine = pos["INS"] | pos["GCG"] | pos["SST"]   # +SST delta cells (else mis-typed Epi/Immune)
+    # hierarchy: specific lineages take precedence over the structural background.
+    # ENDOCRINE (false-positive fix): require a REAL, separated hormone call (_norm >= hormone_min_norm,
+    # threshold-relative) — β-loss donors otherwise call thousands of acinar cells at _norm~1 (noise floor,
+    # 100% in tissue, no islet coherence). Bright CD99 (>= cd99_bright) adds PP/eps/EC endocrine.
+    endocrine = ((norm["INS"] >= hormone_min_norm) | (norm["GCG"] >= hormone_min_norm) |
+                 (norm["SST"] >= hormone_min_norm) | (cd99_norm >= cd99_bright))
     immune = pos["CD3e"] | pos["CD20"] | pos["CD163"]
     endoth = pos["CD31"]
     broad = struct_call.copy()
@@ -129,17 +145,27 @@ def assign_donor(donor, gated_f):
     return out
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gated-dir", type=Path, default=GATED)
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    ap.add_argument("--extra-gated-dir", type=Path, default=GATED_EXTRA,
+                    help="CD99/B3TUBB/MPO gating dir (bright-CD99 endocrine)")
+    ap.add_argument("--hormone-min-norm", type=float, default=HORMONE_MIN_NORM_DEFAULT,
+                    help="min INS/GCG/SST _norm (threshold-relative) to call Endocrine; >1 rejects noise-floor "
+                         "false positives in β-loss donors. 1.0 = current behavior.")
+    ap.add_argument("--cd99-bright", type=float, default=CD99_BRIGHT)
+    a = ap.parse_args(argv)
     smap = status_map()
-    OUT.mkdir(parents=True, exist_ok=True)
+    a.out_dir.mkdir(parents=True, exist_ok=True)
     comp = {}
     weak_total = 0
     n_total = 0
-    for gf in sorted(glob.glob(str(GATED / "donor_id=*" / "*.parquet"))):
+    for gf in sorted(glob.glob(str(a.gated_dir / "donor_id=*" / "*.parquet"))):
         donor = gf.split("donor_id=")[1].split("/")[0]
-        out = assign_donor(donor, gf)
-        (OUT / f"donor_id={donor}").mkdir(parents=True, exist_ok=True)
-        out.to_parquet(OUT / f"donor_id={donor}" / "data_0.parquet", index=False)
+        out = assign_donor(donor, gf, a.extra_gated_dir, a.hormone_min_norm, a.cd99_bright)
+        (a.out_dir / f"donor_id={donor}").mkdir(parents=True, exist_ok=True)
+        out.to_parquet(a.out_dir / f"donor_id={donor}" / "data_0.parquet", index=False)
         vc = out["broad_lineage"].value_counts()
         comp[donor] = (vc / len(out) * 100).reindex(LNAMES).fillna(0)
         weak_total += int(out["epi_default"].sum()); n_total += len(out)
@@ -178,8 +204,9 @@ def main():
             ax[2].scatter(s_i, C.loc[d, "Endocrine"], color=LCOLORS["Endocrine"], s=14, alpha=0.5)
     ax[2].set_ylabel("mean % of cells"); ax[2].set_title("Disease trend: endocrine loss + immune gain"); ax[2].legend()
     fig.suptitle("Step 1 — broad lineage (argmax RESTORE _norm on REDSEA-corrected data)", fontsize=14)
-    fig.tight_layout(); fig.savefig(BASE / "phenotype" / "broad_lineage_composition.png", dpi=150, bbox_inches="tight")
-    print(f"[saved] {BASE/'phenotype'/'broad_lineage_composition.png'}")
+    fig_path = a.out_dir.parent / f"{a.out_dir.name}_lineage_composition.png"
+    fig.tight_layout(); fig.savefig(fig_path, dpi=150, bbox_inches="tight")
+    print(f"[saved] {fig_path}")
     print("\ncomposition by status (mean %):")
     print(C.groupby("status")[LNAMES].mean().round(1).to_string())
 
