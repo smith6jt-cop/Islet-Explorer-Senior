@@ -163,11 +163,11 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
   |     -> data/restore_redsea/, data/restore_gated_redsea/donor_id=*/  ({m}_pos/_norm/_log2r)
   |     -> Pan_Cytokeratin is the universal negative control; CD20/CD163←Pan_CK, CD3e←CD163 (immune fix)
   +-- scripts/senior/assign_broad_lineage.py  every cell typed, 0 Unassigned (hierarchical _pos + structural argmax)
-        -> data/phenotype/broad/donor_id=*/  (Epithelial/Fibroblast/Immune/Endocrine/Endothelial/Muscle)
+        -> data/phenotype/broad/donor_id=*/  (8 classes: Epithelial/Fibroblast/Immune/Endocrine/Endothelial/Muscle/Neural/Neutrophil)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-**Status:** REDSEA + RESTORE done & validated (15 donors); broad lineage (Step 1) done. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `restore_reference_fix_validation.png`, `immune_false_positive_investigation.png`, `broad_lineage_composition.png`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
+**Status (updated 2026-07-08):** REDSEA + RESTORE done & validated (**22 donors**); broad lineage (Step 1) done and **re-typed to 8 classes** (adds Neural←B3TUBB, Neutrophil←MPO, + a bright-CD99 Endocrine gate) via the **`Phenocycler_Analysis` submodule** — now the canonical steps-1–5 engine (`python -m phenocycler.pipeline`, driven by repo-root `config.ini` / `scripts/senior/run_pipeline.sh`). The parity gate confirmed the submodule is byte-identical to the committed `assign_broad_lineage.py`. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `broad_lineage_composition.png`, `phenotype/celltype_marker_{dotplot,heatmap}.png`, `redsea_reassess/`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
 
 **Reproducible notebook (Jun 2026):** `notebooks/senior_phenotyping_redsea_restore.ipynb` runs the full pipeline end-to-end (idempotent thin orchestrator over the live `scripts/senior/*.py`) and ends with a **cell-type × marker dotplot + heatmap**. The superseded gating/clustering/Astir scripts were archived to **`archive/phenotyping_legacy/`** (see `scripts/CLAUDE.md`). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
 
@@ -231,7 +231,7 @@ python scripts/build_h5ad_for_app.py          # ~1 min: merge into app H5AD
 
 ## Analysis Pipeline
 
-See `islet_analysis/CLAUDE.md` for the Python analysis pipeline (phenotyping, aggregation, trajectory).
+See `scripts/CLAUDE.md` for the Python pipeline; phenotyping steps 1–5 (REDSEA → RESTORE → hormone floor → 8-class broad lineage) live in the `Phenocycler_Analysis` submodule. (The old `islet_analysis/` dir was removed; its content folded into `scripts/senior/` + the submodule.)
 See `data/DATA_PROVENANCE.md` for full data lineage documentation.
 See `docs/user_guide.md` for end-user documentation.
 

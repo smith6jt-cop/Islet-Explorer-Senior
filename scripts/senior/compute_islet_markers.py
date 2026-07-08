@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
-from marker_taxonomy import EXCLUDED  # markers dropped from the per-islet marker table (DAPI/IAPP/keratins)
+from phenocycler.marker_taxonomy import EXCLUDED  # markers dropped from the per-islet marker table (DAPI/IAPP/keratins)
 
 SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"

@@ -22,6 +22,8 @@ literature/*
 .Rhistory
 app/shiny_app/.Renviron
 .Renviron
+# Filled-in PubApps EnvironmentFile (may hold secrets if AI is re-enabled); template is deploy/env.sh.example
+deploy/env.sh
 
 # Organized script directories (duplicates for organization)
 scripts/Python/

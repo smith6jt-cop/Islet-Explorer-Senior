@@ -77,4 +77,4 @@ done
 echo "== done: exported=$n skipped=$skipped failed=$failed =="
 echo "GeoJSONs in $GEOJSON (total: $(ls -1 "$GEOJSON"/cells__*.geojson 2>/dev/null | wc -l))"
 [ "$failed" = 0 ] || { echo "some exports failed — re-run for the failures"; exit 1; }
-echo "Next: python scripts/senior/redsea_full.py --all   (recomputes cells_redsea for all 22)"
+echo "Next: python -m phenocycler.pipeline --config config.ini --only redsea   (recomputes cells_redsea for all 22)"

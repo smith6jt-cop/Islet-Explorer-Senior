@@ -76,7 +76,7 @@ Cohort growing **15 → 22 donors** (batch 2: +6450/6505 = Aab+, +6523/6534/6566
 new split ND 8 / Aab+ 3 / T1D 11). Plan: `~/.claude/plans/be-sure-the-pseudotime-gentle-brook.md`.
 Code landed now; runs when the QuPath 22-donor exports are ready. Confirmed decisions: **58 common
 markers** (batch 1 has CD38, batch 2 has b-Catenin1 — a physical panel change → drop both);
-**full app rebuild with the 6 broad lineages** (Step-2 fine subclustering deferred); **REDSEA
+**full app rebuild with the 8 broad lineages** (Neural + Neutrophil added; Step-2 fine subclustering deferred); **REDSEA
 re-runs all 22**; **archive 15-donor outputs by move + delete the 44 GB `redsea_scratch/`**.
 
 - `scripts/senior/build_phenotyped_h5ad.py` (**new — GAP #1 fix**): no script produced
@@ -175,6 +175,14 @@ python scripts/extract_per_donor_tissue.py
 # Build enriched H5AD (merges trajectory + groovy + neighborhood + Leiden)
 python scripts/build_h5ad_for_app.py
 ```
+
+> **⚠️ Steps 1–5 are now the `Phenocycler_Analysis` git submodule** (the canonical engine;
+> `pip install -e Phenocycler_Analysis` into scvi-env). The `scripts/senior/*.py` paths and
+> `python scripts/senior/…` commands in the sections below are **historical** — run the pipeline via
+> `python -m phenocycler.pipeline --config config.ini` (or `scripts/senior/run_pipeline.sh`), or the
+> per-stage CLIs `python -m phenocycler.{cells_parquet,redsea,restore,hormone_floor,lineage,qupath_export,figures,reassess_diag}`.
+> The archived originals live in `archive/phenotyping_senior_preport/`; the science described below is
+> unchanged (it is exactly what the submodule now does).
 
 ## RESTORE per-image intensity normalization (Jun 2026)
 
@@ -376,9 +384,11 @@ corrected intensity: ND 6539 INS ~80, β-loss 6380 ~2). Per-donor biology is pre
 call Endocrine only when INS/GCG/SST `_norm ≥ K` (rejects the noise-floor false β) **+ bright CD99
 `_norm ≥ 3`** for the PP/ε/EC endocrine we lack specific markers for. **Operating point K=5** (user choice),
 **committed cohort-wide (22 donors)**:
-- `scripts/senior/assign_broad_lineage.py` — gained argparse (`--gated-dir/--out-dir/--extra-gated-dir/
-  --hormone-min-norm/--cd99-bright`); the endocrine rule is now `INS/GCG/SST _norm ≥ K | CD99_norm ≥ 3`
-  (was `_pos`). Re-typed `data/phenotype/broad` at `--hormone-min-norm 5`.
+- `scripts/senior/assign_broad_lineage.py` — reads the floored `{INS,GCG,SST}_pos` (it has **NO**
+  argparse; the earlier claim that it grew `--hormone-min-norm`/`--cd99-bright` flags was inaccurate) and
+  gates CD99 in-script at `_norm ≥ 3`; the endocrine hierarchy fires on `INS/GCG/SST/CD99 _pos`. Re-typed
+  `data/phenotype/broad` at K=5. In the `Phenocycler_Analysis` submodule (now the canonical steps-1–5
+  engine) this is the `hormone_floor` stage, run before `lineage`.
 - `scripts/senior/apply_hormone_floor.py` (**new**) — rewrites `{INS,GCG,SST}_pos = (_norm ≥ K)` in
   `restore_gated_redsea` (leaves `_norm`/`_log2r` and all other columns untouched); re-applyable after any
   RESTORE re-run. Applied at K=5 so `_pos` consumers (Spatial-tab `cell_distance`) see the fix too.

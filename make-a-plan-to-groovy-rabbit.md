@@ -1,5 +1,11 @@
 # Plan (ACTIVE): Remove DAPI, IAPP, Ker8_18, Keratin_5 from all figures & analysis
 
+> **STATUS (2026-07-08): pipeline/figure side DONE.** The four markers are excluded via the
+> `Phenocycler_Analysis` submodule's `marker_taxonomy.EXCLUDED`, and the regenerated
+> `data/phenotype/celltype_marker_heatmap.png` confirms they no longer appear (Pan_Cytokeratin
+> retained as the epithelial anchor). The **app-side selector filtering (Change-set B below)** is
+> still pending the app rebuild.
+
 ## Context
 
 The Step-1 identity heatmap (`data/phenotype/celltype_marker_heatmap.png`) and the app's marker

@@ -17,7 +17,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from marker_taxonomy import EXCLUDED  # markers dropped from the drill-down CSVs (DAPI/IAPP/keratins)
+from phenocycler.marker_taxonomy import EXCLUDED  # markers dropped from the drill-down CSVs (DAPI/IAPP/keratins)
 
 SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
