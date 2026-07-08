@@ -1,0 +1,76 @@
+# deploy/environment.yml — reproducible runtime env for the Islet Explorer Shiny app
+# on UF RC PubApps (rootless conda/mamba; conda-forge brings all native libs — GDAL/
+# GEOS/PROJ, HDF5, ImageMagick, libxml2, libcurl — without root).
+#
+# Build:   mamba env create -p /pubapps/<project>/prod/conda -f deploy/environment.yml
+# Verify:  /pubapps/<project>/prod/conda/bin/python -c "import anndata; print(anndata.__version__)"
+#
+# This is the SOURCE OF TRUTH for runtime deps (supersedes scripts/install_shiny_deps.R,
+# which was incomplete). Pin exact versions once the env is validated in production.
+name: islet-explorer
+channels:
+  - conda-forge
+dependencies:
+  # --- R interpreter (app targets R >= 4.2; conda-forge ships current 4.x) ---
+  - r-base
+
+  # --- Core Shiny + data-wrangling + plotting (library() loads in R/00_globals.R) ---
+  - r-shiny
+  - r-shinyjs
+  - r-readxl
+  - r-dplyr
+  - r-tidyr
+  - r-stringr
+  - r-ggplot2
+  - r-plotly
+  - r-broom
+  - r-jsonlite
+  - r-base64enc
+  # transitives used directly via pkg:: in the modules (listed explicitly for reproducibility)
+  - r-scales
+  - r-rcolorbrewer
+  - r-htmltools
+  - r-htmlwidgets
+  - r-rlang
+
+  # --- DuckDB/Parquet backend (ISLET_USE_DUCKDB default TRUE) ---
+  - r-duckdb
+  - r-dbi
+
+  # --- Spatial (GeoJSON islet boundaries) — r-sf pulls GDAL/GEOS/PROJ ---
+  - r-sf
+
+  # --- Statistics tab: mixed-effects models ---
+  - r-lmertest
+  - r-lme4
+  - r-emmeans
+  - r-car
+
+  # --- Viewer helpers (OME-TIFF header reads) + HTTP ---
+  - r-magick        # ImageMagick
+  - r-xml2          # libxml2 (OME-XML PhysicalSize)
+  - r-httr2         # AI/asset probes (harmless when AI off)
+  - r-curl          # libcurl + OpenSSL
+
+  # --- Async worker pool (ISLET_USE_MIRAI default TRUE) ---
+  - r-mirai
+
+  # --- reticulate bridge: the Trajectory tab always calls anndata::read_h5ad ---
+  - r-reticulate
+  - r-anndata
+  - python
+  - anndata         # Python side of the bridge
+  - numpy
+  - h5py            # HDF5 reader for .h5ad
+  - scipy
+
+  # --- Only needed if you later add GitHub/Bioconductor packages (see install_runtime_R.R) ---
+  - r-remotes
+  - r-biocmanager
+
+# OMITTED for v1 — validated non-blocking during the deployment review:
+#   * slingshot / destiny / tradeSeq / SingleCellExperiment / Lamian  — DORMANT
+#     (compute_lamian_pseudotime() is never called; the tab reads precomputed
+#      dpt_pseudotime from the H5AD). Heavy Bioconductor stack — do not install.
+#   * rdeck      — off by default (ISLET_USE_RDECK=FALSE); GitHub-only.
+#   * vitessceR  — optional embedded-viewer path; app degrades gracefully; GitHub-only.

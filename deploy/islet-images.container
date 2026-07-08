@@ -1,0 +1,27 @@
+# deploy/islet-images.container — Podman Quadlet unit for the OME-TIFF image server.
+#
+# The Viewer's OME-TIFFs must be served with HTTP Range (206); shiny::runApp/httpuv cannot,
+# so a tiny nginx sidecar serves /pubapps/<project>/islet_ome_tiff at /local_images/. RC
+# proxies https://islet-explorer.rc.ufl.edu/local_images/ -> this container (same origin as
+# the app, so no CORS needed).
+#
+# Install on the VM:
+#   mkdir -p ~/.config/containers/systemd
+#   cp deploy/islet-images.container ~/.config/containers/systemd/islet-images.container
+#   # edit <project>/<IMG_PORT> below, then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now islet-images
+#   systemctl --user status islet-images
+[Unit]
+Description=Islet Explorer OME-TIFF image server (nginx, HTTP Range)
+After=local-fs.target
+
+[Container]
+Image=docker.io/library/nginx:stable
+ContainerName=islet-images
+PublishPort=<IMG_PORT>:80
+Volume=/pubapps/<project>/islet_ome_tiff:/usr/share/nginx/html/local_images:ro,z
+Volume=/pubapps/<project>/prod/islet-explorer/deploy/nginx-images.conf:/etc/nginx/conf.d/default.conf:ro,z
+
+[Install]
+WantedBy=default.target
