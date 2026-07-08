@@ -6,11 +6,14 @@ No current script produced `data/singlecell_protein_phenotyped.h5ad`, yet every 
 app-build script reads it (the old one came from the now-archived scimap typers). This
 joins `data/phenotype/broad/` (assign_broad_lineage.py output) into
 `data/singlecell_protein.h5ad` by `object_id` and writes `obs['phenotype'] =
-broad_lineage` (the 6 broad classes: Epithelial / Fibroblast / Immune / Endocrine /
-Endothelial / Muscle). X (58-common raw MFI) is unchanged.
+broad_lineage` (the 8 broad classes: Epithelial / Fibroblast / Immune / Endocrine /
+Endothelial / Muscle / Neural / Neutrophil). It ALSO bakes the REDSEA-corrected 58-marker MFI into `X` + `.raw`
+(joined by object_id from data/cells_redsea) and drops the ~27.7k zero-area NaN edge cells,
+making this file the single canonical, row-aligned input for scVI / aggregation / drill-down.
 
-  IN : data/singlecell_protein.h5ad , data/phenotype/broad/donor_id=*/data_0.parquet
-  OUT: data/singlecell_protein_phenotyped.h5ad
+  IN : data/singlecell_protein.h5ad , data/phenotype/broad/donor_id=*/data_0.parquet ,
+       data/cells_redsea/donor_id=*/data_0.parquet (corrected MFI)
+  OUT: data/singlecell_protein_phenotyped.h5ad  (X = raw = REDSEA-corrected MFI)
 
 ⚠️ POSITIVITY CONVENTION: `compute_islet_markers.py` and `build_composition_and_tissue.py`
 currently threshold `X > 0.5` (the old scimap-rescaled 0-1 X). Here X is RAW MFI, so `>0.5`
@@ -71,6 +74,31 @@ def main(argv=None):
     adata.obs["epi_default"] = np.where(found, broad["epi_default"].to_numpy()[safe], False)
     adata.obs["assign_margin"] = np.where(found, broad["assign_margin"].to_numpy()[safe].astype(float), np.nan)
     adata.uns["phenotype_scheme"] = "broad_lineage_step1"
+
+    # --- bake REDSEA-corrected 58-marker MFI into X + .raw; drop zero-area NaN edge cells ---
+    # This is the single canonical row set for the whole trajectory chain: the phenotyped h5ad,
+    # the scVI input (raw/X), the per-cell latent, and aggregate_islets' row-order attach all key
+    # off exactly these rows. train_scvi_senior.py / extract_islet_cells.py read raw/X + raw/var
+    # (neither build set .raw before) and aggregate_islets reads a.raw.X — all now = corrected MFI.
+    markers = list(adata.var_names)                       # 58 common; identical in cells_redsea
+    red_files = sorted(glob.glob(str(SD / "cells_redsea" / "donor_id=*" / "data_0.parquet")))
+    if not red_files:
+        raise FileNotFoundError(f"no cells_redsea parquet under {SD/'cells_redsea'} — run redsea_full.py")
+    cor = pd.concat([pd.read_parquet(f, columns=["object_id", *markers]) for f in red_files],
+                    ignore_index=True)
+    cor["object_id"] = cor["object_id"].astype(str)
+    cor = cor.drop_duplicates("object_id").set_index("object_id")
+    ridx = cor.index.get_indexer(pd.Index(oid))
+    if (ridx < 0).any():                                  # cells ⊆ cells_redsea → expect no gap
+        raise KeyError(f"{int((ridx < 0).sum())} cells absent from cells_redsea (object_id join gap)")
+    Xc = cor.iloc[ridx][markers].to_numpy(np.float32)     # reindexed to var_names order
+    finite = ~np.isnan(Xc).any(axis=1)                    # zero-area REDSEA edge cells -> NaN
+    n_drop = int((~finite).sum())
+    print(f"[redsea] baking corrected MFI into X + .raw; dropping {n_drop} NaN edge cells "
+          f"({100 * n_drop / len(finite):.3f}%)")
+    adata = adata[finite].copy()
+    adata.X = Xc[finite]
+    adata.raw = adata                                     # -> raw/X + raw/var (58 corrected markers)
 
     a.out.parent.mkdir(parents=True, exist_ok=True)
     adata.write_h5ad(a.out)

@@ -65,3 +65,7 @@ external/
 *.deb
 *.rpm
 scripts/scvi_comparison_results/new_latent_single_cell.npy
+
+# Local Claude Code settings + pipeline run logs
+.claude/settings.local.json
+logs/

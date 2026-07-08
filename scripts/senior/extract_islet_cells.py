@@ -17,6 +17,8 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from marker_taxonomy import EXCLUDED  # markers dropped from the drill-down CSVs (DAPI/IAPP/keratins)
+
 SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 CELLS_OUT = SD / "app_data" / "cells"
@@ -68,6 +70,7 @@ def main():
             continue
         block = rawX[s:e, :]                     # raw MFI, one contiguous read
         df = pd.DataFrame(block[keep], columns=markers).round(2)
+        df = df.drop(columns=[m for m in EXCLUDED if m in df.columns])
         df.insert(0, "X_centroid", obs["X_centroid"][s:e][keep].astype("float32"))
         df.insert(1, "Y_centroid", obs["Y_centroid"][s:e][keep].astype("float32"))
         df.insert(2, "phenotype", pheno[keep])

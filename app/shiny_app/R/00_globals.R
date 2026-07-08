@@ -15,6 +15,9 @@ library(jsonlite)
 # stats/spatial modules.
 USE_DUCKDB <- isTRUE(as.logical(Sys.getenv("ISLET_USE_DUCKDB", "TRUE")))
 USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
+# AI Assistant panel: OFF by default so public deployments don't expose the UF
+# Navigator API key (KEY/BASE). Set ISLET_ENABLE_AI=TRUE (e.g. local dev) to show it.
+AI_ENABLED <- isTRUE(as.logical(Sys.getenv("ISLET_ENABLE_AI", "FALSE")))
 
 # Pixel size constant for coordinate conversion (micrometers per pixel)
 # GeoJSON polygons use pixel coordinates, while islet_spatial_lookup.csv uses micrometers
@@ -256,6 +259,11 @@ if (isTRUE(USE_MIRAI)) {
   }
 }
 
+# Markers hidden from every app selector/plot (redundant epithelial keratins +
+# nuclear stain + failed marker; mirrors scripts/senior/marker_taxonomy.py EXCLUDED).
+# Pan_Cytokeratin is deliberately RETAINED (epithelial identity marker).
+EXCLUDED_MARKERS <- c("DAPI", "IAPP", "Ker8_18", "Keratin_5")
+
 # --- Make scaling globals visible to helpers that look them up in globalenv() ---
 # Shiny auto-sources the R/ directory into a *support environment*, NOT the true
 # globalenv(). Several helpers (data_loading.R, spatial_helpers.R,
@@ -265,7 +273,7 @@ if (isTRUE(USE_MIRAI)) {
 # Export the finalised values into the real global environment.
 local({
   ge <- globalenv()
-  for (nm in c("USE_DUCKDB", "USE_MIRAI", "con", "DONOR_COLORS")) {
+  for (nm in c("USE_DUCKDB", "USE_MIRAI", "con", "DONOR_COLORS", "EXCLUDED_MARKERS")) {
     if (exists(nm, inherits = TRUE)) assign(nm, get(nm, inherits = TRUE), envir = ge)
   }
 })

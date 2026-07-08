@@ -190,6 +190,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                            choices = c("No features available" = ""), selected = ""))
       }
 
+      # Hide excluded markers (DAPI/IAPP/Ker8_18/Keratin_5) from the feature list
+      available_features <- setdiff(available_features, EXCLUDED_MARKERS)
+
       # Organize features into categories
       hormone_markers  <- intersect(c("INS", "GCG", "SST"), available_features)
       immune_markers   <- intersect(c("CD3e", "CD4", "CD8a", "CD68", "CD163", "CD20", "CD45", "HLADR"), available_features)
@@ -869,7 +872,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         cells <- load_islet_cells(info$case_id, info$islet_key)
         marker_cols <- setdiff(colnames(cells),
                                c("X_centroid", "Y_centroid", "phenotype", "cell_region",
-                                 "Cell.Area", "Cell Area", "Nucleus.Area", "Nucleus Area"))
+                                 "Cell.Area", "Cell Area", "Nucleus.Area", "Nucleus Area",
+                                 EXCLUDED_MARKERS))
         if (length(marker_cols) > 0) {
           marker_choices <- c(marker_choices, setNames(marker_cols, marker_cols))
         }
@@ -1344,8 +1348,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     output$multi_heatmap_marker_selector <- renderUI({
       tr <- traj()
       if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
+      hm_markers <- setdiff(tr$var_names, EXCLUDED_MARKERS)
       checkboxGroupInput(ns("multi_heatmap_markers"), "Select markers:",
-                         choices = tr$var_names, selected = tr$var_names, inline = TRUE)
+                         choices = hm_markers, selected = hm_markers, inline = TRUE)
     })
 
     # Multi-feature data reactive

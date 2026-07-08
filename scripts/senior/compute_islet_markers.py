@@ -13,13 +13,16 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 
+from marker_taxonomy import EXCLUDED  # markers dropped from the per-islet marker table (DAPI/IAPP/keratins)
+
 SD = Path(__file__).resolve().parents[2] / "data"
 PHENO = SD / "singlecell_protein_phenotyped.h5ad"
 
 
 def main():
     a = ad.read_h5ad(PHENO)
-    markers = list(a.var_names)
+    all_markers = list(a.var_names)                              # full width — matches a.X columns
+    markers = [m for m in all_markers if m not in set(EXCLUDED)] # drop DAPI/IAPP/Ker8_18/Keratin_5
     parent = a.obs["Parent"].astype(str)
     is_peri = parent.str.endswith("_exp20um").to_numpy()
     is_core = (parent.str.startswith("Islet_").to_numpy()) & ~is_peri
@@ -30,7 +33,7 @@ def main():
     for region, mask, f in [("core", is_core, "islets_core_senior.h5ad"),
                             ("peri", is_peri, "islets_peri_senior.h5ad")]:
         idx = np.where(mask)[0]
-        df = pd.DataFrame((X[idx] > 0.5), columns=markers)
+        df = pd.DataFrame((X[idx] > 0.5), columns=all_markers)
         df["islet_id"] = islet_id[idx]
         posfrac = df.groupby("islet_id")[markers].mean()
         ai = ad.read_h5ad(SD / f)

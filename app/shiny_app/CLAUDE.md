@@ -185,6 +185,7 @@ Required env vars: `KEY` (API key), `BASE` (API base URL, optional).
 - **Token budget**: Controlled by `OPENAI_TOKEN_BUDGET` env var. Chat panel shows cumulative usage and blocks requests when budget exhausted.
 - **Debug mode**: Set `DEBUG_CREDENTIALS=1` env var for verbose credential loading logs.
 - **Plain-text display**: `strip_markdown()` in `mod_ai_assistant_server.R` removes markdown formatting from AI responses before display.
+- **Public deployments omit the AI tab**: `AI_ENABLED <- isTRUE(as.logical(Sys.getenv("ISLET_ENABLE_AI", "FALSE")))` in `00_globals.R` gates both `ai_assistant_ui("ai")` (`app.R:385`, injected as the Plot tab's `extra_panel`) and `ai_assistant_server("ai")` (`app.R:611`). With it off the Plot Distribution card widens `4→6` to fill the row and no UF Navigator `KEY` is needed — the default for UF RC PubApps hosting. Set `ISLET_ENABLE_AI=TRUE` for local dev. See `deploy/DEPLOY.md`.
 
 ## Viewer Tab (Avivator) — producing the OME-TIFFs (Jul 2026)
 

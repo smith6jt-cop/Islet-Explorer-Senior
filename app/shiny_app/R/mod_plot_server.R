@@ -1167,7 +1167,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         cells <- load_islet_cells(info$case_id, info$islet_key)
         marker_cols <- setdiff(colnames(cells),
                                c("X_centroid", "Y_centroid", "phenotype", "cell_region",
-                                 "Cell.Area", "Cell Area", "Nucleus.Area", "Nucleus Area"))
+                                 "Cell.Area", "Cell Area", "Nucleus.Area", "Nucleus Area",
+                                 EXCLUDED_MARKERS))
         if (length(marker_cols) > 0) {
           marker_choices <- c(marker_choices, setNames(marker_cols, marker_cols))
         }

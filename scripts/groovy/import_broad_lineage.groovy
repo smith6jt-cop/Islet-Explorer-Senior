@@ -12,11 +12,12 @@ def donorsToImport = ["6539"]   // quick check: one image. [] / null = every CSV
 def folder = new File("/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/phenotype/qupath_class")
 // ----------------------------------------------------------------------------
 
-// distinct colours for the six broad lineages (match the analysis figures)
+// distinct colours for the eight broad lineages (match the analysis figures)
 def COLORS = [
     "Epithelial" : [68, 119, 170],   "Fibroblast" : [238, 102, 119],
     "Immune"     : [34, 136, 51],    "Endocrine"  : [204, 187, 68],
     "Endothelial": [102, 204, 238],  "Muscle"     : [170, 51, 119],
+    "Neural"     : [181, 131, 141],  "Neutrophil" : [230, 159, 0],
 ]
 COLORS.each { name, c -> getPathClass(name).setColor(c[0], c[1], c[2]) }
 

@@ -239,6 +239,35 @@ def patch_restore_no_kde(Normalization):
     print("[kde-stub] figure-only gaussian_kde neutralized (was O(n^2) on the full idx_select cloud)")
 
 
+def patch_restore_serial_run(Normalization):
+    """RESTORE.run() maps scenes across a `multiprocessing.dummy.Pool()` (a ThreadPool sized to
+    os.cpu_count()). On a many-core node (64 here) with all 22 scenes dispatched at once that
+    ThreadPool DEADLOCKS: the main thread parks forever on the pool-join lock while 60+ worker
+    threads contend on the GIL. Observed twice on HiPerGator — <3% CPU, ~all threads in
+    futex_do_wait, zero output after 20 h; capping OpenBLAS/OMP threads did not help because the
+    contention is at the Python pool layer, not in BLAS. Scenes are independent (RESTORE computes
+    per-image thresholds), so replace the pool with a deterministic serial loop + progress logging.
+    threshs.pkl is identical to the pooled map (~1 min/scene ≈ 22 min for 22 images)."""
+    import os
+    import pickle
+    import time
+
+    def _run_serial(self):
+        os.makedirs(self.save_dir, exist_ok=True)
+        scenes = sorted(set(self.data.scene))
+        print(f"[serial-run] {len(scenes)} scenes, serial (ThreadPool disabled — deadlocks on "
+              f"many-core nodes)", flush=True)
+        for i, scene in enumerate(scenes, 1):
+            t0 = time.time()
+            self.normalize_scene(scene)
+            print(f"[serial-run] scene {scene} done  ({i}/{len(scenes)}, {time.time() - t0:.1f}s)",
+                  flush=True)
+        pickle.dump(self.threshs, open(f"{self.save_dir}/threshs.pkl", "wb"))
+
+    Normalization.run = _run_serial
+    print("[serial-run] RESTORE.run patched to a serial scene loop (no multiprocessing.dummy.Pool)")
+
+
 def import_restore():
     _install_headless_stubs()
     if str(VENDOR) not in sys.path:
@@ -626,6 +655,7 @@ def main(argv=None):
     # negative-control is representative for every pair regardless of marker/cell frequencies.
     patch_restore_cluster_cap(Normalization, a.subsample, a.seed)
     patch_restore_no_kde(Normalization)   # kill the figure-only O(n^2) KDE on the full cloud
+    patch_restore_serial_run(Normalization)  # ThreadPool over scenes deadlocks on many-core nodes
     qc_dir = a.out_dir / "qc"
     qc_dir.mkdir(parents=True, exist_ok=True)
 
