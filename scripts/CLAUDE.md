@@ -76,7 +76,7 @@ Cohort growing **15 → 22 donors** (batch 2: +6450/6505 = Aab+, +6523/6534/6566
 new split ND 8 / Aab+ 3 / T1D 11). Plan: `~/.claude/plans/be-sure-the-pseudotime-gentle-brook.md`.
 Code landed now; runs when the QuPath 22-donor exports are ready. Confirmed decisions: **58 common
 markers** (batch 1 has CD38, batch 2 has b-Catenin1 — a physical panel change → drop both);
-**full app rebuild with the 8 broad lineages** (Neural + Neutrophil added; Step-2 fine subclustering deferred); **REDSEA
+**full app rebuild with the 7 broad lineages** (Neural added; Neutrophil folded into Immune; Step-2 fine subclustering deferred); **REDSEA
 re-runs all 22**; **archive 15-donor outputs by move + delete the 44 GB `redsea_scratch/`**.
 
 - `scripts/senior/build_phenotyped_h5ad.py` (**new — GAP #1 fix**): no script produced
@@ -180,48 +180,28 @@ python scripts/build_h5ad_for_app.py
 > `pip install -e Phenocycler_Analysis` into scvi-env). The `scripts/senior/*.py` paths and
 > `python scripts/senior/…` commands in the sections below are **historical** — run the pipeline via
 > `python -m phenocycler.pipeline --config config.ini` (or `scripts/senior/run_pipeline.sh`), or the
-> per-stage CLIs `python -m phenocycler.{cells_parquet,redsea,restore,hormone_floor,lineage,qupath_export,figures,reassess_diag}`.
+> per-stage CLIs `python -m phenocycler.{cells_parquet,redsea,restore,lineage,qupath_export,figures}`.
 > The archived originals live in `archive/phenotyping_senior_preport/`; the science described below is
 > unchanged (it is exactly what the submodule now does).
 
 ## RESTORE per-image intensity normalization (Jun 2026)
 
-`scripts/senior/restore_normalize.py` applies **RESTORE** (Chang Lab / OHSU) to the
-59-plex protein single-cell data for nine mutually-exclusive markers spanning the broad
-pancreas cell types (`DEFAULT_MARKER_PAIRS`, `[target ← reference]`):
-- **exocrine** Pan_Cytokeratin ← Vimentin · **mesenchyme** Vimentin ← Pan_Cytokeratin
-  (epithelial/stromal Spearman ≈ −0.5, the broadest exclusivity in the tissue)
-- **endocrine** INS (β) ← Pan_Cytokeratin · GCG (α) ← Pan_Cytokeratin
-- **endothelium** CD31 ← Pan_Cytokeratin · **muscle/pericyte** SMA ← Pan_Cytokeratin
-- **immune** CD20 (B) ← Pan_Cytokeratin · CD163 (mac) ← Pan_Cytokeratin · CD3e (T) ← CD163
+RESTORE (Chang Lab / OHSU, vendored under `external/RESTORE`) per-image auto-thresholds
+mutually-exclusive marker pairs on the 59-plex data; it is the `restore` stage of the
+`Phenocycler_Analysis` submodule (`phenocycler/restore.py`; the old
+`scripts/senior/restore_normalize.py` is archived).
 
-Pan_Cytokeratin marks ~91% of cells (acinar/ductal) and is cleanly negative in every
-non-epithelial population → the abundant universal reference. **CD99 was dropped** (96%+
-detectable; not lineage-exclusive in this panel — was a poor islet proxy). Markers vetted
-from data: CD56/CD34/EpCAM/SST/IAPP/CD11b/B3TUBB rejected (too broad / weak signal).
+**The curated multi-pair scheme is COMMITTED** (2026-07-14, submodule `123d916`) — a biologically-curated
+web of **multiple directional `[target ← reference]` pairs** with diverse cross-class references (RESTORE's
+native design), replacing the prior single-universal-reference scheme (`MARKER_PAIRS` in `config.py`); the
+`_norm` floors are **dropped**. The mutually-exclusive single-positive `idx_select` (`idx_floor_q`) + shared
+`neg_stat`/`fit_clusters` (re-exported via `diagnostics.py`) are committed too, plus 3 opt-in default-off
+knobs (`neg_stat`/`presence_min_sep`/`idx_nonzero_q` — activate per-donor from figures). Everything below is
+the KEPT RESTORE *mechanics*.
 
-**Immune negative-control fix (Jun 2026) — the key correction.** The immune markers were
-originally referenced *immune-vs-immune* (CD20←CD3e, CD163←CD3e). That was the bug: CD20/CD163
-**background scales with cell brightness/autofluorescence** (CD20 MFI vs cytokeratin/DAPI Pearson
-r≈0.5), but the dim, rare T-cell reference never saw the **bright-acinar** background → threshold
-too low → **~55%+ of the Immune broad-lineage class were bright acinar FALSE POSITIVES** (donor
-6539; `data/immune_false_positive_investigation.png`). Fix: reference CD20/CD163 against
-**Pan_Cytokeratin** — the abundant, immune-negative, *bright* acinar population that represents the
-brightness-scaling background. Result (`data/restore_reference_fix_validation.png`): bright-acinar
-false positives removed (CD20⁺ −87%) AND the disease signal **sharpened** (CD20/CD163 T1D/ND ratio
-1.3×→~2.5×); Immune broad composition ND 8.9%→3.9%, T1D 13.9%→10.5% (real infiltration preserved).
-**CD3e is the deliberate EXCEPTION — it KEEPS CD163.** CD3e was already clean/specific (never a
-bright-acinar false positive) and Pan_Cytokeratin is *positively* correlated with it (autofluorescence
-coupling, ref-qc pearson ≈0.39), which drags the SSC threshold too low and **destroys the validated
-T-cell infiltration biology** (real SSC cohort: T-gain 4.5×→0.9×; a crude mean+3σ approximation had
-wrongly suggested it improved — always validate on the real SSC run, not the approximation). With
-CD3e←CD163 the T-gain is preserved (ND 0.9%→T1D 4.1%, 4.5×). **Principle: Pan_Cytokeratin references
-the markers whose background is brightness/autofluorescence-driven; a clean, specific marker keeps a
-clean, mutually-exclusive (negatively-correlated) reference.** `reference_exclusivity_qc()` writes the
-data-driven audit (`data/restore/reference_selection_qc.csv`: svd_ratio σ2/σ1, pearson sign, reference
-abundance, peri-islet contamination check). Deliberate deviation from the RESTORE paper's literal
-"reject positively-correlated pairs" rule: here a positive CD20↔Pan_CK correlation IS the
-autofluorescence we want the negative control to capture, not antibody cross-reactivity.
+`reference_exclusivity_qc()` writes a data-driven audit (`reference_selection_qc.csv`: svd_ratio σ2/σ1,
+pearson sign, reference abundance, peri-islet contamination) — reuse it to vet any candidate
+`[target, reference]` pair set for mutual exclusivity before committing the curated pairs.
 
 RESTORE pairs each target with a mutually-exclusive *reference* whose positive cells are,
 by biology, target-negative, so the target intensity in that population is background; per
@@ -257,8 +237,8 @@ hallmarks: β-cell INS⁺ falls ND 3.4% → Aab+ 2.3% → T1D 0.5% (insulin loss
 CD3e⁺ rises ND 0.8% → T1D 3.0% (immune infiltration). Note Pan_Cytokeratin⁺ (~20–35%) is
 conservative for the exocrine compartment — `mean + 3σ` flags only high-confidence cells.
 
-Mutually-exclusive pairs live in the `DEFAULT_MARKER_PAIRS` constant (`[target,
-reference]`); override with `--marker-pairs 'CD3e:CD163,INS:Pan_Cytokeratin'`.
+Mutually-exclusive pairs are the curated set (being redesigned); override on the CLI with
+`--marker-pairs 'TARGET:REFERENCE,...'`.
 
 Reads `data/cells/donor_id=*/data_0.parquet` (raw MFI); writes:
 - `data/restore/threshs.pkl` — native RESTORE `threshs[batch][scene][marker][model]`
@@ -276,6 +256,62 @@ python scripts/senior/restore_normalize.py --reuse-threshs --no-robust    # re-a
 python scripts/senior/restore_normalize.py --donors 6539 --no-robust \
     --cells-dir data/cells_redsea --out-dir data/restore_redsea ...       # re-RESTORE on REDSEA-corrected cells
 ```
+
+## RESTORE efficacy diagnostic — mxnorm (Jul 2026)
+
+RESTORE had no quantitative before/after efficacy measure. `Phenocycler_Analysis/scripts/R/restore_mxnorm_diagnostics.R`
+(the `restore_diag` pipeline stage) uses the **`mxnorm`** R package (Harris et al., CRAN) to score, per
+`[target ← reference]` pair, whether RESTORE harmonized the cohort — the three requested metrics on the
+REDSEA-corrected "before" (`cells_redsea`) vs the RESTORE-normalized "after":
+- **Anderson–Darling** distributional stat across donors (`kSamples::ad.test` on per-slide `KernSmooth::bkde`
+  curves; report `std_ad_test_statistic`, the p-value is a `gridsize` artifact),
+- **Otsu misclassification / discordance** (`run_otsu_discordance`; per-slide vs global Otsu threshold),
+- **slide-level variance** decomposition (`run_var_proportions` → `lme4::lmer`).
+
+**How RESTORE is injected as the "normalized" table** (verified against the installed mxnorm internals):
+feed `mx_dataset` the `log10(MFI+1)` matrix (base data.frame — mxnorm indexes `[,marker]`), `mx_normalize(
+transform="None", method="None")` to scaffold `norm_data` as an identity copy, then overwrite each marker
+column `norm_data[,m] = data[,m] − log10(thr[donor,m])` (= RESTORE `_log2r`; thresholds from
+`restore_redsea/positive_fractions.csv`, the applied post-robust-guard values). All three `run_*` read
+`data`/`norm_data` **live** with `table="both"`. `run_otsu_discordance` normally calls skimage via
+reticulate — we pass a **pure-R Otsu** as `threshold_override` (skimage-parity |diff|<5e-7) so the R step
+has **no Python dependency**. Variance is de-confounded with `formula_override="disease.status + (1|donor_id)"`.
+
+**The `slide = donor = image` reframing (HARD RULE).** One PhenoCycler image per donor → the slide axis
+conflates donor biology (ND→Aab+→T1D insulin loss) with technical drift. So the three metrics are cross-donor
+**descriptors + over-correction alarms**, never a naive "lower = better" gate (a large AD/variance drop on
+INS/GCG/SST is *suspicious*). The per-pair **acceptance** signal is **PER-DONOR**: RESTORE's applied cutoff
+vs each donor's OWN raw Otsu valley (`otsu_data$slide_threshold`) → `restore_perdonor_threshold_residual.csv`
++ `fig_perdonor_residual.png`; overshoot flags the pairs/threshold-statistic to revisit, validating against
+each donor's own data. A biology guardrail (`restore_biology_guardrail.csv`) checks the insulin-loss ordering
++ per-donor INS islet-separability survive normalization. Outputs under `data/restore_redsea/mxnorm/`
+(`restore_mxnorm_efficacy.csv` = the per-pair panel + the step's idempotency marker; DPI-150 figures).
+
+**Environment (important).** Runs under **R 4.5.1** (`/usr/local/bin/Rscript`), NOT the box's R 4.6.1
+(`/usr/bin/Rscript`): the shared `/usr/local/lib/R/site-library` is built for R 4.6 and its `rlang.so`
+fails to load under 4.5.1 (`undefined symbol: R_MakeMissingBinding`), whereas the 4.5 personal lib
+(`~/R/x86_64-pc-linux-gnu-library/4.5`) has a working rlang + arrow/lme4/uwot + mxnorm. Install deps
+once with `/usr/local/bin/Rscript Phenocycler_Analysis/scripts/R/install_mxnorm.R` (mxnorm + fda + kSamples
++ psych + fossil into the 4.5 personal lib, `dependencies=NA`; **not** sva — mxnorm vendors ComBat). The
+`restore_diag` pipeline step hard-codes `/usr/local/bin/Rscript`.
+
+**Gated on the 22-donor re-run.** `positive_fractions.csv` is 6380-only today and cross-slide metrics need
+≥2 donors, so a cohort run waits on the faithful re-run in
+`~/.claude/plans/visually-reviewing-the-broad-kind-sloth.md`. It is the objective selector among that plan's
+threshold-statistic candidates (A `median+3·MAD` / B ~99th-pct / C `log1p`): point `--threshold-csv` at each
+candidate's `positive_fractions.csv`, pick the winner on small per-donor residual + biology preserved.
+
+```bash
+# deps (once)
+/usr/local/bin/Rscript Phenocycler_Analysis/scripts/R/install_mxnorm.R
+# standalone (>=2 donors with thresholds required)
+/usr/local/bin/Rscript Phenocycler_Analysis/scripts/R/restore_mxnorm_diagnostics.R \
+    --threshold-csv data/restore_redsea/positive_fractions.csv --subsample 20000
+# via the pipeline (after restore) — shells to the R script:
+python -m phenocycler.pipeline --config config.ini --only restore_diag
+```
+
+Design + red-team rationale: `~/.claude/plans/the-restore-method-lacks-floofy-perlis.md`.
 
 ## Pixel-level REDSEA spillover correction (Jun 2026)
 
@@ -333,6 +369,11 @@ and proceed to broad-lineage argmax phenotyping.
 
 ## Senior phenotyping — broad lineage assignment (Step 1, Jun 2026)
 
+> **⚠️ SUPERSEDED (2026-07-09):** the broad call is now the **ordered residual gating tree** (5
+> compartments — Epithelial/Endothelial/Neural/Immune/Mesenchymal — + explicit `Other`) in
+> `Phenocycler_Analysis/phenocycler/lineage.py`, NOT the hierarchy below. The text below describes the
+> archived `assign_broad_lineage.py` and is kept only as history.
+
 `scripts/senior/assign_broad_lineage.py` (scvi-env) types every one of the 23.3M cells into one of
 six **mutually-exclusive** broad lineages with **ZERO "Unassigned"** (the user mandate: fix the
 upstream cause, don't invent a junk category). Input: `data/restore_gated_redsea/` (REDSEA-corrected,
@@ -363,60 +404,13 @@ Muscle + Fibroblast top-level siblings). The app's
 rebuild (TODO breadcrumb left there). NB watch the numpy fixed-width-string gotcha: build the broad-call
 array as `<U16` or assigning a longer label (e.g. "Endothelial") silently truncates.
 
-## False-endocrine fix — hormone over-calling, NOT keratin spillover (Jul 2026)
+## Broad-lineage `_norm` floors — REMOVED
 
-The Step-1 identity heatmap's **Endocrine row lit for the keratin block** (Pan_CK/Ker8_18) turned out to be
-**FALSE endocrine**, not keratin spillover onto real β-cells. RESTORE's per-image hormone threshold lands
-**in the noise** for β-loss (T1D) donors — there is no separated bright INS population, so it forces a
-threshold into the noise tail and calls thousands of **acinar** cells INS⁺ at `_norm≈1.1` (barely over
-threshold), which then show their own real keratin. User-confirmed: donor **6380 has no INS cells**, yet the
-un-fixed pipeline called **11,905 INS⁺** there (all `_norm≈1.15`, 100% in tissue, 0 islets with ≥5
-co-INS⁺). The keratin-vs-strength relationship is monotonic (median corrected Pan_CK of INS⁺ cells: `_norm`
-1–1.5 → **765**, 10+ real β → **126**), so weak calls **are** acinar. **Real β-cells (strong `_norm`) are
-already keratin-clean** → the pixel-REDSEA keratin lever solves a non-problem.
-
-**Discriminators (all agree, per-donor):** hormone `_norm` strength (real β 8–25 vs false ~1.1); islet
-coherence (real endocrine cluster in islets, false scatter in tissue); per-image separation (p99/p90 of
-corrected intensity: ND 6539 INS ~80, β-loss 6380 ~2). Per-donor biology is preserved (hard rule): T1D
-**6593 keeps 22,904 strong-`_norm` INS⁺ = real residual β** — never normalized toward a cohort β-null.
-
-**THE FIX = a threshold-relative hormone-strength floor** (per-image-adaptive since `_norm`=raw/threshold):
-call Endocrine only when INS/GCG/SST `_norm ≥ K` (rejects the noise-floor false β) **+ bright CD99
-`_norm ≥ 3`** for the PP/ε/EC endocrine we lack specific markers for. **Operating point K=5** (user choice),
-**committed cohort-wide (22 donors)**:
-- `scripts/senior/assign_broad_lineage.py` — reads the floored `{INS,GCG,SST}_pos` (it has **NO**
-  argparse; the earlier claim that it grew `--hormone-min-norm`/`--cd99-bright` flags was inaccurate) and
-  gates CD99 in-script at `_norm ≥ 3`; the endocrine hierarchy fires on `INS/GCG/SST/CD99 _pos`. Re-typed
-  `data/phenotype/broad` at K=5. In the `Phenocycler_Analysis` submodule (now the canonical steps-1–5
-  engine) this is the `hormone_floor` stage, run before `lineage`.
-- `scripts/senior/apply_hormone_floor.py` (**new**) — rewrites `{INS,GCG,SST}_pos = (_norm ≥ K)` in
-  `restore_gated_redsea` (leaves `_norm`/`_log2r` and all other columns untouched); re-applyable after any
-  RESTORE re-run. Applied at K=5 so `_pos` consumers (Spatial-tab `cell_distance`) see the fix too.
-- **Bright CD99** needs `data/restore_gated_redsea_extra` (CD99/B3TUBB/MPO ← Pan_Cytokeratin): produce via
-  `restore_normalize.py --marker-pairs 'CD99:Pan_Cytokeratin,B3TUBB:Pan_Cytokeratin,MPO:Pan_Cytokeratin'
-  --cells-dir data/cells_redsea --gated-dir data/restore_gated_redsea_extra --no-robust --no-ref-qc`.
-
-**Validation (per-donor, `scripts/senior/redsea_reassess_diag.py` = the yardstick):** 6380 INS-driven endocrine
-11,905 → **31**; real β kept (6539 8,084, 6593 22,904); endocrine islet-coherence ND 65→**94%**, T1D 39→
-**61%**; GCG(α) coherence 59→94% (removes scattered false α, keeps real); Endocrine-cell **keratin Pan_CK
-−62% / Ker8_18 −56%, hormones INS +97% / GCG +71%**; re-plotted heatmap Endocrine row now hormone-defined
-(INS/GCG/SST/CD99) with Pan_CK neutral. Figures in `data/redsea_reassess/`
-(`false_endocrine_diag`, `endocrine_profile_fix`, `retype_fix_compare`, `redsea_reassess_baseline`).
-
-**Hallmark metric fix:** the CD3e T-gain was hidden by the **mean** (6476 pancreatitis ND has real CD3e⁺
-0.37, dominating the ND mean). Use the **median** → both β-loss (INS ND 0.028→T1D 0.005) and CD3e T-gain
-(ND 0.007→T1D 0.024) show; 6476 is plotted separately, not hidden. **Pan_CK is NOT a definitive acinar
-marker (overly bright)** — do not over-weight "acinar keratin retention" as a guardrail.
-
-**Committed state (deployed data, gitignored):** old typing/gating archived to `data/phenotype/broad.pre_hormonefloor`
-and `data/restore_gated_redsea.pre_hormonefloor`; `cell_distance` rebuilt from the floored `_pos`.
-`scripts/senior/redsea_full.py` per-channel-α + receptivity-gate (the abandoned keratin lever) is kept
-**additive and default bit-identical** (verified mean|diff| 7e-11 vs deployed) — off by default, can revert.
-**`marker_taxonomy.py` + `plot_celltype_markers.py` were MOVED `scripts/` → `scripts/senior/`** (their
-`Path(__file__).parents[2]/"data"` only resolves to `<repo>/data` from `scripts/senior/`, and they import
-`marker_taxonomy` as a sibling). **Follow-up:** the app h5ad still serves the old provisional fine labels; it
-picks up the corrected broad lineages at the next `build_phenotyped_h5ad`/Step-2 rebuild. `data/parquet/tissue`
-is still 15-donor, so `cell_distance` covers 15 until the 22-donor tissue build.
+The former hormone/immune `_norm` floors (a post-hoc patch on the single-universal-reference RESTORE
+scheme) were **dropped** (2026-07-14) with the curated multi-pair redesign. False-vs-real endocrine and immune calls
+are validated **per-donor with figures against each donor's own data** (its histograms, negative-control
+population, spatial/islet coherence), not a global K floor. `scripts/senior/redsea_full.py`'s
+per-channel-α + receptivity-gate levers remain additive and default bit-identical (off by default).
 
 ## Senior phenotyping — QuPath visual inspection (Jun 2026)
 

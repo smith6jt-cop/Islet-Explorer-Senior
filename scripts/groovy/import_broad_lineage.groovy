@@ -5,19 +5,20 @@
 // and the class is set in ONE step. Run this INSTEAD of the CytoMAP measurement importer +
 // set_broad_lineage_class. Then run "view phenotypes.groovy" to toggle lineages.
 //
-// CSV format (scripts/senior/export_broad_class_for_qupath.py):  object_id, broad_lineage, image
+// CSV format (phenocycler.qupath_export):  object_id, compartment, cell_type, image
 
 // ---- config ----------------------------------------------------------------
 def donorsToImport = ["6539"]   // quick check: one image. [] / null = every CSV in the folder.
 def folder = new File("/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/phenotype/qupath_class")
+def classCol = 1                // CSV column to set as PathClass: 1 = compartment, 2 = cell_type
 // ----------------------------------------------------------------------------
 
-// distinct colours for the eight broad lineages (match the analysis figures)
+// distinct colours for the 5 compartments + Other (match phenocycler.config COMPARTMENT_COLORS).
+// When classCol = 2 (cell_type), QuPath auto-assigns colours for the finer sub-type classes.
 def COLORS = [
-    "Epithelial" : [68, 119, 170],   "Fibroblast" : [238, 102, 119],
-    "Immune"     : [34, 136, 51],    "Endocrine"  : [204, 187, 68],
-    "Endothelial": [102, 204, 238],  "Muscle"     : [170, 51, 119],
-    "Neural"     : [181, 131, 141],  "Neutrophil" : [230, 159, 0],
+    "Epithelial" : [68, 119, 170],   "Endothelial": [102, 204, 238],
+    "Neural"     : [181, 131, 141],  "Immune"     : [34, 136, 51],
+    "Mesenchymal": [170, 51, 119],   "Other"      : [187, 187, 187],
 ]
 COLORS.each { name, c -> getPathClass(name).setColor(c[0], c[1], c[2]) }
 
@@ -37,13 +38,13 @@ println "Open image has ${detById.size()} detections."
 int matched = 0, missing = 0
 csvFiles.each { file ->
     def reader = new BufferedReader(new FileReader(file))
-    reader.readLine()   // header: object_id,broad_lineage,image
+    reader.readLine()   // header: object_id,compartment,cell_type,image
     String line
     while ((line = reader.readLine()) != null) {
         def f = line.split(',')
         def obj = detById[f[0]]
         if (obj == null) { missing++; continue }   // belongs to another image — skipped
-        obj.setPathClass(getPathClass(f[1]))
+        obj.setPathClass(getPathClass(f[classCol]))
         matched++
     }
     reader.close()

@@ -9,14 +9,14 @@ Interactive Shiny app for exploring pancreatic islet CODEX multiplexed imaging d
 ## ⚠️ Working rule — no frequency/uniformity assumptions
 
 **Never assume marker or cell-type frequencies, and never treat per-donor variation as an error to
-normalize toward a cohort norm — donor biology is genuinely variable.** e.g. donor **6476** (lone
-**pancreatitis** donor) has real extreme CD3e; **CD3e is sparser than CD163** (not the reverse);
-positivity is **RESTORE-threshold-defined**, not a raw-MFI floor. Validate a per-donor threshold/call
-against **that donor's own data** (its histograms, negative-control population, spatial coherence),
-not against other donors. Justify method changes on methodological grounds (stability/representativeness),
+normalize toward a cohort norm — donor biology is genuinely variable — BUT validate each call against
+that donor's OWN data** (its histograms, negative-control population, spatial coherence of the calls),
+not against other donors' values or a clinical label. Positivity is **RESTORE-threshold-defined**, not
+a raw-MFI floor. Do not call a marker rare/abundant or a fraction "implausible" from assumption —
+measure it per-donor. Justify method changes on methodological grounds (stability/representativeness),
 not on "this donor should look like the others."
 
-**In-flight work:** the 15→22 donor rebuild is mid-pipeline — see [`docs/HANDOFF_22donor_rebuild.md`](docs/HANDOFF_22donor_rebuild.md) for current state, next steps, and the note that `data/` + raw inputs are NOT in git.
+**Data note:** the 22-donor phenotyping pipeline (REDSEA → RESTORE → 5-compartment lineage) is **committed** to the `Phenocycler_Analysis` submodule — see the **Status** block below. `data/` + raw inputs are NOT in git (~21 GB, gitignored).
 
 ## Sub-directory CLAUDE.md files
 
@@ -161,15 +161,15 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
   |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; alignment r≈0.998)
   |-- scripts/senior/restore_normalize.py   per-image + autofluorescence normalization (mutually-exclusive refs)
   |     -> data/restore_redsea/, data/restore_gated_redsea/donor_id=*/  ({m}_pos/_norm/_log2r)
-  |     -> Pan_Cytokeratin is the universal negative control; CD20/CD163←Pan_CK, CD3e←CD163 (immune fix)
-  +-- scripts/senior/assign_broad_lineage.py  every cell typed, 0 Unassigned (hierarchical _pos + structural argmax)
-        -> data/phenotype/broad/donor_id=*/  (8 classes: Epithelial/Fibroblast/Immune/Endocrine/Endothelial/Muscle/Neural/Neutrophil)
+  |     -> curated multi-pair [target <- reference] web (COMMITTED); mutually-exclusive single-positive idx_select (idx_floor_q); per-image mean+3sigma; _norm floors dropped
+  +-- lineage (phenocycler.lineage)  every cell typed, 0 Unassigned (Other = explicit residual)
+        -> data/phenotype/broad/donor_id=*/  (5 compartments + Other: Epithelial/Endothelial/Neural/Immune/Mesenchymal; Endocrine = Epithelial sub-branch -> beta/alpha/delta; + cell_type sub-splits)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-**Status (updated 2026-07-08):** REDSEA + RESTORE done & validated (**22 donors**); broad lineage (Step 1) done and **re-typed to 8 classes** (adds Neural←B3TUBB, Neutrophil←MPO, + a bright-CD99 Endocrine gate) via the **`Phenocycler_Analysis` submodule** — now the canonical steps-1–5 engine (`python -m phenocycler.pipeline`, driven by repo-root `config.ini` / `scripts/senior/run_pipeline.sh`). The parity gate confirmed the submodule is byte-identical to the committed `assign_broad_lineage.py`. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `broad_lineage_composition.png`, `phenotype/celltype_marker_{dotplot,heatmap}.png`, `redsea_reassess/`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
+**Status (updated 2026-07-14):** REDSEA + RESTORE + broad lineage are **committed** to the **`Phenocycler_Analysis` submodule** (branch `redsea-restore-curated-5compartment`, commit `123d916`) — the canonical steps-1–5 engine (`python -m phenocycler.pipeline`, driven by repo-root `config.ini` / `scripts/senior/run_pipeline.sh`). The RESTORE negative-control redesign is **done**: a **biologically-curated multi-pair web** of directional `[target ← reference]` pairs (reciprocals; Pan_CK-universal-reference + `CD3e←CD163` retired), the `_norm` floors **dropped**, the co-positive `idx_select` replaced by the mutually-exclusive single-positive selection (`IDX_FLOOR_Q`), and a shared `idx_select`/`neg_stat`/`fit_clusters` re-exported to `diagnostics.py`. Broad lineage is a **5-compartment ordered-residual partition** (Epithelial/Endothelial/Neural/Immune/Mesenchymal + explicit **Other**; Endocrine is an Epithelial sub-branch → beta/alpha/delta) with `cell_type` sub-splits — **no "Unassigned"** (Other is the explicit residual class). **3 opt-in RESTORE knobs** ship default-off (`neg_stat`, `presence_min_sep`, `idx_nonzero_q` — each reproduces current behavior; activate per-donor from figures). Verified end-to-end on **6374 (ND) + 6380 (T1D)**: INS 31%→0.65% positive, biologically-coherent cell-type × marker dotplot. **Open per-donor validation items (evaluate from figures, do NOT assume):** activation of the 3 knobs; SST/Endocrine-delta over-abundance; donor 6476's CD3e (its earlier immune-floor fix is gone with the floor — re-validate under the curated cross-class references). **Next: knob-activation review → full 22-donor recompute → per-lineage subclustering (Step 2).** The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
 
-**Reproducible notebook (Jun 2026):** `notebooks/senior_phenotyping_redsea_restore.ipynb` runs the full pipeline end-to-end (idempotent thin orchestrator over the live `scripts/senior/*.py`) and ends with a **cell-type × marker dotplot + heatmap**. The superseded gating/clustering/Astir scripts were archived to **`archive/phenotyping_legacy/`** (see `scripts/CLAUDE.md`). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
+**Reproducible workflow:** the submodule's numbered notebooks **`Phenocycler_Analysis/notebooks/00–06`** run the pipeline end-to-end (thin orchestrators over `python -m phenocycler.pipeline --only <stage>`), ending with a **cell-type × marker dotplot + heatmap** (`03b_restore_diagnostic.ipynb` traces per-image RESTORE thresholds; `06_figures.ipynb` builds the composition/dotplot/heatmap). The old IES orchestrator `notebooks/senior_phenotyping_redsea_restore.ipynb` and the `scripts/senior/*.py` step scripts were retired (scripts archived to **`archive/phenotyping_senior_preport/`**; `run_pipeline.sh` is now a thin wrapper over the submodule). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
 
 ## Spatial / Statistics / Trajectory / AI tabs
 
@@ -231,7 +231,7 @@ python scripts/build_h5ad_for_app.py          # ~1 min: merge into app H5AD
 
 ## Analysis Pipeline
 
-See `scripts/CLAUDE.md` for the Python pipeline; phenotyping steps 1–5 (REDSEA → RESTORE → hormone floor → 8-class broad lineage) live in the `Phenocycler_Analysis` submodule. (The old `islet_analysis/` dir was removed; its content folded into `scripts/senior/` + the submodule.)
+See `scripts/CLAUDE.md` for the Python pipeline; phenotyping steps 1–5 (REDSEA → RESTORE → 7-class broad lineage) live in the `Phenocycler_Analysis` submodule. (The old `islet_analysis/` dir was removed; its content folded into `scripts/senior/` + the submodule.)
 See `data/DATA_PROVENANCE.md` for full data lineage documentation.
 See `docs/user_guide.md` for end-user documentation.
 
