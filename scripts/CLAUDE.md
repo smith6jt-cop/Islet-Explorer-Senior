@@ -2,6 +2,22 @@
 
 Pipeline scripts that build the data files consumed by the Shiny app. The top-level `CLAUDE.md` covers the high-level data lineage and run commands. This file documents the batch-correction pipeline, pseudotime modes, and per-script details.
 
+## Hard donor exclusions (Jul 2026)
+
+Donors **6457 and 6579 must be excluded until further notice from every analysis.** Donor 6457 had
+poor DAPI staining that prevented accurate Phenocycler channel registration; donor 6579 is excluded
+by maintainer decision as a pancreatitis outlier. Raw and REDSEA files may remain for provenance,
+but no RESTORE, phenotype, clustering, trajectory, statistics, figure, or app artifact may include
+either donor. **22 acquired → 20 analysis-eligible.**
+
+Enforced centrally in `Phenocycler_Analysis/phenocycler/cohort.py`: `filter_eligible_donors()` drops
+both from automatic discovery (`cfg.discover_donors()`), and `ensure_eligible_donors()` **raises** on
+any explicit API/CLI request naming either. Wired into `config.discover_donors`, `lineage`,
+`figures`, `qupath_export`, and `restore.donor_files`. Not a tunable config override.
+
+**Donor 6476 is NOT a pancreatitis donor** — older docs and comments said so. Its extreme CD3e is
+real biology, validated against its own data.
+
 ## Donor Batch Correction & Pseudotime Modes (Phase 17, Apr 2026)
 
 ### scVI batch_key bug (root cause)

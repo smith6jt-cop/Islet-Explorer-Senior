@@ -16,6 +16,7 @@ AI_Markdown/
 analysis_output/*
 islet_analysis/
 literature/*
+figures/*
 
 # R workspace and environment files
 .RData
@@ -40,6 +41,8 @@ app/shiny_app/R/APP_LOADED_FLAG
 
 # Temporary files
 tmp/
+HANDOFF*
+scratch_recovered*
 
 # Virtual environments and caches
 .venv*/

@@ -203,7 +203,7 @@ def patch_restore_cluster_cap(Normalization, cap, seed=0):
     converged near full data). We instead feed FULL per-image data (build_restore_input, no
     pre-subsample) so idx_select adapts to whatever the donor actually contains — making NO
     assumption about which markers are rare or abundant, and respecting real donor biology (e.g.
-    a pancreatitis donor with very high T-cell content) — then cap the resulting idx_select cloud
+    a donor with very high T-cell content) — then cap the resulting idx_select cloud
     to `cap` cells HERE, right before clustering, so SSC/GMM/KMeans stay tractable. get_GMM_thresh
     and get_clustering_thresh receive the post-idx_select `marker_pair_data` as their first arg."""
     if not cap:

@@ -16,7 +16,16 @@ a raw-MFI floor. Do not call a marker rare/abundant or a fraction "implausible" 
 measure it per-donor. Justify method changes on methodological grounds (stability/representativeness),
 not on "this donor should look like the others."
 
-**Data note:** the 22-donor phenotyping pipeline (REDSEA → RESTORE → 5-compartment lineage) is **committed** to the `Phenocycler_Analysis` submodule — see the **Status** block below. `data/` + raw inputs are NOT in git (~21 GB, gitignored).
+**Hard donor exclusions — 6457 and 6579 are excluded until further notice from every analysis.**
+Donor 6457's poor DAPI staining prevented accurate Phenocycler channel registration; donor 6579 is
+excluded by maintainer decision as a pancreatitis outlier. Raw/REDSEA files may remain for
+provenance, but no RESTORE, phenotype, clustering, trajectory, figure, or app artifact may include
+either donor. Enforced fail-closed in `Phenocycler_Analysis/phenocycler/cohort.py` (automatic
+discovery filters both; explicit requests naming either raise). **22 acquired → 20 analysis-eligible.**
+Note **donor 6476 is NOT a pancreatitis donor** (older docs said so) — its extreme CD3e is real.
+
+**Data note:** the phenotyping pipeline lives in the `Phenocycler_Analysis` submodule — see the
+**Status** block below. `data/` + raw inputs are NOT in git (~21 GB, gitignored).
 
 ## Sub-directory CLAUDE.md files
 
@@ -159,15 +168,38 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
   |-- QuPath per-cell GeoJSON export (~/IO60panc2nd/scripts/export_cells_geojson.groovy)
   |-- scripts/senior/redsea_full.py        pixel-level lateral-spillover correction (subtract-only, 1px band, α=1)
   |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; alignment r≈0.998)
-  |-- scripts/senior/restore_normalize.py   per-image + autofluorescence normalization (mutually-exclusive refs)
-  |     -> data/restore_redsea/, data/restore_gated_redsea/donor_id=*/  ({m}_pos/_norm/_log2r)
-  |     -> curated multi-pair [target <- reference] web (COMMITTED); mutually-exclusive single-positive idx_select (idx_floor_q); per-image mean+3sigma; _norm floors dropped
+  |-- RESTORE pair validation (phenocycler.restore_validation)  NOT YET ACCEPTED — see Status
+  |     -> manuscript-faithful screen; emits NO normalized values and NO phenotype calls
   +-- lineage (phenocycler.lineage)  every cell typed, 0 Unassigned (Other = explicit residual)
-        -> data/phenotype/broad/donor_id=*/  (5 compartments + Other: Epithelial/Endothelial/Neural/Immune/Mesenchymal; Endocrine = Epithelial sub-branch -> beta/alpha/delta; + cell_type sub-splits)
+        -> data/phenotype/broad/donor_id=*/  (5 compartments + Other: Immune/Epithelial/Endothelial/Neural/Mesenchymal; endocrine/exocrine deferred to a validated 2nd pass)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-**Status (updated 2026-07-14):** REDSEA + RESTORE + broad lineage are **committed** to the **`Phenocycler_Analysis` submodule** (branch `redsea-restore-curated-5compartment`, commit `123d916`) — the canonical steps-1–5 engine (`python -m phenocycler.pipeline`, driven by repo-root `config.ini` / `scripts/senior/run_pipeline.sh`). The RESTORE negative-control redesign is **done**: a **biologically-curated multi-pair web** of directional `[target ← reference]` pairs (reciprocals; Pan_CK-universal-reference + `CD3e←CD163` retired), the `_norm` floors **dropped**, the co-positive `idx_select` replaced by the mutually-exclusive single-positive selection (`IDX_FLOOR_Q`), and a shared `idx_select`/`neg_stat`/`fit_clusters` re-exported to `diagnostics.py`. Broad lineage is a **5-compartment ordered-residual partition** (Epithelial/Endothelial/Neural/Immune/Mesenchymal + explicit **Other**; Endocrine is an Epithelial sub-branch → beta/alpha/delta) with `cell_type` sub-splits — **no "Unassigned"** (Other is the explicit residual class). **3 opt-in RESTORE knobs** ship default-off (`neg_stat`, `presence_min_sep`, `idx_nonzero_q` — each reproduces current behavior; activate per-donor from figures). Verified end-to-end on **6374 (ND) + 6380 (T1D)**: INS 31%→0.65% positive, biologically-coherent cell-type × marker dotplot. **Open per-donor validation items (evaluate from figures, do NOT assume):** activation of the 3 knobs; SST/Endocrine-delta over-abundance; donor 6476's CD3e (its earlier immune-floor fix is gone with the floor — re-validate under the curated cross-class references). **Next: knob-activation review → full 22-donor recompute → per-lineage subclustering (Step 2).** The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
+**Status (updated 2026-07-22) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
+`RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The
+gate plan is [`docs/restore_faithful_rebuild_plan.md`](docs/restore_faithful_rebuild_plan.md).
+Submodule branch `redsea-restore-curated-5compartment`, commit `8bf0760`.
+
+- **Divisor = MAXIMUM target intensity in the accepted target-negative controls** (the manuscript
+  equations: controls ≤ 1, signal > 1). Released-code `mean+3σ` is **sensitivity analysis only**.
+  Each marker's background comes from **its own** negative control — never shared, averaged, or
+  medianed across markers or references.
+- **Separator = 2-component NNMF** on raw QuPath compartment means (membrane + whole-cell), trained
+  on deterministic equal-size arms with robust min-max scaling; GMM kept as comparator. Ordered
+  controls: raw double-low QC → NNMF assignment → Step 1 anchor/separator → target-component
+  support. Marker-specific raw arm floors, no silent fallback (CD3e/CD20 use max(Otsu, Triangle)).
+- **Nothing is accepted yet.** No pair is approved, no divisor emitted, no normalized/phenotype/app
+  output written — `data/` deliberately holds only `cells/`, `cells_redsea/`, `redsea_scratch/`,
+  `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. All 543 of 600 screen
+  rows sit at `PAIR_REVIEW_PENDING`.
+- **NEXT: record the Gate-2 human review** in
+  `data/restore_pair_validation/expanded_review_v7/review_decisions.csv` (72 rows, currently zero
+  reviewer edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
+  to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
+  tri-state `positive|negative|unavailable` calls) → Gates 5–7.
+- **Superseded**, parked on submodule branch `superseded/multiref-median-8gate`: the multi-reference
+  median-threshold RESTORE and the partial 8-gate lineage edit. Do not revive before Gate 4.
+- The app still serves the **provisional** un-QC'd labels until the Gate-7 rebuild.
 
 **Reproducible workflow:** the submodule's numbered notebooks **`Phenocycler_Analysis/notebooks/00–06`** run the pipeline end-to-end (thin orchestrators over `python -m phenocycler.pipeline --only <stage>`), ending with a **cell-type × marker dotplot + heatmap** (`03b_restore_diagnostic.ipynb` traces per-image RESTORE thresholds; `06_figures.ipynb` builds the composition/dotplot/heatmap). The old IES orchestrator `notebooks/senior_phenotyping_redsea_restore.ipynb` and the `scripts/senior/*.py` step scripts were retired (scripts archived to **`archive/phenotyping_senior_preport/`**; `run_pipeline.sh` is now a thin wrapper over the submodule). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
 

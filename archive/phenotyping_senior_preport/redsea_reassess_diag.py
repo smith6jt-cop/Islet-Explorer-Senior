@@ -27,7 +27,7 @@ change to REDSEA (`redsea_full.py`). It reports three things:
     segmentation doublet / spillover false-positive is never "fixed" with α.
 
 Frequency-free by construction (repo working rule): "confident endocrine/acinar" is a per-donor PERCENTILE,
-never a cohort constant, and every metric is reported per donor (6476 pancreatitis keeps its real extreme
+never a cohort constant, and every metric is reported per donor (6476 keeps its real high-CD3e extreme
 CD3e — validated on its own data, not normalized toward the cohort).
 
 The metric functions (`endocrine_objective`, `guardrails`, `realvsfalse`, `assign_stratum`) are importable so
@@ -336,14 +336,14 @@ def make_figure(obj, gr, path):
     ax[1, 0].set_ylabel("mean corrected MFI"); ax[1, 0].set_title("Guardrail baselines (must not drop)")
     ax[1, 0].legend(fontsize=8)
 
-    # D: T1D hallmarks by status — MEDIAN (robust to the 6476 pancreatitis outlier, shown separately)
+    # D: T1D hallmarks by status — MEDIAN (robust to the 6476 high-CD3e ND outlier, shown separately)
     for col, lab, mk in [("INS_pos_frac", "INS⁺ (β, expect ↓)", "o-"), ("CD3e_pos_frac", "CD3e⁺ (T, expect ↑)", "s-")]:
         y = [gr[gr.status == s][col].median() for s in STATUS_ORDER]
         ax[1, 1].plot(STATUS_ORDER, y, mk, lw=2, ms=9, label=lab)
     m6476 = gr[gr.donor.astype(str) == "6476"]
     if len(m6476):
         ax[1, 1].scatter([0], [m6476.CD3e_pos_frac.iloc[0]], marker="*", s=200, color="#CC3311", zorder=5)
-        ax[1, 1].annotate("6476 pancreatitis\n(real CD3e, excluded\nfrom the trend)",
+        ax[1, 1].annotate("6476 high-CD3e ND\n(real CD3e, excluded\nfrom the trend)",
                           (0, m6476.CD3e_pos_frac.iloc[0]), fontsize=7, ha="left", va="top", color="#CC3311")
     ax[1, 1].set_ylabel("median fraction of cells")
     ax[1, 1].set_title("T1D hallmarks (median): β-loss + CD3e T-gain"); ax[1, 1].legend()
@@ -413,12 +413,12 @@ def main(argv=None):
     ins = fb[fb.hormone == "INS"]
     print(ins.groupby("status")[["n_weak", "n_strong", "strong_frac", "sep_p99_p90",
                                  "pct_pos_in_islet", "ker_weak", "ker_strong"]].median().round(2).to_string())
-    # hallmarks by status — MEDIAN (robust to the 6476 pancreatitis outlier that distorts the mean)
-    print("\n=== T1D hallmarks by status (MEDIAN — robust to the 6476 pancreatitis outlier) ===")
+    # hallmarks by status — MEDIAN (robust to the 6476 high-CD3e ND outlier that distorts the mean)
+    print("\n=== T1D hallmarks by status (MEDIAN — robust to the 6476 high-CD3e ND outlier) ===")
     print(gr.groupby("status")[["INS_pos_frac", "CD3e_pos_frac"]].median().round(4).to_string())
     m6476 = gr[gr.donor.astype(str) == "6476"]
     if len(m6476):
-        print(f"   (6476 ND pancreatitis CD3e+={m6476.CD3e_pos_frac.iloc[0]:.3f} — real, shown separately, not T1D immune gain)")
+        print(f"   (6476 ND high-CD3e outlier CD3e+={m6476.CD3e_pos_frac.iloc[0]:.3f} — real, shown separately, not T1D immune gain)")
     if not a.no_figure:
         make_figure(obj, gr, a.out_dir / "redsea_reassess_baseline.png")
         make_false_endocrine_figure(fb, a.out_dir / "false_endocrine_diag.png")
