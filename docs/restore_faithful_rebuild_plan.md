@@ -5,12 +5,17 @@
 > `~/.copilot/session-state/7cb68b00-bc52-4fd8-b1cb-c804049aeb2b/plan.md` — a disposable
 > location. The implementing code is the `Phenocycler_Analysis` submodule
 > (`phenocycler/restore_validation.py`, `restore_pair_review.py`,
-> `restore_validation_figures.py`, `cohort.py`, commit `8bf0760`); the review bundles and
+> `restore_validation_figures.py`, `cohort.py`, commit `6d49ae7`); the review bundles and
 > screens it references now live under gitignored `data/restore_pair_validation/`.
 >
 > **Status: Gate 2 of 7.** No marker pair is accepted, no divisor is emitted, and no
 > normalized, phenotype, or app output exists. The immediate next action is recording the
-> human pair review in `data/restore_pair_validation/expanded_review_v7/review_decisions.csv`.
+> human pair review in `data/restore_pair_validation/expanded_review_v9/review_decisions.csv`
+> (69 rows, against the `nnmf_all20_expanded_v7/` screen).
+>
+> `## Current status` below is an accumulating dated log — later entries supersede earlier
+> ones. For what is active RIGHT NOW, read its last entry and
+> `data/restore_pair_validation/README.txt`.
 
 ## Current status
 
@@ -267,8 +272,9 @@
     - the 600-row rerun removed 11,580,847 double-low rescues while every raw floor,
       target anchor, reference control, Step 1 separator, candidate divisor, model state,
       and queue selection remained exactly unchanged
-  - `nnmf_all20_expanded_v5/` contains the active 600-row screen: 20 eligible donors x
-    30 fixed candidate pairs
+  - `nnmf_all20_expanded_v5/` contains the then-active 600-row screen: 20 eligible donors x
+    30 fixed candidate pairs — SUPERSEDED 2026-07-23 by `nnmf_all20_expanded_v7/` (540 rows,
+    27 pairs) when CD20 was retired as a reference; see the final entry of this section
     - state counts are 543 `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`,
       20 `MODEL_UNSTABLE`, 5 `NO_TARGET_EXPRESSION_CONFIRMED`, and 2 `INVALID_PAIR`
     - all ordered-control and cell-accounting invariants pass
@@ -277,9 +283,10 @@
     - donor 6539 CD20 produces no calls: five pairs are confirmed absent and two are
       invalid because their NNMF target signal contradicts the confirmed absence
     - no canonical divisor or production call was emitted because no pair is accepted
-  - `expanded_review_v7/` is the active review bundle: 13 PDFs, 72 checklist rows, and
+  - `expanded_review_v7/` was then the active review bundle: 13 PDFs, 72 checklist rows, and
     72 QuPath overlays; the checklist has zero reviewer edits and neither excluded donor
-    appears
+    appears — SUPERSEDED 2026-07-23 by `expanded_review_v9/` (69 rows); v7 and v8 both
+    carried zero reviewer edits, so nothing recorded was lost
     - donor 6579 is the pancreatitis donor and remains excluded by maintainer decision
     - donor 6476 is not a pancreatitis donor; its obsolete fixed stress-case selection
       was removed, while nine evidence-driven 6476 stress rows remain
@@ -324,6 +331,56 @@
   - CD31, E-cadherin, and Vimentin retain raw-linear Otsu as their reviewer-validated
     candidate statistic; CD3e and CD20 use the approved conservative Otsu/Triangle maximum
   - all 121 package tests pass; the two existing multiprocessing fork warnings remain
+
+- 2026-07-23 — CD20 retired as a REFERENCE; this entry supersedes every earlier "active"
+  designation in this section:
+  - a reference marker's positive cells ARE the target's negative control, so a reference must
+    label a population large enough to estimate a background from. CD20 cannot: its exclusive
+    arm ran 41-2,026 cells per donor against 2,206-50,000 for the structural markers, it was the
+    limiting arm in every degenerate screen row, and it produced inverted fits in which an
+    abundant target was thresholded against a handful of reference cells — `6591 CD11b <- CD20`
+    used 50 reference cells to threshold 30,507 target cells (610:1)
+  - measured on the v6 screen, the three CD20-referenced pairs held 60 rows, 15 of them inverted
+    fits, 4 of the 22 degenerate-bound rows, and 4 `MODEL_UNSTABLE` rows
+  - substituting CD3e COLLAPSES those pairs rather than replacing them: `CD68 <- CD3e` and
+    `CD11b <- CD3e` already existed and `CD3e <- CD20` would become a self-pair. So
+    `IMMUNE_REFERENCE_SCREEN_PAIRS` drops 10 -> 7 and `CANDIDATE_PAIRS` 30 -> 27, and the screen
+    600 -> 540 rows. CD20 remains a TARGET against CD3e/CD68/CD163 and the epithelial references
+  - `INVALID_REFERENCE_MARKERS` records the rule with its rationale and is enforced at import,
+    together with a self-pair guard, so a future pair set cannot reintroduce either quietly.
+    `SHORTLIST_PAIRS` is checked against `CANDIDATE_PAIRS` so the two lists cannot drift apart
+  - all 540 surviving rows kept divisors identical to v6, so nothing else moved.
+    `MODEL_UNSTABLE` 18 -> 14 and degenerate-bound rows 22 -> 18
+  - `nnmf_all20_expanded_v7/` is the ACTIVE screen: 540 rows (20 eligible donors x 27 pairs),
+    state counts 489 `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`, 14 `MODEL_UNSTABLE`,
+    5 `NO_TARGET_EXPRESSION_CONFIRMED`, 2 `INVALID_PAIR`; `method_version`
+    `restore-pair-validation-v6`; no pair accepted and no divisor emitted
+  - `expanded_review_v9/` is the ACTIVE review bundle, built from that screen: 13 shortlisted
+    pairs, 69 checklist rows, 69 QuPath overlays, 1,649,671 crop cells, zero reviewer edits.
+    The two CD20-referenced shortlist entries became `CD68 <- CD3e` and `CD11b <- CD3e`
+  - separately, in the lineage sub-split B/Plasma now gate at the LOWEST immune precedence so
+    DC / Macrophage / Neutrophil / NK / T claim their cells first (a CD20+CD68+ cell is now
+    Macrophage), and CD20 was removed from `COMPARTMENT_GATES["Immune"]` — the gate is an
+    any-positive union, so a lone CD20 call could otherwise pull an abundant cell into Immune
+    before a more frequent compartment claimed it. B cells still reach Immune via CD79a. That
+    code is dormant until Gate 4 and changes no current artifact
+  - the legacy `MARKER_PAIRS` / `FUNCTIONAL_PAIRS` web and its `restore.run_restore` /
+    `run_restore_functional` drivers are DELETED rather than maintained known-wrong until
+    Gate 4: ten of those pairs referenced CD20 and there is no mechanical substitute (CD3e is
+    invalid for CD4/CD8/FOXP3, which are CD3e+; epithelium expresses PD-L1 and IDO1). The
+    reusable machinery stays — `idx_select`, `neg_stat`, `fit_clusters`, the threshold LUT and
+    apply helpers, the QC plots, and the standalone proliferation pass. The pipeline's `restore`
+    stage is kept in `ORDER` but RAISES, so a full run stops there instead of silently typing
+    cells from gated parquet no accepted method produced
+  - COMPARATOR ONLY, emits no divisor and no call: `immune_joint_comparator_20donor.csv`
+    (480 rows, 20 donors) fits one pooled NNMF per donor over CD3e/CD20/CD68/CD11b x
+    Membrane+Cell on the union of immune-positive cells. Anchor recovery, pairwise -> joint
+    k=4: CD20 worst case 0.217 -> 0.968 (every donor >= 0.968), CD11b median 0.920 -> 0.696.
+    Pooling rescues exactly the sparse marker and costs the abundant ones — this does NOT
+    license a switch to joint fitting; it independently reproduces the conclusion that retired
+    CD20 as a reference. k=5 is worse than k=4 throughout. Decide at the pair review
+  - all 132 package tests pass; the retired names are asserted absent so they cannot be
+    resurrected quietly
 
 ## Ground truth
 

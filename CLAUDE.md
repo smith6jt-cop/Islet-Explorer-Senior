@@ -175,10 +175,10 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-**Status (updated 2026-07-22) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
+**Status (updated 2026-07-23) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
 `RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The
 gate plan is [`docs/restore_faithful_rebuild_plan.md`](docs/restore_faithful_rebuild_plan.md).
-Submodule branch `redsea-restore-curated-5compartment`, commit `8bf0760`.
+Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
 
 - **Divisor = MAXIMUM target intensity in the accepted target-negative controls** (the manuscript
   equations: controls ≤ 1, signal > 1). Released-code `mean+3σ` is **sensitivity analysis only**.
@@ -188,15 +188,24 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `8bf0760`.
   on deterministic equal-size arms with robust min-max scaling; GMM kept as comparator. Ordered
   controls: raw double-low QC → NNMF assignment → Step 1 anchor/separator → target-component
   support. Marker-specific raw arm floors, no silent fallback (CD3e/CD20 use max(Otsu, Triangle)).
+- **CD20 is never a REFERENCE, and is not an Immune compartment anchor** — it remains a TARGET. A
+  reference's positive cells ARE the target's negative control, so a reference must label a
+  population large enough to estimate a background from; B cells are sparse in pancreas (CD20's
+  exclusive arm ran 41–2,026 cells/donor vs 2,206–50,000 for the structural markers), so CD20
+  cannot. Enforced at import via `INVALID_REFERENCE_MARKERS` in `restore_validation.py` (which also
+  rejects self-pairs). CD3e is the immune reference in its place; `COMPARTMENT_GATES["Immune"]`
+  reaches B cells through CD79a, and B/Plasma gate at the LOWEST immune sub-split precedence.
 - **Nothing is accepted yet.** No pair is approved, no divisor emitted, no normalized/phenotype/app
   output written — `data/` deliberately holds only `cells/`, `cells_redsea/`, `redsea_scratch/`,
-  `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. All 543 of 600 screen
-  rows sit at `PAIR_REVIEW_PENDING`.
+  `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. Of the 540 screen rows
+  (20 donors × 27 pairs) 489 sit at `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`,
+  14 `MODEL_UNSTABLE`, 5 `NO_TARGET_EXPRESSION_CONFIRMED`, 2 `INVALID_PAIR`.
 - **NEXT: record the Gate-2 human review** in
-  `data/restore_pair_validation/expanded_review_v7/review_decisions.csv` (72 rows, currently zero
+  `data/restore_pair_validation/expanded_review_v9/review_decisions.csv` (69 rows, currently zero
   reviewer edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
   to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
-  tri-state `positive|negative|unavailable` calls) → Gates 5–7.
+  tri-state `positive|negative|unavailable` calls) → Gates 5–7. The active screen behind that bundle
+  is `nnmf_all20_expanded_v7/`; read the directory's `README.txt` for active vs superseded.
 - **Superseded**, parked on submodule branch `superseded/multiref-median-8gate`: the multi-reference
   median-threshold RESTORE and the partial 8-gate lineage edit. Do not revive before Gate 4.
 - The app still serves the **provisional** un-QC'd labels until the Gate-7 rebuild.

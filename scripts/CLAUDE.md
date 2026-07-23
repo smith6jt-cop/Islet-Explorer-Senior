@@ -207,6 +207,18 @@ mutually-exclusive marker pairs on the 59-plex data; it is the `restore` stage o
 `Phenocycler_Analysis` submodule (`phenocycler/restore.py`; the old
 `scripts/senior/restore_normalize.py` is archived).
 
+> **RETIRED 2026-07-23 (submodule `6d49ae7`)** — `MARKER_PAIRS` / `FUNCTIONAL_PAIRS` and their drivers
+> `restore.run_restore` / `run_restore_functional` are **deleted**, and the pipeline's `restore` stage now
+> **raises**. Ten of those pairs referenced CD20, which is too sparse in pancreas to define a negative
+> control, and there is no mechanical substitute (CD3e is invalid for CD4/CD8/FOXP3, which are CD3e+;
+> epithelium expresses PD-L1 and IDO1). The manuscript-faithful replacement is
+> `phenocycler/restore_validation.py` (NNMF separator, divisor = MAXIMUM of the accepted target-negative
+> controls) — `python -m phenocycler.restore_validation evaluate-locked`. Nothing is accepted yet: see
+> `docs/restore_faithful_rebuild_plan.md` and the parent `CLAUDE.md` Status block. **The rest of this
+> section describes the retired paired path and is kept for context only** — the KEPT mechanics
+> (`idx_select`, `neg_stat`, `fit_clusters`, threshold LUT + apply helpers, QC plots, proliferation pass)
+> are still accurate.
+
 **The curated multi-pair scheme is COMMITTED** (2026-07-14, submodule `123d916`) — a biologically-curated
 web of **multiple directional `[target ← reference]` pairs** with diverse cross-class references (RESTORE's
 native design), replacing the prior single-universal-reference scheme (`MARKER_PAIRS` in `config.py`); the
