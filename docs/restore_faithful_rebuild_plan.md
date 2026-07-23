@@ -10,8 +10,8 @@
 >
 > **Status: Gate 2 of 7.** No marker pair is accepted, no divisor is emitted, and no
 > normalized, phenotype, or app output exists. The immediate next action is recording the
-> human pair review in `data/restore_pair_validation/expanded_review_v9/review_decisions.csv`
-> (69 rows, against the `nnmf_all20_expanded_v7/` screen).
+> human pair review in `data/restore_pair_validation/expanded_review_v10/review_decisions.csv`
+> (against the `nnmf_all20_expanded_v8/` screen).
 >
 > `## Current status` below is an accumulating dated log — later entries supersede earlier
 > ones. For what is active RIGHT NOW, read its last entry and
@@ -273,8 +273,8 @@
       target anchor, reference control, Step 1 separator, candidate divisor, model state,
       and queue selection remained exactly unchanged
   - `nnmf_all20_expanded_v5/` contains the then-active 600-row screen: 20 eligible donors x
-    30 fixed candidate pairs — SUPERSEDED 2026-07-23 by `nnmf_all20_expanded_v7/` (540 rows,
-    27 pairs) when CD20 was retired as a reference; see the final entry of this section
+    30 fixed candidate pairs — SUPERSEDED 2026-07-23 by `nnmf_all20_expanded_v8/` (400 rows,
+    20 pairs) when CD20 was retired as a reference; see the final entry of this section
     - state counts are 543 `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`,
       20 `MODEL_UNSTABLE`, 5 `NO_TARGET_EXPRESSION_CONFIRMED`, and 2 `INVALID_PAIR`
     - all ordered-control and cell-accounting invariants pass
@@ -285,7 +285,7 @@
     - no canonical divisor or production call was emitted because no pair is accepted
   - `expanded_review_v7/` was then the active review bundle: 13 PDFs, 72 checklist rows, and
     72 QuPath overlays; the checklist has zero reviewer edits and neither excluded donor
-    appears — SUPERSEDED 2026-07-23 by `expanded_review_v9/` (69 rows); v7 and v8 both
+    appears — SUPERSEDED 2026-07-23 by `expanded_review_v10/`; v7, v8 and v9 all
     carried zero reviewer edits, so nothing recorded was lost
     - donor 6579 is the pancreatitis donor and remains excluded by maintainer decision
     - donor 6476 is not a pancreatitis donor; its obsolete fixed stress-case selection
@@ -351,11 +351,13 @@
     `SHORTLIST_PAIRS` is checked against `CANDIDATE_PAIRS` so the two lists cannot drift apart
   - all 540 surviving rows kept divisors identical to v6, so nothing else moved.
     `MODEL_UNSTABLE` 18 -> 14 and degenerate-bound rows 22 -> 18
-  - `nnmf_all20_expanded_v7/` is the ACTIVE screen: 540 rows (20 eligible donors x 27 pairs),
+  - `nnmf_all20_expanded_v7/` was then the active screen — SUPERSEDED later the same day by
+    `nnmf_all20_expanded_v8/`, see the final entry of this section: 540 rows (20 eligible donors x 27 pairs),
     state counts 489 `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`, 14 `MODEL_UNSTABLE`,
     5 `NO_TARGET_EXPRESSION_CONFIRMED`, 2 `INVALID_PAIR`; `method_version`
     `restore-pair-validation-v6`; no pair accepted and no divisor emitted
-  - `expanded_review_v9/` is the ACTIVE review bundle, built from that screen: 13 shortlisted
+  - `expanded_review_v9/` was then the active review bundle — SUPERSEDED later the same day by
+    `expanded_review_v10/`, see the final entry of this section: 13 shortlisted
     pairs, 69 checklist rows, 69 QuPath overlays, 1,649,671 crop cells, zero reviewer edits.
     The two CD20-referenced shortlist entries became `CD68 <- CD3e` and `CD11b <- CD3e`
   - separately, in the lineage sub-split B/Plasma now gate at the LOWEST immune precedence so
@@ -381,6 +383,53 @@
     CD20 as a reference. k=5 is worse than k=4 throughout. Decide at the pair review
   - all 132 package tests pass; the retired names are asserted absent so they cannot be
     resurrected quietly
+
+- 2026-07-23 (later the same day) — CD20 EXCLUDED FROM RESTORE ENTIRELY. This entry supersedes the
+  one above, which retired CD20 only as a reference:
+  - maintainer decision after reviewing the CD20 PDFs in `expanded_review_v9/`: the CD20 rows show
+    overcalling throughout, and both qptiff pixel panels are overexposed with occasional block-like
+    artifacts. CD20 is to take no part in RESTORE and be added only after the broad cell types are
+    worked out
+  - measured corroboration from the bundle's own per-row display windows (99.8th percentile of
+    positive crop pixels, recorded in `qupath_exports[].marker_zoom`): CD20's ceiling runs 320-698
+    (median 503) and CD163's 60-425 (median 181), against E-cadherin ~6,814, CD31 ~7,552 and CD11b
+    ~10,225. A [1st, 99.8th] window plus gamma 0.65 stretches a near-background channel until
+    tile-to-tile exposure differences render as blocks — which is the `CD20 <- CD163` panel exactly.
+    The windows are NOT specific to the CD20 rows (donor 6380 CD68: 3,221 in the CD20 row vs 3,441
+    and 3,642 in the CD3e/CD68 rows), so this is channel weakness, not a display quirk of those rows
+  - as a TARGET the case is independent of the reference case: Step 1 anchor down to 14 cells,
+    anchor recovery to 0.217, and 35 of CD20's 140 screen rows sat outside `PAIR_REVIEW_PENDING`
+  - `INVALID_REFERENCE_MARKERS` is REPLACED by `RESTORE_EXCLUDED_MARKERS`, enforced at import
+    against BOTH roles (plus the self-pair guard and the SHORTLIST-subset-of-CANDIDATE check).
+    `BASELINE_PAIRS` 8 -> 7 (`CD20 <- E_cadherin` gone, so the set no longer equals the eight in
+    `BroadLineageRevised.md`), `IMMUNE_REFERENCE_SCREEN_PAIRS` 7 -> 4,
+    `EPITHELIAL_REFERENCE_COMPARATOR_PAIRS` 12 -> 9, `CANDIDATE_PAIRS` 27 -> 20,
+    `SHORTLIST_PAIRS` 13 -> 11
+  - CD20 is still EXTRACTED and still carries its reviewer-validated `max(Otsu, Triangle)` input
+    floor: `DEFERRED_EXTRACTION_MARKERS` feeds `QUPATH_MARKERS`, so the deferred second pass needs no
+    QuPath re-export and `qupath_compartment_sample_20donor/` + `qupath_compartment_full_20donor/`
+    remain schema-identical and reusable
+  - `nnmf_all20_expanded_v8/` is the ACTIVE screen: 400 rows (20 eligible donors x 20 pairs), state
+    counts 384 `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`, 6 `LOW_SIGNAL_UNRESOLVED`. The two states
+    that disappear (`NO_TARGET_EXPRESSION_CONFIRMED` x5, `INVALID_PAIR` x2) were all CD20 rows
+  - VERIFIED: all 400 surviving rows are numerically identical to their v7 counterparts on every
+    shared column, confirming pairs are evaluated independently and that dropping CD20 perturbed
+    nothing else
+  - `expanded_review_v10/` is the ACTIVE review bundle, built from that screen; `expanded_review_v9/`
+    and `nnmf_all20_expanded_v7/` are superseded and carried zero reviewer edits
+  - donor 6539's `CONFIRMED_ABSENT` CD20 expression review is now inert rather than an error: it is
+    looked up by `(donor, target)` only for screened pairs, and is retained in the manifest for
+    provenance. The CD20-only "maintainer-confirmed target absence" stress-case selector is removed
+  - lineage is unchanged but now abstains: `pos("CD20")` is all-False with no CD20 threshold, and
+    CD79a is unscreened, so the B/Plasma branch yields nothing and those cells stay `Immune-other`.
+    That is an abstention, not a negative call. The inert CD20 term is kept so the deferred pass
+    needs no edit there
+  - CD20 stays in `IMMUNE_JOINT_MARKERS` ONLY as a co-factor of the pooled comparator's fit —
+    removing it would change the other three markers and break comparability with the run already on
+    record. Its 0.217 -> 0.968 joint rescue does not license reintroduction
+  - OPEN, flagged not decided: `CD3e <- CD163` remains shortlisted while CD163 is the weakest channel
+    in the panel, weaker than CD20. Same failure mode by intensity rather than arm size
+  - 133 package tests pass (1 new: the excluded marker cannot be reintroduced in either role)
 
 ## Ground truth
 

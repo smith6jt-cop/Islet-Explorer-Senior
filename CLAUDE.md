@@ -188,24 +188,36 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   on deterministic equal-size arms with robust min-max scaling; GMM kept as comparator. Ordered
   controls: raw double-low QC → NNMF assignment → Step 1 anchor/separator → target-component
   support. Marker-specific raw arm floors, no silent fallback (CD3e/CD20 use max(Otsu, Triangle)).
-- **CD20 is never a REFERENCE, and is not an Immune compartment anchor** — it remains a TARGET. A
-  reference's positive cells ARE the target's negative control, so a reference must label a
-  population large enough to estimate a background from; B cells are sparse in pancreas (CD20's
-  exclusive arm ran 41–2,026 cells/donor vs 2,206–50,000 for the structural markers), so CD20
-  cannot. Enforced at import via `INVALID_REFERENCE_MARKERS` in `restore_validation.py` (which also
-  rejects self-pairs). CD3e is the immune reference in its place; `COMPARTMENT_GATES["Immune"]`
-  reaches B cells through CD79a, and B/Plasma gate at the LOWEST immune sub-split precedence.
+- **CD20 takes NO part in RESTORE — neither target nor reference — and is deferred to a second pass
+  after the broad cell types are settled** (maintainer decision 2026-07-23). As a reference its
+  positive cells would BE the negative control, and its exclusive arm ran 41–2,026 cells/donor vs
+  2,206–50,000 for the structural markers, producing inverted fits (`6591 CD11b ← CD20`: 50 reference
+  cells thresholding 30,507 target cells). As a target its Step-1 anchor bottomed out at 14 cells with
+  anchor recovery to 0.217, and reviewer inspection of the CD20 review PDFs found overcalling
+  throughout, with both qptiff channels stretched from near-background into block-like tile artifacts
+  — consistent with CD20 being the panel's second-weakest channel (display ceiling median ~503 counts
+  vs ~6,800 for E-cadherin; only CD163 at ~181 is lower). Enforced at import via
+  `RESTORE_EXCLUDED_MARKERS` in `restore_validation.py`, which rejects an excluded marker in **either**
+  role, plus a self-pair guard. CD20 is still **extracted** (`DEFERRED_EXTRACTION_MARKERS` feeds
+  `QUPATH_MARKERS`) and keeps its `max(Otsu, Triangle)` input-floor policy, so the deferred pass needs
+  no QuPath re-export. CD3e is the immune reference in its place. Consequences: CD20 is not in
+  `COMPARTMENT_GATES["Immune"]` (B cells reach Immune via CD79a); `lineage.py` keeps its inert
+  `pos("CD20")` term, and since CD79a is also unscreened the B/Plasma branch yields nothing until the
+  second pass — those cells stay `Immune-other`, an abstention, not a negative call.
 - **Nothing is accepted yet.** No pair is approved, no divisor emitted, no normalized/phenotype/app
   output written — `data/` deliberately holds only `cells/`, `cells_redsea/`, `redsea_scratch/`,
-  `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. Of the 540 screen rows
-  (20 donors × 27 pairs) 489 sit at `PAIR_REVIEW_PENDING`, 30 `LOW_SIGNAL_UNRESOLVED`,
-  14 `MODEL_UNSTABLE`, 5 `NO_TARGET_EXPRESSION_CONFIRMED`, 2 `INVALID_PAIR`.
+  `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. Of the 400 screen rows
+  (20 donors × 20 pairs) 384 sit at `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`,
+  6 `LOW_SIGNAL_UNRESOLVED`.
 - **NEXT: record the Gate-2 human review** in
-  `data/restore_pair_validation/expanded_review_v9/review_decisions.csv` (69 rows, currently zero
-  reviewer edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
+  `data/restore_pair_validation/expanded_review_v10/review_decisions.csv` (currently zero reviewer
+  edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
   to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
   tri-state `positive|negative|unavailable` calls) → Gates 5–7. The active screen behind that bundle
-  is `nnmf_all20_expanded_v7/`; read the directory's `README.txt` for active vs superseded.
+  is `nnmf_all20_expanded_v8/`; read the directory's `README.txt` for active vs superseded.
+- **Flagged, not decided:** `CD3e ← CD163` remains shortlisted while CD163 is the panel's *weakest*
+  channel (display ceiling 60–425, below CD20's 320–698). Same failure mode as CD20 but via intensity
+  rather than arm size — the reference's positive cells are the negative control. Decide at the review.
 - **Superseded**, parked on submodule branch `superseded/multiref-median-8gate`: the multi-reference
   median-threshold RESTORE and the partial 8-gate lineage edit. Do not revive before Gate 4.
 - The app still serves the **provisional** un-QC'd labels until the Gate-7 rebuild.
