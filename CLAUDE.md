@@ -215,9 +215,21 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
   tri-state `positive|negative|unavailable` calls) → Gates 5–7. The active screen behind that bundle
   is `nnmf_all20_expanded_v8/`; read the directory's `README.txt` for active vs superseded.
-- **Flagged, not decided:** `CD3e ← CD163` remains shortlisted while CD163 is the panel's *weakest*
-  channel (display ceiling 60–425, below CD20's 320–698). Same failure mode as CD20 but via intensity
-  rather than arm size — the reference's positive cells are the negative control. Decide at the review.
+- **CD3e ← CD163 investigated (2026-07-23) — display-only; the calculation is sound; NOT the CD20
+  failure mode.** The blocky `CD3e_from_CD163` qptiff panel is a *display* stretch: the bundle windows
+  every channel to `[1st, 99.8th pct] + γ0.65`, so a channel whose crop median is ~7 counts (CD163 is
+  the panel's weakest, display ceiling 60–425) has its noise floor amplified into a mottled/block-like
+  look; a linear render removes it and there is no acquisition damage (no dead tiles in the per-cell
+  field). The window is computed in `_display_marker_channel` for the RGB panels + manifest metadata
+  only — it never re-enters a computed metric. The calculation is unaffected: across all 20 donors
+  CD3e's divisor via CD163 matches its divisor via the five strong references within ±20% (median
+  1.08×), and the NNMF control arm is a real CD163⁺/CD3e-low macrophage population of 1,336–10,201
+  cells — nothing like CD20's 14-cell anchor. CD163 is therefore **weak-but-valid** (`reference_fold`
+  4.4× vs 7.6× CD68 and 19–25× the keratins, above the 2× SBR floor) with a mild +8% divisor bias.
+  This **corrects** an earlier "same failure mode as CD20" flag, which the numbers disprove. Note CD163
+  is reference-only (never a screen target), so it gets no threshold of its own regardless — whether
+  CD3e should lean on the weakest reference when CD68/keratins exist is a Gate-2 *preference*, not a
+  correctness fix, and nothing needs regenerating.
 - **Superseded**, parked on submodule branch `superseded/multiref-median-8gate`: the multi-reference
   median-threshold RESTORE and the partial 8-gate lineage edit. Do not revive before Gate 4.
 - The app still serves the **provisional** un-QC'd labels until the Gate-7 rebuild.

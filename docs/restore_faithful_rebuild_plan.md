@@ -427,8 +427,29 @@
   - CD20 stays in `IMMUNE_JOINT_MARKERS` ONLY as a co-factor of the pooled comparator's fit —
     removing it would change the other three markers and break comparability with the run already on
     record. Its 0.217 -> 0.968 joint rescue does not license reintroduction
-  - OPEN, flagged not decided: `CD3e <- CD163` remains shortlisted while CD163 is the weakest channel
-    in the panel, weaker than CD20. Same failure mode by intensity rather than arm size
+  - INVESTIGATED and RESOLVED (2026-07-23), replacing the "same failure mode as CD20" flag: the
+    blocky `CD3e_from_CD163` qptiff panel is DISPLAY-ONLY, and the calculation is sound.
+    - the display window (`[1st, 99.8th pct] + gamma 0.65`) is computed in
+      `restore_pair_review._display_marker_channel` and used only for the RGB panels and the manifest
+      metadata; it never re-enters a computed metric. CD163's crop median is ~7 counts, so that window
+      stretches its noise floor into the mottled/block-like look; a linear render removes it, and the
+      per-cell spatial field shows no dead tiles -- i.e. a weak-channel stretch, not acquisition damage
+    - the calculation is unaffected: across all 20 donors CD3e's candidate divisor via CD163 matches
+      its divisor via the five strong references within +/-20% (median 1.08x, range 0.80-1.28), and on
+      the worst donor (6450, CD163 display ceiling 78) the NNMF control arm is a real CD163+/CD3e-low
+      macrophage population of 1,448 crop cells -- nothing like CD20's 14-cell anchor
+    - CD163 IS the weakest valid reference (`reference_fold` median 4.4x vs 7.6x CD68 and 19-25x the
+      keratins, but above the 2x SBR floor) and carries a mild +8% divisor bias, so it is weak-but-
+      valid, not the CD20 failure mode
+    - CD163 is reference-only (never a screen target), so it produces no threshold of its own; whether
+      CD3e should lean on the weakest reference when CD68 and three keratin references exist is a Gate-2
+      reviewer PREFERENCE, not a correctness fix. Nothing needs regenerating
+  - CAVEAT for the reviewer, from the same investigation: CD163 is used ONLY as a reference
+    (`CD3e <- CD163`) and is never a target, and the same is true of CD79a/CD206/Iba1/CD11c/MPO. Those
+    markers carry NO RESTORE `_pos` threshold under the current pair web, so the lineage sub-split's
+    `pos("CD163")` etc. are inert and Macrophage currently rests on CD68 alone. This is a deliberate
+    abstention (like CD20/CD79a for B cells), not a bug -- but any reasoning that assumes a CD163 (or
+    CD206/Iba1/CD11c/MPO) positivity call is not yet satisfied by the screen
   - 133 package tests pass (1 new: the excluded marker cannot be reintroduced in either role)
 
 ## Ground truth

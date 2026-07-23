@@ -408,6 +408,15 @@ upstream cause, don't invent a junk category). Input: `data/restore_gated_redsea
 re-RESTORE'd `_pos`/`_norm`) + `data/cells/` (region/islet context). Output:
 `data/phenotype/broad/donor_id=*/` + `data/phenotype/broad_lineage_composition.png`.
 
+> **RETIRED reasoning (describes the archived `assign_broad_lineage.py`).** The current lineage lives
+> in `Phenocycler_Analysis/phenocycler/lineage.py` + `config.py` `COMPARTMENT_GATES`. Two CD163/CD20
+> dependencies below are stale: the "Immune elif CD3e|CD20|CD163 `_pos`" gate REQUIRES CD20 and CD163
+> positivity thresholds, but under the current pair web (2026-07-23) **CD20 is excluded from RESTORE
+> entirely and CD163 is reference-only** — neither is a screen *target*, so neither carries a `_pos`
+> call (`CD79a/CD206/Iba1/CD11c/MPO` likewise). Those terms are inert until a validated second pass;
+> the real Immune gate is `["CD3e","CD79a","CD68","CD163","CD206","Iba1","CD11b","CD11c","MPO"]` and
+> currently resolves via CD3e/CD68/CD11b only.
+
 **Hierarchical rule** (not plain argmax — see below): (1) Endocrine if INS|GCG|SST `_pos` (β/α/δ; SST
 added 2026-06-29 — δ-cells were else mis-typed Epithelial/Immune, +139k Endocrine cells); (2) Immune
 elif CD3e|CD20|CD163 `_pos`; (3) Endothelial elif CD31 `_pos`; (4) else structural background =
