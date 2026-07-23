@@ -10,8 +10,8 @@
 >
 > **Status: Gate 2 of 7.** No marker pair is accepted, no divisor is emitted, and no
 > normalized, phenotype, or app output exists. The immediate next action is recording the
-> human pair review in `data/restore_pair_validation/expanded_review_v10/review_decisions.csv`
-> (against the `nnmf_all20_expanded_v8/` screen).
+> human pair review in `data/restore_pair_validation/expanded_review_v11/review_decisions.csv`
+> (against the `nnmf_all20_expanded_v9/` screen, METHOD_VERSION v7, divisor-gated call).
 >
 > `## Current status` below is an accumulating dated log — later entries supersede earlier
 > ones. For what is active RIGHT NOW, read its last entry and
@@ -409,14 +409,16 @@
     floor: `DEFERRED_EXTRACTION_MARKERS` feeds `QUPATH_MARKERS`, so the deferred second pass needs no
     QuPath re-export and `qupath_compartment_sample_20donor/` + `qupath_compartment_full_20donor/`
     remain schema-identical and reusable
-  - `nnmf_all20_expanded_v8/` is the ACTIVE screen: 400 rows (20 eligible donors x 20 pairs), state
-    counts 384 `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`, 6 `LOW_SIGNAL_UNRESOLVED`. The two states
-    that disappear (`NO_TARGET_EXPRESSION_CONFIRMED` x5, `INVALID_PAIR` x2) were all CD20 rows
+  - `nnmf_all20_expanded_v8/` was then the active screen (SUPERSEDED later the same day by
+    `nnmf_all20_expanded_v9`, the divisor-gated rerun -- see the final entry): 400 rows (20 eligible
+    donors x 20 pairs), state counts 384 `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`,
+    6 `LOW_SIGNAL_UNRESOLVED`. The two states that disappear (`NO_TARGET_EXPRESSION_CONFIRMED` x5,
+    `INVALID_PAIR` x2) were all CD20 rows
   - VERIFIED: all 400 surviving rows are numerically identical to their v7 counterparts on every
     shared column, confirming pairs are evaluated independently and that dropping CD20 perturbed
     nothing else
-  - `expanded_review_v10/` is the ACTIVE review bundle, built from that screen; `expanded_review_v9/`
-    and `nnmf_all20_expanded_v7/` are superseded and carried zero reviewer edits
+  - `expanded_review_v10/` was then the active review bundle (SUPERSEDED by `expanded_review_v11`);
+    `expanded_review_v9/` and `nnmf_all20_expanded_v7/` are superseded and carried zero reviewer edits
   - donor 6539's `CONFIRMED_ABSENT` CD20 expression review is now inert rather than an error: it is
     looked up by `(donor, target)` only for screened pairs, and is retained in the manifest for
     provenance. The CD20-only "maintainer-confirmed target absence" stress-case selector is removed
@@ -451,6 +453,30 @@
     abstention (like CD20/CD79a for B cells), not a bug -- but any reasoning that assumes a CD163 (or
     CD206/Iba1/CD11c/MPO) positivity call is not yet satisfied by the screen
   - 133 package tests pass (1 new: the excluded marker cannot be reintroduced in either role)
+
+- 2026-07-23 — CD11b overcall FIXED: the positive call is now divisor-gated only (METHOD_VERSION v7):
+  - reviewer flagged CD11b as drastically overcalled across nearly all donors/pairs (only 6593 via
+    PanCK looked right). Confirmed: the screen placed 94% of cells in the CD11b NNMF component (vs 26%
+    CD3e, 53% CD68) and called ~32% of cells positive (up to 95% via CD3e), because `target_supported`
+    called every target-component cell left of Step 1 EVEN BELOW the Step 2 divisor
+  - root cause is NOT the reference and NOT display: RESTORE's reciprocal divisor (max CD11b among the
+    PanCK+ target-negative controls) sets the correct threshold and is consistent across references
+    (6521: 14% via PanCK, 18% via EpCAM; PanCK and EpCAM agree). The overcall was the below-divisor
+    component RETENTION, which is negligible for clean markers (CD68/CD3e/B3TUBB add <=0.3 pp) but
+    doubled CD11b (6521 CD11b<-PanCK 14% -> 28%). CD11b simply has a high channel background, which is
+    exactly the background the divisor is designed to measure and threshold above -- so CD11b stays a
+    valid target; the method, not the marker, was leaking
+  - fix (user-directed "option 1"): `normalize_and_call` positivity is strictly `target_redsea >
+    divisor`; the `| target_component_supported` rescue is removed from the CALL. Below-divisor
+    component cells remain tracked (`target_supported_below_divisor`, new `threshold_positive_n`) and
+    are shown in the bundle as a distinct muted "Target component at/below Step 2 (retained, not
+    called)" category (code 5) so any marker the retention would help stays visible for a per-marker
+    decision -- they are simply not counted. Bundle review classes renamed: code 2 "Called target+",
+    code 5 "Retained below Step 2"
+  - `nnmf_all20_expanded_v9/` is the ACTIVE screen (v7, divisor-gated); `expanded_review_v11/` the
+    ACTIVE bundle. Surviving-row divisors are unchanged from v8 (the divisor math did not change, only
+    what is counted positive)
+  - 133 package tests pass (call semantics, category split, importer classes all updated)
 
 ## Ground truth
 

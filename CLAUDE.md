@@ -188,6 +188,17 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   on deterministic equal-size arms with robust min-max scaling; GMM kept as comparator. Ordered
   controls: raw double-low QC → NNMF assignment → Step 1 anchor/separator → target-component
   support. Marker-specific raw arm floors, no silent fallback (CD3e/CD20 use max(Otsu, Triangle)).
+- **The positive CALL is divisor-gated only: `target_redsea > Step 2 divisor`** (METHOD_VERSION v7,
+  2026-07-23). The former `| target_component_supported` rescue — which additionally called every
+  NNMF-target-component cell left of Step 1 even below the divisor — is removed from the call. It was
+  negligible for clean markers (≤0.3 pp) but **doubled a high-background marker like CD11b** by
+  retaining background cells the divisor correctly excludes (6521 CD11b ← PanCK: 14% divisor-gated vs
+  28% by component-support, up to 95% via CD3e). The below-divisor component cells stay **tracked**
+  (`target_supported_below_divisor`) and are shown in the review bundle as a distinct
+  "retained, not called" category (so a marker they help stays visible for a per-marker decision) —
+  they are simply not counted positive. Investigation: `CD11b_from_PanCK` is a genuine overcall in the
+  *call*, not display (unlike `CD3e ← CD163`); RESTORE's reciprocal divisor (max CD11b among PanCK⁺
+  controls) sets the right threshold — the retention was the leak.
 - **CD20 takes NO part in RESTORE — neither target nor reference — and is deferred to a second pass
   after the broad cell types are settled** (maintainer decision 2026-07-23). As a reference its
   positive cells would BE the negative control, and its exclusive arm ran 41–2,026 cells/donor vs
@@ -210,11 +221,12 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   (20 donors × 20 pairs) 384 sit at `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`,
   6 `LOW_SIGNAL_UNRESOLVED`.
 - **NEXT: record the Gate-2 human review** in
-  `data/restore_pair_validation/expanded_review_v10/review_decisions.csv` (currently zero reviewer
+  `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` (currently zero reviewer
   edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
   to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
   tri-state `positive|negative|unavailable` calls) → Gates 5–7. The active screen behind that bundle
-  is `nnmf_all20_expanded_v8/`; read the directory's `README.txt` for active vs superseded.
+  is `nnmf_all20_expanded_v9/` (METHOD_VERSION v7, divisor-gated call); read the directory's
+  `README.txt` for active vs superseded.
 - **CD3e ← CD163 investigated (2026-07-23) — display-only; the calculation is sound; NOT the CD20
   failure mode.** The blocky `CD3e_from_CD163` qptiff panel is a *display* stretch: the bundle windows
   every channel to `[1st, 99.8th pct] + γ0.65`, so a channel whose crop median is ~7 counts (CD163 is
