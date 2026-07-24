@@ -175,10 +175,10 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-**Status (updated 2026-07-23) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
+**Status (updated 2026-07-24) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
 `RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The
 gate plan is [`docs/restore_faithful_rebuild_plan.md`](docs/restore_faithful_rebuild_plan.md).
-Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
+Submodule branch `redsea-restore-curated-5compartment`, METHOD_VERSION `v8`.
 
 - **Divisor = MAXIMUM target intensity in the accepted target-negative controls** (the manuscript
   equations: controls ≤ 1, signal > 1). Released-code `mean+3σ` is **sensitivity analysis only**.
@@ -199,6 +199,29 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   they are simply not counted positive. Investigation: `CD11b_from_PanCK` is a genuine overcall in the
   *call*, not display (unlike `CD3e ← CD163`); RESTORE's reciprocal divisor (max CD11b among PanCK⁺
   controls) sets the right threshold — the retention was the leak.
+- **CD11b ← CD3e RESOLVED + one reference FROZEN per target (Gate-2 reference selection, 2026-07-24,
+  METHOD_VERSION v8).** The screen never combines references (each pair emits its own divisor; extra
+  references per immune target are comparators), so the `CD11b ← CD3e` overcall was an **isolation
+  artifact** — CD3e is the *minimum/outlier* divisor of CD11b's references on 19/20 donors; any single
+  epithelial reference (or median/max across them) gives the validated ~10%. No resampling can fix it:
+  CD3e's control arm is ≤1,706 cells on every donor (below the 2,000 equal-N cap) so its equal-N max
+  equals its full max, and nothing can sample a CD11b value above CD3e's brightest control cell (9,923)
+  — the false-positive epithelial cells sit at 9,923–13,026, a background only an epithelial reference
+  contains. **Maintainer rule:** one predeclared reference per target; selection condition = the
+  reference-positive negative control must be ≥ the target-positive population — a **pure proportion**
+  `reference_n/target_n ≥ 1`, **no absolute floor** (images vary widely in total/per-marker counts).
+  `restore_validation.py` adds `reference_to_target_ratio` + `reference_undersized` as **reported-only**
+  diagnostics (never gate `PairState`, never touch a divisor); the v10 screen is byte-identical to v9
+  on every divisor. New module `phenocycler/reference_selection.py` builds the dossier
+  (`data/restore_pair_validation/reference_selection_v1/`: `reference_matrix.csv`,
+  `frozen_reference_matrix.csv`, 7 per-target figures) — **no divisor/normalized/phenotype output.**
+  **Frozen references:** CD31←E_cadherin, Vimentin←E_cadherin, B3TUBB←EpCAM, CD3e←E_cadherin,
+  CD68←E_cadherin, **CD11b←EpCAM** (maintainer override of the marginal E_cadherin baseline),
+  **E_cadherin←CD31** (accepted despite failing the proportion — advisory for a structural target;
+  endothelium is exclusive but sparse). **Rejected by the rule:** `CD11b ← CD3e` (0.04×),
+  `CD11b ← Pan_Cytokeratin` (0.78×), `CD68 ← CD3e` (0.20×); the divisor-consistency cross-check agrees
+  (the undersized CD3e reference is also the low-divisor outlier). Production wiring
+  (`BASELINE_PAIRS`/`config.py`/`lineage.py`) is **unchanged** — that is Gate 4.
 - **CD20 takes NO part in RESTORE — neither target nor reference — and is deferred to a second pass
   after the broad cell types are settled** (maintainer decision 2026-07-23). As a reference its
   positive cells would BE the negative control, and its exclusive arm ran 41–2,026 cells/donor vs
@@ -220,13 +243,14 @@ Submodule branch `redsea-restore-curated-5compartment`, commit `6d49ae7`.
   `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. Of the 400 screen rows
   (20 donors × 20 pairs) 384 sit at `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`,
   6 `LOW_SIGNAL_UNRESOLVED`.
-- **NEXT: record the Gate-2 human review** in
-  `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` (currently zero reviewer
-  edits), working from the bundle's `START_HERE_RESTORE_REVIEW.txt` and its PDFs, escalating
-  to QuPath via the bundled importer. Then Gate 3 (full-cell pilot) → Gate 4 (production wiring with
-  tri-state `positive|negative|unavailable` calls) → Gates 5–7. The active screen behind that bundle
-  is `nnmf_all20_expanded_v9/` (METHOD_VERSION v7, divisor-gated call); read the directory's
-  `README.txt` for active vs superseded.
+- **NEXT: the per-image biological review of the accepted pairs** (mutual exclusivity / spatial
+  coherence) in `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` (zero reviewer
+  edits), working from `START_HERE_RESTORE_REVIEW.txt` + its PDFs, escalating to QuPath via the bundled
+  importer. Reference *selection* is already frozen in `reference_selection_v1/frozen_reference_matrix.csv`
+  (above); this remaining step confirms each accepted pair is biologically sound. Then Gate 3 (full-cell
+  pilot) → Gate 4 (production wiring with tri-state `positive|negative|unavailable` calls) → Gates 5–7.
+  The active screen is `nnmf_all20_expanded_v10/` (METHOD_VERSION v8); the v11 PDF bundle is
+  divisor-identical and was not rebuilt. Read the directory's `README.txt` for active vs superseded.
 - **CD3e ← CD163 investigated (2026-07-23) — display-only; the calculation is sound; NOT the CD20
   failure mode.** The blocky `CD3e_from_CD163` qptiff panel is a *display* stretch: the bundle windows
   every channel to `[1st, 99.8th pct] + γ0.65`, so a channel whose crop median is ~7 counts (CD163 is

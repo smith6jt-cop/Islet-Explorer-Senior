@@ -9,9 +9,12 @@
 > screens it references now live under gitignored `data/restore_pair_validation/`.
 >
 > **Status: Gate 2 of 7.** No marker pair is accepted, no divisor is emitted, and no
-> normalized, phenotype, or app output exists. The immediate next action is recording the
-> human pair review in `data/restore_pair_validation/expanded_review_v11/review_decisions.csv`
-> (against the `nnmf_all20_expanded_v9/` screen, METHOD_VERSION v7, divisor-gated call).
+> normalized, phenotype, or app output exists. As of 2026-07-24 one reference is FROZEN per target
+> under the maintainer's reference≥target frequency rule (see the dated log entry and
+> `data/restore_pair_validation/reference_selection_v1/frozen_reference_matrix.csv`); the active
+> screen is `nnmf_all20_expanded_v10/` (METHOD_VERSION v8). The remaining Gate-2 work is the
+> per-image biological review of the accepted pairs (mutual exclusivity / spatial coherence) in
+> `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` before Gate 3.
 >
 > `## Current status` below is an accumulating dated log — later entries supersede earlier
 > ones. For what is active RIGHT NOW, read its last entry and
@@ -477,6 +480,46 @@
     ACTIVE bundle. Surviving-row divisors are unchanged from v8 (the divisor math did not change, only
     what is counted positive)
   - 133 package tests pass (call semantics, category split, importer classes all updated)
+
+- 2026-07-24 — CD11b<-CD3e RESOLVED and one reference frozen per target (Gate-2 reference selection):
+  - the screen never combines references (each pair emits its own divisor; extra references per immune
+    target are comparators), so the CD11b<-CD3e overcall was an ISOLATION artifact: CD3e is the
+    minimum/outlier divisor of CD11b's references on 19/20 donors, and any single epithelial reference
+    -- or a median/max across the five -- gives the QuPath-validated ~10%. No resampling can fix it:
+    CD3e's control arm is <=1,706 cells on every donor (below the 2,000 equal-N cap) so its equal-N
+    max equals its full max exactly, and no scheme can sample a CD11b value above the 9,923 that is
+    the brightest CD3e control cell; the false-positive epithelial cells occupy CD11b 9,923-13,026, a
+    background region only an epithelial reference contains
+  - MAINTAINER DECISION: one predeclared reference per target; selection condition = the reference-
+    positive negative control must be at least as large as the target-positive population, a PURE
+    PROPORTION reference_n/target_n >= 1 with NO absolute cell-count floor (images vary widely in total
+    and per-marker counts, so an absolute threshold is not comparable across donors)
+  - METHOD_VERSION v7 -> v8: restore_validation.py adds reference_to_target_ratio and
+    reference_undersized as reported-only diagnostics (config min_reference_to_target_ratio, default
+    1.0). They never gate PairState and never alter a divisor. The 400-row screen was regenerated
+    (nnmf_all20_expanded_v10) and VERIFIED byte-identical to v9 on every divisor/metric -- only
+    method_version and the two new columns differ
+  - new module phenocycler/reference_selection.py builds the Gate-2 dossier (reference_selection_v1/):
+    reference_matrix.csv per candidate reference, frozen_reference_matrix.csv (accepted reference per
+    target), 7 per-target figures, SUMMARY.md, manifest.json. It reads the screen and emits NO divisor,
+    normalized value, or phenotype call
+  - FROZEN reference matrix: CD31<-E_cadherin, Vimentin<-E_cadherin, B3TUBB<-EpCAM, CD3e<-E_cadherin,
+    CD68<-E_cadherin, CD11b<-EpCAM, E_cadherin<-CD31. CD11b took a maintainer override to EpCAM (median
+    ratio 3.66x, undersized 15%) over the marginal E_cadherin baseline (1.50x, undersized 30%);
+    E_cadherin<-CD31 is accepted DESPITE failing the proportion (0.19x) because endothelium is the only
+    biologically exclusive epithelial reference in the panel -- the frequency rule is advisory for a
+    structural target with a large absolute control
+  - REJECTED by the rule: CD11b<-CD3e (0.04x, undersized 100%), CD68<-CD3e (0.20x, 100%),
+    CD11b<-Pan_Cytokeratin (0.78x, 60%). The divisor-consistency cross-check independently agrees --
+    the undersized CD3e reference is also the low-divisor outlier (0.78x the epithelial consensus)
+  - the v11 PDF review bundle was NOT rebuilt: divisors are byte-identical, so every PDF/overlay is
+    unchanged and the new columns are not shown in them. reference selection is recorded in the dossier
+    (a rule-based decision), leaving the maintainer's per-image review_decisions.csv pristine
+  - 142 package tests pass (7 new: pure-proportion diagnostic, no-absolute-floor, config validation,
+    reference-matrix rejection + divisor-outlier cross-check, baseline-vs-open recommendation,
+    maintainer overrides incl. a failing reference, frozen-overrides constant)
+  - production wiring (BASELINE_PAIRS / config.py / lineage.py) is UNCHANGED -- that is Gate 4; no
+    RESTORE-normalized, phenotype, or app output was produced
 
 ## Ground truth
 
