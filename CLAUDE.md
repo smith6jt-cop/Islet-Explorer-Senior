@@ -22,7 +22,9 @@ excluded by maintainer decision as a pancreatitis outlier. Raw/REDSEA files may 
 provenance, but no RESTORE, phenotype, clustering, trajectory, figure, or app artifact may include
 either donor. Enforced fail-closed in `Phenocycler_Analysis/phenocycler/cohort.py` (automatic
 discovery filters both; explicit requests naming either raise). **22 acquired → 20 analysis-eligible.**
-Note **donor 6476 is NOT a pancreatitis donor** (older docs said so) — its extreme CD3e is real.
+Note **donor 6476 is NOT a pancreatitis donor** (older docs said so). Its high CD3e (and high CD11b)
+is high **channel background**, not extreme true expression (maintainer, 2026-07-24) — RESTORE's divisor
+is designed to account for it, and the v9 gate fix ensures the QC gates do not spuriously abstain on it.
 
 **Data note:** the phenotyping pipeline lives in the `Phenocycler_Analysis` submodule — see the
 **Status** block below. `data/` + raw inputs are NOT in git (~21 GB, gitignored).
@@ -178,7 +180,7 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
 **Status (updated 2026-07-24) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
 `RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The
 gate plan is [`docs/restore_faithful_rebuild_plan.md`](docs/restore_faithful_rebuild_plan.md).
-Submodule branch `redsea-restore-curated-5compartment`, METHOD_VERSION `v8`.
+Submodule branch `redsea-restore-curated-5compartment`, METHOD_VERSION `v9`.
 
 - **Divisor = MAXIMUM target intensity in the accepted target-negative controls** (the manuscript
   equations: controls ≤ 1, signal > 1). Released-code `mean+3σ` is **sensitivity analysis only**.
@@ -222,6 +224,22 @@ Submodule branch `redsea-restore-curated-5compartment`, METHOD_VERSION `v8`.
   `CD11b ← Pan_Cytokeratin` (0.78×), `CD68 ← CD3e` (0.20×); the divisor-consistency cross-check agrees
   (the undersized CD3e reference is also the low-divisor outlier). Production wiring
   (`BASELINE_PAIRS`/`config.py`/`lineage.py`) is **unchanged** — that is Gate 4.
+- **Gate 3 full-cell stress pilot RUN and PASSED; two high-background gate defects fixed (METHOD v8→v9,
+  2026-07-24).** Isolated pilot `data/restore_pair_validation/gate3_pilot_v2/` (noncanonical): the 7
+  `ACCEPTED_PAIRS` × 7 donors (6539, 6476 + the weakest-case donor per pair), marked ACCEPTED via
+  `pair_reviews_accepted.csv`. Confirmed the divisor policy on full cells — every full-cell divisor is
+  **higher** than the 5% screen's (max over the *complete* control population; median ~1.15×) so calls
+  are correspondingly lower; **CD11b←EpCAM lands ~7–10%** (validated). The first run surfaced two
+  abstentions on **high-background** markers (maintainer: 6476 has high CD3e *background*, 6591 high
+  CD11b background — not extreme true expression) where the provisional QC gates misfired though the
+  divisor was well-defined. Fix, since RESTORE depends only on the divisor: **seed-stability now gates
+  on divisor reproducibility** (`min/max seed divisor ≥ min_divisor_reproducibility` 0.90), not
+  control-set membership (`control_jaccard` kept as a reported diagnostic — verified on 6476:
+  `divisor_reproducibility=1.0` while `control_jaccard=0.8846`); and a **low target-arm mean SBR is now
+  a reported flag `target_low_sbr`, not an abstention** (manuscript: flag weak calls, don't zero them;
+  genuine/confirmed absence still abstains). Re-run under v9: **all 49 donor-pairs VALID, divisors
+  byte-identical**, invariants hold. 145 tests. Submodule `8c77d05`. The 20-donor 5% screen was **not**
+  regenerated (its divisors + frequency ratios are v9-identical; only diagnostic state columns shift).
 - **CD20 takes NO part in RESTORE — neither target nor reference — and is deferred to a second pass
   after the broad cell types are settled** (maintainer decision 2026-07-23). As a reference its
   positive cells would BE the negative control, and its exclusive arm ran 41–2,026 cells/donor vs
@@ -243,14 +261,16 @@ Submodule branch `redsea-restore-curated-5compartment`, METHOD_VERSION `v8`.
   `_redsea_validate/`, `singlecell_protein.h5ad`, and the review bundles. Of the 400 screen rows
   (20 donors × 20 pairs) 384 sit at `PAIR_REVIEW_PENDING`, 10 `MODEL_UNSTABLE`,
   6 `LOW_SIGNAL_UNRESOLVED`.
-- **NEXT: the per-image biological review of the accepted pairs** (mutual exclusivity / spatial
-  coherence) in `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` (zero reviewer
-  edits), working from `START_HERE_RESTORE_REVIEW.txt` + its PDFs, escalating to QuPath via the bundled
-  importer. Reference *selection* is already frozen in `reference_selection_v1/frozen_reference_matrix.csv`
-  (above); this remaining step confirms each accepted pair is biologically sound. Then Gate 3 (full-cell
-  pilot) → Gate 4 (production wiring with tri-state `positive|negative|unavailable` calls) → Gates 5–7.
-  The active screen is `nnmf_all20_expanded_v10/` (METHOD_VERSION v8); the v11 PDF bundle is
-  divisor-identical and was not rebuilt. Read the directory's `README.txt` for active vs superseded.
+- **NEXT: Gate 4 — production wiring.** Gate 2 (reference selection, frozen) and Gate 3 (full-cell
+  stress pilot, passed under v9) are complete; the maintainer signed off the pairs ("all pairs look
+  good enough to continue"). Gate 4: update `config.py` to the approved markers/rules; ordered residual
+  **Immune → Epithelial → Endothelial → Neural → Mesenchymal → Other**; remove the silent
+  missing-marker fallback in `lineage.py` (`_pos_norm_getters`); implement **tri-state
+  `positive|negative|unavailable`** calls + per-donor-marker QC disposition + provenance; `Other` only
+  when every required gate is valid-and-negative, blocked cells `Unresolved`. Then Gates 5–7. The
+  frozen references are in `reference_selection_v1/frozen_reference_matrix.csv`; the accepted-pair set
+  is `restore_validation.ACCEPTED_PAIRS`. Read `data/restore_pair_validation/README.txt` for active vs
+  superseded artifacts.
 - **CD3e ← CD163 investigated (2026-07-23) — display-only; the calculation is sound; NOT the CD20
   failure mode.** The blocky `CD3e_from_CD163` qptiff panel is a *display* stretch: the bundle windows
   every channel to `[1st, 99.8th pct] + γ0.65`, so a channel whose crop median is ~7 counts (CD163 is

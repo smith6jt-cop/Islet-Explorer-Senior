@@ -521,6 +521,45 @@
   - production wiring (BASELINE_PAIRS / config.py / lineage.py) is UNCHANGED -- that is Gate 4; no
     RESTORE-normalized, phenotype, or app output was produced
 
+- 2026-07-24 (later) — Gate 3 full-cell stress pilot RUN and PASSED; two high-background gate defects
+  fixed (METHOD v8 -> v9):
+  - isolated pilot `data/restore_pair_validation/gate3_pilot_v2/` (noncanonical): the 7 ACCEPTED_PAIRS
+    across 7 donors (6539, 6476 + the weakest-case donor for each accepted pair: 6442, 6505, 6551,
+    6566, 6591), marked ACCEPTED via `pair_reviews_accepted.csv` so computationally-clean donor-pairs
+    reach VALID and emit a divisor + calls, while weak donors stay in their technical state and emit
+    no call and no divisor
+  - the pilot confirmed the divisor policy on full cells: every full-cell divisor is HIGHER than the
+    5% screen's (the negative-control max is taken over the complete control population, not a 5%
+    sample; median ~1.15x, up to 1.65x), so the emitted call fraction is correspondingly lower. The
+    5% screen mildly over-called by under-estimating the divisor. CD11b <- EpCAM lands at ~7-10% on
+    the clean donors (the QuPath-validated level), confirming the EpCAM override
+  - the FIRST pilot run (`gate3_pilot_v1`, v8) produced two abstentions, both on HIGH-BACKGROUND
+    markers (maintainer: 6476 has high CD3e background, 6591 high CD11b background -- NOT extreme true
+    expression), where the provisional QC gates misfired even though the divisor was well-defined:
+    - 6476 CD3e MODEL_UNSTABLE: NNMF components 99.8%+ identical across seeds, but near-separator
+      control MEMBERSHIP dipped to 0.8846 on one seed, tripping `min_control_jaccard >= 0.90`
+    - 6591 CD11b LOW_SIGNAL: blocked purely by `target_arm_fold 1.29 < 2.0`, though 51% of the target
+      arm clears the divisor (~8% of assigned cells, the same the clean donors call)
+  - fix (METHOD v9), since RESTORE depends only on the divisor:
+    - seed-stability is gated on `min(seed divisor)/max(seed divisor) >= min_divisor_reproducibility`
+      (0.90), NOT control-set membership. `control_jaccard` stays a reported diagnostic. Verified on
+      6476 CD3e: `divisor_reproducibility = 1.0000` while `control_jaccard = 0.8846` -- the divisor is
+      rock-solid though membership shuffles
+    - a low target-arm MEAN SBR is now a reported flag (`target_low_sbr`), not an abstention (the
+      manuscript prescribes flagging weak/near-background calls, not zeroing them; the gate plan
+      explicitly deferred this 2-fold check for calibration). Genuine absence (`target_n < min_arm_n`)
+      and confirmed absence still abstain
+  - re-run `gate3_pilot_v2` under v9: ALL 49 donor-pairs VALID; divisors BYTE-IDENTICAL to v1 (the fix
+    touched only the gates); every invariant holds (0 VALID without a divisor, 0 non-VALID emitting a
+    call). 6476 CD3e and 6591 CD11b now emit their calls (0.44% / 8.06%)
+  - 145 package tests pass. Submodule `8c77d05`, parent `1d5b80e` (pushed). NOTE: the 20-donor 5%
+    screen (`nnmf_all20_expanded_v10`, v8) was NOT regenerated -- its divisors and frequency ratios
+    (what the frozen reference matrix depends on) are v9-identical; only diagnostic state columns would
+    shift, and the pilot already demonstrates the v9 state behavior. Reference selection stays frozen
+  - NEXT: Gate 4 -- production wiring (config.py / lineage.py) with tri-state
+    positive|negative|unavailable calls; ordered residual Immune -> Epithelial -> Endothelial ->
+    Neural -> Mesenchymal -> Other; remove the silent missing-marker fallback in lineage.py
+
 ## Ground truth
 
 The manuscript and supplement at
