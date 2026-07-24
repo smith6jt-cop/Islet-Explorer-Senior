@@ -560,6 +560,38 @@
     positive|negative|unavailable calls; ordered residual Immune -> Epithelial -> Endothelial ->
     Neural -> Mesenchymal -> Other; remove the silent missing-marker fallback in lineage.py
 
+- 2026-07-24 (later) — Gate 4 production wiring IMPLEMENTED (code + tests; pilot dry run pending):
+  - new `phenocycler/restore_apply.py`: the production adapter. Runs the frozen `evaluate_locked_pair`
+    over the 7 `ACCEPTED_PAIRS` at full cell (modulus-1 sample) per donor and writes ONE tri-state gated
+    parquet per donor (`{target}_pos` / `_norm` / `_state`, state in positive|negative|unavailable) plus a
+    per-donor + cohort QC-disposition manifest. Pure, unit-tested mapper `cell_calls_from_evaluation`. It
+    reuses the frozen math (no re-implementation): VALID -> divisor-gated positive/negative + off-`valid_idx`
+    unavailable; NO_TARGET_EXPRESSION_CONFIRMED -> confident negative for every cell (maintainer E-1
+    decision); any technical non-VALID on an accepted pair -> HALT (no automatic fallback). Atomic writes.
+  - `lineage.py` rewritten to a TRI-STATE ordered residual: per gate `positive > unavailable > negative`;
+    first positive gate claims; the first unavailable gate reached BLOCKS -> `Unresolved` (with
+    `blocked_by`); valid-and-negative for every gate -> `Other`. The silent absent->negative fallback
+    (`_pos_norm_getters`) is REMOVED (fail-loud `_state_getters` on a missing `{m}_state`). Subtypes
+    (`_cell_types`: endocrine/exocrine, immune/mesenchymal fine types, NK) DELETED -> deferred to level 2;
+    `cell_type == compartment`. Provenance columns: `assignment_reason`, `blocked_by`, `{m}_state`
+    passthrough. Atomic write.
+  - `config.py`: `COMPARTMENT_ORDER` now Immune-first; `COMPARTMENT_GATES` reduced to EXACTLY the 7
+    divisor-backed accepted targets (Immune = CD3e/CD68/CD11b; Mesenchymal = Vimentin; SMA + the 6
+    unscreened immune markers + CD20 deferred); `UNRESOLVED_LABEL` added; new derived paths
+    (`restore_fullcell_sample_dir`, `restore_pair_reviews_csv`, `restore_apply_manifest_csv`).
+    `pipeline.py` `_restore` now calls `restore_apply.run_apply` (was a `SystemExit` placeholder).
+  - Maintainer decisions baked in: 5-compartment level-1 deliverable only; confirmed absence -> negative;
+    a technical non-VALID accepted pair halts (immune anchors are universally expressed). The deferred
+    level-2 hierarchy is recorded verbatim in `Phenocycler_Analysis/docs/level2_hierarchy.md` (NOT wired).
+  - 170 package tests pass (was 145): new `tests/test_restore_apply.py` (pure mapper per state + driver
+    orchestration/fail-loud/end-to-end apply->lineage), rewritten `tests/test_lineage.py` (tri-state,
+    Immune-first, Unresolved, fail-loud missing column, provenance), updated `tests/test_config.py`
+    (new order/gates + gates == accepted-targets closure invariant). The 64 `test_restore_validation.py`
+    tests are untouched and green.
+  - PENDING the Gate-4 exit criterion: the full-cell pilot dry run on the accepted pilot donors (6539,
+    6476, + weakest-case) producing the first real `data/phenotype/broad/`, then maintainer review. No
+    canonical 20-donor run and no downstream/app rebuild in this pass (Gates 5-7).
+
 ## Ground truth
 
 The manuscript and supplement at
@@ -716,7 +748,11 @@ policy. Pilot output is still noncanonical.
    - `Other` is assigned only when every required gate is valid and negative
    - blocked cells are `Unresolved`, never biological `Other`
 6. Stop the first accepted deliverable at five broad compartments plus `Other`;
-   remove/defer endocrine/exocrine and other subtype logic from this run.
+   remove/defer endocrine/exocrine and other subtype logic from this run. The deferred
+   level-2 subtype design (endocrine via CD56-in-E-cadherin+, T/B/myeloid/NK subsets,
+   endothelial/mesenchymal subtypes, state markers, and their counterpart rules) is
+   recorded verbatim in `Phenocycler_Analysis/docs/level2_hierarchy.md` — NOT wired; each
+   level-2 pair needs its own Gate-1->3 validation before production.
 7. Write outputs atomically and fail loudly on missing donors, columns, manifests,
    invalid pairs, or key mismatches.
 8. Add unit and integration tests for ordering, multi-positive cells, confirmed
