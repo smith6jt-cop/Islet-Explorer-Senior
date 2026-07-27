@@ -229,3 +229,80 @@ validation — reference selection under the pure-proportion rule (both CD31 and
 screened here), then a full-cell stress pilot — and decide the divisor **after** that, because the
 divisor question changes shape once Epithelial is a union. Do not freeze a divisor to compensate for a
 gate that is about to change.
+
+---
+
+# Follow-on — Gate-2 reference selection, re-run on QC-clean data
+
+The v1 reference dossier was stale: `reference_to_target_ratio` is computed from the negative-control
+population, which the `control_definition` fix redefines, and the cell set changed underneath it. It
+has been regenerated.
+
+**Screen:** `data/restore_pair_validation/screen_v11_qc/ctrl-reference_only_div-p99/` — 27 pairs × 20
+eligible donors = 540 rows, full cells, post-QC, `control_definition = reference_only`. 140 VALID, 398
+`PAIR_REVIEW_PENDING` (the un-reviewed candidates, as expected), 2 `MODEL_UNSTABLE`. The decision
+columns (`reference_to_target_ratio`, `candidate_full_maximum`) do not depend on `divisor_statistic`,
+so one screen settles the reference question for any divisor policy.
+**Dossier:** `data/restore_pair_validation/reference_selection_v2/`.
+
+## Result A — every frozen reference survives
+
+| pair | v1 ratio | v2 ratio | v1 → v2 |
+|---|---|---|---|
+| B3TUBB ← EpCAM | 64.1 | 52.9 | accepted → accepted |
+| CD3e ← E_cadherin | 22.2 | 28.8 | accepted → accepted |
+| CD68 ← E_cadherin | 7.4 | 5.9 | accepted → accepted |
+| CD31 ← E_cadherin | 3.64 | 3.67 | accepted → accepted |
+| CD11b ← EpCAM | 3.66 | 1.92 | accepted → accepted |
+| Vimentin ← E_cadherin | 1.38 | **1.04** | accepted → accepted (marginal) |
+| E_cadherin ← CD31 | 0.19 | **0.08** | accepted by exception → same |
+| **CD11b ← E_cadherin** | 1.50 | **1.00** | comparator → **rejected** |
+| **CD11b ← Ker8_18** | 1.12 | **0.90** | comparator → **rejected** |
+
+Only two rows change disposition, and neither is a production choice. Two things are worth recording:
+
+- **CD11b's original baseline reference now fails.** `CD11b ← E_cadherin` falls to 1.00 and is
+  undersized on 50% of donors. The maintainer's 2026-07-24 override to EpCAM was made on other grounds
+  (the baseline was "marginal"); under the corrected control definition it is the **only** passing
+  reference CD11b has. The override was not merely defensible, it was necessary.
+- **`Vimentin ← E_cadherin` is now the marginal one** — 1.04, undersized on 40% of donors. It is the
+  next pair that would flip if anything upstream moves again. Worth watching, not acting on.
+
+## Result B — the proportion rule has no admissible answer for the epithelial targets
+
+All three promotion candidates come back `open`, and so does the already-accepted E-cadherin:
+
+| target | best reference | median ratio | undersized on |
+|---|---|---|---|
+| Pan_Cytokeratin | Vimentin | 0.18 | 100% of donors |
+| Ker8_18 | Vimentin | 0.18 | 100% of donors |
+| E_cadherin | Vimentin | 0.16 | 100% of donors |
+| EpCAM | Vimentin | 0.08 | 100% of donors |
+
+Every candidate reference is undersized on every donor. **This is a property of the targets, not of
+the references.** A marker positive on 25–50% of cells cannot have a *larger* negative control unless
+some other marker is positive on more, and in pancreas none is. The rule was designed for the immune
+targets, where it does real work — it correctly rejects `CD11b ← CD3e` (0.04) and `CD68 ← CD3e` (0.19)
+— and the maintainer already made this exception once, for `E_cadherin ← CD31`. The screen now shows
+that exception is not a special case: **it is the general situation for every majority-positive
+structural target.**
+
+What still discriminates for these pairs: `reference_fold_median` is 19–37× for all eight epithelial
+rows, i.e. the arms are strongly separated and the fits are sound. The absolute control sizes are
+large. Only the *relative* size criterion fails.
+
+**This is a maintainer decision, not a computation.** Either the proportion rule gets a stated scope
+(sparse targets only, with arm separation and absolute control size governing structural targets), or
+each epithelial target gets an individually recorded exception like E-cadherin's.
+
+## Two logic fixes this exposed
+
+- `divisor_vs_consensus` was computed against the consensus of *rule-passing* references. With none
+  passing, that set is empty and the column was `NaN` for exactly the targets whose reference choice
+  most needs an independent cross-check. It now falls back to all of the target's references and
+  reports `consensus_over_all_references` so the reader knows which basis was used.
+- The `open` rationale said only "no candidate reference satisfies reference≥target frequency", which
+  sends a reviewer looking for a better reference that cannot exist. It now names the structural cause
+  when every candidate is undersized on every donor — keyed on that measured pattern, not on a cutoff.
+
+233 tests.
