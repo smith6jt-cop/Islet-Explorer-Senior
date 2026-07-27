@@ -8,16 +8,25 @@
 > `restore_validation_figures.py`, `cohort.py`, commit `6d49ae7`); the review bundles and
 > screens it references now live under gitignored `data/restore_pair_validation/`.
 >
-> **Status: Gate 2 of 7.** No marker pair is accepted, no divisor is emitted, and no
-> normalized, phenotype, or app output exists. As of 2026-07-24 one reference is FROZEN per target
-> under the maintainer's reference≥target frequency rule (see the dated log entry and
-> `data/restore_pair_validation/reference_selection_v1/frozen_reference_matrix.csv`); the active
-> screen is `nnmf_all20_expanded_v10/` (METHOD_VERSION v8). The remaining Gate-2 work is the
-> per-image biological review of the accepted pairs (mutual exclusivity / spatial coherence) in
-> `data/restore_pair_validation/expanded_review_v11/review_decisions.csv` before Gate 3.
+> **Status (corrected 2026-07-27): Gate 4 of 7, code-complete and NOT validated.** The banner
+> previously said "Gate 2 of 7", contradicting this document's own log — Gate 2 froze one reference per
+> target on 2026-07-24, Gate 3's full-cell stress pilot passed the same day under METHOD v9, and Gate 4
+> shipped `restore_apply.py` plus the tri-state `lineage.py` rewrite before its pilot was rejected.
+> METHOD_VERSION is **v10**, not v8.
+>
+> **Read [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](HANDOFF_2026-07-27_qc_and_v10.md) first.** This
+> document is authoritative for the **gate structure, exit criteria and manuscript-fidelity rules**
+> (`## Ground truth`, `## Phase 0`, Gates 1–7, the approval checkpoints, the resolved decisions) and is
+> **stale for the data state, the method version and the diagnosed root cause**. Specifically, it
+> predates: the 311,340 duplicate detections, the `cell_qc` stage (31,454,041 → **25,151,028** cells),
+> REDSEA v10, and the RESTORE v10 finding that `ordered_control_groups` gated the negative control on
+> the target's own Otsu floor — so the divisor *was* that floor (median ratio 1.044 over 49 donor-pairs)
+> and the §"Current status" v1→v2 entry below actually **endorses the defect** as a correction.
+>
+> No normalized, phenotype or app output is canonical.
 >
 > `## Current status` below is an accumulating dated log — later entries supersede earlier
-> ones. For what is active RIGHT NOW, read its last entry and
+> ones. For what is active RIGHT NOW, read the handoff, then this log's last entry, then
 > `data/restore_pair_validation/README.txt`.
 
 ## Current status
@@ -796,7 +805,9 @@ acceptance. Only then may broad-lineage assignment become canonical.
    QC target.
 
 Exit criterion: accepted broad-lineage parquets plus QuPath review artifacts, with all
-31,454,041 eligible canonical cells accounted for exactly once.
+**25,151,028** eligible canonical cells accounted for exactly once. (Was 31,454,041; the
+`phenocycler.cell_qc` stage added 2026-07-27 removed 6,303,013 objects — 20.04% — that are not cells.
+See `data/cell_qc/cohort_summary.csv` for the per-donor, per-reason breakdown.)
 
 ### Gate 7 - Rebuild descendants
 

@@ -2,6 +2,13 @@
 
 Pipeline scripts that build the data files consumed by the Shiny app. The top-level `CLAUDE.md` covers the high-level data lineage and run commands. This file documents the batch-correction pipeline, pseudotime modes, and per-script details.
 
+> **Cell-count note (2026-07-27).** Several sections below quote **23.3M cells**. That count predates
+> `phenocycler.cell_qc`, which removed 6,303,013 non-cell objects — no nucleus, `cell_area < 20 µm²`,
+> duplicate detections, low solidity, degenerate raster, oversized blobs. **The canonical count is now
+> 25,151,028** over the 20 eligible donors (31,454,041 before QC; pre-QC copies in `data/cells_preqc/`).
+> Any artifact described here with a 23.3M-cell provenance was built from a different, superseded cell
+> set. See `docs/HANDOFF_2026-07-27_qc_and_v10.md`.
+
 ## Hard donor exclusions (Jul 2026)
 
 Donors **6457 and 6579 must be excluded until further notice from every analysis.** Donor 6457 had
@@ -368,6 +375,18 @@ channel at a time (`tifffile`) → whole-cell + 1-px-boundary `np.bincount` sums
 sparse contact matrix (gap-bridged: cells aren't gapless, ~23% of px are foreground) → compensate
 → `data/cells_redsea/donor_id=*/data_0.parquet` (`object_id` + 59 corrected means). Alignment
 verified: full-res means reproduce QuPath's own at r≈0.998 (join on `object_id`, never coords).
+
+> **Read that r correctly (corrected 2026-07-27).** It is a **rasterisation-fidelity** check — REDSEA's
+> own *UNcorrected* mean against QuPath's, i.e. it validates the mask and the join, nothing about the
+> compensation. Actual raw-vs-REDSEA agreement is **r = 0.81–0.98**, and it *should* be below 1: the
+> correction is supposed to move values. Do not cite r≈0.998 as evidence the correction is benign.
+>
+> **This section describes the retired `scripts/senior/redsea_full.py`.** Production is
+> `phenocycler.redsea` at **v10**: `comp_mode=1` (subtract **and** reinforce — the Bai et al. default;
+> with `comp_mode=0` and a row-normalised `F`, a cell whose neighbours all express the marker lost its
+> entire rim), `norm_form=donor` (`F[i,j] = contact[i,j]/B[j]`, the published mass-conserving operator),
+> and the 9 `marker_taxonomy.NO_SPILLOVER` nuclear/ECM channels passed through uncorrected. DAPI
+> retention went 0.770 → 0.993, E-cadherin 0.439 → 0.911.
 ```bash
 python scripts/senior/redsea_full.py --donor 6539 --keep-mask          # one donor (~8 min, 59 ch)
 python scripts/senior/redsea_full.py --donor 6539 --save-intermediates # dump data/edge/contact for fast re-tuning

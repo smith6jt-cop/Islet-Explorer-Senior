@@ -166,9 +166,13 @@ See `scripts/CLAUDE.md` for per-script details, batch correction (Phase 17), and
 The Senior 59-plex data is being **re-phenotyped from scratch** because global clustering produced a large fake "Unassigned" fraction caused by **upstream artifacts**, fixed in order **REDSEA → RESTORE → broad lineage** (full detail in `scripts/CLAUDE.md`):
 
 ```
-data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
-  |-- QuPath per-cell GeoJSON export (~/IO60panc2nd/scripts/export_cells_geojson.groovy)
-  |-- scripts/senior/redsea_full.py        pixel-level lateral-spillover correction (subtract-only, 1px band, α=1)
+data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID; 25,151,028 canonical cells after cell QC)
+  |-- QuPath cell detection (scripts/groovy/0_cell_detection.groovy — NEVER selectAnnotations(); see the handoff)
+  |-- QuPath per-cell GeoJSON export (Phenocycler_Analysis/scripts/groovy/export_cells_geojson.groovy)
+  |-- phenocycler.cell_qc                  Tier-1 exclusions BEFORE any parameter estimation
+  |     -> 31,454,041 -> 25,151,028 (20.04% removed); pre-QC copies in data/cells_preqc/
+  |-- phenocycler.redsea (v10)             pixel-level lateral-spillover correction
+  |     (comp_mode=1 subtract+reinforce, norm_form=donor, α=1, 1px band, nuclear/ECM channels uncorrected)
   |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; the r≈0.998 figure is a RASTERISATION-fidelity check on
   |                                            UNcorrected means, NOT raw-vs-corrected agreement — actual r 0.81-0.98)
   |-- RESTORE pair validation (phenocycler.restore_validation)  NOT YET ACCEPTED — see Status
@@ -178,9 +182,26 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-> ### ⚠ START HERE — [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](docs/HANDOFF_2026-07-27_qc_and_v10.md)
+> ### ⚠ START HERE — [`docs/ANATOMY_CHECK_2026-07-27.md`](docs/ANATOMY_CHECK_2026-07-27.md), then
+> ### [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](docs/HANDOFF_2026-07-27_qc_and_v10.md)
 >
-> **The Status block below is superseded on four points (2026-07-25 → 27). Read the handoff first.**
+> **The anatomy check has been RUN.** Its finding: the **single-marker Epithelial gate** is a defect on
+> its own terms, and it is at least as large a lever as the divisor. Islet-core cells — endocrine by
+> QuPath annotation, hormone-validated, unambiguously epithelial — are called `Epithelial` in only
+> **1–6%** of cases under the gate and divisor **production is currently wired to**, and `Other` in
+> **82–94%**. Changing only the gate to a 4-marker union (E-cadherin ∪ Pan-CK ∪ Ker8/18 ∪ EpCAM) moves
+> that to 16–61%; changing only the divisor to `reference_only`/p99 moves it to 11–44%; both give
+> 28–72%. Also: `reference_only`/**max is not a viable policy at all** — `restore_apply` halts on it
+> (MODEL_UNSTABLE), and it is the arm production has silently defaulted to since Gate 4 shipped
+> (now fixed: the v10 knobs are `config.ini` keys). Divisor still **undecided** — decide it *after* the
+> Epithelial gate, not before.
+>
+> **The Status block below is superseded on four points (2026-07-25 → 27). Read the handoff too.**
+>
+> ⚠ `HANDOFF*` is in `.gitignore` (under "Temporary files"), so
+> `docs/HANDOFF_2026-07-27_qc_and_v10.md` is **local-only and will not survive a fresh clone**, despite
+> being the authoritative status document. `docs/ANATOMY_CHECK_2026-07-27.md` IS tracked and carries the
+> current findings. Decide whether to keep that ignore rule.
 >
 > 1. **311,340 duplicate cell detections found and removed** in 7 donors (6450, 6505, 6523, 6534,
 >    6566, 6591, 6623) — the same physical cell segmented twice with two UUIDs, 100% inside islets,
@@ -197,8 +218,9 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
 >    `control_definition` + `divisor_statistic` are configurable; `reference_only` + `p99` is the
 >    leading candidate (E-cadherin 43–54%, still short of the ~75% the accounting implies).
 >
-> The E-cadherin under-call is **narrowed, not closed**. Next step is the anatomy check
-> (`groupby(['cell_region','compartment'])`), then a divisor decision, then Gate 4→5.
+> The E-cadherin under-call is **narrowed, not closed**. ~~Next step is the anatomy check~~ — **done,
+> 2026-07-27**; see the round report above. Next step is Gate-1→3 validation of Pan-Cytokeratin,
+> Ker8/18 and EpCAM as production RESTORE targets, then the divisor decision, then Gate 4→5.
 
 **Status (updated 2026-07-24) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
 `RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The
