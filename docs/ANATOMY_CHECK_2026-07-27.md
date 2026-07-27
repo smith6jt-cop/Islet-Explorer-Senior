@@ -4,6 +4,10 @@ Round report, 2026-07-27. Reads on from
 [`HANDOFF_2026-07-27_qc_and_v10.md`](HANDOFF_2026-07-27_qc_and_v10.md). Figures in
 `figures/anatomy_check/`; every figure writes its own source CSV beside the PNG.
 
+> `figures/*` is gitignored, so the PNGs and CSVs are **local-only** — regenerate them with
+> `python scripts/anatomy_check/figures.py`. Every number this report relies on is in its tables, so
+> the conclusions do not depend on the files being present.
+
 **Nothing here is canonical.** Every arm ran in an isolated data root under `data/_arm/`; canonical
 `data/` was not written. No divisor is frozen, no gate is changed in production, Gate 4 is not re-run.
 
@@ -141,21 +145,49 @@ no threshold in this pipeline was tuned toward it. It is the strongest evidence 
 endothelial call is sound — and the contrast is what makes the epithelial result damning: on the same
 axis, in the same run, Epithelium is at its *lowest* inside islets.
 
-## Result 5 — the failure has the shape of a threshold, not of biology
+## Result 5 — the union raises spatial coherence; a stronger claim I first drew from figure E does not survive
 
-Figure E, lower row. In a 350 µm window of solid acinar tissue, `Epithelial` and `Other` are finely
-interleaved cell by cell with no structure. An acinus is a contiguous epithelial unit; a call that
-renders one as salt-and-pepper is cutting through a single homogeneous population. This is checkable
-against that donor's own image rather than against any cohort expectation, and it persists — reduced —
-under the union gate.
+Figure E, lower row: in a 350 µm window of solid acinar tissue, `Epithelial` and `Other` are finely
+interleaved cell by cell. My first reading was that this is the signature of a threshold cutting
+through one homogeneous population. **Figure H, which quantifies exactly that, does not support it.**
+
+For each cell, take the share of its 12 nearest neighbours in the same compartment and rescale it as
+`(observed − marginal) / (1 − marginal)`, so 0 is random labelling and 1 is perfect segregation. The
+null comes from that donor's own composition, so nothing is assumed.
+
+| compartment | v9 single → union | p99 single → union |
+|---|---|---|
+| Epithelial | 0.130 → 0.146 | 0.140 → 0.179 |
+| Immune | 0.074 → 0.074 | 0.096 → 0.096 |
+| Endothelial | 0.046 → 0.047 | 0.059 → 0.061 |
+| `Other` | 0.073 → 0.070 | 0.045 → 0.045 |
+
+Every compartment scores 0.02–0.20. Single-cell neighbourhoods in pancreas are genuinely mixed —
+capillaries, immune cells and stroma thread through every acinus — so low absolute values are expected
+and are not evidence of anything. Within that, **Epithelial is among the *more* structured**, not the
+less, and **the union raises it at every arm**. `Other` is the least structured everywhere, which is
+what a residual bucket of heterogeneous leftovers should look like.
+
+Two things follow. The union's added cells are not scattered noise — they increase spatial coherence,
+independently corroborating Result 3. And figure E should be read as illustration, not as evidence
+that the epithelial call is a threshold artifact.
+
+> Method note worth carrying forward: the first version of figure H used the ratio `observed/marginal`,
+> whose ceiling is `1/marginal`. On that scale Neural (0.5% of cells) scored 26 against Epithelial's
+> 1.5 and the conclusion inverted. Any neighbour-concordance statistic compared across compartments of
+> different size has to be rescaled to a common range first.
 
 ---
 
 ## What this does and does not settle
 
 **Settled.** `reference_only`/max is not a candidate. The single-marker Epithelial gate is a defect on
-its own terms, measured against anatomy rather than against an expected frequency. The Gate-4 wiring
-reproduces the frozen method exactly (Result: comparator ≡ production divisor).
+its own terms, measured against anatomy rather than against an expected frequency, and the union gate
+both recovers islet-core epithelium (Result 2) and raises its spatial coherence (Result 5). The Gate-4
+wiring reproduces the frozen method exactly (comparator ≡ production divisor, max |Δ| = 0).
+
+**Withdrawn.** That the epithelial call is spatially structureless — figure H measures it and it is
+not. See Result 5.
 
 **Not settled.** The divisor policy. The union at `reference_only`/p99 gives the best islet-core purity
 of anything tested, but p99 also multiplies every sparse immune marker 5–60× (figure D), and *that*

@@ -523,6 +523,98 @@ def figure_g(arm_root: Path, out: Path, donors: list[str]):
     g.to_csv(out / "G_epithelial_concordance.csv", index=False)
 
 
+# --------------------------------------------------------------------------- #
+# H — spatial coherence, as a number rather than an eyeball
+# --------------------------------------------------------------------------- #
+def figure_h(arm_root: Path, out: Path, donors: list[str], designs=("single", "union"), k=12):
+    """Neighbour concordance per compartment, against the value expected under random labelling.
+
+    Figure E shows Epithelial and Other interleaved inside single acini. This is the same claim as a
+    statistic: for each cell, the fraction of its k nearest neighbours carrying the same compartment.
+    The null comes from the donor's own composition, so no frequency is assumed.
+
+    Report ``segregation`` = (observed - marginal) / (1 - marginal), NOT the ratio observed/marginal.
+    The ratio is intuitive but its ceiling is 1/marginal, so a 0.5%-frequency compartment can score 30
+    where a 50% one cannot exceed 2, and comparing compartments on it is meaningless. Measured here the
+    ratio makes Neural look ~20x more coherent than Epithelial while the rescaled statistic puts them
+    within a factor of 1.5, and reverses the conclusion. The rescaled one is what the figure plots.
+    """
+    from scipy.spatial import cKDTree
+    rows = []
+    for arm in ARM_ORDER:
+        slug = "ctrl-{}_div-{}".format(*arm.split("/"))
+        for donor in donors:
+            for design in designs:
+                d = _assign(arm_root, slug, donor, design)
+                if d.empty:
+                    continue
+                xy = d[["X_centroid", "Y_centroid"]].to_numpy(float)
+                ok = np.isfinite(xy).all(axis=1)
+                d, xy = d[ok], xy[ok]
+                comp = d["compartment"].to_numpy()
+                # k+1 because the first neighbour of a point is itself
+                _, idx = cKDTree(xy).query(xy, k=k + 1)
+                same = (comp[idx[:, 1:]] == comp[:, None]).mean(axis=1)
+                for c in CLASSES:
+                    m = comp == c
+                    if m.sum() < 500:
+                        continue
+                    marginal = float(m.mean())
+                    obs = float(same[m].mean())
+                    rows.append(dict(
+                        arm=arm, donor=donor, gate_design=design, compartment=c,
+                        n=int(m.sum()), marginal=100 * marginal, concordance=100 * obs,
+                        # ratio to the random-labelling expectation. Intuitive, but NOT comparable
+                        # across compartments: its ceiling is 1/marginal, so a rare compartment can
+                        # score 30 where a majority one cannot exceed 2.
+                        coherence_index=obs / marginal,
+                        # segregation on a common 0..1 scale: 0 = random labelling, 1 = every
+                        # neighbour shares the compartment. This is the one to compare across
+                        # compartments, and it is what the figure plots.
+                        segregation=(obs - marginal) / (1.0 - marginal),
+                    ))
+    if not rows:
+        print("[H] nothing to compute — skipped")
+        return
+    h = pd.DataFrame(rows)
+    h["arm"] = pd.Categorical(h["arm"], ARM_ORDER, ordered=True)
+
+    shown = ["Epithelial", "Immune", "Endothelial", OTHER_LABEL]
+    fig, axes = plt.subplots(1, len(shown), figsize=(4.4 * len(shown), 4.8), sharey=True)
+    for ax, comp_name in zip(np.atleast_1d(axes), shown):
+        sub = h[h.compartment == comp_name]
+        for design, marker, color, off in (("single", "o", "#4477AA", -0.11),
+                                           ("union", "D", "#EE7733", 0.11)):
+            s = sub[sub.gate_design == design]
+            if s.empty:
+                continue
+            ax.scatter(s["arm"].cat.codes.to_numpy() + off, s["segregation"], s=46, marker=marker,
+                       color=color, alpha=0.75, edgecolor="white", linewidth=1.1, zorder=3,
+                       label=DESIGN_LABEL[design] if comp_name == shown[0] else None)
+            med = s.groupby("arm", observed=False)["segregation"].median().reindex(ARM_ORDER)
+            ax.plot(range(len(ARM_ORDER)), med.to_numpy(), color=color, lw=2, alpha=0.9, zorder=4)
+        ax.axhline(0.0, color="#CC3311", lw=1.4, ls="--", zorder=2)
+        ax.text(0.02, 0.0, " random labelling", color="#CC3311", fontsize=8, va="bottom",
+                transform=ax.get_yaxis_transform())
+        ax.set_ylim(-0.02, 0.30)
+        ax.set_xticks(range(len(ARM_ORDER)))
+        ax.set_xticklabels([ARM_LABEL[a] for a in ARM_ORDER], fontsize=8)
+        ax.set_xlim(-0.5, len(ARM_ORDER) - 0.5)
+        ax.set_title(comp_name, pad=10)
+    np.atleast_1d(axes)[0].set_ylabel(f"segregation  (obs − marginal) / (1 − marginal)\n"
+                                      f"0 = random labelling, 1 = every neighbour matches (k={k})")
+    fig.suptitle("H — Figure E quantified, and it does NOT support the strong reading of that figure. On a scale where "
+                 "0 is random\nlabelling, EVERY compartment scores 0.02–0.20: single-cell neighbourhoods in pancreas "
+                 "are genuinely mixed. Epithelial is\namong the MORE structured, not the less, and the union raises it "
+                 "at every arm. `Other` is the least structured everywhere,\nwhich is what a residual bucket of "
+                 "heterogeneous leftovers should look like.",
+                 x=0.01, y=1.02, ha="left", va="bottom", fontsize=12)
+    fig.legend(loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.10), fontsize=9)
+    fig.savefig(out / "H_spatial_coherence_index.png")
+    plt.close(fig)
+    h.to_csv(out / "H_spatial_coherence_index.csv", index=False)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--summary", type=Path, default=REPO / "data" / "anatomy_check")
@@ -530,6 +622,8 @@ def main(argv=None):
     ap.add_argument("--out", type=Path, default=REPO / "figures" / "anatomy_check")
     ap.add_argument("--spatial-donor", default="6539", help="donor for figures E and F")
     ap.add_argument("--spatial-arms", nargs="*", default=["reference_and_target/max", "reference_only/p99"])
+    ap.add_argument("--coherence-donors", nargs="*", default=None,
+                    help="donors for figure H (default: all in the aggregates; kNN over every cell)")
     a = ap.parse_args(argv)
     a.out.mkdir(parents=True, exist_ok=True)
 
@@ -541,7 +635,9 @@ def main(argv=None):
     figure_d(a.arm_root, a.out)
     figure_e(a.arm_root, a.out, a.spatial_donor, a.spatial_arms)
     figure_f(REPO, a.arm_root, a.out, a.spatial_donor)
-    figure_g(a.arm_root, a.out, sorted(comp["donor"].astype(str).unique()))
+    donors = sorted(comp["donor"].astype(str).unique())
+    figure_g(a.arm_root, a.out, donors)
+    figure_h(a.arm_root, a.out, a.coherence_donors or donors)
     print("[done] figures ->", a.out)
     return 0
 
