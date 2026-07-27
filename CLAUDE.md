@@ -182,8 +182,23 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID; 25,151,028 canonica
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
 
-> ### ⚠ START HERE — [`docs/ANATOMY_CHECK_2026-07-27.md`](docs/ANATOMY_CHECK_2026-07-27.md), then
-> ### [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](docs/HANDOFF_2026-07-27_qc_and_v10.md)
+> ### ⚠ START HERE — [`docs/GATE4_HANDOFF_2026-07-27.md`](docs/GATE4_HANDOFF_2026-07-27.md)
+>
+> **Gate 4 is COMPLETE and clean on all 20 donors** (2026-07-27 evening): 479/480 donor-pairs VALID,
+> zero technical failures, 0% Unresolved, 25,151,028 cells typed. The gate set was expanded 7 → 24
+> markers on maintainer sign-off and `Other` fell from ~65% to **13.7%**; islet-core cells — endocrine
+> by QuPath annotation, hormone-validated — went from **1–6% Epithelial to 78.9%** (60.5–85.5% per
+> donor). Policy frozen at `reference_only`/`p99`; `COMPARTMENT_ORDER` is now
+> Immune > **Endothelial** > Epithelial > Neural > Mesenchymal.
+>
+> **Nothing here is verified against ground truth.** The gold-standard bundle (`data/gold_standard_v1/`)
+> is built, blinded and waiting on annotator time; the per-image review of the 14 new markers is
+> outstanding. Read the handoff for the open items before changing anything.
+>
+> Background, still authoritative for their own subjects:
+> [`docs/ANATOMY_CHECK_2026-07-27.md`](docs/ANATOMY_CHECK_2026-07-27.md) (anatomy evidence, divisor
+> sweep) and [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](docs/HANDOFF_2026-07-27_qc_and_v10.md) (cell QC,
+> REDSEA v10, duplicate detections)
 >
 > **The anatomy check has been RUN.** Its finding: the **single-marker Epithelial gate** is a defect on
 > its own terms, and it is at least as large a lever as the divisor. Islet-core cells — endocrine by
