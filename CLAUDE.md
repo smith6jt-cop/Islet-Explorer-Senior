@@ -169,13 +169,36 @@ The Senior 59-plex data is being **re-phenotyped from scratch** because global c
 data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
   |-- QuPath per-cell GeoJSON export (~/IO60panc2nd/scripts/export_cells_geojson.groovy)
   |-- scripts/senior/redsea_full.py        pixel-level lateral-spillover correction (subtract-only, 1px band, α=1)
-  |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; alignment r≈0.998)
+  |     -> data/cells_redsea/donor_id=*/    (59 spillover-corrected means; the r≈0.998 figure is a RASTERISATION-fidelity check on
+  |                                            UNcorrected means, NOT raw-vs-corrected agreement — actual r 0.81-0.98)
   |-- RESTORE pair validation (phenocycler.restore_validation)  NOT YET ACCEPTED — see Status
   |     -> manuscript-faithful screen; emits NO normalized values and NO phenotype calls
   +-- lineage (phenocycler.lineage)  every cell typed, 0 Unassigned (Other = explicit residual)
         -> data/phenotype/broad/donor_id=*/  (5 compartments + Other: Immune/Epithelial/Endothelial/Neural/Mesenchymal; endocrine/exocrine deferred to a validated 2nd pass)
         -> QuPath inspection: export_broad_class_for_qupath.py + scripts/groovy/import_broad_lineage.groovy
 ```
+
+> ### ⚠ START HERE — [`docs/HANDOFF_2026-07-27_qc_and_v10.md`](docs/HANDOFF_2026-07-27_qc_and_v10.md)
+>
+> **The Status block below is superseded on four points (2026-07-25 → 27). Read the handoff first.**
+>
+> 1. **311,340 duplicate cell detections found and removed** in 7 donors (6450, 6505, 6523, 6534,
+>    6566, 6591, 6623) — the same physical cell segmented twice with two UUIDs, 100% inside islets,
+>    inflating islet counts ~2×. Cause: detection was run with `selectAnnotations()`, which selects
+>    Tissue AND every nested `Islet_N`; InstanSeg segments each selected parent independently.
+>    Fixed at source by `scripts/groovy/0_cell_detection.groovy`.
+> 2. **New cell-QC stage** (`phenocycler/cell_qc.py`), applied: 31,454,041 → **25,151,028** canonical
+>    cells (pre-QC copies in `data/cells_preqc/`). Runs before any parameter estimation.
+> 3. **REDSEA v10** — `comp_mode 0→1` (reinforcement restored) and `norm_form recipient→donor` (the
+>    published mass-conserving operator); nuclear/ECM channels no longer corrected. So the
+>    "subtract-only, 1px band, α=1" description above is **out of date**.
+> 4. **RESTORE v10** — the negative control was gated on the target's own Otsu floor, so the divisor
+>    *was* that floor (median ratio 1.044 over 49 donor-pairs). Now
+>    `control_definition` + `divisor_statistic` are configurable; `reference_only` + `p99` is the
+>    leading candidate (E-cadherin 43–54%, still short of the ~75% the accounting implies).
+>
+> The E-cadherin under-call is **narrowed, not closed**. Next step is the anatomy check
+> (`groupby(['cell_region','compartment'])`), then a divisor decision, then Gate 4→5.
 
 **Status (updated 2026-07-24) — manuscript-faithful rebuild, at Gate 2 of 7.** `RESTORE.pdf` +
 `RESTOREsup.pdf` (repo root) are **ground truth and override prior code, handoffs, and docs**. The

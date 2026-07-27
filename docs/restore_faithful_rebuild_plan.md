@@ -560,9 +560,9 @@
     positive|negative|unavailable calls; ordered residual Immune -> Epithelial -> Endothelial ->
     Neural -> Mesenchymal -> Other; remove the silent missing-marker fallback in lineage.py
 
-- 2026-07-24 (later) — Gate 4 production wiring IMPLEMENTED (code + tests; pilot dry run pending):
+- 2026-07-24 (later) — Gate 4 production wiring CODE implemented; PILOT RAN BUT REJECTED, output reverted:
   - new `phenocycler/restore_apply.py`: the production adapter. Runs the frozen `evaluate_locked_pair`
-    over the 7 `ACCEPTED_PAIRS` at full cell (modulus-1 sample) per donor and writes ONE tri-state gated
+    over the 7 `ACCEPTED_PAIRS` on all cells (modulus-1, unsampled) per donor and writes ONE tri-state gated
     parquet per donor (`{target}_pos` / `_norm` / `_state`, state in positive|negative|unavailable) plus a
     per-donor + cohort QC-disposition manifest. Pure, unit-tested mapper `cell_calls_from_evaluation`. It
     reuses the frozen math (no re-implementation): VALID -> divisor-gated positive/negative + off-`valid_idx`
@@ -578,7 +578,7 @@
   - `config.py`: `COMPARTMENT_ORDER` now Immune-first; `COMPARTMENT_GATES` reduced to EXACTLY the 7
     divisor-backed accepted targets (Immune = CD3e/CD68/CD11b; Mesenchymal = Vimentin; SMA + the 6
     unscreened immune markers + CD20 deferred); `UNRESOLVED_LABEL` added; new derived paths
-    (`restore_fullcell_sample_dir`, `restore_pair_reviews_csv`, `restore_apply_manifest_csv`).
+    (`restore_allcells_sample_dir`, `restore_pair_reviews_csv`, `restore_apply_manifest_csv`).
     `pipeline.py` `_restore` now calls `restore_apply.run_apply` (was a `SystemExit` placeholder).
   - Maintainer decisions baked in: 5-compartment level-1 deliverable only; confirmed absence -> negative;
     a technical non-VALID accepted pair halts (immune anchors are universally expressed). The deferred
@@ -588,9 +588,17 @@
     Immune-first, Unresolved, fail-loud missing column, provenance), updated `tests/test_config.py`
     (new order/gates + gates == accepted-targets closure invariant). The 64 `test_restore_validation.py`
     tests are untouched and green.
-  - PENDING the Gate-4 exit criterion: the full-cell pilot dry run on the accepted pilot donors (6539,
-    6476, + weakest-case) producing the first real `data/phenotype/broad/`, then maintainer review. No
-    canonical 20-donor run and no downstream/app rebuild in this pass (Gates 5-7).
+  - PILOT DRY RUN (6539, 6476, 6591) RAN and was REJECTED by the maintainer. The apply reproduced the
+    accepted method's calls to the cell (byte-identical to the Gate-3 pilot — e.g. 6539 E-cadherin 93,749
+    / CD11b 48,956), so this is NOT a Gate-4 wiring bug. But the resulting compartment composition is
+    biologically implausible: ~15-19% Epithelial and ~65% `Other` across all three donors, when acinar
+    epithelium should dominate the pancreas. The immediate driver is that the accepted method calls
+    E-cadherin on only ~18% of cells (only ~18% exceed the E_cadherin<-CD31 divisor); the ROOT CAUSE is
+    upstream of the Gate-4 wiring and is NOT yet resolved. The pairs are pre-decided/fixed, so it is not a
+    pair-selection issue. The pilot output (`data/phenotype/`, `data/restore_gated_redsea/`) was DELETED to
+    return `data/` to its pre-pilot state. **Gate 4 is therefore code-complete but NOT validated.** NEXT:
+    diagnose and fix the upstream E-cadherin under-call, then re-run the pilot. No canonical 20-donor run
+    and no downstream/app rebuild until it passes (Gates 5-7).
 
 ## Ground truth
 
