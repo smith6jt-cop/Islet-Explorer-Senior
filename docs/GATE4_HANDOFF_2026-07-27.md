@@ -1,5 +1,27 @@
 # Handoff — 2026-07-27 (evening): Gate 4 complete on 20 donors
 
+> **SUPERSEDED — go to [`GATE5_HANDOFF_2026-07-28.md`](GATE5_HANDOFF_2026-07-28.md).** That handoff
+> carries the current state, the one blocking decision, and the corrections to this document.
+
+
+> **SUPERSEDED IN PART by [`GATE5_ROUND_2026-07-27.md`](GATE5_ROUND_2026-07-27.md) — read that next.**
+> The Gate-5 evidence package is built (`data/gate5/`), the per-image review bundle is built
+> (`expanded_review_v12/`, 34 PDFs + 161 overlays), and Gate 6's cell accounting is proven exact.
+> Four corrections to this document:
+> 1. **The islet-core Immune disease gradient is aliased with acquisition BATCH** (Kruskal p=0.0016 by
+>    batch vs 0.0094 by status; batch 2 holds every high-immune donor and zero ND donors). The Fusion
+>    version was a perfect proxy but is **not** the mechanism. Open item 7's "immune environment as
+>    disease progresses" cannot be claimed from this cohort without a batch-aware analysis.
+> 2. **CD11b's positives are 81.1% epithelial-marker⁺ and 80.8% epithelial⁺ outside islets**, with
+>    78.6% carrying no other immune marker. An earlier claim in this banner that CD11b is
+>    "under-called ~4×" is **RETRACTED** — there is no ground truth for the pilot's 7–10%, and raising
+>    CD11b would add more of the same cells. Its divisor is still the only one that ROSE under
+>    `reference_only`/p99 (1.46–2.25×), which remains unexplained.
+> 3. **Open item 4's SST framing is withdrawn** — it is a per-donor pass/fail (bimodal `target_fold`,
+>    nothing between 1.81 and 2.54), not a disease effect (Fisher p=0.167).
+> 4. **Open item 5 should cover 6380, 6534, 6623 as well as 6566** — INS's arm separation collapses on
+>    all four, 6380 worst of all, yet they get three different dispositions.
+
 **Start here.** Supersedes the Gate-4 sections of
 [`ANATOMY_CHECK_2026-07-27.md`](ANATOMY_CHECK_2026-07-27.md) (still authoritative for the anatomy
 evidence and the divisor sweep) and `HANDOFF_2026-07-27_qc_and_v10.md` (still authoritative for cell

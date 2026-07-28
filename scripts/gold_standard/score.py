@@ -19,7 +19,7 @@ Consensus rule: the two annotators must agree. Disagreements and "Unsure" are EX
 and reported as a separate count — adjudicating them by majority with two annotators is just picking
 one, and adjudicating them against the pipeline would make the measurement circular.
 
-    python scripts/gold_standard/score.py --arm ctrl-reference_only_div-p99 --design union
+    python scripts/gold_standard/score.py
 """
 
 from __future__ import annotations
@@ -90,26 +90,34 @@ def _kappa(a: pd.Series, b: pd.Series) -> float:
     return float((po - pe) / (1 - pe)) if pe < 1 else float("nan")
 
 
-def pipeline_calls(arm_root: Path, arm: str, design: str, object_ids) -> pd.DataFrame:
-    """Recompute the pipeline compartment for the reviewed cells only, from the arm's gated parquets."""
+def pipeline_calls(gated_dir: Path, cells_dir: Path, epithelial_gate: str, object_ids) -> pd.DataFrame:
+    """Recompute the pipeline compartment for the reviewed cells only, from a gated-parquet directory.
+
+    Defaults to the PRODUCTION gated output and the gate set in ``config.COMPARTMENT_GATES`` as it
+    actually ships. That matters: the anatomy-check arms under ``data/_arm/`` were built with the old
+    7-marker gate set, so scoring against one measures a configuration that no longer exists — and
+    since ``lineage`` fails loudly on a missing ``{marker}_state``, it does not even run."""
     from phenocycler import lineage
     from phenocycler.config import COMPARTMENT_GATES
     gates = dict(COMPARTMENT_GATES)
-    if design == "union":
+    if epithelial_gate == "anatomy-union":
+        # The anatomy check's 4-marker comparator. NOT what production ships: the shipped Epithelial
+        # gate also carries Keratin_5 and the three hormones, and in islet core INS/GCG do most of the
+        # work (docs/GATE5_ROUND_2026-07-27.md, Finding 5). Kept only to reproduce that round.
         gates["Epithelial"] = ["E_cadherin", "Pan_Cytokeratin", "Ker8_18", "EpCAM"]
     want = set(map(str, object_ids))
+    files = sorted(glob.glob(str(gated_dir / "donor_id=*" / "*.parquet")))
+    if not files:
+        raise SystemExit(f"[err] no gated parquets under {gated_dir}")
     rows = []
-    pattern = "restore_gated_union" if design == "union" else "restore_gated_redsea"
-    for f in sorted(glob.glob(str(arm_root / arm / pattern / "donor_id=*" / "*.parquet"))):
+    for f in files:
         donor = Path(f).parent.name.split("=", 1)[1]
         lineage.COMPARTMENT_GATES = gates
         try:
-            out = lineage.assign_donor(donor, f, arm_root / arm / "cells")
+            out = lineage.assign_donor(donor, f, cells_dir)
         finally:
             lineage.COMPARTMENT_GATES = dict(COMPARTMENT_GATES)
         rows.append(out.loc[out["object_id"].isin(want), ["object_id", "compartment"]])
-    if not rows:
-        raise SystemExit(f"[err] no gated parquets for arm {arm} design {design} under {arm_root}")
     return pd.concat(rows, ignore_index=True).rename(columns={"compartment": "predicted"})
 
 
@@ -130,10 +138,22 @@ def rates(truth, pred, weight, labels) -> pd.DataFrame:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", type=Path, default=REPO / "data" / "gold_standard_v1")
-    ap.add_argument("--arm-root", type=Path, default=REPO / "data" / "_arm")
-    ap.add_argument("--arm", default="ctrl-reference_only_div-p99")
-    ap.add_argument("--design", choices=("single", "union"), default="union")
+    ap.add_argument("--config", type=Path, default=REPO / "config.ini")
+    ap.add_argument("--gated-dir", type=Path, default=None,
+                    help="gated parquet dir to score (default: the production restore_gated_redsea). "
+                         "Point at data/_arm/<arm>/restore_gated_redsea to score an anatomy-check arm "
+                         "instead — but those were built with the old 7-marker gate set.")
+    ap.add_argument("--cells-dir", type=Path, default=None, help="default: the production cells dir")
+    ap.add_argument("--epithelial-gate", choices=("config", "anatomy-union"), default="config",
+                    help="'config' = the Epithelial gate as it ships (default); 'anatomy-union' = the "
+                         "anatomy check's 4-marker comparator, for reproducing that round only")
     a = ap.parse_args(argv)
+
+    from phenocycler.config import load_config
+    cfg = load_config(a.config)
+    gated_dir = Path(a.gated_dir) if a.gated_dir else cfg.restore_gated_dir
+    cells_dir = Path(a.cells_dir) if a.cells_dir else cfg.cells_dir
+    scored = "production" if a.gated_dir is None else str(gated_dir)
 
     key = pd.read_csv(a.bundle / "sample_key.csv", dtype={"object_id": str})
     ann = load_annotations(a.bundle / "completed")
@@ -150,12 +170,16 @@ def main(argv=None) -> int:
 
     m = truth.merge(key[["object_id", "donor", "stratum", "weight", "cell_region"]],
                     on="object_id", how="left", validate="1:1")
-    pred = pipeline_calls(a.arm_root, a.arm, a.design, m["object_id"])
+    pred = pipeline_calls(gated_dir, cells_dir, a.epithelial_gate, m["object_id"])
     m = m.merge(pred, on="object_id", how="left")
+    missing = int(m["predicted"].isna().sum())
+    if missing:
+        print(f"\n  ** {missing} of {len(m)} reviewed cells have no pipeline call in {gated_dir} — "
+              "they are counted as Unresolved, which makes recall pessimistic. Check the donor set. **")
     m["predicted"] = m["predicted"].fillna(UNRESOLVED_LABEL)
 
     print("\n" + "=" * 72)
-    print(f"2. PIPELINE ACCURACY — arm {a.arm}, Epithelial gate = {a.design}")
+    print(f"2. PIPELINE ACCURACY — scoring {scored}, Epithelial gate = {a.epithelial_gate}")
     print("=" * 72)
     print("\n-- over the sample (stratified: over-samples immune, describes the SAMPLE) --")
     print(rates(m.truth, m.predicted, np.ones(len(m)), LABELS).round(3).to_string(index=False))
@@ -171,8 +195,9 @@ def main(argv=None) -> int:
 
     out = a.bundle / "scores"
     out.mkdir(exist_ok=True)
-    weighted.to_csv(out / f"accuracy_{a.arm}_{a.design}_weighted.csv", index=False)
-    cm.to_csv(out / f"confusion_{a.arm}_{a.design}.csv")
+    tag = ("production" if a.gated_dir is None else Path(a.gated_dir).parent.name) + f"_{a.epithelial_gate}"
+    weighted.to_csv(out / f"accuracy_{tag}_weighted.csv", index=False)
+    cm.to_csv(out / f"confusion_{tag}.csv")
     pd.Series(diag).to_csv(out / "inter_annotator.csv")
     print(f"\n[done] {out}")
     return 0

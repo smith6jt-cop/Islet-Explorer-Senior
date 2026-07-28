@@ -28,6 +28,10 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "Phenocycler_Analysis"))
 from phenocycler.cohort import DONOR_EXCLUSIONS                                # noqa: E402
 
+# The 2026-07 cohort expansion: 15 donors acquired first, then these 7. A separate staining/imaging run
+# with a physical panel change, i.e. a real acquisition batch. Cross-checked against panel_variant below.
+BATCH2_DONORS = frozenset({"6450", "6505", "6523", "6534", "6566", "6591", "6623"})
+
 
 def _first_page_description(path: str) -> str:
     import tifffile
@@ -87,6 +91,19 @@ def main(argv=None) -> int:
             else ("b_Catenin1" if r.has_b_Catenin1 and not r.has_CD38
                   else ("both" if r.has_CD38 and r.has_b_Catenin1 else "neither")), axis=1)
     )
+    # ACQUISITION BATCH — the covariate to analyse against. The two batches are separate staining and
+    # imaging runs months apart with a physical panel change (batch 1 carries CD38, batch 2 carries
+    # b-Catenin1 or neither), which is what makes them a batch rather than a label. `panel_variant`
+    # and `acquisition_software` are each perfect proxies for it on this cohort — every batch-2 donor
+    # is Fusion 2.4.1 and no batch-1 donor is — but the batch is the thing, not the software version.
+    t["batch"] = t["donor_id"].map(lambda d: "batch2" if d in BATCH2_DONORS else "batch1")
+    for probe, name in ((t["panel_variant"] == "CD38", "panel_variant"),):
+        drift = t.loc[t.eligible & (probe != (t["batch"] == "batch1"))]
+        if len(drift):                        # fail loudly rather than let the batch definition rot
+            raise SystemExit(
+                f"[err] {name} no longer agrees with BATCH2_DONORS for {drift['donor_id'].tolist()}; "
+                "the batch definition is hardcoded and must be re-derived if the cohort changes")
+
     t = t.sort_values("donor_id").reset_index(drop=True)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     t.drop(columns=["channels"]).to_csv(a.out, index=False)
