@@ -292,6 +292,56 @@ The difference is 0.3% for CD11b, so the 81.1% headline stands, and 5% for `cd34
 - **The 14 group-A markers cannot be trusted at their current floors on their collapsed donors**, and
   they include 8 of the 10 Immune gate markers. Any Immune claim rests on floors this audit flags.
 
+---
+
+# The clustering cannot rescue it — five negative results
+
+**Maintainer, 2026-07-28: "We should do the NNMF on the data."** Done, plus every adjacent lever.
+Four knobs added to `PairValidationConfig`, all defaulting to what ships (255 tests pass on the
+defaults): `nnmf_fit_basis`, `control_membership`, `n_components` (was hard-asserted `== 2`),
+`nnmf_beta_loss`/`solver`/`init`. Driver: `scripts/gate5/nnmf_fit_basis_experiment.py`.
+
+On donor 6566 INS, the one case with maintainer ground truth (~a couple hundred INS⁺ cells):
+
+| change | result |
+|---|---|
+| fit on `qc_retained` instead of the arms | 4,135 → **7,697** called |
+| fit on `all` cells | → **14,299** called |
+| let the component decide membership | → **143,865** called |
+| Kullback–Leibler loss instead of Frobenius | **no change** (61.7 divisor, 4,135 called) |
+| k = 3,4,5,6 | **impossible** — `n_components > min(features.shape)`, and the matrix has 2 columns |
+| 4 features (Membrane+Cell) vs 2 (Cell) | **no change** — divisors agree to <2% |
+
+At cohort scale, 7 donors × 24 accepted pairs = 168 donor-pairs per basis:
+
+| fit basis | VALID | MODEL_UNSTABLE | median call rate | median divisor |
+|---|---|---|---|---|
+| arms (shipped) | 167 | 0 | 5.33% | 451 |
+| qc_retained | 166 | 1 | 5.69% | 432 |
+| all | 107 | **60** | 8.20% | 483 |
+
+## Why they are all inert, and one retraction
+
+**The target component covers most of the tissue** — 1,467,892 of 1,781,276 cells, 82%, on 6566 INS.
+`ordered_control_groups` ANDs that component with the raw floor predicates, and ANDing a mask that
+covers 82% of cells is very nearly a no-op. **The floor is doing the work; the NNMF is close to
+decorative.** That is why references, exclusivity and the control definition all produced small effects
+across two rounds — every one of them sits downstream of a step that has already decided the answer.
+
+As implemented, RESTORE here is approximately *"raw Otsu floor, then p99 of the REDSEA values above
+it."*
+
+**Retracted before it cost anything:** I was about to recommend re-exporting the QuPath compartment
+measurements for all 20 donors, on the manuscript's warning that a 2-dimensional feature set has a
+trivial solution (`W = Y`, `H = I`) — which correlates with the failures (10 of the 14 clip-affected
+markers are whole-cell-only, against 2 of the 9 clip-neutral). **Tested first on the 12 markers that do
+have compartments: 4 features vs 2 changes divisors by under 2%.** The correlation is real; the causal
+claim is false. No re-export is justified.
+
+**What this leaves.** The floor decision is still the decision — but now with proof that no change to
+the fit basis, the membership rule, the loss function, the component count or the feature set rescues
+it. That is a narrower problem than this round started with.
+
 ## Next, and not started
 
 Changing a floor method re-derives the NNMF training arms and therefore invalidates the screen, the

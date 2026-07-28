@@ -284,7 +284,24 @@ def _density_at(centers: np.ndarray, density: np.ndarray, threshold: float) -> f
 
 
 def audit_donor(donor: str, cells_dir: Path, sample_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """One donor: every viable marker x every candidate method, on the raw whole-cell mean."""
+    """One donor: every viable marker x every candidate method.
+
+    `cells_dir` selects the intensity the floor is estimated on:
+
+      data/cells         RAW pre-REDSEA QuPath whole-cell mean -- what production uses today
+      data/cells_redsea  the same cells after REDSEA lateral-spillover correction
+
+    That production estimates its floors on RAW is worth stating plainly, because every MEMBERSHIP
+    decision downstream inherits it: the target arm (`target_raw > target_floor & reference_raw <=
+    reference_floor`), the negative control (`reference_raw > reference_floor`), and the NNMF
+    separator features (`Cell__{marker}` is asserted identical to `raw__{marker}`). Only the Step-1
+    separator, the Step-2 divisor and the final call read `target_redsea`. So a cell that is
+    reference-positive only BECAUSE of spillover from a neighbour is admitted to the negative control,
+    and its corrected value then helps set the divisor -- which is the same pan-positive-bright-cell
+    failure REDSEA was introduced to remove. No rationale for the split is recorded anywhere in the
+    code, the rebuild plan or the docs, so it reads as drift rather than a decision. This flag exists
+    to measure it.
+    """
     cells = pd.read_parquet(next((cells_dir / f"donor_id={donor}").glob("*.parquet")))
     markers = viable_markers(cells.columns)
 
@@ -472,6 +489,9 @@ def main(argv=None) -> int:
     p.add_argument("--markers", nargs="*", default=None, help="restrict for a quick check")
     p.add_argument("--jobs", type=int, default=6)
     p.add_argument("--figures", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--feature", choices=("raw", "redsea"), default="raw",
+                   help="intensity the floor is estimated on. 'raw' is what production uses; "
+                        "'redsea' measures the alternative (see audit_donor's docstring)")
     a = p.parse_args(argv)
 
     cfg = load_config(a.config)
@@ -480,15 +500,16 @@ def main(argv=None) -> int:
     donors = (ensure_eligible_donors(a.donors, context="marker floor audit") if a.donors
               else cfg.discover_donors(cfg.cells_dir))
     sample_root = cfg.restore_pair_validation_dir / "qupath_compartment_full_20donor"
+    src = cfg.cells_dir if a.feature == "raw" else cfg.cells_redsea_dir
     a.outdir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[floors] {len(donors)} donors -> {a.outdir}", flush=True)
+    print(f"[floors] {len(donors)} donors, feature={a.feature} ({src}) -> {a.outdir}", flush=True)
     if a.jobs > 1 and len(donors) > 1:
         with ProcessPoolExecutor(max_workers=a.jobs) as ex:
             results = list(ex.map(audit_donor, donors,
-                                  [cfg.cells_dir] * len(donors), [sample_root] * len(donors)))
+                                  [src] * len(donors), [sample_root] * len(donors)))
     else:
-        results = [audit_donor(d, cfg.cells_dir, sample_root) for d in donors]
+        results = [audit_donor(d, src, sample_root) for d in donors]
 
     per_donor = pd.concat([r[0] for r in results], ignore_index=True)
     hist = pd.concat([r[1] for r in results], ignore_index=True)
@@ -502,15 +523,27 @@ def main(argv=None) -> int:
     summary = summarise(per_donor)
     summary.to_csv(a.outdir / "floor_audit_summary.csv", index=False)
 
-    failures = validate(per_donor, a.screen)
+    if a.feature == "raw":
+        failures = validate(per_donor, a.screen)
+    else:
+        # Check 2 asserts we reproduce the floors production SHIPPED, which are raw by construction;
+        # it is meaningless here and is skipped rather than reported as a failure.
+        print("[validate] feature=redsea -- skipping the shipped-floor identity check (raw-only)")
+        failures = 0
+        ins = per_donor[(per_donor.marker == "INS") & (per_donor.donor.astype(str) == "6566")]
+        if not ins.empty:
+            print("[validate] donor 6566 INS on REDSEA values (ground truth: a couple hundred cells):")
+            for _, r in ins.sort_values("positive_n").iterrows():
+                print(f"             {r.method:24s} floor {r.threshold:10.2f} -> {int(r.positive_n):>9,} "
+                      f"cells  separation {r.separation:.3f}")
 
     (a.outdir / "manifest.json").write_text(json.dumps({
         "purpose": "Raw input floor audit for every viable marker; descriptive only, no method changed",
         "supersedes": "data/restore_pair_validation/marker_floor_audit_v1 (5 markers, 2026-07-21)",
         "source": {"raw_cells": str(cfg.cells_dir), "compartments": str(sample_root),
                    "screen": str(a.screen)},
-        "feature": "RAW pre-REDSEA QuPath whole-cell mean, every canonical cell with a finite "
-                   "non-negative value -- the exact input estimate_marker_input_floor receives",
+        "feature": a.feature,
+        "feature_source": str(src),
         "donors": list(donors),
         "excluded_donors": ["6457", "6579"],
         "excluded_markers": list(mt.EXCLUDED),
