@@ -331,12 +331,51 @@ across two rounds — every one of them sits downstream of a step that has alrea
 As implemented, RESTORE here is approximately *"raw Otsu floor, then p99 of the REDSEA values above
 it."*
 
-**Retracted before it cost anything:** I was about to recommend re-exporting the QuPath compartment
-measurements for all 20 donors, on the manuscript's warning that a 2-dimensional feature set has a
-trivial solution (`W = Y`, `H = I`) — which correlates with the failures (10 of the 14 clip-affected
-markers are whole-cell-only, against 2 of the 9 clip-neutral). **Tested first on the 12 markers that do
-have compartments: 4 features vs 2 changes divisors by under 2%.** The correlation is real; the causal
-claim is false. No re-export is justified.
+### The feature-count test, corrected (maintainer challenge, 2026-07-28)
+
+**An earlier version of this section claimed "4 features vs 2 changes divisors by under 2%" and used
+that to retract the re-export recommendation. That was wrong on two counts and is corrected here.**
+
+The test stopped at 4 features (`Membrane+Cell`). The sample carries **four** compartments —
+`Nucleus, Cytoplasm, Membrane, Cell` — so a pair can have **8** features, and the effect is monotone in
+feature count with Nucleus and Cytoplasm carrying most of it:
+
+| donor / pair | 2 feat | 4 feat | 6 feat | 8 feat | Δ 2→8 |
+|---|---|---|---|---|---|
+| 6591 `CD11b ← EpCAM` | 1858.6 | 1827.4 | 1748.3 | 1730.2 | **−6.9%** (call rate +27% rel.) |
+| 6566 `CD11b ← EpCAM` | 3969.9 | 3943.4 | 3878.6 | 3801.7 | −4.2% |
+| 6566 `B3TUBB ← EpCAM` | 302.3 | 302.6 | 302.5 | 271.1 | **−10.3%** |
+| 6591/6566 `CD68 ← E_cadherin` | 211.8 / 249.2 | 209.1 / 249.8 | 209.2 / 250.2 | 208.0 / 243.0 | −1.8% / −2.5% |
+
+So the perturbation is up to ~10%, not <2%. **But it does not scale with target rarity**, which is what
+the hypothesis requires:
+
+| pair | target abundance | divisor Δ (2→8) |
+|---|---|---|
+| `CD3e ← E_cadherin` | 0.73% (rarest available) | +0.2% / −1.1% |
+| `CD31 ← E_cadherin` | 4.8% | −2.6% / −1.0% |
+| `Vimentin ← E_cadherin` | 13.3% | −5.5% / **+5.4%** |
+| `E_cadherin ← CD31` | 27.4% (most abundant) | **−7.6%** / −3.7% |
+
+Inconsistent in sign, and larger for abundant markers if anything.
+
+**Status: UNRESOLVED, not falsified.** Every pair that can be tested *has* compartment data; INS, SST,
+GCG, CD79a and the rest of the failing set have none — which is exactly why they run at 2 features. The
+test therefore uses proxies and cannot settle the question for the markers it matters for. What is
+known:
+
+- *for* a re-export — the manuscript explicitly warns that a 2-D feature set has a trivial solution
+  (`W = Y`, `H = I`), and the failing markers are disproportionately the 2-feature ones (10 of 14
+  clip-affected vs 2 of 9 clip-neutral);
+- *against* — on every marker that can be measured, more features move the divisor ≤10% with no
+  consistent direction and no relation to rarity;
+- *cost* — the 8-feature arm drops **9% of cells** (101,113 on 6591; 160,122 on 6566) because Cytoplasm
+  is NaN wherever the nucleus fills the cell.
+
+**Zeros** (same challenge): in the raw pre-REDSEA whole-cell values the floor is estimated from, exact
+zeros are ≤1.9% per marker, so they do not drive the floor. In REDSEA values they are substantial
+(CD31 up to 17.6%, E-cadherin 11.3%, INS 6.3% — the clamp), but the divisor is a p99 and the Step-1
+separator is a max, both insensitive to a spike at zero.
 
 **What this leaves.** The floor decision is still the decision — but now with proof that no change to
 the fit basis, the membership rule, the loss function, the component count or the feature set rescues
