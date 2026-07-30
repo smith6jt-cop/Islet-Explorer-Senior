@@ -20,14 +20,17 @@
 // Two annotators must work in SEPARATE QuPath projects (or separate copies of the .qpdata) and must
 // not see each other's classes — inter-annotator kappa is meaningless otherwise.
 //
-// EDIT `folder` to point at <data_dir>/gold_standard_v1/qupath.
+// Pass the immutable bundle's qupath directory as the first script argument:
+//   --args "/absolute/path/to/data/gold_standard_v2/<run_id>/qupath"
 
-// ---- config ----------------------------------------------------------------
-def folder = new File("/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/gold_standard_v1/qupath")
-// ----------------------------------------------------------------------------
+String folderPath = args != null && args.size() > 0 ? args[0]?.trim() : ""
+if (folderPath == null || folderPath.isEmpty()) {
+    println "ERROR: pass the audit bundle's qupath directory as the first script argument."
+    return
+}
+def folder = new File(folderPath)
 
-// Same colours as config.COMPARTMENT_COLORS, so a reviewer moving between the gold-standard project
-// and a pipeline overlay is not reading two different colour languages.
+// Fixed review colours. The audit remains blinded: no pipeline class is loaded.
 def COLORS = [
     "Immune"     : [34, 136, 51],    "Epithelial" : [68, 119, 170],
     "Endothelial": [102, 204, 238],  "Neural"     : [181, 131, 141],
@@ -42,11 +45,18 @@ def csvFiles = folder.listFiles().findAll {
 }
 if (csvFiles.isEmpty()) { println "ERROR: no gold_standard_*.csv in ${folder}"; return }
 
+def detections = getDetectionObjects()
+def ids = detections.collect { it.getID()?.toString() }
+if (ids.any { it == null } || ids.toSet().size() != ids.size()) {
+    println "ERROR: open image contains duplicate or null detection UUIDs."
+    return
+}
 def detById = [:]
-getDetectionObjects().each { detById[it.getID().toString()] = it }
+detections.each { detById[it.getID().toString()] = it }
 println "Open image has ${detById.size()} detections."
 
 int matched = 0, missing = 0
+def importedIds = [] as Set
 csvFiles.each { file ->
     def reader = new BufferedReader(new FileReader(file))
     reader.readLine()                       // header: object_id,review_id,image
@@ -55,6 +65,10 @@ csvFiles.each { file ->
         def f = line.split(',')
         def obj = detById[f[0]]
         if (obj == null) { missing++; continue }      // belongs to another image
+        if (!importedIds.add(f[0])) {
+            reader.close()
+            throw new IllegalStateException("Duplicate sampled UUID across audit files: ${f[0]}")
+        }
         obj.setPathClass(getPathClass("GS_review"))
         // review_id is GS#####; store the numeric part so the measurement table sorts correctly.
         obj.getMeasurementList().put("gs_review_id", f[1].replaceAll("[^0-9]", "").toDouble())

@@ -1,102 +1,144 @@
-# Gold-standard annotation protocol (v1)
+# Blinded broad-type audit
 
-## Why this exists
+This directory provides a detached human audit of one exact, completed
+Phenocycler typing run. It does not train or tune calibration, marker
+thresholds, typing rules, donor exclusions, or release decisions.
 
-There is no accuracy measurement anywhere in this project. Every QC in the pipeline is an
-*internal-consistency* check — pair states, seed stability, divisor reproducibility, the compartment
-accounting — and internal consistency is precisely what a systematic error survives. A ~55 pp
-epithelial error passed 217 tests, 11 review bundles and three gates without one of them firing.
+The audit answers two separate questions:
 
-Nothing in the repo can currently answer **"what fraction of the cells called Immune are immune
-cells?"**, and that is the question the study's conclusion rests on.
+1. How consistently can two blinded reviewers apply the broad-type
+   vocabulary from the images?
+2. On the cells where those reviewers agree, how do the frozen pipeline calls
+   compare, including explicit `Ambiguous` and `Unavailable` abstentions?
 
-This bundle is the instrument for answering it. It measures nothing on its own.
+Low reviewer agreement indicates that the annotation protocol is not a stable
+reference. It is not permission to tune the pipeline against either reviewer.
 
-## What you are being asked to do
+## Vocabulary
 
-Assign one of seven labels to each sampled cell, from the image alone:
+Review each sampled cell as one of:
 
-| label | what it means here |
-|---|---|
-| `Immune` | any leukocyte — T, B, plasma, macrophage, monocyte, DC, granulocyte, mast, NK |
-| `Epithelial` | acinar, ductal, **and endocrine** (islet cells are epithelial in this scheme) |
-| `Endothelial` | vessel lining |
-| `Neural` | nerve fibre, ganglion, Schwann |
-| `Mesenchymal` | fibroblast, stellate, smooth muscle, pericyte, adipocyte |
-| `Other` | a real cell that is genuinely none of the above |
-| `Unsure` | you cannot tell from the image |
+- `Immune`
+- `Epithelial` — includes endocrine cells in this broad scheme
+- `Endothelial`
+- `Neural`
+- `Mesenchymal`
+- `Other` — a real cell that is none of the five broad types
+- `Unsure` — the image does not support a confident human call
 
-**`Unsure` is a legitimate answer.** A forced guess is worse than a recorded uncertainty: it
-manufactures agreement where there is none and inflates the accuracy estimate. The scorer reports the
-unsure rate separately and excludes those cells rather than adjudicating them.
+`Unsure` is preferable to a forced guess. The scorer reports it separately and
+excludes it from pipeline accuracy, along with reviewer disagreements.
 
-Two rules that decide most edge cases:
+## 1. Build an immutable blinded bundle
 
-- **Endocrine is Epithelial.** Islet cells go in `Epithelial`, not `Other`, even though they look
-  nothing like acinar tissue. This is the pipeline's scheme and the comparison is meaningless if the
-  two use different definitions.
-- **When a cell could be two things, pick what it *is*, not what it is near.** A leukocyte sitting
-  inside an islet is `Immune`. A capillary threading through an islet is `Endothelial`.
+First require a complete, current source run:
 
-## How to do it
+```bash
+python -m phenocycler.pipeline status --config config.ini
+```
 
-1. Run `import_gold_standard.groovy` on the donor's image (edit `folder` first). Sampled cells get
-   PathClass `GS_review` and a `gs_review_id` measurement.
-2. **Analyze → Show detection measurements**, sort by `gs_review_id`, and work down the list. Use
-   whatever channels you need; there is no restriction on what you may look at.
-3. Set each cell's class from the vocabulary above.
-4. Run `export_gold_standard.groovy` (edit `annotator` to `A` or `B`) → writes to
-   `data/gold_standard_v1/completed/`.
-5. When both annotators are done: `python scripts/gold_standard/score.py --arm <arm> --design union`.
+Then snapshot a selected-donor audit bundle:
 
-## Blinding — do not break these
+```bash
+python scripts/gold_standard/build_bundle.py --config config.ini
+```
 
-- **The two annotators must not see each other's calls.** Work in separate QuPath projects or separate
-  copies of the `.qpdata`. Inter-annotator κ is the number that bounds every accuracy claim, and it is
-  worthless if the second annotator has seen the first one's answers.
-- **Neither annotator may look at the pipeline's calls** for these cells before annotating. The
-  annotation sheets and the QuPath import deliberately carry location only — no compartment, no
-  stratum, no marker value. Do not run `import_broad_lineage.groovy` on the same project.
-- Rows are shuffled, so donor and stratum cannot be read off the ordering.
+The default output is:
 
-## How the sample was drawn (and why it is not uniform)
+```text
+data/gold_standard_v2/<run_id>/
+```
 
-Five donors spanning all three disease groups, all three acquisition-software versions, and both
-batch-2 panel variants — so a per-compartment accuracy estimate is never confounded with the
-ND ↔ Fusion-2.4.1 aliasing (Fisher p = 0.0147; see `data/donor_acquisition_batch.csv`).
+The builder validates `run.json` and the type-stage manifest, joins cells and
+assignments by `(donor_id, object_id)`, and refuses to overwrite an existing
+bundle. Predictions and their provenance are frozen in the private
+`sample_key.csv`; scoring never reruns typing.
 
-500 cells per donor in three disjoint strata:
+Sampling is stratified for audit efficiency:
 
-| stratum | share | why |
+| stratum | default share | definition |
+|---|---:|---|
+| `immune_called` | 40% | accepted frozen broad call is `Immune` |
+| `islet_proximal` | 25% | remaining cell has QuPath-derived region `core` or `peri` |
+| `uniform` | 35% | all remaining canonical cells |
+
+The strata are disjoint. Each row has inverse sampling weight
+`stratum_N / stratum_n`. Design-weighted results target the selected donors'
+canonical-cell population only, not all donors in the cohort. Reviewer
+disagreement and `Unsure` exclusions can limit that population interpretation
+and are therefore reported alongside every score.
+
+## 2. Annotate while blinded
+
+Two reviewers must use separate QuPath projects, or separate copies of the
+project data, and must not see:
+
+- `sample_key.csv`;
+- pipeline assignment overlays for sampled cells;
+- the other reviewer's calls.
+
+Run the importer on each donor image, passing the bundle's `qupath` directory:
+
+```bash
+QuPath script --project project.qpproj --image "exact image name" \
+  scripts/gold_standard/import_gold_standard.groovy \
+  --args "/absolute/path/to/data/gold_standard_v2/<run_id>/qupath"
+```
+
+In QuPath, sort detections by `gs_review_id`, inspect any channels needed, and
+set each sampled cell to one vocabulary class. Export each reviewer's results,
+passing the bundle directory and annotator ID:
+
+```bash
+QuPath script --project reviewer-A.qpproj --image "exact image name" \
+  scripts/gold_standard/export_gold_standard.groovy \
+  --args "/absolute/path/to/data/gold_standard_v2/<run_id>,A"
+```
+
+Use `B` for the second reviewer. The exporter writes separate files under
+`completed/` and refuses to overwrite an existing image/annotator file.
+Custom annotator IDs may contain only letters, numbers, `.`, `_`, and `-`.
+
+## 3. Score the frozen calls
+
+After both reviewers have exported every sampled image:
+
+```bash
+python scripts/gold_standard/score.py \
+  --bundle data/gold_standard_v2/<run_id>
+```
+
+The scorer validates the bundle fingerprints and exact
+review-ID-to-UUID mappings. It requires exactly one row per sampled cell from
+each of the two declared reviewers, and refuses to score while either reviewer
+has blank cells. Missing frozen predictions are fatal.
+
+It reports:
+
+- completion, `Unsure`, disagreement, raw agreement, and Cohen's kappa;
+- weighted prediction coverage over the full frozen sample;
+- consensus-conditional weighted accuracy with abstentions counted as uncalled;
+- consensus-conditional weighted accuracy when the pipeline makes a call;
+- weighted broad-type precision, recall, and F1;
+- per-donor coverage and accuracy;
+- raw and design-weighted confusion matrices retaining `Ambiguous` and
+  `Unavailable`.
+
+The first successful score creates `scores/` and will not overwrite it.
+`scores/score_manifest.json` fingerprints every completed annotation input and
+score output and records the bundle and source-run identities.
+
+## Bundle contents
+
+| file | purpose | reviewer access |
 |---|---|---|
-| `immune_called` | 40% | immune carries the study's conclusion and is a few percent of cells; a uniform sample would contain too few to estimate immune **precision**. Defined as CD3e/CD68/CD11b positive under *any* divisor arm — the widest net, so every candidate the pipeline could produce is eligible for review. |
-| `islet_proximal` | 25% | `dist_islet ≤ 20 µm`. The islet boundary is where the study's signal lives and where the compartments are hardest to separate. |
-| `uniform` | 35% | simple random over everything else. **This is what makes recall estimable** — without it the sample contains only cells the pipeline already called, and a population the pipeline misses entirely would score perfectly. |
+| `manifest.json` | immutable run, typing, sampling, and file provenance | yes |
+| `sample_key.csv` | UUID, stratum, weight, and frozen pipeline prediction | **no** |
+| `blinded_review_index.csv` | read-only review ID and location index | yes |
+| `qupath/gold_standard_<donor>.csv` | UUID-to-review-ID importer input | yes |
+| `completed/annotations_<reviewer>_<image>.csv` | exported human calls | respective reviewer |
+| `scores/` | immutable, fingerprinted audit summaries | only after both reviews finish |
 
-Each cell carries `weight = stratum_N / stratum_n`, so the scorer reports both the raw sample rates and
-population-weighted rates. **Quote the weighted ones**; the raw ones describe the sample, which was
-deliberately built not to look like the cohort.
-
-## Reading the result
-
-The scorer prints three blocks in order of authority:
-
-1. **Inter-annotator agreement.** If Cohen's κ < 0.6 the label definitions disagree, not just the
-   calls — fix this protocol and re-annotate. Do not quote accuracy numbers computed under a low κ.
-2. **Per-compartment precision / recall / F1** against the consensus (both annotators agree, neither
-   said `Unsure`). Disagreements are excluded and counted, never adjudicated by majority — with two
-   annotators that is just picking one — and never adjudicated against the pipeline, which would make
-   the whole measurement circular.
-3. **The confusion matrix**, which is where the errors actually go. An Epithelial cell called `Other`
-   and an Epithelial cell called `Immune` are very different failures for this study.
-
-## Files
-
-| file | contents | give to annotators? |
-|---|---|---|
-| `sample_key.csv` | review_id, donor, object_id, coordinates, stratum, weight, pipeline flags | **no** |
-| `annotation_sheet_A.csv` / `_B.csv` | review_id + location + blank label columns | yes (or use QuPath) |
-| `qupath/gold_standard_<donor>.csv` | object_id → review_id for the importer | yes |
-| `manifest.json` | seed, donors, strata, vocabulary, weighting, blinding rules | yes |
-| `completed/annotations_<who>_<image>.csv` | written by the export groovy | — |
-| `scores/` | written by `score.py` | — |
+Existing `data/gold_standard_v1` material is historical and must not be
+overwritten. If external v1 annotation has begun, preserve it and create a v2
+bundle for the current canonical cell universe.

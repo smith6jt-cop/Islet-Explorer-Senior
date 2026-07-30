@@ -1,205 +1,533 @@
 #!/usr/bin/env python3
-"""
-Score the pipeline against the manual gold standard.
+"""Score a frozen, blinded broad-cell-type audit bundle.
 
-Reports three things, in this order of authority:
-
-  1. INTER-ANNOTATOR agreement (Cohen's kappa, per-compartment agreement, unsure rate). This bounds
-     everything else — the pipeline cannot be shown to be more accurate than two humans agree the
-     truth is. If kappa is low the label definitions are the problem, not the pipeline, and the
-     accuracy numbers below should not be quoted.
-  2. PER-COMPARTMENT precision / recall / F1 of the pipeline against the consensus label, both raw
-     (over the sample) and POPULATION-WEIGHTED. The sample is stratified and over-samples immune, so
-     the raw numbers describe the sample and the weighted numbers describe the cohort. Quote the
-     weighted ones.
-  3. The confusion matrix, which is what says where the errors go — an Epithelial cell called Other
-     and an Epithelial cell called Immune are very different failures for this study.
-
-Consensus rule: the two annotators must agree. Disagreements and "Unsure" are EXCLUDED from accuracy
-and reported as a separate count — adjudicating them by majority with two annotators is just picking
-one, and adjudicating them against the pipeline would make the measurement circular.
-
-    python scripts/gold_standard/score.py
+The scorer reads only the predictions captured in ``sample_key.csv`` when the
+bundle was created. It never reruns typing and cannot change calibration,
+typing rules, configuration, or release status.
 """
 
 from __future__ import annotations
 
 import argparse
-import glob
+import hashlib
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "Phenocycler_Analysis"))
-from phenocycler.config import COMPARTMENT_ORDER, OTHER_LABEL, UNRESOLVED_LABEL   # noqa: E402
 
-LABELS = COMPARTMENT_ORDER + [OTHER_LABEL]
-VOCAB = set(LABELS) | {"Unsure"}
+from phenocycler.artifacts import sha256_json  # noqa: E402
 
 
-def load_annotations(completed: Path) -> pd.DataFrame:
-    files = sorted(glob.glob(str(completed / "annotations_*.csv")))
-    if not files:
-        raise SystemExit(f"[err] no annotations_*.csv under {completed} — nothing has been annotated yet")
-    d = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
-    bad = set(d["compartment"].dropna().unique()) - VOCAB - {""}
-    if bad:
-        raise SystemExit(f"[err] labels outside the vocabulary: {sorted(bad)}")
-    return d
+ABSTENTIONS = ("Ambiguous", "Unavailable")
+ACCEPTED_STATUSES = frozenset({"anchor", "inferred", "other"})
+STATUS_LABELS = {
+    "ambiguous": "Ambiguous",
+    "unavailable": "Unavailable",
+}
 
 
-def consensus(d: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """One row per review_id with the agreed label; plus the agreement diagnostics."""
-    wide = d.pivot_table(index=["gs_review_id", "object_id"], columns="annotator",
-                         values="compartment", aggfunc="first").reset_index()
-    who = [c for c in wide.columns if c not in ("gs_review_id", "object_id")]
-    if len(who) < 2:
-        raise SystemExit(f"[err] need two annotators, found {who}")
-    a, b = wide[who[0]].fillna(""), wide[who[1]].fillna("")
-    both = (a != "") & (b != "")
-    unsure = both & ((a == "Unsure") | (b == "Unsure"))
-    scorable = both & ~unsure
-    agree = scorable & (a == b)
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
-    diag = {
-        "n_rows": int(len(wide)),
-        "n_both_annotated": int(both.sum()),
-        "n_unsure_either": int(unsure.sum()),
-        "n_scorable": int(scorable.sum()),
-        "n_agree": int(agree.sum()),
-        "raw_agreement": float(agree.sum() / max(scorable.sum(), 1)),
-        "cohens_kappa": _kappa(a[scorable], b[scorable]),
-        "annotators": who,
+
+def _file_record(path: Path, *, root: Path) -> dict:
+    resolved = path.resolve()
+    root = root.resolve()
+    name = (
+        str(resolved.relative_to(root))
+        if resolved.is_relative_to(root)
+        else str(resolved)
+    )
+    return {
+        "path": name,
+        "size": resolved.stat().st_size,
+        "sha256": _sha256(resolved),
     }
-    out = wide.loc[agree, ["gs_review_id", "object_id"]].copy()
-    out["truth"] = a[agree].to_numpy()
-    return out, diag
+
+
+def _json_safe(value):
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, (np.floating, float)):
+        return float(value) if np.isfinite(value) else None
+    if isinstance(value, (np.integer, int)):
+        return int(value)
+    return value
+
+
+def _write_json(path: Path, value) -> None:
+    path.write_text(
+        json.dumps(_json_safe(value), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_bundle(bundle: Path) -> tuple[dict, pd.DataFrame]:
+    """Validate the immutable bundle contract and return its private key."""
+
+    bundle = bundle.expanduser().resolve()
+    manifest_path = bundle / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"audit manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    content_id = manifest.pop("content_id", None)
+    if not isinstance(content_id, str) or sha256_json(manifest) != content_id:
+        raise ValueError("audit manifest content_id is invalid")
+    manifest["content_id"] = content_id
+    if manifest.get("schema_version") != 2:
+        raise ValueError(
+            f"unsupported audit schema version {manifest.get('schema_version')!r}"
+        )
+    if manifest.get("protocol_version") != "gold-standard-broad-audit-v2":
+        raise ValueError("bundle is not a broad-audit-v2 snapshot")
+
+    for record in manifest.get("files", []):
+        relative = Path(str(record["path"]))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError(f"invalid bundle-relative path: {relative}")
+        path = (bundle / relative).resolve()
+        if not path.is_relative_to(bundle):
+            raise ValueError(f"bundle file escapes its root: {relative}")
+        if not path.is_file():
+            raise FileNotFoundError(f"contracted bundle file is missing: {relative}")
+        if (
+            path.stat().st_size != int(record["size"])
+            or _sha256(path) != record["sha256"]
+        ):
+            raise ValueError(f"contracted bundle file changed: {relative}")
+
+    key_path = bundle / "sample_key.csv"
+    key = pd.read_csv(
+        key_path,
+        dtype={"review_id": str, "donor_id": str, "object_id": str},
+    )
+    required = {
+        "review_id",
+        "donor_id",
+        "object_id",
+        "stratum",
+        "weight",
+        "pipeline_broad_type",
+        "pipeline_broad_assignment_status",
+    }
+    missing = required.difference(key.columns)
+    if missing:
+        raise KeyError(f"sample key missing columns: {sorted(missing)}")
+    if key.duplicated(["review_id"]).any():
+        raise ValueError("sample key contains duplicate review IDs")
+    if key.duplicated(["donor_id", "object_id"]).any():
+        raise ValueError("sample key contains duplicate donor/object keys")
+    weights = pd.to_numeric(key["weight"], errors="coerce")
+    if not np.isfinite(weights).all() or (weights <= 0).any():
+        raise ValueError("sample weights must be finite and positive")
+    key["weight"] = weights.astype(float)
+    return manifest, key
+
+
+def frozen_predictions(key: pd.DataFrame, broad_labels: set[str]) -> pd.Series:
+    """Translate the frozen label/status contract into scored categories."""
+
+    predictions: list[str] = []
+    for label, status in zip(
+        key["pipeline_broad_type"].astype(str),
+        key["pipeline_broad_assignment_status"].astype(str),
+    ):
+        if status in ACCEPTED_STATUSES:
+            if label not in broad_labels:
+                raise ValueError(
+                    f"accepted prediction {label!r} is outside the frozen vocabulary"
+                )
+            if (status == "other") != (label == "Other"):
+                raise ValueError(
+                    f"inconsistent frozen prediction label/status: {label!r}/{status!r}"
+                )
+            predictions.append(label)
+            continue
+        expected = STATUS_LABELS.get(status)
+        if expected is None or label != expected:
+            raise ValueError(
+                f"inconsistent frozen prediction label/status: {label!r}/{status!r}"
+            )
+        predictions.append(expected)
+    return pd.Series(predictions, index=key.index, name="predicted")
+
+
+def load_annotations(
+    completed: Path,
+    *,
+    key: pd.DataFrame,
+    annotators: tuple[str, str],
+    vocabulary: set[str],
+) -> pd.DataFrame:
+    """Load exactly one annotation row per sampled cell and annotator."""
+
+    files = sorted(completed.glob("annotations_*.csv"))
+    if not files:
+        raise FileNotFoundError(f"no annotations_*.csv under {completed}")
+    frames = [
+        pd.read_csv(
+            path,
+            dtype={
+                "annotator": str,
+                "object_id": str,
+                "gs_review_id": str,
+                "compartment": str,
+            },
+            keep_default_na=False,
+        )
+        for path in files
+    ]
+    annotations = pd.concat(frames, ignore_index=True)
+    required = {"annotator", "object_id", "gs_review_id", "compartment"}
+    missing = required.difference(annotations.columns)
+    if missing:
+        raise KeyError(f"annotation files missing columns: {sorted(missing)}")
+    annotations = annotations.rename(columns={"gs_review_id": "review_id"})
+    annotations["annotator"] = annotations["annotator"].astype(str)
+    annotations["review_id"] = annotations["review_id"].astype(str)
+    annotations["object_id"] = annotations["object_id"].astype(str)
+    annotations["compartment"] = annotations["compartment"].astype(str).str.strip()
+
+    unexpected_annotators = sorted(set(annotations["annotator"]) - set(annotators))
+    if unexpected_annotators:
+        raise ValueError(f"undeclared annotators: {unexpected_annotators}")
+    unexpected_labels = sorted(set(annotations["compartment"]) - vocabulary - {""})
+    if unexpected_labels:
+        raise ValueError(f"labels outside the frozen vocabulary: {unexpected_labels}")
+    if annotations.duplicated(["annotator", "review_id", "object_id"]).any():
+        raise ValueError("annotation files contain duplicate annotator/review/object rows")
+
+    expected_pairs = set(map(tuple, key[["review_id", "object_id"]].to_numpy()))
+    for annotator in annotators:
+        observed = annotations.loc[
+            annotations["annotator"].eq(annotator), ["review_id", "object_id"]
+        ]
+        observed_pairs = set(map(tuple, observed.to_numpy()))
+        missing_pairs = expected_pairs - observed_pairs
+        extra_pairs = observed_pairs - expected_pairs
+        if missing_pairs or extra_pairs or len(observed) != len(expected_pairs):
+            raise ValueError(
+                f"annotator {annotator!r} does not match the frozen sample: "
+                f"missing={len(missing_pairs)}, extra={len(extra_pairs)}"
+            )
+
+    mapping = key[["review_id", "object_id"]]
+    checked = annotations.merge(
+        mapping,
+        on=["review_id", "object_id"],
+        how="left",
+        validate="many_to_one",
+        indicator=True,
+    )
+    if not checked["_merge"].eq("both").all():
+        raise ValueError("annotation review IDs do not map to their frozen UUIDs")
+    return annotations
 
 
 def _kappa(a: pd.Series, b: pd.Series) -> float:
-    cats = sorted(set(a) | set(b))
-    if not cats:
+    categories = sorted(set(a) | set(b))
+    if not categories:
         return float("nan")
-    m = pd.crosstab(pd.Categorical(a, cats), pd.Categorical(b, cats), dropna=False).to_numpy(float)
-    n = m.sum()
-    po = np.trace(m) / n
-    pe = float((m.sum(0) / n * (m.sum(1) / n)).sum())
-    return float((po - pe) / (1 - pe)) if pe < 1 else float("nan")
+    matrix = pd.crosstab(
+        pd.Categorical(a, categories=categories),
+        pd.Categorical(b, categories=categories),
+        dropna=False,
+    ).to_numpy(float)
+    n = float(matrix.sum())
+    if n == 0:
+        return float("nan")
+    observed = float(np.trace(matrix) / n)
+    expected = float(
+        ((matrix.sum(axis=0) / n) * (matrix.sum(axis=1) / n)).sum()
+    )
+    return (observed - expected) / (1.0 - expected) if expected < 1 else float("nan")
 
 
-def pipeline_calls(gated_dir: Path, cells_dir: Path, epithelial_gate: str, object_ids) -> pd.DataFrame:
-    """Recompute the pipeline compartment for the reviewed cells only, from a gated-parquet directory.
+def consensus(
+    annotations: pd.DataFrame,
+    annotators: tuple[str, str],
+) -> tuple[pd.DataFrame, dict]:
+    """Retain only agreed, non-unsure labels from the two blinded annotators."""
 
-    Defaults to the PRODUCTION gated output and the gate set in ``config.COMPARTMENT_GATES`` as it
-    actually ships. That matters: the anatomy-check arms under ``data/_arm/`` were built with the old
-    7-marker gate set, so scoring against one measures a configuration that no longer exists — and
-    since ``lineage`` fails loudly on a missing ``{marker}_state``, it does not even run."""
-    from phenocycler import lineage
-    from phenocycler.config import COMPARTMENT_GATES
-    gates = dict(COMPARTMENT_GATES)
-    if epithelial_gate == "anatomy-union":
-        # The anatomy check's 4-marker comparator. NOT what production ships: the shipped Epithelial
-        # gate also carries Keratin_5 and the three hormones, and in islet core INS/GCG do most of the
-        # work (docs/GATE5_ROUND_2026-07-27.md, Finding 5). Kept only to reproduce that round.
-        gates["Epithelial"] = ["E_cadherin", "Pan_Cytokeratin", "Ker8_18", "EpCAM"]
-    want = set(map(str, object_ids))
-    files = sorted(glob.glob(str(gated_dir / "donor_id=*" / "*.parquet")))
-    if not files:
-        raise SystemExit(f"[err] no gated parquets under {gated_dir}")
+    wide = annotations.pivot(
+        index=["review_id", "object_id"],
+        columns="annotator",
+        values="compartment",
+    ).reset_index()
+    first = wide[annotators[0]].fillna("")
+    second = wide[annotators[1]].fillna("")
+    both = first.ne("") & second.ne("")
+    unsure = both & (first.eq("Unsure") | second.eq("Unsure"))
+    scorable = both & ~unsure
+    agree = scorable & first.eq(second)
+    diagnostics = {
+        "n_rows": int(len(wide)),
+        "n_both_annotated": int(both.sum()),
+        "n_unannotated_either": int((~both).sum()),
+        "n_unsure_either": int(unsure.sum()),
+        "n_scorable": int(scorable.sum()),
+        "n_agree": int(agree.sum()),
+        "n_disagree": int((scorable & ~agree).sum()),
+        "raw_agreement": (
+            float(agree.sum() / scorable.sum()) if scorable.any() else float("nan")
+        ),
+        "cohens_kappa": _kappa(first[scorable], second[scorable]),
+        "annotators": list(annotators),
+    }
+    agreed = wide.loc[agree, ["review_id", "object_id"]].copy()
+    agreed["truth"] = first[agree].to_numpy()
+    return agreed, diagnostics
+
+
+def rates(
+    truth,
+    predicted,
+    weight,
+    labels,
+) -> pd.DataFrame:
+    """Return weighted one-vs-rest metrics without hiding abstentions."""
+
+    truth = np.asarray(truth)
+    predicted = np.asarray(predicted)
+    weight = np.asarray(weight, dtype=float)
     rows = []
-    for f in files:
-        donor = Path(f).parent.name.split("=", 1)[1]
-        lineage.COMPARTMENT_GATES = gates
-        try:
-            out = lineage.assign_donor(donor, f, cells_dir)
-        finally:
-            lineage.COMPARTMENT_GATES = dict(COMPARTMENT_GATES)
-        rows.append(out.loc[out["object_id"].isin(want), ["object_id", "compartment"]])
-    return pd.concat(rows, ignore_index=True).rename(columns={"compartment": "predicted"})
+    for label in labels:
+        truth_mask = truth == label
+        predicted_mask = predicted == label
+        tp = float(weight[truth_mask & predicted_mask].sum())
+        fp = float(weight[~truth_mask & predicted_mask].sum())
+        fn = float(weight[truth_mask & ~predicted_mask].sum())
+        precision = tp / (tp + fp) if tp + fp else np.nan
+        recall = tp / (tp + fn) if tp + fn else np.nan
+        if tp == 0 and (tp + fp + fn) > 0:
+            f1 = 0.0
+        elif np.isnan(precision) or np.isnan(recall):
+            f1 = np.nan
+        else:
+            f1 = 2 * precision * recall / (precision + recall)
+        rows.append(
+            {
+                "broad_type": label,
+                "n_truth": int(truth_mask.sum()),
+                "n_predicted": int(predicted_mask.sum()),
+                "truth_weight": float(weight[truth_mask].sum()),
+                "predicted_weight": float(weight[predicted_mask].sum()),
+                "true_positive_weight": tp,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
-def rates(truth, pred, weight, labels) -> pd.DataFrame:
+def prediction_coverage(frame: pd.DataFrame) -> dict:
+    """Weighted call coverage over the full frozen audit sample."""
+
+    weight = frame["weight"].to_numpy(float)
+    called = ~frame["predicted"].isin(ABSTENTIONS).to_numpy()
+    total = float(weight.sum())
+    called_weight = float(weight[called].sum())
+    return {
+        "n_frozen_sample": int(len(frame)),
+        "weighted_sample_mass": total,
+        "weighted_coverage": called_weight / total if total else np.nan,
+        "n_ambiguous": int(frame["predicted"].eq("Ambiguous").sum()),
+        "n_unavailable": int(frame["predicted"].eq("Unavailable").sum()),
+    }
+
+
+def accuracy_summary(scored: pd.DataFrame) -> dict:
+    """Weighted accuracy over the agreed, non-unsure annotation subset."""
+
+    weight = scored["weight"].to_numpy(float)
+    called = ~scored["predicted"].isin(ABSTENTIONS).to_numpy()
+    correct = scored["truth"].eq(scored["predicted"]).to_numpy()
+    total = float(weight.sum())
+    called_weight = float(weight[called].sum())
+    return {
+        "n_consensus": int(len(scored)),
+        "weighted_consensus_mass": total,
+        "weighted_consensus_accuracy_including_abstentions": (
+            float(weight[correct].sum() / total) if total else np.nan
+        ),
+        "weighted_consensus_accuracy_when_called": (
+            float(weight[correct & called].sum() / called_weight)
+            if called_weight
+            else np.nan
+        ),
+    }
+
+
+def donor_summary(key: pd.DataFrame, scored: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    w = np.asarray(weight, float)
-    for lab in labels:
-        t, p = (np.asarray(truth) == lab), (np.asarray(pred) == lab)
-        tp, fp, fn = float(w[t & p].sum()), float(w[~t & p].sum()), float(w[t & ~p].sum())
-        prec = tp / (tp + fp) if tp + fp else np.nan
-        rec = tp / (tp + fn) if tp + fn else np.nan
-        f1 = 2 * prec * rec / (prec + rec) if prec and rec and (prec + rec) else np.nan
-        rows.append(dict(compartment=lab, n_truth=int(t.sum()), n_pred=int(p.sum()),
-                         precision=prec, recall=rec, f1=f1))
+    for donor, full_frame in key.groupby("donor_id", sort=True):
+        consensus_frame = scored.loc[scored["donor_id"].eq(donor)]
+        rows.append(
+            {
+                "donor_id": donor,
+                **prediction_coverage(full_frame),
+                **accuracy_summary(consensus_frame),
+            }
+        )
     return pd.DataFrame(rows)
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--bundle", type=Path, default=REPO / "data" / "gold_standard_v1")
-    ap.add_argument("--config", type=Path, default=REPO / "config.ini")
-    ap.add_argument("--gated-dir", type=Path, default=None,
-                    help="gated parquet dir to score (default: the production restore_gated_redsea). "
-                         "Point at data/_arm/<arm>/restore_gated_redsea to score an anatomy-check arm "
-                         "instead — but those were built with the old 7-marker gate set.")
-    ap.add_argument("--cells-dir", type=Path, default=None, help="default: the production cells dir")
-    ap.add_argument("--epithelial-gate", choices=("config", "anatomy-union"), default="config",
-                    help="'config' = the Epithelial gate as it ships (default); 'anatomy-union' = the "
-                         "anatomy check's 4-marker comparator, for reproducing that round only")
-    a = ap.parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--bundle",
+        type=Path,
+        required=True,
+        help="exact immutable bundle directory containing manifest.json",
+    )
+    args = parser.parse_args(argv)
+    bundle = args.bundle.expanduser().resolve()
 
-    from phenocycler.config import load_config
-    cfg = load_config(a.config)
-    gated_dir = Path(a.gated_dir) if a.gated_dir else cfg.restore_gated_dir
-    cells_dir = Path(a.cells_dir) if a.cells_dir else cfg.cells_dir
-    scored = "production" if a.gated_dir is None else str(gated_dir)
+    manifest, key = load_bundle(bundle)
+    annotators_raw = tuple(map(str, manifest.get("annotators", ())))
+    if len(annotators_raw) != 2 or len(set(annotators_raw)) != 2:
+        raise ValueError("bundle must declare exactly two distinct annotators")
+    annotators = (annotators_raw[0], annotators_raw[1])
+    vocabulary = set(map(str, manifest.get("vocabulary", ())))
+    if "Unsure" not in vocabulary:
+        raise ValueError("bundle vocabulary must include Unsure")
+    broad_labels = vocabulary - {"Unsure"}
 
-    key = pd.read_csv(a.bundle / "sample_key.csv", dtype={"object_id": str})
-    ann = load_annotations(a.bundle / "completed")
-    truth, diag = consensus(ann)
+    key = key.copy()
+    key["predicted"] = frozen_predictions(key, broad_labels)
+    annotations = load_annotations(
+        bundle / "completed",
+        key=key,
+        annotators=annotators,
+        vocabulary=vocabulary,
+    )
+    truth, agreement = consensus(annotations, annotators)
+    if agreement["n_unannotated_either"]:
+        raise ValueError(
+            "both reviewers must annotate every frozen sample row before scoring; "
+            f"{agreement['n_unannotated_either']} rows are incomplete"
+        )
+    if truth.empty:
+        raise ValueError("no agreed, non-unsure annotations are available to score")
+    scored = truth.merge(
+        key[
+            [
+                "review_id",
+                "object_id",
+                "donor_id",
+                "stratum",
+                "weight",
+                "predicted",
+            ]
+        ],
+        on=["review_id", "object_id"],
+        how="left",
+        validate="one_to_one",
+    )
+    if scored["predicted"].isna().any():
+        raise ValueError("a consensus cell has no frozen pipeline prediction")
+
+    coverage = prediction_coverage(key)
+    accuracy = accuracy_summary(scored)
+    overall = {**coverage, **accuracy}
+    per_donor = donor_summary(key, scored)
+    weighted = rates(
+        scored["truth"],
+        scored["predicted"],
+        scored["weight"],
+        sorted(broad_labels),
+    )
+    confusion_raw = pd.crosstab(
+        scored["truth"],
+        scored["predicted"],
+        rownames=["human_truth"],
+        colnames=["pipeline_prediction"],
+        dropna=False,
+    )
+    confusion_weighted = scored.pivot_table(
+        index="truth",
+        columns="predicted",
+        values="weight",
+        aggfunc="sum",
+        fill_value=0.0,
+        observed=False,
+    )
+    confusion_weighted.index.name = "human_truth"
+    confusion_weighted.columns.name = "pipeline_prediction"
 
     print("=" * 72)
-    print("1. INTER-ANNOTATOR AGREEMENT (this bounds every number below)")
+    print("1. BLINDED INTER-ANNOTATOR AGREEMENT")
     print("=" * 72)
-    for k, v in diag.items():
-        print(f"  {k:20s} {v}")
-    if diag["n_scorable"] and diag["cohens_kappa"] < 0.6:
-        print("\n  ** kappa < 0.6: the label definitions disagree, not just the calls. Fix the")
-        print("     protocol before quoting any accuracy number below. **")
-
-    m = truth.merge(key[["object_id", "donor", "stratum", "weight", "cell_region"]],
-                    on="object_id", how="left", validate="1:1")
-    pred = pipeline_calls(gated_dir, cells_dir, a.epithelial_gate, m["object_id"])
-    m = m.merge(pred, on="object_id", how="left")
-    missing = int(m["predicted"].isna().sum())
-    if missing:
-        print(f"\n  ** {missing} of {len(m)} reviewed cells have no pipeline call in {gated_dir} — "
-              "they are counted as Unresolved, which makes recall pessimistic. Check the donor set. **")
-    m["predicted"] = m["predicted"].fillna(UNRESOLVED_LABEL)
-
+    for name, value in agreement.items():
+        print(f"  {name:36s} {value}")
     print("\n" + "=" * 72)
-    print(f"2. PIPELINE ACCURACY — scoring {scored}, Epithelial gate = {a.epithelial_gate}")
+    print("2. FULL-SNAPSHOT COVERAGE AND CONSENSUS-CONDITIONAL ACCURACY")
     print("=" * 72)
-    print("\n-- over the sample (stratified: over-samples immune, describes the SAMPLE) --")
-    print(rates(m.truth, m.predicted, np.ones(len(m)), LABELS).round(3).to_string(index=False))
-    print("\n-- population-weighted (describes the COHORT; quote these) --")
-    weighted = rates(m.truth, m.predicted, m.weight, LABELS)
-    print(weighted.round(3).to_string(index=False))
-
+    for name, value in overall.items():
+        print(f"  {name:36s} {value}")
+    print(
+        "\nDesign-weighted estimates target only the selected donor population; "
+        "reviewer exclusions may limit that interpretation."
+    )
+    print("\n" + weighted.round(4).to_string(index=False))
     print("\n" + "=" * 72)
-    print("3. CONFUSION (rows = human truth, cols = pipeline)")
+    print("3. WEIGHTED CONFUSION (Ambiguous/Unavailable remain explicit)")
     print("=" * 72)
-    cm = pd.crosstab(m.truth, m.predicted, dropna=False)
-    print(cm.to_string())
+    print(confusion_weighted.round(3).to_string())
 
-    out = a.bundle / "scores"
-    out.mkdir(exist_ok=True)
-    tag = ("production" if a.gated_dir is None else Path(a.gated_dir).parent.name) + f"_{a.epithelial_gate}"
-    weighted.to_csv(out / f"accuracy_{tag}_weighted.csv", index=False)
-    cm.to_csv(out / f"confusion_{tag}.csv")
-    pd.Series(diag).to_csv(out / "inter_annotator.csv")
-    print(f"\n[done] {out}")
+    out = bundle / "scores"
+    if out.exists():
+        raise FileExistsError(
+            f"score output already exists and will not be overwritten: {out}"
+        )
+    out.mkdir()
+    _write_json(out / "inter_annotator.json", agreement)
+    _write_json(out / "coverage_accuracy.json", overall)
+    weighted.to_csv(out / "broad_metrics_weighted.csv", index=False)
+    per_donor.to_csv(out / "per_donor_coverage_accuracy.csv", index=False)
+    confusion_raw.to_csv(out / "confusion_raw.csv")
+    confusion_weighted.to_csv(out / "confusion_weighted.csv")
+    scored.to_csv(out / "scored_consensus.csv", index=False)
+
+    annotation_files = sorted((bundle / "completed").glob("annotations_*.csv"))
+    output_files = sorted(
+        path
+        for path in out.iterdir()
+        if path.is_file() and path.name != "score_manifest.json"
+    )
+    score_manifest = {
+        "schema_version": 1,
+        "protocol_version": "gold-standard-broad-score-v2",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "bundle_content_id": manifest["content_id"],
+        "source_run_id": manifest.get("source", {}).get("run_id"),
+        "annotation_files": [
+            _file_record(path, root=bundle) for path in annotation_files
+        ],
+        "inter_annotator": _json_safe(agreement),
+        "prediction_coverage": _json_safe(coverage),
+        "consensus_accuracy": _json_safe(accuracy),
+        "output_files": [_file_record(path, root=bundle) for path in output_files],
+    }
+    score_manifest["content_id"] = sha256_json(score_manifest)
+    _write_json(out / "score_manifest.json", score_manifest)
+    print(f"\n[done] immutable score outputs: {out}")
     return 0
 
 
