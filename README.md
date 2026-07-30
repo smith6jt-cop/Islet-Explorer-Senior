@@ -187,6 +187,21 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 
 ## Data Pipeline
 
+The upstream single-cell source workflow is now the manifest-controlled
+QuPath → geometry QC → REDSEA → donor-local marker calibration → hierarchical
+cell-typing pipeline in
+[Phenocycler_Analysis/README.md](Phenocycler_Analysis/README.md). Its canonical
+entry point is:
+
+```bash
+conda run -n scvi-env python -m phenocycler.pipeline run --config config.ini
+conda run -n scvi-env python -m phenocycler.pipeline status --config config.ini
+```
+
+That workflow writes immutable, content-addressed runs and QuPath-ready cell
+assignments. The application aggregation below consumes the resulting
+single-cell product; it does not define marker thresholds or cell identities.
+
 ```
 single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad  (2.6M cells, 31 markers)
   │
