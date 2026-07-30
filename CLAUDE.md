@@ -40,11 +40,11 @@ app/shiny_app/
     utils_safe_join.R          # safe_left_join(), add_islet_key(), compute_diameter_um()
     segmentation_helpers.R     # GeoJSON cache, build_segmentation_base_plot(), render_islet_segmentation_plot()
     drilldown_helpers.R        # PHENOTYPE_COLORS, load_islet_cells(), render_islet_drilldown_plot(), render_drilldown_summary()
-    viewer_helpers.R           # Avivator URL builders, channel config, environment detection
+    viewer_helpers.R           # Viewer backend (Avivator | TissUUmaps) URL builders, channel config, environment detection
     ai_helpers.R               # OpenAI credential loading, call_openai_chat()
     mod_plot_ui.R / mod_plot_server.R           # Plot tab (scatter, distribution, outliers, segmentation+drilldown panel)
     mod_trajectory_ui.R / mod_trajectory_server.R  # Trajectory tab (UMAP, heatmap, pseudotime, segmentation+drilldown panel)
-    mod_viewer_ui.R / mod_viewer_server.R       # Viewer tab (OME-TIFF, Avivator iframe)
+    mod_viewer_ui.R / mod_viewer_server.R       # Viewer tab (OME-TIFF iframe; ISLET_VIEWER_BACKEND=avivator|tissuumaps)
     mod_statistics_ui.R / mod_statistics_server.R  # Statistics tab (5-section narrative)
     spatial_helpers.R           # Per-donor tissue CSV loader with new.env() caching
     mod_spatial_ui.R / mod_spatial_server.R     # Spatial tab (3-panel: sidebar controls, tissue scatter, Leiden panel)
@@ -170,6 +170,17 @@ data/cells/donor_id=*/  (raw 59-marker MFI + object_id UUID, 23.3M cells)
 **Status (updated 2026-07-08):** REDSEA + RESTORE done & validated (**22 donors**); broad lineage (Step 1) done and **re-typed to 8 classes** (adds Neural←B3TUBB, Neutrophil←MPO, + a bright-CD99 Endocrine gate) via the **`Phenocycler_Analysis` submodule** — now the canonical steps-1–5 engine (`python -m phenocycler.pipeline`, driven by repo-root `config.ini` / `scripts/senior/run_pipeline.sh`). The parity gate confirmed the submodule is byte-identical to the committed `assign_broad_lineage.py`. **Next: Step 2 per-lineage subclustering.** Validation figures live under `data/` (`redsea_*`, `broad_lineage_composition.png`, `phenotype/celltype_marker_{dotplot,heatmap}.png`, `redsea_reassess/`). The app still serves the **provisional** un-QC'd labels until the Step-5 app rebuild.
 
 **Reproducible notebook (Jun 2026):** `notebooks/senior_phenotyping_redsea_restore.ipynb` runs the full pipeline end-to-end (idempotent thin orchestrator over the live `scripts/senior/*.py`) and ends with a **cell-type × marker dotplot + heatmap**. The superseded gating/clustering/Astir scripts were archived to **`archive/phenotyping_legacy/`** (see `scripts/CLAUDE.md`). App tab-by-tab capability is tracked in `app/shiny_app/docs/capability_status.md`.
+
+## Viewer backend (Avivator | TissUUmaps, Jul 2026)
+
+The Viewer tab can render through **Avivator** (default) or **TissUUmaps** — flip with
+`ISLET_VIEWER_BACKEND=tissuumaps`. TissUUmaps adds region drawing, GeoJSON import/export and
+per-cell marker overlays, and tiles images itself (no HTTP-Range requirement, so the Viewer
+also works under `shiny::runApp`). It consumes **`.tmap` projects** built per donor by
+`scripts/senior/build_tissuumaps_project.py`, which names each channel layer from the slide's
+own OME-XML — required because the cohort mixes panels (batch-1 SST@35 vs batch-2 SST@1).
+Findings, costs and the deployment recipe: [`docs/tissuumaps_evaluation.md`](docs/tissuumaps_evaluation.md);
+app wiring in `app/shiny_app/CLAUDE.md` § "Viewer Tab — pluggable backend".
 
 ## Spatial / Statistics / Trajectory / AI tabs
 

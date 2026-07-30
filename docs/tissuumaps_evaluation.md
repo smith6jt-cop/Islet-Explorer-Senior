@@ -1,0 +1,186 @@
+# TissUUmaps as a replacement for the Avivator viewer
+
+Evaluation + integration notes, July 2026. Question asked: *can the Viewer tab's Avivator
+instance be replaced with the more annotation-friendly
+[TissUUmaps](https://github.com/smith6jt-cop/TissUUmaps) fork?*
+
+**Answer: yes.** The Viewer tab is already just an `<iframe>` behind a URL builder, so the
+app-side change is small. The work is in the image-serving layer. This document records what
+was verified, what broke, and how the integration is wired.
+
+---
+
+## 1. What was verified, and on what data
+
+Everything below was exercised on **synthetic slides**, not the real cohort — `data/` and
+`/data/islet_ome_tiff/` are not present in a fresh clone (both gitignored, ~1.2 TB of
+OME-TIFFs). The synthetic slides were built to reproduce the properties that actually matter
+here: **two different panels**, real marker names in the OME-XML, pyramids as SubIFDs (as
+`raw2ometiff` writes them), and 16-bit data.
+
+| | synthetic "6539" | synthetic "6450" |
+|---|---|---|
+| channels | 59 | 58 (no CD38) |
+| DAPI / INS / SST / GCG index | 0 / 13 / 35 / 46 | 0 / 14 / **1** / 45 |
+
+Those are the real batch-1 and batch-2 layouts from `app/shiny_app/Channel_names` and
+`app/shiny_app/CLAUDE.md`. **Re-run `scripts/senior/tissuumaps_smoke_test.sh` against a real
+donor slide before trusting any of the size/time numbers below.**
+
+Verified end to end (TissUUmaps 3.2.1.14 from the fork, libvips 8.15.1, Chromium headless):
+
+- 59/58 channels detected and extracted to per-channel pyramids; both panels resolve
+  DAPI/INS/SST/GCG **by name**, so the default-on channels are correct regardless of panel.
+- The generated `.tmap` validates against `tissuumaps-schema` 1.3.
+- The server serves every route the project needs: `.tmap` → 200, `.dzi` → 200,
+  `_files/<l>/<c>_<r>.jpeg` tiles → 200, markers `.csv` → 200, regions `.geojson` → 200.
+- In a real browser: 59 layers named after their markers, exactly DAPI/INS/SST/GCG visible,
+  additive (`lighter`) blending, a correct µm scale bar, **6 islet outlines loaded from QuPath
+  GeoJSON**, and **2,400 single cells overlaid and grouped by phenotype** with per-phenotype
+  counts and colours.
+
+## 2. What broke (and why the app does not use the fork's `/slide` route)
+
+The fork's December 2025 commits add multi-channel TIFF/qptiff support to the `/slide` route.
+It works, but it cannot be used as-is for this cohort:
+
+1. **Layer names lose marker identity.** `_extract_multichannel_layers()`
+   (`tissuumaps/views.py`) names every layer `<basename>_Channel_<i>` and discards the channel
+   names that `_is_multichannel_tiff()` collected. That collection is itself broken: its
+   `re.search(r'Name="([^"]+)"', desc)` matches the OME-XML `<Image Name=...>` attribute before
+   any `<Channel Name=...>`, so channel 0 came back as `Image0` and the rest as `Channel_1…58`.
+   Observed directly:
+
+   ```
+   6539: multichannel=True n_channels=59
+      channel_names[:6] = ['Image0', 'Channel_1', 'Channel_2', ...]
+   layers → [{'name': '6539_Channel_0', ...}, ...]     names carry marker identity? False
+   ```
+
+   Positional names are *actively wrong* here, because the cohort mixes panels — SST is index
+   35 on batch-1 and index 1 on batch-2. This is the same trap `build_channel_config_b64()`
+   avoids on the Avivator side by resolving markers by name.
+
+2. **Extraction runs inside the HTTP request.** `/slide` calls
+   `_extract_multichannel_layers()` synchronously, so the first view of a 35 GB slide would
+   block a worker for the whole conversion.
+
+Both are avoided by pre-generating the pyramids offline and emitting a `.tmap` that names the
+layers — which is what `scripts/senior/build_tissuumaps_project.py` does. The fork's changes
+are confined to `_fnfilter`, the `/slide` route and `flask.standalone.addLayer` in
+`flask.js`, none of which the `.tmap` path touches, so **stock upstream TissUUmaps serves
+these projects identically** (that is why `deploy/islet-tissuumaps.container` uses the
+upstream image).
+
+Two further issues found while building the project generator, both fixed in it:
+
+3. **Regions silently fail to auto-load with >1 layer.** `regionUtils.geoJSON2regions()` opens
+   a blocking *"Multiple layers are opened. Please provide the layer index"* modal whenever
+   `tmapp.layers.length > 1`, which defeats `autoLoad` — regions stayed at 0 with no console
+   error. Stamping `properties.collectionIndex` on every feature skips the prompt entirely
+   (`copy_regions()` does this). All channel layers are pixel-aligned, so index 0 is fine.
+
+4. **Greyscale JPEG-in-TIFF is unreliable on libvips 8.15.1.** Single-band pyramid saves fail
+   with `VipsJpeg: Unsupported color conversion request` unless the image is built through
+   `.scaleimage()` *and* saved with `properties=True`. `deflate` works in every combination, so
+   the generator defaults to `--compression deflate` (lossless) and raises an actionable error
+   if a `jpeg` run hits the libvips bug.
+
+## 3. Cost of the switch
+
+- **Bit depth.** TissUUmaps layers are 8-bit; Viv renders the 16-bit data with live contrast
+  windows. The generator applies a 0.5–99.5 percentile stretch per channel and clips, so
+  channels stay mutually comparable, but this is a display proxy — **not** a substitute for the
+  quantitative pipeline.
+- **Disk.** A second copy of every channel. On synthetic data the ratio is meaningless (smooth
+  gradients compress absurdly well); the smoke test prints the real ratio when pointed at a
+  donor slide. Budget for it before converting all 22.
+- **Conversion time.** One-time, offline, idempotent (skip-if-exists), resumable.
+- **A second service.** Trades the nginx sidecar (`islet-images.container`) for the TissUUmaps
+  container. Net zero services — and the HTTP-Range requirement disappears, so the Viewer works
+  under `shiny::runApp` locally, which it currently does not.
+- **Security.** The Flask app exposes a file browser over its slide directory. The deployment
+  sets `READ_ONLY = True` and mounts the volume `:ro`.
+
+## 4. What you gain
+
+- Region drawing (free-hand, polygon, brush, rect, ellipse), rename/reclassify, boolean ops,
+  and **GeoJSON import/export** — so QuPath islet boundaries render *on the image*, and edits
+  come back out as GeoJSON.
+- Per-cell marker overlay straight from the existing CSVs (`X_centroid`, `Y_centroid`,
+  `phenotype`), millions of points, GPU-rendered, grouped and coloured by phenotype.
+- Region statistics — area, perimeter, and marker counts inside any drawn ROI, exportable as
+  CSV. That is per-islet composition on arbitrary user-drawn regions, which the drill-down can
+  only do on fixed QuPath annotations today.
+- A route to zoom-to-islet: the `.tmap` schema has a `boundingBox` key, so a future
+  `forced_image` equivalent could deep-link to a clicked islet (Avivator only ever selected the
+  file).
+
+## 5. How it is wired
+
+**Build a project per donor** (idempotent; re-run after any slide or GeoJSON change):
+
+```bash
+python scripts/senior/build_tissuumaps_project.py \
+    --image   /data/islet_ome_tiff/6539.ome.tiff \
+    --out-dir /data/tissuumaps \
+    --regions data/app_data/json/6539.geojson \
+    --markers data/app_data/cells/6539_tissue.csv
+```
+
+Writes `/data/tissuumaps/6539.tmap`, `channels/6539/<idx>_<marker>.tif`,
+`regions/6539.geojson`, `markers/6539.csv`.
+
+**Coordinate conventions** (get these wrong and everything is subtly offset — they are CLI
+flags precisely so they can be checked per donor):
+
+| input | space | flag |
+|---|---|---|
+| viewer OME-TIFF | full-res px, 0.2539 µm/px | `--um-per-px` |
+| QuPath GeoJSON | resolution #1 px (`PIXEL_SIZE_UM` = 0.5078) | `--region-scale 2.0` |
+| per-cell CSV | µm | `coord_factor = 1/--um-per-px`, set automatically |
+
+**Point the app at it** — `ISLET_VIEWER_BACKEND=tissuumaps` plus `TISSUUMAPS_URL` and
+`TISSUUMAPS_PROJECT_DIR` (see `deploy/env.sh.example`). Anything other than `tissuumaps` keeps
+Avivator, so this is a per-deployment flip, not a migration.
+
+**Serve it** — `deploy/islet-tissuumaps.container` + `deploy/tissuumaps.cfg`, and a
+`/tissuumaps/` proxy route alongside the existing app route.
+
+## 6. Re-running the verification
+
+```bash
+# Synthetic: builds both panels, 19 checks, ~2 min. Currently 19/19.
+python scripts/senior/tissuumaps_smoke_test.py
+
+# A real donor. --channels keeps the first pass quick; drop it for the full panel.
+python scripts/senior/tissuumaps_smoke_test.py \
+    --image /data/islet_ome_tiff/6539.ome.tiff \
+    --regions data/app_data/json/6539.geojson \
+    --markers data/app_data/cells/6539_tissue.csv \
+    --channels DAPI,INS,SST,GCG --keep
+
+Rscript scripts/test_viewer_helpers.R      # 14 unit tests for the R helpers
+```
+
+The smoke test builds (or reuses) a slide, runs the generator, boots `tissuumaps_server`,
+asserts every route, and drives a headless Chromium to confirm layers/regions/markers actually
+render. `--keep` leaves the server up so you can look at it. `SMOKE_SHOT=/path/shot.png` saves
+a screenshot; `CHROMIUM_PATH` overrides the browser binary.
+
+One environment gotcha seen in a Debian/Ubuntu container (not conda): importing `pyvips` pulls
+in the system `libhdf5` 1.10, which then breaks `h5py`'s bundled 2.0 with
+`ValueError: Not a datatype`. Workaround if you hit it:
+`LD_PRELOAD=$(python -c "import h5py,glob,os;print(glob.glob(os.path.join(os.path.dirname(h5py.__file__),'..','h5py.libs','libhdf5-*.so*'))[0])")`.
+
+## 7. Not done
+
+- **Never run against a real donor slide.** Every number here comes from synthetic data.
+- The container image was not exercised (no Docker daemon in the dev container); verification
+  used `tissuumaps_server` from the fork's source, which is the same Flask app the image runs
+  under gunicorn.
+- Avivator is still the default and nothing has been deleted. Removing
+  `www/avivator/`, `scripts/install_avivator.sh`, `scripts/make_offsets_json.py`, the
+  `.offsets.json` sidecars and the nginx sidecar is a follow-up, once the 8-bit rendering has
+  been eyeballed on real tissue.
+- Zoom-to-islet (`boundingBox` deep-linking) is not implemented.
