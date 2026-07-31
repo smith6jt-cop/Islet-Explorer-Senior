@@ -230,6 +230,97 @@ find_image_for_case <- function(case_id, www_dir, local_root) {
   return(NULL)
 }
 
+# ---- Viewer backend: Avivator (default) or TissUUmaps ---------------------
+# TissUUmaps is a separate Flask service (see deploy/islet-tissuumaps.container)
+# that tiles pre-generated per-channel pyramids and adds region drawing, GeoJSON
+# import/export and per-cell marker overlays. Its projects are `.tmap` files
+# built by scripts/senior/build_tissuumaps_project.py — one per donor, with the
+# channel layers named after their markers.
+#
+# Set ISLET_VIEWER_BACKEND=tissuumaps to switch the Viewer tab over. Anything
+# else (including unset) keeps Avivator, so existing deployments are unaffected.
+
+resolve_viewer_backend <- function() {
+  backend <- tolower(trimws(Sys.getenv("ISLET_VIEWER_BACKEND", "avivator")))
+  if (!nzchar(backend)) backend <- "avivator"
+  if (!backend %in% c("avivator", "tissuumaps")) {
+    warning(sprintf("Unknown ISLET_VIEWER_BACKEND '%s'; falling back to avivator", backend))
+    backend <- "avivator"
+  }
+  backend
+}
+
+VIEWER_BACKEND <- resolve_viewer_backend()
+
+#' Base URL of the TissUUmaps service.
+#'
+#' Defaults to a same-origin `/tissuumaps/` route (RC proxies it to the
+#' container, so no CORS and no mixed content). Override with TISSUUMAPS_URL,
+#' e.g. `http://127.0.0.1:5100` for local development.
+resolve_tissuumaps_base <- function() {
+  env_url <- Sys.getenv("TISSUUMAPS_URL", "")
+  if (nzchar(env_url)) return(sub("/+$", "", env_url))
+  "/tissuumaps"
+}
+
+#' Filesystem location of the `.tmap` projects, if the app can see it.
+#'
+#' Only used to populate the donor dropdown; the tiles themselves are always
+#' fetched from the TissUUmaps service, never from here.
+resolve_tissuumaps_project_dir <- function() {
+  env_dir <- Sys.getenv("TISSUUMAPS_PROJECT_DIR", "")
+  if (nzchar(env_dir) && dir.exists(env_dir)) return(env_dir)
+  candidates <- c(
+    if (!is.null(project_root)) file.path(project_root, "data", "tissuumaps"),
+    file.path("..", "..", "data", "tissuumaps")
+  )
+  for (cand in candidates) {
+    if (!is.null(cand) && dir.exists(cand)) return(cand)
+  }
+  NULL
+}
+
+#' List available TissUUmaps projects as bare case ids.
+#'
+#' Falls back to the OME-TIFF stems when the project directory isn't visible to
+#' the app (a split deployment where only the container mounts the volume) —
+#' build_tissuumaps_project.py names each project after the same case id.
+list_available_tmap_projects <- function() {
+  dir <- resolve_tissuumaps_project_dir()
+  if (!is.null(dir)) {
+    projects <- list.files(dir, pattern = "\\.tmap$", ignore.case = TRUE)
+    if (length(projects)) return(sort(sub("\\.tmap$", "", projects, ignore.case = TRUE)))
+  }
+
+  images_dir <- file.path("www", "local_images")
+  if (dir.exists(images_dir)) {
+    files <- list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
+    if (length(files)) return(sort(sub("\\.ome\\.tiff?$", "", files, ignore.case = TRUE)))
+  }
+
+  character(0)
+}
+
+#' Full iframe URL for one TissUUmaps project.
+#'
+#' TissUUmaps switches itself into embedded mode when `window != window.top`
+#' (collapses the navbar, shrinks the side menu, disables passive wheel events),
+#' so no extra query parameter is needed to make it iframe-friendly.
+build_tissuumaps_iframe_url <- function(project) {
+  if (is.null(project) || !nzchar(project)) return(NULL)
+  base <- resolve_tissuumaps_base()
+  stem <- sub("\\.tmap$", "", project, ignore.case = TRUE)
+  url <- paste0(base, "/", utils::URLencode(stem, reserved = TRUE), ".tmap")
+
+  # Projects stored in a subdirectory of the server's slide root need ?path=;
+  # TissUUmaps resolves every relative asset in the .tmap against it.
+  sub_path <- Sys.getenv("TISSUUMAPS_PROJECT_PATH", "")
+  if (nzchar(sub_path)) {
+    url <- paste0(url, "?path=", utils::URLencode(sub_path, reserved = TRUE))
+  }
+  url
+}
+
 resolve_avivator_base <- function() {
   # Phase 2: if the operator points us at a hosted Avivator instance (self-
   # hosted or the public demo), use that. Falls back to the bundled static

@@ -113,6 +113,40 @@ check) · **Statistics** (`lmerTest`/`emmeans`) · **Spatial** (DuckDB `tissue`/
 Change any input and confirm a plot updates → verifies **WebSockets** pass the proxy (if the page is
 inert, WS upgrade isn't enabled — go back to RC).
 
+## Viewer backend — optional TissUUmaps swap
+
+The Viewer defaults to **Avivator** (OME-TIFFs streamed by the nginx sidecar, HTTP Range). To
+swap in **TissUUmaps** — region drawing, GeoJSON import/export, per-cell marker overlays, and
+no Range requirement — do this instead of (not alongside) the `islet-images` sidecar:
+
+1. **Build a project per donor** on a machine that has the slides + `pyvips`:
+   ```bash
+   for c in 115 6476 6539 …; do
+     python scripts/senior/build_tissuumaps_project.py \
+       --image /pubapps/<project>/islet_ome_tiff/$c.ome.tiff \
+       --out-dir /pubapps/<project>/tissuumaps \
+       --regions data/app_data/json/$c.geojson
+   done
+   ```
+   Idempotent — a killed run resumes. Check the printed `channels:` line for the real disk
+   ratio before doing all 22, and verify one donor visually (`--keep`) first: the layers are
+   **8-bit** proxies of the 16-bit data.
+2. **Ask RC for a third proxy route**: `/tissuumaps/` → `<TM_PORT>` (same origin as the app).
+3. **Start the service:**
+   ```bash
+   cp deploy/islet-tissuumaps.container ~/.config/containers/systemd/   # edit <project>/<TM_PORT>
+   systemctl --user daemon-reload && systemctl --user enable --now islet-tissuumaps
+   curl -s -o /dev/null -w '%{http_code}\n' http://localhost:<TM_PORT>/ping     # -> 200
+   ```
+4. **Flip the app** in `deploy/env.sh`: `ISLET_VIEWER_BACKEND=tissuumaps`,
+   `TISSUUMAPS_URL=/tissuumaps`, `TISSUUMAPS_PROJECT_DIR=/pubapps/<project>/tissuumaps`, then
+   `systemctl --user restart islet-explorer`.
+
+`deploy/tissuumaps.cfg` sets `READ_ONLY = True` and the volume is mounted `:ro` — required,
+because the Flask app otherwise exposes a **writable file browser** over its slide directory.
+Users can still draw regions in the browser and download the GeoJSON. Rationale and the
+verified findings: [`docs/tissuumaps_evaluation.md`](../docs/tissuumaps_evaluation.md).
+
 ## Operating notes
 
 - **Update the app:** `git -C /pubapps/<project>/prod/islet-explorer pull && systemctl --user restart islet-explorer`.

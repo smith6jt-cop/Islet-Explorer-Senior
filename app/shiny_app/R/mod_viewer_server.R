@@ -2,14 +2,24 @@ viewer_server <- function(id, forced_image, current_tab) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # Avivator static build location is fixed for the session (file existence
-    # check) — compute once, non-reactively.
-    avivator_base <- resolve_avivator_base()
+    # Which viewer renders the pixels. Fixed for the session (env var), so read
+    # it once — every branch below is non-reactive on this value.
+    use_tissuumaps <- identical(VIEWER_BACKEND, "tissuumaps")
+    viewer_label <- if (use_tissuumaps) "TissUUmaps" else "AVIVATOR"
+
+    # Viewer base: the TissUUmaps service URL, or the Avivator static build
+    # location (a file existence check) — both fixed for the session, so
+    # compute once, non-reactively.
+    viewer_base <- if (use_tissuumaps) resolve_tissuumaps_base() else resolve_avivator_base()
     iframe_id <- ns("avivator_viewer")
     wrap_id   <- ns("viewer_wrap")
 
-    # Images available to pick from (www/local_images + LOCAL_IMAGE_ROOT).
+    # Images available to pick from. TissUUmaps picks `.tmap` projects (bare
+    # case ids); Avivator picks OME-TIFF basenames from www/local_images +
+    # LOCAL_IMAGE_ROOT.
     available_images_r <- reactive({
+      if (use_tissuumaps) return(list_available_tmap_projects())
+
       imgs <- character(0)
       images_dir <- file.path("www", "local_images")
       if (dir.exists(images_dir)) {
@@ -42,20 +52,35 @@ viewer_server <- function(id, forced_image, current_tab) {
     # changes are instead pushed into the existing iframe (see observeEvent).
     has_image_now <- reactive({
       sb <- selected_basename_r()
-      !is.null(avivator_base) && !is.null(sb) && nzchar(sb)
+      !is.null(viewer_base) && !is.null(sb) && nzchar(sb)
     })
     has_image_stable <- reactiveVal(FALSE)
     observe({ has_image_stable(isTRUE(has_image_now())) })
 
     viewer_info <- reactive({
       info <- list(
-        base = avivator_base, selection = NULL, ok = FALSE,
+        base = viewer_base, selection = NULL, ok = FALSE,
         iframe_src = NULL, image_url = NULL, image_public_url = NULL,
         image_rel = NULL, image_app_url = NULL, asset_diag = NULL, env = NULL
       )
-      if (is.null(avivator_base)) return(info)
+      if (is.null(viewer_base)) return(info)
 
       sel_basename <- selected_basename_r()
+
+      # TissUUmaps serves its own tiles, so there is no local asset to resolve:
+      # the project name is all we need to build the URL.
+      if (use_tissuumaps) {
+        if (is.null(sel_basename) || !nzchar(sel_basename)) return(info)
+        info$selection  <- sel_basename
+        info$iframe_src <- build_tissuumaps_iframe_url(sel_basename)
+        info$image_url  <- info$iframe_src
+        info$ok         <- !is.null(info$iframe_src)
+        if (VIEWER_DEBUG_ENABLED) {
+          cat("[VIEWER] backend: tissuumaps  project:", sel_basename,
+              " src:", info$iframe_src %||% "NULL", "\n")
+        }
+        return(info)
+      }
 
       rel_url <- NULL
       if (!is.null(sel_basename) && nzchar(sel_basename)) {
@@ -113,7 +138,7 @@ viewer_server <- function(id, forced_image, current_tab) {
         parts <- vapply(names(params), function(nm) sprintf("%s=%s", nm, params[[nm]]), character(1))
         query <- paste(parts, collapse = "&")
       }
-      info$iframe_src <- if (!is.null(query)) paste0(avivator_base, "?", query) else avivator_base
+      info$iframe_src <- if (!is.null(query)) paste0(viewer_base, "?", query) else viewer_base
       info$ok <- TRUE
 
       # Diagnostics only — detect_environment() and probe_viewer_asset() both
@@ -133,7 +158,7 @@ viewer_server <- function(id, forced_image, current_tab) {
     output$image_selector <- renderUI({
       tab <- current_tab()
       if (is.null(tab) || tab != "Viewer") return(NULL)
-      if (is.null(avivator_base)) return(NULL)  # missing-build message lives in viewer_frame
+      if (is.null(viewer_base)) return(NULL)  # missing-build message lives in viewer_frame
 
       available_images <- available_images_r()
       # isolate(): the selector reflects the current choice on first mount but
@@ -145,9 +170,17 @@ viewer_server <- function(id, forced_image, current_tab) {
         if (length(available_images) > 0) {
           fluidRow(
             column(12,
-              selectInput(ns("selected_image"), "Select Image:",
+              selectInput(ns("selected_image"),
+                          if (use_tissuumaps) "Select Donor:" else "Select Image:",
                           choices = available_images, selected = current_selection, width = "100%")
             )
+          )
+        } else if (use_tissuumaps) {
+          tags$div(
+            style = "padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 10px;",
+            tags$strong("No TissUUmaps projects found."),
+            " Build one per donor with ", tags$code("scripts/senior/build_tissuumaps_project.py"),
+            " and point ", tags$code("TISSUUMAPS_PROJECT_DIR"), " at the output directory."
           )
         } else {
           tags$div(
@@ -182,7 +215,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       tab <- current_tab()
       if (is.null(tab) || tab != "Viewer") return(NULL)
 
-      if (is.null(avivator_base)) {
+      if (is.null(viewer_base)) {
         return(tagList(
           tags$div(style = "color:#b00;", "Local Avivator static build not found under shiny/www/avivator."),
           tags$div(style = "color:#666; font-size:90%;",
@@ -197,7 +230,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       if (!isTRUE(ready)) {
         return(tags$div(
           style = "padding: 20px; text-align: center; color: #666;",
-          "Select an image from the dropdown above to view it in AVIVATOR."
+          sprintf("Select an image from the dropdown above to view it in %s.", viewer_label)
         ))
       }
 
@@ -205,7 +238,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       if (is.null(src0) || !nzchar(src0)) {
         return(tags$div(
           style = "padding: 20px; text-align: center; color: #666;",
-          "Select an image from the dropdown above to view it in AVIVATOR."
+          sprintf("Select an image from the dropdown above to view it in %s.", viewer_label)
         ))
       }
 
@@ -214,7 +247,13 @@ viewer_server <- function(id, forced_image, current_tab) {
         style = "position: relative;",
         tags$div(
           style = "padding: 6px 10px; background-color: #f6f8fa; color: #666; font-size: 90%; margin-bottom: 6px; border: 1px solid #e1e4e8; border-radius: 3px;",
-          "Click inside the viewer to enable pan/zoom and wheel zoom."
+          if (use_tissuumaps) {
+            paste("Click inside the viewer to enable pan/zoom and wheel zoom.",
+                  "Islet outlines load automatically; use the Regions tab to draw or export annotations,",
+                  "and the Markers tab to overlay single cells.")
+          } else {
+            "Click inside the viewer to enable pan/zoom and wheel zoom."
+          }
         ),
         tags$iframe(
           id = iframe_id, src = src0, `data-relsrc` = src0,

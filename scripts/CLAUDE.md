@@ -112,6 +112,35 @@ order (was the 35-plex Junior panel) — full detail incl. per-batch panel diffe
 **HTTP-Range (206) serving caveat** (prod nginx/shiny-server yes, dev `runApp`/httpuv no) in
 `app/shiny_app/CLAUDE.md` § "Viewer Tab (Avivator) — producing the OME-TIFFs".
 
+## TissUUmaps viewer projects (Jul 2026)
+
+`scripts/senior/build_tissuumaps_project.py` turns one donor OME-TIFF into a **TissUUmaps
+`.tmap` project** — the alternative Viewer backend (`ISLET_VIEWER_BACKEND=tissuumaps`). Per
+donor it extracts each channel to a pyramidal 8-bit TIFF under `channels/<case>/<idx>_<marker>.tif`
+(idempotent, skip-if-exists, `--force` to redo), then writes `<case>.tmap` with **layers named
+from the slide's own OME-XML** — mandatory because the cohort mixes panels (batch-1 59-ch
+SST@35 vs batch-2 58-ch SST@1), so a positional config is wrong for batch 2 — plus
+INS/GCG/SST/DAPI default-on in the Avivator colours, `compositeMode: lighter`, `mpp`, and
+optional islet-GeoJSON regions + per-cell markers.
+
+Do **not** rely on the fork's `/slide` multi-channel auto-split: it names layers
+`<file>_Channel_<i>` (marker identity lost — its OME-XML name regex matches `<Image Name=...>`
+first) and converts synchronously inside the HTTP request. Details + the two other bugs found
+(region autoLoad blocked by a layer-index prompt unless features carry
+`properties.collectionIndex`; greyscale JPEG-in-TIFF unreliable on libvips 8.15.1 → default
+`--compression deflate`) in [`docs/tissuumaps_evaluation.md`](../docs/tissuumaps_evaluation.md).
+
+**Coordinate flags matter** — slide is full-res px (`--um-per-px 0.2539`), QuPath GeoJSON is
+resolution-#1 px (`--region-scale 2.0`), per-cell CSVs are µm (`coord_factor` derived
+automatically). Verify against one donor before batch-converting.
+
+```bash
+python scripts/senior/build_tissuumaps_project.py --image /data/islet_ome_tiff/6539.ome.tiff \
+    --out-dir /data/tissuumaps --regions data/app_data/json/6539.geojson \
+    --markers data/app_data/cells/6539_tissue.csv
+python scripts/senior/tissuumaps_smoke_test.py            # 19 end-to-end checks (synthetic)
+```
+
 ## Pipeline Scripts & Notebooks
 
 - `scripts/fix_tcell_subtypes.py` - Reclassifies CD4/CD8 T cells by marker gating (CD8a/CD4 >= 0.5); `--dry-run` flag for preview
