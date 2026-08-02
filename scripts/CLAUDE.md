@@ -99,9 +99,23 @@ broad, specific, ambiguous, or unavailable QuPath class.
 ## Viewer and application assets
 
 OME-TIFF conversion and browser-specific viewer behavior are downstream
-application concerns. Keep channel order explicit, retain HTTP Range support
-in production, and follow `../app/shiny_app/CLAUDE.md` for viewer, plotting,
-reticulate, and deployment details.
+application concerns. Keep channel order explicit and follow
+`../app/shiny_app/CLAUDE.md` for viewer, plotting, reticulate, and deployment
+details.
+
+The Viewer runs on either backend (`ISLET_VIEWER_BACKEND=avivator|tissuumaps`):
+
+- `senior/build_tissuumaps_project.py` — builds the per-donor `.tmap` project,
+  naming channels from each slide's own OME-XML (the cohort mixes panels).
+- `senior/tissuumaps_smoke_test.py` — boots a server against a built project and
+  asserts every route the app depends on; `--browser` also checks rendering.
+- [`../docs/tissuumaps_evaluation.md`](../docs/tissuumaps_evaluation.md) —
+  findings, costs, and the deployment recipe.
+
+HTTP Range (206) is an **Avivator/Viv** requirement: it streams pyramid tiles by
+range, so production must serve it. TissUUmaps tiles images itself and needs no
+Range support, which is why the Viewer also works under `shiny::runApp` on that
+backend.
 
 Generated data, figures, run directories, caches, and executed notebooks stay
 out of source control.

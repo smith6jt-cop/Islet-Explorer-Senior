@@ -65,12 +65,14 @@ panel identity, and segmentation version belong in
 `data/qupath_manifest.json`. Generated results live under
 `data/runs/<run_id>/`; stages and runs are immutable and content addressed.
 
-The four notebooks are review interfaces over the production APIs:
+The six notebooks are review interfaces over the production APIs:
 
 - `01_qupath_ingest_and_geometry_qc.ipynb`
 - `02_redsea_spillover.ipynb`
 - `03_marker_calibration.ipynb`
 - `04_hierarchical_cell_typing.ipynb`
+- `05_error_aware_refinement.ipynb`
+- `06_probabilistic_validation_and_promotion.ipynb`
 
 They must not duplicate algorithms or write around stage manifests.
 
