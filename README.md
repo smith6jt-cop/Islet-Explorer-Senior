@@ -266,11 +266,10 @@ Islet-Explorer/
 │   └── www/                       # Static assets (logo, avivator/)
 ├── data/                          # Data files (see Data section)
 ├── scripts/                       # Pipeline and utility scripts
-├── islet_analysis/                # Python analysis notebooks and modules
-├── notebooks/                     # Validation notebooks (scVI QC, trajectory)
+├── islet_analysis/                # Generated islet-level H5ADs (gitignored)
+├── Phenocycler_Analysis/          # Submodule: QuPath→cell-type workflow + review notebooks
 ├── docs/
-│   ├── user_guide.md              # End-user documentation
-│   └── competitive_landscape.md
+│   └── tissuumaps_evaluation.md   # TissUUmaps viewer evaluation and deployment recipe
 └── CLAUDE.md                      # Developer reference (architecture, conventions)
 ```
 
