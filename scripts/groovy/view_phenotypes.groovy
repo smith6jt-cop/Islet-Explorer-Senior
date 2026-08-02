@@ -1,5 +1,7 @@
-// view phenotypes.groovy — show/hide detection classes on the image (QuPath 0.7).
-// Run AFTER set_broad_lineage_class.groovy has set each detection's PathClass.
+// view_phenotypes.groovy — show/hide detection classes on the image (QuPath 0.7).
+// Run AFTER Phenocycler_Analysis/scripts/groovy/import_cell_assignments.groovy.
+// Broad imports use classes such as "Immune"; specific imports use classes such
+// as "Immune - T_cell", plus "Phenocycler - Ambiguous" and "Phenocycler - Unavailable".
 // (QuPath 0.7 replaced OverlayOptions.hiddenClassesProperty() with setPathClassHidden(PathClass, boolean).)
 
 import javafx.application.Platform
@@ -22,7 +24,7 @@ def overlay = viewer.getOverlayOptions()
 // distinct, non-null detection classes (flat classes — no parent/base-class splitting)
 def classes = getDetectionObjects().collect { it.getPathClass() }.findAll { it != null }.unique()
 classes = classes.sort { it.toString() }
-if (classes.isEmpty()) { println "No classified detections. Run set_broad_lineage_class.groovy first."; return }
+if (classes.isEmpty()) { println "No classified detections. Run import_cell_assignments.groovy first."; return }
 println "Classes: ${classes.collect { it.toString() }}"
 
 // start with everything visible
@@ -33,7 +35,7 @@ Platform.runLater {
     def grid = new GridPane()
     grid.setPadding(new Insets(12)); grid.setVgap(5); grid.setHgap(10)
     int row = 0
-    grid.add(new Label("Show / hide phenotype classes"), 0, row++)
+    grid.add(new Label("Show / hide Phenocycler assignment classes"), 0, row++)
 
     def allBox = new CheckBox("All"); allBox.setSelected(true)
     grid.add(allBox, 0, row++)
@@ -58,7 +60,7 @@ Platform.runLater {
     def stage = new Stage()
     stage.initOwner(QuPathGUI.getInstance().getStage())
     stage.setScene(new Scene(new BorderPane(new ScrollPane(grid))))
-    stage.setTitle("Select classes to display")
+    stage.setTitle("Phenocycler assignment classes")
     stage.setWidth(280); stage.setHeight(360); stage.setResizable(true)
     stage.show()
 }

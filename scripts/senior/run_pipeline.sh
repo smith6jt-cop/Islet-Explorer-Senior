@@ -1,20 +1,34 @@
 #!/usr/bin/env bash
-# Run the Phenocycler_Analysis phenotyping pipeline against Islet-Explorer-Senior's data.
+# Thin convenience wrapper for the manifest-driven Phenocycler workflow.
 #
-# The pipeline engine lives in the Phenocycler_Analysis git submodule (canonical steps 1-5:
-# cells -> REDSEA -> RESTORE(+extra) -> hormone_floor -> broad lineage -> qupath -> figures).
-# Install it once into the pipeline env:
-#     pip install -e Phenocycler_Analysis        # inside `conda activate scvi-env`
-# then invoke stages, e.g.:
-#     bash scripts/senior/run_pipeline.sh --status
-#     bash scripts/senior/run_pipeline.sh --only hormone_floor lineage figures --jobs 8
+# Examples:
+#   bash scripts/senior/run_pipeline.sh
+#   bash scripts/senior/run_pipeline.sh run --jobs 8
+#   bash scripts/senior/run_pipeline.sh status
+#   bash scripts/senior/run_pipeline.sh export
 #
-# Machine-specific inputs are passed as env-var overrides so config.ini stays portable
-# (e.g. for the HiPerGator /blue/maigan paths just export the three vars before calling).
+# Set PHENOCYCLER_CONFIG to use a configuration other than the repository
+# config.ini. Raw source paths belong in the cohort manifest, not environment
+# variables consumed by this wrapper.
 set -euo pipefail
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-export PHENOCYCLER_IMAGES_DIR="${PHENOCYCLER_IMAGES_DIR:-/home/smith6jt/IO60panc2nd/Images}"
-export PHENOCYCLER_DONOR_METADATA="${PHENOCYCLER_DONOR_METADATA:-/home/smith6jt/IO60panc2nd/donor_metadata_panc.xlsx}"
-export PHENOCYCLER_CELLS_CSV="${PHENOCYCLER_CELLS_CSV:-/home/smith6jt/IO60panc2nd/Cellmeasurements.csv}"
+CONFIG="${PHENOCYCLER_CONFIG:-${REPO}/config.ini}"
+
+if [[ $# -eq 0 ]]; then
+    set -- run
+fi
+
+COMMAND="$1"
+shift
+case "$COMMAND" in
+    run|status|export)
+        ;;
+    *)
+        echo "usage: $0 [run|status|export] [pipeline arguments...]" >&2
+        exit 2
+        ;;
+esac
+
 cd "$REPO"
-exec python -m phenocycler.pipeline --config "$REPO/config.ini" "$@"
+exec python -m phenocycler.pipeline "$COMMAND" --config "$CONFIG" "$@"

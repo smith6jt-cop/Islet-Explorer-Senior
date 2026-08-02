@@ -2,7 +2,8 @@
 # Generic SLURM wrapper for one Senior-pipeline step, so long runs survive an
 # interactive session expiring. Submit any pipeline command through this:
 #
-#   sbatch scripts/senior/slurm/run_step.sbatch python scripts/senior/restore_normalize.py --cells-dir data/cells_redsea ...
+#   sbatch scripts/senior/slurm/run_step.sbatch \
+#     bash scripts/senior/run_pipeline.sh run --jobs 32
 #
 # GPU steps (scVI) get a B200; CPU steps ignore the unused GPU request. Override
 # resources per-submit, e.g.:  sbatch --time=48:00:00 --job-name=scvi run_step.sbatch python scripts/senior/train_scvi_senior.py

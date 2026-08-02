@@ -6,8 +6,8 @@ No current script produced `data/singlecell_protein_phenotyped.h5ad`, yet every 
 app-build script reads it (the old one came from the now-archived scimap typers). This
 joins `data/phenotype/broad/` (assign_broad_lineage.py output) into
 `data/singlecell_protein.h5ad` by `object_id` and writes `obs['phenotype'] =
-broad_lineage` (the 8 broad classes: Epithelial / Fibroblast / Immune / Endocrine /
-Endothelial / Muscle / Neural / Neutrophil). It ALSO bakes the REDSEA-corrected 58-marker MFI into `X` + `.raw`
+broad_lineage` (the 7 broad classes: Epithelial / Fibroblast / Immune / Endocrine /
+Endothelial / Muscle / Neural — Neutrophil/MPO folded into Immune). It ALSO bakes the REDSEA-corrected 58-marker MFI into `X` + `.raw`
 (joined by object_id from data/cells_redsea) and drops the ~27.7k zero-area NaN edge cells,
 making this file the single canonical, row-aligned input for scVI / aggregation / drill-down.
 
