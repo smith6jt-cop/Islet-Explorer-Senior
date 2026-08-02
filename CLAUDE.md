@@ -37,7 +37,6 @@ must not redefine thresholds or train the source workflow.
 
 The current source workflow is:
 
-<<<<<<< HEAD
 ```text
 QuPath cohort manifest
   -> ingest
@@ -50,33 +49,6 @@ QuPath cohort manifest
   -> parent-constrained subtype typing
   -> orthogonal state annotation
   -> uncertainty-preserving QuPath export
-=======
-## App Architecture (Modular - Feb 2026)
-
-The Shiny app lives in `app/shiny_app/` and uses a modular architecture:
-
-```
-app/shiny_app/
-  app.R                        # Entrypoint (~510 lines): UI layout, CSS, server wiring, root-level outputs
-  R/
-    00_globals.R               # Package loads, constants, feature flags, paths (h5ad_path, master_path)
-    data_loading.R             # load_master_auto(), prep_data(), bin_islet_sizes(), H5AD loading
-    utils_stats.R              # summary_stats(), per_bin_anova(), per_bin_kendall(), cohens_d(), eta_squared(), pairwise_wilcox()
-    utils_safe_join.R          # safe_left_join(), add_islet_key(), compute_diameter_um()
-    segmentation_helpers.R     # GeoJSON cache, build_segmentation_base_plot(), render_islet_segmentation_plot()
-    drilldown_helpers.R        # PHENOTYPE_COLORS, load_islet_cells(), render_islet_drilldown_plot(), render_drilldown_summary()
-    viewer_helpers.R           # Viewer backend (Avivator | TissUUmaps) URL builders, channel config, environment detection
-    ai_helpers.R               # OpenAI credential loading, call_openai_chat()
-    mod_plot_ui.R / mod_plot_server.R           # Plot tab (scatter, distribution, outliers, segmentation+drilldown panel)
-    mod_trajectory_ui.R / mod_trajectory_server.R  # Trajectory tab (UMAP, heatmap, pseudotime, segmentation+drilldown panel)
-    mod_viewer_ui.R / mod_viewer_server.R       # Viewer tab (OME-TIFF iframe; ISLET_VIEWER_BACKEND=avivator|tissuumaps)
-    mod_statistics_ui.R / mod_statistics_server.R  # Statistics tab (5-section narrative)
-    spatial_helpers.R           # Per-donor tissue CSV loader with new.env() caching
-    mod_spatial_ui.R / mod_spatial_server.R     # Spatial tab (3-panel: sidebar controls, tissue scatter, Leiden panel)
-    mod_ai_assistant_ui.R / mod_ai_assistant_server.R  # AI chat panel
-  www/                         # Static assets (images, logos)
-  app_original.R               # Backup of pre-modularization monolithic app (5,397 lines)
->>>>>>> origin/main
 ```
 
 Run it from the repository root after installing the submodule package:
@@ -137,7 +109,6 @@ provisional or stale labels into the application scripts.
 
 ## App architecture
 
-<<<<<<< HEAD
 - Entrypoint: `app/shiny_app/app.R`
 - Shared constants and state: `app/shiny_app/R/00_globals.R`
 - Data loading: `app/shiny_app/R/data_loading.R`
@@ -147,7 +118,7 @@ provisional or stale labels into the application scripts.
   `app/shiny_app/R/segmentation_helpers.R`
 - Spatial helpers: `app/shiny_app/R/spatial_helpers.R`
 - Viewer helpers: `app/shiny_app/R/viewer_helpers.R`
-=======
+
 ## Viewer backend (Avivator | TissUUmaps, Jul 2026)
 
 The Viewer tab can render through **Avivator** (default) or **TissUUmaps** — flip with
@@ -158,9 +129,6 @@ also works under `shiny::runApp`). It consumes **`.tmap` projects** built per do
 own OME-XML — required because the cohort mixes panels (batch-1 SST@35 vs batch-2 SST@1).
 Findings, costs and the deployment recipe: [`docs/tissuumaps_evaluation.md`](docs/tissuumaps_evaluation.md);
 app wiring in `app/shiny_app/CLAUDE.md` § "Viewer Tab — pluggable backend".
-
-## Spatial / Statistics / Trajectory / AI tabs
->>>>>>> origin/main
 
 App-specific UI, deployment, browser, plotting, and reticulate guidance lives
 in `app/shiny_app/CLAUDE.md`. Script-level guidance lives in
