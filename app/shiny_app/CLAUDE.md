@@ -228,6 +228,40 @@ offsets URL by `ome.tif(f)`→`offsets.json`, so the sidecar must be `<case_id>.
 `<case_id>.ome.offsets.json` — the repo's `scripts/make_offsets_json.py` produces the wrong name AND
 shape; use `generate-tiff-offsets` instead). Verified figure: `/data/islet_ome_tiff/verification_6539.png`.
 
+## Viewer Tab — pluggable backend: Avivator or TissUUmaps (Jul 2026)
+
+The Viewer renders through one of two backends, chosen by **`ISLET_VIEWER_BACKEND`**
+(`avivator`, the default — anything unrecognised falls back to it with a warning — or
+`tissuumaps`). `VIEWER_BACKEND` is resolved once in `viewer_helpers.R` and read
+non-reactively in `mod_viewer_server.R`; **all the iframe machinery below (mount-once
+`renderUI`, `has_image_stable()` flip-only `reactiveVal`, in-place `src` push) is shared** —
+only the URL builder and the dropdown source differ.
+
+**Why TissUUmaps.** Region drawing + GeoJSON import/export (QuPath islet outlines render *on
+the image*), per-cell marker overlays straight from the drill-down CSVs, and per-ROI marker
+statistics. It also tiles images itself, so the HTTP-Range requirement disappears and the
+Viewer works under `shiny::runApp` — which it does not with Avivator.
+
+**How it's wired.** TissUUmaps is a separate Flask service serving **`.tmap` projects**, one
+per donor, built offline by `scripts/senior/build_tissuumaps_project.py`:
+`build_tissuumaps_iframe_url("6539")` → `<TISSUUMAPS_URL>/6539.tmap` (default
+`/tissuumaps`, same-origin so RC proxies it; `TISSUUMAPS_PROJECT_PATH` adds `?path=` when
+projects live in a subdirectory). The dropdown lists `*.tmap` stems from
+`TISSUUMAPS_PROJECT_DIR`, falling back to the OME-TIFF stems when the app can't see that
+volume. Deployment: `deploy/islet-tissuumaps.container` + `deploy/tissuumaps.cfg`
+(`READ_ONLY = True` — the Flask app otherwise exposes a writable file browser).
+
+**The load-bearing constraint is the same as Avivator's**: the cohort **mixes panels**
+(batch-1 59-ch SST@35, batch-2 58-ch SST@1), so default-on channels must be resolved **by
+marker name**, never by index. The `.tmap` generator does that from each slide's own OME-XML.
+**Do not use the fork's `/slide` multi-channel auto-split** — it names layers
+`<file>_Channel_<i>` (marker identity lost) and converts inside the HTTP request. Full
+findings, costs (8-bit + a second copy on disk) and coordinate conventions:
+[`docs/tissuumaps_evaluation.md`](../../docs/tissuumaps_evaluation.md).
+
+Tests: `python scripts/senior/tissuumaps_smoke_test.py` (19 end-to-end checks incl. a headless
+browser) and `Rscript scripts/test_viewer_helpers.R` (14 URL/enumeration unit tests).
+
 ## Viewer Tab (Avivator) — iframe Persistence (Jun 2026)
 
 The Viewer embeds a local Avivator build (`www/avivator`, Vite bundle) in an `<iframe>` to render OME-TIFFs. Files: `mod_viewer_server.R`, `mod_viewer_ui.R`, `viewer_helpers.R`.
