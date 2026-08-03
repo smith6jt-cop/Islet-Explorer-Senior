@@ -9,8 +9,9 @@ and Mann-Whitney with no batch term.
 
 Reads ONLY each qptiff's first-page description (no pixel data), so it is safe to run against /data.
 
-Every file in --images must be named `<donor_id>_Scan1.er.qptiff`. Anything else stops the run
-rather than being parsed into a donor id or skipped.
+Cohort scans in --images are named `<donor_id>[panc]_Scan<n>.er.qptiff`. Known non-cohort material
+sharing that directory (the HDL115 lymph node) is skipped by name. Any other filename stops the run
+rather than being parsed into a donor id.
 
     python scripts/build_acquisition_batch_table.py \
         --images /path/to/Images \
@@ -37,9 +38,16 @@ from phenocycler.cohort import DONOR_EXCLUSIONS                                #
 # with a physical panel change, i.e. a real acquisition batch. Cross-checked against panel_variant below.
 BATCH2_DONORS = frozenset({"6450", "6505", "6523", "6534", "6566", "6591", "6623"})
 
-# Export naming convention: the donor ID and nothing else, then the fixed scan suffix. Anchored on
-# purpose — a partial match would silently invent a donor id out of an unrelated filename.
-QPTIFF_NAME = r"(\d+)_Scan1\.er\.qptiff"
+# Export naming. A cohort scan is the donor id, an optional tissue suffix (batch 2 was named `panc`,
+# with one `pacn` typo on 6534), then the scan number (6476 and 6579 are Scan2). The authoritative
+# donor -> filename map is the array in senior/convert_viewer_ometiff.sh. Anchored on purpose: a
+# partial match would invent a donor id out of an unrelated filename.
+QPTIFF_NAME = r"(\d+)(?:panc|pacn)?_Scan\d+\.er\.qptiff"
+
+# Known non-cohort material sharing the same image directory: HDL115pancLN is a lymph node from a
+# subject outside the cohort. Recognised and skipped by name rather than parsed — the old loose
+# pattern silently read it as donor "115".
+NON_COHORT_NAME = r"[A-Za-z0-9]*LN_Scan\d+\.er\.qptiff"
 
 
 def _first_page_description(path: str) -> str:
@@ -86,16 +94,19 @@ def main(argv=None) -> int:
     rows = []
     for f in qptiffs:
         base = os.path.basename(f)
-        m = re.fullmatch(QPTIFF_NAME, base)                 # 6450_Scan1.er.qptiff -> 6450
+        if re.fullmatch(NON_COHORT_NAME, base):
+            print(f"[skip] non-cohort sample: {base}", file=sys.stderr)
+            continue
+        m = re.fullmatch(QPTIFF_NAME, base)                 # 6450panc_Scan1.er.qptiff -> 6450
         if not m:
             # Fail closed. The previous loose pattern took the first digit run after an optional
             # alpha prefix, so it mis-parsed rather than failed: Scan1.qptiff yielded donor "1" and
             # HDL115pancLN_Scan1.er.qptiff yielded "115". Neither is a cohort donor, but both merged
             # to null metadata while counting as eligible batch1. Anchoring the whole name means an
-            # unexpected file stops the run instead of inventing a donor.
+            # unrecognised file stops the run instead of inventing a donor.
             raise SystemExit(
-                f"[err] qptiff filename does not match the expected <donor_id>_Scan1.er.qptiff "
-                f"convention: {base!r}")
+                f"[err] qptiff filename does not match the expected "
+                f"<donor_id>[panc]_Scan<n>.er.qptiff convention: {base!r}")
         desc = _first_page_description(f)
         soft = re.search(r"<AcquisitionSoftware>(.*?)</AcquisitionSoftware>", desc)
         chans = _channel_names(f)
@@ -109,6 +120,9 @@ def main(argv=None) -> int:
                                   for c in chans),
             "channels": ";".join(chans),
         })
+    if not rows:
+        raise SystemExit(f"[err] no cohort qptiff files in {a.images}; every match was non-cohort")
+
     t = pd.DataFrame(rows)
 
     meta = pd.read_excel(a.donor_metadata)[["donor_id", "disease.status"]]
