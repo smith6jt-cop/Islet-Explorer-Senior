@@ -64,8 +64,20 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=REPO / "data" / "donor_acquisition_batch.csv")
     a = ap.parse_args(argv)
 
+    # Validate the inputs up front, so a wrong path fails immediately and legibly rather than as a
+    # KeyError from merging an empty frame (no .qptiff matches leaves the DataFrame with no columns)
+    # or an unhandled FileNotFoundError from read_excel.
+    if not a.images.is_dir():
+        raise SystemExit(f"[err] --images is not a directory: {a.images}")
+    if not a.donor_metadata.is_file():
+        raise SystemExit(f"[err] --donor-metadata is not a file: {a.donor_metadata}")
+
+    qptiffs = sorted(glob.glob(str(a.images / "*.qptiff")))
+    if not qptiffs:
+        raise SystemExit(f"[err] no .qptiff files found in {a.images}")
+
     rows = []
-    for f in sorted(glob.glob(str(a.images / "*.qptiff"))):
+    for f in qptiffs:
         base = os.path.basename(f)
         m = re.match(r"(?:[A-Za-z]+)?(\d+)", base)          # HDL115pancLN_... -> 115
         if not m:
