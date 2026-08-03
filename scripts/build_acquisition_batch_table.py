@@ -9,6 +9,9 @@ and Mann-Whitney with no batch term.
 
 Reads ONLY each qptiff's first-page description (no pixel data), so it is safe to run against /data.
 
+Every file in --images must be named `<donor_id>_Scan1.er.qptiff`. Anything else stops the run
+rather than being parsed into a donor id or skipped.
+
     python scripts/build_acquisition_batch_table.py \
         --images /path/to/Images \
         --donor-metadata /path/to/donor_metadata_panc.xlsx
@@ -33,6 +36,10 @@ from phenocycler.cohort import DONOR_EXCLUSIONS                                #
 # The 2026-07 cohort expansion: 15 donors acquired first, then these 7. A separate staining/imaging run
 # with a physical panel change, i.e. a real acquisition batch. Cross-checked against panel_variant below.
 BATCH2_DONORS = frozenset({"6450", "6505", "6523", "6534", "6566", "6591", "6623"})
+
+# Export naming convention: the donor ID and nothing else, then the fixed scan suffix. Anchored on
+# purpose — a partial match would silently invent a donor id out of an unrelated filename.
+QPTIFF_NAME = r"(\d+)_Scan1\.er\.qptiff"
 
 
 def _first_page_description(path: str) -> str:
@@ -79,11 +86,16 @@ def main(argv=None) -> int:
     rows = []
     for f in qptiffs:
         base = os.path.basename(f)
-        m = re.match(r"(?:[A-Za-z]+)?(\d+)", base)          # HDL115pancLN_... -> 115
+        m = re.fullmatch(QPTIFF_NAME, base)                 # 6450_Scan1.er.qptiff -> 6450
         if not m:
-            # Fail closed: a null donor_id would read as eligible and batch1 below, silently
-            # admitting an unknown donor and bypassing the central DONOR_EXCLUSIONS.
-            raise SystemExit(f"[err] cannot parse donor id from qptiff filename: {base!r}")
+            # Fail closed. The previous loose pattern took the first digit run after an optional
+            # alpha prefix, so it mis-parsed rather than failed: Scan1.qptiff yielded donor "1" and
+            # HDL115pancLN_Scan1.er.qptiff yielded "115". Neither is a cohort donor, but both merged
+            # to null metadata while counting as eligible batch1. Anchoring the whole name means an
+            # unexpected file stops the run instead of inventing a donor.
+            raise SystemExit(
+                f"[err] qptiff filename does not match the expected <donor_id>_Scan1.er.qptiff "
+                f"convention: {base!r}")
         desc = _first_page_description(f)
         soft = re.search(r"<AcquisitionSoftware>(.*?)</AcquisitionSoftware>", desc)
         chans = _channel_names(f)
