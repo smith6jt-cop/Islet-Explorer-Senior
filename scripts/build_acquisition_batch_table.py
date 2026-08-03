@@ -9,7 +9,9 @@ and Mann-Whitney with no batch term.
 
 Reads ONLY each qptiff's first-page description (no pixel data), so it is safe to run against /data.
 
-    python scripts/build_acquisition_batch_table.py
+    python scripts/build_acquisition_batch_table.py \
+        --images /path/to/Images \
+        --donor-metadata /path/to/donor_metadata_panc.xlsx
     -> data/donor_acquisition_batch.csv
 """
 
@@ -55,21 +57,38 @@ def _channel_names(path: str) -> list[str]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--images", type=Path, default=Path("/home/smith6jt/IO60panc2nd/Images"))
-    ap.add_argument("--donor-metadata", type=Path,
-                    default=Path("/home/smith6jt/IO60panc2nd/donor_metadata_panc.xlsx"))
+    ap.add_argument("--images", type=Path, required=True,
+                    help="Directory of source .qptiff files (only first-page headers are read).")
+    ap.add_argument("--donor-metadata", type=Path, required=True,
+                    help="Excel file with donor_id and disease.status columns.")
     ap.add_argument("--out", type=Path, default=REPO / "data" / "donor_acquisition_batch.csv")
     a = ap.parse_args(argv)
 
+    # Validate the inputs up front, so a wrong path fails immediately and legibly rather than as a
+    # KeyError from merging an empty frame (no .qptiff matches leaves the DataFrame with no columns)
+    # or an unhandled FileNotFoundError from read_excel.
+    if not a.images.is_dir():
+        raise SystemExit(f"[err] --images is not a directory: {a.images}")
+    if not a.donor_metadata.is_file():
+        raise SystemExit(f"[err] --donor-metadata is not a file: {a.donor_metadata}")
+
+    qptiffs = sorted(glob.glob(str(a.images / "*.qptiff")))
+    if not qptiffs:
+        raise SystemExit(f"[err] no .qptiff files found in {a.images}")
+
     rows = []
-    for f in sorted(glob.glob(str(a.images / "*.qptiff"))):
+    for f in qptiffs:
         base = os.path.basename(f)
         m = re.match(r"(?:[A-Za-z]+)?(\d+)", base)          # HDL115pancLN_... -> 115
+        if not m:
+            # Fail closed: a null donor_id would read as eligible and batch1 below, silently
+            # admitting an unknown donor and bypassing the central DONOR_EXCLUSIONS.
+            raise SystemExit(f"[err] cannot parse donor id from qptiff filename: {base!r}")
         desc = _first_page_description(f)
         soft = re.search(r"<AcquisitionSoftware>(.*?)</AcquisitionSoftware>", desc)
         chans = _channel_names(f)
         rows.append({
-            "donor_id": m.group(1) if m else None,
+            "donor_id": m.group(1),
             "image_file": base,
             "acquisition_software": soft.group(1) if soft else None,
             "n_channels": len(chans),
@@ -85,12 +104,10 @@ def main(argv=None) -> int:
     t = t.merge(meta, on="donor_id", how="left")
     t["eligible"] = ~t["donor_id"].isin(DONOR_EXCLUSIONS)
     # Panel variant: the batch-2 CD38 <-> b-Catenin1 swap, recorded rather than inferred downstream.
-    t["panel_variant"] = (
-        "CD38" if False else t.apply(
-            lambda r: "CD38" if r.has_CD38 and not r.has_b_Catenin1
-            else ("b_Catenin1" if r.has_b_Catenin1 and not r.has_CD38
-                  else ("both" if r.has_CD38 and r.has_b_Catenin1 else "neither")), axis=1)
-    )
+    t["panel_variant"] = t.apply(
+        lambda r: "CD38" if r.has_CD38 and not r.has_b_Catenin1
+        else ("b_Catenin1" if r.has_b_Catenin1 and not r.has_CD38
+              else ("both" if r.has_CD38 and r.has_b_Catenin1 else "neither")), axis=1)
     # ACQUISITION BATCH — the covariate to analyse against. The two batches are separate staining and
     # imaging runs months apart with a physical panel change (batch 1 carries CD38, batch 2 carries
     # b-Catenin1 or neither), which is what makes them a batch rather than a label. `panel_variant`
