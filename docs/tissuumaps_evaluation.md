@@ -24,8 +24,13 @@ here: **two different panels**, real marker names in the OME-XML, pyramids as Su
 | DAPI / INS / SST / GCG index | 0 / 13 / 35 / 46 | 0 / 14 / **1** / 45 |
 
 Those are the real batch-1 and batch-2 layouts from `app/shiny_app/Channel_names` and
-`app/shiny_app/CLAUDE.md`. **Re-run `scripts/senior/tissuumaps_smoke_test.sh` against a real
+`app/shiny_app/CLAUDE.md`. **Re-run `scripts/senior/tissuumaps_smoke_test.py` against a real
 donor slide before trusting any of the size/time numbers below.**
+
+The one thing since confirmed on real data: the generator run against
+`/data/islet_ome_tiff/6539.ome.tiff` read 59 channels and resolved `INS@13, GCG@46, SST@35,
+DAPI@0` from that slide's own OME-XML — matching the synthetic batch-1 layout exactly. See § 7
+for what that run did *not* reach.
 
 Verified end to end (TissUUmaps 3.2.1.14 from the fork, libvips 8.15.1, Chromium headless):
 
@@ -66,11 +71,15 @@ It works, but it cannot be used as-is for this cohort:
    block a worker for the whole conversion.
 
 Both are avoided by pre-generating the pyramids offline and emitting a `.tmap` that names the
-layers — which is what `scripts/senior/build_tissuumaps_project.py` does. The fork's changes
-are confined to `_fnfilter`, the `/slide` route and `flask.standalone.addLayer` in
-`flask.js`, none of which the `.tmap` path touches, so **stock upstream TissUUmaps serves
-these projects identically** (that is why `deploy/islet-tissuumaps.container` uses the
-upstream image).
+layers — which is what `scripts/senior/build_tissuumaps_project.py` does.
+
+**We run the fork anyway.** The fork's changes are confined to `_fnfilter`, the `/slide` route
+and `flask.standalone.addLayer` in `flask.js`, none of which the `.tmap` path touches, so
+upstream and the fork serve these projects identically — the fork is not *required*. It is
+what we deploy because the viewer should be code we control: any fix we make there (starting
+with the two naming bugs above, if we ever want `/slide` to work) ships without waiting on
+upstream. `deploy/build_tissuumaps_image.sh` builds the image from
+`smith6jt-cop/TissUUmaps`, and `deploy/islet-tissuumaps.container` runs that image.
 
 Two further issues found while building the project generator, both fixed in it:
 
@@ -118,6 +127,26 @@ Two further issues found while building the project generator, both fixed in it:
 
 ## 5. How it is wired
 
+**Install the fork.** Everything below assumes the TissUUmaps you run is
+[`smith6jt-cop/TissUUmaps`](https://github.com/smith6jt-cop/TissUUmaps), not the PyPI release
+or the published `cavenel/tissuumaps` image.
+
+```bash
+# Local / dev — into the same env that runs the project builder.
+# Needs libvips + openslide present (pyvips and openslide-python are bindings, not
+# self-contained): apt install libvips libopenslide0, or
+# conda install -c conda-forge libvips pyvips openslide-python.
+pip install "git+https://github.com/smith6jt-cop/TissUUmaps.git@master"
+tissuumaps_server -l 127.0.0.1 -p 5100 /data/tissuumaps
+
+# Production — build the container image from the fork (~10-20 min cold; the fork's
+# Dockerfile compiles openslide 3.4.1 from source). Tags :<short-sha> and :latest.
+bash deploy/build_tissuumaps_image.sh
+```
+
+`tissuumaps_smoke_test.py` prints the version and install path of whatever TissUUmaps it
+exercises, so a run against a pip-installed upstream is visible in the log rather than assumed.
+
 **Build a project per donor** (idempotent; re-run after any slide or GeoJSON change):
 
 ```bash
@@ -144,8 +173,11 @@ flags precisely so they can be checked per donor):
 `TISSUUMAPS_PROJECT_DIR` (see `deploy/env.sh.example`). Anything other than `tissuumaps` keeps
 Avivator, so this is a per-deployment flip, not a migration.
 
-**Serve it** — `deploy/islet-tissuumaps.container` + `deploy/tissuumaps.cfg`, and a
-`/tissuumaps/` proxy route alongside the existing app route.
+**Serve it** — `deploy/islet-tissuumaps.container` (runs the fork-built
+`localhost/islet-tissuumaps:latest`) + `deploy/tissuumaps.cfg`, and a `/tissuumaps/` proxy
+route alongside the existing app route. Because the image is built locally rather than pulled,
+it must exist on the host before the unit starts, and picking up new fork commits means
+re-running the build script and restarting the service — there is no auto-update.
 
 ## 6. Re-running the verification
 
@@ -175,7 +207,12 @@ in the system `libhdf5` 1.10, which then breaks `h5py`'s bundled 2.0 with
 
 ## 7. Not done
 
-- **Never run against a real donor slide.** Every number here comes from synthetic data.
+- **Channel-name resolution is confirmed on a real slide; nothing else is.** A first run of
+  the generator against `/data/islet_ome_tiff/6539.ome.tiff` read 59 channels and resolved
+  `INS@13, GCG@46, SST@35, DAPI@0` — the batch-1 layout, straight from that slide's OME-XML.
+  The run then stopped on a missing `pyvips`, so **no real channel pyramid has been extracted
+  yet**: every size, ratio and timing figure in this document is still synthetic, and the 8-bit
+  rendering has not been eyeballed on tissue.
 - The container image was not exercised (no Docker daemon in the dev container); verification
   used `tissuumaps_server` from the fork's source, which is the same Flask app the image runs
   under gunicorn.

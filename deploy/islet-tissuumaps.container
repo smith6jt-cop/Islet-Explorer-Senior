@@ -16,12 +16,20 @@
 #
 # and ask RC for a third proxy route: /tissuumaps/ -> <TM_PORT>.
 #
-# NOTE the image below is upstream TissUUmaps. The multi-channel /slide auto-split in
-# smith6jt-cop/TissUUmaps is deliberately NOT used (it names layers <file>_Channel_<i>,
-# losing marker identity, and converts inside the HTTP request) — build_tissuumaps_project.py
-# pre-generates the pyramids and names the layers, so stock upstream serves them fine.
+# The image is built from OUR fork, smith6jt-cop/TissUUmaps — see
+# deploy/build_tissuumaps_image.sh. It must exist locally before this unit starts;
+# there is no registry to pull it from.
+#
+# What the app actually uses is the .tmap project path, which is identical on the
+# fork and upstream (the fork's changes are confined to _fnfilter, the /slide route
+# and flask.standalone.addLayer). We deliberately do NOT use the fork's /slide
+# multi-channel auto-split — it names layers <file>_Channel_<i>, losing marker
+# identity, and converts inside the HTTP request. build_tissuumaps_project.py
+# pre-generates the pyramids and names the layers instead. Running the fork means
+# any fix we make there ships without waiting on upstream.
 #
 # Install on the VM:
+#   bash deploy/build_tissuumaps_image.sh            # ~10-20 min cold (compiles openslide)
 #   mkdir -p ~/.config/containers/systemd
 #   cp deploy/islet-tissuumaps.container ~/.config/containers/systemd/
 #   # edit <project>/<TM_PORT> below, then:
@@ -33,7 +41,10 @@ Description=Islet Explorer TissUUmaps viewer (Flask, DZI tiling)
 After=local-fs.target
 
 [Container]
-Image=docker.io/cavenel/tissuumaps:latest
+# Built locally by deploy/build_tissuumaps_image.sh from smith6jt-cop/TissUUmaps.
+# That script also tags the commit (islet-tissuumaps:<short-sha>) — pin to it here
+# if you want the running service frozen to a known build rather than :latest.
+Image=localhost/islet-tissuumaps:latest
 ContainerName=islet-tissuumaps
 PublishPort=<TM_PORT>:80
 # Projects + channel pyramids + regions + markers, all read-only to the container.
@@ -42,8 +53,8 @@ Volume=/pubapps/<project>/tissuumaps:/mnt/data/shared:ro,z
 # Users can still draw regions in their browser and download the GeoJSON; they just
 # cannot write back to the server. Required for a public deployment — the Flask app
 # otherwise exposes a file browser with write access over the mounted volume.
-# The image already sets TISSUUMAPS_CONF=/tissuumaps.cfg, so mounting over that path
-# is enough; no extra Environment= line needed.
+# The fork's container/Dockerfile already sets TISSUUMAPS_CONF=/tissuumaps.cfg, so
+# mounting over that path is enough; no extra Environment= line needed.
 Volume=/pubapps/<project>/prod/islet-explorer/deploy/tissuumaps.cfg:/tissuumaps.cfg:ro,z
 
 [Install]

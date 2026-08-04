@@ -108,7 +108,10 @@ The Viewer runs on either backend (`ISLET_VIEWER_BACKEND=avivator|tissuumaps`):
 - `senior/build_tissuumaps_project.py` — builds the per-donor `.tmap` project,
   naming channels from each slide's own OME-XML (the cohort mixes panels).
 - `senior/tissuumaps_smoke_test.py` — boots a server against a built project and
-  asserts every route the app depends on; `--browser` also checks rendering.
+  asserts every route the app depends on; `--browser` also checks rendering. It
+  logs the version and install path of the TissUUmaps it exercises — that should
+  be our fork (`smith6jt-cop/TissUUmaps`), which is what the deployment runs, not
+  the PyPI release.
 - [`../docs/tissuumaps_evaluation.md`](../docs/tissuumaps_evaluation.md) —
   findings, costs, and the deployment recipe.
 

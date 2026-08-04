@@ -36,6 +36,9 @@ Podman sidecar** serves them.
 | `islet-images.container` | Podman Quadlet unit — nginx sidecar for OME-TIFFs |
 | `nginx-images.conf` | Range-capable static config for the sidecar |
 | `install_runtime_R.R` | OPTIONAL — GitHub pkgs (vitessceR/rdeck), only if needed |
+| `build_tissuumaps_image.sh` | OPTIONAL — builds the viewer image from our TissUUmaps fork |
+| `islet-tissuumaps.container` | OPTIONAL — Quadlet unit for the TissUUmaps viewer backend |
+| `tissuumaps.cfg` | OPTIONAL — read-only Flask config for that container |
 
 Placeholders to replace everywhere: `<project>` (RC service username / instance),
 `<APP_PORT>` and `<IMG_PORT>` (RC-assigned).
@@ -117,9 +120,13 @@ inert, WS upgrade isn't enabled — go back to RC).
 
 The Viewer defaults to **Avivator** (OME-TIFFs streamed by the nginx sidecar, HTTP Range). To
 swap in **TissUUmaps** — region drawing, GeoJSON import/export, per-cell marker overlays, and
-no Range requirement — do this instead of (not alongside) the `islet-images` sidecar:
+no Range requirement — do this instead of (not alongside) the `islet-images` sidecar.
 
-1. **Build a project per donor** on a machine that has the slides + `pyvips`:
+The TissUUmaps we run is **our fork, [smith6jt-cop/TissUUmaps](https://github.com/smith6jt-cop/TissUUmaps)**,
+built locally — not the PyPI release or the published `cavenel/tissuumaps` image.
+
+1. **Build a project per donor** on a machine that has the slides + `pyvips`
+   (`pip install "pyvips[binary]"`, or system `libvips` + `pip install pyvips`):
    ```bash
    for c in 115 6476 6539 …; do
      python scripts/senior/build_tissuumaps_project.py \
@@ -132,13 +139,19 @@ no Range requirement — do this instead of (not alongside) the `islet-images` s
    ratio before doing all 22, and verify one donor visually (`--keep`) first: the layers are
    **8-bit** proxies of the 16-bit data.
 2. **Ask RC for a third proxy route**: `/tissuumaps/` → `<TM_PORT>` (same origin as the app).
-3. **Start the service:**
+3. **Build the image from the fork** — there is no registry to pull it from, so this must
+   succeed before the unit will start:
+   ```bash
+   bash deploy/build_tissuumaps_image.sh          # ~10-20 min cold: compiles openslide 3.4.1
+   # TISSUUMAPS_REF=<sha> pins a commit; the script also tags islet-tissuumaps:<short-sha>
+   ```
+4. **Start the service:**
    ```bash
    cp deploy/islet-tissuumaps.container ~/.config/containers/systemd/   # edit <project>/<TM_PORT>
    systemctl --user daemon-reload && systemctl --user enable --now islet-tissuumaps
    curl -s -o /dev/null -w '%{http_code}\n' http://localhost:<TM_PORT>/ping     # -> 200
    ```
-4. **Flip the app** in `deploy/env.sh`: `ISLET_VIEWER_BACKEND=tissuumaps`,
+5. **Flip the app** in `deploy/env.sh`: `ISLET_VIEWER_BACKEND=tissuumaps`,
    `TISSUUMAPS_URL=/tissuumaps`, `TISSUUMAPS_PROJECT_DIR=/pubapps/<project>/tissuumaps`, then
    `systemctl --user restart islet-explorer`.
 
@@ -146,6 +159,10 @@ no Range requirement — do this instead of (not alongside) the `islet-images` s
 because the Flask app otherwise exposes a **writable file browser** over its slide directory.
 Users can still draw regions in the browser and download the GeoJSON. Rationale and the
 verified findings: [`docs/tissuumaps_evaluation.md`](../docs/tissuumaps_evaluation.md).
+
+**Updating the viewer** is manual by design: a locally-built image never auto-updates. To pick
+up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
+`systemctl --user restart islet-tissuumaps`.
 
 ## Operating notes
 

@@ -294,6 +294,20 @@ def main() -> int:
               f"batch-1 SST@{names.index('SST')} vs batch-2 SST@{idx.get('SST')}")
 
     # -- server -------------------------------------------------------------
+    # Report which build is under test. The deployment runs our fork
+    # (smith6jt-cop/TissUUmaps), so a run against a pip-installed upstream is
+    # testing something other than what ships -- make that visible in the log
+    # rather than leaving it to be inferred.
+    try:
+        import tissuumaps as _tm
+
+        # There is no __version__; the package exposes tissuumaps_version and
+        # stashes the same string in app.config["VERSION"].
+        version = getattr(_tm, "tissuumaps_version", None) or _tm.app.config.get("VERSION", "?")
+        log(f"TissUUmaps {version} from {Path(_tm.__file__).parent}")
+    except ImportError:
+        log("TissUUmaps not importable here; relying on tissuumaps_server from PATH")
+
     port = free_port()
     base = f"http://127.0.0.1:{port}"
     log(f"Starting tissuumaps_server on {port}")
