@@ -129,6 +129,8 @@ per-cell marker overlays, and tiles images itself (no HTTP-Range requirement, so
 also works under `shiny::runApp`). It consumes **`.tmap` projects** built per donor by
 `scripts/senior/build_tissuumaps_project.py`, which names each channel layer from the slide's
 own OME-XML — required because the cohort mixes panels (batch-1 SST@35 vs batch-2 SST@1).
+The server we run is **our fork, `smith6jt-cop/TissUUmaps`**, built locally by
+`deploy/build_tissuumaps_image.sh` (no registry pull, no auto-update).
 Findings, costs and the deployment recipe: [`docs/tissuumaps_evaluation.md`](docs/tissuumaps_evaluation.md);
 app wiring in `app/shiny_app/CLAUDE.md` § "Viewer Tab — pluggable backend".
 

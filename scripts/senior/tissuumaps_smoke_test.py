@@ -294,6 +294,28 @@ def main() -> int:
               f"batch-1 SST@{names.index('SST')} vs batch-2 SST@{idx.get('SST')}")
 
     # -- server -------------------------------------------------------------
+    # Report which build is under test. The deployment runs our fork
+    # (smith6jt-cop/TissUUmaps), so a run against a pip-installed upstream is
+    # testing something other than what ships -- make that visible in the log
+    # rather than leaving it to be inferred.
+    # This banner is diagnostics, never a gate: importing tissuumaps drags in
+    # pyvips/h5py/openslide and can fail with things that are not ImportError
+    # (a mismatched libhdf5 raises ValueError, for one -- see § 6 of
+    # docs/tissuumaps_evaluation.md). The server runs out of process, so a
+    # failure here says nothing about whether the run can proceed.
+    try:
+        import tissuumaps as _tm
+
+        # There is no __version__; the package exposes tissuumaps_version and
+        # stashes the same string in app.config["VERSION"].
+        version = getattr(_tm, "tissuumaps_version", None)
+        if not version:
+            version = getattr(_tm, "app", None) and _tm.app.config.get("VERSION")
+        log(f"TissUUmaps {version or '?'} from {Path(_tm.__file__).parent}")
+    except Exception as exc:  # noqa: BLE001 - banner must never fail the run
+        log(f"could not identify the installed TissUUmaps ({type(exc).__name__}: {exc}); "
+            f"using tissuumaps_server from PATH")
+
     port = free_port()
     base = f"http://127.0.0.1:{port}"
     log(f"Starting tissuumaps_server on {port}")
