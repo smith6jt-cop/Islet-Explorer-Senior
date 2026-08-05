@@ -447,23 +447,34 @@ def main() -> int:
     # the synthetic background grew an asymmetric tail.
     hit = next((s for s in slides if case_of(s[0]) == primary), None)
     if hit is not None:
-        def report(floor_k: str) -> str:
+        def report(floor_k: str) -> tuple[str, str]:
+            """(verdict, detail) from a --report run, or ('error', why).
+
+            The builder's exit status and stderr are surfaced rather than
+            dropped: a report that failed to run produces no verdict line, and
+            without this the assertions below would report a stretch problem
+            when the real fault was a missing dependency or a CLI regression.
+            """
             cmd = [sys.executable, str(BUILDER), "--image", str(hit[0]),
                    "--out-dir", str(projects), "--report", "--signal-floor-k", floor_k]
             if args.channels:
                 cmd += ["--channels", args.channels]
-            return subprocess.run(cmd, capture_output=True, text=True).stdout
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            line = next((ln for ln in proc.stdout.splitlines() if "VERDICT:" in ln), None)
+            if proc.returncode != 0 or line is None:
+                return "error", (proc.stderr.strip().splitlines() or ["no output"])[-1][:160]
+            verdict, _, detail = line.split("VERDICT:", 1)[1].strip().partition(" - ")
+            return verdict, detail
 
-        good, old = report("20"), report("3")
-        check("stretch does not blow out the markers",
-              "clip under 5%" in good,
-              [ln for ln in good.splitlines() if "channel(s) clip" in ln
-               or "channels clip" in ln][-1:][0].replace("[tmap] ", "")
-              if "clip" in good else "no verdict line")
-        check("that check can fail (old floor is caught)",
-              "BLOWN OUT" in old,
-              "old signal floor flagged" if "BLOWN OUT" in old
-              else "fixture too easy -- the check proves nothing")
+        good_v, good_d = report("20")
+        old_v, old_d = report("3")
+        check("stretch does not blow out the markers", good_v == "ok",
+              good_d if good_v != "error" else f"report failed: {good_d}")
+        # Without this second direction the first check would also pass on a
+        # fixture too easy to fail on -- which is what the synthetic slides were
+        # until they grew an asymmetric background tail and rare bright markers.
+        check("that check can fail (old floor is caught)", old_v == "blown-out",
+              old_d if old_v != "error" else f"report failed: {old_d}")
     for rel in (r["path"] for r in tmap.get("regionFiles", [])):
         if hit is None:
             break

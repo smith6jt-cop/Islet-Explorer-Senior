@@ -316,7 +316,16 @@ def _clip_of_bright(counts, mode: int, sigma: float, hi: int, sat_bin: int) -> f
     "Unambiguously bright" is fixed at mode + 40 sigma so the answer does not
     move with the estimator's own parameters. Returns 0.0 when the channel has
     no such population -- there is nothing to blow out.
+
+    Also returns 0.0 when there is no usable sigma. ``--stretch percentile`` has
+    no background model and reports sigma = 0, which would collapse the
+    reference to the mode itself and turn this into "how much of everything
+    above the background peak is white" -- a different and much larger number
+    presented under the same name. Undefined is reported as undefined; callers
+    key their warnings off the robust stretch.
     """
+    if sigma <= 0:
+        return 0.0
     ref = int(min(mode + 40.0 * sigma, sat_bin - 1))
     bright = int(counts[ref + 1: sat_bin].sum())
     if bright <= 0:
@@ -971,18 +980,25 @@ def main() -> int:
                 flags.append("dark")
             if st.get("sat", 0) > 0.1:
                 flags.append(f"{st['sat']:.1f}% detector-saturated")
-            if st.get("clip_signal", 0) > 5.0:
+            if args.stretch == "robust" and st.get("clip_signal", 0) > 5.0:
                 flags.append("BLOWN OUT")
                 worst.append((st["clip_signal"], name))
             log(f"{name:<22}{st['mode']:>8}{st['sigma']:>7.0f}{st['lo']:>8}{st['hi']:>8}"
                 f"{st['signal']:>10.3f}{st.get('clip_signal', 0):>11.1f}  {', '.join(flags)}")
-        if worst:
+        # A single machine-readable verdict line, so callers (the smoke test)
+        # match on a stable token instead of grepping prose that also appears in
+        # the table header.
+        if args.stretch != "robust":
+            log(f"VERDICT: not-applicable - clipped % needs the robust stretch's "
+                f"background model ({args.stretch} reports no sigma)")
+        elif worst:
             worst.sort(reverse=True)
-            log(f"{len(worst)} channel(s) clip more than 5% of their own signal; worst: "
+            log(f"VERDICT: blown-out - {len(worst)} of {len(keep)} channel(s) clip more "
+                f"than 5% of their own signal; worst: "
                 + ", ".join(f"{n} ({c:.0f}%)" for c, n in worst[:5]))
             log("raise --signal-floor-k if the background tail is being counted as signal")
         else:
-            log(f"all {len(keep)} channels clip under 5% of their own signal")
+            log(f"VERDICT: ok - all {len(keep)} channels clip under 5% of their own signal")
         return 0
 
     key = extraction_key(args)
