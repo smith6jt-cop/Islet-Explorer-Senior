@@ -79,12 +79,39 @@ DEFAULT_ON = {
     "DAPI": "50,50,50",    # dim grey, so nuclei don't wash out the markers
 }
 
-# Every other channel gets this explicitly. 100,100,100 is a no-op, i.e. plain
-# greyscale -- the point is that no layer is ever left without a Color entry,
-# so switching one on can never land on a stale or black picker value.
-NEUTRAL_COLOR = "100,100,100"
+# Every other channel gets its own hue from marker_color(). The former
+# behaviour -- "100,100,100", a no-op, i.e. plain greyscale -- meant switching on
+# a fifth marker produced WHITE. Under additive blending white is the worst
+# possible choice: it lands on all three components at once, so it both washes
+# out whatever else is on and is indistinguishable from any other extra channel,
+# forcing a manual colour pick every single time.
+#
+# The colours are derived from the marker NAME rather than drawn at random or
+# taken from the channel's index:
+#
+#   * A random colour differs on every rebuild, so a screenshot can't be
+#     compared with the live viewer, and nothing stops it landing on near-black
+#     -- the exact invisible-layer failure fixed earlier in this file.
+#   * An index-based colour is worse than random here, because the cohort mixes
+#     panels: CD68 sits at a different index on batch-1 and batch-2 slides, so
+#     the same marker would render in different colours on different donors.
+#
+# Hashing the name gives one stable colour per marker across every donor, panel
+# and rebuild. Full saturation and value put the largest component at 100, so no
+# generated colour can be dim. Two markers can still land on nearby hues; the
+# picker remains available per layer.
+def marker_color(name: str) -> str:
+    """Stable, fully-lit Color filter value for a channel with no assigned one."""
+    import colorsys
+    import hashlib
 
-# Filter controls offered per layer, and their neutral starting values.
+    digest = hashlib.md5(name.strip().upper().encode()).hexdigest()
+    hue = int(digest[:8], 16) / 0xFFFFFFFF
+    r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+    return f"{round(r * 100)},{round(g * 100)},{round(b * 100)}"
+
+
+# Filter controls offered per layer, and their starting values.
 #
 # NB "Min"/"Max" -- 0-255 black/white-point sliders, the closest thing
 # TissUUmaps has to Avivator's contrast limits -- are deliberately NOT used.
@@ -95,11 +122,13 @@ NEUTRAL_COLOR = "100,100,100"
 # reads the other's *global* default rather than the sibling layer value
 # (filterUtils.getFilterParams returns _filters[name].params).
 #
-# Everything starts neutral on purpose: the contrast decision that matters is
-# the percentile stretch applied during extraction on the full-resolution
-# 16-bit page, where there is far more signal than in these 8-bit proxies.
+# Brightness and Contrast start neutral on purpose: the contrast decision that
+# matters is the stretch applied during extraction on the full-resolution 16-bit
+# page, where there is far more signal than in these 8-bit proxies. Color does
+# NOT start neutral -- see marker_color() above for why a no-op (white) default
+# is the wrong choice under additive blending.
 FILTER_DEFAULTS = [
-    ("Color", None),        # filled in per layer
+    ("Color", None),        # per layer: DEFAULT_ON, else marker_color(name)
     ("Brightness", 0),      # slider range -50..50, 0 = no change
     ("Contrast", 1),        # slider range 0..8,    1 = no change
 ]
@@ -681,12 +710,13 @@ def build_project(
         layers.append({"name": name, "tileSource": rel})
         opacities[str(idx)] = 1.0
         visibilities[str(idx)] = False
-        # Explicit neutral start for EVERY layer, not just the visible ones: a
-        # channel switched on later must never come up black or carry a value
-        # left over from another layer's picker.
+        # Explicit colour for EVERY layer, not just the visible ones: a channel
+        # switched on later must come up in its own distinguishable hue, never
+        # black, never white, and never a value left over from another layer's
+        # picker. DEFAULT_ON overwrites its four below.
         filters[str(idx)] = [
-            {"name": name, "value": NEUTRAL_COLOR if value is None else value}
-            for name, value in FILTER_DEFAULTS
+            {"name": fname, "value": marker_color(name) if value is None else value}
+            for fname, value in FILTER_DEFAULTS
         ]
 
     matched = []
@@ -699,6 +729,23 @@ def build_project(
         visibilities[str(idx)] = True
         filters[str(idx)][0]["value"] = color
     log(f"default-on channels: {', '.join(matched) if matched else 'NONE'}")
+
+    # Hues are hashed from the marker name, so a pair can land on the same
+    # rounded value. The picker's 0-100 integer scale affords only ~600 fully
+    # saturated colours, so with a panel this size a couple of collisions are a
+    # birthday effect, not a defect -- and they only matter when both channels
+    # are on together. Report them rather than leaving someone to wonder why two
+    # layers look alike.
+    seen: dict[str, list[str]] = {}
+    for idx, name in enumerate(channels):
+        seen.setdefault(filters[str(idx)][0]["value"], []).append(name)
+    clashes = {c: ns for c, ns in seen.items() if len(ns) > 1}
+    if clashes:
+        log(f"note: {len(clashes)} colour(s) shared by more than one channel "
+            f"({sum(len(n) for n in clashes.values())} of {len(channels)}); "
+            f"change one in the layer's picker if you view them together")
+        for colour, ns in sorted(clashes.items()):
+            log(f"      {colour:>12}  {', '.join(ns)}")
 
     project: dict = {
         "schemaVersion": SCHEMA_VERSION,

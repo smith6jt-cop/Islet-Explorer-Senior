@@ -364,7 +364,8 @@ def main() -> int:
         proc = subprocess.run(cmd, capture_output=True, text=True)
         tail = [ln for ln in proc.stdout.splitlines()
                 if any(k in ln for k in ("channels:", "regions:", "markers:", "default-on",
-                                         "schema", "-> index", "WARNING", "ERROR"))]
+                                         "schema", "-> index", "note:", "WARNING",
+                                         "ERROR"))]
         for ln in tail:
             print("   ", ln)
         if not check(f"build {image.name}", proc.returncode == 0,
@@ -384,7 +385,23 @@ def main() -> int:
     check("default-on channels resolved by name",
           set(visible) <= {"DAPI", "INS", "SST", "GCG"} and len(visible) > 0,
           ", ".join(sorted(visible)))
-    check("additive blending", tmap["compositeMode"] == "lighter")
+    # "lighter" is canvas' additive operator, and additive-with-clamp is exactly
+    # how QuPath composites fluorescence channels -- verified in Chromium against
+    # a clamped-sum reference: of source-over/lighter/screen/multiply/darken/
+    # overlay/color-dodge/difference/luminosity, only lighter reproduced it.
+    # TissUUmaps' own default is source-over, which shows the top layer ONLY.
+    check("additive blending (QuPath-equivalent)", tmap["compositeMode"] == "lighter")
+
+    # Every layer must come up in its own visible colour. White is as bad as
+    # black here: under additive blending it lands on all three components, so
+    # switching on a fifth marker both washes out the others and is
+    # indistinguishable from switching on any other.
+    colors = {layer["name"]: tmap["layerFilters"][str(i)][0]["value"]
+              for i, layer in enumerate(tmap["layers"])}
+    unusable = {n: c for n, c in colors.items() if c in ("100,100,100", "0,0,0")}
+    check("no layer starts white or black", not unusable, str(unusable) or f"{len(colors)} layers")
+    lit = all(max(int(v) for v in c.split(",")) >= 50 for c in colors.values())
+    check("every layer colour is fully lit", lit)
 
     # Reduced pyramid levels must stay photometrically consistent with level 0.
     # Downsampling averages, so a level's mean can drift a little (edges, and
@@ -429,6 +446,19 @@ def main() -> int:
         check("batch-2 panel resolves independently",
               idx.get("SST") != names.index("SST") if "SST" in idx else False,
               f"batch-1 SST@{names.index('SST')} vs batch-2 SST@{idx.get('SST')}")
+
+        # The reason layer colours are hashed from the marker NAME rather than
+        # its index: the two panels order markers differently, so an index-based
+        # colour would render the same marker differently on different donors.
+        # This is the one check that can prove it, because it is the only place
+        # two panels exist side by side.
+        other_colors = {layer["name"]: other["layerFilters"][str(i)][0]["value"]
+                        for i, layer in enumerate(other["layers"])}
+        shared = set(colors) & set(other_colors)
+        drifted = {n for n in shared if colors[n] != other_colors[n]}
+        check("colours are stable across panels", not drifted,
+              f"{len(shared)} shared markers"
+              + (f", drifted: {sorted(drifted)}" if drifted else ""))
 
     # -- server -------------------------------------------------------------
     # Report which build is under test. The deployment runs our fork
