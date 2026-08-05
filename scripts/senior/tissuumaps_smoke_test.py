@@ -160,6 +160,31 @@ def find_region_source(spec: Path | None, case_id: str) -> Path | None:
     return hits[0] if hits else None
 
 
+def pyramid_level_means(tif: Path) -> list[float]:
+    """Mean pixel value of each pyramid level, read the way the server reads it.
+
+    Via libvips (libtiff), i.e. the same decoder family OpenSlide uses to cut
+    tiles -- so this measures what viewers actually get, not what a second
+    decoder thinks the file says.
+    """
+    import numpy as np
+    import pyvips
+
+    means, page = [], 0
+    while True:
+        try:
+            v = pyvips.Image.new_from_file(str(tif), page=page)
+        except Exception:  # noqa: BLE001 - ran off the end of the directory list
+            break
+        arr = np.ndarray(buffer=v.write_to_memory(), dtype=np.uint8,
+                         shape=(v.height, v.width))
+        means.append(float(arr.mean()))
+        if v.width <= 256 and v.height <= 256:
+            break
+        page += 1
+    return means
+
+
 def read_geojson(path: Path):
     """Load a GeoJSON, gzipped or not."""
     if path.suffix == ".gz":
@@ -356,6 +381,23 @@ def main() -> int:
           set(visible) <= {"DAPI", "INS", "SST", "GCG"} and len(visible) > 0,
           ", ".join(sorted(visible)))
     check("additive blending", tmap["compositeMode"] == "lighter")
+
+    # Reduced pyramid levels must stay photometrically consistent with level 0.
+    # Downsampling averages, so a level's mean can drift a little (edges, and
+    # clipping at the white point) but cannot climb: libvips' default horizontal
+    # predictor silently corrupted every reduced level, which reads as the
+    # background lifting off black as you zoom out while full zoom looks
+    # perfect. Nothing in the .tmap or the HTTP routes can catch that -- only
+    # the pixels can.
+    for ch_path in sorted((projects / "channels" / primary).glob("*.tif"))[:4]:
+        means = pyramid_level_means(ch_path)
+        if len(means) < 2:
+            check(f"{ch_path.name} has reduced levels", False, "single level")
+            continue
+        base = max(1.0, means[0])
+        worst = max(abs(m - means[0]) / base for m in means[1:])
+        check(f"{ch_path.name} levels consistent with level 0",
+              worst < 0.35, "means " + ", ".join(f"{m:.1f}" for m in means))
 
     # Regions are exported from QuPath at a downsampled pyramid level, so the
     # builder rescales them. Getting that wrong is a silent misalignment, not an

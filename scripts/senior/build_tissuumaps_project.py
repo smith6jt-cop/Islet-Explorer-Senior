@@ -136,8 +136,53 @@ DEFAULT_UM_PER_PX = 0.2539
 DEFAULT_REGION_UM_PER_PX = 0.5078
 
 
+# Bumped whenever a change alters the PIXELS a channel extraction produces, so
+# that already-extracted channels are recognised as stale instead of being
+# reused forever. The slide's mtime cannot carry this: the input is unchanged,
+# the code is not.
+#   1  initial percentile stretch
+#   2  percentiles measured on the full-res page, LUT applied with rounding,
+#      background-anchored robust stretch became the default
+#   3  predictor="none" -- libvips' default corrupted every reduced pyramid level
+EXTRACTION_VERSION = 3
+
+# Name of the per-case record of how each channel was extracted.
+EXTRACTION_MANIFEST = "extraction.json"
+
+
 def log(msg: str) -> None:
     print(f"[tmap] {msg}", flush=True)
+
+
+def extraction_key(args) -> dict:
+    """Everything about this run that changes a channel's output pixels."""
+    return {
+        "version": EXTRACTION_VERSION,
+        "compression": args.compression,
+        "quality": args.quality if args.compression == "jpeg" else None,
+        "stretch": args.stretch,
+        "percentiles": args.percentiles if args.stretch == "percentile" else None,
+        "background_k": args.background_k if args.stretch == "robust" else None,
+        "signal_quantile": args.signal_quantile if args.stretch == "robust" else None,
+    }
+
+
+def load_manifest(ch_dir: Path) -> dict:
+    try:
+        with open(ch_dir / EXTRACTION_MANIFEST) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_manifest(ch_dir: Path, manifest: dict) -> None:
+    """Rewrite the manifest atomically after each channel, so a killed run keeps
+    an accurate record of exactly what it finished."""
+    ch_dir.mkdir(parents=True, exist_ok=True)
+    tmp = ch_dir / (EXTRACTION_MANIFEST + ".part")
+    with open(tmp, "w") as fh:
+        json.dump(manifest, fh, indent=2, sort_keys=True)
+    tmp.replace(ch_dir / EXTRACTION_MANIFEST)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +386,12 @@ def extract_channel(
     """
     import pyvips
 
+    # The mtime test alone only knows whether the SLIDE changed. It cannot see
+    # that the extraction code did, which has now twice meant a cached file was
+    # served from superseded logic (the shrunk-histogram percentiles, then the
+    # predictor corruption) with nothing in the run to say so. `force` therefore
+    # also carries "the recorded settings no longer match this run" -- see
+    # extraction_key() and the manifest in main().
     if out_file.exists() and not force:
         if out_file.stat().st_mtime >= image.stat().st_mtime:
             return None
@@ -401,6 +452,28 @@ def extract_channel(
                   compression=compression, bigtiff=True, properties=True)
     if compression == "jpeg":
         kwargs["Q"] = quality
+    elif compression in ("deflate", "lzw"):
+        # libvips 8.15.1 writes CORRUPT REDUCED PYRAMID LEVELS when the
+        # horizontal predictor is on -- which is its default for deflate and
+        # lzw. Level 0 is always right, so the damage is invisible at full zoom
+        # and total at every zoom-out. On a sparse 1%-bright test image whose
+        # true mean is 2.00 at every level, the written levels read 2.00 / 9.65
+        # / 32.69; on a real DAPI channel, 28.0 / 77.0 / 96.0 / 112.5 / 123.7
+        # against true block means of 28.0 / 27.5 / 27.0 / 26.0 / 24.9. Both
+        # libtiff and tifffile decode those values identically, so the pixels
+        # really are wrong in the file, not mis-read.
+        #
+        # Visually this is the whole "settings don't apply at all pyramid
+        # levels" report: background lifts off black into a bright wash as you
+        # zoom out, and because minority populations lift faster than majority
+        # ones, hues shift too (an islet reading INS-pink up close and
+        # SST-yellow from far out).
+        #
+        # predictor="none" is not a tradeoff -- the files also come out SMALLER
+        # (DAPI 9.5 -> 8.2 MB, INS 4.3 -> 3.8 MB), because horizontal
+        # differencing costs entropy on speckled fluorescence rather than
+        # saving it. tissuumaps_smoke_test.py asserts the level means stay put.
+        kwargs["predictor"] = "none"
     out_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = out_file.with_suffix(".tif.part")
     try:
@@ -744,6 +817,15 @@ def main() -> int:
     if wanted:
         log(f"extracting {len(keep)} of {len(names)} channels (--channels)")
 
+    key = extraction_key(args)
+    manifest = load_manifest(ch_dir)
+    n_stale = sum(1 for page, name in keep
+                  if (ch_dir / f"{page:02d}_{safe_stem(name)}.tif").exists()
+                  and manifest.get(f"{page:02d}_{safe_stem(name)}") != key)
+    if n_stale:
+        log(f"{n_stale} existing channel(s) were extracted with different settings "
+            f"or older code (v{EXTRACTION_VERSION} now) and will be redone")
+
     if args.dry_run:
         log(f"DRY RUN: would write {len(keep)} pyramids to {ch_dir}")
         log(f"DRY RUN: would write {out_dir / (case_id + '.tmap')}")
@@ -754,13 +836,16 @@ def main() -> int:
     for n_done, (page, name) in enumerate(keep, 1):
         stem = f"{page:02d}_{safe_stem(name)}"
         out_file = ch_dir / f"{stem}.tif"
+        stale = manifest.get(stem) != key
         stats = extract_channel(image, page, out_file, args.compression, args.quality,
                                 args.stretch, lo_pct, hi_pct, args.background_k,
-                                args.signal_quantile, args.force)
+                                args.signal_quantile, args.force or stale)
         size_mb = out_file.stat().st_size / 1e6
         if stats is None:
             log(f"  [{n_done}/{len(keep)}] {name:<20} cached    ({size_mb:.1f} MB)")
         else:
+            manifest[stem] = key
+            save_manifest(ch_dir, manifest)
             flags = []
             if stats.get("dark"):
                 flags.append("no signal above background - left dark")
