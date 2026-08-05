@@ -16,7 +16,7 @@ Run it two ways:
     # conversion time and disk ratio for the channel pyramids.
     python scripts/senior/tissuumaps_smoke_test.py \
         --image /data/islet_ome_tiff/6539.ome.tiff \
-        --regions data/app_data/json/6539.geojson \
+        --regions data/Islets \
         --markers data/app_data/cells/6539_tissue.csv
 
 Requires: tissuumaps, pyvips, tifffile (+ playwright for --browser).
@@ -25,10 +25,12 @@ Requires: tissuumaps, pyvips, tifffile (+ playwright for --browser).
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import os
 import random
+import re
 import socket
 import subprocess
 import sys
@@ -118,9 +120,73 @@ def make_aux(geojson: Path, csv: Path, um_per_px_res1: float = 0.5078) -> tuple[
             ]))
 
     geojson.parent.mkdir(parents=True, exist_ok=True)
-    geojson.write_text(json.dumps({"type": "FeatureCollection", "features": feats}))
+    blob = json.dumps({"type": "FeatureCollection", "features": feats})
+    if geojson.suffix == ".gz":
+        with gzip.open(geojson, "wt") as fh:
+            fh.write(blob)
+    else:
+        geojson.write_text(blob)
     csv.write_text("\n".join(rows) + "\n")
     return len(feats), len(rows) - 1
+
+
+def case_of(image: Path) -> str:
+    """Case id the builder will derive from a slide filename."""
+    return re.sub(r"\.ome$", "", image.stem, flags=re.I)
+
+
+def image_size(image: Path) -> tuple[int, int]:
+    import tifffile
+
+    with tifffile.TiffFile(str(image)) as tif:
+        return int(tif.pages[0].imagewidth), int(tif.pages[0].imagelength)
+
+
+def find_region_source(spec: Path | None, case_id: str) -> Path | None:
+    """The GeoJSON the builder would have read, given a file or a directory.
+
+    Covers the same extensions the builder does. A helper that only knew about
+    plain ``.geojson`` would quietly skip the scale assertion below on a gzipped
+    or ``.json`` export -- i.e. it would go green precisely where the coordinate
+    handling is least exercised.
+    """
+    if spec is None or not spec.exists():
+        return None
+    if spec.is_file():
+        return spec
+    bounded = re.compile(rf"(?<![0-9]){re.escape(case_id)}(?![0-9])")
+    hits = sorted({f for pat in ("*.geojson", "*.geojson.gz", "*.json", "*.json.gz")
+                   for f in spec.glob(pat) if bounded.search(f.name)})
+    return hits[0] if hits else None
+
+
+def read_geojson(path: Path):
+    """Load a GeoJSON, gzipped or not."""
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt") as fh:
+            return json.load(fh)
+    return json.loads(path.read_text())
+
+
+def geojson_max(gj) -> tuple[float, float] | None:
+    """Largest x and y over every coordinate. Deliberately re-implemented here
+    rather than imported from the builder, so the test can catch a bug in the
+    builder's own bounds walk."""
+    best = [float("-inf"), float("-inf")]
+
+    def walk(c):
+        if c and isinstance(c[0], (int, float)):
+            best[0], best[1] = max(best[0], c[0]), max(best[1], c[1])
+        else:
+            for sub in c:
+                walk(sub)
+
+    feats = gj.get("features", [gj]) if isinstance(gj, dict) else gj
+    for feat in feats:
+        geom = (feat or {}).get("geometry")
+        if geom and geom.get("coordinates") is not None:
+            walk(geom["coordinates"])
+    return None if best[0] == float("-inf") else (best[0], best[1])
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +303,12 @@ def main() -> int:
         log(f"Using real slide {args.image}")
     else:
         log("Building synthetic slides (batch-1 59ch SST@35, batch-2 58ch SST@1)")
-        gj, csv = work / "aux" / "islets.geojson", work / "aux" / "cells.csv"
+        # Named, located and compressed the way the real exports are (a
+        # directory of per-donor files, often gzipped), so --regions exercises
+        # the directory lookup and the gzip path rather than a plain file the
+        # builder rarely sees in practice.
+        gj = work / "aux" / "results__6539_IO60panc2nd_resolution__1.geojson.gz"
+        csv = work / "aux" / "cells.csv"
         n_islets, n_cells = make_aux(gj, csv)
         print(f"  aux: {n_islets} islets, {n_cells} cells")
         slides = []
@@ -246,7 +317,7 @@ def main() -> int:
             if not path.exists():
                 names = make_slide(path, order)
                 print(f"  {case}: {len(names)} channels, SST@{names.index('SST')}")
-            slides.append((path, gj if case == "6539" else None,
+            slides.append((path, gj.parent if case == "6539" else None,
                            csv if case == "6539" else None))
 
     # -- build projects -----------------------------------------------------
@@ -286,6 +357,26 @@ def main() -> int:
           ", ".join(sorted(visible)))
     check("additive blending", tmap["compositeMode"] == "lighter")
 
+    # Regions are exported from QuPath at a downsampled pyramid level, so the
+    # builder rescales them. Getting that wrong is a silent misalignment, not an
+    # error, which is exactly what a test is for: the outlines must land inside
+    # the full-resolution image and must have actually moved.
+    hit = next((s for s in slides if case_of(s[0]) == primary), None)
+    for rel in (r["path"] for r in tmap.get("regionFiles", [])):
+        if hit is None:
+            break
+        img_w, img_h = image_size(hit[0])
+        out_max = geojson_max(read_geojson(projects / rel))
+        check(f"{rel} lies inside the {img_w}x{img_h} image",
+              out_max is not None and out_max[0] <= img_w and out_max[1] <= img_h,
+              f"max {out_max[0]:.0f},{out_max[1]:.0f}" if out_max else "no geometry")
+        src_file = find_region_source(hit[1], primary)
+        src_max = geojson_max(read_geojson(src_file)) if src_file else None
+        if src_max and src_max[0] and out_max:
+            factor = out_max[0] / src_max[0]
+            check("region scale is a clean pyramid factor",
+                  any(abs(factor - c) < 0.01 for c in (0.25, 0.5, 1, 2, 4, 8)), f"x{factor:.2f}")
+
     if len(cases) > 1:  # synthetic run: prove the panels differ but names resolve
         other = json.loads((projects / "6450.tmap").read_text())
         idx = {layer["name"]: i for i, layer in enumerate(other["layers"])}
@@ -318,9 +409,15 @@ def main() -> int:
 
     port = free_port()
     base = f"http://127.0.0.1:{port}"
-    log(f"Starting tissuumaps_server on {port}")
+    # Prefer the entrypoint that sits beside the interpreter running this test:
+    # running it from a venv without activating the venv is the normal case, and
+    # falling through to PATH there would either fail outright or -- worse --
+    # silently test a different TissUUmaps than the banner above just reported.
+    exe = Path(sys.executable).parent / "tissuumaps_server"
+    server_cmd = str(exe) if exe.exists() else "tissuumaps_server"
+    log(f"Starting {server_cmd} on {port}")
     server = subprocess.Popen(
-        ["tissuumaps_server", "-l", "127.0.0.1", "-p", str(port), str(projects)],
+        [server_cmd, "-l", "127.0.0.1", "-p", str(port), str(projects)],
         stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
     )
     try:

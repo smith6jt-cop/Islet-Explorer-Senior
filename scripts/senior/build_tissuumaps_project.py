@@ -32,8 +32,14 @@ Usage
     python scripts/senior/build_tissuumaps_project.py \
         --image /data/islet_ome_tiff/6539.ome.tiff \
         --out-dir /data/tissuumaps/projects \
-        --regions data/app_data/json/6539.geojson \
+        --regions data/Islets \
         --markers data/app_data/cells/6539_tissue.csv
+
+``--regions`` takes either a GeoJSON file or the directory the exports live in
+(``data/Islets``), in which case the donor's file is found by case id; ``.gz`` is
+read transparently. Region coordinates are rescaled into full-resolution pixels
+by ``--region-scale``, which defaults to deriving the factor from the two pixel
+sizes and then checking it against the image bounds.
 
 Idempotent and resumable: an existing channel pyramid is reused unless it is
 older than the source slide (or ``--force`` is given), so a killed run can be
@@ -118,9 +124,16 @@ SCHEMA_VERSION = "1.3"
 # Full-res base of the viewer OME-TIFFs. convert_viewer_ometiff.sh runs
 # bioformats2raw with `-s 0 --use-existing-resolutions`, so level 0 is the
 # slide's native resolution. NOTE the app's PIXEL_SIZE_UM (0.5078) is the
-# *resolution #1* value used for the QuPath GeoJSONs — half this one. Anything
-# exported from QuPath at resolution #1 therefore needs --region-scale 2.
+# *resolution #1* value used for the QuPath GeoJSONs — twice this one, which is
+# where the default region scale of x2 comes from (see DEFAULT_REGION_UM_PER_PX).
 DEFAULT_UM_PER_PX = 0.2539
+
+# Pixel size the QuPath structure GeoJSONs are exported at. Same constant as the
+# app's PIXEL_SIZE_UM (00_globals.R), which was measured, not assumed: 0.5078
+# µm/px, the median over 2,355 islets across 3 donors. Dividing it by
+# DEFAULT_UM_PER_PX is where the default x2 region scale comes from, rather than
+# a bare "2" nobody can check.
+DEFAULT_REGION_UM_PER_PX = 0.5078
 
 
 def log(msg: str) -> None:
@@ -166,6 +179,15 @@ def read_channel_names(image: Path) -> list[str]:
         names = (names + [""] * n_pages)[:n_pages]
 
     return [normalize_name(nm, i) for i, nm in enumerate(names)]
+
+
+def read_image_size(image: Path) -> tuple[int, int]:
+    """Width and height of the full-resolution page, in pixels."""
+    import tifffile
+
+    with tifffile.TiffFile(str(image)) as tif:
+        page = tif.pages[0]
+        return int(page.imagewidth), int(page.imagelength)
 
 
 def normalize_name(name: str, index: int) -> str:
@@ -403,8 +425,132 @@ def extract_channel(
 # ---------------------------------------------------------------------------
 
 
-def copy_regions(src: Path, dst: Path, scale: float, layer_index: int = 0) -> int:
-    """Copy a QuPath GeoJSON, scaling coordinates into full-res pixel space.
+def resolve_regions(spec: Path, case_id: str) -> Path | None:
+    """Accept a GeoJSON file or a directory to search for the donor's file.
+
+    Region exports live outside this repo and are named per-site, so pointing
+    at the directory (``--regions data/Islets``) and letting the case id do the
+    matching avoids having to encode somebody's filename convention here.
+    Handles ``.gz`` as well; QuPath exports are often stored compressed.
+
+    Case ids are bare numbers and nothing stops one being a prefix of another,
+    so the id must not be flanked by further digits -- a plain ``*115*`` glob
+    would otherwise match donor 1150's export. If more than one file still
+    matches, we attach none of them: silently overlaying the wrong donor's
+    islets is worse than showing no outlines, and the message says how to
+    resolve it.
+    """
+    if spec.is_file():
+        return spec
+    if not spec.is_dir():
+        log(f"WARNING: --regions path does not exist: {spec}")
+        return None
+
+    bounded = re.compile(rf"(?<![0-9]){re.escape(case_id)}(?![0-9])")
+    hits = sorted({
+        f
+        for pattern in ("*.geojson", "*.geojson.gz", "*.json", "*.json.gz")
+        for f in spec.glob(pattern)
+        if bounded.search(f.name)
+    })
+    if not hits:
+        log(f"WARNING: no region file for case {case_id} in {spec}")
+        return None
+    if len(hits) > 1:
+        log(f"WARNING: {len(hits)} region files match case {case_id} in {spec}; "
+            f"attaching none. Pass --regions <file> to pick one.")
+        for h in hits:
+            log(f"           matched: {h.name}")
+        return None
+    return hits[0]
+
+
+def _load_geojson(src: Path):
+    """Read a GeoJSON, transparently handling gzip."""
+    if src.suffix == ".gz":
+        import gzip
+
+        with gzip.open(src, "rt") as fh:
+            return json.load(fh)
+    with open(src) as fh:
+        return json.load(fh)
+
+
+def _geometry_bounds(feats) -> tuple[float, float] | None:
+    """Max x and y over every coordinate, or None if there is no geometry."""
+    max_x = max_y = float("-inf")
+
+    def walk(coords):
+        nonlocal max_x, max_y
+        if coords and isinstance(coords[0], (int, float)):
+            max_x, max_y = max(max_x, coords[0]), max(max_y, coords[1])
+            return
+        for c in coords:
+            walk(c)
+
+    for feat in feats:
+        geom = feat.get("geometry") if isinstance(feat, dict) else None
+        if geom and geom.get("coordinates") is not None:
+            walk(geom["coordinates"])
+    return None if max_x == float("-inf") else (max_x, max_y)
+
+
+def infer_region_scale(feats, img_w: int, img_h: int, nominal: float) -> float:
+    """Settle the factor taking region coordinates into full-res image pixels.
+
+    ``nominal`` comes from the two pixel sizes (the GeoJSON's µm/px over the
+    slide's), which is the only *physical* statement available and so is what we
+    trust. The geometry is used to falsify it, not to derive it: a region can
+    never legitimately fall outside the image, so a nominal factor that pushes
+    one past the edge is provably wrong and we back off to the largest smaller
+    power of two that does fit.
+
+    The reverse error -- coordinates that are already full-res being doubled --
+    is only detectable when the tissue covers more than about half the slide,
+    which it usually does here. The chosen factor and the resulting coverage are
+    both logged so a survivor is at least visible; ``--region-scale`` overrides.
+    """
+    bounds = _geometry_bounds(feats)
+    if bounds is None or img_w <= 0 or img_h <= 0:
+        return nominal
+    max_x, max_y = bounds
+
+    def coverage(c: float) -> float:
+        return max(max_x * c / img_w, max_y * c / img_h)
+
+    # 2% slack: QuPath polygons trace the tissue edge and can sit a pixel or two
+    # past the level boundary after rounding.
+    if coverage(nominal) <= 1.02:
+        cov = coverage(nominal)
+        if cov < 0.25:
+            log(f"WARNING: at x{nominal:g} the regions span only {cov:.0%} of the "
+                f"slide. That is plausible for a small section but also what a "
+                f"too-small factor looks like -- check the overlay.")
+        return nominal
+
+    feasible = [c for c in (8.0, 4.0, 2.0, 1.0, 0.5, 0.25)
+                if c < nominal and coverage(c) <= 1.02]
+    chosen = feasible[0] if feasible else 1.0
+    log(f"WARNING: region extent {max_x:.0f}x{max_y:.0f} scaled by the expected "
+        f"x{nominal:g} would fall outside the {img_w}x{img_h} image "
+        f"({coverage(nominal):.2f}x its size), so that factor is wrong. "
+        f"Using x{chosen:g} instead; pass --region-scale to override.")
+    return chosen
+
+
+def region_features(gj) -> list:
+    """The feature list of a GeoJSON, whatever container QuPath wrapped it in.
+
+    QuPath writes a FeatureCollection when several objects are exported and a
+    bare list (or a single Feature) when one is.
+    """
+    if isinstance(gj, dict):
+        return gj.get("features", [gj])
+    return gj if isinstance(gj, list) else [gj]
+
+
+def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0) -> int:
+    """Write a QuPath GeoJSON out, scaling coordinates into full-res pixel space.
 
     Also stamps ``properties.collectionIndex`` on every feature. Without it,
     ``regionUtils.geoJSON2regions()`` sees >1 image layer and pops a blocking
@@ -415,15 +561,12 @@ def copy_regions(src: Path, dst: Path, scale: float, layer_index: int = 0) -> in
     QuPath's own ``properties.name`` and ``properties.classification.name`` are
     read natively by TissUUmaps, so islet names and classes carry over as-is.
     """
-    with open(src) as fh:
-        gj = json.load(fh)
-
     def walk(coords):
         if coords and isinstance(coords[0], (int, float)):
             return [coords[0] * scale, coords[1] * scale] + list(coords[2:])
         return [walk(c) for c in coords]
 
-    feats = gj.get("features", gj if isinstance(gj, list) else [gj])
+    feats = region_features(gj)
     for feat in feats:
         if not isinstance(feat, dict):
             continue
@@ -537,14 +680,21 @@ def main() -> int:
     ap.add_argument("--out-dir", required=True, type=Path,
                     help="TissUUmaps project root (the server's slide dir)")
     ap.add_argument("--case-id", default=None, help="Defaults to the image stem")
-    ap.add_argument("--regions", type=Path, default=None, help="QuPath GeoJSON to attach")
+    ap.add_argument("--regions", type=Path, default=None,
+                    help="QuPath GeoJSON to attach, or a directory to find the donor's "
+                         "export in (e.g. data/Islets); .gz is read transparently")
     ap.add_argument("--markers", type=Path, default=None, help="Per-cell CSV to attach")
     ap.add_argument("--marker-cols", default="X_centroid,Y_centroid,phenotype",
                     help="x,y,group columns in the marker CSV")
     ap.add_argument("--um-per-px", type=float, default=DEFAULT_UM_PER_PX,
                     help=f"Slide resolution, µm/px (default {DEFAULT_UM_PER_PX}, the full-res base)")
-    ap.add_argument("--region-scale", type=float, default=2.0,
-                    help="Multiply GeoJSON coords by this (QuPath resolution #1 -> full res)")
+    ap.add_argument("--region-scale", default="auto",
+                    help="Multiply GeoJSON coords by this to reach full-res pixels. "
+                         "'auto' (default) derives it from the two pixel sizes and "
+                         "checks the result against the image bounds")
+    ap.add_argument("--region-um-per-px", type=float, default=DEFAULT_REGION_UM_PER_PX,
+                    help=f"Pixel size the GeoJSON was exported at, µm/px "
+                         f"(default {DEFAULT_REGION_UM_PER_PX}, QuPath resolution #1)")
     ap.add_argument("--region-layer", type=int, default=0,
                     help="Layer index regions attach to (suppresses the import prompt)")
     ap.add_argument("--compression", default="deflate", choices=["jpeg", "deflate", "lzw", "none"],
@@ -641,10 +791,22 @@ def main() -> int:
 
     region_rel = None
     if args.regions:
-        region_rel = f"regions/{case_id}.geojson"
-        n_feat = copy_regions(args.regions, out_dir / region_rel, args.region_scale,
-                              args.region_layer)
-        log(f"regions: {n_feat} features scaled x{args.region_scale} -> {region_rel}")
+        src = resolve_regions(args.regions.resolve(), case_id)
+        if src is not None:
+            gj = _load_geojson(src)
+            feats = region_features(gj)
+            if args.region_scale == "auto":
+                img_w, img_h = read_image_size(image)
+                nominal = args.region_um_per_px / args.um_per_px
+                scale = infer_region_scale(feats, img_w, img_h, nominal)
+                log(f"regions: {src.name} -> x{scale:g} "
+                    f"({args.region_um_per_px} / {args.um_per_px} µm/px, "
+                    f"checked against {img_w}x{img_h})")
+            else:
+                scale = float(args.region_scale)
+            region_rel = f"regions/{case_id}.geojson"
+            n_feat = copy_regions(gj, out_dir / region_rel, scale, args.region_layer)
+            log(f"regions: {n_feat} features scaled x{scale:g} -> {region_rel}")
 
     marker_rel = None
     if args.markers:

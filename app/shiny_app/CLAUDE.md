@@ -259,8 +259,9 @@ marker name**, never by index. The `.tmap` generator does that from each slide's
 findings, costs (8-bit + a second copy on disk) and coordinate conventions:
 [`docs/tissuumaps_evaluation.md`](../../docs/tissuumaps_evaluation.md).
 
-Tests: `python scripts/senior/tissuumaps_smoke_test.py` (19 end-to-end checks incl. a headless
-browser) and `Rscript scripts/test_viewer_helpers.R` (14 URL/enumeration unit tests).
+Tests: `python scripts/senior/tissuumaps_smoke_test.py` (21 end-to-end checks incl. a headless
+browser), `Rscript scripts/test_viewer_helpers.R` (14 URL/enumeration unit tests) and
+`python scripts/test_build_tissuumaps_regions.py` (26 region-handling unit tests).
 
 ## Viewer Tab (Avivator) — iframe Persistence (Jun 2026)
 
