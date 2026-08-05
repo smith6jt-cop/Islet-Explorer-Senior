@@ -432,6 +432,13 @@ def resolve_regions(spec: Path, case_id: str) -> Path | None:
     at the directory (``--regions data/Islets``) and letting the case id do the
     matching avoids having to encode somebody's filename convention here.
     Handles ``.gz`` as well; QuPath exports are often stored compressed.
+
+    Case ids are bare numbers and nothing stops one being a prefix of another,
+    so the id must not be flanked by further digits -- a plain ``*115*`` glob
+    would otherwise match donor 1150's export. If more than one file still
+    matches, we attach none of them: silently overlaying the wrong donor's
+    islets is worse than showing no outlines, and the message says how to
+    resolve it.
     """
     if spec.is_file():
         return spec
@@ -439,18 +446,22 @@ def resolve_regions(spec: Path, case_id: str) -> Path | None:
         log(f"WARNING: --regions path does not exist: {spec}")
         return None
 
-    hits = sorted(
-        f for pattern in (f"*{case_id}*.geojson", f"*{case_id}*.geojson.gz",
-                          f"*{case_id}*.json", f"*{case_id}*.json.gz")
+    bounded = re.compile(rf"(?<![0-9]){re.escape(case_id)}(?![0-9])")
+    hits = sorted({
+        f
+        for pattern in ("*.geojson", "*.geojson.gz", "*.json", "*.json.gz")
         for f in spec.glob(pattern)
-    )
+        if bounded.search(f.name)
+    })
     if not hits:
-        log(f"WARNING: no region file matching '*{case_id}*' in {spec}")
+        log(f"WARNING: no region file for case {case_id} in {spec}")
         return None
     if len(hits) > 1:
-        log(f"WARNING: {len(hits)} region files match '*{case_id}*'; using {hits[0].name}")
-        for h in hits[1:]:
-            log(f"           also matched: {h.name}")
+        log(f"WARNING: {len(hits)} region files match case {case_id} in {spec}; "
+            f"attaching none. Pass --regions <file> to pick one.")
+        for h in hits:
+            log(f"           matched: {h.name}")
+        return None
     return hits[0]
 
 

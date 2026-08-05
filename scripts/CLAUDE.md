@@ -108,8 +108,9 @@ The Viewer runs on either backend (`ISLET_VIEWER_BACKEND=avivator|tissuumaps`):
 - `senior/build_tissuumaps_project.py` — builds the per-donor `.tmap` project,
   naming channels from each slide's own OME-XML (the cohort mixes panels).
   `--regions` takes the QuPath export directory (`data/Islets`) and matches by
-  case id; the coordinate scale into full-res pixels is derived from the two
-  pixel sizes and then checked against the image bounds rather than assumed.
+  case id, refusing to guess when the match is ambiguous; the coordinate scale
+  into full-res pixels is derived from the two pixel sizes and then checked
+  against the image bounds rather than assumed.
 - `test_build_tissuumaps_regions.py` — unit tests for that region handling
   (directory lookup, gzip, scale inference). No slide or server needed.
 - `senior/tissuumaps_smoke_test.py` — boots a server against a built project and

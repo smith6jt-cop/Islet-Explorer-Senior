@@ -61,6 +61,31 @@ check("explicit file", b.resolve_regions(plain, "6539"), plain)
 check("no match", b.resolve_regions(TMP / "d", "9999"), None)
 check("missing path", b.resolve_regions(TMP / "nope", "6539"), None)
 
+# A case id that is a prefix of another donor's must not match it: a plain
+# '*115*' substring glob picks up 1150 and silently attaches the wrong islets.
+(TMP / "prefix").mkdir(exist_ok=True)
+p1150 = TMP / "prefix" / "results__1150_resolution__1.geojson"
+p1150.write_text(json.dumps(fc(box(0, 0, 10, 10))))
+check("prefix id does not match longer id", b.resolve_regions(TMP / "prefix", "115"), None)
+check("the longer id still matches itself",
+      b.resolve_regions(TMP / "prefix", "1150"), p1150)
+p115 = TMP / "prefix" / "results__115_resolution__1.geojson"
+p115.write_text(json.dumps(fc(box(0, 0, 10, 10))))
+check("both present, each resolves", b.resolve_regions(TMP / "prefix", "115"), p115)
+
+# Genuine ambiguity fails closed rather than picking the first sorted hit:
+# overlaying the wrong donor's outlines is worse than showing none.
+(TMP / "ambig").mkdir(exist_ok=True)
+for nm in ("a__6539_v1.geojson", "b__6539_v2.geojson"):
+    (TMP / "ambig" / nm).write_text(json.dumps(fc(box(0, 0, 10, 10))))
+check("ambiguous match attaches nothing", b.resolve_regions(TMP / "ambig", "6539"), None)
+
+# .json / .json.gz are found too, and .geojson is not double-counted as .json.
+(TMP / "ext").mkdir(exist_ok=True)
+pj = TMP / "ext" / "islets_6539.json"
+pj.write_text(json.dumps(fc(box(0, 0, 10, 10))))
+check("plain .json found", b.resolve_regions(TMP / "ext", "6539"), pj)
+
 # --- _load_geojson --------------------------------------------------------
 check("gzip load", len(b.region_features(b._load_geojson(gz))), 1)
 check("plain load", len(b.region_features(b._load_geojson(plain))), 1)

@@ -182,6 +182,12 @@ Writes `/data/tissuumaps/6539.tmap`, `channels/6539/<idx>_<marker>.tif`,
 donor's file by case id, or a single file if you'd rather be explicit. `.gz` is read
 transparently, since exports are often stored compressed.
 
+Two rules keep that lookup from attaching the wrong donor's islets, which would land as a
+plausible-looking overlay rather than an error. The case id must not be flanked by further
+digits — case ids are bare numbers and nothing stops one being a prefix of another, so a plain
+`*115*` glob would match donor 1150. And if more than one file still matches, **none** is
+attached: the run says so and tells you to pass `--regions <file>`.
+
 **Coordinate conventions** (get these wrong and everything is subtly offset — they are CLI
 flags precisely so they can be checked per donor):
 
@@ -229,7 +235,7 @@ python scripts/senior/tissuumaps_smoke_test.py \
     --channels DAPI,INS,SST,GCG --keep
 
 Rscript scripts/test_viewer_helpers.R                  # 14 unit tests for the R helpers
-python scripts/test_build_tissuumaps_regions.py        # 21 unit tests for region handling
+python scripts/test_build_tissuumaps_regions.py        # 26 unit tests for region handling
 ```
 
 `test_build_tissuumaps_regions.py` needs no slide, server or pyvips — it covers the directory
