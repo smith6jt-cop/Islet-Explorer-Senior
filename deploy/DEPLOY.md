@@ -138,9 +138,10 @@ built locally — not the PyPI release or the published `cavenel/tissuumaps` ima
    `--regions` points at the directory of QuPath exports and picks each donor's file by case
    id (`.gz` included); the scale into full-res pixels is derived from the two pixel sizes and
    then checked against the image bounds, so watch for a `WARNING` on the `regions:` line.
-   Idempotent — a killed run resumes. Check the printed `channels:` line for the real disk
-   ratio before doing all 22, and verify one donor visually (`--keep`) first: the layers are
-   **8-bit** proxies of the 16-bit data.
+   Idempotent — a killed run resumes, and channels extracted by older code or different
+   settings are detected and redone automatically (no `--force` needed). Check the printed
+   `channels:` line for the real disk ratio before doing all 22, and verify one donor visually
+   (`--keep`) first: the layers are **8-bit** proxies of the 16-bit data.
 2. **Ask RC for a third proxy route**: `/tissuumaps/` → `<TM_PORT>` (same origin as the app).
 3. **Build the image from the fork** — there is no registry to pull it from, so this must
    succeed before the unit will start:

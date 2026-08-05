@@ -95,6 +95,34 @@ Two further issues found while building the project generator, both fixed in it:
    the generator defaults to `--compression deflate` (lossless) and raises an actionable error
    if a `jpeg` run hits the libvips bug.
 
+5. **libvips 8.15.1 corrupts reduced pyramid levels when the horizontal predictor is on** —
+   and that predictor is its *default* for both `deflate` and `lzw`. Level 0 is always written
+   correctly, so the damage is invisible at full zoom and total at every zoom-out. On a sparse
+   1%-bright test image whose true mean is 2.00 at every level:
+
+   | `tiffsave` options | level means (libtiff) |
+   |---|---|
+   | `compression=deflate` (default predictor) | 2.00, **9.65**, **32.69** |
+   | `compression=lzw` (default predictor) | 2.00, **9.65**, **32.69** |
+   | `compression=deflate, predictor=none` | 2.00, 2.00, 2.07 |
+   | `compression=none` | 2.00, 2.00, 2.07 |
+
+   On a real DAPI channel the written levels read 28.0 / 77.0 / 96.0 / 112.5 / 123.7 against
+   true block means of 28.0 / 27.5 / 27.0 / 26.0 / 24.9. libtiff and tifffile decode those
+   values identically, so the pixels really are wrong in the file — this is not a reader bug,
+   and OpenSlide serves the corrupt levels faithfully.
+
+   Visually: background lifts off black into a bright wash as you zoom out, and because
+   minority populations lift faster than majority ones the **hue shifts too** — an islet reads
+   INS-pink up close and SST-yellow from far out. Composite background measured across levels
+   went `(6,5,6) → (168,111,117) → (229,163,164)`, collapsing islet-vs-background contrast to
+   nothing. With the fix it stays `(6,5,6) → (7,7,6) → (11,11,11)` and contrast *holds*.
+
+   `predictor="none"` is not a tradeoff: the files also come out **smaller** (DAPI 9.5 → 8.2 MB,
+   INS 4.3 → 3.8 MB), because horizontal differencing costs entropy on speckled fluorescence
+   rather than saving it. `tissuumaps_smoke_test.py` asserts every reduced level's mean stays
+   within 35% of level 0's, which fails loudly without the fix (DAPI 5.2 → 9.7).
+
 ## 3. Cost of the switch
 
 - **Bit depth and tone mapping.** TissUUmaps layers are 8-bit; Viv renders the 16-bit data with
@@ -122,7 +150,11 @@ Two further issues found while building the project generator, both fixed in it:
 - **Disk.** A second copy of every channel. On synthetic data the ratio is meaningless (smooth
   gradients compress absurdly well); the smoke test prints the real ratio when pointed at a
   donor slide. Budget for it before converting all 22.
-- **Conversion time.** One-time, offline, idempotent (skip-if-exists), resumable.
+- **Conversion time.** One-time, offline, idempotent, resumable. Reuse is keyed on an
+  `extraction.json` manifest recording the settings *and* an `EXTRACTION_VERSION` bumped
+  whenever a code change alters output pixels — not on file mtime alone, which cannot see that
+  the code changed and twice let superseded output be served indefinitely. A channel whose
+  recorded key no longer matches is re-extracted automatically, with the reason logged.
 - **A second service.** Trades the nginx sidecar (`islet-images.container`) for the TissUUmaps
   container. Net zero services — and the HTTP-Range requirement disappears, so the Viewer works
   under `shiny::runApp` locally, which it currently does not.
@@ -224,7 +256,7 @@ re-running the build script and restarting the service — there is no auto-upda
 ## 6. Re-running the verification
 
 ```bash
-# Synthetic: builds both panels, 21 checks, ~2 min. Currently 21/21.
+# Synthetic: builds both panels, 25 checks, ~2 min. Currently 25/25.
 python scripts/senior/tissuumaps_smoke_test.py
 
 # A real donor. --channels keeps the first pass quick; drop it for the full panel.
