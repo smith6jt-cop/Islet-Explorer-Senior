@@ -106,7 +106,10 @@ def marker_color(name: str) -> str:
     import hashlib
 
     digest = hashlib.md5(name.strip().upper().encode()).hexdigest()
-    hue = int(digest[:8], 16) / 0xFFFFFFFF
+    # Divide by 2**32, not 0xFFFFFFFF, so the hue stays in [0, 1). Hue is
+    # circular -- 1.0 and 0.0 are the same red -- so the wider divisor would
+    # give that one value double weight and leave the wheel slightly uneven.
+    hue = int(digest[:8], 16) / 0x100000000
     r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
     return f"{round(r * 100)},{round(g * 100)},{round(b * 100)}"
 
@@ -714,8 +717,12 @@ def build_project(
         # switched on later must come up in its own distinguishable hue, never
         # black, never white, and never a value left over from another layer's
         # picker. DEFAULT_ON overwrites its four below.
+        # Keyed on the filter being Color specifically, not on "its default is
+        # None" -- Color is the only None entry today, so the looser test works
+        # by coincidence and would silently hand a colour string to whatever
+        # unrelated filter got added with a None default next.
         filters[str(idx)] = [
-            {"name": fname, "value": marker_color(name) if value is None else value}
+            {"name": fname, "value": marker_color(name) if fname == "Color" else value}
             for fname, value in FILTER_DEFAULTS
         ]
 
