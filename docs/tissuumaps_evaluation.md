@@ -97,10 +97,28 @@ Two further issues found while building the project generator, both fixed in it:
 
 ## 3. Cost of the switch
 
-- **Bit depth.** TissUUmaps layers are 8-bit; Viv renders the 16-bit data with live contrast
-  windows. The generator applies a 0.5–99.5 percentile stretch per channel and clips, so
-  channels stay mutually comparable, but this is a display proxy — **not** a substitute for the
-  quantitative pipeline.
+- **Bit depth and tone mapping.** TissUUmaps layers are 8-bit; Viv renders the 16-bit data with
+  live contrast windows. Since marker intensity is not a biological readout for this cohort —
+  essentially all of its variation is technical (saturation, background level, and markers whose
+  positive fraction spans orders of magnitude) — the generator's job is legibility, not fidelity.
+  It therefore defaults to a **background-anchored** stretch (`--stretch robust`): black point at
+  the background mode + k·σ (σ from a one-sided MAD below the mode, since signal only contaminates
+  the upper side), white point at a quantile of the above-background population with the
+  saturation bin excluded, and a channel with nothing above background left dark rather than
+  having its noise amplified. A fixed percentile pair cannot do this — it cannot serve a marker
+  in 0.05% of pixels and one in 40%. Scored against ground-truth masks (background → signal, as
+  rendered 0-255, and how much signal saturates):
+
+  | channel | percentile 0.5/99.5 | robust |
+  |---|---|---|
+  | dense | bg 3 → sig 160, 1.5% clipped | bg 0 → sig 153, 1.0% clipped |
+  | sparse | bg **127** → sig 255, **100% clipped** | bg 0 → sig 177, 3.7% clipped |
+  | high background | bg 23 → sig 214, 25.4% clipped | bg 0 → sig 154, 1.3% clipped |
+  | saturated | bg 1 → sig 151, 25.2% clipped | bg 0 → sig 121, 8.9% clipped |
+  | absent marker | bg **127** — noise rendered as signal | bg 0 — stays black |
+
+  `--stretch percentile` keeps the old behaviour for comparison. Either way this is a display
+  proxy — **not** a substitute for the quantitative pipeline.
 - **Disk.** A second copy of every channel. On synthetic data the ratio is meaningless (smooth
   gradients compress absurdly well); the smoke test prints the real ratio when pointed at a
   donor slide. Budget for it before converting all 22.
