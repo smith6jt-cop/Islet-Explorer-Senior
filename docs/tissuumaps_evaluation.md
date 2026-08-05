@@ -123,6 +123,55 @@ Two further issues found while building the project generator, both fixed in it:
    rather than saving it. `tissuumaps_smoke_test.py` asserts every reduced level's mean stays
    within 35% of level 0's, which fails loudly without the fix (DAPI 5.2 → 9.7).
 
+## 2a. The white point, and why most markers came out blown
+
+The first robust stretch measured its **white** point over the same population as its **black**
+point — everything above `mode + 3σ`. That is right for a black point (background must render
+black) but far too low to define "signal": the background's own upper tail, autofluorescence and
+haze, reaches well past it.
+
+On a channel where the marker occupied 0.13% of pixels, the population above the black point was
+**12.7%** of the image — almost all of it background tail. The marker was therefore the top ~1% of
+that set, the 99th percentile landed *below* it, and every marker-positive pixel clipped to flat
+white. Fraction of true marker pixels rendered as pure white, scored against ground-truth masks:
+
+| white-point floor | DAPI | INS | GCG | SST |
+|---|---|---|---|---|
+| `mode + 3σ` (the black point — **was**) | 3.7% | **94.8%** | **90.7%** | 21.2% |
+| `mode + 10σ` | 2.1% | 2.8% | 4.6% | 0.6% |
+| **`mode + 20σ`** (**now**, `--signal-floor-k`) | 2.1% | 1.4% | 0.9% | 0.2% |
+| `mode + 40σ` | 2.1% | 1.3% | 0.9% | 0.2% |
+
+20σ and 40σ agree on every channel: past roughly 20σ the background tail is gone and the estimate
+stops moving. The default sits at the point of convergence rather than at a value chosen because
+the picture looked nice. This floor is a **display** choice about which pixels inform the white
+point — it is not a positivity threshold, and nothing downstream reads it.
+
+**Why the old logs looked fine.** The reported `clip_hi` is a fraction of the *image*, so it read
+0.127% on the channel whose every positive pixel had blown out — 0.127% of the image was all the
+marker ever was. `clip_signal` now reports the fraction of *unambiguously bright* pixels (fixed at
+`mode + 40σ`, deliberately not the floor used to pick the white point, or it would be tautological)
+that render as white:
+
+| channel | `clip_hi` (image) | `clip_signal` (marker) — old floor | new floor |
+|---|---|---|---|
+| INS | 0.130% | **72.7%** | 1.0% |
+| GCG | 0.127% | **100.0%** | 1.0% |
+| SST | 0.114% | **100.0%** | 1.0% |
+
+**`--report`** prints this table for every channel of a slide from one histogram pass each, writing
+no pyramids — so stretch settings can be compared on real data without a re-extraction:
+
+```bash
+python scripts/senior/build_tissuumaps_project.py --image /data/islet_ome_tiff/6539.ome.tiff \
+    --out-dir /data/tissuumaps --report
+```
+
+The smoke test asserts no channel clips more than 5% of its bright population, **and** that the
+same check fires at the old floor — a one-sided version would also pass on a fixture too easy to
+fail on, which is what the synthetic slides were until they grew an asymmetric background tail and
+rare bright markers.
+
 ## 2b. Merging mode and layer colours
 
 **Merging mode: use `lighter`.** The Viewer's "Merging mode" dropdown offers 25 options with no
@@ -151,6 +200,14 @@ tinted channels plus a shared dim background:
 per-component max, the other plausible candidate) is **not offered** by the dropdown at all.
 Reproduce with the canvas snippet in this section's commit; the modes are browser behaviour, not
 ours, so re-measure rather than assume if a browser changes.
+
+**Per-layer sliders: Color, Brightness, Gamma — not Contrast.** TissUUmaps' "Contrast" is not
+contrast. OpenSeadragon implements it as `pixel = pixel * adjustment` (`CONTRAST` in
+`openseadragon-filtering.js`) — a plain gain with no pivot around mid-grey — on a 0–8 slider. At 2
+everything above 128 is already white; at 8, everything above 32. The whole usable range is about
+1.0–2.0, which is why small movements look violent, and nothing in it can rescue an over-exposed
+layer. `Gamma` is offered instead: `(i/255)^a · 255`, monotonic, clipping nothing, on a 0–2 slider,
+and present in the schema enum. Below 1 it lifts dim structure; above 1 it suppresses haze.
 
 **Layer colours are hashed from the marker name.** Only the four default-on markers have fixed
 colours (INS red, GCG blue, SST yellow, DAPI dim grey, matching the Avivator palette). Every
@@ -307,7 +364,7 @@ re-running the build script and restarting the service — there is no auto-upda
 ## 6. Re-running the verification
 
 ```bash
-# Synthetic: builds both panels, 28 checks, ~2 min. Currently 28/28.
+# Synthetic: builds both panels, 30 checks, ~2 min. Currently 30/30.
 python scripts/senior/tissuumaps_smoke_test.py
 
 # A real donor. --channels keeps the first pass quick; drop it for the full panel.

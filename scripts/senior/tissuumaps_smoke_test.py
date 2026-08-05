@@ -84,7 +84,24 @@ def make_slide(path: Path, order: str, size: int = 1024) -> list[str]:
         cx, cy = 300 + (i * 37) % 400, 300 + (i * 53) % 400
         r = 60 + (i % 5) * 20
         blob = np.exp(-(((xx - cx) ** 2 + (yy - cy) ** 2) / (2.0 * r * r)))
-        data[i] = np.clip(blob * (8000 + 400 * i) + rng.normal(200, 60, (size, size)), 0, 65535)
+        # Background is deliberately SKEWED, not just noisy: a symmetric normal
+        # floor cannot reproduce the failure the stretch estimator has to
+        # survive. Real autofluorescence puts a long upper tail above the
+        # background peak, and it was that tail -- counted as signal -- which
+        # dragged the white point below the marker and blew every rare channel
+        # out. With a normal-only floor the old and new estimators score the
+        # same and the regression check below is worthless.
+        floor = rng.normal(200, 60, (size, size)) + rng.gamma(1.2, 70, (size, size))
+        # Every third channel is a RARE marker: bright, but over few pixels, so
+        # its population sits under the background tail's. That is the case that
+        # broke, and it has to be in the fixture.
+        if i % 3 == 0:
+            mask = blob > 0.75
+            amp = np.zeros((size, size))
+            amp[mask] = 12000 + 300 * i
+        else:
+            amp = blob * (8000 + 400 * i)
+        data[i] = np.clip(amp + floor, 0, 65535)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with tifffile.TiffWriter(str(path), bigtiff=True) as tif:
@@ -424,7 +441,29 @@ def main() -> int:
     # builder rescales them. Getting that wrong is a silent misalignment, not an
     # error, which is exactly what a test is for: the outlines must land inside
     # the full-resolution image and must have actually moved.
+    # The stretch must not blow the markers out, and this has to be shown BOTH
+    # ways: a check that only asserts the good case would also pass if the
+    # fixture were too easy to fail on, which is exactly what happened before
+    # the synthetic background grew an asymmetric tail.
     hit = next((s for s in slides if case_of(s[0]) == primary), None)
+    if hit is not None:
+        def report(floor_k: str) -> str:
+            cmd = [sys.executable, str(BUILDER), "--image", str(hit[0]),
+                   "--out-dir", str(projects), "--report", "--signal-floor-k", floor_k]
+            if args.channels:
+                cmd += ["--channels", args.channels]
+            return subprocess.run(cmd, capture_output=True, text=True).stdout
+
+        good, old = report("20"), report("3")
+        check("stretch does not blow out the markers",
+              "clip under 5%" in good,
+              [ln for ln in good.splitlines() if "channel(s) clip" in ln
+               or "channels clip" in ln][-1:][0].replace("[tmap] ", "")
+              if "clip" in good else "no verdict line")
+        check("that check can fail (old floor is caught)",
+              "BLOWN OUT" in old,
+              "old signal floor flagged" if "BLOWN OUT" in old
+              else "fixture too easy -- the check proves nothing")
     for rel in (r["path"] for r in tmap.get("regionFiles", [])):
         if hit is None:
             break
