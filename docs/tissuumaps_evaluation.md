@@ -123,6 +123,57 @@ Two further issues found while building the project generator, both fixed in it:
    rather than saving it. `tissuumaps_smoke_test.py` asserts every reduced level's mean stays
    within 35% of level 0's, which fails loudly without the fix (DAPI 5.2 → 9.7).
 
+## 2b. Merging mode and layer colours
+
+**Merging mode: use `lighter`.** The Viewer's "Merging mode" dropdown offers 25 options with no
+TissUUmaps documentation, because they are not TissUUmaps concepts — `filterUtils.js` passes the
+string straight to OpenSeadragon, which sets it as the canvas
+[`globalCompositeOperation`](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation).
+MDN and the W3C Compositing spec are the reference.
+
+QuPath composites fluorescence channels **additively**: each channel's RGB contribution is
+summed and clamped at 255. Measured in Chromium against a clamped-sum reference, with two
+tinted channels plus a shared dim background:
+
+| mode | result | |
+|---|---|---|
+| *QuPath additive reference* | `[230, 30, 150]` | |
+| `source-over` | `[30, 30, 30]` | TissUUmaps' own default — **top layer only** |
+| **`lighter`** | `[230, 30, 150]` | **matches QuPath** |
+| `screen` | `[206, 30, 136]` | close, but compresses highlights |
+| `multiply` / `darken` | `[0, 0, 0]` | everything vanishes on a dark field |
+| `overlay` | `[61, 0, 0]` | |
+| `color-dodge` | `[227, 0, 0]` | |
+| `difference` | `[170, 30, 90]` | |
+| `luminosity` | `[61, 17, 17]` | |
+
+`lighter` is the only exact match, and it is what the generator writes. Note `lighten` (a
+per-component max, the other plausible candidate) is **not offered** by the dropdown at all.
+Reproduce with the canvas snippet in this section's commit; the modes are browser behaviour, not
+ours, so re-measure rather than assume if a browser changes.
+
+**Layer colours are hashed from the marker name.** Only the four default-on markers have fixed
+colours (INS red, GCG blue, SST yellow, DAPI dim grey, matching the Avivator palette). Every
+other channel gets a fully-saturated hue derived from `md5(marker_name)`.
+
+The previous default was `100,100,100` — a no-op, i.e. **white** — which under additive blending
+is as bad as black: it lands on all three components, so switching on a fifth marker both washed
+out everything else and looked identical to switching on any other, forcing a manual colour pick
+every time.
+
+Hashing the *name* rather than drawing at random or using the channel index is deliberate:
+
+- a **random** colour differs on every rebuild, so a saved figure can't be matched to the live
+  viewer, and nothing stops it landing on near-black — the invisible-layer failure fixed in §2;
+- an **index-based** colour is worse than random for this cohort, because the panels are ordered
+  differently: the same marker would render in different colours on different donors.
+
+Name-hashing gives one stable colour per marker across every donor, panel and rebuild — asserted
+by the smoke test, which is the only place two panels exist side by side. The picker's 0–100
+integer scale affords roughly 600 fully-saturated hues, so a 59-marker panel sees ~3 collisions
+by birthday effect; the builder logs which markers share a colour rather than leaving it to be
+discovered, and they only matter when both are displayed together.
+
 ## 3. Cost of the switch
 
 - **Bit depth and tone mapping.** TissUUmaps layers are 8-bit; Viv renders the 16-bit data with
@@ -256,7 +307,7 @@ re-running the build script and restarting the service — there is no auto-upda
 ## 6. Re-running the verification
 
 ```bash
-# Synthetic: builds both panels, 25 checks, ~2 min. Currently 25/25.
+# Synthetic: builds both panels, 28 checks, ~2 min. Currently 28/28.
 python scripts/senior/tissuumaps_smoke_test.py
 
 # A real donor. --channels keeps the first pass quick; drop it for the full panel.
