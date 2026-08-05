@@ -51,16 +51,53 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Marker -> colour for the four channels that are visible by default, matching
-# the Avivator defaults in viewer_helpers.R::build_channel_config_b64().
-# TissUUmaps' "Color" filter takes "R,G,B" on a 0-200 scale where 100 is
-# neutral, so a plain hex colour maps to 2 * (channel / 255) * 100.
+# Colours for the four channels visible by default, following the Avivator
+# palette in viewer_helpers.R::build_channel_config_b64().
+#
+# TissUUmaps' "Color" filter values run **0-100 per channel, where 100 leaves
+# that channel untouched** -- filterUtils applies `channels(value - 100)`, so
+# every value is a subtraction and 0 means "remove this channel entirely".
+# Getting this scale wrong is not a subtle mis-tint: the UI renders the value
+# through `componentToHex(c) = floor(c * 255 / 100)`, so anything above 100
+# overflows to a 3-digit hex component, the resulting string is not a valid
+# colour, the picker falls back to #000000, and the layer reads back as
+# "0,0,0" -> channels(-100) -> **solid black and invisible**.
+#
+# Pure primaries are used rather than approximations of specific hex colours:
+# they isolate a fluorescence channel cleanly under additive blending, and they
+# round-trip through the picker exactly (100 -> "ff" -> 100).
 DEFAULT_ON = {
-    "INS": (228, 26, 28),      # red
-    "GCG": (55, 126, 184),     # blue
-    "SST": (255, 204, 0),      # yellow
-    "DAPI": (127, 127, 127),   # grey
+    "INS": "100,0,0",      # red
+    "GCG": "0,0,100",      # blue
+    "SST": "100,100,0",    # yellow
+    "DAPI": "50,50,50",    # dim grey, so nuclei don't wash out the markers
 }
+
+# Every other channel gets this explicitly. 100,100,100 is a no-op, i.e. plain
+# greyscale -- the point is that no layer is ever left without a Color entry,
+# so switching one on can never land on a stale or black picker value.
+NEUTRAL_COLOR = "100,100,100"
+
+# Filter controls offered per layer, and their neutral starting values.
+#
+# NB "Min"/"Max" -- 0-255 black/white-point sliders, the closest thing
+# TissUUmaps has to Avivator's contrast limits -- are deliberately NOT used.
+# filterUtils.js implements them, but they are missing from the Filter enum in
+# tissuumaps-schema 1.3, and views.py validates every .tmap on load: including
+# them puts a pydantic traceback in a warning banner over the viewer every time
+# the project is opened. They also cannot express a real window, because each
+# reads the other's *global* default rather than the sibling layer value
+# (filterUtils.getFilterParams returns _filters[name].params).
+#
+# Everything starts neutral on purpose: the contrast decision that matters is
+# the percentile stretch applied during extraction, in 16 bits, where there is
+# far more signal to work with than in these 8-bit display proxies.
+FILTER_DEFAULTS = [
+    ("Color", None),        # filled in per layer
+    ("Brightness", 0),      # slider range -50..50, 0 = no change
+    ("Contrast", 1),        # slider range 0..8,    1 = no change
+]
+FILTERS = [name for name, _ in FILTER_DEFAULTS]
 
 # Slides carry OME-XML channel names verbatim from the qptiff <Biomarker> XML,
 # which does not always spell markers the way the app does.
@@ -277,18 +314,23 @@ def build_project(
         layers.append({"name": name, "tileSource": rel})
         opacities[str(idx)] = 1.0
         visibilities[str(idx)] = False
+        # Explicit neutral start for EVERY layer, not just the visible ones: a
+        # channel switched on later must never come up black or carry a value
+        # left over from another layer's picker.
+        filters[str(idx)] = [
+            {"name": name, "value": NEUTRAL_COLOR if value is None else value}
+            for name, value in FILTER_DEFAULTS
+        ]
 
     matched = []
-    for marker, (r, g, b) in DEFAULT_ON.items():
+    for marker, color in DEFAULT_ON.items():
         idx = upper.get(marker.upper())
         if idx is None:
             log(f"WARNING: default channel {marker} not found in this panel")
             continue
         matched.append(f"{marker}@{idx}")
         visibilities[str(idx)] = True
-        filters[str(idx)] = [
-            {"name": "Color", "value": f"{round(r/255*200)},{round(g/255*200)},{round(b/255*200)}"}
-        ]
+        filters[str(idx)][0]["value"] = color
     log(f"default-on channels: {', '.join(matched) if matched else 'NONE'}")
 
     project: dict = {
@@ -299,7 +341,7 @@ def build_project(
         "layerOpacities": opacities,
         "layerVisibilities": visibilities,
         "layerFilters": filters,
-        "filters": ["Color", "Brightness", "Contrast"],
+        "filters": FILTERS,
         # Additive blending is what makes overlaid fluorescence channels read
         # correctly; the default "source-over" just paints the top layer.
         "compositeMode": "lighter",
