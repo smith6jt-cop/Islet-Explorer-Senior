@@ -166,8 +166,14 @@ def pyramid_level_means(tif: Path) -> list[float]:
     Via libvips (libtiff), i.e. the same decoder family OpenSlide uses to cut
     tiles -- so this measures what viewers actually get, not what a second
     decoder thinks the file says.
+
+    Uses vips' own ``avg()``, which streams: pulling each level through
+    ``write_to_memory()`` instead would allocate the whole raster in Python,
+    and level 0 of a real donor channel is tens of thousands of pixels per side
+    -- hundreds of MB per allocation, in the run this check exists to protect.
+    ``avg()`` also averages over all bands and any pixel format, so it carries
+    no assumption that the file is single-band uint8.
     """
-    import numpy as np
     import pyvips
 
     means, page = [], 0
@@ -176,9 +182,7 @@ def pyramid_level_means(tif: Path) -> list[float]:
             v = pyvips.Image.new_from_file(str(tif), page=page)
         except Exception:  # noqa: BLE001 - ran off the end of the directory list
             break
-        arr = np.ndarray(buffer=v.write_to_memory(), dtype=np.uint8,
-                         shape=(v.height, v.width))
-        means.append(float(arr.mean()))
+        means.append(float(v.avg()))
         if v.width <= 256 and v.height <= 256:
             break
         page += 1
