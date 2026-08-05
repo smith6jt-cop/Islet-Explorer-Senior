@@ -90,8 +90,8 @@ NEUTRAL_COLOR = "100,100,100"
 # (filterUtils.getFilterParams returns _filters[name].params).
 #
 # Everything starts neutral on purpose: the contrast decision that matters is
-# the percentile stretch applied during extraction, in 16 bits, where there is
-# far more signal to work with than in these 8-bit display proxies.
+# the percentile stretch applied during extraction on the full-resolution
+# 16-bit page, where there is far more signal than in these 8-bit proxies.
 FILTER_DEFAULTS = [
     ("Color", None),        # filled in per layer
     ("Brightness", 0),      # slider range -50..50, 0 = no change
@@ -185,6 +185,37 @@ def safe_stem(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def channel_stats(src, lo_pct: float, hi_pct: float) -> tuple[int, int, float, float]:
+    """Percentile cut points plus the clip fractions they imply.
+
+    Derived from a single full-resolution histogram pass: `percent()` builds a
+    histogram internally, so calling it twice reads the page twice. Returns
+    ``(lo, hi, pct_clipped_low, pct_clipped_high)`` with the cut points in the
+    source's own units (16-bit here), so callers can see how much real signal a
+    given percentile pair is throwing away rather than assuming it is safe.
+    """
+    import numpy as np
+
+    hist = src.hist_find()
+    dtype = {"uchar": np.uint8, "ushort": np.uint16, "uint": np.uint32,
+             "float": np.float32, "double": np.float64}.get(hist.format, np.uint32)
+    counts = np.ndarray(buffer=hist.write_to_memory(), dtype=dtype,
+                        shape=(hist.width,)).astype(np.int64)
+    total = int(counts.sum())
+    if total <= 0:
+        return 0, 1, 0.0, 0.0
+
+    cum = np.cumsum(counts)
+    lo = int(np.searchsorted(cum, total * lo_pct / 100.0, side="left"))
+    hi = int(np.searchsorted(cum, total * hi_pct / 100.0, side="left"))
+    if hi <= lo:
+        lo, hi = 0, max(1, hist.width - 1)
+
+    return (lo, hi,
+            float(counts[:lo].sum()) / total * 100.0,
+            float(counts[hi + 1:].sum()) / total * 100.0)
+
+
 def extract_channel(
     image: Path,
     page: int,
@@ -194,35 +225,58 @@ def extract_channel(
     lo_pct: float,
     hi_pct: float,
     force: bool,
-) -> bool:
-    """Write one channel as a pyramidal 8-bit TIFF. Returns True if it ran."""
+) -> dict | None:
+    """Write one channel as a pyramidal 8-bit TIFF.
+
+    Returns the stretch it applied, or None if a current file was reused.
+    """
     import pyvips
 
     if out_file.exists() and not force:
         if out_file.stat().st_mtime >= image.stat().st_mtime:
-            return False
+            return None
 
     src = pyvips.Image.new_from_file(str(image), page=page)
 
-    # Percentile stretch measured on a shrunk copy — scanning a 35 GB slide's
-    # full page twice is far too expensive, and percentiles are stable under
-    # downsampling.
-    shrink = max(1, int(min(src.width, src.height) // 2048))
-    stats = src.shrink(shrink, shrink) if shrink > 1 else src
-    lo, hi = stats.percent(lo_pct), stats.percent(hi_pct)
-    if hi <= lo:
-        lo, hi = 0, max(1, int(stats.max()))
+    # Percentiles are measured on the FULL-RESOLUTION page.
+    #
+    # An earlier version measured them on a shrunk copy, justified as
+    # "percentiles are stable under downsampling". They are not: shrink()
+    # block-averages, which flattens precisely the sparse bright pixels the
+    # upper percentile exists to find. Measured on a 4096x4096 channel with
+    # sparse puncta, at the shrink factor a 40k-pixel slide would get:
+    #
+    #     shrink=1   99.5th pct = 9243   (true)
+    #     shrink=4   99.5th pct = 4797
+    #     shrink=14  99.5th pct = 1453   -- 6.4x too low
+    #
+    # Every feature above ~1453 then saturated to flat white with no internal
+    # structure. The shrink also bought nothing: vips_shrink reads every input
+    # pixel regardless, so it saved no I/O, only histogram bins. Measured cost
+    # of percent() on the full page vs the shrunk copy: 10 ms vs 11 ms.
+    # One histogram pass yields both cut points AND how much actually clips, so
+    # the cost is lower than two percent() calls (each of which builds its own
+    # histogram) and the quality of the stretch is visible per channel instead
+    # of being taken on trust.
+    lo, hi, clip_lo, clip_hi = channel_stats(src, lo_pct, hi_pct)
 
-    # Clip in float, then scaleimage() to uchar. Do NOT substitute `.cast()`
-    # here: on libvips 8.15 the cast path makes JPEG-in-TIFF fail with
-    # "VipsJpeg: Unsupported color conversion request" for single-band images,
-    # while the scaleimage path (what TissUUmaps itself uses) writes fine.
-    # Clipping anchors the range at 0/255 so scaleimage is effectively a no-op
-    # and channels stay comparable to each other.
     out = (255.0 * (src - lo)) / (hi - lo)
     out = (out < 0).ifthenelse(0, out)
     out = (out > 255).ifthenelse(255, out)
-    out = out.scaleimage()
+
+    if compression == "jpeg":
+        # scaleimage() is only used where libvips forces it: the JPEG-in-TIFF
+        # writer rejects the cast path (see the tiffsave note below). It is not
+        # equivalent -- it RE-STRETCHES by the clipped image's own min/max, so a
+        # channel that does not reach both ends of the range is silently
+        # remapped and is no longer comparable to its neighbours. A dim test
+        # channel that should have occupied 8-bit levels 10..14 came out as
+        # 0..255, an error of 241 levels.
+        out = out.scaleimage()
+    else:
+        # Exact: +0.5 because vips casts float->int by truncation, which would
+        # otherwise darken every pixel by up to one level.
+        out = (out + 0.5).cast("uchar")
 
     kwargs = dict(pyramid=True, tile=True, tile_width=256, tile_height=256,
                   compression=compression, bigtiff=True, properties=True)
@@ -244,7 +298,7 @@ def extract_channel(
             ) from exc
         raise
     tmp.replace(out_file)
-    return True
+    return {"lo": lo, "hi": hi, "clip_lo": clip_lo, "clip_hi": clip_hi}
 
 
 # ---------------------------------------------------------------------------
@@ -443,16 +497,32 @@ def main() -> int:
     for n_done, (page, name) in enumerate(keep, 1):
         stem = f"{page:02d}_{safe_stem(name)}"
         out_file = ch_dir / f"{stem}.tif"
-        ran = extract_channel(image, page, out_file, args.compression, args.quality,
-                              lo_pct, hi_pct, args.force)
-        log(f"  [{n_done}/{len(keep)}] {name:<20} {'extracted' if ran else 'cached'} "
-            f"({out_file.stat().st_size / 1e6:.1f} MB)")
+        stats = extract_channel(image, page, out_file, args.compression, args.quality,
+                                lo_pct, hi_pct, args.force)
+        size_mb = out_file.stat().st_size / 1e6
+        if stats is None:
+            log(f"  [{n_done}/{len(keep)}] {name:<20} cached    ({size_mb:.1f} MB)")
+        else:
+            flag = "  <-- clips >1% of pixels" if stats["clip_hi"] > 1.0 else ""
+            log(f"  [{n_done}/{len(keep)}] {name:<20} extracted ({size_mb:.1f} MB) "
+                f"16-bit {stats['lo']}-{stats['hi']} -> 0-255, "
+                f"clipped {stats['clip_lo']:.2f}% low / {stats['clip_hi']:.2f}% high{flag}")
         channel_files.append(f"channels/{case_id}/{stem}.tif.dzi")
         kept_names.append(name)
 
-    total = sum(f.stat().st_size for f in ch_dir.glob("*.tif"))
-    log(f"channels: {total / 1e9:.2f} GB from a {image.stat().st_size / 1e9:.2f} GB slide "
-        f"({total / max(1, image.stat().st_size):.0%}) in {time.time() - t0:.0f}s")
+    # Report per-channel cost and project the full panel. Reporting only
+    # "X GB from a Y GB slide" on a --channels run reads as a completeness
+    # claim when it is a fraction of the panel, which is exactly the wrong
+    # number to size storage from.
+    on_disk = [f.stat().st_size for f in ch_dir.glob("*.tif")]
+    total, n_files, slide = sum(on_disk), len(on_disk), image.stat().st_size
+    per_channel = total / max(1, n_files)
+    projected = per_channel * len(names)
+    log(f"channels: {total / 1e9:.2f} GB across {n_files} of {len(names)} channels "
+        f"({per_channel / 1e6:.0f} MB each) in {time.time() - t0:.0f}s")
+    log(f"   full panel projects to {projected / 1e9:.1f} GB per donor, "
+        f"{projected / max(1, slide):.0%} of the {slide / 1e9:.1f} GB slide"
+        + ("" if n_files == len(names) else "  [extrapolated from a partial run]"))
 
     region_rel = None
     if args.regions:
