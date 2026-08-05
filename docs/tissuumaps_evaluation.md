@@ -171,12 +171,16 @@ exercises, so a run against a pip-installed upstream is visible in the log rathe
 python scripts/senior/build_tissuumaps_project.py \
     --image   /data/islet_ome_tiff/6539.ome.tiff \
     --out-dir /data/tissuumaps \
-    --regions data/app_data/json/6539.geojson \
+    --regions data/Islets \
     --markers data/app_data/cells/6539_tissue.csv
 ```
 
 Writes `/data/tissuumaps/6539.tmap`, `channels/6539/<idx>_<marker>.tif`,
 `regions/6539.geojson`, `markers/6539.csv`.
+
+`--regions` takes the **directory** the QuPath exports live in (`data/Islets`) and finds the
+donor's file by case id, or a single file if you'd rather be explicit. `.gz` is read
+transparently, since exports are often stored compressed.
 
 **Coordinate conventions** (get these wrong and everything is subtly offset — they are CLI
 flags precisely so they can be checked per donor):
@@ -184,8 +188,22 @@ flags precisely so they can be checked per donor):
 | input | space | flag |
 |---|---|---|
 | viewer OME-TIFF | full-res px, 0.2539 µm/px | `--um-per-px` |
-| QuPath GeoJSON | resolution #1 px (`PIXEL_SIZE_UM` = 0.5078) | `--region-scale 2.0` |
+| QuPath GeoJSON | resolution #1 px (`PIXEL_SIZE_UM` = 0.5078) | `--region-um-per-px` |
 | per-cell CSV | µm | `coord_factor = 1/--um-per-px`, set automatically |
+
+The region scale factor is **derived, then falsified**, not defaulted. `--region-scale auto`
+(the default) computes it as `--region-um-per-px / --um-per-px` — 2.0 for these exports — which
+is a physical statement about the two pixel sizes rather than a magic constant. It then checks
+the scaled geometry against the image: an outline can never legitimately fall outside the
+slide, so a factor that pushes one past the edge is *provably* wrong and the builder backs off
+to the largest smaller pyramid factor that fits, logging loudly.
+
+The reverse error — coordinates that are already full-res being doubled — is only detectable
+when the tissue covers more than about half the slide. It usually does here, but that is the
+known blind spot: the chosen factor and the resulting slide coverage are both printed, and
+passing a number to `--region-scale` overrides the inference entirely. The smoke test asserts
+that the written outlines land inside the image and that the applied factor is a clean pyramid
+factor.
 
 **Point the app at it** — `ISLET_VIEWER_BACKEND=tissuumaps` plus `TISSUUMAPS_URL` and
 `TISSUUMAPS_PROJECT_DIR` (see `deploy/env.sh.example`). Anything other than `tissuumaps` keeps
@@ -200,18 +218,23 @@ re-running the build script and restarting the service — there is no auto-upda
 ## 6. Re-running the verification
 
 ```bash
-# Synthetic: builds both panels, 19 checks, ~2 min. Currently 19/19.
+# Synthetic: builds both panels, 21 checks, ~2 min. Currently 21/21.
 python scripts/senior/tissuumaps_smoke_test.py
 
 # A real donor. --channels keeps the first pass quick; drop it for the full panel.
 python scripts/senior/tissuumaps_smoke_test.py \
     --image /data/islet_ome_tiff/6539.ome.tiff \
-    --regions data/app_data/json/6539.geojson \
+    --regions data/Islets \
     --markers data/app_data/cells/6539_tissue.csv \
     --channels DAPI,INS,SST,GCG --keep
 
-Rscript scripts/test_viewer_helpers.R      # 14 unit tests for the R helpers
+Rscript scripts/test_viewer_helpers.R                  # 14 unit tests for the R helpers
+python scripts/test_build_tissuumaps_regions.py        # 21 unit tests for region handling
 ```
+
+`test_build_tissuumaps_regions.py` needs no slide, server or pyvips — it covers the directory
+lookup, gzip reading, and the scale inference (including the cases the smoke test's single
+donor cannot reach: a full-res export, a 4×-downsampled one, and geometry-free input).
 
 The smoke test builds (or reuses) a slide, runs the generator, boots `tissuumaps_server`,
 asserts every route, and drives a headless Chromium to confirm layers/regions/markers actually

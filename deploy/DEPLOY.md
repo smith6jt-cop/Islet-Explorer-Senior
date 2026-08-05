@@ -132,9 +132,12 @@ built locally — not the PyPI release or the published `cavenel/tissuumaps` ima
      python scripts/senior/build_tissuumaps_project.py \
        --image /pubapps/<project>/islet_ome_tiff/$c.ome.tiff \
        --out-dir /pubapps/<project>/tissuumaps \
-       --regions data/app_data/json/$c.geojson
+       --regions data/Islets
    done
    ```
+   `--regions` points at the directory of QuPath exports and picks each donor's file by case
+   id (`.gz` included); the scale into full-res pixels is derived from the two pixel sizes and
+   then checked against the image bounds, so watch for a `WARNING` on the `regions:` line.
    Idempotent — a killed run resumes. Check the printed `channels:` line for the real disk
    ratio before doing all 22, and verify one donor visually (`--keep`) first: the layers are
    **8-bit** proxies of the 16-bit data.
