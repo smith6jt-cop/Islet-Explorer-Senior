@@ -179,4 +179,6 @@ def test_workflow_links_the_exact_notebook_06_name():
     assert "Notebooks 01–04 retain their existing guarded package-stage" in workflow
     assert "notebook 05 is read-only" in workflow
     assert "probability-sample review is complete and its software-enforced" in workflow
-    assert "it cannot supply headline\n   metrics or software promotion pass/fail" in workflow
+    # The claim is what matters; the previous assertion also pinned a broken
+    # line wrap ("headline\n   metrics") from the doc it was written against.
+    assert "cannot supply headline metrics or software promotion pass/fail" in workflow

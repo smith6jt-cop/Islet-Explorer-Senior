@@ -158,8 +158,13 @@ evidence from a rejected run must never be supplied to a fit.
 If that lane is ever authorized, its guarded release interface is
 [06_probabilistic_validation_and_promotion](../notebooks/06_probabilistic_validation_and_promotion.ipynb),
 and its contract is in [`PROBABILISTIC_RESCUE.md`](PROBABILISTIC_RESCUE.md).
+
 Notebooks 01–06 are operator interfaces, not alternate production
-implementations; notebook 05 is read-only. Promotion stays disabled until the
+implementations. Notebooks 01–04 retain their existing guarded package-stage
+entry points; notebook 05 is read-only. Promotion stays disabled until the
 probability-sample review is complete and its software-enforced provenance is
-valid. Note that notebook 05 currently requires a configured model bundle and
+valid. The detached challenge sample may reveal a catastrophic problem, but it
+cannot supply headline metrics or software promotion pass/fail.
+
+Note that notebook 05 currently requires a configured model bundle and
 therefore does not run against the production default.
