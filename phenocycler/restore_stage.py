@@ -37,7 +37,10 @@ from .restore_validation import (
 )
 
 
-METHOD_VERSION = f"restore-marker-evidence-v1+{RESTORE_METHOD_VERSION}"
+# v2: a reviewed absence of target expression calls only cells that were actually measured.  The
+# NO_TARGET_EXPRESSION_CONFIRMED branch used to write `negative` over every row regardless of
+# ``valid_idx``, so a cell with a missing measurement became a confident biological negative.
+METHOD_VERSION = f"restore-marker-evidence-v2+{RESTORE_METHOD_VERSION}"
 CELL_POSITIVE = "positive"
 CELL_NEGATIVE = "negative"
 CELL_UNAVAILABLE = "unavailable"
@@ -344,7 +347,12 @@ def cell_calls_from_evaluation(
     normalized = np.full(n, np.nan, dtype=float)
     state = np.full(n, CELL_UNAVAILABLE, dtype="<U11")
 
-    if pair_state is PairState.VALID:
+    if pair_state in CALLABLE_STATES:
+        # ``valid_idx`` is the set of cells that carried finite, nonnegative
+        # measurements for both markers.  A cell outside it has no measurement,
+        # and a reviewed absence of target expression is a statement about the
+        # donor's biology, not evidence about a cell that was never measured.
+        # Both callable states therefore call only within ``valid_idx``.
         available = np.zeros(n, dtype=bool)
         available[np.asarray(evaluation["valid_idx"], dtype=int)] = True
         positive = np.asarray(
@@ -355,8 +363,6 @@ def cell_calls_from_evaluation(
         ).copy()
         state[available & positive] = CELL_POSITIVE
         state[available & ~positive] = CELL_NEGATIVE
-    elif pair_state is PairState.NO_TARGET_EXPRESSION_CONFIRMED:
-        state[:] = CELL_NEGATIVE
 
     if analysis_eligible is not None:
         eligible = np.asarray(analysis_eligible, dtype=bool)

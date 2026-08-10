@@ -117,6 +117,34 @@ def test_cell_calls_are_tri_state_and_never_make_failure_negative():
     assert failed_state.tolist() == [CELL_UNAVAILABLE, CELL_UNAVAILABLE]
 
 
+def test_confirmed_absence_never_calls_an_unmeasured_cell_negative():
+    """A reviewed absence is a statement about the donor, not about a missing measurement.
+
+    Cell 2 is outside ``valid_idx``: it had no finite measurement for this
+    pair.  A confirmed absence of target expression says nothing about it, so
+    it must stay ``unavailable`` rather than becoming a confident negative.
+    """
+
+    confirmed = {
+        "n_input": 3,
+        "state": PairState.NO_TARGET_EXPRESSION_CONFIRMED.value,
+        "valid_idx": np.array([0, 1]),
+        # normalize_for_assessment returns all-NaN / all-False for this state.
+        "full_lineage_positive": np.array([False, False, False]),
+        "full_normalized": np.array([np.nan, np.nan, np.nan]),
+    }
+    positive, normalized, state = cell_calls_from_evaluation(
+        confirmed, analysis_eligible=np.array([True, True, True])
+    )
+    assert state.tolist() == [
+        CELL_NEGATIVE,
+        CELL_NEGATIVE,
+        CELL_UNAVAILABLE,
+    ]
+    assert not positive.any()
+    assert np.isnan(normalized).all()
+
+
 def test_restore_evidence_drives_rules_typing_without_labels_or_model(monkeypatch):
     registry = load_registry()
     pairs = production_pairs(registry)

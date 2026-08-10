@@ -33,7 +33,11 @@ from .cohort import DONOR_EXCLUSIONS, ensure_eligible_donors
 # single bright cell in a sparse arm no longer sets the feature scale (22 of 600 screened rows, all with
 # immune targets). Adds anchor_recovery, arm-saturation/stability_informative reporting, and a
 # saturated-arm probe Jaccard. v5 artifacts were produced under the degenerate bound rule.
-METHOD_VERSION = "restore-pair-validation-v10"
+# v11: seed stability fails CLOSED. divisor_reproducibility is NaN, not 1.0, when fewer than two of
+# the locked seeds produced a finite positive divisor -- the quantity was never measured, so the pair
+# is MODEL_UNSTABLE rather than perfectly reproducible by fiat. Adds seed_divisor_n. Pairs whose fit
+# converged on every seed are numerically unchanged; only pairs that were passing on one seed move.
+METHOD_VERSION = "restore-pair-validation-v11"
 # NB: ``BroadLineageRevised.md`` lists 8 first-pass pairs.  ``CD20 <- E_cadherin`` was the eighth and
 # is deliberately absent — CD20 is deferred out of RESTORE entirely (see RESTORE_EXCLUDED_MARKERS).
 BASELINE_PAIRS: tuple[tuple[str, str], ...] = (
@@ -1495,6 +1499,34 @@ def balanced_arm_fit_indices(
     }
 
 
+def divisor_reproducibility_across_seeds(
+    control_divisors: Iterable[float],
+) -> tuple[int, float]:
+    """Reproducibility of the DIVISOR across the locked seeds, and its support.
+
+    Returns ``(usable_seed_count, min/max)`` over the seeds that produced a
+    finite positive divisor.  This is the stability quantity RESTORE actually
+    depends on; control-set membership may shuffle at the separator on a
+    high-background marker while the divisor itself is reproducible.
+
+    Fewer than two usable seeds means the quantity was **not measured** -- the
+    fit collapsed on the others and there is nothing to compare -- so the
+    reproducibility is NaN.  NaN fails the ``>=`` stability gate and sends the
+    pair to ``MODEL_UNSTABLE``.  This previously defaulted to 1.0, i.e. perfect
+    reproducibility by fiat, which let a pair reach production on the evidence
+    of a single seed's divisor.
+    """
+
+    usable = [
+        float(value)
+        for value in control_divisors
+        if np.isfinite(value) and value > 0
+    ]
+    if len(usable) < 2 or max(usable) <= 0:
+        return len(usable), float("nan")
+    return len(usable), float(min(usable) / max(usable))
+
+
 def robust_minmax_scale(
     features: np.ndarray,
     fit_indices: np.ndarray,
@@ -2561,18 +2593,8 @@ def evaluate_locked_pair(
     min_jaccard = float(
         min(row["control_jaccard"] for row in stability_rows)
     )
-    seed_divisors = [
-        row["control_divisor"]
-        for row in stability_rows
-        if np.isfinite(row["control_divisor"]) and row["control_divisor"] > 0
-    ]
-    # Reproducibility of the DIVISOR across seeds -- min/max of the per-seed background-ceiling maxima.
-    # This is the stability quantity RESTORE actually depends on; control-set membership (min_jaccard,
-    # reported) may shuffle at the separator on a high-background marker while the divisor is stable.
-    divisor_reproducibility = (
-        float(min(seed_divisors) / max(seed_divisors))
-        if len(seed_divisors) >= 2 and max(seed_divisors) > 0
-        else 1.0
+    seed_divisor_n, divisor_reproducibility = divisor_reproducibility_across_seeds(
+        row["control_divisor"] for row in stability_rows
     )
     converged = all(row["converged"] for row in stability_rows)
     stable = bool(
@@ -2580,6 +2602,9 @@ def evaluate_locked_pair(
             row["directional_mean"] and row["directional_median"]
             for row in stability_rows
         )
+        # Explicit rather than relying on NaN comparing False: an unmeasured
+        # reproducibility must never be read as a passing one.
+        and np.isfinite(divisor_reproducibility)
         and divisor_reproducibility >= config.min_divisor_reproducibility
     )
 
@@ -2848,6 +2873,7 @@ def evaluate_locked_pair(
         "stable": stable,
         "min_control_jaccard": min_jaccard,
         "divisor_reproducibility": divisor_reproducibility,
+        "seed_divisor_n": seed_divisor_n,
         "stability_rows": stability_rows,
         "target_fold": target_fold,
         "target_fold_by_seed": by_seed_target_folds,
@@ -3012,6 +3038,9 @@ def locked_pair_metrics(evaluation: dict) -> dict:
         "stable": evaluation["stable"],
         "min_control_jaccard": evaluation["min_control_jaccard"],
         "divisor_reproducibility": evaluation["divisor_reproducibility"],
+        # How many of the locked seeds produced a usable divisor. Below 2 the
+        # reproducibility above is NaN because it was never measurable.
+        "seed_divisor_n": evaluation["seed_divisor_n"],
         "stability_informative": evaluation["stability_informative"],
         "probe_control_jaccard": evaluation["probe_control_jaccard"],
         "target_arm_saturated": evaluation["target_arm_saturated"],
