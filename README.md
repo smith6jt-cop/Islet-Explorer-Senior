@@ -14,7 +14,7 @@ QuPath cohort manifest
   -> authoritative per-marker expression
   -> retained reference-control diagnostics
   -> RESTORE donor-local target/reference fits and tri-state marker calls
-  -> validated ordered residual broad typing
+  -> simultaneous broad typing
   -> separate process-state annotation
   -> uncertainty-preserving QuPath export
 ```
@@ -45,9 +45,10 @@ not introduce thresholds, donor exclusions, or typing rules of their own.
 - Marker evidence preserves corrected intensity, the donor-marker divisor,
   RESTORE-normalized intensity, a zero-centered log2 threshold ratio, pair-fit
   stability, and a tri-state call: `positive`, `negative`, or `unavailable`.
-- Broad types use the validated historical residual order: Immune,
-  Endothelial, Epithelial, Neural, Mesenchymal, then Other. The first positive
-  gate claims the cell; unavailable evidence blocks lower-priority gates.
+- Broad types are evaluated simultaneously, with no precedence between gates.
+  Exactly one supported gate is an `anchor`; more than one is `Ambiguous` with
+  the competing gates recorded; none, with everything explicitly negative, is
+  `Other`; an unmeasured gate marker leaves the cell `Unavailable`.
 - State markers such as Ki67 and PCNA are reported separately and cannot
   change cell identity.
 - Every run and stage is content addressed. Partial, stale, or donor-incomplete
@@ -136,12 +137,12 @@ data_dir = data
 qupath_manifest = data/qupath_manifest.json
 ```
 
-The package defaults supply the marker registry and ordered residual rules. A
+The package defaults supply the marker registry and broad gate rules. A
 project can pin explicit paths to reviewed copies:
 
 ```ini
 marker_registry = phenocycler/marker_registry.json
-ordered_typing_rules = phenocycler/ordered_residual_rules.json
+broad_gate_rules = phenocycler/broad_gates.json
 ```
 
 Run and inspect the complete workflow:

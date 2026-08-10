@@ -2,7 +2,7 @@
 
 This document is the operational and scientific contract for the production
 workflow. It explains how raw QuPath compartments and REDSEA measurements
-become donor-local RESTORE marker evidence and then an ordered broad identity.
+become donor-local RESTORE marker evidence and then a broad identity.
 
 Start with [the project README](../README.md) for commands and
 [the data guide](../DATA_README.md) for schemas.
@@ -22,7 +22,7 @@ authoritative corrected intensity
 
 Those records support the larger objective of assigning all cells to broad
 cell types. The workflow preserves unavailability when the measurement, panel,
-or control population cannot support an ordered gate; it does not manufacture
+or control population cannot support a gate; it does not manufacture
 completeness by converting missing evidence to negative or `Other`.
 
 ## Authorities and boundaries
@@ -35,8 +35,9 @@ Four versioned inputs always govern a run:
 2. [`marker_registry.json`](../phenocycler/marker_registry.json) owns marker
    meaning, compartment selection, spillover policy, RESTORE activation,
    incompatible reference, uses, and testing families.
-3. [`ordered_residual_rules.json`](../phenocycler/ordered_residual_rules.json)
-   owns the production broad gate order and membership.
+3. [`broad_gates.json`](../phenocycler/broad_gates.json)
+   owns the production broad gate membership. It carries no precedence:
+   gates are evaluated simultaneously.
 4. The configuration owns fixed geometry, REDSEA, RESTORE, and compute
    parameters.
 
@@ -45,7 +46,7 @@ immutable threshold-frozen model bundle and its separately signed promotion
 manifest, plus the separate `typing_rules.json`. Both paths must be configured together; the manifest must authorize
 that exact bundle, donor split, registries, calibration source, validation and
 locked-test reports, replay code, and numerical runtime. Leaving both paths
-blank selects the RESTORE ordered residual default. See
+blank selects the simultaneous broad typing default. See
 [`PROBABILISTIC_RESCUE.md`](PROBABILISTIC_RESCUE.md) for the fitting and release
 contract.
 
@@ -64,23 +65,32 @@ manifest contracts as the CLI. Notebooks must not:
 ## Stage graph
 
 ```text
-                 ┌──────────── immutable biological registries ────────────┐
-                 │                                                         │
-QuPath manifest ─┴─> ingest -> geometry -> REDSEA -> expression            │
-                                                  │                        │
-                                                  ├-> controls -> RESTORE  ├-> type
-                                                  │                        │
-                                                  └────────────────────────┴-> states
-                                                                            │
-type ----------------------------------------------------------------> QuPath export
+                    ┌───────── immutable biological registries ─────────┐
+                    │                                                   │
+QuPath manifest ────┴─> ingest ─> geometry ─> REDSEA                    │
+                          │          │           │                      │
+                          └──────────┴───────────┴──> RESTORE ──> type ─┘
+                                     │                (calibrate)   │
+                                     └──> expression ──> controls   │
+                                              │        (diagnostics)│
+                                              └──> states           │
+                                                                    │
+type ──────────────────────────────────────────────────> QuPath export
 ```
 
-The fixed analytical order is:
+The fixed execution order is unchanged:
 
 ```text
 ingest -> geometry -> redsea -> expression -> controls
        -> calibrate -> type -> states
 ```
+
+but note what each stage actually reads. **RESTORE reads `cells/`, `redsea/` and
+`geometry_qc/` directly** — it does not consume `expression/` or
+`reference_controls/`, even though `calibrate` still declares both as stage
+dependencies. `reference_controls/` currently has no reader anywhere in the
+package; it is retained as a diagnostic. `expression/` is a real input to
+`states`, not to identity.
 
 State annotation depends on authoritative expression, not on identity.
 QuPath export depends on typing and has a separate manifest.
@@ -335,51 +345,86 @@ interfaces retain one signed threshold-relative coordinate.
 |---|---|
 | marker false positives/negatives | inspect the RESTORE pair audit; change the registered reference or declared divisor policy, then refit all affected donors |
 | bad spillover or segmentation | correct REDSEA/geometry upstream, then rerun the dependency suffix |
-| marker calls correct but class wrong | change `ordered_residual_rules.json`, version it, and rerun typing |
+| marker calls correct but class wrong | change `broad_gates.json`, version it, and rerun typing |
 | evidence cannot resolve the cell | retain `Unavailable`; never fabricate a negative or class |
 
 QuPath error examples are regression checks for those changes, not training
 labels. See `REFINEMENT_WORKFLOW.md`.
 
-## Stage 7: validated RESTORE ordered residual typing
+## Stage 7: simultaneous broad typing
 
 Typing consumes the categorical RESTORE marker states, not raw intensities and
-not reviewed labels. The default `typing_mode=restore_ordered_residual`
-applies this immutable priority chain:
+not reviewed labels. The default `typing_mode=restore_simultaneous` evaluates
+every gate against the same evidence. **No gate has precedence over another.**
 
-```text
-Immune -> Endothelial -> Epithelial -> Neural -> Mesenchymal -> Other
-```
+The gate membership is versioned in `broad_gates.json`:
 
-The gate membership is versioned in `ordered_residual_rules.json`:
-
-| Gate | Any positive member claims the residual cell |
+| Gate | Members |
 |---|---|
 | Immune | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
 | Endothelial | CD31, CD34, Podoplanin |
-| Epithelial | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG, SST |
+| Epithelial | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG |
 | Neural | B3TUBB |
 | Mesenchymal | Vimentin, SMA |
 
-For each analysis-eligible cell, the first gate with any positive member wins.
-A positive member dominates an unavailable sibling in the same gate. If a gate
-has no positive member but contains an unavailable or indeterminate member,
-the cell becomes `Unavailable` and lower-priority gates are blocked. `Other`
-is emitted only when all 24 gate markers are explicitly negative. A
-geometry-QC-ineligible cell is always `Unavailable`.
+For each analysis-eligible cell:
+
+| disposition | condition |
+|---|---|
+| `anchor` | exactly one gate is supported; that gate is the label |
+| `Ambiguous` | more than one gate is supported; the competing gates are recorded and **no winner is chosen** |
+| `Other` | no gate is supported and every gate marker is explicitly negative |
+| `Unavailable` | geometry-QC ineligible, or unsupported with an unmeasured gate marker |
+
+A positive member dominates an unavailable sibling in the same gate.
+
+### Why the order was removed
+
+The predecessor visited gates in a declared priority order and gave a
+multi-gate cell to whichever gate came first. Measured on run
+`3bf4fc8e391d007766d1`'s own marker evidence, over its 25,150,537
+analysis-eligible cells, that one choice moved the cohort Immune fraction from
+**20.50%** (Immune first, as shipped) to **6.75%** (Epithelial first) to
+**3.33%** (Immune last). 29.3% of cells are positive for two or more gates and
+only 16.2% of Immune-gate-positive cells are positive for no other gate. Under
+simultaneous typing, **84% of the ordered residual's Immune calls and 75% of
+its Endothelial calls are `Ambiguous`**, against 4% of its Epithelial calls.
+A headline number that swings six-fold on a list ordering was being set by the
+ordering, not by the evidence.
+
+Gate names are iterated in sorted order, not file order, so reordering
+`broad_gates.json` cannot change an assignment even by accident.
+
+### SST
+
+SST is **not** broad Epithelial evidence. `marker_registry.json` declares it
+`uses: ["subtype"]` with no `broad_compartment`, and
+`hierarchical_typing.SUBTYPE_ONLY_MARKERS` forbids it pulling a cell into the
+broad Epithelial compartment. The retired ordered rules placed it in that gate
+anyway, because the policy validated only that the gate marker *set* equalled
+the active marker set. Gate membership is now checked against each marker's
+registered `broad_compartment`, `calibration_status` and `uses`. Removing SST
+moved 0.06 pp of cells from Epithelial to Other.
+
+### Scores
+
+`broad_best_probability`, `broad_margin`, `broad_stability` and `confidence`
+are `NaN`. They are not estimated by this method, and the same rows record zero
+bootstrap replicates; the predecessor stamped `1.0` into all three.
+`broad_support` and `broad_support_margin` carry the RESTORE-normalized support
+(each marker's intensity over its own donor-local divisor, so 1.0 is the
+threshold for every marker) and are **reported only** — this stage does not
+threshold them. A separately versioned rule may later use that margin to
+resolve ambiguous cells on evidence.
 
 This production default is deterministic and broad-only. The compatibility
 columns `specific_type` and `cell_type` carry the accepted broad label; subtype
-probability fields are empty because no subtype classifier is being fitted.
-Every row records the decisive gate, authoritative positive marker, rules
-fingerprint, registry fingerprint, typing mode, and categorical score
-semantics.
+fields are empty because no subtype classifier is being fitted.
 
-The simultaneous parent-constrained implementation remains available only
-when an exact signed and promoted probabilistic bundle is explicitly
-configured. It is a separate optional method and is not a fallback from, or a
-replacement for, the restored ordered workflow. The ordinary production type
-stage never fits or retunes a model.
+The probabilistic parent-constrained implementation remains available only when
+an exact signed and promoted bundle is explicitly configured. It is a separate
+optional method, not a fallback. The ordinary production type stage never fits
+or retunes a model.
 
 ## Stage 8: keep process state orthogonal
 

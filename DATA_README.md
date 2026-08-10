@@ -324,36 +324,46 @@ divisor, feature-set, and call-count details are written to
 
 ## Assignment schema
 
-The production-default `assignments` table records the validated RESTORE
-ordered residual decision. Stable handoff columns are:
+The production-default `assignments` table records the simultaneous broad
+typing decision. Stable handoff columns are:
 
 | Column | Meaning |
 |---|---|
-| `broad_type` | first positive ordered gate, `Other`, or `Unavailable` |
+| `broad_type` | the single supported gate, `Ambiguous`, `Other`, or `Unavailable` |
 | `specific_type` | compatibility alias of `broad_type` in the broad-only default |
-| `assignment_status` | `anchor`, `other`, or `unavailable` |
-| `confidence` | 1 for a categorical accepted decision; null when unavailable |
-| `best_broad_type` | claimed or blocking gate when present |
+| `assignment_status` | `anchor`, `ambiguous`, `other`, or `unavailable` |
+| `confidence` | null — this method estimates no probability |
+| `best_broad_type` | the anchored gate, or the competing/blocking gate set |
 | `best_specific_type` | compatibility alias of the broad result |
-| `assignment_reason` | `positive`, `all_negative`, `blocked_unavailable_gate`, or `geometry_qc_ineligible` |
-| `blocked_by` | higher-priority gate that could not be evaluated |
-| `ordered_residual_gate` | decisive positive or blocking gate |
-| `typing_mode` | `restore_ordered_residual` |
+| `assignment_reason` | `single_supported_gate`, `multiple_supported_gates`, `all_negative`, `unmeasured_gate_marker`, or `geometry_qc_ineligible` |
+| `blocked_by` | gates that could not be evaluated, `\|`-joined |
+| `broad_supported_gates` | every supported (or blocking) gate, `\|`-joined |
+| `broad_supported_gate_n` | how many gates support the cell |
+| `broad_support` | RESTORE-normalized support of the best gate (1.0 is the threshold) |
+| `broad_support_margin` | best minus second-best support, for ambiguous cells |
+| `typing_mode` | `restore_simultaneous` |
 
 Rules, registry, method, and categorical-score provenance are repeated on each
 row. Probability/ranking and subtype columns remain in the schema so the
 signed optional probabilistic lane can use the same handoff contract; they are
-empty or not applicable in the production-default ordered lane. Default
-statuses are:
+empty or not applicable in the production default. Default statuses are:
 
 ```text
 anchor
+ambiguous
 other
 unavailable
 ```
 
-`Other` means all 24 ordered-gate markers were explicitly negative. It does
-not mean “could not classify.”
+`Other` means every gate marker was explicitly negative. It does not mean
+“could not classify” — that is `Ambiguous` (contradictory evidence) or
+`Unavailable` (missing evidence), and the three are deliberately distinct.
+
+`broad_best_probability`, `broad_margin`, `broad_stability` and `confidence`
+are `NaN`: they were never estimated, and the same rows carry
+`typing_broad_bootstrap_replicates = 0`. Use `broad_support` /
+`broad_support_margin` for evidence strength; they are reported, not
+thresholded.
 
 ## State schema
 
