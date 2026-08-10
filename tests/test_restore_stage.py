@@ -145,6 +145,31 @@ def test_confirmed_absence_never_calls_an_unmeasured_cell_negative():
     assert np.isnan(normalized).all()
 
 
+def test_a_cell_missing_only_a_FIT_feature_is_still_called():
+    """The fit universe and the call universe are not the same set.
+
+    ``valid_idx`` is who may help ESTIMATE the divisor -- it requires a complete
+    NNMF feature row. Applying the divisor needs only a finite corrected target
+    intensity. REDSEA emits NaN Cytoplasm for a cell whose nucleus fills it, and
+    geometry QC flags exactly those `estimation_eligible=False,
+    analysis_eligible=True`; 8.63% of donor 6539's analysis-eligible cells. They
+    must keep their calls.
+    """
+
+    evaluation = {
+        "n_input": 3,
+        "state": PairState.VALID.value,
+        "valid_idx": np.array([0, 1]),      # cell 2 lacks a feature
+        "call_idx": np.array([0, 1, 2]),    # but has a corrected intensity
+        "full_lineage_positive": np.array([False, True, True]),
+        "full_normalized": np.array([0.5, 2.0, 3.0]),
+    }
+    _, _, state = cell_calls_from_evaluation(
+        evaluation, analysis_eligible=np.array([True, True, True])
+    )
+    assert state.tolist() == [CELL_NEGATIVE, CELL_POSITIVE, CELL_POSITIVE]
+
+
 def test_restore_evidence_drives_rules_typing_without_labels_or_model(monkeypatch):
     registry = load_registry()
     pairs = production_pairs(registry)

@@ -369,8 +369,13 @@ def cell_calls_from_evaluation(
         # and a reviewed absence of target expression is a statement about the
         # donor's biology, not evidence about a cell that was never measured.
         # Both callable states therefore call only within ``valid_idx``.
+        # The CALL universe, not the fit universe: a cell needs a finite
+        # corrected intensity to be called, not a complete NNMF feature row.
+        # Falls back to valid_idx for an evaluation produced before call_idx
+        # existed (and for the compact dicts used in tests).
         available = np.zeros(n, dtype=bool)
-        available[np.asarray(evaluation["valid_idx"], dtype=int)] = True
+        index = evaluation.get("call_idx", evaluation["valid_idx"])
+        available[np.asarray(index, dtype=int)] = True
         positive = np.asarray(
             evaluation["full_lineage_positive"], dtype=bool
         ).copy()

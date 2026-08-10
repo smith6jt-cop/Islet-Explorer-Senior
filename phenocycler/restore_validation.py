@@ -2808,6 +2808,24 @@ def evaluate_locked_pair(
     full_target_supported_additional_below_divisor[valid_idx] = (
         target_supported_additional_below_divisor
     )
+    # THE CALL UNIVERSE IS WIDER THAN THE FIT UNIVERSE.
+    #
+    # `valid_idx` requires the NNMF FEATURE columns to be finite: that is what a
+    # cell needs to help ESTIMATE the divisor. Applying the divisor needs only a
+    # finite corrected target intensity -- `normalize_and_call` is
+    # `redsea__target / divisor > 1` and never touches a feature.
+    #
+    # Conflating the two silently withdrew calls from cells that carry a
+    # perfectly good measurement. Concretely: REDSEA emits NaN Cytoplasm for a
+    # cell whose nucleus fills it, and geometry QC flags exactly those
+    # `estimation_eligible=False, analysis_eligible=True, reason=no_cytoplasm`
+    # -- 31,437 cells on donor 6539, 8.63% of its analysis-eligible population.
+    # docs/WORKFLOW.md is explicit that the flags must not be collapsed: such a
+    # cell "may remain analysis eligible for nuclear measurements while being
+    # unfit to estimate a cytoplasmic background".
+    call_idx = np.flatnonzero(
+        np.isfinite(target_redsea_all) & (target_redsea_all >= 0)
+    )
     full_normalized = np.full(len(donor_df), np.nan, dtype=float)
     full_lineage_positive = np.zeros(len(donor_df), dtype=bool)
     if assessment.state in {
@@ -2815,12 +2833,12 @@ def evaluate_locked_pair(
         PairState.NO_TARGET_EXPRESSION_CONFIRMED,
     }:
         normalized, lineage_positive = normalize_for_assessment(
-            target_redsea,
+            target_redsea_all[call_idx],
             assessment,
             canonical_divisor,
         )
-        full_normalized[valid_idx] = normalized
-        full_lineage_positive[valid_idx] = lineage_positive
+        full_normalized[call_idx] = normalized
+        full_lineage_positive[call_idx] = lineage_positive
     return {
         "method_version": METHOD_VERSION,
         "donor": str(donor),
@@ -2834,6 +2852,10 @@ def evaluate_locked_pair(
         "config": config,
         "feature_columns": feature_columns,
         "valid_idx": valid_idx,
+        # Cells eligible to RECEIVE a call: a finite corrected target
+        # intensity is all the divisor needs. Wider than valid_idx, which
+        # additionally requires the NNMF feature columns.
+        "call_idx": call_idx,
         "full_labels": full_labels,
         "full_qc_retained": full_qc_retained,
         "full_target_population": full_target_population,
