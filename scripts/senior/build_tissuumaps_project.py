@@ -125,15 +125,27 @@ def marker_color(name: str) -> str:
 # reads the other's *global* default rather than the sibling layer value
 # (filterUtils.getFilterParams returns _filters[name].params).
 #
-# Brightness and Contrast start neutral on purpose: the contrast decision that
-# matters is the stretch applied during extraction on the full-resolution 16-bit
-# page, where there is far more signal than in these 8-bit proxies. Color does
-# NOT start neutral -- see marker_color() above for why a no-op (white) default
-# is the wrong choice under additive blending.
+# "Contrast" is offered by filterUtils but is NOT offered here, because it is
+# not contrast. OpenSeadragon implements it as `pixel = pixel * adjustment`
+# (openseadragon-filtering.js CONTRAST) -- a plain gain with no pivot around
+# mid-grey -- and TissUUmaps gives it a 0..8 slider. At 2 everything above 128
+# is already clipped to white; at 8, everything above 32. The whole usable range
+# is about 1.0-2.0, which is why small movements look violent, and nothing in it
+# can rescue an over-exposed layer.
+#
+# "Gamma" is the useful control and is in the schema enum: `(i/255)^a * 255`,
+# monotonic, clipping nothing, on a sane 0..2 slider. Below 1 it lifts dim
+# structure, above 1 it suppresses haze.
+#
+# Brightness and Gamma still START neutral: the exposure decision that matters is
+# the stretch applied during extraction on the full-resolution 16-bit page, where
+# there is far more signal than in these 8-bit proxies. Color does NOT start
+# neutral -- see marker_color() above for why a no-op (white) default is the
+# wrong choice under additive blending.
 FILTER_DEFAULTS = [
     ("Color", None),        # per layer: DEFAULT_ON, else marker_color(name)
     ("Brightness", 0),      # slider range -50..50, 0 = no change
-    ("Contrast", 1),        # slider range 0..8,    1 = no change
+    ("Gamma", 1),           # slider range 0..2,    1 = no change
 ]
 FILTERS = [name for name, _ in FILTER_DEFAULTS]
 
@@ -176,7 +188,9 @@ DEFAULT_REGION_UM_PER_PX = 0.5078
 #   2  percentiles measured on the full-res page, LUT applied with rounding,
 #      background-anchored robust stretch became the default
 #   3  predictor="none" -- libvips' default corrupted every reduced pyramid level
-EXTRACTION_VERSION = 3
+#   4  white point measured above mode+20sigma, not above the black point;
+#      the old floor blew out ~95% of a typical marker
+EXTRACTION_VERSION = 4
 
 # Name of the per-case record of how each channel was extracted.
 EXTRACTION_MANIFEST = "extraction.json"
@@ -196,6 +210,7 @@ def extraction_key(args) -> dict:
         "percentiles": args.percentiles if args.stretch == "percentile" else None,
         "background_k": args.background_k if args.stretch == "robust" else None,
         "signal_quantile": args.signal_quantile if args.stretch == "robust" else None,
+        "signal_floor_k": args.signal_floor_k if args.stretch == "robust" else None,
     }
 
 
@@ -295,8 +310,31 @@ def _histogram(src):
                       shape=(hist.width,)).astype("int64")
 
 
+def _clip_of_bright(counts, mode: int, sigma: float, hi: int, sat_bin: int) -> float:
+    """Percent of unambiguously-bright pixels that the stretch renders as white.
+
+    "Unambiguously bright" is fixed at mode + 40 sigma so the answer does not
+    move with the estimator's own parameters. Returns 0.0 when the channel has
+    no such population -- there is nothing to blow out.
+
+    Also returns 0.0 when there is no usable sigma. ``--stretch percentile`` has
+    no background model and reports sigma = 0, which would collapse the
+    reference to the mode itself and turn this into "how much of everything
+    above the background peak is white" -- a different and much larger number
+    presented under the same name. Undefined is reported as undefined; callers
+    key their warnings off the robust stretch.
+    """
+    if sigma <= 0:
+        return 0.0
+    ref = int(min(mode + 40.0 * sigma, sat_bin - 1))
+    bright = int(counts[ref + 1: sat_bin].sum())
+    if bright <= 0:
+        return 0.0
+    return float(counts[max(hi + 1, ref + 1): sat_bin].sum()) / bright * 100.0
+
+
 def channel_stats(src, stretch: str, lo_pct: float, hi_pct: float,
-                  bg_k: float, signal_q: float) -> dict:
+                  bg_k: float, signal_q: float, signal_floor_k: float = 20.0) -> dict:
     """Choose display cut points for one channel, from a single histogram pass.
 
     Marker intensity is not a biological readout in this cohort -- essentially
@@ -344,6 +382,7 @@ def channel_stats(src, stretch: str, lo_pct: float, hi_pct: float,
         lo = int(np.searchsorted(cum, total * lo_pct / 100.0, side="left"))
         hi = int(np.searchsorted(cum, total * hi_pct / 100.0, side="left"))
         mode, sigma, dark = lo, 0.0, False
+        n_signal = int(counts[lo + 1: sat_bin].sum())
     else:
         # Detector saturation piles every clipped pixel into the top bin, where
         # it can out-count the background peak and be mistaken for it, so the
@@ -357,14 +396,41 @@ def channel_stats(src, stretch: str, lo_pct: float, hi_pct: float,
         sigma = max(1.0, 1.4826 * mad)
         lo = int(min(mode + bg_k * sigma, sat_bin))
 
-        signal = counts[lo + 1: sat_bin]
+        # The white point is measured over a HIGHER floor than the black point.
+        #
+        # Using lo for both was the original design and it blew out most of the
+        # panel. lo sits at mode + 3 sigma so that background renders black --
+        # correct for a black point, but far too low to define "signal", because
+        # the background's upper tail (autofluorescence, haze) reaches well past
+        # it. On a synthetic panel the population above lo was 12.7% of the image
+        # for GCG while the marker itself was 0.13%, so the marker was the top 1%
+        # of that set and the 99th percentile landed BELOW it: every GCG-positive
+        # pixel clipped to pure white. Measured fraction of true marker pixels
+        # clipped, against ground-truth masks:
+        #
+        #     floor            DAPI    INS     GCG     SST
+        #     mode+3sigma      3.7%   94.8%   90.7%   21.2%   <- was
+        #     mode+10sigma     2.1%    2.8%    4.6%    0.6%
+        #     mode+20sigma     2.1%    1.4%    0.9%    0.2%   <- now
+        #     mode+40sigma     2.1%    1.3%    0.9%    0.2%
+        #
+        # 20 and 40 sigma agree on every channel: past ~20 sigma the background
+        # tail is gone and the estimate stops moving, which is why the default
+        # sits there rather than being tuned to a preferred picture.
+        #
+        # This floor is a DISPLAY choice about which pixels inform the white
+        # point. It is not a positivity threshold and nothing downstream reads
+        # it.
+        floor = int(min(mode + signal_floor_k * sigma, sat_bin - 1))
+        floor = max(floor, lo)
+        signal = counts[floor + 1: sat_bin]
         n_signal = int(signal.sum())
-        dark = n_signal < total * 1e-4
-        if dark:
+        dark = int(counts[lo + 1: sat_bin].sum()) < total * 1e-4
+        if dark or n_signal <= 0:
             hi = int(min(lo + 6.0 * sigma, sat_bin))
         else:
-            hi = lo + 1 + int(np.searchsorted(np.cumsum(signal),
-                                              n_signal * signal_q / 100.0))
+            hi = floor + 1 + int(np.searchsorted(np.cumsum(signal),
+                                                 n_signal * signal_q / 100.0))
             hi = min(max(hi, lo + int(6.0 * sigma)), sat_bin)
 
     if hi <= lo:
@@ -376,6 +442,20 @@ def channel_stats(src, stretch: str, lo_pct: float, hi_pct: float,
         "clip_hi": float(counts[hi + 1:].sum()) / total * 100.0,
         "sat": float(counts[sat_bin]) / total * 100.0,
         "signal": float(counts[lo + 1: sat_bin].sum()) / total * 100.0,
+        # The number that actually matters, and the one whose absence hid the
+        # blow-out: what fraction of the MARKER is clipped, not of the image. A
+        # rare marker can be 100% white while clip_hi reads 0.1%, because 0.1%
+        # of the image is all the marker ever was.
+        #
+        # Measured against a reference population fixed at mode + 40 sigma --
+        # deliberately NOT the floor used to choose hi, which would make this
+        # tautological (hi is the signal_q quantile of that set, so exactly
+        # 100 - signal_q percent of it clips by construction, whatever the floor
+        # is doing). 40 sigma is far enough above background to be unambiguously
+        # signal in any of these channels, so this asks a question the estimator
+        # cannot answer for itself: of the pixels that are certainly marker, how
+        # many did we render as flat white?
+        "clip_signal": _clip_of_bright(counts, mode, sigma, hi, sat_bin),
     }
 
 
@@ -410,6 +490,7 @@ def extract_channel(
     hi_pct: float,
     bg_k: float,
     signal_q: float,
+    signal_floor_k: float,
     force: bool,
 ) -> dict | None:
     """Write one channel as a pyramidal 8-bit TIFF.
@@ -450,7 +531,7 @@ def extract_channel(
     # the cost is lower than two percent() calls (each of which builds its own
     # histogram) and the quality of the stretch is visible per channel instead
     # of being taken on trust.
-    st = channel_stats(src, stretch, lo_pct, hi_pct, bg_k, signal_q)
+    st = channel_stats(src, stretch, lo_pct, hi_pct, bg_k, signal_q, signal_floor_k)
     lo, hi = st["lo"], st["hi"]
 
     if compression != "jpeg":
@@ -838,11 +919,20 @@ def main() -> int:
     ap.add_argument("--background-k", type=float, default=3.0,
                     help="black point = background mode + K sigma (--stretch robust)")
     ap.add_argument("--signal-quantile", type=float, default=99.0,
-                    help="white point = this quantile of above-background pixels (--stretch robust)")
+                    help="white point = this quantile of above-floor pixels (--stretch robust)")
+    ap.add_argument("--signal-floor-k", type=float, default=20.0,
+                    help="pixels above mode + K sigma inform the WHITE point (--stretch robust). "
+                         "Higher than --background-k on purpose: the background's upper tail "
+                         "reaches far past the black point, and counting it as signal is what "
+                         "blows markers out. A display choice, not a positivity threshold")
     ap.add_argument("--channels", default=None,
                     help="Comma-separated marker names to extract (default: all)")
     ap.add_argument("--force", action="store_true", help="Re-extract channels that already exist")
     ap.add_argument("--dry-run", action="store_true", help="Report the plan, extract nothing")
+    ap.add_argument("--report", action="store_true",
+                    help="Print the stretch every channel WOULD get and exit. One histogram "
+                         "pass per channel, no pyramids written, so stretch settings can be "
+                         "compared on the real slide without a re-extraction")
     args = ap.parse_args()
 
     image = args.image.resolve()
@@ -871,6 +961,46 @@ def main() -> int:
     if wanted:
         log(f"extracting {len(keep)} of {len(names)} channels (--channels)")
 
+    if args.report:
+        import pyvips
+
+        log(f"stretch report: {args.stretch}"
+            + (f", background_k={args.background_k}, signal_floor_k={args.signal_floor_k}, "
+               f"signal_quantile={args.signal_quantile}" if args.stretch == "robust"
+               else f", percentiles={args.percentiles}"))
+        log(f"{'channel':<22}{'bg mode':>8}{'sigma':>7}{'black':>8}{'white':>8}"
+            f"{'signal %':>10}{'clipped %':>11}  flags")
+        worst = []
+        for page, name in keep:
+            src = pyvips.Image.new_from_file(str(image), page=page)
+            st = channel_stats(src, args.stretch, lo_pct, hi_pct, args.background_k,
+                               args.signal_quantile, args.signal_floor_k)
+            flags = []
+            if st.get("dark"):
+                flags.append("dark")
+            if st.get("sat", 0) > 0.1:
+                flags.append(f"{st['sat']:.1f}% detector-saturated")
+            if args.stretch == "robust" and st.get("clip_signal", 0) > 5.0:
+                flags.append("BLOWN OUT")
+                worst.append((st["clip_signal"], name))
+            log(f"{name:<22}{st['mode']:>8}{st['sigma']:>7.0f}{st['lo']:>8}{st['hi']:>8}"
+                f"{st['signal']:>10.3f}{st.get('clip_signal', 0):>11.1f}  {', '.join(flags)}")
+        # A single machine-readable verdict line, so callers (the smoke test)
+        # match on a stable token instead of grepping prose that also appears in
+        # the table header.
+        if args.stretch != "robust":
+            log(f"VERDICT: not-applicable - clipped % needs the robust stretch's "
+                f"background model ({args.stretch} reports no sigma)")
+        elif worst:
+            worst.sort(reverse=True)
+            log(f"VERDICT: blown-out - {len(worst)} of {len(keep)} channel(s) clip more "
+                f"than 5% of their own signal; worst: "
+                + ", ".join(f"{n} ({c:.0f}%)" for c, n in worst[:5]))
+            log("raise --signal-floor-k if the background tail is being counted as signal")
+        else:
+            log(f"VERDICT: ok - all {len(keep)} channels clip under 5% of their own signal")
+        return 0
+
     key = extraction_key(args)
     manifest = load_manifest(ch_dir)
     n_stale = sum(1 for page, name in keep
@@ -893,7 +1023,8 @@ def main() -> int:
         stale = manifest.get(stem) != key
         stats = extract_channel(image, page, out_file, args.compression, args.quality,
                                 args.stretch, lo_pct, hi_pct, args.background_k,
-                                args.signal_quantile, args.force or stale)
+                                args.signal_quantile, args.signal_floor_k,
+                                args.force or stale)
         size_mb = out_file.stat().st_size / 1e6
         if stats is None:
             log(f"  [{n_done}/{len(keep)}] {name:<20} cached    ({size_mb:.1f} MB)")
@@ -905,12 +1036,17 @@ def main() -> int:
                 flags.append("no signal above background - left dark")
             if stats.get("sat", 0) > 0.1:
                 flags.append(f"{stats['sat']:.2f}% saturated")
-            if stats["clip_hi"] > 2.0:
-                flags.append(f"{stats['clip_hi']:.1f}% clipped white")
+            # Threshold on clip_signal, not clip_hi. clip_hi is a fraction of
+            # the image and stays reassuringly small while a rare marker is
+            # entirely white -- it read 0.13% on a channel whose every positive
+            # pixel had blown out.
+            if stats.get("clip_signal", 0) > 5.0:
+                flags.append(f"{stats['clip_signal']:.0f}% OF SIGNAL clipped white")
             note = ("  <-- " + "; ".join(flags)) if flags else ""
             log(f"  [{n_done}/{len(keep)}] {name:<20} extracted ({size_mb:.1f} MB) "
                 f"bg={stats['mode']}+/-{stats['sigma']:.0f} -> 16-bit {stats['lo']}-{stats['hi']}, "
-                f"signal {stats['signal']:.3f}% of px{note}")
+                f"signal {stats['signal']:.3f}% of px, "
+                f"{stats.get('clip_signal', 0):.1f}% of it clipped{note}")
         channel_files.append(f"channels/{case_id}/{stem}.tif.dzi")
         kept_names.append(name)
 
