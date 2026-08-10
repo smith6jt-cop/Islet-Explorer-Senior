@@ -20,7 +20,8 @@ adoptable. Its producer is
 1. For every donor and every accepted target/reference pair in
    `marker_registry.json`, find the two mutually exclusive groups by NNMF.
 2. Use the reference-positive/target-negative group to estimate a donor-local
-   divisor. The production policy is `reference_only` with the `p99` statistic.
+   divisor. The production policy is `reference_only` with the `p999`
+   statistic.
 3. Apply the divisor to every analysis-eligible cell and emit `positive`,
    `negative` or `unavailable`, plus the normalized intensity and the full
    pair-fit audit.
@@ -80,40 +81,63 @@ These are recorded so a reviewer does not have to rediscover them. Each is
 measured on run `3bf4fc8e391d007766d1` (20 donors, 25,150,537 analysis-eligible
 cells).
 
-**The divisor statistic decouples the call from the fit.** `p99` places the
-threshold at the negative control's 99th percentile, so 1% of every control is
-called positive by construction — `control_fraction_le_1` is 0.98999 on all 479
-VALID pairs. 417 of those 479 call more positives than the NNMF+floor target
-anchor identified (median 2.15×, max 51.1×), concentrated in the sparse immune
-markers. The manuscript uses the control **maximum**, under which controls
-normalise ≤ 1 by construction. Switching costs pair validity: measured over 10
-donors, `p99` leaves 240/240 pairs callable and `max` leaves 229/240.
+**The divisor statistic was p99 and is now p999.** *(Resolved.)* A quantile
+divisor calls the upper (1−q) tail of the pair's own negative control positive
+by construction. Under `p99` that was 1% of every control, and 417 of 480
+donor-pairs called more positives than their own NNMF+floor target anchor
+(median 2.15×, max 51×), worst on the sparse immune markers the study depends
+on. Measured on 20 donors × 24 pairs under the real `evaluate_locked_pair`:
+
+| | p99 | **p999** | max (manuscript) |
+|---|---|---|---|
+| callable pairs | 480/480 | **480/480** | 448/480 |
+| calls exceeding own anchor | 417/480 | 240/480 | 6/448 |
+| median calls ÷ anchor | 2.15 | **1.00** | 0.09 |
+| control normalising ≤ 1 | 0.990 | 0.999 | 1.000 |
+
+`p999` keeps every pair callable, as `p99` does, and centres the call on the
+fit. The manuscript maximum makes every control normalise ≤ 1 by construction
+but loses 32 pairs to `MODEL_UNSTABLE` and under-calls against its own anchor.
+Note that 240 of 480 pairs still exceed their anchor under `p999`: the
+distribution is centred, not tight.
 
 **The seed-stability gate is non-binding on half the cohort.** 253 of 480 pairs
 carry `stability_informative = False` — an arm was saturated, so seed agreement
 is arithmetically guaranteed and is not evidence of robustness. All 253 are
 `VALID` with median reproducibility exactly 1.000000. The flag is reported and
-gates nothing.
+gates nothing, deliberately: making it gate would fail more than half the
+cohort. **Surface it in every per-donor review** so a reader can tell a
+reproducible pair from one whose stability was never tested.
 
-**CD11b ← EpCAM violates the mutual-exclusivity premise.** `double_high_fraction`
-median 0.173 and max 0.411, against ≤0.010 for the other 23 accepted pairs: its
-negative control is 17% target-positive. `max_double_positive_fraction` exists
-in `PairValidationConfig` but is read by nothing. Under simultaneous typing,
-88.3% of the cells whose only immune evidence is CD11b are already `Ambiguous`,
-so dropping the marker would cost 37,680 Immune anchors — 0.150% of eligible
-cells.
+**CD11b was dropped from broad identity.** *(Resolved.)* `double_high_fraction`
+median 0.173 and max 0.407 against ≤0.010 for the other 23 accepted pairs: its
+negative control was 17% target-positive. Screening every candidate reference
+showed the failure belongs to the marker — the only clean control, CD3e
+(0.0015), is undersized on all 20 donors. CD11b remains an active, fitted
+RESTORE target and subtype evidence; it no longer gates broad Immune. Cost:
+37,680 Immune anchors, 0.150% of eligible cells, because 88.3% of the cells
+whose only immune evidence was CD11b were already `Ambiguous`.
+`max_double_positive_fraction` is now a reported per-pair flag
+(`double_high_exceeds_threshold`) rather than dead code — it still gates
+nothing, because a violation is a reviewer's decision, but it can no longer go
+unnoticed.
 
-**14 of 24 pairs fit on whole cell alone.** The extracted compartment sample
-covers 12 markers, so 279 of 479 VALID pairs get `Cell` only while the rest get
-`Membrane+Cell`. Measured under production `p99`, the feature set barely moves
-the fit (reproducibility 0.9997–1.0000, divisor within 1.7%, positives within
-1.9% across six declared sets), so this is a uniformity problem rather than an
-accuracy one. The source CSVs do carry `Membrane:` and `Cytoplasm:` means for
-every gate marker if it is ever worth re-extracting.
+**14 of 24 pairs fit on whole cell alone, and that is accepted.** The extracted
+compartment sample covers 12 markers, so most pairs get `Cell` only while the
+rest get `Membrane+Cell`. Six declared feature sets were compared on 20 donors
+under the production divisor: 99.5–100% of pairs VALID in every set,
+reproducibility 0.9994–0.9999, `anchor_recovery` 0.980–0.996, `target_fold`
+14.8–15.1, `double_high_fraction` 0.0023–0.0025, and positives within 6% of
+production. That matches the repo's own earlier measurement — 8 features versus
+4 moved 12 of 14 donor-pairs by ≤0.2% (`a64b949`). The NNMF outcome is
+insensitive to the feature set here, so re-extracting compartments for all 24
+markers was **not** done: it is a uniformity improvement, not an accuracy one.
+The source CSVs do carry `Membrane:` and `Cytoplasm:` means for every gate
+marker should that change.
 
 > When screening any of this with an ad-hoc script, note that
 > `PairValidationConfig()` defaults `divisor_statistic` to `max`, while
-> production passes `p99` through `RestoreStageConfig.pair_config()`. Validate
+> production passes `p999` through `RestoreStageConfig.pair_config()`. Validate
 > the harness against a real run's `audit/restore_pair_models.parquet` before
 > believing it.
 

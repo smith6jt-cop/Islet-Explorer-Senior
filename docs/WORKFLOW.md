@@ -308,7 +308,7 @@ For every donor and active registry target/reference pair, RESTORE:
 4. orders the components by target/reference direction;
 5. defines the reference-positive/target-negative control population to the
    right of the target-derived reference separator;
-6. takes the configured `p99` of that population's REDSEA target values as the
+6. takes the configured `p999` of that population's REDSEA target values as the
    donor-marker divisor (`control_definition=reference_only`);
 7. calls a cell positive iff its REDSEA target value is greater than the
    divisor and stores `restore_normalized = value / divisor`.

@@ -238,7 +238,7 @@ RESTORE is donor-local. For each active target/reference pair, it fits the two
 mutually exclusive groups with NNMF using raw QuPath `Membrane+Cell` features
 where available (validated `Cell` fallback otherwise). The ordered
 reference-positive/target-negative group defines the target background. The
-production divisor is its `p99` under `control_definition=reference_only`.
+production divisor is its `p999` under `control_definition=reference_only`.
 
 A measurable analysis-eligible cell is `positive` exactly when its REDSEA
 whole-cell target value is greater than that donor-marker divisor; it is

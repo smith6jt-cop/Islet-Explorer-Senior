@@ -2981,6 +2981,9 @@ def evaluate_locked_pair(
                 & (reference_raw[qc_retained] > reference_floor)
             ).mean()
         ),
+        "max_double_positive_fraction": float(
+            config.max_double_positive_fraction
+        ),
         "threshold_sample_n": threshold_sample_n,
         "target_full_stats": target_full_stats,
         "reference_full_stats": reference_full_stats,
@@ -3113,6 +3116,22 @@ def locked_pair_metrics(evaluation: dict) -> dict:
         ],
         "threshold_sample_n": evaluation["threshold_sample_n"],
         "double_high_fraction": evaluation["double_high_fraction"],
+        # `max_double_positive_fraction` was defined, range-checked, and read by
+        # nothing, so the mutual-exclusivity premise the whole method rests on
+        # was measured and then never looked at. It is now a reported per-pair
+        # flag. It still gates nothing -- a violation is a decision for the
+        # reviewer, as CD11b <- EpCAM was -- but it can no longer go unnoticed.
+        "double_high_exceeds_threshold": bool(
+            evaluation["double_high_fraction"]
+            > evaluation["max_double_positive_fraction"]
+        ),
+        "max_double_positive_fraction": evaluation[
+            "max_double_positive_fraction"
+        ],
+        # Seed agreement across a SATURATED arm is arithmetically guaranteed and
+        # is not evidence of robustness. Reported beside the reproducibility so
+        # a reader can tell the two apart; on the 20-donor cohort 253 of 480
+        # pairs are uninformative in this sense.
         "candidate_full_maximum": evaluation["candidate_full_maximum"],
         "canonical_divisor": evaluation["canonical_divisor"],
         "manuscript_divisor": evaluation["manuscript_divisor"],

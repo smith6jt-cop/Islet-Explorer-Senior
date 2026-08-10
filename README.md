@@ -348,7 +348,7 @@ RESTORE stage manifest. Notebook cells must not write stage files directly.
 RESTORE is performed independently for each donor and active marker. The
 marker registry declares the target's mutually exclusive reference. Raw
 QuPath compartment means define balanced NNMF arms; the ordered
-reference-positive/target-negative population defines a donor-local `p99`
+reference-positive/target-negative population defines a donor-local `p999`
 divisor on the REDSEA target measurement.
 
 The key outputs answer different questions:
