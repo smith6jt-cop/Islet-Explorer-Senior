@@ -592,8 +592,8 @@ def donor_stage_inputs(
         if context.typing_model_bundle is None:
             inputs.append(
                 InputArtifact.from_path(
-                    "ordered_typing_rules",
-                    context.base_config.ordered_typing_rules,
+                    "broad_gate_rules",
+                    context.base_config.broad_gate_rules,
                 )
             )
         else:
@@ -755,7 +755,7 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
                 donor,
             ),
             marker_registry=context.registry,
-            ordered_policy=getattr(context, "ordered_typing_policy", None),
+            broad_gate_policy=context.broad_gate_policy,
             typing_registry=context.typing_registry,
             model_bundle=context.typing_model_bundle,
             model_promotion_manifest=context.typing_model_promotion_manifest,

@@ -55,7 +55,7 @@ def test_typing_bundle_semantics_are_part_of_run_identity_config():
     )
 
     assert rules_only["typing_model"] == {
-        "mode": "restore_ordered_residual"
+        "mode": "restore_simultaneous"
     }
     assert probabilistic["typing_model"] == {
         "mode": "probabilistic_bundle",
@@ -143,6 +143,7 @@ def test_type_stage_passes_verified_promotion_capability(monkeypatch, tmp_path):
         ),
         registry="markers",
         typing_registry="rules",
+        broad_gate_policy=None,
         typing_model_bundle=bundle,
         typing_model_promotion_manifest=promotion,
     )

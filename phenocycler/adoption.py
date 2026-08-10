@@ -65,7 +65,7 @@ STAGE_CONFIGURATION_KEYS: dict[str, tuple[str, ...]] = {
     "type": (
         "run_schema_version",
         "typing_model",
-        "ordered_residual_typing",
+        "simultaneous_broad_typing",
     ),
     "states": ("run_schema_version",),
 }

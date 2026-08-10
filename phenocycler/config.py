@@ -1,7 +1,7 @@
 """Compact configuration for the content-addressed workflow.
 
 Biological marker meaning lives in ``marker_registry.json`` and the production
-gate order lives in ``ordered_residual_rules.json``. Optional probabilistic
+gate membership lives in ``broad_gates.json``. Optional probabilistic
 rules live in ``typing_rules.json``. Raw input identity lives in the QuPath cohort manifest.
 This file therefore contains only output roots, fixed image/QC parameters and
 operational compute settings; it does not duplicate marker pairs or cell-type
@@ -30,7 +30,7 @@ def _boolean(value: object) -> bool:
 # Legacy broad-lineage vocabulary — integration layer only.
 #
 # The core typing pipeline on this branch does NOT use these: it types from
-# marker_registry.json + ordered_residual_rules.json into its own compartments. They
+# marker_registry.json + broad_gates.json into its own compartments. They
 # remain because phenocycler/integration/ imports them at module scope
 # (vocab.py derives the PhenoCycler side of the PhenoCycler<->Xenium crosswalk
 # from LINEAGES) and would not import at all without them.
@@ -68,7 +68,7 @@ class PipelineConfig:
     qupath_manifest: Path = _REPO_ROOT / "data" / "qupath_manifest.json"
     marker_registry: Path = _PACKAGE_DIR / "marker_registry.json"
     typing_rules: Path = _PACKAGE_DIR / "typing_rules.json"
-    ordered_typing_rules: Path = _PACKAGE_DIR / "ordered_residual_rules.json"
+    broad_gate_rules: Path = _PACKAGE_DIR / "broad_gates.json"
     # Optional, immutable probabilistic rescue model. Keeping this unset selects
     # the production RESTORE ordered residual default. Probabilistic production
     # requires its separately configured immutable promotion manifest.
@@ -426,7 +426,7 @@ _INI_SCHEMA = {
         "qupath_manifest": ("qupath_manifest", Path),
         "marker_registry": ("marker_registry", Path),
         "typing_rules": ("typing_rules", Path),
-        "ordered_typing_rules": ("ordered_typing_rules", Path),
+        "broad_gate_rules": ("broad_gate_rules", Path),
     },
     "typing": {
         "model_bundle": ("typing_model_bundle", Path),
@@ -580,7 +580,7 @@ def load_config(
         "qupath_manifest",
         "marker_registry",
         "typing_rules",
-        "ordered_typing_rules",
+        "broad_gate_rules",
     ):
         path = Path(getattr(cfg, name)).expanduser()
         if not path.is_absolute():

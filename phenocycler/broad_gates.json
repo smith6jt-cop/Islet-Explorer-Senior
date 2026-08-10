@@ -1,14 +1,7 @@
 {
   "schema_version": 1,
-  "rules_version": "restore-ordered-residual-rules-v1",
-  "description": "Validated RESTORE broad-lineage ordered residual policy. Each gate claims the residual population when any member is positive. A gate with no positive and at least one unavailable member blocks all lower-priority gates.",
-  "compartment_order": [
-    "Immune",
-    "Endothelial",
-    "Epithelial",
-    "Neural",
-    "Mesenchymal"
-  ],
+  "rules_version": "restore-simultaneous-broad-gates-v1",
+  "description": "Broad-lineage gate membership for simultaneous typing. Every gate is evaluated against the same RESTORE tri-state evidence and no gate has precedence over another: a cell supported by more than one gate is Ambiguous, not awarded to whichever gate is listed first. Gate membership must agree with each marker's registered broad_compartment.",
   "gates": {
     "Immune": [
       "CD3e",
@@ -34,8 +27,7 @@
       "EpCAM",
       "Keratin_5",
       "INS",
-      "GCG",
-      "SST"
+      "GCG"
     ],
     "Neural": [
       "B3TUBB"
@@ -46,5 +38,6 @@
     ]
   },
   "other_label": "Other",
+  "ambiguous_label": "Ambiguous",
   "unavailable_label": "Unavailable"
 }

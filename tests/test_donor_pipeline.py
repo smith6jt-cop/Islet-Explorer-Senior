@@ -443,6 +443,7 @@ def test_donor_type_body_passes_configured_bundle(monkeypatch, tmp_path):
         cohort=SimpleNamespace(images=()),
         registry="markers",
         typing_registry="rules",
+        broad_gate_policy=None,
         typing_model_bundle=bundle,
         typing_model_promotion_manifest=promotion,
     )

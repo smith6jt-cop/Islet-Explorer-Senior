@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 from phenocycler.marker_registry import load_registry
-from phenocycler.ordered_residual_typing import type_ordered_residual_cells
+from phenocycler.simultaneous_typing import type_simultaneous_cells
 from phenocycler.restore_stage import (
     CELL_NEGATIVE,
     CELL_POSITIVE,
@@ -195,7 +195,7 @@ def test_restore_evidence_drives_rules_typing_without_labels_or_model(monkeypatc
     ]
     assert result.model_table.shape[0] == 24
 
-    assignments = type_ordered_residual_cells(
+    assignments = type_simultaneous_cells(
         result.evidence_wide,
         marker_registry=registry,
     ).set_index("object_id")

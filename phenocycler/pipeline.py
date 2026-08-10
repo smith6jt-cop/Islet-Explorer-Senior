@@ -45,9 +45,9 @@ from .geometry_stage import (
 )
 from .hierarchical_typing import TypingRegistry
 from .marker_registry import MarkerRegistry, load_registry
-from .ordered_residual_typing import (
-    OrderedResidualPolicy,
-    load_ordered_residual_policy,
+from .simultaneous_typing import (
+    BroadGatePolicy,
+    load_broad_gate_policy,
 )
 from .production_typing import (
     METHOD_VERSION as PRODUCTION_TYPING_VERSION,
@@ -171,8 +171,8 @@ STAGE_SOURCE_PATHS = {
     "type": (
         "phenocycler/donor_pipeline.py",
         "phenocycler/production_typing.py",
-        "phenocycler/ordered_residual_typing.py",
-        "phenocycler/ordered_residual_rules.json",
+        "phenocycler/simultaneous_typing.py",
+        "phenocycler/broad_gates.json",
         "phenocycler/typing_stage.py",
         "phenocycler/typing_model_bundle.py",
         "phenocycler/refinement_contracts.py",
@@ -194,7 +194,7 @@ class RunContext:
     cohort: QuPathCohortManifest
     registry: MarkerRegistry
     typing_registry: TypingRegistry
-    ordered_typing_policy: OrderedResidualPolicy | None
+    broad_gate_policy: BroadGatePolicy | None
     typing_model_bundle: TypingModelBundle | None
     typing_model_promotion_manifest: TypingModelPromotionManifest | None
     donors: tuple[str, ...]
@@ -217,17 +217,17 @@ class RunContext:
 def _identity_config(
     cfg: PipelineConfig,
     *,
-    ordered_typing_policy: OrderedResidualPolicy | None = None,
+    broad_gate_policy: BroadGatePolicy | None = None,
     typing_model_bundle: TypingModelBundle | None = None,
     typing_model_promotion_manifest: TypingModelPromotionManifest | None = None,
 ) -> dict:
     """Configuration that changes scientific content, excluding output location."""
 
-    typing_model: dict[str, object] = {"mode": "restore_ordered_residual"}
-    ordered_policy = ordered_typing_policy
-    if typing_model_bundle is None and ordered_policy is None:
-        ordered_policy = load_ordered_residual_policy(
-            cfg.ordered_typing_rules,
+    typing_model: dict[str, object] = {"mode": "restore_simultaneous"}
+    gate_policy = broad_gate_policy
+    if typing_model_bundle is None and gate_policy is None:
+        gate_policy = load_broad_gate_policy(
+            cfg.broad_gate_rules,
             registry=load_registry(cfg.marker_registry),
         )
     if typing_model_bundle is not None:
@@ -246,7 +246,7 @@ def _identity_config(
         }
     elif typing_model_promotion_manifest is not None:
         raise ContractError(
-            "ordered RESTORE run cannot configure a promotion manifest"
+            "simultaneous RESTORE run cannot configure a promotion manifest"
         )
     restore_stage_config = RestoreStageConfig.from_pipeline(cfg)
     compartment_sample_content_id = None
@@ -265,18 +265,17 @@ def _identity_config(
     return {
         "run_schema_version": RUN_SCHEMA_VERSION,
         "typing_model": typing_model,
-        "ordered_residual_typing": (
+        "simultaneous_broad_typing": (
             {
                 "method_version": PRODUCTION_TYPING_VERSION,
-                "rules_version": ordered_policy.rules_version,
-                "rules_fingerprint": ordered_policy.fingerprint,
-                "compartment_order": list(ordered_policy.compartment_order),
+                "rules_version": gate_policy.rules_version,
+                "rules_fingerprint": gate_policy.fingerprint,
                 "gates": {
-                    compartment: list(ordered_policy.gates[compartment])
-                    for compartment in ordered_policy.compartment_order
+                    compartment: list(gate_policy.gates[compartment])
+                    for compartment in gate_policy.compartments
                 },
             }
-            if ordered_policy is not None
+            if gate_policy is not None
             else {"mode": "not_selected"}
         ),
         "cells_min_cell_area": cfg.cells_min_cell_area,
@@ -332,10 +331,10 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     typing_registry = TypingRegistry.from_marker_registry(
         registry, typing_rules=cfg.typing_rules
     )
-    ordered_typing_policy = None
+    broad_gate_policy = None
     if cfg.typing_model_bundle is None:
-        ordered_typing_policy = load_ordered_residual_policy(
-            cfg.ordered_typing_rules,
+        broad_gate_policy = load_broad_gate_policy(
+            cfg.broad_gate_rules,
             registry=registry,
         )
     typing_model_bundle = None
@@ -410,7 +409,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     )
     identity = _identity_config(
         cfg,
-        ordered_typing_policy=ordered_typing_policy,
+        broad_gate_policy=broad_gate_policy,
         typing_model_bundle=typing_model_bundle,
         typing_model_promotion_manifest=typing_model_promotion_manifest,
     )
@@ -431,7 +430,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
         cohort=cohort,
         registry=registry,
         typing_registry=typing_registry,
-        ordered_typing_policy=ordered_typing_policy,
+        broad_gate_policy=broad_gate_policy,
         typing_model_bundle=typing_model_bundle,
         typing_model_promotion_manifest=typing_model_promotion_manifest,
         donors=donors,
@@ -450,9 +449,9 @@ def _stage_config(context: RunContext, stage: str) -> dict:
         "configuration": context.identity_config,
         "registry_fingerprint": context.registry.fingerprint,
         "typing_rules_fingerprint": context.typing_registry.rules_fingerprint,
-        "ordered_typing_rules_fingerprint": (
-            context.ordered_typing_policy.fingerprint
-            if context.ordered_typing_policy is not None
+        "broad_gate_rules_fingerprint": (
+            context.broad_gate_policy.fingerprint
+            if context.broad_gate_policy is not None
             else ""
         ),
     }
@@ -536,8 +535,8 @@ def _stage_external_inputs(
         if context.typing_model_bundle is None:
             inputs.append(
                 InputArtifact.from_path(
-                    "ordered_typing_rules",
-                    context.base_config.ordered_typing_rules,
+                    "broad_gate_rules",
+                    context.base_config.broad_gate_rules,
                 )
             )
         else:
@@ -720,7 +719,7 @@ def _run_type(context: RunContext) -> None:
         assignments = type_calibrated_cells(
             read_single_partition(context.config.marker_evidence_dir, donor),
             marker_registry=context.registry,
-            ordered_policy=getattr(context, "ordered_typing_policy", None),
+            broad_gate_policy=context.broad_gate_policy,
             typing_registry=context.typing_registry,
             model_bundle=context.typing_model_bundle,
             model_promotion_manifest=context.typing_model_promotion_manifest,
