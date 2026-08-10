@@ -2,8 +2,13 @@
 
 ## Status and scope
 
-The repository now contains a complete, fail-closed path for promoting a
-donor-trained probabilistic model into the existing hierarchical `type` stage.
+> **Dormant lane.** Everything below describes the optional probabilistic path.
+> The production default is RESTORE marker calling plus **simultaneous broad
+> typing** (`WORKFLOW.md` § "Stage 7"), which this document predates and does
+> not describe. Nothing here is on the production path.
+
+The repository contains a complete, fail-closed path for promoting a
+donor-trained probabilistic model into the `type` stage.
 It is a rescue lane for cells that do not receive an authoritative rule anchor;
 it does not replace marker calibration, the biological hierarchy, or the
 `Ambiguous`/`Unavailable` abstention states.

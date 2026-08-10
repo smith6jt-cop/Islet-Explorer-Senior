@@ -24,7 +24,7 @@ QuPath segmentation               ingest      QuPath CSV  -> cells/
   └─ <image>.qptiff ────────┘     expression  measurable-marker selection
                                   controls    retained reference-control diagnostics
 Xenium runs ──────────┐           calibrate   RESTORE pair fit       -> marker_evidence/
-  └─ output bundles   │           type        ordered residual typing -> assignments/
+  └─ output bundles   │           type        simultaneous broad typing -> assignments/
                       │           states      process states         -> cell_states/
                       │                            │
                       └──────────▶ integration  ◀──┘   (second conda env, see Phase 5)
@@ -97,7 +97,7 @@ conda activate phenocycler-analysis
 
 `setup.sh` initialises submodules, creates/updates the env from `environment.yml`, runs
 `pip install -e '.[test]'`, and then verifies that the packaged marker registry,
-ordered residual rules, and optional probabilistic rules are installed and
+broad gate rules, and optional probabilistic rules are installed and
 that the registry/rule contract loads. If that verification fails, stop
 — nothing downstream will work.
 
@@ -200,7 +200,7 @@ submission wrapper, or use `conda run -n phenocycler-analysis`.
 | `expression` | `expression/` | which markers are measurable per donor |
 | `controls` | `reference_controls/` | retained reference-control diagnostics (not RESTORE calls) |
 | `calibrate` | `marker_evidence/` | RESTORE donor × target/reference fit → tri-state evidence |
-| `type` | `assignments/` | RESTORE ordered residual → broad identity |
+| `type` | `assignments/` | simultaneous broad typing → broad identity |
 | `states` | `cell_states/` | process states, kept separate from identity |
 
 Plus `qupath_export/` (UUID-keyed CSVs for round-trip), `audit/` (the models themselves) and
@@ -216,7 +216,7 @@ python -m phenocycler.pipeline export                    # export a current resu
 ```
 
 Runs are **content-addressed**: `run_id` hashes the cohort manifest, the marker registry, the
-ordered residual rules, the scientific configuration and the source tree. Change any of them and you get
+broad gate rules, the scientific configuration and the source tree. Change any of them and you get
 a new run rather than a silently mixed one. That also means a code change — including this
 merge — changes every `run_id`.
 
@@ -254,7 +254,7 @@ donor's fit.
 
 Marker behaviour is **data, not config**: `phenocycler/marker_registry.json` holds each
 marker's RESTORE reference, family, and activation status, and
-`phenocycler/ordered_residual_rules.json` holds the ordered compartment gates. Editing either changes `run_id`,
+`phenocycler/broad_gates.json` holds the broad gate membership. Editing either changes `run_id`,
 which is the intended way to make a change traceable.
 
 `config.ini` `[restore]` records the frozen control definition, divisor
@@ -267,23 +267,33 @@ mass-conserving form is what makes the compensation defensible.
 
 ### The taxonomy
 
-The production type stage applies the historical hierarchy as an ordered
-residual, not as five simultaneous competitors:
+The production type stage evaluates all five gates against the same evidence,
+with **no precedence between them**:
 
-| priority | compartment | positive markers |
-|---:|---|---|
-| 1 | `Immune` | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
-| 2 | `Endothelial` | CD31, CD34, Podoplanin |
-| 3 | `Epithelial` | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG, SST |
-| 4 | `Neural` | B3TUBB |
-| 5 | `Mesenchymal` | Vimentin, SMA |
-| 6 | `Other` | all 24 markers explicitly negative |
+| gate | positive markers |
+|---|---|
+| `Immune` | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
+| `Endothelial` | CD31, CD34, Podoplanin |
+| `Epithelial` | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG |
+| `Neural` | B3TUBB |
+| `Mesenchymal` | Vimentin, SMA |
 
-The first positive gate claims the remaining cell population. A gate with no
-positive but any unavailable marker blocks every lower gate and emits
-`Unavailable`. This default is broad-only; compatibility-specific columns
-repeat the broad label. The probabilistic subtype implementation runs only
-when an exact signed bundle is explicitly configured.
+Exactly one supported gate is an `anchor`. More than one is `Ambiguous`, with
+the competing gates recorded and no winner chosen. None supported, with every
+gate marker explicitly negative, is `Other`. An unmeasured gate marker leaves
+the cell `Unavailable`. Those four are deliberately distinct: `Other` means the
+evidence says no, `Ambiguous` means it says two things, `Unavailable` means it
+does not say.
+
+SST is not in the Epithelial gate — the registry declares it subtype-only. The
+predecessor visited gates in priority order and gave a multi-gate cell to the
+first one; on this cohort that moved the Immune fraction from 20.50% to 3.33%
+depending only on the order, which is why it was replaced. See
+`docs/METHOD_HISTORY.md`.
+
+This default is broad-only; compatibility-specific columns repeat the broad
+label. The probabilistic subtype implementation runs only when an exact signed
+bundle is explicitly configured.
 
 `docs/METHOD_HISTORY.md` records why the attempted migration was reversed, why
 the ordered residual hierarchy was *not* restored with it, and which later

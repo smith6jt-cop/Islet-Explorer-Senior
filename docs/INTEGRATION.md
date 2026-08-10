@@ -1,7 +1,14 @@
 # PhenoCycler ↔ Xenium integration
 
-Picks up where `python -m phenocycler.pipeline` stops — at `data/phenotype/broad/`, eight
-broad lineages, zero Unassigned — and integrates that with 10x Xenium spatial
+> **The PhenoCycler side of this is stale.** It reads the retired flat
+> `data/phenotype/broad/` layout with eight broad lineages, which the
+> content-addressed pipeline no longer produces: broad identity now lives in
+> `<run>/assignments/` with five gates plus `Ambiguous`, `Other` and
+> `Unavailable`, and marker evidence in `<run>/marker_evidence/`. Repointing it
+> is outstanding work; the Xenium half is unaffected. See `HIPERGATOR.md`
+> § "The PhenoCycler side of the integration is stale".
+
+Picks up where `python -m phenocycler.pipeline` stops and integrates that with 10x Xenium spatial
 transcriptomics processed by [Xenium_Analysis](https://github.com/smith6jt-cop/Xenium_Analysis),
 using the curated panel taxonomy from
 [XeniumPanelExplorer](https://github.com/smith6jt-cop/XeniumPanelExplorer).
