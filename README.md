@@ -187,15 +187,16 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 
 ## Data Pipeline
 
-The upstream single-cell source workflow is now the manifest-controlled
-QuPath → geometry QC → REDSEA → donor-local marker calibration → hierarchical
-cell-typing pipeline in
-[Phenocycler_Analysis/README.md](Phenocycler_Analysis/README.md). Its canonical
-entry point is:
+The upstream single-cell source workflow is the manifest-controlled
+QuPath → geometry QC → REDSEA → RESTORE marker calling → simultaneous broad
+typing pipeline in
+[Phenocycler_Analysis/README.md](Phenocycler_Analysis/README.md). Run it from
+inside the submodule, which owns the only `config.ini`:
 
 ```bash
-conda run -n scvi-env python -m phenocycler.pipeline run --config config.ini
-conda run -n scvi-env python -m phenocycler.pipeline status --config config.ini
+cd Phenocycler_Analysis
+python -m phenocycler.pipeline run --config config.ini
+python -m phenocycler.pipeline status --config config.ini
 ```
 
 That workflow writes immutable, content-addressed runs and QuPath-ready cell

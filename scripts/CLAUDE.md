@@ -77,11 +77,16 @@ legacy H5AD maintenance only and must not modify current assignments.
 
 ## Retired phenotyping code
 
+RESTORE itself is **not** retired: it is the production marker-calling method
+in `Phenocycler_Analysis/phenocycler/restore_stage.py`, and its NNMF separator
+is part of that production path. What is retired is the flat-file apparatus
+that grew around it.
+
 The following approaches are historical and must not be used as live inputs or
 fallbacks:
 
-- RESTORE normalization and divisor/floor searches;
-- NNMF/GMM/Otsu Gate 2–5 screens;
+- the standalone Gate 2-5 divisor/floor screens and their dossiers;
+- the GMM/Otsu gate searches run outside the pair evaluation;
 - ordered residual broad-lineage assignment;
 - `data/cells_redsea*`, `data/restore*`, and `data/phenotype/broad*` as current
   source-stage roots;

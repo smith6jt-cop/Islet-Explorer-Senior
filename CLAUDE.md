@@ -44,26 +44,34 @@ QuPath cohort manifest
   -> REDSEA boundary-spillover correction
   -> one authoritative intensity per marker
   -> deterministic donor-local reference controls
-  -> marker calibration with uncertainty
+  -> RESTORE donor-marker calling with uncertainty
   -> simultaneous broad typing
   -> parent-constrained subtype typing
   -> orthogonal state annotation
   -> uncertainty-preserving QuPath export
 ```
 
-Run it from the repository root after installing the submodule package:
+Run it **from `Phenocycler_Analysis/`**, which owns the only real `config.ini`:
 
 ```bash
-conda activate scvi-env
 python -m pip install -e Phenocycler_Analysis
+cd Phenocycler_Analysis
 python -m phenocycler.pipeline run --config config.ini
 python -m phenocycler.pipeline status --config config.ini
 ```
 
+There is exactly one `config.ini`, and it is the submodule's. A repo-root copy
+existed until 2026-08-10 with no `[restore]` section at all, so running the
+command from the repository root silently fell back to the stale defaults it
+omitted. If a root `config.ini` ever reappears, it is a bug.
+
 Raw CSV, qptiff, cell/nucleus geometry, pixel calibration, channel mapping,
 panel identity, and segmentation version belong in
-`data/qupath_manifest.json`. Generated results live under
-`data/runs/<run_id>/`; stages and runs are immutable and content addressed.
+`Phenocycler_Analysis/data/qupath_manifest.json`. Generated results live under
+`Phenocycler_Analysis/data/runs/<run_id>/`; stages and runs are immutable and
+content addressed. Pilots are review artifacts and live under
+`Phenocycler_Analysis/data/pilots/`; they never write a stage manifest and never
+mutate `data/runs/`.
 
 The six notebooks are review interfaces over the production APIs:
 
@@ -81,13 +89,25 @@ Authoritative documentation:
 - `Phenocycler_Analysis/README.md`
 - `Phenocycler_Analysis/docs/WORKFLOW.md`
 - `Phenocycler_Analysis/DATA_README.md`
+- `Phenocycler_Analysis/docs/METHOD_HISTORY.md`
 - `Phenocycler_Analysis/phenocycler/marker_registry.json`
-- `Phenocycler_Analysis/phenocycler/typing_rules.json`
+- `Phenocycler_Analysis/phenocycler/broad_gates.json` (broad-typing authority)
+- `Phenocycler_Analysis/phenocycler/typing_rules.json` (subtype lane only)
 
-RESTORE, NNMF/GMM/Otsu gate searches, ordered residual lineage, Gate 5
-counterfactuals, flat `cells_redsea*`/`restore*` outputs, and the former
-anatomy-check release arms are retired. Preserve their history in Git; do not
-revive them as compatibility fallbacks.
+**RESTORE is the production marker-calling method.** It is the scientific
+producer behind the immutable `calibrate` stage key, implemented in
+`phenocycler/restore_stage.py` and `phenocycler/restore_validation.py`, and its
+NNMF separator is part of it. Do not describe either as retired.
+
+Retired, and not to be revived as compatibility fallbacks: the ordered residual
+lineage (replaced by simultaneous broad typing), the Gate 2-5 screen and
+counterfactual apparatus, the donor-local marker-calibration replacement for
+RESTORE, flat `cells_redsea*`/`restore*` output roots as source-stage inputs,
+and the former anatomy-check release arms. Preserve their history in Git.
+
+Note the flat `data/restore_gated_redsea/` and `data/phenotype/broad/` roots at
+the repository root are still read by the Shiny app's Card C. They are retired
+for the source workflow, not deleted for the app.
 
 ## Downstream application boundary
 
