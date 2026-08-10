@@ -1,131 +1,165 @@
-# RESTORE phenotyping refinement workflow
+# Refinement workflow
 
 ## Purpose
 
-This workflow supplies the recourse that was missing after run
-`c8412757d12de36ca056`: a QuPath review may demonstrate unacceptable false
-positives or false negatives, but it must not force the project into manually
-labeling thousands of cells or training a QuPath-style object classifier.
+This is the recourse when a QuPath review shows unacceptable calls. It must not
+force the project into hand-labelling thousands of cells or training a
+QuPath-style object classifier.
 
-RESTORE remains the production marker-calling method. The review is an
-acceptance test for a versioned method change, not the computational engine and
-not a training set.
+The review is an **acceptance test for a versioned method change**, not the
+computational engine and not a training set. RESTORE refits every donor
+automatically after each versioned change, so the loop needs tens of error
+exemplars, not comprehensive labels.
 
 ## What the pipeline does
 
-The immutable stage key is still named `calibrate` so completed upstream runs
-can be adopted safely. Its producer is now
-`restore-marker-evidence-v1+restore-pair-validation-v10`:
+The immutable stage key is still `calibrate` so completed upstream runs remain
+adoptable. Its producer is
+`restore-marker-evidence-v2+restore-pair-validation-v11`:
 
-1. For every donor and every active target/reference pair in
-   `marker_registry.json`, use raw QuPath compartment means to find the two
-   mutually exclusive groups by NNMF.
+1. For every donor and every accepted target/reference pair in
+   `marker_registry.json`, find the two mutually exclusive groups by NNMF.
 2. Use the reference-positive/target-negative group to estimate a donor-local
-   target divisor. The production policy is `reference_only` with the robust
-   `p99` divisor.
-3. Apply the divisor to every analysis-eligible cell and emit
-   `positive`, `negative`, or `unavailable`, plus the normalized intensity and
-   complete pair-fit audit.
-4. Pass those RESTORE states into the versioned ordered residual hierarchy in
-   `ordered_residual_rules.json`: Immune, Endothelial, Epithelial, Neural,
-   Mesenchymal, then Other. No reviewed cell labels or probabilistic bundle is
-   required.
-5. Treat any technical donor-marker failure as `unavailable` (or halt if that
-   policy is explicitly selected), never as a biological negative.
+   divisor. The production policy is `reference_only` with the `p99` statistic.
+3. Apply the divisor to every analysis-eligible cell and emit `positive`,
+   `negative` or `unavailable`, plus the normalized intensity and the full
+   pair-fit audit.
+4. Pass those states to **simultaneous broad typing** (`broad_gates.json`).
+   Every gate is evaluated against the same evidence, with no precedence:
+   one supported gate is an `anchor`, more than one is `Ambiguous`, none with
+   everything explicitly negative is `Other`, and an unmeasured gate marker
+   leaves the cell `Unavailable`.
+5. Treat any technical donor-marker failure as `unavailable` (or halt, if that
+   policy is selected), never as a biological negative.
 
-`--pipelined` changes only scheduling: it overlaps donor-ready stages while
-respecting this same dependency graph and these same scientific functions.
+`--pipelined` changes only scheduling. It overlaps donor-ready stages under the
+same dependency graph and the same scientific functions.
 
-## Simplest correction after a failed QuPath review
+## The correction loop
 
-Do not prepare a new labeling package and do not run `probabilistic fit`.
+Do not prepare a labelling package and do not run `probabilistic fit`.
 
 1. Keep a small error ledger of representative visible failures. It needs only
    `donor_id`, `object_id`, `error` (`false_positive` or `false_negative`), the
    implicated marker or reported class, and a note. These are regression
    exemplars, not training labels.
 2. Join those stable IDs to `marker_evidence/` and
-   `audit/restore_pair_models.parquet` in the candidate run. Determine where
-   the first wrong decision occurs:
+   `audit/restore_pair_models.parquet` in the candidate run, and find **where
+   the first wrong decision happens**:
 
    | first wrong decision | correction surface |
    |---|---|
-   | raw image, segmentation, or spillover is wrong | fix the manifest, geometry policy, or REDSEA and rerun downstream |
-   | RESTORE marker state is wrong | change the target/reference rule or a declared RESTORE divisor policy, version it, and rerun RESTORE |
-   | marker states are right but the ordered class is wrong | change `ordered_residual_rules.json`, version it, and rerun typing |
-   | evidence cannot decide because a required gate is unavailable | preserve `Unavailable`; do not force a class |
+   | raw image, segmentation or spillover is wrong | fix the manifest, geometry policy or REDSEA and rerun downstream |
+   | the cell should not have been analysed at all | geometry QC — check `analysis_reasons`, not the marker calls |
+   | a RESTORE marker state is wrong | change the target/reference rule or a declared divisor policy, version it, rerun `calibrate` |
+   | marker states are right but the class is wrong | change `broad_gates.json`, version it, rerun `type` |
+   | the cell is `Ambiguous` | that is not automatically an error — check whether the competing gates are both genuinely positive (`broad_supported_gates`, `broad_support_margin`) before changing anything |
+   | evidence cannot decide because a gate is unavailable | preserve `Unavailable`; do not force a class |
 
 3. Rerun the whole affected dependency suffix. Never overwrite an individual
-   cell assignment. The new configuration, registry, source, and audit inputs
-   create a new run ID automatically.
-4. Reopen the new QuPath export and check both the recorded failures and a
-   small untouched set of cells. Also check cohort guardrails: per-donor class
+   cell assignment. A new configuration, registry, source or audit input creates
+   a new run ID automatically.
+4. Reopen the new QuPath export and check both the recorded failures and a small
+   untouched set of cells. Also check the cohort guardrails: per-donor class
    fractions, impossible co-expression, islet/endocrine localization, vascular
-   CD31, acinar keratin retention, and disease trends. A correction is accepted
-   only if it fixes the reported pattern without creating a new one.
+   CD31, acinar keratin retention. A correction is accepted only if it fixes the
+   reported pattern without creating a new one.
 
-This loop usually requires review of tens of error exemplars, not comprehensive
-cell labeling. RESTORE refits thresholds automatically for every donor after
-each versioned change.
+### Judge a correction against the donor's own data
 
-## Reuse the valid part of `c8412757d12de36ca056`
+Never against another donor, a disease label, or an expected frequency. The
+per-donor histogram and the pair's own negative-control population are the
+reference. `audit/restore_pair_models.parquet` carries everything needed:
+`target_fold`, `reference_fold`, `double_high_fraction`,
+`divisor_reproducibility`, `seed_divisor_n`, `control_fraction_le_1`,
+`canonical_divisor` beside `manuscript_divisor`, and the call counts.
 
-That run's marker evidence, assignments, and QuPath exports are rejected. Its
-ingest, geometry, REDSEA, selected expression, and independent state artifacts
-remain valid and are eligible for provenance-checked adoption. Controls are
-recomputed because the accepted CD11b reference changed; RESTORE (`calibrate`)
-and `type` are then recomputed before regenerating the QuPath export. The
-generated adoption plan records the exact reusable stages and byte count.
+## Known open questions in the current method
 
-```bash
-python -m phenocycler.pipeline adopt plan \
-  --config config.ini \
-  --from-run c8412757d12de36ca056 \
-  --out restore-adoption-plan.json
+These are recorded so a reviewer does not have to rediscover them. Each is
+measured on run `3bf4fc8e391d007766d1` (20 donors, 25,150,537 analysis-eligible
+cells).
 
-# Read the printed stage decisions. It should adopt ingest, geometry, REDSEA,
-# expression, and states; controls, calibrate, and type should recompute.
-python -m phenocycler.pipeline adopt apply \
-  --config config.ini \
-  --plan restore-adoption-plan.json \
-  --continue
-```
+**The divisor statistic decouples the call from the fit.** `p99` places the
+threshold at the negative control's 99th percentile, so 1% of every control is
+called positive by construction — `control_fraction_le_1` is 0.98999 on all 479
+VALID pairs. 417 of those 479 call more positives than the NNMF+floor target
+anchor identified (median 2.15×, max 51.1×), concentrated in the sparse immune
+markers. The manuscript uses the control **maximum**, under which controls
+normalise ≤ 1 by construction. Switching costs pair validity: measured over 10
+donors, `p99` leaves 240/240 pairs callable and `max` leaves 229/240.
 
-The configured exhaustive compartment source is
-`../data/restore_pair_validation/qupath_compartment_full_20donor`. It is
-fingerprinted as an external RESTORE input. It covers the current analysis-QC
-cell universe and prevents an unnecessary rescan of the 148 GB QuPath
-measurement CSV.
+**The seed-stability gate is non-binding on half the cohort.** 253 of 480 pairs
+carry `stability_informative = False` — an arm was saturated, so seed agreement
+is arithmetically guaranteed and is not evidence of robustness. All 253 are
+`VALID` with median reproducibility exactly 1.000000. The flag is reported and
+gates nothing.
 
-The accepted donor 6566 INS image review is separately pinned in
-`phenocycler/restore_expression_reviews.csv`. RESTORE records that donor-marker
-as `NO_TARGET_EXPRESSION_CONFIRMED`; this explicit biological decision must not
-be confused with a technical failure or inferred automatically for another
-donor.
+**CD11b ← EpCAM violates the mutual-exclusivity premise.** `double_high_fraction`
+median 0.173 and max 0.411, against ≤0.010 for the other 23 accepted pairs: its
+negative control is 17% target-positive. `max_double_positive_fraction` exists
+in `PairValidationConfig` but is read by nothing. Under simultaneous typing,
+88.3% of the cells whose only immune evidence is CD11b are already `Ambiguous`,
+so dropping the marker would cost 37,680 Immune anchors — 0.150% of eligible
+cells.
+
+**14 of 24 pairs fit on whole cell alone.** The extracted compartment sample
+covers 12 markers, so 279 of 479 VALID pairs get `Cell` only while the rest get
+`Membrane+Cell`. Measured under production `p99`, the feature set barely moves
+the fit (reproducibility 0.9997–1.0000, divisor within 1.7%, positives within
+1.9% across six declared sets), so this is a uniformity problem rather than an
+accuracy one. The source CSVs do carry `Membrane:` and `Cytoplasm:` means for
+every gate marker if it is ever worth re-extracting.
+
+> When screening any of this with an ad-hoc script, note that
+> `PairValidationConfig()` defaults `divisor_statistic` to `max`, while
+> production passes `p99` through `RestoreStageConfig.pair_config()`. Validate
+> the harness against a real run's `audit/restore_pair_models.parquet` before
+> believing it.
+
+## Reusing a previous run
+
+`pipeline adopt plan --from-run <id>` reports, per stage, whether the previous
+output can be reused. It is strict on purpose, and two things currently block it:
+
+- **A run produced from a dirty tree can never be adopted.** Adoption requires
+  the source code to be reconstructible from the commit the manifest records.
+  Runs `a43be26e1d576d3fe495` and `3bf4fc8e391d007766d1` recorded `dirty: true`;
+  their code now exists at commit `ec97cbc`, but their manifests point at
+  `ab9a578`, so the reconstruction check fails. Only `ingest` is reusable.
+- **A producer-file change needs a recorded review.** `adoption_compatibility.json`
+  holds transitions that name the exact source and target file hashes, the exact
+  changed paths and the sha256 of the exact diff, and adoption re-verifies all of
+  them. A transition is a human sign-off that the diff cannot change that
+  stage's output; do not add one without making that judgement.
+
+Consequence: after a code change to `donor_pipeline.py` or any producer, either
+record a reviewed transition or recompute. Recomputing geometry and REDSEA cost
+about 4.5 hours for this cohort (REDSEA alone was 238 minutes in
+`c8412757d12de36ca056`), and yields a clean run every later calibrate iteration
+can adopt from in roughly half an hour.
 
 ## Which artifact is authoritative
 
-- `marker_evidence/donor_id=*/...parquet`: per-cell RESTORE states,
-  normalized values, divisors, references, and method version.
-- `audit/restore_pair_models.parquet`: one row per donor × marker fit, including
-  pair state, divisor, feature set, stability, control counts, and call counts.
-- `assignments/donor_id=*/...parquet`: ordered residual hierarchy applied to
-  RESTORE evidence.
-- `qupath_export/cell_assignments_*.csv`: visual review surface only.
+- `marker_evidence/donor_id=*/…parquet` — per-cell RESTORE states, normalized
+  values, divisors, references and method version.
+- `audit/restore_pair_models.parquet` — one row per donor × marker fit: pair
+  state, divisor, feature set, stability, control counts and call counts.
+- `assignments/donor_id=*/…parquet` — simultaneous broad typing applied to that
+  evidence.
+- `qupath_export/cell_assignments_*.csv` — visual review surface only.
 
-The old `c8412757d12de36ca056/marker_evidence` must not be supplied to a
-probabilistic fit. A probabilistic rescue remains an optional future method for
-genuinely unresolved cells, but it is not the remedy for having accidentally
-removed RESTORE.
+## The optional probabilistic lane
 
-If that optional lane is ever authorized after RESTORE has passed review, its
-separate guarded release interface remains
-[06_probabilistic_validation_and_promotion](../notebooks/06_probabilistic_validation_and_promotion.ipynb).
+A probabilistic rescue for genuinely unresolved cells remains a possible future
+method. It is **not** the remedy for a typing rule that is wrong, and marker
+evidence from a rejected run must never be supplied to a fit.
 
-That optional lane retains its prior safety contract. Notebooks 01–06 are operator interfaces,
-not alternate production implementations. Notebooks 01–04 retain their existing guarded package-stage
-entry points; notebook 05 is read-only. Promotion remains disabled until the
+If that lane is ever authorized, its guarded release interface is
+[06_probabilistic_validation_and_promotion](../notebooks/06_probabilistic_validation_and_promotion.ipynb),
+and its contract is in [`PROBABILISTIC_RESCUE.md`](PROBABILISTIC_RESCUE.md).
+Notebooks 01–06 are operator interfaces, not alternate production
+implementations; notebook 05 is read-only. Promotion stays disabled until the
 probability-sample review is complete and its software-enforced provenance is
-valid. The detached challenge sample may reveal a catastrophic problem, but
-it cannot supply headline
-   metrics or software promotion pass/fail.
+valid. Note that notebook 05 currently requires a configured model bundle and
+therefore does not run against the production default.

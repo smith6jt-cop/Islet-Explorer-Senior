@@ -285,8 +285,9 @@ positive but any unavailable marker blocks every lower gate and emits
 repeat the broad label. The probabilistic subtype implementation runs only
 when an exact signed bundle is explicitly configured.
 
-`docs/MIGRATION_RESTORE_TO_CALIBRATION.md` records why the attempted migration
-was reversed and which later safety improvements were retained.
+`docs/METHOD_HISTORY.md` records why the attempted migration was reversed, why
+the ordered residual hierarchy was *not* restored with it, and which later
+safety improvements were retained.
 
 ---
 
