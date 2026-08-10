@@ -1,12 +1,11 @@
 {
   "schema_version": 1,
-  "rules_version": "restore-simultaneous-broad-gates-v1",
+  "rules_version": "restore-simultaneous-broad-gates-v2",
   "description": "Broad-lineage gate membership for simultaneous typing. Every gate is evaluated against the same RESTORE tri-state evidence and no gate has precedence over another: a cell supported by more than one gate is Ambiguous, not awarded to whichever gate is listed first. Gate membership must agree with each marker's registered broad_compartment.",
   "gates": {
     "Immune": [
       "CD3e",
       "CD68",
-      "CD11b",
       "CD79a",
       "CD11c",
       "Iba1",

@@ -323,8 +323,16 @@ def test_default_calibration_adapter_loads_versioned_biological_overlay():
     assert len(registry.rules_fingerprint) == 64
 
     immune = next(rule for rule in registry.broad_rules if rule.name == "Immune")
-    assert "CD11b" in immune.support_markers
+    # CD11b is deliberately NOT broad Immune evidence. Its reference control is
+    # not mutually exclusive: double_high_fraction 0.173 median / 0.407 max
+    # across 20 donors, against <=0.010 for the other 23 accepted pairs, and no
+    # candidate reference fixes it. It stays an active, fitted RESTORE target
+    # with EpCAM as its reference; it just cannot pull a cell into Immune.
+    assert "CD11b" not in immune.support_markers
+    assert "CD11b" not in immune.anchor_markers
     assert source.marker("CD11b").reference == "EpCAM"
+    assert source.marker("CD11b").subtype_only
+    assert source.marker("CD11b").active
 
     broad_positive = {
         marker

@@ -919,8 +919,27 @@ def validate_typing_rules(
         )
         immune_positive = immune_anchors | immune_support
     cd11b = by_name.get("CD11b")
-    if "CD11b" not in immune_positive:
-        errors.append("CD11b must remain positive broad Immune evidence")
+    # CD11b is NOT broad Immune evidence, and this asserts it stays out.
+    #
+    # RESTORE's premise (manuscript Lemma 1) is that a target/reference pair
+    # partitions cells into reference-positive, target-positive, and negative
+    # for both. Measured across all 20 donors under the production p99 divisor,
+    # CD11b <- EpCAM has a double-positive control fraction of 0.173 median and
+    # 0.407 max, against <=0.010 for the other 23 accepted pairs: its "negative
+    # control" is 17% target-positive. No candidate reference fixes it --
+    # exclusivity and reference size are in direct conflict for this marker.
+    # CD3e is the only clean control (0.0015) and is undersized on every donor
+    # (reference/target 0.036), which is the documented inverted-fit mode.
+    #
+    # It remains an active RESTORE target, so it is still fitted and still
+    # reported; it just cannot pull a cell into the broad Immune compartment.
+    # 88.3% of the cells whose only immune evidence was CD11b were already
+    # Ambiguous, so removing it costs 0.150% of eligible cells.
+    if "CD11b" in immune_positive:
+        errors.append(
+            "CD11b must not be broad Immune evidence: its reference control is "
+            "not mutually exclusive (double_high_fraction 0.173 median)"
+        )
     if cd11b is None or getattr(cd11b, "reference", None) != "EpCAM":
         errors.append("CD11b must retain EpCAM as its calibration reference")
 

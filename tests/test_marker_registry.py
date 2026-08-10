@@ -28,10 +28,17 @@ def test_registry_covers_current_type_and_state_rosters():
 def test_registry_locks_broad_and_subtype_decisions():
     registry = load_registry()
     broad = {marker.name for marker in registry.broad_markers}
-    assert len(broad) == 23
+    assert len(broad) == 22
     assert "SST" not in broad
     assert registry.marker("SST").subtype_only
     assert registry.marker("SST").reference == "Pan_Cytokeratin"
+    # CD11b was dropped from broad identity: its negative control is 17%
+    # target-positive (double_high_fraction 0.173 median, 0.407 max), and no
+    # candidate reference gives it both exclusivity and an adequate reference
+    # size. It remains an active RESTORE target and subtype evidence.
+    assert "CD11b" not in broad
+    assert registry.marker("CD11b").subtype_only
+    assert registry.marker("CD11b").active
     assert registry.marker("CD11b").reference == "EpCAM"
     assert set(registry.reference_graph) == {
         marker.name for marker in registry.active_markers

@@ -76,11 +76,15 @@
     {
       "name": "E_cadherin",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "CD31",
-      "families": ["broad_epithelial"],
+      "families": [
+        "broad_epithelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -88,11 +92,15 @@
     {
       "name": "Pan_Cytokeratin",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "CD31",
-      "families": ["broad_epithelial"],
+      "families": [
+        "broad_epithelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -100,11 +108,15 @@
     {
       "name": "Ker8_18",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "CD31",
-      "families": ["broad_epithelial"],
+      "families": [
+        "broad_epithelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -112,11 +124,15 @@
     {
       "name": "Keratin_5",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "CD31",
-      "families": ["broad_epithelial"],
+      "families": [
+        "broad_epithelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -124,11 +140,15 @@
     {
       "name": "EpCAM",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "CD31",
-      "families": ["broad_epithelial"],
+      "families": [
+        "broad_epithelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -136,7 +156,9 @@
     {
       "name": "TP63",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "deferred",
       "reference": null,
@@ -148,7 +170,9 @@
     {
       "name": "CD66",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "deferred",
       "reference": null,
@@ -160,11 +184,17 @@
     {
       "name": "INS",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "Pan_Cytokeratin",
-      "families": ["broad_epithelial", "subtype_endocrine"],
+      "families": [
+        "broad_epithelial",
+        "subtype_endocrine"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -172,11 +202,17 @@
     {
       "name": "GCG",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Epithelial",
       "calibration_status": "active",
       "reference": "Pan_Cytokeratin",
-      "families": ["broad_epithelial", "subtype_endocrine"],
+      "families": [
+        "broad_epithelial",
+        "subtype_endocrine"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -184,11 +220,15 @@
     {
       "name": "SST",
       "kind": "type",
-      "uses": ["subtype"],
+      "uses": [
+        "subtype"
+      ],
       "broad_compartment": null,
       "calibration_status": "active",
       "reference": "Pan_Cytokeratin",
-      "families": ["subtype_endocrine"],
+      "families": [
+        "subtype_endocrine"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -196,11 +236,15 @@
     {
       "name": "CD31",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Endothelial",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_endothelial"],
+      "families": [
+        "broad_endothelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -208,11 +252,16 @@
     {
       "name": "CD34",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Endothelial",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_endothelial"],
+      "families": [
+        "broad_endothelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -220,11 +269,16 @@
     {
       "name": "Podoplanin",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Endothelial",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_endothelial"],
+      "families": [
+        "broad_endothelial"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -232,7 +286,9 @@
     {
       "name": "Caveolin",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Endothelial",
       "calibration_status": "deferred",
       "reference": null,
@@ -244,11 +300,15 @@
     {
       "name": "B3TUBB",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Neural",
       "calibration_status": "active",
       "reference": "EpCAM",
-      "families": ["broad_neural"],
+      "families": [
+        "broad_neural"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -256,7 +316,9 @@
     {
       "name": "CD56",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -268,11 +330,16 @@
     {
       "name": "CD3e",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -280,11 +347,16 @@
     {
       "name": "CD8",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -292,11 +364,16 @@
     {
       "name": "CD4",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -304,7 +381,9 @@
     {
       "name": "FOXP3",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "deferred",
       "reference": null,
@@ -316,7 +395,9 @@
     {
       "name": "CD20",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "deferred",
       "reference": null,
@@ -328,11 +409,16 @@
     {
       "name": "CD79a",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -340,11 +426,16 @@
     {
       "name": "CD68",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -352,7 +443,9 @@
     {
       "name": "CD163",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "deferred",
       "reference": null,
@@ -364,11 +457,16 @@
     {
       "name": "Iba1",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -376,11 +474,16 @@
     {
       "name": "CD206",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -388,7 +491,9 @@
     {
       "name": "M2Gal3",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "deferred",
       "reference": null,
@@ -400,11 +505,16 @@
     {
       "name": "CD11c",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -412,7 +522,9 @@
     {
       "name": "CD209",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "deferred",
       "reference": null,
@@ -424,11 +536,15 @@
     {
       "name": "CD11b",
       "kind": "type",
-      "uses": ["broad", "subtype"],
-      "broad_compartment": "Immune",
+      "uses": [
+        "subtype"
+      ],
+      "broad_compartment": null,
       "calibration_status": "active",
       "reference": "EpCAM",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -436,11 +552,16 @@
     {
       "name": "MPO",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Immune",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_immune"],
+      "families": [
+        "broad_immune"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -448,11 +569,16 @@
     {
       "name": "SMA",
       "kind": "type",
-      "uses": ["broad", "subtype"],
+      "uses": [
+        "broad",
+        "subtype"
+      ],
       "broad_compartment": "Mesenchymal",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_mesenchymal"],
+      "families": [
+        "broad_mesenchymal"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -460,11 +586,15 @@
     {
       "name": "Vimentin",
       "kind": "type",
-      "uses": ["broad"],
+      "uses": [
+        "broad"
+      ],
       "broad_compartment": "Mesenchymal",
       "calibration_status": "active",
       "reference": "E_cadherin",
-      "families": ["broad_mesenchymal"],
+      "families": [
+        "broad_mesenchymal"
+      ],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": true
@@ -472,7 +602,9 @@
     {
       "name": "b_Catenin1",
       "kind": "type",
-      "uses": ["deferred_type"],
+      "uses": [
+        "deferred_type"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -484,7 +616,9 @@
     {
       "name": "Ki67",
       "kind": "state",
-      "uses": ["proliferation"],
+      "uses": [
+        "proliferation"
+      ],
       "broad_compartment": null,
       "calibration_status": "standalone",
       "reference": null,
@@ -496,7 +630,9 @@
     {
       "name": "PCNA",
       "kind": "state",
-      "uses": ["proliferation"],
+      "uses": [
+        "proliferation"
+      ],
       "broad_compartment": null,
       "calibration_status": "standalone",
       "reference": null,
@@ -508,7 +644,9 @@
     {
       "name": "Granzyme_B",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -520,7 +658,9 @@
     {
       "name": "CD107a",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -532,7 +672,9 @@
     {
       "name": "PD_1",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -544,7 +686,9 @@
     {
       "name": "PD_L1",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -556,7 +700,9 @@
     {
       "name": "LAG3",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -568,7 +714,9 @@
     {
       "name": "TOX",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -580,7 +728,9 @@
     {
       "name": "VISTA",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -592,7 +742,9 @@
     {
       "name": "ICOS",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -604,7 +756,9 @@
     {
       "name": "TCF_1",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -616,7 +770,9 @@
     {
       "name": "CD39",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -628,7 +784,9 @@
     {
       "name": "HLA_DR",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -640,7 +798,9 @@
     {
       "name": "HLA_A",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -652,7 +812,9 @@
     {
       "name": "iNOS",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -664,7 +826,9 @@
     {
       "name": "IDO1",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -676,7 +840,9 @@
     {
       "name": "SOX2",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -688,7 +854,9 @@
     {
       "name": "Bcl_2",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -700,7 +868,9 @@
     {
       "name": "Beta_actin",
       "kind": "state",
-      "uses": ["housekeeping"],
+      "uses": [
+        "housekeeping"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -712,7 +882,9 @@
     {
       "name": "CD44",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -724,7 +896,9 @@
     {
       "name": "CD57",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -736,7 +910,9 @@
     {
       "name": "CD38",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -748,7 +924,9 @@
     {
       "name": "CD99",
       "kind": "state",
-      "uses": ["deferred_state"],
+      "uses": [
+        "deferred_state"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -760,7 +938,9 @@
     {
       "name": "DAPI",
       "kind": "structural",
-      "uses": ["structural_qc"],
+      "uses": [
+        "structural_qc"
+      ],
       "broad_compartment": null,
       "calibration_status": "standalone",
       "reference": null,
@@ -772,7 +952,9 @@
     {
       "name": "Collagen_IV",
       "kind": "structural",
-      "uses": ["microenvironment"],
+      "uses": [
+        "microenvironment"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
@@ -784,7 +966,9 @@
     {
       "name": "IAPP",
       "kind": "excluded",
-      "uses": ["failed_marker"],
+      "uses": [
+        "failed_marker"
+      ],
       "broad_compartment": null,
       "calibration_status": "deferred",
       "reference": null,
