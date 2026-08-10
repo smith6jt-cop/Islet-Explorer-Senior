@@ -302,15 +302,31 @@ def build_restore_input_frame(
         # the compartment extraction.
         columns[f"raw__{marker}"] = raw.copy()
         columns[f"redsea__{marker}"] = corrected.copy()
-        columns[f"Cell__{marker}"] = raw.copy()
 
+        # NNMF FEATURES COME FROM REDSEA'S COMPARTMENT DECOMPOSITION.
+        #
+        # Chang et al. 2020, Methods: "If we consider a 2-dimensional feature
+        # set (i.e., mean intensity profile), there exists a trivial solution,
+        # i.e., W = Y and H = I." Measured here: with `Cell` alone the rank-2
+        # fit reproduces its input to a relative error of 5e-5 to 2e-3 -- it is
+        # that exact trivial solution and carries no information the two input
+        # columns did not already have. With Nucleus+Cytoplasm+Membrane the
+        # error is 0.21-0.25, i.e. a genuine approximation.
+        #
+        # `redsea.compensate_compartments` emits Nucleus/Cytoplasm/Membrane/Cell
+        # for EVERY channel, so every accepted pair can have a >2-dimensional
+        # feature set. The QuPath compartment export covered 12 markers, which
+        # is why 279 of 479 pairs were falling back to whole cell alone.
         for compartment in feature_compartments:
-            if compartment == "Cell":
-                continue
             name = f"{compartment}__{marker}"
             source: pd.Series | None = None
-            if sample_aligned is not None and name in sample_aligned:
+            if name in redsea_aligned:
+                source = redsea_aligned[name]
+            elif sample_aligned is not None and name in sample_aligned:
                 source = sample_aligned[name]
+            elif compartment == "Cell":
+                columns[name] = raw.copy()
+                continue
             elif name in canonical:
                 source = canonical[name]
             if source is not None:
@@ -621,11 +637,31 @@ def restore_donor_from_paths(
         raise ContractError(
             f"donor {donor}: cells are missing required columns {missing_cells}"
         )
+    # Cell__ is mandatory (it is the corrected whole-cell intensity behind
+    # `redsea__`); the other compartments are the NNMF feature basis and are
+    # requested from the same REDSEA output.
     redsea = _read_columns(
         redsea_root,
         donor,
-        ["object_id", *(f"Cell__{marker}" for marker in markers)],
+        [
+            "object_id",
+            *(f"Cell__{marker}" for marker in markers),
+            *(
+                f"{compartment}__{marker}"
+                for compartment in config.feature_compartments
+                if compartment != "Cell"
+                for marker in markers
+            ),
+        ],
+        allow_missing=True,
     )
+    missing_redsea = sorted(
+        {f"Cell__{marker}" for marker in markers}.difference(redsea.columns)
+    )
+    if missing_redsea:
+        raise ContractError(
+            f"donor {donor}: REDSEA is missing {missing_redsea}"
+        )
     geometry = _read_columns(
         geometry_root, donor, ["object_id", "analysis_eligible"]
     )
