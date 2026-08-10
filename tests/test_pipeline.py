@@ -54,7 +54,9 @@ def test_typing_bundle_semantics_are_part_of_run_identity_config():
         typing_model_promotion_manifest=promotion,
     )
 
-    assert rules_only["typing_model"] == {"mode": "rules_only"}
+    assert rules_only["typing_model"] == {
+        "mode": "restore_ordered_residual"
+    }
     assert probabilistic["typing_model"] == {
         "mode": "probabilistic_bundle",
         "content_id": "a" * 64,

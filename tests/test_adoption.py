@@ -162,6 +162,37 @@ def test_stage_graph_keeps_states_independent_of_type():
     ]
 
 
+def test_registry_projection_ignores_restore_reference_only_upstream():
+    old = {
+        "markers": [
+            {
+                "name": "CD11b",
+                "compartment": "Cell",
+                "spillover_policy": "redsea_corrected",
+                "calibration_status": "active",
+                "reference": "E_cadherin",
+            }
+        ]
+    }
+    new = {
+        "markers": [
+            {
+                **old["markers"][0],
+                "reference": "EpCAM",
+            }
+        ]
+    }
+
+    assert adoption._marker_registry_projection(
+        old, "redsea"
+    ) == adoption._marker_registry_projection(new, "redsea")
+    assert adoption._marker_registry_projection(
+        old, "expression"
+    ) == adoption._marker_registry_projection(new, "expression")
+    with pytest.raises(ContractError, match="not allowed"):
+        adoption._marker_registry_projection(old, "controls")
+
+
 def test_probabilistic_bundle_is_checked_against_planned_calibration():
     context = SimpleNamespace(
         typing_model_bundle=SimpleNamespace(
@@ -203,17 +234,25 @@ def test_plan_identity_rejects_tampering():
 def test_checked_in_policy_pins_the_reviewed_donor_pipeline_transition():
     policy, content_id = adoption._load_policy()
     assert len(content_id) == 64
-    assert {item["stage"] for item in policy["transitions"]} == {
-        "geometry",
-        "redsea",
-        "expression",
-        "controls",
-        "calibrate",
-        "states",
+    current = {
+        item["stage"]: item
+        for item in policy["transitions"]
+        if item["policy_id"].startswith("restore-reinstatement-")
     }
-    assert {
-        tuple(item["changed_paths"]) for item in policy["transitions"]
-    } == {("phenocycler/donor_pipeline.py",)}
+    assert set(current) == {
+        "geometry", "redsea", "expression", "controls", "states"
+    }
+    assert current["geometry"]["changed_paths"] == [
+        "phenocycler/donor_pipeline.py"
+    ]
+    assert current["redsea"]["changed_paths"] == [
+        "phenocycler/donor_pipeline.py",
+        "phenocycler/marker_registry.py",
+    ]
+    assert current["expression"]["changed_paths"] == [
+        "phenocycler/donor_pipeline.py",
+        "phenocycler/marker_registry.py",
+    ]
 
 
 def test_changed_source_files_supports_multi_file_and_path_set_drift(tmp_path):

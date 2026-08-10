@@ -61,8 +61,12 @@ STAGE_CONFIGURATION_KEYS: dict[str, tuple[str, ...]] = {
     "redsea": ("run_schema_version", "redsea"),
     "expression": ("run_schema_version",),
     "controls": ("run_schema_version", "reference_controls"),
-    "calibrate": ("run_schema_version", "marker_calibration"),
-    "type": ("run_schema_version", "typing_model"),
+    "calibrate": ("run_schema_version", "phenotyping"),
+    "type": (
+        "run_schema_version",
+        "typing_model",
+        "ordered_residual_typing",
+    ),
     "states": ("run_schema_version",),
 }
 
@@ -195,6 +199,128 @@ def _historical_code_sha256(
     return sha256_json(tuple(sorted(entries)))
 
 
+def _marker_registry_projection(
+    payload: Mapping[str, Any],
+    stage: str,
+) -> dict[str, Any]:
+    """Project registry fields actually consumed by a reusable upstream stage.
+
+    A RESTORE reference change is scientifically relevant to controls and all
+    downstream phenotyping, but REDSEA consumes only the ordered marker names
+    and expression selection consumes only the measurement-source fields below.
+    """
+
+    markers = payload.get("markers")
+    if not isinstance(markers, list) or not all(
+        isinstance(item, dict) for item in markers
+    ):
+        raise ContractError("marker registry has no valid marker list")
+    if stage == "redsea":
+        return {"markers": [str(item["name"]) for item in markers]}
+    if stage == "expression":
+        fields = (
+            "name",
+            "compartment",
+            "spillover_policy",
+            "calibration_status",
+        )
+        return {
+            "markers": [
+                {field: item.get(field) for field in fields}
+                for item in markers
+            ]
+        }
+    raise ContractError(
+        f"marker-registry semantic adoption is not allowed for {stage!r}"
+    )
+
+
+def _marker_registry_input_compatibility(
+    *,
+    context: RunContext,
+    stage: str,
+    source: StageManifest,
+    old: Any,
+    current: Any,
+) -> tuple[bool, dict[str, Any]]:
+    """Verify historical bytes before comparing stage-consumer projections."""
+
+    detail: dict[str, Any] = {
+        "basis": "stage_consumer_projection",
+        "allowed_stages": ["redsea", "expression"],
+    }
+    if stage not in {"redsea", "expression"}:
+        detail["reason"] = "stage_not_allowed"
+        return False, detail
+    try:
+        if old.kind != "file" or current.kind != "file":
+            raise ContractError("marker registry inputs must be files")
+        if len(old.files) != 1 or len(current.files) != 1:
+            raise ContractError("marker registry inputs must contain one file")
+        if source.code.commit is None:
+            raise ContractError("source manifest has no reconstructible commit")
+        old_path = Path(old.path).resolve()
+        relative = old_path.relative_to(context.repository.resolve()).as_posix()
+        historical_bytes = _git_blob(
+            context.repository,
+            str(source.code.commit),
+            relative,
+        )
+        historical_sha256 = hashlib.sha256(historical_bytes).hexdigest()
+        historical_file = old.files[0]
+        if (
+            Path(historical_file.path).resolve() != old_path
+            or historical_file.hash_mode != "full"
+            or historical_file.size_bytes != len(historical_bytes)
+            or historical_file.sha256 != historical_sha256
+        ):
+            raise ContractError(
+                "source marker registry is not reconstructible from its commit"
+            )
+        historical_content_id = sha256_json(
+            [
+                (
+                    old_path.name,
+                    len(historical_bytes),
+                    historical_sha256,
+                    "full",
+                )
+            ]
+        )
+        if historical_content_id != old.content_sha256:
+            raise ContractError("source marker registry artifact identity differs")
+        historical_payload = json.loads(historical_bytes.decode("utf-8"))
+        current_payload = json.loads(
+            Path(current.path).read_text(encoding="utf-8")
+        )
+        old_projection = _marker_registry_projection(historical_payload, stage)
+        current_projection = _marker_registry_projection(current_payload, stage)
+        detail.update(
+            {
+                "source_commit": str(source.code.commit),
+                "source_file_sha256": historical_sha256,
+                "source_projection_sha256": sha256_json(old_projection),
+                "target_projection_sha256": sha256_json(current_projection),
+            }
+        )
+        if old_projection != current_projection:
+            detail["reason"] = "stage_consumer_projection_changed"
+            return False, detail
+    except (
+        ContractError,
+        KeyError,
+        TypeError,
+        ValueError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
+        detail["reason"] = f"projection_validation_failed:{exc}"
+        return False, detail
+    detail["reason"] = "stage_consumer_projection_identical"
+    return True, detail
+
+
 def _changed_source_files(
     repository: Path,
     commit: str,
@@ -304,7 +430,11 @@ def _reviewed_transition(
                 "-C",
                 str(context.repository),
                 "diff",
-                f"{source.code.commit}..HEAD",
+                # Compare the reconstructible source commit with the exact
+                # current files, including a reviewed working-tree repair.
+                # In a clean checkout this is byte-identical to commit..HEAD;
+                # after the repair is committed it remains the same diff.
+                str(source.code.commit),
                 "--",
                 *changed_paths,
             ],
@@ -432,6 +562,17 @@ def _source_input_compatibility(
             current.kind,
             current.content_sha256,
         )
+        compatibility_basis = "exact_artifact_identity"
+        compatibility_detail = None
+        if not matches and name == "marker_registry" and old is not None:
+            compatibility_basis = "stage_consumer_projection"
+            matches, compatibility_detail = _marker_registry_input_compatibility(
+                context=context,
+                stage=stage,
+                source=source,
+                old=old,
+                current=current,
+            )
         if not matches:
             reasons.append(f"external_input_mismatch:{name}")
         details.append(
@@ -441,6 +582,8 @@ def _source_input_compatibility(
                 "source_content_sha256": old.content_sha256 if old else None,
                 "target_content_sha256": current.content_sha256,
                 "compatible": matches,
+                "compatibility_basis": compatibility_basis,
+                "compatibility_detail": compatibility_detail,
             }
         )
     return details, reasons

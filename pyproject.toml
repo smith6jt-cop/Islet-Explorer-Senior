@@ -10,7 +10,7 @@ name = "phenocycler-analysis"
 # commit that produced the results is worse than having no version at all. This branch
 # already hashes the source tree into every run_id for the same reason.
 dynamic = ["version"]
-description = "Manifest-driven Phenocycler expression calibration and hierarchical cell typing"
+description = "Manifest-driven Phenocycler RESTORE evidence and ordered residual typing"
 readme = "README.md"
 requires-python = ">=3.10"
 # Runtime bounds remain unpinned here so editable installs can share an existing
@@ -22,6 +22,7 @@ dependencies = [
     "pyarrow",
     "scipy",
     "scikit-image",
+    "scikit-learn",
     "statsmodels",
     "tifffile",
     "imagecodecs",
@@ -62,6 +63,8 @@ include-package-data = true
 phenocycler = [
     "adoption_compatibility.json",
     "marker_registry.json",
+    "ordered_residual_rules.json",
+    "restore_expression_reviews.csv",
     "typing_rules.json",
 ]
 

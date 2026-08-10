@@ -1,7 +1,8 @@
 """Compact configuration for the content-addressed workflow.
 
-Biological marker meaning lives in ``marker_registry.json`` and
-``typing_rules.json``.  Raw input identity lives in the QuPath cohort manifest.
+Biological marker meaning lives in ``marker_registry.json`` and the production
+gate order lives in ``ordered_residual_rules.json``. Optional probabilistic
+rules live in ``typing_rules.json``. Raw input identity lives in the QuPath cohort manifest.
 This file therefore contains only output roots, fixed image/QC parameters and
 operational compute settings; it does not duplicate marker pairs or cell-type
 rules.
@@ -29,7 +30,7 @@ def _boolean(value: object) -> bool:
 # Legacy broad-lineage vocabulary — integration layer only.
 #
 # The core typing pipeline on this branch does NOT use these: it types from
-# marker_registry.json + typing_rules.json into its own compartments. They
+# marker_registry.json + ordered_residual_rules.json into its own compartments. They
 # remain because phenocycler/integration/ imports them at module scope
 # (vocab.py derives the PhenoCycler side of the PhenoCycler<->Xenium crosswalk
 # from LINEAGES) and would not import at all without them.
@@ -67,11 +68,24 @@ class PipelineConfig:
     qupath_manifest: Path = _REPO_ROOT / "data" / "qupath_manifest.json"
     marker_registry: Path = _PACKAGE_DIR / "marker_registry.json"
     typing_rules: Path = _PACKAGE_DIR / "typing_rules.json"
-    # Optional, immutable probabilistic rescue model.  Keeping this unset is
-    # the production rules-only default. Production requires its separately
-    # configured immutable promotion manifest.
+    ordered_typing_rules: Path = _PACKAGE_DIR / "ordered_residual_rules.json"
+    # Optional, immutable probabilistic rescue model. Keeping this unset selects
+    # the production RESTORE ordered residual default. Probabilistic production
+    # requires its separately configured immutable promotion manifest.
     typing_model_bundle: Path | None = None
     typing_model_promotion_manifest: Path | None = None
+
+    # RESTORE is the production marker-calling method.  The optional
+    # compartment sample is the already-extracted raw QuPath Membrane/Cell
+    # matrix used by the validated v10 fit; when it is absent, RESTORE uses the
+    # canonical raw whole-cell measurements only and records that reduced
+    # feature set in its audit table.
+    restore_control_definition: str = "reference_only"
+    restore_divisor_statistic: str = "p99"
+    restore_feature_compartments: str = "Membrane,Cell"
+    restore_on_technical_failure: str = "unavailable"
+    restore_compartment_sample: Path | None = None
+    restore_expression_reviews: Path | None = None
 
     # Ingest retains tiny fragments only above this structural floor. Geometry
     # QC is a later immutable flag and never deletes rows.
@@ -412,10 +426,19 @@ _INI_SCHEMA = {
         "qupath_manifest": ("qupath_manifest", Path),
         "marker_registry": ("marker_registry", Path),
         "typing_rules": ("typing_rules", Path),
+        "ordered_typing_rules": ("ordered_typing_rules", Path),
     },
     "typing": {
         "model_bundle": ("typing_model_bundle", Path),
         "promotion_manifest": ("typing_model_promotion_manifest", Path),
+    },
+    "restore": {
+        "control_definition": ("restore_control_definition", str),
+        "divisor_statistic": ("restore_divisor_statistic", str),
+        "feature_compartments": ("restore_feature_compartments", str),
+        "on_technical_failure": ("restore_on_technical_failure", str),
+        "compartment_sample": ("restore_compartment_sample", Path),
+        "expression_reviews": ("restore_expression_reviews", Path),
     },
     "cells": {
         "min_cell_area": ("cells_min_cell_area", float),
@@ -496,6 +519,10 @@ _INI_SCHEMA = {
 _ENV_OVERRIDES = {
     "data_dir": ("PHENOCYCLER_DATA_DIR", Path),
     "qupath_manifest": ("PHENOCYCLER_QUPATH_MANIFEST", Path),
+    "restore_compartment_sample": (
+        "PHENOCYCLER_RESTORE_COMPARTMENT_SAMPLE",
+        Path,
+    ),
     "n_jobs": ("PHENOCYCLER_JOBS", int),
     "use_gpu": ("PHENOCYCLER_USE_GPU", _boolean),
     # Integration layer (see the quarantined block on PipelineConfig).
@@ -553,6 +580,7 @@ def load_config(
         "qupath_manifest",
         "marker_registry",
         "typing_rules",
+        "ordered_typing_rules",
     ):
         path = Path(getattr(cfg, name)).expanduser()
         if not path.is_absolute():
@@ -562,6 +590,8 @@ def load_config(
     for name in (
         "typing_model_bundle",
         "typing_model_promotion_manifest",
+        "restore_compartment_sample",
+        "restore_expression_reviews",
     ):
         value = getattr(cfg, name)
         if value is None:
@@ -575,6 +605,38 @@ def load_config(
     ):
         raise ValueError(
             "[typing] model_bundle and promotion_manifest must be configured together"
+        )
+
+    if cfg.restore_control_definition not in {
+        "reference_only",
+        "reference_and_target",
+    }:
+        raise ValueError(
+            "[restore] control_definition must be 'reference_only' or "
+            "'reference_and_target'"
+        )
+    if cfg.restore_divisor_statistic not in {"max", "p999", "p99", "p95"}:
+        raise ValueError(
+            "[restore] divisor_statistic must be one of max, p999, p99, p95"
+        )
+    restore_compartments = tuple(
+        item.strip()
+        for item in cfg.restore_feature_compartments.split(",")
+        if item.strip()
+    )
+    unknown_restore_compartments = sorted(
+        set(restore_compartments)
+        - {"Nucleus", "Cytoplasm", "Membrane", "Cell"}
+    )
+    if not restore_compartments or unknown_restore_compartments:
+        raise ValueError(
+            "[restore] feature_compartments must be a nonempty comma-separated "
+            "subset of Nucleus,Cytoplasm,Membrane,Cell; unknown="
+            f"{unknown_restore_compartments}"
+        )
+    if cfg.restore_on_technical_failure not in {"halt", "unavailable"}:
+        raise ValueError(
+            "[restore] on_technical_failure must be 'halt' or 'unavailable'"
         )
 
     for name in ("images_dir", "donor_metadata", "xenium_paths_csv",

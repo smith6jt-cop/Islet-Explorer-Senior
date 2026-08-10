@@ -32,7 +32,6 @@ from .artifacts import (
     hash_identifiers,
     sha256_json,
 )
-from .calibration_stage import calibrate_expression
 from .expression import (
     build_selected_expression,
     read_single_partition,
@@ -41,14 +40,14 @@ from .expression import (
 from .geometry_qc import GeometryQCConfig
 from .geometry_stage import run_geometry_qc_for_image
 from .parallel import resolve_jobs, terminate_process_pool_workers
+from .production_typing import type_production_cells as type_calibrated_cells
 from .redsea import RedseaParams, process_donor
 from .reference_controls import (
     build_reference_controls,
-    reference_masks_from_wide,
     reference_masks_to_wide,
 )
+from .restore_stage import RestoreStageConfig, restore_donor_from_paths
 from .state_markers import annotate_proliferation
-from .typing_stage import type_calibrated_cells
 
 DONOR_RECEIPT_VERSION = 1
 DONOR_STAGES = (
@@ -72,7 +71,7 @@ DONOR_DEPENDENCIES: dict[str, tuple[str, ...]] = {
 DONOR_AUDITS = {
     "expression": "expression_availability",
     "controls": "reference_control_models",
-    "calibrate": "marker_calibration_models",
+    "calibrate": "restore_pair_models",
     "states": "state_models",
 }
 
@@ -572,14 +571,38 @@ def donor_stage_inputs(
                 context.base_config.marker_registry,
             )
         )
-    if stage == "type":
-        inputs.append(
-            InputArtifact.from_path(
-                "typing_rules",
-                context.base_config.typing_rules,
+    if stage == "calibrate":
+        if context.base_config.restore_compartment_sample is not None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "restore_compartment_sample",
+                    Path(context.base_config.restore_compartment_sample)
+                    / f"donor_id={donor_id}",
+                    hash_mode="sampled",
+                )
             )
-        )
-        if context.typing_model_bundle is not None:
+        if context.base_config.restore_expression_reviews is not None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "restore_expression_reviews",
+                    context.base_config.restore_expression_reviews,
+                )
+            )
+    if stage == "type":
+        if context.typing_model_bundle is None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "ordered_typing_rules",
+                    context.base_config.ordered_typing_rules,
+                )
+            )
+        else:
+            inputs.append(
+                InputArtifact.from_path(
+                    "typing_rules",
+                    context.base_config.typing_rules,
+                )
+            )
             from .pipeline import _validate_typing_calibration_compatibility
 
             _validate_typing_calibration_compatibility(context)
@@ -699,22 +722,19 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
         )
         return (audit_path,)
     if stage == "calibrate":
-        expression = read_single_partition(
-            context.config.selected_expression_dir,
-            donor,
-        )
-        masks = read_single_partition(
-            context.config.reference_controls_dir,
-            donor,
-        )
-        result = calibrate_expression(
-            expression,
+        # The stage key remains ``calibrate`` for immutable run compatibility;
+        # RESTORE is the production marker-calling implementation.
+        result = restore_donor_from_paths(
             donor_id=donor,
+            cells_root=context.config.cells_dir,
+            redsea_root=context.config.redsea_dir,
+            geometry_root=context.config.geometry_qc_dir,
             registry=context.registry,
-            reference_controls=reference_masks_from_wide(
-                masks,
-                registry=context.registry,
+            config=RestoreStageConfig.from_pipeline(context.config),
+            compartment_sample_root=(
+                context.config.restore_compartment_sample
             ),
+            expression_reviews_path=context.config.restore_expression_reviews,
         )
         write_donor_partition(
             result.evidence_wide,
@@ -735,6 +755,7 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
                 donor,
             ),
             marker_registry=context.registry,
+            ordered_policy=getattr(context, "ordered_typing_policy", None),
             typing_registry=context.typing_registry,
             model_bundle=context.typing_model_bundle,
             model_promotion_manifest=context.typing_model_promotion_manifest,

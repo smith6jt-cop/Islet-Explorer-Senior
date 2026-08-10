@@ -25,12 +25,6 @@ from .artifacts import (
     StaleArtifactError,
     sha256_json,
 )
-from .calibration_stage import (
-    METHOD_VERSION as CALIBRATION_STAGE_VERSION,
-)
-from .calibration_stage import (
-    calibrate_expression,
-)
 from .cells_parquet import build_cells_parquet
 from .cohort import ensure_eligible_donors
 from .config import PipelineConfig, load_config
@@ -50,8 +44,17 @@ from .geometry_stage import (
     run_geometry_qc_for_image,
 )
 from .hierarchical_typing import TypingRegistry
-from .marker_calibration import CalibrationConfig
 from .marker_registry import MarkerRegistry, load_registry
+from .ordered_residual_typing import (
+    OrderedResidualPolicy,
+    load_ordered_residual_policy,
+)
+from .production_typing import (
+    METHOD_VERSION as PRODUCTION_TYPING_VERSION,
+)
+from .production_typing import (
+    type_production_cells as type_calibrated_cells,
+)
 from .qupath_export import export_assignment_frame
 from .redsea import RedseaParams, run_redsea
 from .reference_controls import (
@@ -60,21 +63,18 @@ from .reference_controls import (
 from .reference_controls import (
     ReferenceControlConfig,
     build_reference_controls,
-    reference_masks_from_wide,
     reference_masks_to_wide,
 )
+from .restore_stage import (
+    METHOD_VERSION as RESTORE_STAGE_VERSION,
+)
+from .restore_stage import RestoreStageConfig, restore_donor_from_paths
 from .state_markers import annotate_proliferation
 from .typing_model_bundle import (
     TypingModelBundle,
     TypingModelPromotionManifest,
     load_typing_model_bundle,
     load_typing_model_promotion_manifest,
-)
-from .typing_stage import (
-    METHOD_VERSION as TYPING_STAGE_VERSION,
-)
-from .typing_stage import (
-    type_calibrated_cells,
 )
 
 INGEST_VERSION = "qupath-ingest-union-v2"
@@ -98,8 +98,10 @@ STAGE_METHODS = {
     "redsea": REDSEA_VERSION,
     "expression": EXPRESSION_VERSION,
     "controls": REFERENCE_VERSION,
-    "calibrate": CALIBRATION_STAGE_VERSION,
-    "type": TYPING_STAGE_VERSION,
+    # The historical stage key is retained so completed upstream runs remain
+    # adoptable. Its scientific producer is RESTORE, not donor calibration.
+    "calibrate": RESTORE_STAGE_VERSION,
+    "type": PRODUCTION_TYPING_VERSION,
     "states": STATE_VERSION,
 }
 STAGE_OUTPUT_ATTRIBUTE = {
@@ -126,7 +128,7 @@ STAGE_SIDECARS = {
     "ingest": ("ingest_rejects.parquet", "panel_availability.json"),
     "expression": ("audit/expression_availability.parquet",),
     "controls": ("audit/reference_control_models.parquet",),
-    "calibrate": ("audit/marker_calibration_models.parquet",),
+    "calibrate": ("audit/restore_pair_models.parquet",),
     "states": ("audit/state_models.parquet",),
 }
 STAGE_SOURCE_PATHS = {
@@ -162,13 +164,15 @@ STAGE_SOURCE_PATHS = {
     ),
     "calibrate": (
         "phenocycler/donor_pipeline.py",
-        "phenocycler/calibration_stage.py",
-        "phenocycler/marker_calibration.py",
-        "phenocycler/reference_controls.py",
+        "phenocycler/restore_stage.py",
+        "phenocycler/restore_validation.py",
         "phenocycler/marker_registry.py",
     ),
     "type": (
         "phenocycler/donor_pipeline.py",
+        "phenocycler/production_typing.py",
+        "phenocycler/ordered_residual_typing.py",
+        "phenocycler/ordered_residual_rules.json",
         "phenocycler/typing_stage.py",
         "phenocycler/typing_model_bundle.py",
         "phenocycler/refinement_contracts.py",
@@ -190,6 +194,7 @@ class RunContext:
     cohort: QuPathCohortManifest
     registry: MarkerRegistry
     typing_registry: TypingRegistry
+    ordered_typing_policy: OrderedResidualPolicy | None
     typing_model_bundle: TypingModelBundle | None
     typing_model_promotion_manifest: TypingModelPromotionManifest | None
     donors: tuple[str, ...]
@@ -212,12 +217,19 @@ class RunContext:
 def _identity_config(
     cfg: PipelineConfig,
     *,
+    ordered_typing_policy: OrderedResidualPolicy | None = None,
     typing_model_bundle: TypingModelBundle | None = None,
     typing_model_promotion_manifest: TypingModelPromotionManifest | None = None,
 ) -> dict:
     """Configuration that changes scientific content, excluding output location."""
 
-    typing_model: dict[str, object] = {"mode": "rules_only"}
+    typing_model: dict[str, object] = {"mode": "restore_ordered_residual"}
+    ordered_policy = ordered_typing_policy
+    if typing_model_bundle is None and ordered_policy is None:
+        ordered_policy = load_ordered_residual_policy(
+            cfg.ordered_typing_rules,
+            registry=load_registry(cfg.marker_registry),
+        )
     if typing_model_bundle is not None:
         if typing_model_promotion_manifest is None:
             raise ContractError(
@@ -233,10 +245,40 @@ def _identity_config(
             ),
         }
     elif typing_model_promotion_manifest is not None:
-        raise ContractError("rules-only run cannot configure a promotion manifest")
+        raise ContractError(
+            "ordered RESTORE run cannot configure a promotion manifest"
+        )
+    restore_stage_config = RestoreStageConfig.from_pipeline(cfg)
+    compartment_sample_content_id = None
+    if cfg.restore_compartment_sample is not None:
+        compartment_sample_content_id = InputArtifact.from_path(
+            "restore_compartment_sample",
+            cfg.restore_compartment_sample,
+            hash_mode="sampled",
+        ).content_sha256
+    expression_reviews_content_id = None
+    if cfg.restore_expression_reviews is not None:
+        expression_reviews_content_id = InputArtifact.from_path(
+            "restore_expression_reviews",
+            cfg.restore_expression_reviews,
+        ).content_sha256
     return {
         "run_schema_version": RUN_SCHEMA_VERSION,
         "typing_model": typing_model,
+        "ordered_residual_typing": (
+            {
+                "method_version": PRODUCTION_TYPING_VERSION,
+                "rules_version": ordered_policy.rules_version,
+                "rules_fingerprint": ordered_policy.fingerprint,
+                "compartment_order": list(ordered_policy.compartment_order),
+                "gates": {
+                    compartment: list(ordered_policy.gates[compartment])
+                    for compartment in ordered_policy.compartment_order
+                },
+            }
+            if ordered_policy is not None
+            else {"mode": "not_selected"}
+        ),
         "cells_min_cell_area": cfg.cells_min_cell_area,
         "geometry_qc": {
             "min_cell_area_um2": cfg.cell_qc_min_cell_area,
@@ -261,7 +303,13 @@ def _identity_config(
             "output_schema": "Nucleus/Cytoplasm/Membrane/Cell",
         },
         "reference_controls": asdict(ReferenceControlConfig()),
-        "marker_calibration": asdict(CalibrationConfig()),
+        "phenotyping": {
+            "method": "RESTORE",
+            "method_version": RESTORE_STAGE_VERSION,
+            **asdict(restore_stage_config),
+            "compartment_sample_content_id": compartment_sample_content_id,
+            "expression_reviews_content_id": expression_reviews_content_id,
+        },
     }
 
 
@@ -284,6 +332,12 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     typing_registry = TypingRegistry.from_marker_registry(
         registry, typing_rules=cfg.typing_rules
     )
+    ordered_typing_policy = None
+    if cfg.typing_model_bundle is None:
+        ordered_typing_policy = load_ordered_residual_policy(
+            cfg.ordered_typing_rules,
+            registry=registry,
+        )
     typing_model_bundle = None
     typing_model_promotion_manifest = None
     if cfg.typing_model_bundle is not None:
@@ -356,6 +410,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     )
     identity = _identity_config(
         cfg,
+        ordered_typing_policy=ordered_typing_policy,
         typing_model_bundle=typing_model_bundle,
         typing_model_promotion_manifest=typing_model_promotion_manifest,
     )
@@ -376,6 +431,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
         cohort=cohort,
         registry=registry,
         typing_registry=typing_registry,
+        ordered_typing_policy=ordered_typing_policy,
         typing_model_bundle=typing_model_bundle,
         typing_model_promotion_manifest=typing_model_promotion_manifest,
         donors=donors,
@@ -394,6 +450,11 @@ def _stage_config(context: RunContext, stage: str) -> dict:
         "configuration": context.identity_config,
         "registry_fingerprint": context.registry.fingerprint,
         "typing_rules_fingerprint": context.typing_registry.rules_fingerprint,
+        "ordered_typing_rules_fingerprint": (
+            context.ordered_typing_policy.fingerprint
+            if context.ordered_typing_policy is not None
+            else ""
+        ),
     }
 
 
@@ -455,13 +516,36 @@ def _stage_external_inputs(
                 "marker_registry", context.base_config.marker_registry
             )
         )
-    if stage == "type":
-        inputs.append(
-            InputArtifact.from_path(
-                "typing_rules", context.base_config.typing_rules
+    if stage == "calibrate":
+        if context.base_config.restore_compartment_sample is not None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "restore_compartment_sample",
+                    context.base_config.restore_compartment_sample,
+                    hash_mode="sampled",
+                )
             )
-        )
-        if context.typing_model_bundle is not None:
+        if context.base_config.restore_expression_reviews is not None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "restore_expression_reviews",
+                    context.base_config.restore_expression_reviews,
+                )
+            )
+    if stage == "type":
+        if context.typing_model_bundle is None:
+            inputs.append(
+                InputArtifact.from_path(
+                    "ordered_typing_rules",
+                    context.base_config.ordered_typing_rules,
+                )
+            )
+        else:
+            inputs.append(
+                InputArtifact.from_path(
+                    "typing_rules", context.base_config.typing_rules
+                )
+            )
             artifact = context.typing_model_bundle.input_artifact
             if artifact is None:
                 raise ContractError(
@@ -601,21 +685,22 @@ def _run_controls(context: RunContext) -> None:
 
 
 def _run_calibrate(context: RunContext) -> None:
+    """Run RESTORE while retaining the historical immutable stage key."""
+
     models = []
+    restore_config = RestoreStageConfig.from_pipeline(context.config)
     for donor in context.donors:
-        expression = read_single_partition(
-            context.config.selected_expression_dir, donor
-        )
-        masks_wide = read_single_partition(
-            context.config.reference_controls_dir, donor
-        )
-        result = calibrate_expression(
-            expression,
+        result = restore_donor_from_paths(
             donor_id=donor,
+            cells_root=context.config.cells_dir,
+            redsea_root=context.config.redsea_dir,
+            geometry_root=context.config.geometry_qc_dir,
             registry=context.registry,
-            reference_controls=reference_masks_from_wide(
-                masks_wide, registry=context.registry
+            config=restore_config,
+            compartment_sample_root=(
+                context.config.restore_compartment_sample
             ),
+            expression_reviews_path=context.config.restore_expression_reviews,
         )
         write_donor_partition(
             result.evidence_wide,
@@ -625,7 +710,7 @@ def _run_calibrate(context: RunContext) -> None:
         models.append(result.model_table)
     _write_audit(
         context,
-        "marker_calibration_models",
+        "restore_pair_models",
         pd.concat(models, ignore_index=True),
     )
 
@@ -635,6 +720,7 @@ def _run_type(context: RunContext) -> None:
         assignments = type_calibrated_cells(
             read_single_partition(context.config.marker_evidence_dir, donor),
             marker_registry=context.registry,
+            ordered_policy=getattr(context, "ordered_typing_policy", None),
             typing_registry=context.typing_registry,
             model_bundle=context.typing_model_bundle,
             model_promotion_manifest=context.typing_model_promotion_manifest,

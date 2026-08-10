@@ -921,8 +921,8 @@ def validate_typing_rules(
     cd11b = by_name.get("CD11b")
     if "CD11b" not in immune_positive:
         errors.append("CD11b must remain positive broad Immune evidence")
-    if cd11b is None or getattr(cd11b, "reference", None) != "E_cadherin":
-        errors.append("CD11b must retain E_cadherin as its calibration reference")
+    if cd11b is None or getattr(cd11b, "reference", None) != "EpCAM":
+        errors.append("CD11b must retain EpCAM as its calibration reference")
 
     if errors:
         raise ValueError("invalid typing rules:\n- " + "\n- ".join(errors))

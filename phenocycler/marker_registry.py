@@ -402,8 +402,8 @@ def validate_registry(registry: MarkerRegistry) -> None:
     # stale edited JSON fail at load rather than silently reintroducing the
     # contradictory pair/gate paths this module replaces.
     cd11b = by_name.get("CD11b")
-    if cd11b is None or cd11b.reference != "E_cadherin":
-        errors.append("CD11b must use E_cadherin as its active reference")
+    if cd11b is None or cd11b.reference != "EpCAM":
+        errors.append("CD11b must use EpCAM as its active reference")
     sst = by_name.get("SST")
     if (
         sst is None

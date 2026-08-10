@@ -132,6 +132,114 @@
       "configuration_keys": ["run_schema_version"],
       "rationale": "The exact donor-pipeline change adds typing-only wiring, annotations, and a cohort typing barrier; orthogonal-state producer modules and arguments are unchanged.",
       "reviewed_on": "2026-08-03"
+    },
+    {
+      "policy_id": "restore-reinstatement-geometry-v1",
+      "stage": "geometry",
+      "source_method": "geometry-raster-qc-v1",
+      "target_method": "geometry-raster-qc-v1",
+      "source_code_sha256": "eb1b9090978ebfd4e804e5d509db99f6a6efe832ffeb7118fc343f8eef13af53",
+      "target_code_sha256": "688fedbc7672ba814eec69482abf1ecaffb924b799924ebda8773269db0ecd11",
+      "source_commit": "16c3a00d6d784a506c2ee0cdf3d4f2734d301407",
+      "changed_paths": ["phenocycler/donor_pipeline.py"],
+      "changed_files": [{
+        "path": "phenocycler/donor_pipeline.py",
+        "source_sha256": "492e8108e40f085719e5dbf6558dda11e6a45b2c8f5b3656d665cb2c6f6c2405",
+        "target_sha256": "98bdfc8d7e0f2c959c4e7a63488e52eb98f3047042cfb3afafbbf8ec5f2800a2"
+      }],
+      "reviewed_diff_sha256": "074d94bde6df58c8f899ed6154377982774ba127cc9487061f51695668f9b9b9",
+      "allowed_output_schema_sha256": ["15b224de8820469ddb424556cffeb95ef729c532112632bed8847cfb7624a073"],
+      "configuration_keys": ["run_schema_version", "geometry_qc"],
+      "rationale": "The reviewed repair changes RESTORE and type wiring only. The geometry branch, arguments, method, schema, and scientific configuration are unchanged, and the geometry regression suite passes.",
+      "reviewed_on": "2026-08-05"
+    },
+    {
+      "policy_id": "restore-reinstatement-redsea-v1",
+      "stage": "redsea",
+      "source_method": "redsea-compartment-only-v1",
+      "target_method": "redsea-compartment-only-v1",
+      "source_code_sha256": "6b4749186a546c0fe15bd6eaa59d7f199836ec6852c4b2b8f83646feb1df68ed",
+      "target_code_sha256": "b00ec73ad590211b892de7bfea9313aeb6b13d5ec5a27e82592eeb93c1cfc6c5",
+      "source_commit": "16c3a00d6d784a506c2ee0cdf3d4f2734d301407",
+      "changed_paths": ["phenocycler/donor_pipeline.py", "phenocycler/marker_registry.py"],
+      "changed_files": [{
+        "path": "phenocycler/donor_pipeline.py",
+        "source_sha256": "492e8108e40f085719e5dbf6558dda11e6a45b2c8f5b3656d665cb2c6f6c2405",
+        "target_sha256": "98bdfc8d7e0f2c959c4e7a63488e52eb98f3047042cfb3afafbbf8ec5f2800a2"
+      }, {
+        "path": "phenocycler/marker_registry.py",
+        "source_sha256": "fe8ac7a5cc255344f58373721a9c6fcc0379c341ed065ac86c778fe4ab3973b8",
+        "target_sha256": "9b692244d360ca983e89218ae88b923006f10dc6cb6e73881e75b98f52e684ab"
+      }],
+      "reviewed_diff_sha256": "743741755f7c5380ba79a0168f7b66f4b324fc9d71ea6c1b645b0d07a47a4b7f",
+      "allowed_output_schema_sha256": ["9042e02b3363ab41a100d5095950f8bbf19fe3bba7e898127d8056269d099caa"],
+      "configuration_keys": ["run_schema_version", "redsea"],
+      "rationale": "The reviewed repair changes RESTORE/type wiring and the CD11b reference invariant. REDSEA consumes only ordered marker names; the planner reconstructs the source registry and proves that exact stage projection is unchanged. REDSEA code, arguments, method, schema, and scientific configuration are otherwise unchanged.",
+      "reviewed_on": "2026-08-05"
+    },
+    {
+      "policy_id": "restore-reinstatement-expression-v1",
+      "stage": "expression",
+      "source_method": "selected-expression-v1",
+      "target_method": "selected-expression-v1",
+      "source_code_sha256": "9f65e9308098f4d2642287b65f2b70bf90cb0654ce960bf3ab21e3bd6b7627be",
+      "target_code_sha256": "644bbb785601cf428998668c5b85d8141e4f08c932dfbc398edf89590ab0419e",
+      "source_commit": "16c3a00d6d784a506c2ee0cdf3d4f2734d301407",
+      "changed_paths": ["phenocycler/donor_pipeline.py", "phenocycler/marker_registry.py"],
+      "changed_files": [{
+        "path": "phenocycler/donor_pipeline.py",
+        "source_sha256": "492e8108e40f085719e5dbf6558dda11e6a45b2c8f5b3656d665cb2c6f6c2405",
+        "target_sha256": "98bdfc8d7e0f2c959c4e7a63488e52eb98f3047042cfb3afafbbf8ec5f2800a2"
+      }, {
+        "path": "phenocycler/marker_registry.py",
+        "source_sha256": "fe8ac7a5cc255344f58373721a9c6fcc0379c341ed065ac86c778fe4ab3973b8",
+        "target_sha256": "9b692244d360ca983e89218ae88b923006f10dc6cb6e73881e75b98f52e684ab"
+      }],
+      "reviewed_diff_sha256": "743741755f7c5380ba79a0168f7b66f4b324fc9d71ea6c1b645b0d07a47a4b7f",
+      "allowed_output_schema_sha256": ["3f0cf76824ffedf87c7b571e2e303143000ef5c756593f9c4f15546dee881cb3"],
+      "configuration_keys": ["run_schema_version"],
+      "rationale": "The reviewed repair changes RESTORE/type wiring and the CD11b reference invariant. Expression consumes marker name, compartment, spillover policy, and activation status; the planner reconstructs the source registry and proves that exact projection is unchanged. Expression code, arguments, method, schema, and scientific configuration are otherwise unchanged.",
+      "reviewed_on": "2026-08-05"
+    },
+    {
+      "policy_id": "restore-reinstatement-controls-v1",
+      "stage": "controls",
+      "source_method": "reference-control-rank-v1",
+      "target_method": "reference-control-rank-v1",
+      "source_code_sha256": "e59a09a4b9a1c7d1abdabf527b18007d90623c70bbc6afb06d4b978b19e784a0",
+      "target_code_sha256": "ce6cef1195b02872b89dcb14fd672e4142724448f7e3a0917fd610cdb3861039",
+      "source_commit": "16c3a00d6d784a506c2ee0cdf3d4f2734d301407",
+      "changed_paths": ["phenocycler/donor_pipeline.py"],
+      "changed_files": [{
+        "path": "phenocycler/donor_pipeline.py",
+        "source_sha256": "492e8108e40f085719e5dbf6558dda11e6a45b2c8f5b3656d665cb2c6f6c2405",
+        "target_sha256": "1b0c9171562036d64fcdafe73ce6b505f1d7d8af3404fb8caeb11de597130d88"
+      }],
+      "reviewed_diff_sha256": "256bd25c5e927d2d582c66ba74faffa193cccf766234f1e9e9903bc70099abb4",
+      "allowed_output_schema_sha256": ["54da627a0472fdf429dfb90caaad5d89783744e3e55290341949ea77e85c76f4"],
+      "configuration_keys": ["run_schema_version", "reference_controls"],
+      "rationale": "The donor-pipeline change replaces only the calibrate-stage producer with RESTORE and adds typing-only wiring. The controls branch, arguments, method, schema, and scientific configuration are unchanged; its existing tests pass.",
+      "reviewed_on": "2026-08-05"
+    },
+    {
+      "policy_id": "restore-reinstatement-states-v1",
+      "stage": "states",
+      "source_method": "orthogonal-state-v1",
+      "target_method": "orthogonal-state-v1",
+      "source_code_sha256": "bd38f3143c8e764143dcf51348496383e0819407e0d3ac7473edc42703e3daec",
+      "target_code_sha256": "4de72010441ca071f494dd5eee9c3567009de3cb00b9e416ac444d6a44d6a40a",
+      "source_commit": "16c3a00d6d784a506c2ee0cdf3d4f2734d301407",
+      "changed_paths": ["phenocycler/donor_pipeline.py"],
+      "changed_files": [{
+        "path": "phenocycler/donor_pipeline.py",
+        "source_sha256": "492e8108e40f085719e5dbf6558dda11e6a45b2c8f5b3656d665cb2c6f6c2405",
+        "target_sha256": "98bdfc8d7e0f2c959c4e7a63488e52eb98f3047042cfb3afafbbf8ec5f2800a2"
+      }],
+      "reviewed_diff_sha256": "074d94bde6df58c8f899ed6154377982774ba127cc9487061f51695668f9b9b9",
+      "allowed_output_schema_sha256": ["60a973c7812a1fefd3076c2a513e6331274d895bcbee841f08eb0cd3b7586c4a"],
+      "configuration_keys": ["run_schema_version"],
+      "rationale": "The reviewed repair changes RESTORE and type wiring only. The orthogonal state branch, arguments, method, schema, and scientific configuration are unchanged, and states remains independent of type in the DAG.",
+      "reviewed_on": "2026-08-05"
     }
   ]
 }

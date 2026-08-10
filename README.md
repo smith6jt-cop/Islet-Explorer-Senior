@@ -1,8 +1,8 @@
 # Phenocycler analysis
 
-This package turns an explicitly declared QuPath cohort into donor-local marker
-evidence, hierarchical cell identities, and UUID-keyed tables for review in
-QuPath.
+This package turns an explicitly declared QuPath cohort into donor-local
+RESTORE marker evidence, ordered broad cell identities, and UUID-keyed tables
+for review in QuPath.
 
 The production workflow is:
 
@@ -12,9 +12,9 @@ QuPath cohort manifest
   -> geometry QC
   -> REDSEA boundary-spillover correction
   -> authoritative per-marker expression
-  -> deterministic donor-local reference controls
-  -> marker calibration with uncertainty
-  -> broad and parent-constrained specific typing
+  -> retained reference-control diagnostics
+  -> RESTORE donor-local target/reference fits and tri-state marker calls
+  -> validated ordered residual broad typing
   -> separate process-state annotation
   -> uncertainty-preserving QuPath export
 ```
@@ -40,18 +40,16 @@ not introduce thresholds, donor exclusions, or typing rules of their own.
 - Each registered marker has one authoritative intensity source and
   compartment. An acquired marker with a missing required source is an error;
   a marker absent from a panel remains explicitly unavailable.
-- Reference controls are donor-local, deterministic, spatially balanced, and
-  selected without looking at the target marker, phenotype annotations, or the
-  frequency of target-positive cells.
-- Calibration preserves the corrected intensity, a zero-centered log2
-  threshold ratio, an empirical upper-tail probability, the threshold
-  uncertainty interval, and a four-state call:
-  `positive`, `negative`, `indeterminate`, or `unavailable`.
-- Broad types are evaluated simultaneously. There are no ordered residual
-  gates, prevalence-derived cutoffs, or forced assignments.
-- Specific types are constrained by an accepted broad parent. State markers
-  such as Ki67 and PCNA are reported separately and cannot change cell
-  identity.
+- RESTORE uses versioned mutually exclusive target/reference pairs and
+  donor-local NNMF/control fits; it never uses reviewed cell labels.
+- Marker evidence preserves corrected intensity, the donor-marker divisor,
+  RESTORE-normalized intensity, a zero-centered log2 threshold ratio, pair-fit
+  stability, and a tri-state call: `positive`, `negative`, or `unavailable`.
+- Broad types use the validated historical residual order: Immune,
+  Endothelial, Epithelial, Neural, Mesenchymal, then Other. The first positive
+  gate claims the cell; unavailable evidence blocks lower-priority gates.
+- State markers such as Ki67 and PCNA are reported separately and cannot
+  change cell identity.
 - Every run and stage is content addressed. Partial, stale, or donor-incomplete
   output fails closed instead of being silently reused.
 
@@ -138,12 +136,12 @@ data_dir = data
 qupath_manifest = data/qupath_manifest.json
 ```
 
-The package defaults supply the marker registry and typing rules. A project can
-pin explicit paths to reviewed copies:
+The package defaults supply the marker registry and ordered residual rules. A
+project can pin explicit paths to reviewed copies:
 
 ```ini
 marker_registry = phenocycler/marker_registry.json
-typing_rules = phenocycler/typing_rules.json
+ordered_typing_rules = phenocycler/ordered_residual_rules.json
 ```
 
 Run and inspect the complete workflow:
@@ -225,15 +223,16 @@ An incompatible node and its DAG descendants are recomputed while independent
 branches remain eligible. `type` and `states` are separate branches, so a
 typing change does not unnecessarily invalidate `states`.
 
-For source run `c8412757d12de36ca056`, the current policy adopts `ingest`,
-`geometry`, `redsea`, `expression`, `controls`, `calibrate`, and `states`
-(99.14 GB of stage output), then recomputes v3 `type` and its QuPath export.
+For source run `c8412757d12de36ca056`, the restoration policy adopts only
+stages whose values are unchanged, then recomputes the RESTORE-dependent
+suffix and its QuPath export. The generated plan is authoritative about the
+exact reusable stages and byte count.
 Run these commands from `Phenocycler_Analysis`, whose `config.ini` owns that
 source run. To launch recomputation immediately instead of inspecting first,
 add `--continue` (and optionally `--jobs N` or `--no-export`) to `adopt apply`.
 After `--no-export`, run the normal `export` command separately. If code,
 configuration, or source content changes, write a newly named plan rather than
-overwriting the immutable reviewed plan. Until v3 typing finishes, `status`
+overwriting the immutable reviewed plan. Until ordered RESTORE typing finishes, `status`
 correctly reports the adopted target as incomplete and `LATEST` is unchanged.
 Use `--validation-mode content` on `adopt plan` when an archival audit should
 rehash every source byte rather than use the normal fingerprint cache.
@@ -294,7 +293,7 @@ The donor-local dependency graph is fixed:
 ```text
 ingest (cohort barrier)
   └─ geometry[d] -> redsea[d] -> expression[d] -> controls[d]
-                                      │              └─ calibrate[d] -> type[d]
+                                      │              └─ RESTORE[d] -> type[d]
                                       └─ states[d]
 ```
 
@@ -312,8 +311,8 @@ The notebooks follow the same four conceptual checkpoints:
 2. [`02_redsea_spillover.ipynb`](notebooks/02_redsea_spillover.ipynb)
    reviews REDSEA alignment, compartments, and authoritative expression.
 3. [`03_marker_calibration.ipynb`](notebooks/03_marker_calibration.ipynb)
-   reviews reference-control and donor-marker calibration audits, hard control
-   gates, bootstrap uncertainty, and selected-pair evidence disposition.
+   (legacy filename) reviews RESTORE pair states, divisors, feature sets,
+   stability, call fractions, and selected-pair evidence disposition.
 4. [`04_hierarchical_cell_typing.ipynb`](notebooks/04_hierarchical_cell_typing.ipynb)
    reviews hierarchy, state, and the optional QuPath handoff.
 
@@ -338,18 +337,18 @@ and locked-test read disabled.
 
 Optional execution cells in the earlier stage notebooks call `run_stage` or
 `export_qupath`, which apply the same manifest validation and immutability
-checks as the CLI. The calibration notebook is deliberately read-only: while
+checks as the CLI. The RESTORE review notebook is deliberately read-only: while
 the donor queue is active, it validates completed donor receipt trees and
 reviews their donor-local audits and evidence without waiting for the cohort
-calibration manifest. Notebook cells must not write stage files directly.
+RESTORE stage manifest. Notebook cells must not write stage files directly.
 
-## Marker evidence, not frequency gates
+## RESTORE marker evidence
 
-Calibration is performed independently for each donor and active marker. The
-marker registry declares a biologically incompatible counterpart used only to
-form a target-independent reference mask. Within that mask, a deterministic
-spatial rank selects controls. The target background and tail are then
-estimated robustly and a fixed empirical upper-tail decision is bootstrapped.
+RESTORE is performed independently for each donor and active marker. The
+marker registry declares the target's mutually exclusive reference. Raw
+QuPath compartment means define balanced NNMF arms; the ordered
+reference-positive/target-negative population defines a donor-local `p99`
+divisor on the REDSEA target measurement.
 
 The key outputs answer different questions:
 
@@ -357,42 +356,39 @@ The key outputs answer different questions:
 |---|---|
 | authoritative intensity | selected corrected signal in the marker's declared compartment |
 | `log2_threshold_ratio` | signed distance from the donor-local threshold; zero is the threshold |
-| `empirical_tail_probability` | finite-sample upper-tail probability under the donor-local controls |
-| threshold interval | bootstrap uncertainty in the decision boundary |
-| expression state | stable positive/negative, indeterminate, or unavailable |
+| `restore_normalized` | REDSEA target divided by the donor-marker RESTORE divisor |
+| pair audit | target/reference, NNMF stability, feature set, controls, divisor, and disposition |
+| expression state | positive, negative, or unavailable |
 
-This representation addresses donor-to-donor scale and background without
-using positive-cell frequency as evidence. A rare population does not weaken
-its own cutoff, and a common population does not move its cutoff upward.
-
-For mutually exclusive marker families, the registry preallocates a 1%
-family-wise error rate using a fixed Bonferroni allocation. Family membership
-is declared before data are inspected; absent panel markers do not donate their
-error budget to the markers that remain. This is a 1% family bound, not a 1%
-per-marker threshold.
+This representation addresses donor-to-donor scale and background while
+keeping the full fit auditable. Technical failure is unavailable, never a
+negative fallback.
 
 Annotations and existing QuPath classifications are audit context only. They
-are forbidden as reference-control inputs and cannot define calibration or
+are forbidden as RESTORE inputs and cannot define marker calls or
 identity.
 
 ## Identity and state
 
-Broad identity evaluates evidence for Immune, Endothelial, Epithelial, Neural,
-and Mesenchymal classes simultaneously. It retains the best candidate, ranked
-class probabilities, assignment confidence, and one of:
-`anchor`, `inferred`, `ambiguous`, `other`, or `unavailable`.
+Broad identity applies the accepted RESTORE states in this exact order:
 
-`Other` is permitted only when every required broad model is valid and
-negative. Missing or invalid evidence cannot be converted into `Other`.
-Specific typing is parent constrained, so unresolved children retain a
-`<Parent>-unclassified` label rather than crossing broad compartments.
+```text
+Immune -> Endothelial -> Epithelial -> Neural -> Mesenchymal -> Other
+```
 
-Two panel-specific rules are deliberate:
+At each gate, any positive member claims the cell. If no member is positive
+but one is unavailable, the result is `Unavailable` and lower gates are not
+allowed to reinterpret missing evidence. `Other` therefore means that every
+marker in every gate was explicitly negative. Geometry-QC-ineligible cells are
+also `Unavailable`.
 
-- SST is subtype-only evidence for Delta after an Epithelial parent is
-  accepted. SST never creates broad Epithelial evidence.
-- CD11b contributes to Immune evidence and is calibrated against
-  E-cadherin, its declared incompatible reference.
+The production default is broad-only and label-free; compatibility columns
+such as `specific_type` contain the accepted broad label. The simultaneous,
+parent-constrained probabilistic implementation is retained only as an
+explicit signed-bundle option and is not used by the restored run.
+
+CD11b belongs to the Immune gate and uses the accepted RESTORE pair
+`CD11b <- EpCAM`.
 
 Process-state calls are stored in a separate `cell_states` artifact. They do not
 rewrite broad or specific identity.
@@ -400,7 +396,7 @@ rewrite broad or specific identity.
 ## Runs and failure behavior
 
 The run identifier is derived from the cohort content ID, marker-registry
-fingerprint, typing-rules fingerprint, identity-affecting configuration, and
+fingerprint, ordered-rules fingerprint, identity-affecting configuration, and
 relevant source-code hash. Outputs live below:
 
 ```text
@@ -434,12 +430,13 @@ The principal artifacts under a run are:
 
 - `expression/`: one authoritative intensity per registered marker;
 - `reference_controls/`: donor/reference membership and deterministic ranks;
-- `marker_evidence/`: calibrated per-cell expression evidence and uncertainty;
-- `assignments/`: broad and specific identity with ranked alternatives;
+- `marker_evidence/`: per-cell RESTORE calls, normalized values, and fit provenance;
+- `assignments/`: ordered broad identity, decisive gate, and explicit
+  unavailability;
 - `cell_states/`: process-state annotations kept separate from identity;
 - `qupath_export/`: UUID-keyed identity CSVs that retain uncertainty;
-- `audit/`: expression availability, control models, calibration models, and
-  state models;
+- `audit/`: expression availability, control diagnostics, RESTORE pair models,
+  and state models;
 - `manifests/`: immutable stage and export contracts.
 
 See [DATA_README.md](DATA_README.md#run-layout) for the full tree and schemas.
@@ -467,8 +464,8 @@ python -m phenocycler.integration.manifest --report
 Design and data caveats: **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
 Running the whole thing on HiPerGator: **[docs/HIPERGATOR.md](docs/HIPERGATOR.md)**.
 
-**Status after the migration.** The integration layer's Xenium half is unaffected. Its
-PhenoCycler half still reads the retired RESTORE + broad-lineage layout (`phenotype/broad/`,
+**Current status.** The integration layer's Xenium half is unaffected. Its
+PhenoCycler half still reads the legacy RESTORE + broad-lineage layout (`phenotype/broad/`,
 `restore_gated_redsea/`) and has **not** yet been repointed at this workflow's `assignments/`
 and `marker_evidence/` outputs, so `export_pheno` and the vocabulary crosswalk are stale
 against the new compartments. The config surface those 22 modules read is preserved (see the
@@ -476,11 +473,14 @@ quarantined block in `phenocycler/config.py`) so the package imports and the sui
 but treat the PhenoCycler side of the integration as pending that rewire. Nothing in the
 eight-stage core pipeline reads any of it.
 
-## Migration note
+## Restoration note
 
-The former RESTORE and ordered-residual lineage path is retired. Its thresholds,
-positive fractions, normalized columns, and cell labels are not valid inputs
-to this workflow and must not be mixed with a content-addressed run.
+RESTORE is the production marker-calling path. Historical loose RESTORE files
+are not copied into a content-addressed run; the current stage refits from
+fingerprinted raw compartments and REDSEA. For the failed run
+`c8412757d12de36ca056`, reuse valid upstream work and recompute RESTORE plus
+typing as described in
+[`docs/REFINEMENT_WORKFLOW.md`](docs/REFINEMENT_WORKFLOW.md).
 
 ## Scope
 
@@ -489,4 +489,4 @@ Image registration, illumination correction, segmentation-model development,
 and downstream spatial-neighborhood or trajectory analyses are separate
 workflows. The goal here is a reproducible per-cell evidence layer that supports
 eventual assignment of every cell while preserving honest ambiguity whenever
-the panel or calibration cannot support a specific call.
+the panel or RESTORE evidence cannot support a specific call.

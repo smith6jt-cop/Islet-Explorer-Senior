@@ -32,7 +32,7 @@ def test_registry_locks_broad_and_subtype_decisions():
     assert "SST" not in broad
     assert registry.marker("SST").subtype_only
     assert registry.marker("SST").reference == "Pan_Cytokeratin"
-    assert registry.marker("CD11b").reference == "E_cadherin"
+    assert registry.marker("CD11b").reference == "EpCAM"
     assert set(registry.reference_graph) == {
         marker.name for marker in registry.active_markers
     }
@@ -81,8 +81,8 @@ def test_registry_rejects_stale_cd11b_or_broad_sst():
     stale_cd11b = copy.deepcopy(payload)
     next(
         row for row in stale_cd11b["markers"] if row["name"] == "CD11b"
-    )["reference"] = "EpCAM"
-    with pytest.raises(ValueError, match="CD11b must use E_cadherin"):
+    )["reference"] = "E_cadherin"
+    with pytest.raises(ValueError, match="CD11b must use EpCAM"):
         registry_from_dict(stale_cd11b)
 
     broad_sst = copy.deepcopy(payload)

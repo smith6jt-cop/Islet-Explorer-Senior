@@ -324,7 +324,7 @@ def test_default_calibration_adapter_loads_versioned_biological_overlay():
 
     immune = next(rule for rule in registry.broad_rules if rule.name == "Immune")
     assert "CD11b" in immune.support_markers
-    assert source.marker("CD11b").reference == "E_cadherin"
+    assert source.marker("CD11b").reference == "EpCAM"
 
     broad_positive = {
         marker

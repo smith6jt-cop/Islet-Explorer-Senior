@@ -6,12 +6,10 @@ and pancreatic lymph node, on UF Research Computing.
 Commands are the real ones (checked against `argparse`); paths are the real ones (checked
 against `PipelineConfig`). Where a number is yours to supply rather than the repo's, it says so.
 
-> **This document was rewritten for the donor-calibration workflow.** An earlier version
-> described the RESTORE → hormone-floor → 7-class-lineage pipeline. That path is retired: its
-> thresholds, `_norm` columns, positive fractions and cell labels are **not** valid inputs
-> here and must not be mixed into a run. If you have a HiPerGator checkout still running it,
-> it is producing results under the old phenotyping rules — see
-> [Migrating an existing checkout](#migrating-an-existing-checkout).
+> **RESTORE is the production marker-calling method.** The content-addressed
+> workflow retains its immutable `calibrate` stage key, but that stage now runs
+> the validated RESTORE v10 pair fit and emits tri-state marker evidence. The
+> intervening donor-calibration replacement was not an intended migration.
 
 ---
 
@@ -24,9 +22,9 @@ QuPath segmentation               ingest      QuPath CSV  -> cells/
   ├─ CellMeasurements.csv ──┐     geometry    segmentation QC
   ├─ cells__<image>.geojson ├───▶ redsea      lateral spillover compensation
   └─ <image>.qptiff ────────┘     expression  measurable-marker selection
-                                  controls    reference-positive control models
-Xenium runs ──────────┐           calibrate   donor-local thresholds -> marker_evidence/
-  └─ output bundles   │           type        hierarchical typing    -> assignments/
+                                  controls    retained reference-control diagnostics
+Xenium runs ──────────┐           calibrate   RESTORE pair fit       -> marker_evidence/
+  └─ output bundles   │           type        ordered residual typing -> assignments/
                       │           states      process states         -> cell_states/
                       │                            │
                       └──────────▶ integration  ◀──┘   (second conda env, see Phase 5)
@@ -98,13 +96,15 @@ conda activate phenocycler-analysis
 ```
 
 `setup.sh` initialises submodules, creates/updates the env from `environment.yml`, runs
-`pip install -e '.[test]'`, and then verifies that the packaged `marker_registry.json` and
-`typing_rules.json` are installed and that the registry loads. If that verification fails, stop
+`pip install -e '.[test]'`, and then verifies that the packaged marker registry,
+ordered residual rules, and optional probabilistic rules are installed and
+that the registry/rule contract loads. If that verification fails, stop
 — nothing downstream will work.
 
-**There is no RESTORE submodule and no `spams` any more.** The only vendored dependency is
-`external/XeniumPanelExplorer`, which supplies the panel taxonomy the integration crosswalk is
-derived from (`integration/vocab.py` hard-fails without `data/panel_roles.csv`).
+RESTORE no longer requires the historical external submodule or `spams`; the
+validated v10 implementation is self-contained in `restore_validation.py` and
+uses scikit-learn NMF. `external/XeniumPanelExplorer` remains the vendored
+dependency used by the integration crosswalk.
 
 **Put the data somewhere with room.** `config.ini` ships `data_dir = data`, i.e. inside the
 repo, which on HiPerGator means your home quota:
@@ -112,6 +112,7 @@ repo, which on HiPerGator means your home quota:
 ```bash
 export PHENOCYCLER_DATA_DIR=/blue/<group>/<user>/phenocycler/data
 export PHENOCYCLER_QUPATH_MANIFEST=/blue/<group>/<user>/phenocycler/qupath_manifest.json
+export PHENOCYCLER_RESTORE_COMPARTMENT_SAMPLE=/blue/<group>/<user>/phenocycler/qupath_compartment_full_20donor
 export TMPDIR=/blue/<group>/<user>/tmp      # DuckDB spills here during ingest
 ```
 
@@ -197,9 +198,9 @@ submission wrapper, or use `conda run -n phenocycler-analysis`.
 | `geometry` | `geometry_qc/` | segmentation QC — area, solidity, raster/polygon agreement, duplicates |
 | `redsea` | `redsea/` | lateral spillover compensation (`comp_mode=1`, `norm_form=donor`) |
 | `expression` | `expression/` | which markers are measurable per donor |
-| `controls` | `reference_controls/` | reference-positive control models per donor × marker |
-| `calibrate` | `marker_evidence/` | donor-local thresholds → per-cell evidence state |
-| `type` | `assignments/` | hierarchical typing → broad + specific identity |
+| `controls` | `reference_controls/` | retained reference-control diagnostics (not RESTORE calls) |
+| `calibrate` | `marker_evidence/` | RESTORE donor × target/reference fit → tri-state evidence |
+| `type` | `assignments/` | RESTORE ordered residual → broad identity |
 | `states` | `cell_states/` | process states, kept separate from identity |
 
 Plus `qupath_export/` (UUID-keyed CSVs for round-trip), `audit/` (the models themselves) and
@@ -215,7 +216,7 @@ python -m phenocycler.pipeline export                    # export a current resu
 ```
 
 Runs are **content-addressed**: `run_id` hashes the cohort manifest, the marker registry, the
-typing rules, the scientific configuration and the source tree. Change any of them and you get
+ordered residual rules, the scientific configuration and the source tree. Change any of them and you get
 a new run rather than a silently mixed one. That also means a code change — including this
 merge — changes every `run_id`.
 
@@ -224,76 +225,68 @@ merge — changes every `run_id`.
 `status` is the check, not the job's exit code. A stage reports `STALE` with the reason when
 its inputs or method version moved.
 
-The important honesty in `assignments/`: a cell can be **Ambiguous** or **Unavailable**, and
-those are real answers, not failures. The old pipeline had no such state — every cell got a
-class, with `Epithelial` as the sink. Do not compare the two class distributions directly.
+The important honesty in `assignments/`: a cell is **Unavailable** when geometry
+fails or a higher-priority gate cannot be evaluated. That is a real answer, not
+a negative and not permission to try a lower gate. `Other` is reserved for an
+explicitly all-negative marker profile.
 
 ---
 
 ## Phase 4b — what "positive" now means
 
-This is the part that changed most, and the part worth understanding before you tune anything.
+RESTORE is donor-local. For each active target/reference pair, it fits the two
+mutually exclusive groups with NNMF using raw QuPath `Membrane+Cell` features
+where available (validated `Cell` fallback otherwise). The ordered
+reference-positive/target-negative group defines the target background. The
+production divisor is its `p99` under `control_definition=reference_only`.
 
-Calibration is **donor-local, frequency-independent and control-anchored**
-(`phenocycler/marker_calibration.py`). Per donor × marker it:
+A measurable analysis-eligible cell is `positive` exactly when its REDSEA
+whole-cell target value is greater than that donor-marker divisor; it is
+`negative` at or below the divisor. A missing measurement, geometry exclusion,
+or technical pair failure is `unavailable`, never a negative fallback.
 
-1. takes an **explicit reference-positive mask** for that marker's validated mutually
-   exclusive reference — target abundance elsewhere never enters the model;
-2. spatially balances those controls, caps at 20,000 (min 10,000);
-3. estimates background as median/Qn on `log1p` target intensity;
-4. flags controls above robust z=6 as contamination, and **invalidates the calibration** if
-   more than 5% are contaminated;
-5. takes a registry-allocated empirical upper-tail order statistic;
-6. bootstraps that threshold into an indeterminate interval;
-7. applies the frozen model to every measurable cell.
-
-A cell is `positive` only when `log1p(value) > threshold_ci_high` **and**
-`tail_p <= marker_alpha`; `negative` is the mirror; anything between is `indeterminate`.
-
-No GMM, no Otsu, no target-frequency assumption, no cohort pooling. That last one matters
-operationally: unlike RESTORE, **re-running one donor does not change another donor's
-thresholds**, so a per-donor check is now a valid check rather than a different experiment.
+RESTORE also stores `restore_normalized = REDSEA value / divisor`, the active
+reference, fit stability, control counts, feature set, and divisor in
+`audit/restore_pair_models.parquet`. Re-running one donor never changes another
+donor's fit.
 
 ### The knobs, and where they live
 
 Marker behaviour is **data, not config**: `phenocycler/marker_registry.json` holds each
-marker's reference, family, `calibration_status` and alpha allocation, and
-`phenocycler/typing_rules.json` holds the compartment rules. Editing either changes `run_id`,
+marker's RESTORE reference, family, and activation status, and
+`phenocycler/ordered_residual_rules.json` holds the ordered compartment gates. Editing either changes `run_id`,
 which is the intended way to make a change traceable.
 
-`config.ini` `[redsea]` and `[geometry_qc]` hold the operator knobs.
+`config.ini` `[restore]` records the frozen control definition, divisor
+statistic, feature compartments, technical-failure policy, and exhaustive raw
+compartment input. It also fingerprints the accepted donor 6566 INS
+`CONFIRMED_ABSENT` review in `restore_expression_reviews.csv`. `[redsea]` and
+`[geometry_qc]` hold their operator knobs.
 `redsea_norm_form` is **validated**: anything other than `donor` raises, because the
 mass-conserving form is what makes the compensation defensible.
 
 ### The taxonomy
 
-Five broad compartments, simultaneous rather than hierarchical, each with anchors, support
-markers and exclusions:
+The production type stage applies the historical hierarchy as an ordered
+residual, not as five simultaneous competitors:
 
-| compartment | anchors | exclusions |
-|---|---|---|
-| `Immune` | CD3e, CD79a, CD68, MPO | E_cadherin |
-| `Endothelial` | CD31 | E_cadherin |
-| `Epithelial` | E_cadherin, Pan_Cytokeratin, INS, GCG | CD31 |
-| `Neural` | B3TUBB | E_cadherin |
-| `Mesenchymal` | Vimentin, SMA | E_cadherin, CD31, CD3e |
+| priority | compartment | positive markers |
+|---:|---|---|
+| 1 | `Immune` | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
+| 2 | `Endothelial` | CD31, CD34, Podoplanin |
+| 3 | `Epithelial` | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG, SST |
+| 4 | `Neural` | B3TUBB |
+| 5 | `Mesenchymal` | Vimentin, SMA |
+| 6 | `Other` | all 24 markers explicitly negative |
 
-Subtypes are interpreted **only inside an accepted parent**: `T_cell`, `B_lineage`,
-`Macrophage`, `Myeloid_APC`, `Neutrophil` under `Immune`; `Beta`, `Alpha`, `Delta` under
-`Epithelial`; `Lymphatic_endothelial`, `CD34_endothelial` under `Endothelial`;
-`SMA_positive_mesenchymal` under `Mesenchymal`.
+The first positive gate claims the remaining cell population. A gate with no
+positive but any unavailable marker blocks every lower gate and emits
+`Unavailable`. This default is broad-only; compatibility-specific columns
+repeat the broad label. The probabilistic subtype implementation runs only
+when an exact signed bundle is explicitly configured.
 
-Two consequences worth stating plainly, because they change what every composition statistic
-means:
-
-- **`Endocrine` is no longer a broad class.** INS and GCG are Epithelial anchors, and
-  Beta/Alpha/Delta are Epithelial *subtypes*.
-- **`Fibroblast` and `Muscle` are collapsed into `Mesenchymal`**, and the old
-  argmax-over-three structural tiebreak is gone.
-
-`docs/MIGRATION_RESTORE_TO_CALIBRATION.md` records what the old path's floors and gates did and
-which of them have no equivalent here. Read it before comparing any result to a pre-migration
-one.
+`docs/MIGRATION_RESTORE_TO_CALIBRATION.md` records why the attempted migration
+was reversed and which later safety improvements were retained.
 
 ---
 
@@ -340,21 +333,15 @@ to measure against — and `structures`, `match` and `cellmatch` correctly repor
 
 ## Migrating an existing checkout
 
-If a HiPerGator checkout predates this workflow, it is running the old phenotyping rules.
-There is no in-place upgrade, by design — the two produce different quantities.
+For the failed content-addressed run `c8412757d12de36ca056`, do not rebuild the
+148 GB ingest. Use `pipeline adopt plan/apply` as shown in
+`REFINEMENT_WORKFLOW.md`: the reviewed policy adopts ingest through controls
+and the independent state stage, then recomputes RESTORE (`calibrate`), typing,
+and QuPath export in a new run.
 
-1. `git pull` and re-run `bash setup.sh` (the env changed: no `spams`, no RESTORE submodule,
-   `statsmodels` now declared, and the env is named `phenocycler-analysis`).
-2. **Do not reuse old outputs.** `restore_gated_redsea/`, `restore_gated_redsea.pre_hormonefloor/`,
-   `restore_gated_redsea_extra/`, `phenotype/broad/`, `restore_thresholds_*.csv` and
-   `redsea_reassess/` are not valid inputs here. Move them aside rather than deleting, so a
-   published figure can still be traced, but keep them out of `data_dir`.
-3. Build a cohort manifest (Phase 2). This is the step with no old equivalent.
-4. Re-run from `ingest`. `data/cells/` from the old pipeline is *close* but was built without
-   the manifest's fingerprints, so let `ingest` rebuild it.
-5. Expect different numbers, and do not reconcile them by tuning. Five compartments instead of
-   seven, no `Endocrine` broad class, explicit `Ambiguous`/`Unavailable` states, and a
-   different definition of positive.
+For a pre-manifest legacy checkout, build the cohort manifest first. Historical
+RESTORE calls remain useful audit evidence but are not copied into a new run;
+the new run refits RESTORE from fingerprinted raw compartments and REDSEA.
 
 ---
 
@@ -364,8 +351,8 @@ There is no in-place upgrade, by design — the two produce different quantities
 # 1. Every donor in the manifest actually produced output
 python -m phenocycler.pipeline status
 
-# 2. Calibration was not silently invalidated (>5% control contamination)
-ls "$PHENOCYCLER_DATA_DIR"/audit/          # calibration models, per donor x marker
+# 2. Every donor x marker has an explicit RESTORE state and divisor disposition
+ls "$PHENOCYCLER_DATA_DIR"/audit/restore_pair_models.parquet
 
 # 3. Xenium arrived with labels, not coordinates only
 grep -i "importing coordinates only\|donor_unknown" logs/integration_*.out

@@ -1,90 +1,50 @@
-# What the RESTORE → donor-calibration migration retired, and what is unresolved
+# RESTORE restoration note
 
-This branch replaces the RESTORE + ordered-residual lineage path with donor-local marker
-calibration and hierarchical typing. Merging `main` into it deletes several modules that
-carried deliberate scientific decisions, and those decisions do not all have an equivalent
-on this side yet.
+The migration described by this filename was a mistake: RESTORE was replaced
+by donor-marker calibration even though it was intended to remain the
+production phenotyping method. RESTORE is now restored as the producer behind
+the immutable `calibrate` stage key.
 
-This file exists so that none of them is lost by omission. It records what was removed and
-what the replacement does instead — it does **not** claim the questions are settled.
+The stage name was not changed because existing content-addressed manifests,
+donor receipts, adoption plans, and the optional probabilistic interface refer
+to `calibrate`. The method version and run identity now make its actual meaning
+unambiguous:
 
-## Removed, with a direct replacement
+```text
+calibrate stage key
+  -> restore-marker-evidence-v1+restore-pair-validation-v10
+  -> marker_evidence/ (tri-state calls + RESTORE normalized values)
+  -> audit/restore_pair_models.parquet
+```
 
-| removed | replaced by |
-|---|---|
-| `phenocycler/restore.py` | `marker_calibration.py` + `calibration_stage.py` (donor-local, control-anchored) |
-| `phenocycler/lineage.py` | `hierarchical_typing.py` + `typing_stage.py`, driven by `typing_rules.json` |
-| `phenocycler/figures.py` | no replacement in-tree (see "Unresolved" below) |
-| `phenocycler/reassess_diag.py` | no replacement in-tree (see "Unresolved" below) |
-| `scripts/slurm/0{1..4}_*.sh` | one manifest-driven `scripts/slurm/run_full_pipeline.sh` |
-| `redsea.donor_image` parquet guard | `artifacts._validate_cohort_images` (one image per donor, enforced at manifest construction — strictly stronger) |
+The donor-calibration modules remain in the repository as historical and test
+code, but the production pipeline does not call them.
 
-## Removed with NO equivalent — open questions
+## Preserved improvements
 
-These came from the `immune-floor-7class` line of work (PR #4) and its tests
-(`tests/test_lineage.py`, `tests/test_hormone_floor.py`, both deleted here).
+Restoring RESTORE does not discard later provenance and safety work:
 
-**1. The `_norm` separation floors.** `hormone_floor` rewrote `{INS,GCG,SST}_pos := _norm >= 5`
-and `{CD3e,CD20,CD163}_pos := _norm >= 2`, with MPO gated at the immune K inside `lineage.py`
-rather than in the stage. `_norm` was threshold-relative, so K was a *signal-separation*
-margin in multiples of the per-image RESTORE threshold.
+- immutable cohort/run/stage manifests and donor receipts remain authoritative;
+- geometry-QC-ineligible cells stay in the object universe but cannot estimate
+  a RESTORE model or receive a marker call;
+- REDSEA compartment outputs remain the corrected source for divisors/calls;
+- the active pair list must exactly match the accepted RESTORE v10 pair web;
+- the reviewed `CD11b <- EpCAM` pair is restored, replacing the later
+  unvalidated `CD11b <- E_cadherin` change;
+- technical pair failures are `unavailable`, never silently negative;
+- the historical ordered residual broad hierarchy is again the label-free
+  production default; the simultaneous probabilistic path remains only as an
+  explicit signed-bundle option;
+- old valid upstream stages can be adopted without recomputation.
 
-This branch's `stable_positive` is a *sampling-uncertainty* margin on where the threshold
-sits — a different quantity, and a much narrower one. Whether it removes the need for a
-separation floor is plausible but unverified in-tree, and `reassess_diag.py`, the only
-instrument that could adjudicate it, is deleted.
+## What to compare
 
-The concrete evidence the floors were tuned against: donor 6476's CD3e-positive fraction
-(40.3% → 2.65% under K=2, judged an over-call) versus donor 6579's (12.2% → 10.6%, judged a
-real pancreatitis T-cell mode and deliberately preserved).
+Run `c8412757d12de36ca056` is evidence of a failed phenotyping implementation,
+not a source of labels. Its upstream image/geometry/REDSEA artifacts can be
+adopted, but its marker evidence, assignments, and QuPath export must be
+recomputed.
 
-**That second half of the evidence is no longer available — see below — so the floor question
-has to be settled on 6476 alone.** To settle it, either produce per-donor CD3e+ fractions from
-the new calibration showing the 6476-class over-call is absent without a floor, or add a
-`min_log2_threshold_ratio` predicate to the `stable_positive` conjunction —
-`marker_calibration.py` already computes `log2_threshold_ratio` per cell, so the hook exists.
-
-Note what the two quantities are, because "add a floor back" is not a like-for-like change.
-The old K was a *separation* margin in multiples of the per-image threshold. The new
-`threshold_ci_high` is a *sampling-uncertainty* margin on where the threshold sits, bootstrapped
-from ≥10,000 controls, and is therefore far narrower than a factor of two in raw intensity.
-A reinstated floor would be a third, independent predicate — not a retuning of an existing one.
-
-## Decided
-
-**Donor 6579 is excluded. Confirmed by the maintainer.** `phenocycler/cohort.py` hard-excludes
-it as a pancreatitis outlier and `ensure_eligible_donors` raises if it appears; that is the
-intended behaviour, not an artifact of the merge.
-
-The consequence is worth stating once, because it is easy to rediscover the hard way: the K=2
-immune floor was validated *on* 6579 — it was the counterexample proving the floor removed an
-over-call rather than real immune signal. Excluding the donor removes that counterexample. So
-if a separation floor is ever reinstated (question 1 above), it cannot be re-validated the way
-the original was, and a new negative control has to be chosen deliberately.
-
-Nothing in the code needs to change for this decision; it is already enforced. What changes is
-the standard of evidence for question 1.
-
-**3. The taxonomy was re-cut, implicitly.** `typing_rules.json` dissolves `Endocrine` (INS and
-GCG become Epithelial anchors; Beta/Alpha/Delta become Epithelial subtypes) and collapses
-`Fibroblast` + `Muscle` into `Mesenchymal`, dropping the argmax-over-three structural
-tiebreak. Seven broad classes become five. This is defensible as a simplification, but it
-arrives as a JSON file rather than as a stated decision, and it changes the meaning of every
-downstream composition statistic.
-
-**4. The immune floor cannot be reinstated on its original marker set.** CD20 and CD163 are
-`calibration_status: "deferred"` in `marker_registry.json`, with B lineage anchoring on CD79a
-instead — so two of the three markers the K=2 floor was validated against are not calibrated
-here.
-
-**5. The CD99-bright endocrine gate is retired.** `cd99_bright = 3.0` (validated cohort-wide
-at 36% islet-core, 11× enrichment) has no home: CD99 is `kind: "state"`, `deferred`. The
-config field survives only so `integration/export_pheno.py` imports.
-
-## Unresolved: no diagnostic output
-
-This branch ships no plotting or acceptance-check module for the core pipeline. The
-diagnostic gap is the more serious half of that: without an equivalent of `reassess_diag`'s
-objective (endocrine keratin/Vimentin load, impossible co-expression) and its guardrails
-(acinar keratin retention, vessel Vimentin, ND→T1D β-loss and T-gain), question 1 above
-cannot be answered empirically.
+Use [REFINEMENT_WORKFLOW.md](REFINEMENT_WORKFLOW.md) for the error-resolution
+loop. The essential distinction is that QuPath review identifies a failing
+marker or rule; RESTORE refits donor-local thresholds automatically. Review
+examples are regression tests, not an object-classifier training package.

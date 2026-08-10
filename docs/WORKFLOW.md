@@ -1,31 +1,29 @@
 # Current QuPath-to-cell-type workflow
 
 This document is the operational and scientific contract for the production
-workflow. It explains how a raw QuPath measurement becomes donor-local marker
-evidence and then a hierarchical identity without using observed positive-cell
-frequency to define the answer.
+workflow. It explains how raw QuPath compartments and REDSEA measurements
+become donor-local RESTORE marker evidence and then an ordered broad identity.
 
 Start with [the project README](../README.md) for commands and
 [the data guide](../DATA_README.md) for schemas.
 
 ## Intended outcome
 
-The immediate product is not a single binary gate per marker. It is a
-comparable evidence record for every donor, marker, and cell:
+The immediate product is a comparable, auditable RESTORE record for every
+donor, marker, and cell:
 
 ```text
 authoritative corrected intensity
-  + donor-local background-relative scale
-  + empirical probability/evidence
-  + threshold uncertainty
-  + explicit positive/negative/indeterminate/unavailable state
+  + donor-local target/reference pair and divisor
+  + RESTORE-normalized intensity
+  + NNMF/control/stability audit
+  + explicit positive/negative/unavailable state
 ```
 
-Those records support the larger objective of assigning all cells to broad and
-specific cell types. The workflow preserves ambiguity when the measurement,
-panel, control population, or classifier cannot support an assignment; it does
-not manufacture completeness by converting missing evidence to negative or
-`Other`.
+Those records support the larger objective of assigning all cells to broad
+cell types. The workflow preserves unavailability when the measurement, panel,
+or control population cannot support an ordered gate; it does not manufacture
+completeness by converting missing evidence to negative or `Other`.
 
 ## Authorities and boundaries
 
@@ -35,19 +33,19 @@ Four versioned inputs always govern a run:
    mapping, geometry, panel, channel, pixel calibration, and segmentation
    version.
 2. [`marker_registry.json`](../phenocycler/marker_registry.json) owns marker
-   meaning, compartment selection, spillover policy, calibration status,
-   incompatible references, uses, and fixed testing families.
-3. [`typing_rules.json`](../phenocycler/typing_rules.json) owns broad and
-   subtype anchors, support markers, exclusions, and parent relationships.
-4. The configuration owns fixed geometry, REDSEA, calibration, and compute
+   meaning, compartment selection, spillover policy, RESTORE activation,
+   incompatible reference, uses, and testing families.
+3. [`ordered_residual_rules.json`](../phenocycler/ordered_residual_rules.json)
+   owns the production broad gate order and membership.
+4. The configuration owns fixed geometry, REDSEA, RESTORE, and compute
    parameters.
 
 Probabilistic production typing adds one inseparable authorization pair: an
 immutable threshold-frozen model bundle and its separately signed promotion
-manifest. Both paths must be configured together; the manifest must authorize
+manifest, plus the separate `typing_rules.json`. Both paths must be configured together; the manifest must authorize
 that exact bundle, donor split, registries, calibration source, validation and
 locked-test reports, replay code, and numerical runtime. Leaving both paths
-blank is the rules-only default. See
+blank selects the RESTORE ordered residual default. See
 [`PROBABILISTIC_RESCUE.md`](PROBABILISTIC_RESCUE.md) for the fitting and release
 contract.
 
@@ -70,7 +68,7 @@ manifest contracts as the CLI. Notebooks must not:
                  │                                                         │
 QuPath manifest ─┴─> ingest -> geometry -> REDSEA -> expression            │
                                                   │                        │
-                                                  ├-> controls -> calibrate├-> type
+                                                  ├-> controls -> RESTORE  ├-> type
                                                   │                        │
                                                   └────────────────────────┴-> states
                                                                             │
@@ -243,14 +241,19 @@ the separate analysis/estimation eligibility flags. Existing QuPath
 `Classification` or annotation context is not part of authoritative expression
 and cannot be used to estimate calibration.
 
-## Stage 5: deterministic donor-local reference controls
+## Stage 5: retained reference-control diagnostics
 
 An active marker has a predeclared biologically incompatible reference. The
 reference is used to identify cells expected to be negative for the target; it
 is not used to algebraically normalize the target and it does not set a target
 positive fraction.
 
-For each donor and distinct reference marker, control selection:
+This stage retains the deterministic reference-control audit introduced during
+the donor-calibration experiment. It is useful diagnostic context and remains
+in the immutable graph so earlier upstream artifacts can be adopted. It does
+not define RESTORE groups, divisors, or calls.
+
+For each donor and distinct reference marker, the diagnostic selection:
 
 1. starts with `estimation_eligible` cells;
 2. requires finite positive reference intensity and finite X/Y coordinates;
@@ -276,215 +279,107 @@ They are validated for registry provenance, ranks, counts, and methods.
 Columns containing annotation, classification, phenotype, or cell-type labels
 are rejected. Annotations remain audit-only context.
 
-## Stage 6: donor-marker calibration
+## Stage 6: RESTORE donor-marker evidence
 
-Calibration operates independently for every donor and active marker. It never
-pools donors to create a threshold and never estimates a target-positive
-frequency.
+The historical stage key remains `calibrate` for immutable manifest and
+adoption compatibility. Its production method is
+`restore-marker-evidence-v1+restore-pair-validation-v10`.
 
-### Fit
+For every donor and active registry target/reference pair, RESTORE:
 
-For target marker \(m\), the estimator:
+1. restricts model inputs to analysis-QC-eligible cells with finite,
+   nonnegative raw target, raw reference, REDSEA target, REDSEA reference, and
+   declared raw compartment features;
+2. derives marker-specific raw input floors used to identify provisional
+   target-only and reference-only arms and discard double-low cells from the
+   fit;
+3. fits a deterministic two-component NNMF on balanced arms for seeds 0, 1,
+   and 2, using at most 50,000 cells;
+4. orders the components by target/reference direction;
+5. defines the reference-positive/target-negative control population to the
+   right of the target-derived reference separator;
+6. takes the configured `p99` of that population's REDSEA target values as the
+   donor-marker divisor (`control_definition=reference_only`);
+7. calls a cell positive iff its REDSEA target value is greater than the
+   divisor and stores `restore_normalized = value / divisor`.
 
-1. intersects the frozen reference-positive mask with estimation eligibility,
-   a finite nonnegative target value, and finite coordinates;
-2. uses at most 20,000 spatially balanced controls and requires at least
-   10,000;
-3. transforms controls with `log1p`;
-4. estimates the background median and Qn robust scale;
-5. removes controls above robust z = 6 as likely target contamination;
-6. invalidates the model if contamination exceeds 5% or fewer than 10,000
-   clean controls remain;
-7. chooses the fixed empirical upper-tail order statistic at the marker's
-   preallocated alpha;
-8. obtains a deterministic 95% threshold interval from 200 bootstrap
-   replicates.
+The marker registry is required to match the complete accepted RESTORE v10
+pair web. In particular, it restores the reviewed `CD11b <- EpCAM` pair rather
+than the later unvalidated `CD11b <- E_cadherin` replacement. Structural pairs use raw `Membrane+Cell` features;
+markers absent from the historical compartment extraction use the validated
+raw `Cell` fallback. The effective feature set is recorded per pair.
 
-The possible model dispositions are:
+### Tri-state safety
 
-```text
-valid
-insufficient_controls
-insufficient_tail_resolution
-excess_control_contamination
-invalid_background
-```
+- `positive`: measurable, valid pair, normalized value greater than 1;
+- `negative`: measurable, valid pair, normalized value at or below 1;
+- `unavailable`: panel/matrix measurement missing, geometry-ineligible cell,
+  or technical donor-marker failure.
 
-A failed calibration is data, not an invitation to substitute another
-threshold. Its measurements remain available but its measurable cell calls are
-`indeterminate`.
+A separately documented biological absence may be a confident negative. A
+technical failure never is. With the default
+`on_technical_failure=unavailable`, the complete failure and reason remain in
+`audit/restore_pair_models.parquet`; `halt` is the stricter alternative.
+The accepted donor 6566 INS image review is versioned in
+`restore_expression_reviews.csv` as `CONFIRMED_ABSENT`; it produces
+`NO_TARGET_EXPRESSION_CONFIRMED` and explicit negative calls, not a fitted
+divisor. The review file is a fingerprinted calibrate-stage input.
 
-### Per-cell evidence
+`marker_evidence/` also provides `log2_threshold_ratio =
+log2(restore_normalized)` so the downstream hierarchy and optional model
+interfaces retain one signed threshold-relative coordinate.
 
-The frozen donor-marker model is applied to every measurable cell for audit,
-including cells excluded from estimation. The frozen
-`qc_analysis_eligible` flag is carried beside that evidence so typing can
-enforce the analysis universe. For intensity \(x\) and threshold \(t\):
+## Why this supplies recourse
 
-```text
-log2_threshold_ratio = [log1p(x) - log1p(t)] / log(2)
-```
-
-This value is zero at the threshold, positive above it, and negative below it.
-It is a signed background-relative coordinate, not a raw-intensity fold
-change.
-
-The clean control distribution also gives the finite-sample upper-tail
-probability:
-
-```text
-p = [1 + number of controls with log1p(control) >= log1p(x)]
-    / [number of controls + 1]
-```
-
-The artifact stores `p`, `1 - p` as expression probability, and `-log10(p)` as
-tail evidence. These are ranking/evidence summaries; the categorical decision
-also requires threshold-uncertainty stability:
-
-- `positive`: value is above the upper bootstrap bound and `p <= marker_alpha`;
-- `negative`: value is at or below the lower bootstrap bound and
-  `p > marker_alpha`;
-- `indeterminate`: measurable but between the bounds, or the model is invalid;
-- `unavailable`: no finite nonnegative measurement for this cell.
-
-This distinction prevents a panel absence from masquerading as biological
-negative expression.
-
-### Fixed 1% family-wise error
-
-Each declared broad or subtype marker family has
-`familywise_alpha = 0.01`. For a family with \(K\) predeclared members, each
-member receives:
-
-```text
-marker_alpha = 0.01 / K
-```
-
-For a cell under the family null, the union bound makes the probability of at
-least one false-positive member call at most 1% when the member p-values are
-valid. This Bonferroni bound does not require independence.
-
-This is a 1% family-wise bound, not 1% for every marker. The family membership
-is versioned before any donor is processed. A panel-absent member remains in
-the denominator; its unused allocation is not redistributed. INS and GCG
-participate in both broad epithelial and endocrine-subtype families and use
-the stricter of their two fixed allocations.
-
-## Why this avoids frequency, scale, and background failure
-
-| Failure mode | Preventive design |
+| Observed problem | Versioned correction |
 |---|---|
-| Rare target population disappears under a prevalence rule | target prevalence is never an estimator input |
-| Common target population raises its own threshold | the control mask is selected without target values |
-| Donor intensity scales differ | each donor receives a separate background and threshold |
-| Background varies across the image | deterministic controls are spatially balanced |
-| A few incompatible-reference cells contain target signal | robust contamination screen and fail-closed limit |
-| A mutually exclusive counterpart is absent or inadequate | calibration becomes indeterminate; it is not replaced by a frequency gate |
-| Threshold is unstable | bootstrap band produces indeterminate cells near the boundary |
-| Marker was not acquired | explicit unavailable state rather than zero/negative |
-| Many markers inflate false positives | fixed 1% family-wise allocation |
+| marker false positives/negatives | inspect the RESTORE pair audit; change the registered reference or declared divisor policy, then refit all affected donors |
+| bad spillover or segmentation | correct REDSEA/geometry upstream, then rerun the dependency suffix |
+| marker calls correct but class wrong | change `ordered_residual_rules.json`, version it, and rerun typing |
+| evidence cannot resolve the cell | retain `Unavailable`; never fabricate a negative or class |
 
-No GMM, K-means, Otsu, NNMF, positive-fraction target, quantile normalized to
-the observed positive population, or ordered residual gate participates in
-production marker calibration.
+QuPath error examples are regression checks for those changes, not training
+labels. See `REFINEMENT_WORKFLOW.md`.
 
-## Stage 7: simultaneous broad and hierarchical specific typing
+## Stage 7: validated RESTORE ordered residual typing
 
-Typing consumes calibrated marker evidence, not raw intensity columns. The
-versioned rules evaluate five broad classes simultaneously:
+Typing consumes the categorical RESTORE marker states, not raw intensities and
+not reviewed labels. The default `typing_mode=restore_ordered_residual`
+applies this immutable priority chain:
 
 ```text
-Immune
-Endothelial
-Epithelial
-Neural
-Mesenchymal
+Immune -> Endothelial -> Epithelial -> Neural -> Mesenchymal -> Other
 ```
 
-Each class has curated anchors, support markers, and exclusions. The additive
-multinomial model has no intercept, so absence of positive evidence does not
-create a class through a donor-specific prevalence prior. Coefficient signs
-are constrained by the biological roles.
+The gate membership is versioned in `ordered_residual_rules.json`:
 
-The production default is `typing_mode=rules_only`: the type stage constructs
-a transparent, unfitted classifier from fixed registry weights and never fits
-the donor being classified. This lane accepts authoritative anchors, resolved
-`Other`, and explicit uncertainty states, but it cannot issue a non-anchor
-`inferred` call because it has no promoted donor-bootstrap stability model.
-
-The optional `typing_mode=probabilistic_bundle` lane is enabled only when
-`[typing] model_bundle` and `promotion_manifest` are both configured. Its
-bundle was fitted outside production on development/calibration donors, owns
-frozen probability/margin/stability gates, and supplies whole-development-
-donor bootstrap stability. The public production API rejects an unsigned or
-unpromoted bundle. Candidate evaluation uses the visibly distinct
-`typing_mode=probabilistic_candidate` lane and cannot authorize production.
-The ordinary type stage never fits or retunes a model.
-
-Rules-only softmax values are explicitly uncalibrated scores. Promoted-bundle
-values are donor/class-balanced, held-out-temperature-scaled probabilities,
-not expected population prevalence. Empirical marker tail probabilities and
-p-values remain audit quantities and are never substituted for model support.
-Every output row stamps its score semantics and model provenance.
-
-### Broad decision
-
-For each cell:
-
-- geometry-QC-ineligible cells retain their ranked audit alternatives but
-  receive `Unavailable` broad/specific labels, `unavailable` statuses, and no
-  accepted confidence;
-- one non-conflicted authoritative anchor accepts its broad class as
-  `anchor`;
-- conflicting anchors or an anchor/exclusion conflict become `ambiguous`;
-- `Other` is emitted only when every required broad marker model is valid and
-  negative;
-- missing or invalid required models without positive evidence produce
-  `unavailable`;
-- a non-anchor inference is available only through a promoted bundle and
-  requires valid positive support, a unique winner, and all frozen
-  probability, margin, and donor-bootstrap stability gates;
-- otherwise the result remains `ambiguous`.
-
-The type stage does not invent stability from the cells it is classifying.
-Without the exact verified bundle/promotion pair, non-anchor cells remain
-`ambiguous` or `unavailable`; with it, `inferred` is emitted only after every
-frozen gate passes. A reviewed label never overwrites a production cell.
-
-The output retains the best broad candidate and ranked probabilities even when
-acceptance fails. This makes ambiguity useful for review and future rules
-rather than a terminal information loss.
-
-### Parent-constrained subtype decision
-
-Subtype rules run only within an accepted `anchor` or `inferred` broad parent.
-A subtype cannot pull a cell across broad compartments. If a parent has subtype
-rules but none can be accepted, the cell becomes
-`<Parent>-unclassified`; a parent with no subtype model retains its broad name.
-
-The current overlay declares:
-
-| Broad parent | Specific candidates |
+| Gate | Any positive member claims the residual cell |
 |---|---|
-| Immune | `T_cell`, `B_lineage`, `Macrophage`, `Myeloid_APC`, `Neutrophil` |
-| Epithelial | `Beta`, `Alpha`, `Delta` |
-| Endothelial | `Lymphatic_endothelial`, `CD34_endothelial` |
-| Mesenchymal | `SMA_positive_mesenchymal` |
-| Neural | terminal broad label; no specific model |
+| Immune | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
+| Endothelial | CD31, CD34, Podoplanin |
+| Epithelial | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG, SST |
+| Neural | B3TUBB |
+| Mesenchymal | Vimentin, SMA |
 
-Two rules are locked in validation:
+For each analysis-eligible cell, the first gate with any positive member wins.
+A positive member dominates an unavailable sibling in the same gate. If a gate
+has no positive member but contains an unavailable or indeterminate member,
+the cell becomes `Unavailable` and lower-priority gates are blocked. `Other`
+is emitted only when all 24 gate markers are explicitly negative. A
+geometry-QC-ineligible cell is always `Unavailable`.
 
-- SST is active only for the Delta subtype after Epithelial is accepted. It is
-  calibrated against Pan_Cytokeratin and cannot create broad Epithelial
-  evidence.
-- CD11b is active Immune support/subtype evidence and is calibrated against
-  E-cadherin.
+This production default is deterministic and broad-only. The compatibility
+columns `specific_type` and `cell_type` carry the accepted broad label; subtype
+probability fields are empty because no subtype classifier is being fitted.
+Every row records the decisive gate, authoritative positive marker, rules
+fingerprint, registry fingerprint, typing mode, and categorical score
+semantics.
 
-The full output preserves both broad and subtype status, reason, confidence,
-margin, stability, per-gate pass/failure fields, anchor/conflict evidence,
-alternatives, score semantics, typing mode, model provenance, registry
-fingerprint, and typing-rules fingerprint. The run and type-stage manifests
-separately bind the verified promotion artifact.
+The simultaneous parent-constrained implementation remains available only
+when an exact signed and promoted probabilistic bundle is explicitly
+configured. It is a separate optional method and is not a fallback from, or a
+replacement for, the restored ordered workflow. The ordinary production type
+stage never fits or retunes a model.
 
 ## Stage 8: keep process state orthogonal
 
@@ -511,13 +406,13 @@ The export stage joins assignments to image context by UUID and writes:
 qupath_export/cell_assignments_<donor>.csv
 ```
 
-The handoff contains broad and specific identity, separate broad/specific
-statuses, confidence, best broad/specific candidates, and separate ranked
-alternatives for both levels. Compatibility aliases mirror the authoritative
-broad/specific fields.
+The default handoff contains the ordered broad identity, status, decisive or
+blocking gate, and compatibility aliases. Specific/probability columns remain
+empty or repeat the broad identity unless the explicit probabilistic lane was
+configured.
 
 An importer or reviewer must inspect `assignment_status`; it must not turn
-`Ambiguous` or `Unavailable` into a confident named class. State is not folded
+`Unavailable` into a confident named class. State is not folded
 into this identity export and remains a separate artifact. Missing image
 context, duplicate UUIDs, or an altered export file is fatal.
 
@@ -527,9 +422,8 @@ for the QuPath import. First require a successful pipeline `status` so the
 export file fingerprint and typing stage are current. The script validates the
 exact image, UUID uniqueness, and every CSV assignment in a first pass, then
 imports either the broad or specific decision. QuPath detections outside the
-canonical ingest universe are intentionally left unchanged. Ambiguous and
-unavailable results receive explicit uncertainty classes rather than the best
-candidate.
+canonical ingest universe are intentionally left unchanged. Unavailable
+results receive an explicit uncertainty class rather than the blocking gate.
 
 ## Content-addressed execution
 
@@ -537,7 +431,7 @@ Before writing output, the pipeline resolves a run ID from:
 
 - cohort content ID;
 - marker-registry fingerprint;
-- typing-rules fingerprint;
+- ordered-rules fingerprint;
 - identity-affecting configuration;
 - relevant source-code byte hash.
 
@@ -848,7 +742,7 @@ without a receipt is quarantined. The aggregate sidecar ownership is:
 | ingest | `ingest_rejects.parquet`, `panel_availability.json` |
 | expression | `audit/expression_availability.parquet` |
 | controls | `audit/reference_control_models.parquet` |
-| calibrate | `audit/marker_calibration_models.parquet` |
+| calibrate | `audit/restore_pair_models.parquet` |
 | states | `audit/state_models.parquet` |
 
 ## Registry and rule change control
@@ -858,21 +752,19 @@ not scattered across notebooks or stage code.
 
 For a marker-registry change, review:
 
-- biological kind and broad/subtype/state use;
+- biological kind and broad/state use;
 - authoritative compartment and spillover policy;
-- active versus deferred calibration;
+- active versus deferred RESTORE calling;
 - incompatible reference and its feasibility in each panel;
-- fixed family membership and its effect on marker alpha;
+- fixed family membership and downstream rule coverage;
 - panel-absent behavior;
-- SST subtype-only and CD11b/E-cadherin validation invariants.
+- accepted RESTORE pair-web invariants, including `CD11b <- EpCAM`.
 
-For a typing-rule change, review:
+For an ordered typing-rule change, review:
 
-- parent class;
-- anchors versus support evidence;
-- exclusions and likely co-expression conflicts;
-- required marker availability;
-- whether the rule is broad or parent-constrained subtype;
+- gate priority;
+- marker membership and whether any marker appears twice;
+- required marker availability and unavailable-gate behavior;
 - validation evidence and rules-version change.
 
 Both file fingerprints enter the run ID, so a reviewed change cannot silently
@@ -889,18 +781,20 @@ Before using a run for biological inference:
 - expression-availability audit has no unexplained acquired-source failures.
 - geometry exclusions and estimation-only differences have been reviewed.
 - reference-control counts and spatial coverage are plausible for every donor.
-- calibration-status and contamination summaries are reviewed per donor and
-  marker.
-- indeterminate and unavailable fractions are reported, not discarded.
-- broad anchor conflicts and ranked alternatives are reviewed.
-- `Other` cells meet the all-required-valid-and-negative contract.
-- subtype labels occur only inside accepted parents.
+- RESTORE pair state, divisor, stability, controls, feature set, and call
+  fractions are reviewed per donor and marker.
+- unavailable fractions are reported, not discarded.
+- ordered gate and blocked-gate fractions are reviewed.
+- `Other` cells have all 24 gate markers explicitly negative.
 - state results have not been merged into identity.
 - the QuPath review uses UUID and preserves assignment status.
 
-## Migration
+## Restoration and migration
 
-The former RESTORE and ordered-residual lineage outputs are retired. They are
-not upstream inputs, compatibility fallbacks, or valid threshold sources for
-this workflow. Rebuild from the declared QuPath cohort rather than mixing old
-normalized or gated files into a content-addressed run.
+RESTORE is the production marker-calling method. Historical loose
+`restore_gated_redsea/` outputs are not copied into a content-addressed run;
+the current stage refits RESTORE from fingerprinted raw compartments and
+REDSEA, preserving full provenance. For the failed run
+`c8412757d12de36ca056`, use the reviewed adoption contract to reuse valid
+upstream stages and recompute only RESTORE plus typing. See
+`REFINEMENT_WORKFLOW.md`.

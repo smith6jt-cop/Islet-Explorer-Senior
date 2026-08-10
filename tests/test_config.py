@@ -68,15 +68,28 @@ def test_relative_paths_resolve_against_config_file(tmp_path):
         "qupath_manifest = inputs/qupath.json\n"
         "marker_registry = policy/markers.json\n"
         "typing_rules = policy/types.json\n"
+        "ordered_typing_rules = policy/ordered.json\n"
         "[typing]\n"
         "model_bundle = models/typing-v1.json\n"
         "promotion_manifest = models/typing-v1-promotion.json\n"
+        "[restore]\n"
+        "compartment_sample = inputs/compartments\n"
+        "expression_reviews = policy/expression-reviews.csv\n"
     )
     cfg = load_config(ini)
     assert cfg.data_dir == (tmp_path / "output").resolve()
     assert cfg.qupath_manifest == (tmp_path / "inputs/qupath.json").resolve()
     assert cfg.marker_registry == (tmp_path / "policy/markers.json").resolve()
     assert cfg.typing_rules == (tmp_path / "policy/types.json").resolve()
+    assert cfg.ordered_typing_rules == (
+        tmp_path / "policy/ordered.json"
+    ).resolve()
+    assert cfg.restore_compartment_sample == (
+        tmp_path / "inputs/compartments"
+    ).resolve()
+    assert cfg.restore_expression_reviews == (
+        tmp_path / "policy/expression-reviews.csv"
+    ).resolve()
     assert cfg.typing_model_bundle == (
         tmp_path / "models/typing-v1.json"
     ).resolve()

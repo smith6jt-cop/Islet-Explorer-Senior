@@ -177,8 +177,8 @@ Availability has distinct meanings:
 | Marker not acquired in donor's panel | null authoritative value; `marker_not_acquired_in_panel` audit reason | per-cell marker state `unavailable` |
 | Marker acquired, required declared source present, cell value missing | null for that cell | that cell is `unavailable` for the marker |
 | Marker acquired, required declared source column absent | fatal contract error | stage stops |
-| Marker measurable, donor-marker calibration invalid | measurement retained | state `indeterminate`, not `unavailable` |
-| Marker measurable, within bootstrap decision interval | measurement and evidence retained | state `indeterminate` |
+| Marker measurable, donor-marker RESTORE fit technically invalid | measurement retained | state `unavailable`, never negative |
+| Marker measurable, valid RESTORE fit | normalized value and divisor retained | positive iff normalized value is greater than 1 |
 
 Missing markers never become negatives, never make a cell `Other`, and never
 transfer their fixed error allocation to another marker.
@@ -292,69 +292,68 @@ each active marker `<m>`.
 | Column | Meaning |
 |---|---|
 | `qc_analysis_eligible` | frozen geometry-QC analysis decision propagated to typing |
-| `<m>__corrected_intensity` | authoritative selected measurement passed to calibration |
-| `<m>__state` | `positive`, `negative`, `indeterminate`, or `unavailable` |
-| `<m>__log2_threshold_ratio` | `(log1p(value) - log1p(threshold)) / log(2)`; zero at the donor-local threshold |
-| `<m>__empirical_tail_probability` | finite-sample upper-tail p-value under clean controls |
-| `<m>__expression_probability` | `1 - empirical_tail_probability` |
-| `<m>__empirical_tail_evidence` | `-log10(empirical_tail_probability)` |
-| `<m>__model_valid` | valid model and stable positive/negative cell call |
-| `<m>__calibration_status` | donor-marker model disposition |
-| `<m>__reference` | incompatible marker used to construct the target-independent control mask |
-| `<m>__marker_alpha` | fixed registry-derived marker error allocation |
-| `<m>__threshold` | empirical threshold on the original intensity scale |
-| `<m>__threshold_ci_low`, `<m>__threshold_ci_high` | 95% bootstrap interval |
-| `<m>__n_controls` | clean control count |
-| `<m>__control_contamination_fraction` | robust high-outlier fraction removed from controls |
+| `<m>__corrected_intensity` | REDSEA whole-cell target measurement used for the call |
+| `<m>__state` | `positive`, `negative`, or `unavailable` |
+| `<m>__restore_normalized` | corrected intensity divided by the donor-marker RESTORE divisor |
+| `<m>__restore_positive` | exact boolean `restore_normalized > 1` call |
+| `<m>__log2_threshold_ratio` | `log2(restore_normalized)`; zero at the donor-local divisor |
+| `<m>__model_valid` | valid RESTORE pair and positive/negative cell call |
+| `<m>__calibration_status` | RESTORE pair disposition (historical column name retained for schema compatibility) |
+| `<m>__reference` | mutually exclusive reference marker used by RESTORE |
+| `<m>__threshold` | donor-marker RESTORE divisor on the REDSEA intensity scale |
+| `<m>__n_controls` | reference-positive/target-negative control count |
+| `<m>__method_version` | pipeline RESTORE method version |
 
-Valid calibration statuses are:
+RESTORE pair dispositions include:
 
 ```text
-valid
-insufficient_controls
-insufficient_tail_resolution
-excess_control_contamination
-invalid_background
+VALID
+NO_TARGET_EXPRESSION_CONFIRMED
+LOW_SIGNAL_UNRESOLVED
+NO_REFERENCE_POPULATION
+INVALID_PAIR
+MODEL_UNSTABLE
+PAIR_REVIEW_PENDING
+TECHNICAL_FAILURE
 ```
 
-An invalid donor-marker model does not erase its measurements. Measurable cells
-become `indeterminate`, preserving the distinction from panel or cell-level
-unavailability. Model details are also written to
-`audit/marker_calibration_models.parquet`.
+An invalid donor-marker fit does not erase its measurements or fabricate a
+negative. Calls become `unavailable`. Full NNMF, arm, stability, control,
+divisor, feature-set, and call-count details are written to
+`audit/restore_pair_models.parquet`.
 
 ## Assignment schema
 
-`assignments` retains both the broad and subtype decisions. Stable handoff
-columns are:
+The production-default `assignments` table records the validated RESTORE
+ordered residual decision. Stable handoff columns are:
 
 | Column | Meaning |
 |---|---|
-| `broad_type` | accepted broad class, or explicit ambiguity/unavailability label |
-| `specific_type` | accepted parent-constrained subtype, terminal broad type, or `<Parent>-unclassified` |
-| `assignment_status` | final decision status |
-| `confidence` | leading broad probability; for an accepted subtype, the minimum of accepted broad and subtype probabilities |
-| `best_broad_type` | leading broad candidate even when it is not accepted |
-| `best_specific_type` | leading candidate at the most specific level evaluated |
-| `broad_assignment_status` | broad-level decision status |
-| `specific_assignment_status` | specific/final decision status |
-| `ranked_broad_probabilities` | ordered JSON broad alternatives |
-| `ranked_specific_probabilities` | ordered JSON alternatives at the most specific level evaluated |
-| `ranked_probabilities` | compatibility alias for the specific-level ranking |
+| `broad_type` | first positive ordered gate, `Other`, or `Unavailable` |
+| `specific_type` | compatibility alias of `broad_type` in the broad-only default |
+| `assignment_status` | `anchor`, `other`, or `unavailable` |
+| `confidence` | 1 for a categorical accepted decision; null when unavailable |
+| `best_broad_type` | claimed or blocking gate when present |
+| `best_specific_type` | compatibility alias of the broad result |
+| `assignment_reason` | `positive`, `all_negative`, `blocked_unavailable_gate`, or `geometry_qc_ineligible` |
+| `blocked_by` | higher-priority gate that could not be evaluated |
+| `ordered_residual_gate` | decisive positive or blocking gate |
+| `typing_mode` | `restore_ordered_residual` |
 
-Detailed `broad_*` and `subtype_*` columns preserve model probability, margin,
-stability, reason, authoritative markers, conflicts, and rules provenance.
-Statuses include:
+Rules, registry, method, and categorical-score provenance are repeated on each
+row. Probability/ranking and subtype columns remain in the schema so the
+signed optional probabilistic lane can use the same handoff contract; they are
+empty or not applicable in the production-default ordered lane. Default
+statuses are:
 
 ```text
 anchor
-inferred
-ambiguous
 other
 unavailable
 ```
 
-`Other` means every required broad model was valid and negative. It does not
-mean “could not classify.”
+`Other` means all 24 ordered-gate markers were explicitly negative. It does
+not mean “could not classify.”
 
 ## State schema
 
@@ -405,8 +404,8 @@ cell_type
 ```
 
 `compartment` and `cell_type` are compatibility aliases for `broad_type` and
-`specific_type`; they do not replace the uncertainty fields. Ambiguous and
-unavailable cells must not be imported as confident named classes. The current
+`specific_type`; they do not replace the uncertainty fields. Unavailable cells
+must not be imported as confident named classes. The current
 QuPath handoff exports identity; process-state annotations remain in the
 separate `cell_states` artifact.
 
@@ -417,10 +416,10 @@ export. The script then validates the exact image and every row in the
 canonical assignment CSV before changing a QuPath class. Detections outside
 the canonical ingest universe, including fragments below the ingest area
 floor, are intentionally left unchanged. At the selected broad or specific
-level, accepted statuses
-(`anchor`, `inferred`, and `other`) receive the corresponding label;
-`ambiguous` and `unavailable` receive explicit uncertainty classes rather than
-the best candidate.
+level, accepted statuses (`anchor` and `other`) receive the corresponding
+label; `unavailable` receives an explicit uncertainty class rather than the
+best candidate. The importer also understands the additional statuses used by
+an explicitly configured probabilistic lane.
 
 ## Run layout
 
@@ -471,7 +470,7 @@ data/
         │   ├── donors/<audit_name>/donor_id=<id>/data.parquet
         │   ├── expression_availability.parquet
         │   ├── reference_control_models.parquet
-        │   ├── marker_calibration_models.parquet
+        │   ├── restore_pair_models.parquet
         │   └── state_models.parquet
         └── scratch/redsea/
 ```

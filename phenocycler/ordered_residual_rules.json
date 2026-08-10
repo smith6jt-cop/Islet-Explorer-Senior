@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "rules_version": "restore-ordered-residual-rules-v1",
+  "description": "Validated RESTORE broad-lineage ordered residual policy. Each gate claims the residual population when any member is positive. A gate with no positive and at least one unavailable member blocks all lower-priority gates.",
+  "compartment_order": [
+    "Immune",
+    "Endothelial",
+    "Epithelial",
+    "Neural",
+    "Mesenchymal"
+  ],
+  "gates": {
+    "Immune": [
+      "CD3e",
+      "CD68",
+      "CD11b",
+      "CD79a",
+      "CD11c",
+      "Iba1",
+      "CD206",
+      "MPO",
+      "CD4",
+      "CD8"
+    ],
+    "Endothelial": [
+      "CD31",
+      "CD34",
+      "Podoplanin"
+    ],
+    "Epithelial": [
+      "E_cadherin",
+      "Pan_Cytokeratin",
+      "Ker8_18",
+      "EpCAM",
+      "Keratin_5",
+      "INS",
+      "GCG",
+      "SST"
+    ],
+    "Neural": [
+      "B3TUBB"
+    ],
+    "Mesenchymal": [
+      "Vimentin",
+      "SMA"
+    ]
+  },
+  "other_label": "Other",
+  "unavailable_label": "Unavailable"
+}

@@ -1,6 +1,6 @@
 name: phenocycler-analysis
 # Reference environment for the manifest-driven QuPath -> REDSEA ->
-# donor-marker calibration -> hierarchical typing workflow. Downstream
+# RESTORE donor-marker evidence -> ordered residual typing workflow. Downstream
 # embedding, trajectory and application stacks are intentionally out of scope.
 channels:
   - conda-forge
@@ -14,6 +14,7 @@ dependencies:
   - pyarrow=16
   - duckdb=1.0
   - scikit-image=0.24
+  - scikit-learn=1.5
   - statsmodels=0.14
   - tifffile=2024.7
   - imagecodecs=2024.6

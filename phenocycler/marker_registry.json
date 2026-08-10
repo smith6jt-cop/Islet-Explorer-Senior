@@ -427,7 +427,7 @@
       "uses": ["broad", "subtype"],
       "broad_compartment": "Immune",
       "calibration_status": "active",
-      "reference": "E_cadherin",
+      "reference": "EpCAM",
       "families": ["broad_immune"],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
