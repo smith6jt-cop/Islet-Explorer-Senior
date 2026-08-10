@@ -112,7 +112,6 @@ repo, which on HiPerGator means your home quota:
 ```bash
 export PHENOCYCLER_DATA_DIR=/blue/<group>/<user>/phenocycler/data
 export PHENOCYCLER_QUPATH_MANIFEST=/blue/<group>/<user>/phenocycler/qupath_manifest.json
-export PHENOCYCLER_RESTORE_COMPARTMENT_SAMPLE=/blue/<group>/<user>/phenocycler/qupath_compartment_full_20donor
 export TMPDIR=/blue/<group>/<user>/tmp      # DuckDB spills here during ingest
 ```
 
@@ -235,10 +234,12 @@ explicitly all-negative marker profile.
 ## Phase 4b — what "positive" now means
 
 RESTORE is donor-local. For each active target/reference pair, it fits the two
-mutually exclusive groups with NNMF using raw QuPath `Membrane+Cell` features
-where available (validated `Cell` fallback otherwise). The ordered
+mutually exclusive groups with NNMF over REDSEA's Nucleus/Cytoplasm/Membrane
+compartment decomposition, which is emitted for every channel. The
 reference-positive/target-negative group defines the target background. The
-production divisor is its `p999` under `control_definition=reference_only`.
+divisor statistic is set by `[restore] divisor_statistic` under
+`control_definition=reference_only`; which statistic is correct is an OPEN
+question -- see `docs/METHOD_HISTORY.md`.
 
 A measurable analysis-eligible cell is `positive` exactly when its REDSEA
 whole-cell target value is greater than that donor-marker divisor; it is
@@ -272,7 +273,7 @@ with **no precedence between them**:
 
 | gate | positive markers |
 |---|---|
-| `Immune` | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
+| `Immune` | CD3e, CD68, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
 | `Endothelial` | CD31, CD34, Podoplanin |
 | `Epithelial` | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG |
 | `Neural` | B3TUBB |

@@ -62,8 +62,8 @@ include-package-data = true
 [tool.setuptools.package-data]
 phenocycler = [
     "adoption_compatibility.json",
+    "broad_gates.json",
     "marker_registry.json",
-    "ordered_residual_rules.json",
     "restore_expression_reviews.csv",
     "typing_rules.json",
 ]

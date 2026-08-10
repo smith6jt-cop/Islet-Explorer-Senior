@@ -4,10 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from phenocycler.marker_calibration import MAX_CONTROL_CAP
 from phenocycler.marker_registry import load_registry
 from phenocycler.reference_controls import (
     MASK_COLUMNS,
+    MAX_CONTROL_CAP,
     METHOD_VERSION,
     ReferenceControlConfig,
     ReferenceControlStatus,

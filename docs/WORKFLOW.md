@@ -293,7 +293,7 @@ are rejected. Annotations remain audit-only context.
 
 The historical stage key remains `calibrate` for immutable manifest and
 adoption compatibility. Its production method is
-`restore-marker-evidence-v1+restore-pair-validation-v10`.
+`restore-marker-evidence-v2+restore-pair-validation-v11`.
 
 For every donor and active registry target/reference pair, RESTORE:
 
@@ -315,7 +315,7 @@ For every donor and active registry target/reference pair, RESTORE:
 
 The marker registry is required to match the complete accepted RESTORE v10
 pair web. In particular, it restores the reviewed `CD11b <- EpCAM` pair rather
-than the later unvalidated `CD11b <- E_cadherin` replacement. Structural pairs use raw `Membrane+Cell` features;
+than the later unvalidated `CD11b <- E_cadherin` replacement. The NNMF feature basis is REDSEA's Nucleus/Cytoplasm/Membrane decomposition;
 markers absent from the historical compartment extraction use the validated
 raw `Cell` fallback. The effective feature set is recorded per pair.
 
@@ -361,7 +361,7 @@ The gate membership is versioned in `broad_gates.json`:
 
 | Gate | Members |
 |---|---|
-| Immune | CD3e, CD68, CD11b, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
+| Immune | CD3e, CD68, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
 | Endothelial | CD31, CD34, Podoplanin |
 | Epithelial | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG |
 | Neural | B3TUBB |

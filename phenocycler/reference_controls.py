@@ -35,9 +35,14 @@ from typing import Iterable, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from .marker_calibration import MAX_CONTROL_CAP
 from .marker_registry import MarkerRegistry, MarkerSpec, load_registry
 
+
+# Upper bound on the number of reference-positive seed cells retained per
+# donor-marker. It previously lived in marker_calibration.py, which was the
+# retired donor-calibration replacement for RESTORE; this constant was the only
+# thing keeping that module importable, so it lives here now.
+MAX_CONTROL_CAP = 20_000
 
 MASK_SCHEMA_VERSION = 1
 METHOD_VERSION = "reference-control-rank-v1"

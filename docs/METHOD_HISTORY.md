@@ -38,9 +38,10 @@ Restoring RESTORE does not discard later provenance and safety work:
 - the reviewed `CD11b <- EpCAM` pair is restored, replacing the later
   unvalidated `CD11b <- E_cadherin` change;
 - technical pair failures are `unavailable`, never silently negative;
-- the historical ordered residual broad hierarchy is again the label-free
-  production default; the simultaneous probabilistic path remains only as an
-  explicit signed-bundle option;
+- simultaneous broad typing is the label-free production default; the ordered
+  residual hierarchy was NOT restored (see the section below), and the
+  parent-constrained probabilistic path remains an explicit signed-bundle
+  option;
 - old valid upstream stages can be adopted without recomputation.
 
 ## What to compare
@@ -86,3 +87,62 @@ at commit `ec97cbc`. See `WORKFLOW.md` § "Stage 7".
   `uses: ["subtype"]` with no `broad_compartment` and
   `hierarchical_typing.SUBTYPE_ONLY_MARKERS` forbids it as broad evidence; the
   ordered policy validated only the marker set, so nothing caught it.
+
+## The divisor statistic is an OPEN question (measured 2026-08-10)
+
+Do not treat any `[restore] divisor_statistic` value as settled. It was frozen
+to `p999` on 2026-08-10 (`4619bdf`) on cohort-median evidence. A per-pair
+measurement on donors 6436, 6450 and 6566 — 72 donor-marker pairs, run through
+the production `evaluate_locked_pair` — shows that no fixed statistic works for
+every marker and donor.
+
+Agreement with each pair's own NNMF+floor anchor, the independent estimate of
+the same positive population:
+
+| statistic | within 0.5–2x of the anchor | median calls/anchor |
+|---|---|---|
+| manuscript `max` | 13/72 | 0.12 |
+| `p999` (production) | 49/72 | 1.09 |
+| `p99` | 18/72 | 2.58 |
+| `p95` | 9/72 | 5.64 |
+| mean+3SD | 21/72 | 2.56 |
+
+`p999` is the best of the five and is still outside 2x on 23 of 72 pairs. Which
+statistic is closest is **marker-dependent**: SMA wants `max` on all three
+donors, EpCAM and INS want `p95`, most others want `p999`. A cohort median hides
+this; the per-pair spread is the finding.
+
+One replacement was tried and **rejected on measurement**, not opinion: purify
+the control by fitting 1- vs 2-component Gaussian mixtures to log1p of the
+control and keep the manuscript maximum over the negative mode. It fails because
+the control's distribution is not two Gaussians — the fit splits distribution
+shape, assigning ~95% of the control to the "contaminated" component for 18 of
+24 markers, and returns `components_not_separable` for 31 of 72 pairs. Anchor
+agreement drops to 10/41. It was not tuned into working.
+
+Evidence: `data/pilots/divisor_survey/` (per-pair control distributions and every
+candidate divisor) and `data/pilots/figures/fig1_divisor_landscape_<donor>.png`,
+which draws each candidate on the marker's own control histogram.
+
+The anchor is not ground truth — it is a second estimate from the same fit, so
+agreement is evidence, not proof. Any replacement must be judged against each
+donor's own data, never against an expected frequency or a disease ordering.
+
+## Ambiguous is concentrated in one marker (measured 2026-08-10)
+
+Under simultaneous typing, `Ambiguous` is 5.2–8.6% of cells across the three
+pilot donors, and it is not spread evenly across gates:
+
+- `Endothelial|Mesenchymal` 28–33% and `Immune|Mesenchymal` 20–42% of all
+  Ambiguous cells;
+- **Vimentin is positive in 55% of every Ambiguous cell**, and in 94% of the
+  `Immune|Mesenchymal` collisions; SMA in 22%.
+
+Vimentin is expressed by endothelium and leukocytes as well as mesenchyme, so as
+a broad Mesenchymal gate member it fails the same mutual-exclusivity premise
+that removed CD11b from broad Immune. This is recorded as a measurement, not yet
+a decision: removing it is a reviewer's call, and the counterfactual has not
+been run.
+
+`Unavailable` needs no investigation: across all three donors it is 100%
+`geometry_qc_ineligible`. No cell is Unavailable because of a failed pair.

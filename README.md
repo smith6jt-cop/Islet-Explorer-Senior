@@ -1,7 +1,7 @@
 # Phenocycler analysis
 
 This package turns an explicitly declared QuPath cohort into donor-local
-RESTORE marker evidence, ordered broad cell identities, and UUID-keyed tables
+RESTORE marker evidence, simultaneous broad cell identities, and UUID-keyed tables
 for review in QuPath.
 
 The production workflow is:
@@ -233,7 +233,7 @@ source run. To launch recomputation immediately instead of inspecting first,
 add `--continue` (and optionally `--jobs N` or `--no-export`) to `adopt apply`.
 After `--no-export`, run the normal `export` command separately. If code,
 configuration, or source content changes, write a newly named plan rather than
-overwriting the immutable reviewed plan. Until ordered RESTORE typing finishes, `status`
+overwriting the immutable reviewed plan. Until RESTORE typing finishes, `status`
 correctly reports the adopted target as incomplete and `LATEST` is unchanged.
 Use `--validation-mode content` on `adopt plan` when an archival audit should
 rehash every source byte rather than use the normal fingerprint cache.
@@ -347,9 +347,12 @@ RESTORE stage manifest. Notebook cells must not write stage files directly.
 
 RESTORE is performed independently for each donor and active marker. The
 marker registry declares the target's mutually exclusive reference. Raw
-QuPath compartment means define balanced NNMF arms; the ordered
-reference-positive/target-negative population defines a donor-local `p999`
-divisor on the REDSEA target measurement.
+REDSEA's Nucleus/Cytoplasm/Membrane compartment decomposition supplies the
+NNMF feature basis; the reference-positive/target-negative population defines a
+donor-local divisor on the REDSEA target measurement. The divisor statistic is
+configurable (`[restore] divisor_statistic`) and is an OPEN question: measured
+over 3 donors x 24 pairs, no single statistic agrees with the pairs' own NNMF
+anchors across all markers and donors. See `docs/METHOD_HISTORY.md`.
 
 The key outputs answer different questions:
 
@@ -371,25 +374,28 @@ identity.
 
 ## Identity and state
 
-Broad identity applies the accepted RESTORE states in this exact order:
+Broad identity evaluates every gate in `phenocycler/broad_gates.json`
+**simultaneously**. No gate has precedence over another:
 
 ```text
-Immune -> Endothelial -> Epithelial -> Neural -> Mesenchymal -> Other
+Immune | Endothelial | Epithelial | Neural | Mesenchymal
 ```
 
-At each gate, any positive member claims the cell. If no member is positive
-but one is unavailable, the result is `Unavailable` and lower gates are not
-allowed to reinterpret missing evidence. `Other` therefore means that every
-marker in every gate was explicitly negative. Geometry-QC-ineligible cells are
-also `Unavailable`.
+A cell supported by exactly one gate takes that identity. A cell supported by
+more than one is `Ambiguous` — it is never awarded to whichever gate is listed
+first. A cell with no supporting gate is `Other` only when every gate marker was
+explicitly negative; if any gate marker was unmeasured it is `Unavailable`.
+Geometry-QC-ineligible cells are also `Unavailable`.
 
 The production default is broad-only and label-free; compatibility columns
-such as `specific_type` contain the accepted broad label. The simultaneous,
-parent-constrained probabilistic implementation is retained only as an
-explicit signed-bundle option and is not used by the restored run.
+such as `specific_type` contain the accepted broad label. The parent-constrained
+probabilistic subtype implementation is retained only as an explicit
+signed-bundle option and is dormant while `[typing] model_bundle` is blank.
 
-CD11b belongs to the Immune gate and uses the accepted RESTORE pair
-`CD11b <- EpCAM`.
+CD11b is an active RESTORE target and subtype evidence, but it does **not**
+gate broad Immune: measured over 20 donors its EpCAM control is 17.3% median
+target-positive, so the pair's mutual-exclusivity premise fails for broad
+identity. See `docs/METHOD_HISTORY.md`.
 
 Process-state calls are stored in a separate `cell_states` artifact. They do not
 rewrite broad or specific identity.
@@ -397,7 +403,7 @@ rewrite broad or specific identity.
 ## Runs and failure behavior
 
 The run identifier is derived from the cohort content ID, marker-registry
-fingerprint, ordered-rules fingerprint, identity-affecting configuration, and
+fingerprint, broad-gate rules fingerprint, identity-affecting configuration, and
 relevant source-code hash. Outputs live below:
 
 ```text
@@ -432,7 +438,7 @@ The principal artifacts under a run are:
 - `expression/`: one authoritative intensity per registered marker;
 - `reference_controls/`: donor/reference membership and deterministic ranks;
 - `marker_evidence/`: per-cell RESTORE calls, normalized values, and fit provenance;
-- `assignments/`: ordered broad identity, decisive gate, and explicit
+- `assignments/`: simultaneous broad identity, supporting gates, and explicit
   unavailability;
 - `cell_states/`: process-state annotations kept separate from identity;
 - `qupath_export/`: UUID-keyed identity CSVs that retain uncertainty;
