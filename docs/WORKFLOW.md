@@ -291,6 +291,11 @@ are rejected. Annotations remain audit-only context.
 
 ## Stage 6: RESTORE donor-marker evidence
 
+> The intensity scale these thresholds sit on has no defined zero or maximum
+> yet. Zero is a clamp, not a measurement, and exposure differs between donors
+> for 16 of the 22 gate markers. See `docs/INTENSITY_SCALE.md`.
+
+
 The historical stage key remains `calibrate` for immutable manifest and
 adoption compatibility. Its production method is
 `restore-marker-evidence-v2+restore-pair-validation-v11`.

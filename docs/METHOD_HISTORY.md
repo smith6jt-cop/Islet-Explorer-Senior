@@ -146,3 +146,34 @@ been run.
 
 `Unavailable` needs no investigation: across all three donors it is 100%
 `geometry_qc_ineligible`. No cell is Unavailable because of a failed pair.
+
+## The intensity scale has no defined zero or maximum (measured 2026-08-11)
+
+Every threshold in the workflow is a point on a scale whose ends were never
+defined. Measured across the cohort:
+
+- **No saturation.** 0 of 63 million sampled level-0 tissue pixels reach the
+  16-bit ceiling; the brightest observed anywhere is 65324. The top of the scale
+  is intact.
+- **But the unit is donor-specific.** Exposure time differs between donors for
+  16 of the 22 broad-gate markers (up to 1.67x, CD11c), and filter responsivity
+  was recalibrated three times over the cohort (up to 1.41x, Cy5). The three
+  calibration epochs track the acquisition batches, so this is a candidate
+  mechanism for the batch confound.
+- **Zero is a clamp, applied twice.** The scanner applies OffsetAndShading and
+  AutofluorescenceSubtracted then stores unsigned, so 1-79% of tissue pixels are
+  exactly 0 (11x variation between donors for DAPI). REDSEA clamps again at
+  `redsea.py:529`, making 0.5-19% of analysis-eligible *cells* exactly 0, with
+  ~3x donor variation for the same marker.
+
+Scope, stated precisely: a per-donor-per-marker scalar **cancels** in RESTORE's
+divisor arithmetic, so exposure normalisation will not move a single positivity
+call, and REDSEA never mixes channels (`F` is a cell-cell contact matrix), so
+mixed exposures do not corrupt spillover correction. What the censoring does
+reach is `raw_otsu_floor`, which is computed over a distribution carrying a
+donor-varying atom at zero — and the floor sets arm membership, hence the NNMF
+separator and the target anchor that every divisor rule is judged against.
+
+The specification is `docs/INTENSITY_SCALE.md`. Its governing rule is
+standardize the unit, never the distribution: anchors may be properties of the
+instrument or of the measurement's own censoring, never of the cell population.
