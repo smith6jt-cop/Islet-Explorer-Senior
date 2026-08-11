@@ -786,9 +786,9 @@ def _registration_rasters(
                   f"{exc}", flush=True)
     elif section_roi:
         print(f"[register] {donor}/{section_roi}: no qptiff for this section under "
-              f"{cfg.images_dir} — image track unavailable, using the point-set track only. "
-              f"(A donor-prefix match is deliberately NOT used here: it would hand a lymph "
-              f"node the pancreas image.)", flush=True)
+              f"{cfg.images_dir} — falling back to a cell-density raster for the PhenoCycler "
+              f"side. Another section's image is deliberately NOT substituted: it would "
+              f"align this section against a different piece of tissue.", flush=True)
 
     man = load_manifest(cfg)
     row = man[(man["donor_id"] == donor) & (man["roi"] == moving_table.roi)]

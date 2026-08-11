@@ -440,7 +440,10 @@ def find_qptiff(images_dir: Path, donor_id: str, roi: str = "") -> Optional[Path
     key; this is the same rule.
 
     Falls back to the donor-prefix glob only when the ROI is not given, for callers that
-    genuinely have just a donor.
+    genuinely have just a donor. When an ROI *is* given it is honoured strictly: an ROI with
+    no image, or one that names no section, returns ``None`` rather than another section's
+    file. The caller then registers on cell-density rasters, which is a weaker alignment but
+    an honest one.
     """
     images_dir = Path(images_dir)
     if not images_dir.exists():
@@ -453,15 +456,18 @@ def find_qptiff(images_dir: Path, donor_id: str, roi: str = "") -> Optional[Path
         try:
             want = section_key_for(str(donor_id), roi)
         except SectionError:
-            want = ""
-        if want:
-            for p in sorted(images_dir.glob("*.qptiff")):
-                if key_from_image(p.name) == want:
-                    return p
-            # The donor has images but none is this section's. Returning the pancreas here
-            # would silently misregister, so return nothing and let the caller fall back to
-            # the point-set track and say so.
+            # An ROI we cannot name a section for is not a licence to guess. Falling through
+            # to the donor-prefix glob here would reinstate exactly the "take the donor's
+            # first image" bug this parameter exists to prevent.
             return None
+        # A section key always starts with the donor's digits, so the donor prefix is a
+        # complete filter as well as a cheap one.
+        for p in sorted(images_dir.glob(f"{donor_id}*.qptiff")):
+            if key_from_image(p.name) == want:
+                return p
+        # The donor has images but none is this section's. Returning another section's
+        # would silently misregister against a different piece of tissue.
+        return None
 
     hits = sorted(images_dir.glob(f"{donor_id}*.qptiff"))
     if hits:

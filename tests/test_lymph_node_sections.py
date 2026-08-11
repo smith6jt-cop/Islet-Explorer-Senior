@@ -98,3 +98,17 @@ def test_the_donor_only_form_still_works_for_callers_without_an_roi(tmp_path):
     d = _images(tmp_path)
     assert find_qptiff(d, "6539") is not None
     assert find_qptiff(d, "9999", roi="panc") is None
+
+
+def test_an_roi_that_names_no_section_does_not_fall_back_to_the_donor_glob(tmp_path):
+    """Once an ROI is given it is honoured strictly.
+
+    An earlier version caught the `SectionError`, blanked the wanted key and fell through to
+    the `{donor}*` glob — which is the very "take the donor's first image" behaviour the roi
+    parameter exists to prevent. An unresolvable ROI must yield nothing, not the pancreas.
+    """
+    from phenocycler.integration.rasterize import find_qptiff
+
+    d = _images(tmp_path)
+    assert find_qptiff(d, "6539", roi="not_a_region") is None
+    assert find_qptiff(d, "6539", roi="spleen_2") is None

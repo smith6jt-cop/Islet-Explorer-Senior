@@ -89,11 +89,12 @@ jobs:
           python -c "
           import phenocycler
           from phenocycler import load_config
-          for m in ('artifacts', 'calibration_stage', 'cells_parquet', 'cohort', 'expression',
+          for m in ('artifacts', 'cells_parquet', 'cohort', 'expression',
                     'geometry_qc', 'geometry_stage', 'gpu', 'hierarchical_typing',
                     'marker_calibration', 'marker_registry', 'marker_taxonomy', 'parallel',
-                    'pipeline', 'qupath_export', 'qupath_manifest', 'redsea',
-                    'reference_controls', 'sections', 'state_markers', 'typing_stage'):
+                    'pipeline', 'production_typing', 'qupath_export', 'qupath_manifest',
+                    'redsea', 'reference_controls', 'restore_stage', 'restore_validation',
+                    'sections', 'simultaneous_typing', 'state_markers', 'typing_stage'):
               __import__(f'phenocycler.{m}')
           print('core modules import OK')
           "
