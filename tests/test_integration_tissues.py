@@ -110,13 +110,21 @@ def test_an_unknown_explicit_tissue_is_refused():
 # --------------------------------------------------------------------------- #
 
 def test_resolve_rois_covers_the_three_run_shapes(cfg):
-    """The user's requirement verbatim: usable separately and when combined."""
+    """The user's requirement verbatim: usable separately and when combined.
+
+    The lymph-node list is derived from ``max_pln`` rather than written out, because a
+    donor contributes as many nodes as were cut (1-4 in this cohort). Asserting a literal
+    three here is what previously made a fourth node unreachable.
+    """
+    pln = [f"pln_{i}" for i in range(1, cfg.max_pln + 1)]
     assert cfg.resolve_rois(None, ["pancreas"]) == ["panc"]
-    assert cfg.resolve_rois(None, ["pancreatic_lymph_node"]) == ["pln_1", "pln_2", "pln_3"]
+    assert cfg.resolve_rois(None, ["pancreatic_lymph_node"]) == pln
     # Combined is the default, so a bare run does not quietly leave the lymph nodes out.
-    assert cfg.resolve_rois(None, None) == ["panc", "pln_1", "pln_2", "pln_3"]
+    assert cfg.resolve_rois(None, None) == ["panc", *pln]
     # A single ROI is the escape hatch and beats the tissue selection.
     assert cfg.resolve_rois("pln_2", ["pancreas"]) == ["pln_2"]
+    # And the cohort really does go past three.
+    assert "pln_4" in cfg.resolve_rois(None, ["pancreatic_lymph_node"])
 
 
 def test_tissue_list_and_roi_mapping_round_trip(cfg):

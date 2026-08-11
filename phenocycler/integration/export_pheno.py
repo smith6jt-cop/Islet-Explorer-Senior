@@ -373,6 +373,13 @@ def _sections_in(cfg: PipelineConfig, wanted_rois: set, keep_donors: Optional[se
             print(f"[export_pheno] SKIPPING partition {key!r}: {exc}", flush=True)
             continue
         if wanted_rois and sec.roi not in wanted_rois:
+            # Loudly, not silently. A section on disk whose ROI is outside the configured
+            # enumeration is almost always a lymph node past `[integration] max_pln`, and
+            # dropping it here made it reappear downstream as "no registration produced" —
+            # an enumeration failure wearing a registration failure's clothes.
+            print(f"[export_pheno] SKIPPING section {sec.key!r}: roi {sec.roi!r} is outside "
+                  f"the configured scope {sorted(wanted_rois)}. If this is a real section, "
+                  f"raise [integration] max_pln (currently {cfg.max_pln}).", flush=True)
             continue
         if keep_donors and sec.donor_id not in keep_donors:
             continue

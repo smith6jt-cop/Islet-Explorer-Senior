@@ -114,10 +114,25 @@ def for_roi(roi: str) -> str:
     return ""
 
 
-def rois(tissue: str) -> tuple[str, ...]:
-    """Known ROI names for a tissue."""
+#: Lymph nodes per donor when the caller does not say. Every donor in this cohort has a
+#: pancreas and 1-4 nodes; `PipelineConfig.max_pln` is the configurable authority and passes
+#: its value in. Kept here as well so this module stands alone for callers without a config.
+DEFAULT_MAX_PLN = 4
+
+
+def rois(tissue: str, *, max_pln: int = DEFAULT_MAX_PLN) -> tuple[str, ...]:
+    """Known ROI names for a tissue: ``panc``, or ``pln_1..max_pln``.
+
+    The node count is a parameter because it describes the cohort, not the code. It bounds
+    only the *enumeration* used when nothing is on disk yet — `sections.parse` accepts any
+    index, so a `pln_5` partition is readable; it is the stages that must be told to look
+    for it, and they refuse it loudly rather than skipping it.
+    """
     t = normalize(tissue)
-    return ("panc",) if t == PANCREAS else ("pln_1", "pln_2", "pln_3")
+    if t == PANCREAS:
+        return ("panc",)
+    n = max(1, int(max_pln))
+    return tuple(f"pln_{i}" for i in range(1, n + 1))
 
 
 def structure_kinds(tissue: str) -> tuple[str, ...]:
