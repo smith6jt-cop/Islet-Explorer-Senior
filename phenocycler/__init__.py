@@ -1,4 +1,4 @@
-"""Donor-local RESTORE evidence and ordered residual Phenocycler typing."""
+"""Donor-local RESTORE evidence and simultaneous broad Phenocycler typing."""
 
 from .config import PipelineConfig, load_config
 from .marker_registry import MarkerRegistry, load_registry

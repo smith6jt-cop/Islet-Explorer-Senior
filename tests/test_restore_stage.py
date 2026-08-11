@@ -20,6 +20,16 @@ from phenocycler.restore_validation import (
     load_expression_reviews,
 )
 
+# The production policy, as shipped in config.ini. RestoreStageConfig has no
+# defaults for these two fields on purpose: their historical defaults were the
+# rejected p99 / Membrane+Cell settings, so a caller that omits them must fail
+# closed rather than silently revive them.
+PRODUCTION_POLICY = RestoreStageConfig(
+    divisor_statistic="p999",
+    feature_compartments=("Nucleus", "Cytoplasm", "Membrane"),
+)
+
+
 
 def test_production_restore_pairs_come_from_active_registry():
     pairs = production_pairs(load_registry())
@@ -211,6 +221,7 @@ def test_restore_evidence_drives_rules_typing_without_labels_or_model(monkeypatc
         donor_frame,
         donor_id="115",
         registry=registry,
+        config=PRODUCTION_POLICY,
         evaluator=evaluator,
     )
 
@@ -248,7 +259,11 @@ def test_pair_exception_becomes_unavailable_when_configured():
         donor_frame,
         donor_id="115",
         registry=registry,
-        config=RestoreStageConfig(on_technical_failure="unavailable"),
+        config=RestoreStageConfig(
+            divisor_statistic="p999",
+            feature_compartments=("Nucleus", "Cytoplasm", "Membrane"),
+            on_technical_failure="unavailable",
+        ),
         evaluator=broken,
     )
 

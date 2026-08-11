@@ -170,14 +170,17 @@ for _target, _reference in CANDIDATE_PAIRS:  # fail at import, not mid-screen
     if _target == _reference:
         raise ValueError(f"{_target} cannot be its own reference")
 del _target, _reference, _marker, _role
-# The Gate-2-FROZEN production pairs (maintainer sign-off 2026-07-24): one predeclared reference per
-# target under the reference>=target frequency rule. Identical to BASELINE_PAIRS except CD11b takes
-# EpCAM (a maintainer override of the marginal E_cadherin baseline; see
-# reference_selection.ACCEPTED_REFERENCE_OVERRIDES). E_cadherin<-CD31 is retained despite failing the
-# proportion because endothelium is the only biologically exclusive epithelial reference (advisory for
-# a structural target). Used by the Gate-3 full-cell pilot and Gate-5 all-donor validation.
-# Wired into production as of Gate 4 (2026-07-24): restore_apply.REQUIRED_TARGETS is derived from this
-# tuple and config.COMPARTMENT_GATES uses exactly these seven targets (tests/test_config.py:121).
+# The FROZEN production pairs (maintainer sign-off 2026-07-24): one predeclared reference per target
+# under the reference>=target frequency rule. Identical to BASELINE_PAIRS except CD11b takes EpCAM (a
+# maintainer override of the marginal E_cadherin baseline). E_cadherin<-CD31 is retained despite
+# failing the proportion because endothelium is the only biologically exclusive epithelial reference
+# (advisory for a structural target).
+#
+# This tuple is consumed by restore_stage.production_pairs, which cross-validates it against the
+# registry's active target/reference declarations and raises on drift. The modules that formerly
+# derived from it -- reference_selection.py and restore_apply.py -- were deleted in ac00c18 and no
+# longer exist; neither does config.COMPARTMENT_GATES. Broad-gate membership now lives in
+# phenocycler/broad_gates.json and is validated by simultaneous_typing.BroadGatePolicy.
 ACCEPTED_PAIRS: tuple[tuple[str, str], ...] = (
     # --- the original 7 (Gate-2 sign-off 2026-07-24) ---
     ("E_cadherin", "CD31"),
@@ -235,6 +238,16 @@ PAIR_SETS: dict[str, tuple[tuple[str, str], ...]] = {
     "all": CANDIDATE_PAIRS,
 }
 COMPARTMENTS: tuple[str, ...] = ("Nucleus", "Cytoplasm", "Membrane", "Cell")
+# HISTORICAL. This was the v10 feature basis, read from the QuPath compartment sample. Production
+# moved to REDSEA's own decomposition in 5883c0f -- config.ini ships
+# `feature_compartments = Nucleus,Cytoplasm,Membrane` -- because `Cell` is the sum of Nucleus and
+# Cytoplasm and contains the membrane band, so a rank-2 fit on Membrane+Cell reproduces its own input
+# to a relative error of 5e-5 (the manuscript's trivial solution W = Y, H = I).
+#
+# It survives only as the default of PairValidationConfig.feature_compartments, which exists so the
+# shipped v10 results stay reproducible. Production never relies on that default:
+# RestoreStageConfig.from_pipeline always passes the configured set explicitly. Do not treat this
+# tuple as the current basis.
 LOCKED_FEATURE_COMPARTMENTS: tuple[str, ...] = ("Membrane", "Cell")
 
 # How the target-negative control population is defined (see PairValidationConfig.control_definition).

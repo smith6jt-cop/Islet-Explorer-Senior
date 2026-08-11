@@ -59,9 +59,16 @@ CALLABLE_STATES = frozenset(
 class RestoreStageConfig:
     """Scientific policy for the production RESTORE application."""
 
+    # No defaults for the two scientific policy fields. Their historical defaults
+    # were `p99` and ("Membrane", "Cell"), both of which docs/METHOD_HISTORY.md
+    # records as measurably wrong -- p99 called 2.58x each pair's own anchor, and
+    # a rank-2 fit on Membrane+Cell reproduces its own input to 5e-5 because
+    # `Cell` is the sum of the others. A caller that forgets to pass them must
+    # fail closed rather than silently revive the rejected settings, so these are
+    # required. `from_pipeline` supplies them from config.ini.
+    divisor_statistic: str
+    feature_compartments: tuple[str, ...]
     control_definition: str = "reference_only"
-    divisor_statistic: str = "p99"
-    feature_compartments: tuple[str, ...] = ("Membrane", "Cell")
     on_technical_failure: str = "unavailable"
 
     def __post_init__(self) -> None:
@@ -438,7 +445,12 @@ def restore_marker_evidence(
     """Fit every production RESTORE pair and emit wide tri-state evidence."""
 
     donor = str(donor_id)
-    config = config or RestoreStageConfig()
+    if config is None:
+        raise ContractError(
+            "restore_marker_evidence requires an explicit RestoreStageConfig; "
+            "there is no safe default for divisor_statistic or "
+            "feature_compartments (see the class docstring)"
+        )
     pairs = production_pairs(registry)
     pair_config = config.pair_config()
     reviews = {} if expression_reviews is None else dict(expression_reviews)

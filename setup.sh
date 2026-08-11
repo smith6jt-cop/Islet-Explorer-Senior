@@ -37,13 +37,13 @@ from importlib.resources import files
 import phenocycler
 from phenocycler.hierarchical_typing import TypingRegistry
 from phenocycler.marker_registry import load_registry
-from phenocycler.ordered_residual_typing import load_ordered_residual_policy
 from phenocycler.pipeline import STAGE_ORDER
+from phenocycler.simultaneous_typing import load_broad_gate_policy
 
 package = files("phenocycler")
 for name in (
+    "broad_gates.json",
     "marker_registry.json",
-    "ordered_residual_rules.json",
     "restore_expression_reviews.csv",
     "typing_rules.json",
 ):
@@ -51,11 +51,11 @@ for name in (
     if not resource.is_file():
         raise SystemExit(f"missing installed package data: {name}")
 registry = load_registry()
-ordered = load_ordered_residual_policy(registry=registry)
+gates = load_broad_gate_policy(registry=registry)
 TypingRegistry.from_marker_registry(registry)
 print(f"  phenocycler {phenocycler.__version__}")
 print(f"  registry {registry.registry_version} ({len(registry.markers)} markers)")
-print(f"  typing {ordered.rules_version} ({' -> '.join(ordered.compartment_order)})")
+print(f"  typing {gates.rules_version} ({' | '.join(gates.compartments)})")
 print(f"  stages: {' -> '.join(STAGE_ORDER)}")
 PY
 

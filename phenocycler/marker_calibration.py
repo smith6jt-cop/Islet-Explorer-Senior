@@ -1,5 +1,15 @@
 """Donor-local, frequency-independent marker calibration.
 
+STATUS (2026-08-11): not on the production path, and NOT dead code.  This module
+was introduced in ac00c18 as the replacement for RESTORE's histogram-shape input
+floors, and was sidelined when RESTORE was reinstated wholesale in ec97cbc.  It
+holds the successor primitives that the floors are being retired in favour of --
+``empirical_upper_threshold`` (a finite-sample upper-tail ORDER STATISTIC at a
+per-marker alpha, which refuses rather than guesses when the control cannot
+resolve that tail), ``empirical_tail_probability``, the bootstrap threshold
+interval, and the contamination gate.  Do not delete it; see
+``docs/METHOD_HISTORY.md`` for what replaced what.
+
 The estimator intentionally has no mixture model and no target-positive
 population discovery.  Its only estimation population is an *explicit*
 reference-positive mask supplied by the caller for the marker's validated,

@@ -1,7 +1,6 @@
-"""Explicit donor-local reference-positive seeds for marker calibration.
+"""Explicit donor-local reference-positive seeds (pipeline stage ``controls``).
 
-This module supplies the input that ``marker_calibration`` deliberately refuses
-to infer.  For every distinct reference in the validated marker registry it
+For every distinct reference in the validated marker registry this module
 selects a fixed-size, high-rank seed set using only:
 
 * that reference marker's registry-selected intensity;
@@ -9,13 +8,28 @@ selects a fixed-size, high-rank seed set using only:
 * cell coordinates; and
 * stable object IDs.
 
-Selection is deterministic and target-independent.  There is no target value,
-target prevalence, phenotype annotation, mixture model, GMM, NNMF, or Otsu
-threshold in this API.  Candidate controls must have a finite positive
-reference measurement and finite coordinates.  Within each spatial tile,
-reference intensity determines rank and object ID breaks ties; selection then
-runs round-robin over tiles up to a versioned cap.  A donor/reference with
-fewer than the calibration minimum fails closed to an all-false mask.
+Selection is deterministic and target-independent.  **Within this module** there
+is no target value, target prevalence, phenotype annotation, mixture model, GMM,
+NNMF, or Otsu threshold -- this is a statement about this API's own inputs, not a
+policy for the pipeline as a whole.  RESTORE, which is the production marker
+caller, does use an NNMF separator (see ``restore_validation``); do not read the
+sentence above as forbidding it.
+
+Candidate controls must have a finite positive reference measurement and finite
+coordinates.  Within each spatial tile, reference intensity determines rank and
+object ID breaks ties; selection then runs round-robin over tiles up to a
+versioned cap.  A donor/reference with fewer than the configured minimum fails
+closed to an all-false mask.
+
+WHO CONSUMES THIS TODAY: nothing.  ``STAGE_DEPENDENCIES["calibrate"]`` declares
+``controls`` as a dependency and the stage's output is fingerprinted into the
+calibrate manifest, but ``restore_stage.restore_donor_from_paths`` reads only
+cells/, redsea/ and geometry_qc/, and re-derives its own reference population
+from raw input floors instead.  The pipeline therefore computes these seeds and
+discards them, leaving two different definitions of "reference-positive" in one
+workflow.  The original consumer was ``marker_calibration``, which was sidelined
+when RESTORE was reinstated in ec97cbc.  Wiring RESTORE onto these seeds is the
+intended fix; see ``docs/METHOD_HISTORY.md``.
 
 Externally supplied masks enter only through :func:`load_reference_masks`,
 which validates the same canonical long schema, registry provenance, object

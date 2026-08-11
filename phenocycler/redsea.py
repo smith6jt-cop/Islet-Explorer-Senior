@@ -681,10 +681,28 @@ def apply_spillover_context_eligibility(
 def write_corrected_compartments(cfg: PipelineConfig, donor, oids, cols, means, counts):
     """Write the compartment-resolved REDSEA means for one donor.
 
-    Schema: ``object_id, donor_id, {cell,band,nucleus,cytoplasm}_area_px`` then
-    ``{Nucleus,Cytoplasm,Membrane,Cell}__<marker>`` for every channel.  This is
-    the sole REDSEA dataset; a second whole-cell copy is intentionally not
-    written because ``Cell__<marker>`` already is that value."""
+    Schema, in this exact order: ``object_id, donor_id`` (string), then
+    ``cell_area_px, band_area_px, nucleus_area_px, cytoplasm_area_px`` (float64),
+    then ``{Nucleus,Cytoplasm,Membrane,Cell}__<marker>`` (float64) for every
+    marker in the registry, in registry order.  A registry marker absent from
+    this donor's qptiff gets an all-NaN column.  This is the sole REDSEA dataset;
+    a second whole-cell copy is intentionally not written because
+    ``Cell__<marker>`` already is that value.
+
+    The order and the float dtype are BINDING, not incidental:
+    ``recovery._expected_redsea_columns`` rebuilds this tuple and
+    ``validate_recovered_redsea_partition`` rejects any partition whose column
+    order differs or whose value columns are not floating point -- so a boolean
+    column added here fails recovery even if it is ordered correctly.  Update
+    both together, and note ``DATA_README.md`` documents this schema too.
+
+    The values are MEANS, each divided by its own compartment's area, and each
+    clamped at zero (see ``compensate_compartments``).  A stored ``0.0`` is
+    therefore a clamp -- "the correction drove this at or below zero" -- and not
+    a measurement of no signal; the signed pre-clip sum is not persisted here.
+    Because each compartment divides by its own count, ``Nucleus__X +
+    Cytoplasm__X != Cell__X`` for the stored columns; that conservation holds
+    only pre-clip and only in the sum domain."""
     keep = canonical_cell_mask(cfg, str(donor), oids)
     object_ids = np.asarray(oids, dtype=object)[keep]
     from .marker_registry import load_registry
