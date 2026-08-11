@@ -149,6 +149,12 @@ class PipelineConfig:
     tissue: str = "pancreas"                      # default for datasets that do not declare one
     tissues: str = "pancreas,pancreatic_lymph_node"   # comma-separated; the cohort's tissues
     pheno_tissue_dirs: str = ""
+    # How many lymph nodes a donor may contribute. Every donor in this cohort has a pancreas
+    # and 1-4 lymph nodes, each its own section, its own registration and its own row in the
+    # pairing manifest. This is only the enumeration used when nothing is on disk yet (the
+    # status table, and the fail-fast scope check); a node beyond it is REFUSED with a message
+    # naming this key, never dropped in silence. Raise it rather than renaming sections.
+    max_pln: int = 4
     fixed_modality: str = "phenocycler"           # which frame registration targets
     reg_pixel_um: float = 2.0                     # raster resolution for registration
     reg_nonrigid: bool = True
@@ -361,12 +367,20 @@ class PipelineConfig:
         return self.tissue
 
     def rois_for_tissue(self, tissue: str) -> list[str]:
-        """Known ROI names for a tissue. ``pln_1..3`` because one donor can have several."""
-        if tissue == "pancreatic_lymph_node":
-            return ["pln_1", "pln_2", "pln_3"]
-        if tissue == "pancreas":
-            return ["panc"]
-        return []
+        """Known ROI names for a tissue: ``panc``, or ``pln_1..max_pln``.
+
+        Delegates to :func:`phenocycler.integration.tissues.rois` so the enumeration has one
+        definition rather than two that drift. The lymph-node count comes from
+        :attr:`max_pln` because it is a property of the cohort, not of the code — a donor
+        contributes as many nodes as were cut.
+        """
+        from .integration.tissues import TissueError
+        from .integration.tissues import rois as tissue_rois
+
+        try:
+            return list(tissue_rois(tissue, max_pln=self.max_pln))
+        except TissueError:
+            return []
 
     def pheno_dir_for_tissue(self, tissue: str) -> Path:
         """The PhenoCycler core-pipeline data dir holding this tissue's donors.
@@ -494,6 +508,7 @@ _INI_SCHEMA = {
         "tissue": ("tissue", str),
         "tissues": ("tissues", str),
         "pheno_tissue_dirs": ("pheno_tissue_dirs", str),
+        "max_pln": ("max_pln", int),
         "fixed_modality": ("fixed_modality", str),
         "reg_pixel_um": ("reg_pixel_um", float),
         "reg_nonrigid": ("reg_nonrigid", _boolean),

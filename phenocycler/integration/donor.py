@@ -245,7 +245,16 @@ def run_donor(
     wanted_rois = set(cfg.resolve_rois(roi, [tissue] if tissue else None))
     pheno_parts = set(discover_partitions(cfg.cells_pheno_dir))
     xen_parts = set(discover_partitions(cfg.cells_xen_dir))
-    sections = sorted(p for p in (pheno_parts | xen_parts) if p[1] in wanted_rois)
+    discovered = sorted(pheno_parts | xen_parts)
+    sections = [p for p in discovered if p[1] in wanted_rois]
+    # This stage is the registration-free floor — the thing that keeps a donor in the
+    # analysis when everything spatial failed. Dropping a section here in silence defeats
+    # that, so say which ones and why.
+    for donor_key, dropped_roi in discovered:
+        if dropped_roi not in wanted_rois:
+            print(f"[donor] SKIPPING {donor_key}/{dropped_roi}: roi outside the configured "
+                  f"scope {sorted(wanted_rois)}. If this is a real section, raise "
+                  f"[integration] max_pln (currently {cfg.max_pln}).", flush=True)
     if donors:
         keep = {str(d) for d in donors}
         sections = [s for s in sections if s[0] in keep]

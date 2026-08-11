@@ -770,15 +770,25 @@ def _registration_rasters(
 
     images: dict[str, Optional[np.ndarray]] = {"phenocycler": None, "xenium": None}
 
-    qptiff = find_qptiff(cfg.images_dir, donor)
+    # Resolve the qptiff for THIS SECTION, not just this donor: a donor's pancreas and its
+    # lymph nodes are separate images, and for a lymph node this raster is the only
+    # registration track available (the point-set track needs islets to seed on).
+    section_roi = getattr(moving_table, "roi", "") or getattr(fixed_table, "roi", "")
+    qptiff = find_qptiff(cfg.images_dir, donor, roi=section_roi)
     if qptiff is not None:
         try:
             img, um = read_qptiff_channel(qptiff, channel=0, target_um=cfg.reg_pixel_um)
             images["phenocycler"] = image_to_grid(img, um, grid)
-            print(f"[register] donor {donor}: PhenoCycler DAPI from {qptiff.name} "
-                  f"({um:.2f} um/px)", flush=True)
+            print(f"[register] {donor}/{section_roi or '?'}: PhenoCycler DAPI from "
+                  f"{qptiff.name} ({um:.2f} um/px)", flush=True)
         except Exception as exc:  # noqa: BLE001
-            print(f"[register] donor {donor}: could not read {qptiff.name}: {exc}", flush=True)
+            print(f"[register] {donor}/{section_roi or '?'}: could not read {qptiff.name}: "
+                  f"{exc}", flush=True)
+    elif section_roi:
+        print(f"[register] {donor}/{section_roi}: no qptiff for this section under "
+              f"{cfg.images_dir} — image track unavailable, using the point-set track only. "
+              f"(A donor-prefix match is deliberately NOT used here: it would hand a lymph "
+              f"node the pancreas image.)", flush=True)
 
     man = load_manifest(cfg)
     row = man[(man["donor_id"] == donor) & (man["roi"] == moving_table.roi)]

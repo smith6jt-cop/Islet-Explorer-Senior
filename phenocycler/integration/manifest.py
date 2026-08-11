@@ -482,13 +482,36 @@ def build_manifest(
     if xenium_processed_root is not None and len(df):
         root = Path(xenium_processed_root)
         h5ads, zarrs = [], []
-        for serial in df["xenium_serial"]:
-            h = root / serial / f"{serial}_phenotyped.h5ad"
-            z = root.parent / "raw" / f"{serial}.zarr"
-            h5ads.append(str(h) if h.exists() else "")
-            zarrs.append(str(z) if z.exists() else "")
+        # Prefer a per-(serial, roi) file and only fall back to the serial-level one when
+        # the serial carries a single ROI. One slide serial can hold a pancreas region and
+        # several lymph-node regions — donor 6579's serial carries panc + three pLNs — so a
+        # serial-keyed lookup gave all four rows the same h5ad. Because `_resolve_source`
+        # prefers h5ad over the (correct, per-ROI) bundle, that silently imported one
+        # section's labels for four different pieces of tissue.
+        rois_per_serial = df.groupby("xenium_serial")["roi"].nunique().to_dict()
+        for serial, roi in zip(df["xenium_serial"], df["roi"]):
+            candidates = [
+                root / serial / f"{serial}__{roi}_phenotyped.h5ad",
+                root / serial / roi / f"{serial}_phenotyped.h5ad",
+            ]
+            if rois_per_serial.get(serial, 0) <= 1:
+                candidates.append(root / serial / f"{serial}_phenotyped.h5ad")
+            h = next((c for c in candidates if c.exists()), None)
+
+            z_candidates = [root.parent / "raw" / f"{serial}__{roi}.zarr"]
+            if rois_per_serial.get(serial, 0) <= 1:
+                z_candidates.append(root.parent / "raw" / f"{serial}.zarr")
+            z = next((c for c in z_candidates if c.exists()), None)
+
+            h5ads.append(str(h) if h is not None else "")
+            zarrs.append(str(z) if z is not None else "")
         df["xenium_h5ad"] = h5ads
         df["xenium_zarr"] = zarrs
+        ambiguous = sorted({s for s, n in rois_per_serial.items() if n > 1})
+        if ambiguous:
+            print(f"[manifest] serial(s) {ambiguous} carry several ROIs; used per-ROI "
+                  f"processed files only. Rows left blank fall back to their own "
+                  f"xenium_bundle, which is already per-ROI.", flush=True)
 
     # PhenoCycler-side paths + pairing status.
     xen_donors = {d for d in df["donor_id"] if d}
