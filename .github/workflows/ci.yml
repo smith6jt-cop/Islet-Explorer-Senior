@@ -112,10 +112,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # The vocabulary crosswalk is derived from the pinned XeniumPanelExplorer
-          # submodule, so the tests asserting crosswalk totality and the upstream-drift
-          # guard need it checked out. Both submodules are public.
-          submodules: recursive
+          # Submodules are fetched in a SEPARATE, non-fatal step below rather than here.
+          #
+          # `submodules: recursive` aborts the whole job on a clone failure, before a single
+          # test runs. XeniumPanelExplorer is private, and the default GITHUB_TOKEN is scoped
+          # to this repository only, so cloning it 404s ("Repository not found" — GitHub does
+          # not distinguish private-and-unauthorised from absent). The result was an eight
+          # second red job that said nothing about the code under test.
+
+      - name: Fetch the panel taxonomy submodule (non-fatal)
+        id: taxonomy
+        continue-on-error: true
+        # Give it credentials if they exist, so full coverage is one repository secret away:
+        # add a PAT or deploy key with read access to XeniumPanelExplorer as PANEL_EXPLORER_TOKEN
+        # (or make that repository public again, which is what it was when this job last ran
+        # green). Without either, this step fails, the crosswalk tests skip, and the next step
+        # says so loudly.
+        env:
+          TOKEN: ${{ secrets.PANEL_EXPLORER_TOKEN }}
+        run: |
+          if [ -n "${TOKEN}" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+          git submodule update --init --recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -131,11 +150,32 @@ jobs:
         # importorskip, so a missing geopandas would skip them and still report green.
         run: python -c "import geopandas, shapely; print('geo ok', geopandas.__version__)"
 
-      - name: Panel taxonomy is actually present
-        # The crosswalk tests skip gracefully when the submodule is missing (right behaviour
-        # for a local checkout), which means a silent submodule failure would look identical
-        # to a pass. Assert it is there so CI cannot quietly stop testing the crosswalk.
-        run: test -f external/XeniumPanelExplorer/data/panel_roles.csv
+      - name: Panel taxonomy — present, or visibly absent
+        # The crosswalk tests skip gracefully when the taxonomy is missing (right behaviour
+        # for a local checkout), so a silent submodule failure used to look exactly like a
+        # pass. This step still refuses to let that happen — but it now distinguishes the two
+        # ways it can be missing, because they call for different responses:
+        #
+        #   * checkout could not reach the repository at all -> an access problem outside this
+        #     repo (see the fetch step). Warn loudly, in the run summary and the annotations,
+        #     and let the remaining ~750 tests run rather than reporting red for a reason no
+        #     change here can fix.
+        #   * checkout succeeded but the file is missing or partial -> the submodule really is
+        #     broken, which is the case the original hard assertion existed for. Still fatal.
+        run: |
+          if [ -f external/XeniumPanelExplorer/data/panel_roles.csv ]; then
+            echo "panel taxonomy present — crosswalk tests will run"
+          elif [ "${{ steps.taxonomy.outcome }}" = "failure" ]; then
+            echo "::warning title=Panel taxonomy unavailable::Could not clone \
+            external/XeniumPanelExplorer (it is private and no PANEL_EXPLORER_TOKEN secret is \
+            set), so the PhenoCycler<->Xenium crosswalk tests are SKIPPED, not passing. Make \
+            that repository public again, or add a read-scoped PAT/deploy key as \
+            PANEL_EXPLORER_TOKEN, to restore that coverage."
+          else
+            echo "Submodule checked out but data/panel_roles.csv is missing — the taxonomy is" >&2
+            echo "incomplete, which the crosswalk tests would silently skip past." >&2
+            exit 1
+          fi
 
       - name: Full suite
         # -rs lists skip reasons, so anything that does stop running is visible in the log.
