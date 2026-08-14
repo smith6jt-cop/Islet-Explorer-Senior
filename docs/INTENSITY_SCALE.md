@@ -1,5 +1,12 @@
 # The intensity scale: what zero and maximum mean
 
+> **Superseded development note (2026-08-13):** this document records
+> measurements and design reasoning from the retired RESTORE/Otsu work. It is
+> not a current thresholding specification or production plan. There are no
+> verified production pairs; ordinary execution stops after expression. The
+> only active pairwise work is the two-comparison, rank-only upstream review
+> in `scripts/review/README.md`.
+
 Status: **measured, specified, not yet implemented.** Evidence is in
 `data/pilots/acquisition_by_biomarker.parquet` and the pixel measurements below.
 

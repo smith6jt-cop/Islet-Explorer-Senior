@@ -1,381 +1,171 @@
-# Running this on HiPerGator — setup and the basic analyses
+# Running the current upstream workflow on HiPerGator
 
-A working outline for the 20-donor cohort: PhenoCycler protein and Xenium 5K RNA, pancreas
-and pancreatic lymph node, on UF Research Computing.
+This guide covers the presently supported PhenoCycler path on UF Research
+Computing.
 
-Commands are the real ones (checked against `argparse`); paths are the real ones (checked
-against `PipelineConfig`). Where a number is yours to supply rather than the repo's, it says so.
+> **Current boundary:** no production target/reference pairs are verified.
+> Ordinary execution stops after `expression`. Do not schedule `controls`,
+> `calibrate`, `type`, or assignment export. The pair-independent `states`
+> stage is explicit-only. Historical RESTORE,
+> probabilistic, marker-debug, and Otsu commands are not cluster workflows.
 
-> **RESTORE is the production marker-calling method.** The content-addressed
-> workflow retains its immutable `calibrate` stage key, but that stage now runs
-> the validated RESTORE v10 pair fit and emits tri-state marker evidence. The
-> intervening donor-calibration replacement was not an intended migration.
+## Supported stage graph
 
----
-
-## The shape of it
-
-```
-OFF-CLUSTER                       ON HIPERGATOR  (one job, eight stages)
-────────────                      ─────────────────────────────────────
-QuPath segmentation               ingest      QuPath CSV  -> cells/
-  ├─ CellMeasurements.csv ──┐     geometry    segmentation QC
-  ├─ cells__<image>.geojson ├───▶ redsea      lateral spillover compensation
-  └─ <image>.qptiff ────────┘     expression  measurable-marker selection
-                                  controls    retained reference-control diagnostics
-Xenium runs ──────────┐           calibrate   RESTORE pair fit       -> marker_evidence/
-  └─ output bundles   │           type        simultaneous broad typing -> assignments/
-                      │           states      process states         -> cell_states/
-                      │                            │
-                      └──────────▶ integration  ◀──┘   (second conda env, see Phase 5)
+```text
+QuPath measurement CSV + geometry + qptiff
+  -> ingest
+  -> geometry
+  -> redsea
+  -> expression
 ```
 
-Everything upstream of `ingest` is declared **once** in a cohort manifest
-(`data/qupath_manifest.json`). There is no per-stage script chain, no array range and no
-hand-maintained donor count: the manifest is the donor set, and stage manifests carry
-restart/current-state logic.
+The cohort and stage manifests remain content addressed. Donor receipts allow
+geometry, REDSEA, and expression work to overlap while preserving the same
+cohort-level completion checks.
 
-Two units matter and are easy to confuse:
+## Install
 
-- **Section** — one image, one GeoJSON, one coordinate frame. `6539` (pancreas) and `6539pln`
-  (lymph node) are *two* sections. `cfg.discover_sections()` returns these.
-- **Donor** — `6539`. `cfg.discover_donors()` parses section keys to donor ids, dedupes, and
-  drops the cohort exclusions. This is what joins to metadata and to the Xenium manifest.
-
-**Cohort exclusions are fail-closed** (`phenocycler/cohort.py`). Two donors are hard-excluded
-and `ensure_eligible_donors` *raises* if either appears:
-
-| donor | reason |
-|---|---|
-| `6457` | poor DAPI staining prevented accurate PhenoCycler channel registration |
-| `6579` | pancreatitis outlier; excluded by maintainer decision |
-
-That is not a filter you can pass around — it is enforced at discovery and again at stage
-entry, so a run cannot quietly include them.
-
-> ⚠️ **A known cohort constraint.** `artifacts._validate_cohort_images` requires **exactly one
-> image per donor**. A donor with both a pancreas and a lymph-node section is therefore not
-> yet representable in the manifest. Until `QuPathImageManifest` grows a section/ROI field,
-> the pancreas and pLN halves must be built as **separate cohort manifests and separate
-> runs**. Doing that field properly changes `content_id` and hence every `run_id`, so land it
-> before a production run rather than after.
-
----
-
-## Phase 0 — what happens off-cluster
-
-Neither of these can be done from a SLURM job.
-
-**0.1 QuPath, per image.** Segment, then export:
-- the per-cell measurement table (`CellMeasurements.csv`);
-- full-resolution boundaries → `cells__<image>.geojson`, via
-  `scripts/groovy/export_cells_geojson.groovy`;
-- optionally nucleus boundaries, if you want the nuclear/cytoplasmic geometry QC.
-
-Edit the Groovy script's output folder first — it hardcodes `~/Phenocycler_Analysis/data/...`,
-which is not where your data will live on HiPerGator.
-
-You will need, per image, the **exact** QuPath `Image` column value and the pixel size. Both
-go in the manifest verbatim; the manifest fingerprints every input file, so a renamed or
-re-exported file is detected rather than silently used.
-
-**0.2 Xenium bundles.** You need the output bundle per run (`cells.parquet`,
-`cell_boundaries.parquet`, transcripts) — the polygons ship there and *not* in the zarr or a
-slimmed h5ad. Note where any phenotyped h5ads from `Xenium_Analysis` live; Phase 5 needs that
-`data/processed` root.
-
----
-
-## Phase 1 — one-time setup
+From a login node:
 
 ```bash
-git clone --recurse-submodules https://github.com/smith6jt-cop/Phenocycler_Analysis.git
-cd Phenocycler_Analysis
-bash setup.sh                    # submodules + conda env + editable install + verification
+git clone <repository-url> Islet-Explorer-Senior
+cd Islet-Explorer-Senior/Phenocycler_Analysis
+bash setup.sh
 conda activate phenocycler-analysis
 ```
 
-`setup.sh` initialises submodules, creates/updates the env from `environment.yml`, runs
-`pip install -e '.[test]'`, and then verifies that the packaged marker registry,
-broad gate rules, and optional probabilistic rules are installed and
-that the registry/rule contract loads. If that verification fails, stop
-— nothing downstream will work.
+`setup.sh` installs the package and verifies the marker registry plus current
+stage surface. It does not validate typing rules or RESTORE assets.
 
-RESTORE no longer requires the historical external submodule or `spams`; the
-validated v10 implementation is self-contained in `restore_validation.py` and
-uses scikit-learn NMF. `external/XeniumPanelExplorer` remains the vendored
-dependency used by the integration crosswalk.
+Keep environments and small source files on backed-up project storage. Put
+large qptiffs, measurement exports, geometry, and run outputs on the project
+filesystem appropriate for the allocation; do not copy them into Git.
 
-**Put the data somewhere with room.** `config.ini` ships `data_dir = data`, i.e. inside the
-repo, which on HiPerGator means your home quota:
+## Declare the cohort
+
+Create and edit the small specification:
 
 ```bash
-export PHENOCYCLER_DATA_DIR=/blue/<group>/<user>/phenocycler/data
-export PHENOCYCLER_QUPATH_MANIFEST=/blue/<group>/<user>/phenocycler/qupath_manifest.json
-export TMPDIR=/blue/<group>/<user>/tmp      # DuckDB spills here during ingest
+phenocycler manifest template --out cohort-spec.json
 ```
 
-Conda envs default to `~/.conda/envs`, also on the home quota; `conda config --add envs_dirs
-/blue/<group>/<user>/envs` first if that is tight.
-
-Budget: the QuPath CSV is large (~138 GB for the full cohort), the parquet output is tens of
-GB, and REDSEA scratch (masks + intermediates) adds more per section.
-
----
-
-## Phase 2 — build the cohort manifest
-
-This replaces "edit `[paths]` and hope". The manifest is the contract: donor set, exact image
-ids, and a fingerprint of every input file.
+Then build the fingerprinted cohort manifest:
 
 ```bash
-phenocycler manifest template --out data/qupath_manifest_spec.json
-# edit the spec: expected_donors, and one entry per image
-phenocycler manifest create --spec data/qupath_manifest_spec.json \
-                            --out  data/qupath_manifest.json
+phenocycler manifest create \
+  --spec cohort-spec.json \
+  --out data/qupath_manifest.json
 ```
 
-Spec fields per image: `donor_id`, `image_id` (the exact QuPath `Image` value), `qptiff`,
-`cell_geojson`, optional `nucleus_geojson`, `pixel_size_um_x/y`, `panel_id`, optional
-`channel_map`. `defaults` carries the shared `measurement_csv` and a `segmentation_version`
-string — record the QuPath project commit or model version there; it is part of the run's
-identity.
+Use absolute cluster paths in the specification when inputs are outside the
+repository. The manifest, not a Slurm array range or filename convention, owns
+the donor and image set.
 
-`expected_donors` is checked against the images, so a donor you meant to include but forgot to
-add an image for is an error, not a silently smaller cohort. Remember the exclusions above:
-listing `6457` or `6579` will raise.
+Donors 6457 and 6579 are centrally excluded and make manifest resolution fail.
+Do not bypass those exclusions in a submission script.
 
----
+## Configure resources
 
-## Phase 3 — smoke test before committing to the queue
+The active scientific settings are cohort, geometry, marker-source, and REDSEA
+contracts. Operational concurrency is controlled by:
 
-All of this runs on a login or dev node in minutes.
+```ini
+[compute]
+n_jobs = 4
+geometry_workers = 2
+redsea_workers = 1
+downstream_workers = 4
+use_gpu = false
+gpu_device = 0
+```
+
+`n_jobs` is the total task ceiling. Geometry, REDSEA, and expression use their
+group limits within it. If GPU REDSEA is enabled, keep one REDSEA task per GPU.
+
+No `[restore]` or `[typing]` setting authorizes production work in the current
+workflow.
+
+## Submit
+
+The provided launcher invokes the ordinary pipeline command:
 
 ```bash
-pytest tests/ -q                                     # ~15 s, fully synthetic, no data needed
-python -m phenocycler.pipeline status                # no manifest yet -> tells you so, exits 0
-python -m phenocycler.integration.pipeline --status
-python -m phenocycler.integration.manifest --report  # donor <-> Xenium pairing table
-
-python -c "from phenocycler.marker_registry import load_registry
-r = load_registry(); print(r.registry_version, len(r.markers), 'markers')"
+sbatch \
+  --account=<account> \
+  --qos=<qos> \
+  --cpus-per-task=8 \
+  --mem=120G \
+  --time=2-00:00:00 \
+  scripts/slurm/run_full_pipeline.sh config.ini
 ```
 
-Once the manifest exists, `status` becomes the real thing: per-stage `CURRENT` / `STALE`, with
-the reason a stage is stale. Run it before and after every job.
-
-Then time one stage on real data before sizing the job:
+Despite the historical filename, the launcher now follows the current stage
+surface and stops after expression. The equivalent interactive command is:
 
 ```bash
-/usr/bin/time -v python -m phenocycler.pipeline run --only ingest 2>&1 | tee logs/smoke.log
+python -m phenocycler.pipeline run \
+  --config config.ini \
+  --pipelined \
+  --through expression
 ```
 
-Read wall time and peak RSS out of that log. REDSEA's peak is driven by your image dimensions
-(a full-resolution `int32` mask plus the distance transform's float64 + 2×int64 arrays over the
-same `(H, W)`), so print one section's shape before believing any memory number.
+Do not append `--through calibrate`, `--only type`, `--no-export`, or a later
+export command.
 
----
+## Monitor and resume
 
-## Phase 4 — run it
-
-One job. Resource policy goes on the submission command, not in the script:
+Check the content-backed state rather than inferring success from a directory:
 
 ```bash
-sbatch --account=<account> --qos=<qos> --cpus-per-task=8 --mem=120G \
-       --time=2-00:00:00 scripts/slurm/run_full_pipeline.sh config.ini
+python -m phenocycler.pipeline status --config config.ini
 ```
 
-The script `cd`s to the repo root, reads `PHENOCYCLER_JOBS` or `SLURM_CPUS_PER_TASK`, and
-`exec`s `python -m phenocycler.pipeline run`. It does **not** activate conda — do that in your
-submission wrapper, or use `conda run -n phenocycler-analysis`.
+Expected current stages are:
 
-### The eight stages
+```text
+ingest
+geometry
+redsea
+expression
+```
 
-| stage | writes | what it does |
-|---|---|---|
-| `ingest` | `cells/` | DuckDB: QuPath CSV → partitioned parquet, area floor applied |
-| `geometry` | `geometry_qc/` | segmentation QC — area, solidity, raster/polygon agreement, duplicates |
-| `redsea` | `redsea/` | lateral spillover compensation (`comp_mode=1`, `norm_form=donor`) |
-| `expression` | `expression/` | which markers are measurable per donor |
-| `controls` | `reference_controls/` | retained reference-control diagnostics (not RESTORE calls) |
-| `calibrate` | `marker_evidence/` | RESTORE donor × target/reference fit → tri-state evidence |
-| `type` | `assignments/` | simultaneous broad typing → broad identity |
-| `states` | `cell_states/` | process states, kept separate from identity |
+Adoption, resume, and recovery may reuse only validated upstream artifacts.
+Historical controls, marker evidence, assignments, state calls, and QuPath
+exports must not be linked into the current run.
 
-Plus `qupath_export/` (UUID-keyed CSVs for round-trip), `audit/` (the models themselves) and
-`manifests/` (immutable stage contracts).
+If a job stops, rerun the same command. Current manifests and donor receipts are
+validated before reuse; a non-empty partition without its valid receipt fails
+closed.
 
-Useful subsets:
+## Development diagnostics
+
+The current pairwise review is deliberately outside `data/runs/` and uses only
+two upstream comparisons:
+
+- raw CD3e versus raw Ker8_18;
+- exact QuPath `Iba1_norm` versus raw Ker8_18.
+
+CD79a is excluded as a pair candidate because its expression is too sparse in
+normal tissue.
+
+Refresh the narrow QuPath projection and run the rank-only overlap audit:
 
 ```bash
-python -m phenocycler.pipeline run --through calibrate   # dependency prefix
-python -m phenocycler.pipeline run --only type states    # prerequisites must be current
-python -m phenocycler.pipeline run --no-export           # skip the QuPath handoff
-python -m phenocycler.pipeline export                    # export a current result later
+python scripts/review/qupath_fundamental_inputs.py \
+  --donors 6436 6450 6566
+
+python scripts/review/reference_overlap_audit.py \
+  --donors 6436 6450 6566
 ```
 
-Runs are **content-addressed**: `run_id` hashes the cohort manifest, the marker registry, the
-broad gate rules, the scientific configuration and the source tree. Change any of them and you get
-a new run rather than a silently mixed one. That also means a code change — including this
-merge — changes every `run_id`.
+These outputs are mutable development artifacts. They create no divisor,
+positive call, cell type, stage manifest, or production claim. The mixed
+Iba1/Ker8_18 comparison is evaluated by donor-local ranks, never by a shared
+numeric threshold.
 
-### Reading the result
+## Integration boundary
 
-`status` is the check, not the job's exit code. A stage reports `STALE` with the reason when
-its inputs or method version moved.
-
-The important honesty in `assignments/`: a cell is **Unavailable** when geometry
-fails or a higher-priority gate cannot be evaluated. That is a real answer, not
-a negative and not permission to try a lower gate. `Other` is reserved for an
-explicitly all-negative marker profile.
-
----
-
-## Phase 4b — what "positive" now means
-
-RESTORE is donor-local. For each active target/reference pair, it fits the two
-mutually exclusive groups with NNMF over REDSEA's Nucleus/Cytoplasm/Membrane
-compartment decomposition, which is emitted for every channel. The
-reference-positive/target-negative group defines the target background. The
-divisor statistic is set by `[restore] divisor_statistic` under
-`control_definition=reference_only`; which statistic is correct is an OPEN
-question -- see `docs/METHOD_HISTORY.md`.
-
-A measurable analysis-eligible cell is `positive` exactly when its REDSEA
-whole-cell target value is greater than that donor-marker divisor; it is
-`negative` at or below the divisor. A missing measurement, geometry exclusion,
-or technical pair failure is `unavailable`, never a negative fallback.
-
-RESTORE also stores `restore_normalized = REDSEA value / divisor`, the active
-reference, fit stability, control counts, feature set, and divisor in
-`audit/restore_pair_models.parquet`. Re-running one donor never changes another
-donor's fit.
-
-### The knobs, and where they live
-
-Marker behaviour is **data, not config**: `phenocycler/marker_registry.json` holds each
-marker's RESTORE reference, family, and activation status, and
-`phenocycler/broad_gates.json` holds the broad gate membership. Editing either changes `run_id`,
-which is the intended way to make a change traceable.
-
-`config.ini` `[restore]` records the frozen control definition, divisor
-statistic, feature compartments, technical-failure policy, and exhaustive raw
-compartment input. It also fingerprints the accepted donor 6566 INS
-`CONFIRMED_ABSENT` review in `restore_expression_reviews.csv`. `[redsea]` and
-`[geometry_qc]` hold their operator knobs.
-`redsea_norm_form` is **validated**: anything other than `donor` raises, because the
-mass-conserving form is what makes the compensation defensible.
-
-### The taxonomy
-
-The production type stage evaluates all five gates against the same evidence,
-with **no precedence between them**:
-
-| gate | positive markers |
-|---|---|
-| `Immune` | CD3e, CD68, CD79a, CD11c, Iba1, CD206, MPO, CD4, CD8 |
-| `Endothelial` | CD31, CD34, Podoplanin |
-| `Epithelial` | E_cadherin, Pan_Cytokeratin, Ker8_18, EpCAM, Keratin_5, INS, GCG |
-| `Neural` | B3TUBB |
-| `Mesenchymal` | Vimentin, SMA |
-
-Exactly one supported gate is an `anchor`. More than one is `Ambiguous`, with
-the competing gates recorded and no winner chosen. None supported, with every
-gate marker explicitly negative, is `Other`. An unmeasured gate marker leaves
-the cell `Unavailable`. Those four are deliberately distinct: `Other` means the
-evidence says no, `Ambiguous` means it says two things, `Unavailable` means it
-does not say.
-
-SST is not in the Epithelial gate — the registry declares it subtype-only. The
-predecessor visited gates in priority order and gave a multi-gate cell to the
-first one; on this cohort that moved the Immune fraction from 20.50% to 3.33%
-depending only on the order, which is why it was replaced. See
-`docs/METHOD_HISTORY.md`.
-
-This default is broad-only; compatibility-specific columns repeat the broad
-label. The probabilistic subtype implementation runs only when an exact signed
-bundle is explicitly configured.
-
-`docs/METHOD_HISTORY.md` records why the attempted migration was reversed, why
-the ordered residual hierarchy was *not* restored with it, and which later
-safety improvements were retained.
-
----
-
-## Phase 5 — integrating with Xenium
-
-Second environment, second orchestrator.
-
-```bash
-conda env create -f environment-integration.yml
-conda activate phenocycler_integration && pip install -e '.[integration]'
-
-python -m phenocycler.integration.manifest --report          # look before writing
-python -m phenocycler.integration.manifest --build \
-       --xenium-processed /path/to/Xenium_Analysis/data/processed
-```
-
-Build the manifest **yourself, first**. The `manifest` *stage* inside the integration pipeline
-runs without `--xenium-processed`, so `xenium_h5ad`/`xenium_zarr` stay blank and
-`import_xenium` falls back to the raw bundle — coordinates and morphology, **no cell-type
-labels**. The run completes, the crosswalk is empty, and donor concordance compares nothing.
-
-Two data-entry prerequisites the report will show you: `donor_overrides.csv` has two rows with
-a blank `donor_id`, and `xenium_paths.csv` carries absolute `/orange/brusko/...` paths for 26
-donors of which your cohort is 20 (set `[integration] xenium_root` to rewrite the prefix).
-
-```bash
-sbatch scripts/slurm/06_integration.sh                 # whole cohort, both tissues
-ROI=pln_2 sbatch scripts/slurm/06_integration.sh       # one ROI
-```
-
-Read `data/integration/qc/integration_report.txt`, not the exit code: **PASS** = tissue Dice
-≥ 0.80 and islet RMSE ≤ 150 µm; **WARN** = one gate; **FAIL** = neither. For lymph node, islet
-RMSE is dropped from the decision rather than counted as a failure, since there are no islets
-to measure against — and `structures`, `match` and `cellmatch` correctly report `n/a` there.
-
-> ⚠️ **The PhenoCycler side of the integration is stale.** `export_pheno` still reads the
-> retired `phenotype/broad/` and `restore_gated_redsea/` layout and has **not** been repointed
-> at `assignments/` + `marker_evidence/`. The vocabulary crosswalk is likewise built against
-> the old 7-class scheme. The config surface those 22 modules need is preserved so the package
-> imports and the suite passes, but treat PhenoCycler→Xenium results as pending that rewire.
-> The Xenium half is unaffected.
-
----
-
-## Migrating an existing checkout
-
-For the failed content-addressed run `c8412757d12de36ca056`, do not rebuild the
-148 GB ingest. Use `pipeline adopt plan/apply` as shown in
-`REFINEMENT_WORKFLOW.md`: the reviewed policy adopts ingest through controls
-and the independent state stage, then recomputes RESTORE (`calibrate`), typing,
-and QuPath export in a new run.
-
-For a pre-manifest legacy checkout, build the cohort manifest first. Historical
-RESTORE calls remain useful audit evidence but are not copied into a new run;
-the new run refits RESTORE from fingerprinted raw compartments and REDSEA.
-
----
-
-## Appendix — silent-failure checklist
-
-```bash
-# 1. Every donor in the manifest actually produced output
-python -m phenocycler.pipeline status
-
-# 2. Every donor x marker has an explicit RESTORE state and divisor disposition
-ls "$PHENOCYCLER_DATA_DIR"/audit/restore_pair_models.parquet
-
-# 3. Xenium arrived with labels, not coordinates only
-grep -i "importing coordinates only\|donor_unknown" logs/integration_*.out
-
-# 4. Registration verdicts, not the job exit code
-cat "$PHENOCYCLER_DATA_DIR"/integration/qc/integration_report.txt
-
-# 5. Crossmodal did not silently lose its anchors
-grep -i "anchor" logs/integration_*.out
-```
-
-`crossmodal` refuses below `crossmodal_min_anchors = 8` verified protein↔gene anchors, and the
-usable set is thinner than the 46 nominal 1:1 pairs because INS, GCG, SST and Vimentin are off
-the Xenium panel. Lowering that number is a scientific concession, not a workaround.
+The Xenium integration environment and its data caveats remain documented in
+[`INTEGRATION.md`](INTEGRATION.md). The current upstream PhenoCycler workflow
+does not produce assignments for integration. Do not use a historical
+`restore_gated_redsea` or phenotype directory as a substitute.

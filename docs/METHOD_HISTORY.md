@@ -1,48 +1,66 @@
 # Method history
 
+> **Superseded current-state notice (2026-08-13):** this file records historical
+> method decisions; it does not describe the active workflow. There are now no
+> verified production target/reference pairs. Ordinary execution stops after
+> expression, and pair-dependent controls, calibration, typing, and assignment
+> export are blocked. Pair-independent state calling remains explicit-only.
+> The only active pairwise review is the
+> mutable two-comparison upstream QuPath diagnostic documented in
+> `scripts/review/README.md`.
+
 This file was `MIGRATION_RESTORE_TO_CALIBRATION.md`, describing a migration that
 was later reversed in place — so the filename had come to contradict its own
 contents. It is renamed and records both directions.
 
-## RESTORE was replaced, then restored
+## RESTORE was replaced, then restored (historical)
 
-The RESTORE-to-calibration migration was a mistake: RESTORE was replaced
-by donor-marker calibration even though it was intended to remain the
-production phenotyping method. RESTORE is now restored as the producer behind
-the immutable `calibrate` stage key.
+At that point, the RESTORE-to-calibration migration was judged a mistake:
+RESTORE had been replaced by donor-marker calibration even though it was
+intended to remain the production phenotyping method. RESTORE was consequently
+restored as the producer behind the immutable `calibrate` stage key. That
+historical restoration is not an active workflow now.
 
-The stage name was not changed because existing content-addressed manifests,
+The stage name was not changed then because existing content-addressed manifests,
 donor receipts, adoption plans, and the optional probabilistic interface refer
 to `calibrate`. The method version and run identity now make its actual meaning
 unambiguous:
 
 ```text
 calibrate stage key
-  -> restore-marker-evidence-v2+restore-pair-validation-v11
+  -> restore-marker-evidence-v4-selected-inputs
+     + restore-reference-seeded-v2-selected-inputs
   -> marker_evidence/ (tri-state calls + RESTORE normalized values)
   -> audit/restore_pair_models.parquet
 ```
 
-The donor-calibration modules remain in the repository as historical and test
-code, but the production pipeline does not call them.
+The donor-calibration modules remained in the repository as historical and
+test code, but that production pipeline did not call them.
 
-## Preserved improvements
+## Improvements preserved by that historical restoration
 
-Restoring RESTORE does not discard later provenance and safety work:
+Restoring RESTORE did not discard the later provenance and safety work:
 
-- immutable cohort/run/stage manifests and donor receipts remain authoritative;
-- geometry-QC-ineligible cells stay in the object universe but cannot estimate
+- immutable cohort/run/stage manifests and donor receipts remained authoritative;
+- geometry-QC-ineligible cells stayed in the object universe but could not estimate
   a RESTORE model or receive a marker call;
-- REDSEA compartment outputs remain the corrected source for divisors/calls;
-- the active pair list must exactly match the accepted RESTORE v10 pair web;
-- the reviewed `CD11b <- EpCAM` pair is restored, replacing the later
-  unvalidated `CD11b <- E_cadherin` change;
-- technical pair failures are `unavailable`, never silently negative;
-- simultaneous broad typing is the label-free production default; the ordered
+- the marker registry declared a measurement source separately from spillover
+  policy: Iba1, CD68, and M2Gal3 use exact signed QuPath `Mean (norm)` fields,
+  while other active markers retain their declared REDSEA source;
+- signed QuPath norm values remained unchanged through ingest/expression and were
+  left-censored only at RESTORE's nonnegative boundary, with the transform and
+  counts audited;
+- missing QuPath norm fields failed closed; raw, REDSEA, and
+  RESTORE-normalized values cannot substitute;
+- the then-active pair list had to match its versioned registry;
+- CD11b is assay-QC-only with no RESTORE pair or typing role;
+- M2Gal3 was ingested/selected from QuPath norm but deferred until a reference
+  is validated;
+- technical pair failures were `unavailable`, never silently negative;
+- simultaneous broad typing was the label-free production default; the ordered
   residual hierarchy was NOT restored (see the section below), and the
-  parent-constrained probabilistic path remains an explicit signed-bundle
-  option;
-- old valid upstream stages can be adopted without recomputation.
+  parent-constrained probabilistic path was an explicit signed-bundle option;
+- old valid upstream stages could be adopted without recomputation.
 
 ## What to compare
 
@@ -51,10 +69,11 @@ not a source of labels. Its upstream image/geometry/REDSEA artifacts can be
 adopted, but its marker evidence, assignments, and QuPath export must be
 recomputed.
 
-Use [REFINEMENT_WORKFLOW.md](REFINEMENT_WORKFLOW.md) for the error-resolution
-loop. The essential distinction is that QuPath review identifies a failing
-marker or rule; RESTORE refits donor-local thresholds automatically. Review
-examples are regression tests, not an object-classifier training package.
+The then-current [REFINEMENT_WORKFLOW.md](REFINEMENT_WORKFLOW.md) described the
+error-resolution loop. Its essential distinction was that QuPath review
+identified a failing marker or rule while RESTORE refit donor-local thresholds
+automatically. That file now documents the replacement development-only review
+boundary.
 
 ## The ordered residual lineage was NOT restored
 
@@ -72,12 +91,18 @@ Epithelial calls.
 
 The study question is the immune environment around islets across disease
 progression, so the ordering was setting the headline number rather than the
-evidence. `simultaneous_typing.py` and `broad_gates.json` replace
+evidence. `simultaneous_typing.py` and `broad_gates.json` replaced
 `ordered_residual_typing.py` and `ordered_residual_rules.json`; the history is
 at commit `ec97cbc`. See `WORKFLOW.md` § "Stage 7".
 
 ## Later corrections
 
+- `restore-marker-evidence-v4-selected-inputs` separates a marker's
+  `measurement_source` from its spillover policy, routes Iba1/CD68/M2Gal3 to
+  exact QuPath `Mean (norm)` measurements, and renames evidence to the
+  source-generic `<marker>__selected_intensity`. Finite signed negatives are
+  preserved upstream and audited as `qupath_norm_left_censor_zero` only at the
+  RESTORE boundary; M2Gal3 was deferred.
 - `restore-marker-evidence-v2`: a reviewed absence of target expression no
   longer writes `negative` over cells that were never measured.
 - `restore-pair-validation-v11`: `divisor_reproducibility` is NaN, not 1.0, when
@@ -88,13 +113,18 @@ at commit `ec97cbc`. See `WORKFLOW.md` § "Stage 7".
   `hierarchical_typing.SUBTYPE_ONLY_MARKERS` forbids it as broad evidence; the
   ordered policy validated only the marker set, so nothing caught it.
 
-## The divisor statistic is an OPEN question (measured 2026-08-10)
+## Historical divisor-statistic question (measured 2026-08-10; superseded)
 
-Do not treat any `[restore] divisor_statistic` value as settled. It was frozen
+This section records the evidence that rejected a single fixed `p999` rule.
+The evaluator at that historical point used the registry-allocated finite-sample
+`empirical_alpha` tail of the seeded control; the statistics below remain
+historical comparisons, not production choices.
+
+At the time, no `[restore] divisor_statistic` value was settled. It was frozen
 to `p999` on 2026-08-10 (`4619bdf`) on cohort-median evidence. A per-pair
 measurement on donors 6436, 6450 and 6566 — 72 donor-marker pairs, run through
-the production `evaluate_locked_pair` — shows that no fixed statistic works for
-every marker and donor.
+the then-production `evaluate_locked_pair` — showed that no fixed statistic
+worked for every marker and donor.
 
 Agreement with each pair's own NNMF+floor anchor, the independent estimate of
 the same positive population:
@@ -102,7 +132,7 @@ the same positive population:
 | statistic | within 0.5–2x of the anchor | median calls/anchor |
 |---|---|---|
 | manuscript `max` | 13/72 | 0.12 |
-| `p999` (production) | 49/72 | 1.09 |
+| `p999` (then-production) | 49/72 | 1.09 |
 | `p99` | 18/72 | 2.58 |
 | `p95` | 9/72 | 5.64 |
 | mean+3SD | 21/72 | 2.56 |
@@ -148,6 +178,12 @@ been run.
 `geometry_qc_ineligible`. No cell is Unavailable because of a failed pair.
 
 ## The intensity scale has no defined zero or maximum (measured 2026-08-11)
+
+This heading and measurement apply to the raw/REDSEA source used in that
+experiment. They do not redefine QuPath's signed `Mean (norm)` source: for
+Iba1, CD68, and M2Gal3, QuPath explicitly anchors 0 at tissue p50 and 1 at
+tissue p99. Those signed values are pre-RESTORE inputs, not positivity calls or
+RESTORE-normalized outputs.
 
 Every threshold in the workflow is a point on a scale whose ends were never
 defined. Measured across the cohort:

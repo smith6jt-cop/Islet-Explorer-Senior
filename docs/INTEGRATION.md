@@ -1,12 +1,14 @@
 # PhenoCycler ↔ Xenium integration
 
-> **The PhenoCycler side of this is stale.** It reads the retired flat
-> `data/phenotype/broad/` layout with eight broad lineages, which the
-> content-addressed pipeline no longer produces: broad identity now lives in
-> `<run>/assignments/` with five gates plus `Ambiguous`, `Other` and
-> `Unavailable`, and marker evidence in `<run>/marker_evidence/`. Repointing it
-> is outstanding work; the Xenium half is unaffected. See `HIPERGATOR.md`
-> § "The PhenoCycler side of the integration is stale".
+> **The PhenoCycler side of this is stale and fails closed.** There are no
+> verified production target/reference pairs, so the current content-addressed
+> workflow stops after expression and produces neither `marker_evidence/` nor
+> `assignments/`. The historical exporter used to read the retired flat
+> `data/phenotype/broad/` and `restore_gated_redsea/{marker}_norm` layouts. Those
+> historical outputs are not valid current inputs. `export_pheno` therefore
+> raises before reading a legacy artifact by default, and the normal integration
+> orchestrator exposes no override. A PhenoCycler rewire must wait for a newly
+> verified calling/typing workflow; the Xenium half is unaffected.
 
 Picks up where `python -m phenocycler.pipeline` stops and integrates that with 10x Xenium spatial
 transcriptomics processed by [Xenium_Analysis](https://github.com/smith6jt-cop/Xenium_Analysis),
@@ -20,9 +22,13 @@ pip install -e .
 
 python -m phenocycler.integration.manifest --report      # what pairs with what
 python -m phenocycler.integration.pipeline --status      # stage table
-python -m phenocycler.integration.pipeline               # run everything, both tissues
-python -m phenocycler.integration.pipeline --tissue pancreas    # one tissue
+# A normal full run fails in preflight; no current PhenoCycler identities exist.
+python -m phenocycler.integration.pipeline
 ```
+
+The retired exporter has no CLI or API compatibility opt-in. Reproducing an
+old analysis requires checking out the historical implementation in a separate
+environment; current code never reads that layout.
 
 ---
 
@@ -46,7 +52,11 @@ python -m phenocycler.integration.pipeline --roi pln_2                    # one 
 `[integration] tissues`. Stage runners take that scope and iterate the manifest themselves —
 they are *not* called once per ROI, because their output paths are stage-level
 (`niche_profiles.csv`, `islets.parquet`) and a per-ROI call would have each ROI overwrite the
-last.
+last. The commands above document that intended scoping, but current execution preflights
+and blocks every Pheno-dependent stage before consulting cached outputs. Only explicitly
+selected source-independent operations, such as manifest reporting and Xenium import,
+remain runnable until a verified PhenoCycler identity workflow exists and integration is
+redesigned for it.
 
 The two tissues diverge in exactly two places, both biological. Everything else — export,
 import, vocab, registration, niches, the grid, donor composition, pseudo-cell linking — is
@@ -257,7 +267,7 @@ warning is too easy to scroll past.
 
 ```
 manifest      S0   donor ↔ Xenium-run pairing; stamps donor_id/roi into the data
-export_pheno  S1a  phenotype/broad + cells + restore_gated  →  cells_pheno/
+export_pheno  S1a  RETIRED inputs; fail-closed pending verified identity workflow
 import_xenium S1b  h5ad | SpatialData zarr | raw bundle     →  cells_xen/
 vocab         S2   harmonised lineage vocabulary + protein↔gene crosswalk
 structures    S3   tissue / islets / ducts / vessels, same algorithm both sides [pancreas]
@@ -311,9 +321,11 @@ PhenoCycler   Epithelial  Fibroblast  Muscle  Immune              Endocrine  End
 Xenium        Exocrine    Stromal ──────────  Immune_T/B/Myeloid  Endocrine  Vascular     Neural  (in Myeloid)
 ```
 
-- **Immune.** PhenoCycler collapses T/B/myeloid into one class, but `CD3e_pos`, `CD20_pos`
-  and `CD163_pos` survive in `restore_gated_redsea/` — so `export_pheno` recovers the split
-  as `immune_subclass` with no re-running of anything.
+- **Immune.** In the explicitly opted-in historical exporter, PhenoCycler collapses
+  T/B/myeloid into one class, but `CD3e_pos`, `CD20_pos` and `CD163_pos` survive in
+  `restore_gated_redsea/`, so the old implementation recovers the split as
+  `immune_subclass`. This describes reproduction of the retired analysis, not a current
+  input path.
 - **Fibroblast vs Muscle.** Xenium cannot split them: `ACTA2` is absent from the 5K
   reference (it arrives only via the custom-100 add-on) and `12_pericyte_smooth_muscle`
   contributes exactly one SMC-hinted gene. The common vocabulary keeps `Stromal`.
@@ -434,10 +446,13 @@ longer align with `cells.parquet`.
 ## Verifying it works
 
 ```bash
-pytest tests/                                        # no data needed
+pip install -e '.[integration,test]'
+git submodule update --init --recursive
+pytest -q tests/integration                          # explicit optional lane
 python -m phenocycler.integration.pipeline --status
 python -m phenocycler.integration.pipeline --status --tissue pancreatic_lymph_node
 python -m phenocycler.integration.manifest --report
+# Expected to halt at the retired PhenoCycler export; no current identities exist:
 python -m phenocycler.integration.pipeline --donor 6539 --mode sequential
 ```
 

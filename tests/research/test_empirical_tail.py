@@ -27,4 +27,3 @@ def test_tail_probability_has_finite_sample_plus_one_correction() -> None:
     controls = np.array([1.0, 2.0, 3.0, 4.0])
     observed = empirical_tail_probability([0.0, 2.0, 5.0], controls)
     np.testing.assert_allclose(observed, [1.0, 0.8, 0.2])
-

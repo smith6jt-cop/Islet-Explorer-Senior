@@ -4,6 +4,13 @@ The workflow treats raw QuPath exports, biological registries, and every
 derived dataset as explicit contracts. A directory's existence is never proof
 that a stage completed.
 
+**Current boundary:** there are no verified production target/reference pairs.
+The ordinary workflow stops after `expression`. Pair-dependent
+`reference_controls`, `marker_evidence`, `assignments`, and QuPath assignment
+export are not current outputs. The run/stage manifest architecture is retained
+for ingest, geometry, REDSEA, expression, and an explicit pair-independent
+`states` stage.
+
 For the scientific rationale and stage algorithms, see
 [the workflow guide](docs/WORKFLOW.md). For installation and commands, see
 [the project README](README.md).
@@ -15,7 +22,7 @@ Different image records may point to the same batched measurement CSV.
 
 | Source | Required contract |
 |---|---|
-| QuPath measurement CSV(s) | Exact `Image` and `Object ID` values; centroids, parent, cell area/solidity, cell marker means, and nucleus means for registered nuclear/state markers |
+| QuPath measurement CSV(s) | Exact `Image` and `Object ID` values; centroids, parent, cell area/solidity, cell marker means, nucleus means for registered nuclear/state markers, and exact Cell/Cytoplasm/Membrane/Nucleus `Mean (norm)` fields for Iba1, CD68, and M2Gal3 |
 | qptiff | Original channel stack used for REDSEA; channel order and names must agree with the declared map |
 | cell GeoJSON | One feature per detection, with feature `id` equal to the QuPath UUID and a usable cell geometry |
 | nucleus geometry | Either `nucleusGeometry` embedded in the cell GeoJSON or a separate UUID-matched nucleus GeoJSON; every QC-accepted cell must have one |
@@ -37,7 +44,19 @@ Cell: Area µm^2
 Cell: Solidity
 Cell: <marker>: Mean
 Nucleus: <marker>: Mean       # where required by the registry
+<compartment>: <marker>: Mean (norm)
+                               # compartment = Cell, Cytoplasm, Membrane, Nucleus
+                               # marker = Iba1, CD68, M2Gal3; exact fields required
 ```
+
+The three `Mean (norm)` marker families were written by the original QuPath
+object-classifier workflow before RESTORE, using
+`(raw - tissue p50)/(tissue p99 - tissue p50)`. Thus 0 is the tissue p50 anchor,
+1 is the tissue p99 anchor rather than a positivity call, and negative values
+are valid. Ingest retains them as
+`QuPathNorm__<Compartment>__<Marker>`. They are not RESTORE-normalized outputs,
+and raw marker means, REDSEA measurements, `*_norm` convenience columns, and
+`*__restore_normalized` columns may not substitute for a missing exact field.
 
 The ingest stage derives `cell_region` and `islet_num` from `Parent`, but these
 context fields do not define calibration controls or cell identity. Other
@@ -177,8 +196,7 @@ Availability has distinct meanings:
 | Marker not acquired in donor's panel | null authoritative value; `marker_not_acquired_in_panel` audit reason | per-cell marker state `unavailable` |
 | Marker acquired, required declared source present, cell value missing | null for that cell | that cell is `unavailable` for the marker |
 | Marker acquired, required declared source column absent | fatal contract error | stage stops |
-| Marker measurable, donor-marker RESTORE fit technically invalid | measurement retained | state `unavailable`, never negative |
-| Marker measurable, valid RESTORE fit | normalized value and divisor retained | positive iff normalized value is greater than 1 |
+| Marker acquired and its exact declared source is present | signed authoritative value retained | available for upstream review; no current marker call |
 
 Missing markers never become negatives, never make a cell `Other`, and never
 transfer their fixed error allocation to another marker.
@@ -232,10 +250,17 @@ a missing canonical cell polygon or prohibited duplicate remains fatal.
 the only accepted source for each marker:
 
 - biological kind: identity marker or process-state marker;
-- active, deferred, or standalone use;
+- current availability/development status;
 - whole-cell or nucleus compartment;
+- measurement source: REDSEA, raw QuPath, or exact QuPath `Mean (norm)`;
 - REDSEA-corrected, REDSEA passthrough, or uncompensated policy;
-- incompatible reference, marker family, and broad/subtype use.
+- historical interpretation metadata, which does not authorize a production pair.
+
+Measurement source and spillover policy are separate contracts. Iba1, CD68,
+and M2Gal3 have `measurement_source=qupath_norm`; their exact signed QuPath
+measurements win even though their spillover policy remains recorded. Missing
+exact measurements fail closed rather than falling back to raw, REDSEA, or a
+historical RESTORE output. None of these markers currently receives a call.
 
 The `expression` dataset contains exactly one selected column named
 `<marker>` for every registered marker, plus:
@@ -255,12 +280,15 @@ qc_estimation_eligible
 Keeping one authoritative value avoids ambiguous mixtures of raw,
 whole-cell, nuclear, and corrected columns downstream.
 `audit/expression_availability.parquet` explains every donor-marker selection
-or absence.
+or absence, including its `measurement_source`. QuPath norm values remain
+signed and unchanged in `cells` and `expression`; finite negative values are
+not censored by the current workflow.
 
-## Reference-control schema
+## Historical reference-control schema (blocked)
 
-`reference_controls` stores donor-local masks in a wide donor partition. The
-canonical long representation records:
+Historical runs may contain donor-local masks in `reference_controls`. The
+current workflow has no verified references and does not create this dataset.
+Its former canonical long representation recorded:
 
 ```text
 mask_schema_version
@@ -284,23 +312,26 @@ phenotype labels, and annotation-derived groups are forbidden inputs.
 `audit/reference_control_models.parquet` records candidate counts, selected
 counts, status, and provenance.
 
-## Marker-evidence schema
+## Historical marker-evidence schema (blocked)
 
-`marker_evidence` is wide: one row per UUID and a repeated set of columns for
-each active marker `<m>`.
+Historical runs may contain a wide `marker_evidence` table. The current
+workflow does not create or consume it. Its former columns included one row per
+UUID and a repeated set for each then-active marker `<m>`.
 
 | Column | Meaning |
 |---|---|
 | `qc_analysis_eligible` | frozen geometry-QC analysis decision propagated to typing |
-| `<m>__corrected_intensity` | REDSEA whole-cell target measurement used for the call |
+| `<m>__selected_intensity` | registry-selected target measurement on RESTORE's nonnegative input scale |
 | `<m>__state` | `positive`, `negative`, or `unavailable` |
-| `<m>__restore_normalized` | corrected intensity divided by the donor-marker RESTORE divisor |
+| `<m>__restore_normalized` | selected intensity divided by the donor-marker RESTORE divisor |
 | `<m>__restore_positive` | exact boolean `restore_normalized > 1` call |
 | `<m>__log2_threshold_ratio` | `log2(restore_normalized)`; zero at the donor-local divisor |
+| `<m>__empirical_tail_probability` | finite-sample upper-tail probability against the clean seeded control |
+| `<m>__censored_below` | finite selected value is zero after the source-declared RESTORE boundary transform, so its call is unavailable |
 | `<m>__model_valid` | valid RESTORE pair and positive/negative cell call |
 | `<m>__calibration_status` | RESTORE pair disposition (historical column name retained for schema compatibility) |
 | `<m>__reference` | mutually exclusive reference marker used by RESTORE |
-| `<m>__threshold` | donor-marker RESTORE divisor on the REDSEA intensity scale |
+| `<m>__threshold` | donor-marker RESTORE divisor on the selected-intensity scale |
 | `<m>__n_controls` | reference-positive/target-negative control count |
 | `<m>__method_version` | pipeline RESTORE method version |
 
@@ -319,13 +350,20 @@ TECHNICAL_FAILURE
 
 An invalid donor-marker fit does not erase its measurements or fabricate a
 negative. Calls become `unavailable`. Full NNMF, arm, stability, control,
-divisor, feature-set, and call-count details are written to
+divisor, feature-set, call-count, measurement-source, boundary-transform, and
+left-censor-count details are written to
 `audit/restore_pair_models.parquet`.
 
-## Assignment schema
+For `measurement_source=qupath_norm`, finite signed negatives are explicitly
+left-censored to zero exactly when RESTORE builds its nonnegative input and the
+audit transform is `qupath_norm_left_censor_zero`. NaN remains NaN. The same
+source-generic `censored_below` state also covers a selected measurement already
+at zero; zero is unavailable rather than a confident biological negative.
 
-The production-default `assignments` table records the simultaneous broad
-typing decision. Stable handoff columns are:
+## Historical assignment schema (blocked)
+
+Historical runs may contain an `assignments` table. There is no current
+production typing decision or stable assignment handoff. Former columns were:
 
 | Column | Meaning |
 |---|---|
@@ -343,10 +381,8 @@ typing decision. Stable handoff columns are:
 | `broad_support_margin` | best minus second-best support, for ambiguous cells |
 | `typing_mode` | `restore_simultaneous` |
 
-Rules, registry, method, and categorical-score provenance are repeated on each
-row. Probability/ranking and subtype columns remain in the schema so the
-signed optional probabilistic lane can use the same handoff contract; they are
-empty or not applicable in the production default. Default statuses are:
+Rules, registry, method, and categorical-score provenance were repeated on
+each historical row. Former statuses were:
 
 ```text
 anchor
@@ -365,10 +401,11 @@ are `NaN`: they were never estimated, and the same rows carry
 `broad_support_margin` for evidence strength; they are reported, not
 thresholded.
 
-## State schema
+## Optional pair-independent state schema
 
-`cell_states` is keyed by donor and UUID but remains separate from
-`assignments`. The current state stage reports Ki67 and PCNA:
+An explicitly requested `states` stage writes `cell_states` keyed by donor and
+UUID, separately from assignments. It is omitted from the ordinary expression
+run but does not depend on a target/reference pair. Columns are:
 
 | Column | Meaning |
 |---|---|
@@ -385,9 +422,10 @@ called only for analysis-eligible cells, and geometry-ineligible cells remain
 `unavailable`. State thresholds do not claim the same frequency-neutral
 mutually-exclusive-control interpretation as identity-marker calibration.
 
-## QuPath export schema
+## Historical QuPath assignment export (blocked)
 
-The export stage writes one immutable CSV per donor/image:
+There is no current assignment export. Historical export stages wrote one CSV
+per donor/image:
 
 ```text
 qupath_export/cell_assignments_<donor>.csv
@@ -413,23 +451,11 @@ compartment
 cell_type
 ```
 
-`compartment` and `cell_type` are compatibility aliases for `broad_type` and
-`specific_type`; they do not replace the uncertainty fields. Unavailable cells
-must not be imported as confident named classes. The current
-QuPath handoff exports identity; process-state annotations remain in the
-separate `cell_states` artifact.
+`compartment` and `cell_type` were compatibility aliases for `broad_type` and
+`specific_type`; they did not replace the uncertainty fields.
 
-Use
-[`scripts/groovy/import_cell_assignments.groovy`](scripts/groovy/import_cell_assignments.groovy).
-First require a successful pipeline `status`, which verifies the fingerprinted
-export. The script then validates the exact image and every row in the
-canonical assignment CSV before changing a QuPath class. Detections outside
-the canonical ingest universe, including fragments below the ingest area
-floor, are intentionally left unchanged. At the selected broad or specific
-level, accepted statuses (`anchor` and `other`) receive the corresponding
-label; `unavailable` receives an explicit uncertainty class rather than the
-best candidate. The importer also understands the additional statuses used by
-an explicitly configured probabilistic lane.
+The old importer is retained for historical artifacts only. Do not run it as a
+current workflow step.
 
 ## Run layout
 
@@ -439,7 +465,6 @@ Given a base `data_dir = data`, the content-addressed layout is:
 data/
 ├── qupath_manifest.json
 └── runs/
-    ├── LATEST
     └── <run_id>/
         ├── run.json
         ├── manifests/
@@ -451,50 +476,33 @@ data/
         │   ├── redsea_recovery.json               # only for verified recovery
         │   ├── redsea.json
         │   ├── expression.json
-        │   ├── controls.json
-        │   ├── calibrate.json
-        │   ├── type.json
-        │   ├── states.json
         │   ├── donors/
         │   │   └── donor_id=<id>/
         │   │       ├── geometry.json
         │   │       ├── redsea.json
-        │   │       ├── expression.json
-        │   │       ├── controls.json
-        │   │       ├── calibrate.json
-        │   │       ├── type.json
-        │   │       └── states.json
-        │   └── qupath_export.json                  # when exported
+        │   │       └── expression.json
         ├── cells/donor_id=<id>/*.parquet
         ├── ingest_rejects.parquet
         ├── panel_availability.json
         ├── geometry_qc/donor_id=<id>/*.parquet
         ├── redsea/donor_id=<id>/*.parquet
         ├── expression/donor_id=<id>/*.parquet
-        ├── reference_controls/donor_id=<id>/*.parquet
-        ├── marker_evidence/donor_id=<id>/*.parquet
-        ├── assignments/donor_id=<id>/*.parquet
-        ├── cell_states/donor_id=<id>/*.parquet
-        ├── qupath_export/cell_assignments_<id>.csv # when exported
         ├── audit/
         │   ├── donors/<audit_name>/donor_id=<id>/data.parquet
-        │   ├── expression_availability.parquet
-        │   ├── reference_control_models.parquet
-        │   ├── restore_pair_models.parquet
-        │   └── state_models.parquet
+        │   └── expression_availability.parquet
         └── scratch/redsea/
 ```
 
-`run.json` exists only after all analytical stage manifests are current.
-`runs/LATEST` contains the completed run ID. The QuPath export manifest is
-separate and may be created after the analytical run.
+`run.json` records completion of the current upstream stage set. Historical
+downstream directories may exist in older runs but are not current outputs and
+must not be mixed into this layout.
 
 ## Manifest contents and immutability
 
 Each stage manifest records:
 
 - stage and method version;
-- cohort, registry, rules, and configuration identities;
+- cohort, registry, and upstream configuration identities;
 - relevant source-code hash and repository metadata;
 - exact upstream artifact identifiers;
 - exact expected donor set;
