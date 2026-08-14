@@ -194,8 +194,12 @@ def normalize_roi(label: str) -> str:
 def read_xenium_paths(path: Path) -> pd.DataFrame:
     """Read ``xenium_paths.csv`` -> normalised rows.
 
-    The vendored file has blank spacer rows between batch pairs and an ``NA`` source path
-    for at least one run; both are dropped here rather than propagated.
+    The file is hand-maintained and exported from a spreadsheet, so it can carry blank
+    spacer rows and an ``NA`` source path for a run nobody has located yet. Both are
+    dropped here rather than propagated — but a row dropped for a *missing path* is a real
+    gap in the cohort, not noise, so it is recorded in ``df.attrs['dropped_no_path']`` and
+    surfaced by ``build_manifest`` as a warning. Silently discarding it is how a donor
+    section goes missing and reappears downstream as "no registration produced".
     """
     cols = ["donor_id", "roi", "batch", "source_path", "xenium_serial", "xenium_sample_key"]
     path = Path(path)
@@ -222,7 +226,10 @@ def read_xenium_paths(path: Path) -> pd.DataFrame:
     raw["roi"] = raw["roi"].astype(str).str.strip()
     raw["batch"] = raw.get("batch", "").astype(str).str.strip()
     raw["source_path"] = raw["source_path"].astype(str).str.strip()
-    raw = raw[~raw["source_path"].str.upper().isin({"", "NA"})].copy()
+    no_path = raw["source_path"].str.upper().isin({"", "NA"})
+    dropped = [f"{d} {r or '?'}" for d, r in
+               zip(raw.loc[no_path, "donor_id"], raw.loc[no_path, "roi"])]
+    raw = raw[~no_path].copy()
 
     parsed = raw["source_path"].map(parse_bundle_path)
     raw["xenium_serial"] = [p[0] for p in parsed]
@@ -231,7 +238,9 @@ def read_xenium_paths(path: Path) -> pd.DataFrame:
     raw["roi"] = [r if r else normalize_roi(lab) for r, lab in zip(raw["roi"], labels)]
     raw["xenium_sample_key"] = [sample_key(s, r)
                                 for s, r in zip(raw["xenium_serial"], raw["roi"])]
-    return raw.reset_index(drop=True)
+    out = raw.reset_index(drop=True)
+    out.attrs["dropped_no_path"] = dropped
+    return out
 
 
 def read_donor_overrides(path: Path) -> pd.DataFrame:
@@ -354,6 +363,76 @@ def _rewrite_root(path: str, xenium_root: str) -> str:
     return str(Path(xenium_root) / path[idx + len(marker):])
 
 
+#: Files every Xenium output bundle carries. Used to tell "the directory exists" from
+#: "the directory is the bundle we think it is".
+BUNDLE_MARKERS = ("cells.parquet", "cell_boundaries.parquet", "cell_feature_matrix.h5")
+
+
+def verify_bundle_paths(cfg: PipelineConfig,
+                        donors: Optional[set[str]] = None) -> list[dict]:
+    """Resolve every recorded bundle path onto this filesystem and classify what happens.
+
+    ``xenium_paths.csv`` is hand-maintained and, upstream, read by nothing — so nothing has
+    ever checked that a path in it points at a bundle that exists. This is that check.
+
+    The status that matters most is ``unrewritten``: ``_rewrite_root`` keys on a literal
+    ``/xenium/`` segment and returns the path *unchanged* when it is absent, so setting
+    ``xenium_root`` against a manifest whose paths do not contain that segment silently
+    resolves against the original filesystem and reports "missing" for the wrong reason.
+    """
+    xen = read_xenium_paths(cfg.xenium_paths_csv)
+    out: list[dict] = []
+    for _, r in xen.iterrows():
+        donor = r["donor_id"]
+        if donors and donor not in donors:
+            continue
+        recorded = r["source_path"]
+        resolved = _rewrite_root(recorded, cfg.xenium_root)
+        if cfg.xenium_root and resolved == recorded and "/xenium/" not in recorded:
+            status = "unrewritten"
+        elif not Path(resolved).is_dir():
+            status = "missing"
+        elif not any((Path(resolved) / m).exists() for m in BUNDLE_MARKERS):
+            status = "not_a_bundle"
+        else:
+            status = "ok"
+        out.append({"donor_id": donor, "roi": r["roi"], "batch": r["batch"],
+                    "recorded": recorded, "resolved": resolved, "status": status})
+    for gap in xen.attrs.get("dropped_no_path", []):
+        d, _, roi = gap.partition(" ")
+        if not donors or d in donors:
+            out.append({"donor_id": d, "roi": roi, "batch": "", "recorded": "",
+                        "resolved": "", "status": "no_path"})
+    return out
+
+
+def render_path_verification(rows: list[dict], cfg: PipelineConfig) -> str:
+    """Human-readable verification report. Every non-``ok`` row is named, not counted."""
+    order = ("ok", "missing", "unrewritten", "not_a_bundle", "no_path")
+    counts = {s: sum(1 for r in rows if r["status"] == s) for s in order}
+    lines = [
+        "Xenium bundle path verification",
+        "=" * 60,
+        f"manifest    : {cfg.xenium_paths_csv}",
+        f"xenium_root : {cfg.xenium_root or '(unset — paths used as recorded)'}",
+        f"rows        : {len(rows)}",
+        "",
+    ]
+    lines += [f"  {s:<13} {counts[s]}" for s in order if counts[s]]
+    for status in order[1:]:
+        bad = [r for r in rows if r["status"] == status]
+        if not bad:
+            continue
+        lines += ["", f"{status.upper()} ({len(bad)}):"]
+        lines += [f"  {r['donor_id']:<6} {r['roi']:<7} {r['resolved'] or r['recorded'] or '-'}"
+                  for r in bad]
+    if counts["unrewritten"]:
+        lines += ["", "'unrewritten' means xenium_root is set but these paths carry no "
+                      "'/xenium/' segment, so they were left pointing at the recorded root. "
+                      "Fix the recorded paths or clear xenium_root — do not ignore this."]
+    return "\n".join(lines)
+
+
 def build_manifest(
     cfg: PipelineConfig,
     *,
@@ -409,6 +488,12 @@ def build_manifest(
     overrides = read_donor_overrides(cfg.donor_overrides_csv)
     meta = read_donor_metadata(cfg)
     status_by_donor = dict(zip(meta["donor_id"], meta["disease_status"]))
+
+    for gap in xen.attrs.get("dropped_no_path", []):
+        summary.warnings.append(
+            f"{cfg.xenium_paths_csv.name}: {gap} has no source_path — that donor section is "
+            f"absent from the manifest and cannot be paired. Fill the path or record why."
+        )
 
     if xen.empty and overrides.empty:
         summary.warnings.append(
@@ -674,9 +759,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--build", action="store_true", help="write data/integration/manifest.csv")
     ap.add_argument("--xenium-processed", default=None,
                     help="Xenium data/processed root, to resolve h5ad/zarr paths")
+    ap.add_argument("--verify-paths", action="store_true",
+                    help="resolve every recorded bundle path on this filesystem and exit "
+                         "non-zero if any is missing, unrewritten or not a bundle")
+    ap.add_argument("--donor", action="append", dest="donors",
+                    help="restrict --verify-paths to these donors (repeatable)")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
+
+    if args.verify_paths:
+        rows = verify_bundle_paths(cfg, set(args.donors) if args.donors else None)
+        print(render_path_verification(rows, cfg))
+        return 0 if all(r["status"] == "ok" for r in rows) else 1
+
     root = Path(args.xenium_processed) if args.xenium_processed else None
     df, summary = build_manifest(cfg, xenium_processed_root=root)
     print(summary.render())

@@ -299,8 +299,19 @@ verbatim, with the same columns and the same nPOD donors (26 appear in the vendo
 - **No Xenium artifact carries it.** Every Xenium output is keyed by the XETG slide serial
   (`0041323`), which encodes no donor, no region and no disease status.
 - **`xenium_paths.csv` — the one file that maps donors to runs — is read by nothing** in the
-  Xenium repo. It is hand-maintained and unenforced. It is vendored here at
+  Xenium repo. It is hand-maintained. It is vendored here at
   `data/integration/xenium_paths.csv` and made load-bearing.
+
+  It is no longer *unenforced*: `--verify-paths` resolves every recorded bundle path on the
+  current filesystem, applying `xenium_root`, and exits non-zero naming each one that is
+  missing, is not a bundle, or was left unrewritten. Because donor identity exists nowhere
+  else — the bundles are keyed by serial — this file cannot be regenerated from the data.
+  Repair it; do not replace it.
+
+  As vendored (2026-08-14) it holds **56 rows covering 26 donors**, including all 20 of the
+  current run cohort — which is what settles "which 20 of the 26". 14 all-blank spreadsheet
+  spacer rows were stripped on that date. One genuine gap remains: **donor 6591 `pln_1` has
+  no recorded path**, and is now reported rather than silently dropped.
 - **The processed samples are not in it.** `0041323` and `0041326` have finished h5ads and
   appear in no manifest, so their donor is recorded nowhere. They enter the manifest as
   `pair_status = donor_unknown` and are excluded from paired analyses until someone fills in
@@ -452,6 +463,11 @@ pytest -q tests/integration                          # explicit optional lane
 python -m phenocycler.integration.pipeline --status
 python -m phenocycler.integration.pipeline --status --tissue pancreatic_lymph_node
 python -m phenocycler.integration.manifest --report
+
+# Do this FIRST on any machine that actually mounts the Xenium tree. Everything
+# downstream is worthless if the manifest points at paths that do not resolve.
+python -m phenocycler.integration.manifest --verify-paths           # exit 1 on any failure
+python -m phenocycler.integration.manifest --verify-paths --donor 6539
 # Expected to halt at the retired PhenoCycler export; no current identities exist:
 python -m phenocycler.integration.pipeline --donor 6539 --mode sequential
 ```

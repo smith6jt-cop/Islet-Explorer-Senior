@@ -14,7 +14,8 @@ import pytest
 from phenocycler import load_config
 from phenocycler.integration.manifest import (
     DONOR_UNKNOWN, PAIRED, PHENO_ONLY, XENIUM_ONLY, ManifestError, build_manifest,
-    normalize_roi, parse_bundle_path, paired_rows, read_xenium_paths, sample_key,
+    normalize_roi, parse_bundle_path, paired_rows, read_xenium_paths, render_path_verification,
+    sample_key, verify_bundle_paths,
 )
 
 BUNDLE = ("/orange/brusko/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/"
@@ -294,3 +295,83 @@ def test_empty_inputs_warn_rather_than_crash(tmp_path):
     df, summary = build_manifest(cfg, pheno_donors=[])
     assert len(df) == 0
     assert any("no Xenium runs" in w for w in summary.warnings)
+
+
+# --- Path verification -------------------------------------------------------------------
+# `xenium_paths.csv` is hand-maintained and, upstream, read by nothing — so before this
+# check nothing had ever confirmed a recorded path points at a bundle that exists.
+
+
+def test_missing_source_path_is_reported_not_silently_dropped(tmp_path):
+    """A row with no path is a real gap in the cohort, not noise.
+
+    It still has to leave the frame — every downstream consumer assumes a resolvable
+    bundle — but dropping it silently is how a donor section goes missing and resurfaces
+    much later as "no registration produced".
+    """
+    rows = [
+        {"donor_id": "6591", "roi": "panc", "batch": "6KTRAF",
+         "source_path": BUNDLE.format(label="Panc")},
+        {"donor_id": "6591", "roi": "pln_1", "batch": "6KTRAF", "source_path": "NA"},
+    ]
+    df = read_xenium_paths(_paths_csv(tmp_path, rows))
+    assert len(df) == 1
+    assert df.attrs["dropped_no_path"] == ["6591 pln_1"]
+
+
+def test_blank_spacer_rows_are_dropped_without_being_reported(tmp_path):
+    """Spreadsheet export artifacts carry no donor, so they are noise, not a gap."""
+    rows = [
+        {"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+         "source_path": BUNDLE.format(label="Panc")},
+        {"donor_id": "", "roi": "", "batch": "", "source_path": ""},
+    ]
+    df = read_xenium_paths(_paths_csv(tmp_path, rows))
+    assert len(df) == 1
+    assert df.attrs["dropped_no_path"] == []
+
+
+def test_verify_paths_flags_an_unrewritten_root(tmp_path):
+    """The silent-failure mode worth having a test for.
+
+    `_rewrite_root` keys on a literal '/xenium/' segment and returns the path UNCHANGED
+    when it is absent. With xenium_root set, that quietly resolves against the original
+    filesystem — so the run reports "missing" for a reason that has nothing to do with the
+    data being missing.
+    """
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": "/somewhere/else/output-XETG00298__0059865__Panc__X__Y"}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = "/mnt/relocated"
+    out = verify_bundle_paths(cfg)
+    assert [r["status"] for r in out] == ["unrewritten"]
+    assert "unrewritten" in render_path_verification(out, cfg).lower()
+
+
+def test_verify_paths_resolves_a_real_bundle(tmp_path):
+    """An existing directory only counts as a bundle if it carries bundle files."""
+    bundle = tmp_path / "xenium" / "B" / "output-XETG00298__0059865__Panc__X__Y"
+    bundle.mkdir(parents=True)
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": f"/recorded/xenium/B/{bundle.name}"}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = str(tmp_path / "xenium")
+
+    assert [r["status"] for r in verify_bundle_paths(cfg)] == ["not_a_bundle"]
+    (bundle / "cells.parquet").touch()
+    assert [r["status"] for r in verify_bundle_paths(cfg)] == ["ok"]
+
+
+def test_verify_paths_scopes_to_requested_donors(tmp_path):
+    rows = [
+        {"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+         "source_path": BUNDLE.format(label="Panc")},
+        {"donor_id": "6591", "roi": "panc", "batch": "6KTRAF",
+         "source_path": BUNDLE.format(label="Pan")},
+    ]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    out = verify_bundle_paths(cfg, {"6591"})
+    assert [r["donor_id"] for r in out] == ["6591"]
