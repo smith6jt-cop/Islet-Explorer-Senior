@@ -20,7 +20,9 @@ import pandas as pd
 
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "Phenocycler_Analysis"))
+# `core/phenocycler/` since the subtree merge, so this runs without an editable install. Index 0
+# pre-dates the move and is kept: the checkout wins over any installed copy.
+sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.artifacts import sha256_json  # noqa: E402
 
