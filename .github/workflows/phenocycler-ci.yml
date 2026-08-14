@@ -1,0 +1,152 @@
+name: Phenocycler
+
+# Hoisted from Phenocycler_Analysis/.github/workflows/ci.yml when that repo was imported as
+# the core/phenocycler subtree. GitHub only reads .github/workflows/ at the repository root,
+# so the copy inside the subtree was inert and has been removed rather than left to drift.
+#
+# The panel taxonomy is now the in-repo core/panels subtree rather than a private submodule,
+# which removes the non-fatal fetch + PANEL_EXPLORER_TOKEN workaround this file used to carry:
+# the taxonomy is always present, so its absence is once again a hard error.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/phenocycler/**'
+      - 'core/panels/**'
+      - '.github/workflows/phenocycler-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'core/phenocycler/**'
+      - 'core/panels/**'
+      - '.github/workflows/phenocycler-ci.yml'
+  workflow_dispatch:
+
+# Tag pushes are deliberately absent: phenocycler-release.yml owns tag events, and combining
+# push.tags with push.paths is unreliable.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: core/phenocycler
+
+jobs:
+  lint:
+    name: Fatal Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # Repo-root-relative on purpose: defaults.run.working-directory applies to `run:`
+          # steps only, never to a step's `with:` inputs.
+          cache-dependency-path: core/phenocycler/requirements-ci.txt
+      - run: python -m pip install --upgrade pip && pip install -r requirements-ci.txt
+      - name: Syntax and undefined-name gate
+        run: ruff check --select E9,F63,F7,F82 --output-format=github .
+      - name: Full ruff check (advisory)
+        continue-on-error: true
+        run: ruff check --output-format=github .
+      - name: ruff format --check (advisory)
+        continue-on-error: true
+        run: ruff format --check .
+
+  current:
+    name: Current workflow (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # setuptools-scm needs history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install current workflow dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+      - name: Version and stage contract
+        run: |
+          python -c "import phenocycler; v = phenocycler.__version__; print('version:', v); assert v != '0.0.0+unknown', 'setuptools-scm did not resolve a version (check [tool.setuptools_scm] root)'"
+          python -c "from phenocycler.pipeline import DEFAULT_STAGE_ORDER, STAGE_ORDER; assert DEFAULT_STAGE_ORDER == ('ingest', 'geometry', 'redsea', 'expression'), DEFAULT_STAGE_ORDER; print('all stages:', STAGE_ORDER)"
+      - name: Core pipeline imports in the lean environment
+        # The integration layer must not leak dependencies into the core pipeline. If this
+        # step fails, something in phenocycler/ started importing scanpy/spatialdata at
+        # module load and the lean environment is broken.
+        #
+        # Discovered with pkgutil rather than a hardcoded list: the list form silently rots
+        # when a module is added, and hard-fails when one is retired.
+        run: |
+          python -c "import importlib, pkgutil, phenocycler; names = [m.name for m in pkgutil.iter_modules(phenocycler.__path__) if m.name != 'integration']; [importlib.import_module(f'phenocycler.{name}') for name in names]; print('live core modules import OK:', ', '.join(names))"
+      - name: Fast deterministic default suite
+        # testpaths = tests/current. -rs reports skip reasons: a silently skipped test reads
+        # exactly like a passing one in the summary line.
+        run: pytest -q -rs
+
+  research:
+    name: Research-method tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+      - name: Explicit research suite
+        run: pytest -q -rs tests/research
+
+  integration:
+    name: Integration tests (no silent skips)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the declared integration stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[integration,test]'
+      - name: Dependency preflight
+        # These are declared dependencies of the integration extra, not optional niceties.
+        # Several integration tests guard on importorskip, so a missing one would skip them
+        # and still report green.
+        run: |
+          python -c "import anndata, cv2, geopandas, h5py, scanpy, shapely, SimpleITK, spatialdata, spatialdata_io, zarr; print('integration dependency preflight OK')"
+      - name: Panel taxonomy is present
+        # No longer a submodule that might fail to clone: core/panels is part of this
+        # repository, so a missing taxonomy means the tree is broken. Hard failure.
+        run: test -f "$GITHUB_WORKSPACE/core/panels/data/panel_roles.csv"
+      - name: Explicit integration suite
+        # Zero skips is the contract. Everything this suite needs is now either a declared
+        # dependency (checked above) or in-repo, so a skip means real lost coverage.
+        run: |
+          pytest -q -rs tests/integration --junitxml=integration-results.xml
+          python -c "import xml.etree.ElementTree as ET; suites = ET.parse('integration-results.xml').getroot().iter('testsuite'); skipped = sum(int(s.get('skipped', '0')) for s in suites); assert skipped == 0, f'integration suite silently skipped {skipped} tests'"
+      - name: Integration status surfaces load without data
+        run: |
+          python -m phenocycler.integration.pipeline --status
+          python -m phenocycler.integration.manifest --report

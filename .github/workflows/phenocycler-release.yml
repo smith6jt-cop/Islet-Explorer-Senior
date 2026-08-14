@@ -1,9 +1,13 @@
-name: Release
+name: Phenocycler release
 
 # Cutting a release is exactly one action: push an annotated tag.
 #
-#     git tag -a v0.4.0 -m "Xenium integration + pLN cohort"
-#     git push origin v0.4.0
+#     git tag -a phenocycler-v0.4.0 -m "Xenium integration + pLN cohort"
+#     git push origin phenocycler-v0.4.0
+#
+# Tags are NAMESPACED because this is a monorepo: an unfiltered tag would move this
+# package's version, and this package's tag must not move anything else. See
+# [tool.setuptools_scm] tag_regex in core/phenocycler/pyproject.toml.
 #
 # setuptools-scm reads that tag, so the built artifacts carry `0.4.0` with no file to edit
 # and nothing to keep in sync. Between tags the version is `0.4.1.devN+g<sha>`, which means
@@ -15,11 +19,11 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["phenocycler-v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)build a release for, e.g. v0.4.0"
+        description: "Existing tag to (re)build a release for, e.g. phenocycler-v0.4.0"
         required: true
 
 permissions:
@@ -29,6 +33,11 @@ jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
+    # Scoped to this job only: the `test` job installs the built wheel OUTSIDE the source
+    # tree on purpose and does not check the repository out at all.
+    defaults:
+      run:
+        working-directory: core/phenocycler
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -36,7 +45,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0          # setuptools-scm needs the full tag history
-          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +77,7 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           VERSION="${{ steps.version.outputs.version }}"
-          if [ "${TAG#v}" != "$VERSION" ]; then
+          if [ "${TAG#phenocycler-v}" != "$VERSION" ]; then
             echo "::error::tag '$TAG' and built version '$VERSION' disagree"
             exit 1
           fi
@@ -78,7 +86,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          # Repo-root-relative: working-directory does not apply to `with:` inputs.
+          path: core/phenocycler/dist/
 
   test:
     name: Smoke-test the built wheel
@@ -131,4 +140,4 @@ jobs:
             pip install 'phenocycler-analysis[integration] @ .'   # for the Xenium integration layer
             ```
 
-            See [docs/INTEGRATION.md](docs/INTEGRATION.md) for the PhenoCycler ↔ Xenium layer.
+            See [core/phenocycler/docs/INTEGRATION.md](core/phenocycler/docs/INTEGRATION.md) for the PhenoCycler ↔ Xenium layer.
