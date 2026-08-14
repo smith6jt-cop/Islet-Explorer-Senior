@@ -63,20 +63,31 @@ def read_batch1(cohort: dict[str, str]) -> set[str]:
     return set(m.group(1).split()) if m else set(cohort)
 
 
-def read_exclusions() -> tuple[set[str], str]:
+def read_exclusions() -> tuple[dict[str, str], str]:
     """The central donor exclusions, imported — never restated.
 
-    Returns the set and where it came from. If the submodule is not installed we
-    say so and return nothing rather than guessing: silently building an excluded
-    donor is exactly the outcome the central list exists to prevent.
-    """
-    sys.path.insert(0, str(REPO / "Phenocycler_Analysis"))
-    try:
-        from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: PLC0415
+    Returns {donor: reason} and where it came from. If the package cannot be
+    imported we say so and return nothing rather than guessing: silently building
+    an excluded donor is exactly the outcome the central list exists to prevent.
 
-        return {str(d) for d in DONOR_EXCLUSIONS}, "phenocycler.cohort"
-    except Exception as exc:  # noqa: BLE001 - submodule may be uninitialised
-        return set(), f"UNAVAILABLE ({type(exc).__name__})"
+    Both layouts are tried. The package lived at `Phenocycler_Analysis/` as a
+    submodule before it was dissolved into the `core/phenocycler/` subtree, and a
+    working tree part-way through that move should still find it rather than
+    refuse to run.
+    """
+    for root in (REPO / "core" / "phenocycler", REPO / "Phenocycler_Analysis"):
+        if not (root / "phenocycler" / "cohort.py").is_file():
+            continue
+        sys.path.insert(0, str(root))
+        try:
+            from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: PLC0415
+
+            # A dict of donor -> reason since the subtree import; iterating gives
+            # the ids either way, but the reason is worth showing.
+            return dict(DONOR_EXCLUSIONS), f"phenocycler.cohort ({root.name})"
+        except Exception as exc:  # noqa: BLE001 - report, never guess
+            return {}, f"UNAVAILABLE ({type(exc).__name__}: {exc})"
+    return {}, "UNAVAILABLE (phenocycler package not found)"
 
 
 def free_gb(path: Path) -> float:
@@ -186,8 +197,10 @@ def main() -> int:
         cases = [c for c in cases if c in wanted]
 
     out_dir = args.out_dir.resolve()
-    log(f"cohort {len(cohort)}, excluded {len(skipped_excluded)} "
-        f"({', '.join(skipped_excluded) or 'none'}) via {source}, building {len(cases)}")
+    log(f"cohort {len(cohort)}, excluded {len(skipped_excluded)}, "
+        f"building {len(cases)} — exclusions via {source}")
+    for donor in skipped_excluded:
+        log(f"   excluded {donor}: {excluded.get(donor, 'no reason recorded')}")
 
     if args.report:
         return report(out_dir, cases, args)
