@@ -115,7 +115,25 @@ The Viewer runs on either backend (`ISLET_VIEWER_BACKEND=avivator|tissuumaps`):
   `--regions` takes the QuPath export directory (`data/Islets`) and matches by
   case id, refusing to guess when the match is ambiguous; the coordinate scale
   into full-res pixels is derived from the two pixel sizes and then checked
-  against the image bounds rather than assumed.
+  against the image bounds rather than assumed. `--structures` adds vessels,
+  nerves and lymphatics as a **second region layer that does not auto-load** —
+  those classes run to ~200k features per donor. `--markers` is falsified the
+  same way regions are: cells that would land outside the slide are refused, not
+  attached, and the run exits 3.
+- `senior/build_all_tissuumaps_projects.py` — builds the whole cohort. Donors are
+  parsed from the `MAP` in `convert_viewer_ometiff.sh` and the exclusions are
+  imported from `phenocycler.cohort`; neither is restated, and the script exits 1
+  rather than proceeding if it cannot import the exclusions. Ends on a per-donor
+  coverage table naming any donor missing outlines or cells.
+- `senior/export_viewer_cell_markers.py` — writes the whole-slide per-cell CSV the
+  builder's `--markers` wants, from the Parquet tissue partitions (legacy
+  `app_data/donors/*.csv` as fallback), into `data/tissuumaps_inputs/markers/`.
+  **Not** into `data/app_data/cells/`: that is the per-islet drill-down namespace
+  and `drilldown_available()` globs it for any `*.csv`.
+- `senior/build_viewer_assets.py --structures` — writes
+  `app_data/json/structures/<case>_structures.geojson` for the viewer only.
+  `CLASS_MAP` stays islets-only; merging structures into the app's own GeoJSON is
+  what the v1 deferral rules out (`sf::st_read` on 200k features).
 - `test_build_tissuumaps_regions.py` — unit tests for that region handling
   (directory lookup, gzip, scale inference). No slide or server needed.
 - `senior/tissuumaps_smoke_test.py` — boots a server against a built project and

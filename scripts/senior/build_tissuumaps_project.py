@@ -162,6 +162,19 @@ NAME_ALIASES = {
     "GRANZYME B": "GranzymeB",
 }
 
+# Outline colours for the structure classes, as [r, g, b].
+#
+# Hand-picked rather than taken from marker_color()'s name hash: with only three
+# classes, a hash can put two of them on neighbouring hues, and these are drawn
+# on top of each other over the same tissue. Chosen to stay apart from each other
+# and from the islet outlines, which are deliberately left alone -- QuPath's own
+# colour, or TissUUmaps' default, still applies to those.
+STRUCTURE_CLASS_COLORS = {
+    "Capillary": (230, 60, 60),     # red
+    "Nerve": (255, 200, 0),         # amber
+    "Lymphatic": (0, 200, 140),     # green
+}
+
 # Schema version of the emitted project; matches tissuumaps-schema ~=1.3.
 SCHEMA_VERSION = "1.3"
 
@@ -735,7 +748,34 @@ def region_features(gj) -> list:
     return gj if isinstance(gj, list) else [gj]
 
 
-def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0) -> int:
+def marker_extent(csv_path: Path, x_col: str, y_col: str) -> tuple[float, float] | None:
+    """Largest X and Y in a marker CSV, or None if the columns aren't usable.
+
+    Streamed a row at a time -- a whole-slide donor runs to hundreds of thousands
+    of cells and there is no reason to hold them.
+    """
+    import csv as _csv
+
+    x_max = y_max = float("-inf")
+    try:
+        with open(csv_path, newline="") as fh:
+            reader = _csv.DictReader(fh)
+            if not reader.fieldnames or x_col not in reader.fieldnames \
+                    or y_col not in reader.fieldnames:
+                return None
+            for rec in reader:
+                try:
+                    x, y = float(rec[x_col]), float(rec[y_col])
+                except (TypeError, ValueError):
+                    continue
+                x_max, y_max = max(x_max, x), max(y_max, y)
+    except OSError:
+        return None
+    return None if x_max == float("-inf") else (x_max, y_max)
+
+
+def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0,
+                 class_colors: dict[str, tuple[int, int, int]] | None = None) -> int:
     """Write a QuPath GeoJSON out, scaling coordinates into full-res pixel space.
 
     Also stamps ``properties.collectionIndex`` on every feature. Without it,
@@ -746,6 +786,15 @@ def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0) -> int:
 
     QuPath's own ``properties.name`` and ``properties.classification.name`` are
     read natively by TissUUmaps, so islet names and classes carry over as-is.
+
+    ``class_colors`` assigns a colour per classification name. Without one every
+    class draws in the same default, so vessels, nerves and lymphatics overlaid
+    together are indistinguishable — which defeats the point of showing them.
+    Written as ``classification.color`` = ``[r, g, b]``, which
+    ``regionUtils`` converts with a plain ``rgbToHex``; the alternative,
+    ``colorRGB``, is a *signed* 32-bit int needing the wrap-around handling in
+    ``decimalToHex``, and there is no reason to take on that ambiguity.
+    An existing colour is never overwritten -- if QuPath exported one, it wins.
     """
     def walk(coords):
         if coords and isinstance(coords[0], (int, float)):
@@ -763,6 +812,12 @@ def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0) -> int:
         props["collectionIndex"] = layer_index
         if not props.get("name") and feat.get("id"):
             props["name"] = feat["id"]
+        if class_colors:
+            cls = props.get("classification")
+            if isinstance(cls, dict) and not cls.get("color") and not cls.get("colorRGB"):
+                rgb = class_colors.get(cls.get("name"))
+                if rgb:
+                    cls["color"] = list(rgb)
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     with open(dst, "w") as fh:
@@ -783,7 +838,7 @@ def build_project(
     marker_rel: str | None,
     marker_cols: tuple[str, str, str],
     marker_coord_factor: float,
-    region_rel: str | None,
+    region_specs: list[tuple[str, str, bool]],
 ) -> dict:
     layers, opacities, visibilities, filters = [], {}, {}, {}
 
@@ -870,11 +925,16 @@ def build_project(
             "expectedRadios": {"cb_gr": True, "cb_gr_rand": True},
         })
 
-    if region_rel:
+    # Several region files, each with its own title and autoLoad. Islets are the
+    # thing people open the viewer for, so they load on their own; the
+    # vessel/nerve/lymphatic exports carry ~200k features per donor and ship
+    # switched off, so a donor whose structures are too heavy to draw still
+    # opens instantly and shows its islets.
+    for title, path, auto in region_specs:
         project["regionFiles"].append({
-            "title": "Islets (QuPath)",
-            "path": region_rel,
-            "autoLoad": True,
+            "title": title,
+            "path": path,
+            "autoLoad": auto,
         })
 
     return project
@@ -891,6 +951,11 @@ def main() -> int:
     ap.add_argument("--regions", type=Path, default=None,
                     help="QuPath GeoJSON to attach, or a directory to find the donor's "
                          "export in (e.g. data/Islets); .gz is read transparently")
+    ap.add_argument("--structures", type=Path, default=None,
+                    help="Vessel/nerve/lymphatic GeoJSON (file, or a directory searched for "
+                         "<case>_structures.*). Attached as a SEPARATE region layer that does "
+                         "NOT auto-load: these exports run to ~200k features per donor, so a "
+                         "donor whose structures are too heavy to draw still opens on its islets")
     ap.add_argument("--markers", type=Path, default=None, help="Per-cell CSV to attach")
     ap.add_argument("--marker-cols", default="X_centroid,Y_centroid,phenotype",
                     help="x,y,group columns in the marker CSV")
@@ -1064,40 +1129,80 @@ def main() -> int:
         f"{projected / max(1, slide):.0%} of the {slide / 1e9:.1f} GB slide"
         + ("" if n_files == len(names) else "  [extrapolated from a partial run]"))
 
-    region_rel = None
-    if args.regions:
-        src = resolve_regions(args.regions.resolve(), case_id)
-        if src is not None:
-            gj = _load_geojson(src)
-            feats = region_features(gj)
-            if args.region_scale == "auto":
-                img_w, img_h = read_image_size(image)
-                nominal = args.region_um_per_px / args.um_per_px
-                scale = infer_region_scale(feats, img_w, img_h, nominal)
-                log(f"regions: {src.name} -> x{scale:g} "
-                    f"({args.region_um_per_px} / {args.um_per_px} µm/px, "
-                    f"checked against {img_w}x{img_h})")
-            else:
-                scale = float(args.region_scale)
-            region_rel = f"regions/{case_id}.geojson"
-            n_feat = copy_regions(gj, out_dir / region_rel, scale, args.region_layer)
-            log(f"regions: {n_feat} features scaled x{scale:g} -> {region_rel}")
-
-    marker_rel = None
-    if args.markers:
-        marker_rel = f"markers/{case_id}.csv"
-        dst = out_dir / marker_rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(args.markers, dst)
-        log(f"markers: {dst.stat().st_size / 1e6:.1f} MB -> {marker_rel}")
+    # Islets auto-load; structures do not. Each becomes its own regionFiles
+    # entry so a donor whose structures are too heavy to draw still opens and
+    # shows its islets -- see build_project().
+    region_specs: list[tuple[str, str, bool]] = []
+    for spec, stem, title, auto, colors in (
+        (args.regions, case_id, "Islets (QuPath)", True, None),
+        (args.structures, f"{case_id}_structures",
+         "Structures (vessels/nerves/lymphatics)", False, STRUCTURE_CLASS_COLORS),
+    ):
+        if not spec:
+            continue
+        src = resolve_regions(spec.resolve(), stem)
+        if src is None:
+            continue
+        gj = _load_geojson(src)
+        feats = region_features(gj)
+        if args.region_scale == "auto":
+            img_w, img_h = read_image_size(image)
+            nominal = args.region_um_per_px / args.um_per_px
+            scale = infer_region_scale(feats, img_w, img_h, nominal)
+            log(f"regions: {title} <- {src.name} x{scale:g} "
+                f"({args.region_um_per_px} / {args.um_per_px} µm/px, "
+                f"checked against {img_w}x{img_h})")
+        else:
+            scale = float(args.region_scale)
+        rel = f"regions/{stem}.geojson"
+        n_feat = copy_regions(gj, out_dir / rel, scale, args.region_layer, colors)
+        log(f"regions: {title} — {n_feat} features scaled x{scale:g} -> {rel}"
+            + ("  <-- not auto-loaded" if not auto else ""))
+        region_specs.append((title, rel, auto))
 
     x_col, y_col, group_col = (c.strip() for c in args.marker_cols.split(","))
+
+    marker_rel = None
+    markers_rejected = False
+    if args.markers:
+        # Falsify the coordinate factor before attaching, the way the region
+        # scale is falsified against the image bounds.
+        #
+        # coord_factor is 1/um_per_px on the assumption that the CSV is in µm. If
+        # it is already in pixels, every cell lands at ~4x its true position: a
+        # zoomed-out view looks unremarkable because the dots still cover tissue,
+        # and only at cell-level zoom does it become obvious. That is the same
+        # silently-wrong failure as a mis-scaled region file, and it gets the
+        # same treatment -- cells cannot legitimately sit outside the slide.
+        coord_factor = round(1.0 / args.um_per_px, 6)
+        extent = marker_extent(args.markers, x_col, y_col)
+        if extent is None:
+            log(f"WARNING: could not read {x_col}/{y_col} from {args.markers}; "
+                f"markers not attached")
+            markers_rejected = True
+        else:
+            img_w, img_h = read_image_size(image)
+            span = (extent[0] * coord_factor, extent[1] * coord_factor)
+            if span[0] > img_w * 1.02 or span[1] > img_h * 1.02:
+                log(f"ERROR: markers reach {span[0]:.0f}x{span[1]:.0f} px after x{coord_factor} "
+                    f"but the image is only {img_w}x{img_h}. The CSV is not in µm, or "
+                    f"--um-per-px is wrong. NOT attaching them rather than placing every "
+                    f"cell in the wrong spot; pass the right --um-per-px or fix the export.")
+                markers_rejected = True
+            else:
+                marker_rel = f"markers/{case_id}.csv"
+                dst = out_dir / marker_rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(args.markers, dst)
+                log(f"markers: {dst.stat().st_size / 1e6:.1f} MB -> {marker_rel} "
+                    f"(extent {span[0]:.0f}x{span[1]:.0f} px of {img_w}x{img_h})")
+
     project = build_project(
         case_id, kept_names, channel_files, args.um_per_px,
         marker_rel, (x_col, y_col, group_col),
         # Marker CSVs are in µm; TissUUmaps wants image pixels.
         marker_coord_factor=round(1.0 / args.um_per_px, 6),
-        region_rel=region_rel,
+        region_specs=region_specs,
     )
 
     tmap_path = out_dir / f"{case_id}.tmap"
@@ -1117,6 +1222,12 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - validation errors are informational
         log(f"WARNING: schema validation failed: {exc}")
 
+    # The project is written and usable -- channels and outlines are unaffected --
+    # but a caller that scripted this run must not record it as a clean success
+    # when a requested overlay was refused.
+    if markers_rejected:
+        log("exit 3: project written WITHOUT the requested cell overlay (see ERROR above)")
+        return 3
     return 0
 
 

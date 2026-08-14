@@ -38,7 +38,10 @@ JSON_OUT = APPDATA / "json"
 # densities in the Microenvironment tab are separately deferred (targets area_um2
 # = NaN). To re-enable, add the structure prefixes back here.
 CLASS_MAP = {"Islets": "Islet"}
-STRUCTURE_MAP = {"Blood_vessel": "Capillary", "Nerve": "Nerve", "Lymphatic": "Lymphatic"}  # v1.1
+# Used ONLY by build_structure_geojsons() (--structures), which writes a separate
+# file for the TissUUmaps viewer. Still absent from CLASS_MAP on purpose: the sf
+# deferral above is about the Shiny app's drill-down and has not changed.
+STRUCTURE_MAP = {"Blood_vessel": "Capillary", "Nerve": "Nerve", "Lymphatic": "Lymphatic"}
 
 def discover_donors():
     """Auto-discover the cohort from the tissue partitions (case_id=<donor>), so adding
@@ -97,11 +100,40 @@ def build_lookup():
 
 
 def build_geojsons():
-    JSON_OUT.mkdir(parents=True, exist_ok=True)
+    _write_class_geojsons(CLASS_MAP, JSON_OUT, "{donor}.geojson", "geojson")
+
+
+def build_structure_geojsons():
+    """Vessel/nerve/lymphatic outlines for the TissUUmaps viewer ONLY.
+
+    Deliberately a SEPARATE file from the per-donor `<donor>.geojson` above, and
+    STRUCTURE_MAP is deliberately still absent from CLASS_MAP. Merging these into
+    the app's own GeoJSON is what the v1 deferral at the top of this file rules
+    out: ~200k features per donor makes `sf::st_read` unusably slow on the first
+    drill-down click, and that is still true. The viewer reads its own file, as
+    its own region layer, which it does not auto-load.
+
+    Written to a `structures/` subdirectory so a case-id search can never match
+    both this and the islet file for the same donor -- the builder's region
+    lookup refuses to guess between two matches and would attach neither.
+    """
+    out_dir = JSON_OUT / "structures"
+    _write_class_geojsons(STRUCTURE_MAP, out_dir, "{donor}_structures.geojson", "structures")
+
+
+def _write_class_geojsons(class_map, out_dir, name_tmpl, tag):
+    """Merge each donor's per-class QuPath exports into one FeatureCollection.
+
+    Properties are stripped to name + classification on purpose: QuPath's
+    measurement dictionaries travel with every feature and dominate the file
+    size, and `regionUtils.geoJSON2regions()` keeps whatever it is given on each
+    region in memory.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
     for donor in DONORS:
         feats = []
         counts = {}
-        for cls_prefix, cls_name in CLASS_MAP.items():
+        for cls_prefix, cls_name in class_map.items():
             f = find_class_file(cls_prefix, donor)
             if f is None:
                 continue
@@ -119,15 +151,28 @@ def build_geojsons():
                 feats.append(out)
             counts[cls_name] = counts.get(cls_name, 0) + len(gj.get("features", []))
         if not feats:
-            print(f"[geojson] {donor}: NO source files found -- skipped")
+            print(f"[{tag}] {donor}: NO source files found -- skipped")
             continue
         fc = {"type": "FeatureCollection", "features": feats}
-        with open(JSON_OUT / f"{donor}.geojson", "w") as fh:
+        dst = out_dir / name_tmpl.format(donor=donor)
+        with open(dst, "w") as fh:
             json.dump(fc, fh)
-        print(f"[geojson] {donor}: {len(feats)} features {counts}")
+        print(f"[{tag}] {donor}: {len(feats)} features {counts} "
+              f"({dst.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--structures", action="store_true",
+                    help="Also write structures/<donor>_structures.geojson for the "
+                         "TissUUmaps viewer. Off by default: these are large and "
+                         "nothing in the Shiny app reads them.")
+    a = ap.parse_args()
+
     build_lookup()
     build_geojsons()
+    if a.structures:
+        build_structure_geojsons()
     print("[done] viewer assets in", APPDATA)

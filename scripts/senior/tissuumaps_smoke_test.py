@@ -112,6 +112,33 @@ def make_slide(path: Path, order: str, size: int = 1024) -> list[str]:
     return names
 
 
+def make_structures(path: Path, n: int = 300) -> int:
+    """Vessel/nerve/lymphatic GeoJSON, in the same resolution-#1 pixel space.
+
+    Small, many, and multi-class -- the shape of the real exports rather than
+    their size (those run to ~200k features per donor). The point of the fixture
+    is to prove the SECOND region layer is emitted, titled and left un-auto-loaded;
+    proving 200k features render acceptably needs a real donor, not a synthetic one.
+    """
+    random.seed(7)
+    classes = ["Capillary", "Nerve", "Lymphatic"]
+    feats = []
+    for k in range(n):
+        cx, cy, r = random.uniform(20, 460), random.uniform(20, 400), random.uniform(3, 9)
+        ring = [[cx + r * math.cos(t * math.pi / 4), cy + r * math.sin(t * math.pi / 4)]
+                for t in range(8)]
+        ring.append(ring[0])
+        cls = classes[k % len(classes)]
+        feats.append({
+            "type": "Feature", "id": f"{cls}_{k}",
+            "geometry": {"type": "Polygon", "coordinates": [ring]},
+            "properties": {"objectType": "annotation", "classification": {"name": cls}},
+        })
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"type": "FeatureCollection", "features": feats}))
+    return len(feats)
+
+
 def make_aux(geojson: Path, csv: Path, um_per_px_res1: float = 0.5078) -> tuple[int, int]:
     """QuPath-style islet GeoJSON (resolution-#1 px) + per-cell CSV (µm)."""
     random.seed(0)
@@ -330,6 +357,8 @@ def main() -> int:
     ap.add_argument("--image", type=Path, default=None,
                     help="Real donor OME-TIFF (default: synthesize batch-1 + batch-2 slides)")
     ap.add_argument("--regions", type=Path, default=None, help="QuPath GeoJSON (real runs)")
+    ap.add_argument("--structures", type=Path, default=None,
+                    help="Vessel/nerve/lymphatic GeoJSON (real runs)")
     ap.add_argument("--markers", type=Path, default=None, help="Per-cell CSV (real runs)")
     ap.add_argument("--work-dir", type=Path, default=Path("/tmp/tissuumaps_smoke"),
                     help="Scratch directory for slides + project output")
@@ -345,7 +374,7 @@ def main() -> int:
 
     # -- slides -------------------------------------------------------------
     if args.image:
-        slides = [(args.image.resolve(), args.regions, args.markers)]
+        slides = [(args.image.resolve(), args.regions, args.markers, args.structures)]
         log(f"Using real slide {args.image}")
     else:
         log("Building synthetic slides (batch-1 59ch SST@35, batch-2 58ch SST@1)")
@@ -356,7 +385,14 @@ def main() -> int:
         gj = work / "aux" / "results__6539_IO60panc2nd_resolution__1.geojson.gz"
         csv = work / "aux" / "cells.csv"
         n_islets, n_cells = make_aux(gj, csv)
-        print(f"  aux: {n_islets} islets, {n_cells} cells")
+        # Structures live in their OWN directory, as they do in reality (islet
+        # exports in data/Islets, structures written by build_viewer_assets.py
+        # into app_data/json). Co-locating them would make the case-id lookup
+        # ambiguous -- `6539_structures.geojson` also matches a search for 6539 --
+        # and the builder would fail closed and attach neither.
+        struct = work / "structures" / "6539_structures.geojson"
+        n_struct = make_structures(struct)
+        print(f"  aux: {n_islets} islets, {n_struct} structures, {n_cells} cells")
         slides = []
         for case, order in (("6539", "batch1"), ("6450", "batch2")):
             path = work / "slides" / f"{case}.ome.tiff"
@@ -364,15 +400,18 @@ def main() -> int:
                 names = make_slide(path, order)
                 print(f"  {case}: {len(names)} channels, SST@{names.index('SST')}")
             slides.append((path, gj.parent if case == "6539" else None,
-                           csv if case == "6539" else None))
+                           csv if case == "6539" else None,
+                           struct.parent if case == "6539" else None))
 
     # -- build projects -----------------------------------------------------
     log("Building .tmap projects")
-    for image, regions, markers in slides:
+    for image, regions, markers, structures in slides:
         cmd = [sys.executable, str(BUILDER), "--image", str(image),
                "--out-dir", str(projects)]
         if regions:
             cmd += ["--regions", str(regions)]
+        if structures:
+            cmd += ["--structures", str(structures)]
         if markers:
             cmd += ["--markers", str(markers)]
         if args.channels:
@@ -466,6 +505,37 @@ def main() -> int:
             verdict, _, detail = line.split("VERDICT:", 1)[1].strip().partition(" - ")
             return verdict, detail
 
+        # Marker coordinates are trusted to be µm and multiplied by 1/µm-per-px.
+        # If they were already pixels every cell lands ~4x out -- which looks
+        # unremarkable zoomed out and is only obvious at cell-level zoom. Prove
+        # the builder refuses rather than attaching them, by feeding it the same
+        # CSV with the coordinates pre-multiplied so they overflow the slide.
+        if hit[2]:
+            import csv as _csv
+
+            # Into its OWN out-dir, and one channel: this run writes a .tmap for
+            # the same case id, so sharing the project directory would overwrite
+            # the real one -- without its regions, because this invocation does
+            # not pass them.
+            probe_dir = projects.parent / "marker_probe"
+            bad = probe_dir / "_bad_markers.csv"
+            bad.parent.mkdir(parents=True, exist_ok=True)
+            with open(hit[2], newline="") as fh, open(bad, "w", newline="") as out:
+                r = _csv.reader(fh)
+                w = _csv.writer(out)
+                head = next(r)
+                w.writerow(head)
+                for row in r:
+                    row[0], row[1] = str(float(row[0]) * 40), str(float(row[1]) * 40)
+                    w.writerow(row)
+            proc = subprocess.run(
+                [sys.executable, str(BUILDER), "--image", str(hit[0]),
+                 "--out-dir", str(probe_dir), "--markers", str(bad), "--channels", "DAPI"],
+                capture_output=True, text=True)
+            check("out-of-bounds markers are refused, not attached",
+                  proc.returncode == 3 and "NOT attaching" in proc.stdout,
+                  f"exit {proc.returncode}")
+
         good_v, good_d = report("20")
         old_v, old_d = report("3")
         check("stretch does not blow out the markers", good_v == "ok",
@@ -475,7 +545,31 @@ def main() -> int:
         # until they grew an asymmetric background tail and rare bright markers.
         check("that check can fail (old floor is caught)", old_v == "blown-out",
               old_d if old_v != "error" else f"report failed: {old_d}")
-    for rel in (r["path"] for r in tmap.get("regionFiles", [])):
+    # Islets must auto-load and structures must not: the vessel/nerve/lymphatic
+    # exports run to ~200k features per donor, and auto-loading them would make
+    # every donor pay that cost just to look at an islet.
+    region_layers = {r["title"]: r for r in tmap.get("regionFiles", [])}
+    auto = [t for t, r in region_layers.items() if r.get("autoLoad")]
+    if region_layers:
+        check("islets auto-load, nothing else does",
+              auto == [t for t in region_layers if t.startswith("Islets")],
+              f"{len(region_layers)} layer(s); auto-loading: {auto or 'none'}")
+
+    # Without per-class colours every structure class draws the same, so
+    # vessels, nerves and lymphatics overlaid together are indistinguishable --
+    # which is the whole reason for showing them.
+    struct_layer = next((r for t, r in region_layers.items() if t.startswith("Structures")), None)
+    if struct_layer:
+        cls_colors = {}
+        for f in read_geojson(projects / struct_layer["path"]).get("features", []):
+            cls = (f.get("properties") or {}).get("classification") or {}
+            if cls.get("name") and cls.get("color"):
+                cls_colors[cls["name"]] = tuple(cls["color"])
+        check("structure classes get distinct colours",
+              len(cls_colors) > 1 and len(set(cls_colors.values())) == len(cls_colors),
+              ", ".join(f"{k}={v}" for k, v in sorted(cls_colors.items())) or "none coloured")
+
+    for rel in (r["path"] for r in region_layers.values()):
         if hit is None:
             break
         img_w, img_h = image_size(hit[0])
@@ -483,11 +577,16 @@ def main() -> int:
         check(f"{rel} lies inside the {img_w}x{img_h} image",
               out_max is not None and out_max[0] <= img_w and out_max[1] <= img_h,
               f"max {out_max[0]:.0f},{out_max[1]:.0f}" if out_max else "no geometry")
-        src_file = find_region_source(hit[1], primary)
+        # Compare each written layer against the source it actually came from --
+        # islets to hit[1], structures to hit[3]. Measuring both against the
+        # islet export would silently pass whatever the structures did.
+        stem = Path(rel).stem
+        spec, want = (hit[3], stem) if stem.endswith("_structures") else (hit[1], primary)
+        src_file = find_region_source(spec, want)
         src_max = geojson_max(read_geojson(src_file)) if src_file else None
         if src_max and src_max[0] and out_max:
             factor = out_max[0] / src_max[0]
-            check("region scale is a clean pyramid factor",
+            check(f"{stem}: region scale is a clean pyramid factor",
                   any(abs(factor - c) < 0.01 for c in (0.25, 0.5, 1, 2, 4, 8)), f"x{factor:.2f}")
 
     if len(cases) > 1:  # synthetic run: prove the panels differ but names resolve
