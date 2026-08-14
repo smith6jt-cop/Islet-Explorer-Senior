@@ -2,7 +2,9 @@
 Idempotent orchestrator for the integration stages.
 
 Mirrors ``phenocycler/pipeline.py`` deliberately: the same ``STAGES`` / ``ORDER`` shape, the
-same "does the output already exist" skip logic, the same ``--status`` table. Someone who
+same "does the output already exist" skip logic, the same ``--status`` table. Retired
+PhenoCycler phenotype outputs are the deliberate exception: neither their presence nor
+``--only`` can bypass the current no-verified-phenotype boundary. Someone who
 knows how to drive the core pipeline already knows how to drive this one.
 
     python -m phenocycler.integration.pipeline --status
@@ -49,6 +51,7 @@ import glob
 from typing import Optional
 
 from ..config import PipelineConfig, load_config
+from .export_pheno import require_current_pheno
 from .tissues import DISPLAY_NAME, has_structures
 
 #: (stage, output glob under data_dir, human label)
@@ -91,6 +94,33 @@ NEEDS_STRUCTURES = {"structures", "match", "cellmatch"}
 #: Stages that run once for the whole selection rather than once per ROI.
 COHORT_WIDE = {"manifest", "vocab", "structures", "donor", "qc"}
 
+# These stages either create, directly read, or scientifically depend on the main
+# PhenoCycler cell contract. Historical ``integration/cells_pheno`` files are not a
+# cache for the current workflow and must never make one of these stages runnable.
+PHENO_DEPENDENT_STAGES = frozenset(
+    {
+        "export_pheno",
+        "postxen",
+        "vocab",
+        "structures",
+        "register",
+        "match",
+        "cellmatch",
+        "sameslide",
+        "grid",
+        "donor",
+        "crossmodal",
+        "qc",
+        "figures",
+    }
+)
+
+
+def _assert_current_pheno_available(stages: list[str]) -> None:
+    blocked = sorted(PHENO_DEPENDENT_STAGES.intersection(stages))
+    if blocked:
+        require_current_pheno(f"integration stage(s): {', '.join(blocked)}")
+
 
 def order_for(mode: str) -> list[str]:
     return ORDER_SAME_SLIDE if mode == "same_slide" else ORDER_SEQUENTIAL
@@ -125,6 +155,9 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
         scope = ""
         if name not in order:
             mark = "n/a"
+        elif name in PHENO_DEPENDENT_STAGES:
+            mark = "BLOCKED"
+            scope = "  [no verified PhenoCycler phenotype input; cached files ignored]"
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:
@@ -153,13 +186,6 @@ def run_pipeline(
     cohort. Per-ROI stages iterate the resolved ROI list; cohort-wide stages see the
     selection and scope themselves.
     """
-    selected = list(tissues) if tissues else cfg.tissue_list
-    rois = cfg.resolve_rois(roi, tissues)
-    if not rois:
-        raise SystemExit(f"no ROIs for tissue selection {selected} — check [integration] "
-                         f"tissues in config.ini")
-    print(f"[pipeline] tissues: {', '.join(selected)} | rois: {', '.join(rois)}", flush=True)
-
     order = order_for(cfg.integration_mode)
     if only:
         unknown = [s for s in only if s not in {n for n, _, _ in STAGES}]
@@ -171,6 +197,18 @@ def run_pipeline(
                 f"stage(s) {wrong_mode} do not apply in {cfg.integration_mode!r} mode "
                 f"(applicable: {order})")
         order = [s for s in order if s in only]
+
+    # Preflight before resolving ROIs or consulting any output cache. In particular,
+    # ``--only donor`` and an existing retired cells_pheno directory cannot evade the
+    # fail-closed exporter by omitting or skipping export_pheno.
+    _assert_current_pheno_available(order)
+
+    selected = list(tissues) if tissues else cfg.tissue_list
+    rois = cfg.resolve_rois(roi, tissues)
+    if not rois:
+        raise SystemExit(f"no ROIs for tissue selection {selected} — check [integration] "
+                         f"tissues in config.ini")
+    print(f"[pipeline] tissues: {', '.join(selected)} | rois: {', '.join(rois)}", flush=True)
 
     patterns = {name: pattern for name, pattern, _ in STAGES}
     # One tissue selected -> pass it down so each stage scopes itself; several -> pass None,

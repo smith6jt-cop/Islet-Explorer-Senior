@@ -1,9 +1,9 @@
 """
 phenocycler.integration — PhenoCycler (protein) <-> Xenium (RNA) integration.
 
-Picks up where the core pipeline stops. ``phenocycler.pipeline`` ends at
-``data/phenotype/broad/`` (eight broad lineages, zero Unassigned); this subpackage takes
-that output, brings the Xenium side to the same table shape, and integrates them.
+The Xenium and modality-agnostic integration components remain available, but the retained
+PhenoCycler exporter targets the retired ``phenotype/broad`` + ``restore_gated_redsea``
+layout. It now fails closed unconditionally; there is no historical-comparison opt-in.
 
 Two modes, and the distinction is the whole point:
 
@@ -24,7 +24,7 @@ claim rests on it.
 Stage order (``pipeline.py``)::
 
     manifest      S0   donor <-> Xenium-run pairing, donor_id/roi stamping
-    export_pheno  S1a  phenotype/broad + cells + restore_gated  -> cells_pheno/
+    export_pheno  S1a  retired inputs; fail-closed pending a current-output rewire
     import_xenium S1b  h5ad | zarr | bundle                     -> cells_xen/
     vocab         S2   harmonised lineage vocabulary + protein<->gene crosswalk
     structures    S3   tissue / islets / ducts / vessels, same algorithm both sides

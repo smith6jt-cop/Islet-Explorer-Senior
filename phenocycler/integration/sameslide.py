@@ -362,6 +362,9 @@ def run_sameslide(
     max_dist_um: float = DEFAULT_MAX_DIST_UM,
 ) -> pd.DataFrame:
     """Stage entry point for same-slide mode. One call covers the whole selection."""
+    from .export_pheno import require_current_pheno
+
+    require_current_pheno("same-slide integration")
     require_same_slide(cfg)
 
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)

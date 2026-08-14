@@ -31,6 +31,7 @@ from .pipeline import (
     STAGE_METHODS,
     STAGE_ORDER,
     RunContext,
+    _assert_stages_available,
     _selected_stages,
     resolve_run_context,
 )
@@ -207,11 +208,13 @@ def _source_geometry_manifest(
         )
     if recorded.get("registry_fingerprint") != context.registry.fingerprint:
         raise StaleArtifactError("source geometry marker registry differs")
-    if (
-        recorded.get("typing_rules_fingerprint")
-        != context.typing_registry.rules_fingerprint
-    ):
-        raise StaleArtifactError("source geometry typing registry differs")
+    expected_gates = (
+        ""
+        if context.broad_gate_policy is None
+        else context.broad_gate_policy.fingerprint
+    )
+    if recorded.get("broad_gate_rules_fingerprint", "") != expected_gates:
+        raise StaleArtifactError("source geometry broad-gate policy differs")
 
     inputs = {artifact.name: artifact for artifact in manifest.inputs}
     if (
@@ -555,6 +558,8 @@ def recover(
     if jobs is not None:
         overrides["n_jobs"] = jobs
     context = resolve_run_context(load_config(config_path, **overrides))
+    stages = _selected_stages(None, through)
+    _assert_stages_available(context, stages, operation="recovery")
     prepare_interrupted_run_recovery(
         context,
         source_run_id=source_run_id,
@@ -562,7 +567,7 @@ def recover(
     if not prepare_only:
         run_pipelined_pipeline(
             context,
-            stages=_selected_stages(None, through),
+            stages=stages,
             export=export,
         )
     return context

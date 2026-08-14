@@ -315,6 +315,9 @@ def match_donor_cells(cfg: PipelineConfig, donor: str, roi: str) -> tuple[pd.Dat
 def run_cellmatch(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
                   roi: Optional[str] = None, tissue: Optional[str] = None) -> pd.DataFrame:
     """Stage entry point. Endocrine cells inside matched islets, guarded at every step."""
+    from .export_pheno import require_current_pheno
+
+    require_current_pheno("integration cell matching")
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
     if donors:
         man = man[man["donor_id"].isin({str(d) for d in donors})]

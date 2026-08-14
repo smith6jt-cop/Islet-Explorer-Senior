@@ -94,9 +94,8 @@ class BroadGatePolicy:
 
         The ordered-residual policy this replaces checked only that the gate
         marker set equalled the active marker set.  That let SST -- declared
-        ``uses: ["subtype"]`` with no ``broad_compartment``, and named in
-        ``hierarchical_typing.SUBTYPE_ONLY_MARKERS`` -- sit in the Epithelial
-        broad gate, contradicting two other contracts in the same package.
+        ``uses: ["subtype"]`` with no ``broad_compartment`` -- sit in the
+        Epithelial broad gate, contradicting the registry contract.
         """
 
         by_name = {marker.name: marker for marker in registry.markers}
@@ -416,9 +415,6 @@ def type_simultaneous_cells(
     out["marker_registry_fingerprint"] = registry.fingerprint
     out["typing_mode"] = TYPING_MODE
     out["typing_method_version"] = METHOD_VERSION
-    out["typing_model_bundle_content_id"] = ""
-    out["typing_model_bundle_version"] = ""
-    out["typing_model_method_version"] = ""
     out["typing_feature_schema_version"] = "restore-tristate-v1"
     out["typing_score_semantics"] = SCORE_SEMANTICS
     out["typing_broad_score_semantics"] = SCORE_SEMANTICS

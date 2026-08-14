@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import get_context
 from typing import Callable, Iterable, Mapping
 
 
@@ -107,7 +108,14 @@ def map_donors(
         return results
 
     out: dict[str, object] = {}
-    executor = ProcessPoolExecutor(max_workers=jobs)
+    # Scientific runtimes commonly have active Arrow/OpenMP threads by the
+    # time donor fan-out begins.  Forking that process is deprecated on modern
+    # Python and can deadlock inherited native thread pools, so use a clean
+    # interpreter for every worker.
+    executor = ProcessPoolExecutor(
+        max_workers=jobs,
+        mp_context=get_context("spawn"),
+    )
     fut_to_donor = {
         executor.submit(func, donor): donor for donor in donors
     }

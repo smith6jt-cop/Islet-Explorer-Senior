@@ -13,34 +13,39 @@ explicitly configured); it is never converted to a biological negative.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
 from .artifacts import ContractError
-from .marker_registry import MarkerRegistry
+from .marker_registry import MarkerRegistry, NoVerifiedPairsError
+from .reference_controls import (
+    reference_masks_as_arrays,
+    reference_masks_from_wide,
+    validate_reference_masks,
+)
+from .restore_seeded import (
+    FEATURE_TRANSFORMS,
+    evaluate_reference_seeded_pair,
+)
+from .restore_seeded import METHOD_VERSION as SEEDED_RESTORE_METHOD_VERSION
 from .restore_validation import (
-    ACCEPTED_PAIRS,
-    CANDIDATE_PAIRS,
-    METHOD_VERSION as RESTORE_METHOD_VERSION,
     ExpressionReview,
     PairReview,
     PairState,
     PairValidationConfig,
-    evaluate_locked_pair,
     load_expression_reviews,
     locked_pair_metrics,
 )
 
-
-# v2: a reviewed absence of target expression calls only cells that were actually measured.  The
-# NO_TARGET_EXPRESSION_CONFIRMED branch used to write `negative` over every row regardless of
-# ``valid_idx``, so a cell with a missing measurement became a confident biological negative.
-METHOD_VERSION = f"restore-marker-evidence-v2+{RESTORE_METHOD_VERSION}"
+# v4 consumes the registry-selected expression table for call intensities and
+# routes NNMF compartments independently per marker. QuPath-normalized markers
+# are left-censored at zero exactly once at this RESTORE boundary.
+METHOD_VERSION = f"restore-marker-evidence-v4-selected-inputs+{SEEDED_RESTORE_METHOD_VERSION}"
 CELL_POSITIVE = "positive"
 CELL_NEGATIVE = "negative"
 CELL_UNAVAILABLE = "unavailable"
@@ -70,6 +75,9 @@ class RestoreStageConfig:
     feature_compartments: tuple[str, ...]
     control_definition: str = "reference_only"
     on_technical_failure: str = "unavailable"
+    nnmf_fit_basis: str = "all"
+    control_membership: str = "component"
+    feature_transform: str = "linear_upper_scale"
 
     def __post_init__(self) -> None:
         # PairValidationConfig owns the detailed validation and the full frozen
@@ -79,27 +87,75 @@ class RestoreStageConfig:
             raise ValueError(
                 "on_technical_failure must be 'halt' or 'unavailable'"
             )
+        if self.control_definition != "reference_only":
+            raise ValueError(
+                "production RESTORE requires control_definition='reference_only'"
+            )
+        if self.divisor_statistic != "empirical_alpha":
+            raise ValueError(
+                "production RESTORE requires divisor_statistic='empirical_alpha'; "
+                "fixed quantiles and maxima are review-only"
+            )
+        if self.nnmf_fit_basis != "all":
+            raise ValueError(
+                "production RESTORE requires nnmf_fit_basis='all'; "
+                "raw-floor/balanced-arm fitting is review-only"
+            )
+        if self.control_membership != "component":
+            raise ValueError(
+                "production RESTORE requires control_membership='component'"
+            )
+        if self.feature_transform not in FEATURE_TRANSFORMS:
+            raise ValueError(
+                "feature_transform must be one of "
+                f"{sorted(FEATURE_TRANSFORMS)}"
+            )
+        if self.feature_transform != "linear_upper_scale":
+            raise ValueError(
+                "production RESTORE requires feature_transform="
+                "'linear_upper_scale'; shifted and nonlinear transforms are "
+                "review-only"
+            )
 
     @classmethod
-    def from_pipeline(cls, config: object) -> "RestoreStageConfig":
+    def from_pipeline(cls, config: object) -> RestoreStageConfig:
+        # These two are `None` on an unconfigured PipelineConfig, and `str(None)`
+        # is the string "None" -- which would reach PairValidationConfig as a
+        # feature compartment named "None" and fail there with an error that says
+        # nothing about the missing configuration. Name the real problem here.
+        missing = [
+            key
+            for key in ("restore_divisor_statistic", "restore_feature_compartments")
+            if getattr(config, key, None) is None
+        ]
+        if missing:
+            raise ValueError(
+                "RESTORE scientific policy is unset: "
+                + ", ".join(sorted(missing))
+                + ". These have no defaults; supply them from config.ini's "
+                "[restore] section."
+            )
         compartments = tuple(
             item.strip()
             for item in str(
-                getattr(config, "restore_feature_compartments")
+                config.restore_feature_compartments
             ).split(",")
             if item.strip()
         )
         return cls(
             control_definition=str(
-                getattr(config, "restore_control_definition")
+                config.restore_control_definition
             ),
             divisor_statistic=str(
-                getattr(config, "restore_divisor_statistic")
+                config.restore_divisor_statistic
             ),
             feature_compartments=compartments,
             on_technical_failure=str(
-                getattr(config, "restore_on_technical_failure")
+                config.restore_on_technical_failure
             ),
+            nnmf_fit_basis=str(config.restore_nnmf_fit_basis),
+            control_membership=str(config.restore_control_membership),
+            feature_transform=str(config.restore_feature_transform),
         )
 
     def pair_config(self) -> PairValidationConfig:
@@ -107,6 +163,8 @@ class RestoreStageConfig:
             control_definition=self.control_definition,
             divisor_statistic=self.divisor_statistic,
             feature_compartments=self.feature_compartments,
+            nnmf_fit_basis=self.nnmf_fit_basis,
+            control_membership=self.control_membership,
         )
 
 
@@ -120,46 +178,13 @@ class RestoreStageResult:
 def production_pairs(
     registry: MarkerRegistry,
 ) -> tuple[tuple[str, str], ...]:
-    """Return the frozen, accepted RESTORE v10 pair web.
+    """Refuse production marker calling until a pair roster is verified."""
 
-    The registry remains the machine-readable target/reference contract used
-    by the rest of the pipeline, but it may not silently drift away from the
-    pair web that passed RESTORE's validation gates.
-    """
-
-    pairs: list[tuple[str, str]] = []
-    for marker in registry.active_markers:
-        if marker.reference is None:
-            raise ContractError(
-                f"active RESTORE target {marker.name!r} has no reference"
-            )
-        pair = (str(marker.name), str(marker.reference))
-        if pair not in CANDIDATE_PAIRS:
-            raise ContractError(
-                f"active registry pair {pair[0]} <- {pair[1]} was not "
-                "validated in the RESTORE candidate specification"
-            )
-        pairs.append(pair)
-    targets = [target for target, _ in pairs]
-    if len(targets) != len(set(targets)):
-        raise ContractError("RESTORE requires exactly one reference per target")
-    observed = {target: reference for target, reference in pairs}
-    accepted = {target: reference for target, reference in ACCEPTED_PAIRS}
-    if observed != accepted:
-        mismatches = {
-            target: {
-                "accepted": accepted.get(target),
-                "registry": observed.get(target),
-            }
-            for target in sorted(set(observed) | set(accepted))
-            if observed.get(target) != accepted.get(target)
-        }
-        raise ContractError(
-            "active registry pairs differ from the accepted RESTORE v10 web: "
-            f"{mismatches}"
-        )
-    # Preserve the reviewed order in model audits and deterministic outputs.
-    return tuple(ACCEPTED_PAIRS)
+    del registry
+    raise NoVerifiedPairsError(
+        "no verified production marker pairs exist; use the mutable fundamental "
+        "QuPath input diagnostics while pair design is under development"
+    )
 
 
 def _keyed(
@@ -206,20 +231,24 @@ def _align_exact(
 def build_restore_input_frame(
     cells: pd.DataFrame,
     redsea: pd.DataFrame,
+    selected_expression: pd.DataFrame,
     geometry: pd.DataFrame,
     *,
     donor_id: str,
     pairs: Sequence[tuple[str, str]],
+    registry: MarkerRegistry,
     feature_compartments: Sequence[str] = ("Membrane", "Cell"),
-    compartment_sample: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Build the exact column contract consumed by ``evaluate_locked_pair``.
+    """Build the aligned production RESTORE input contract.
 
-    Canonical raw whole-cell intensities define RESTORE's input floors. REDSEA
-    whole-cell intensities define divisors and calls. Optional raw QuPath
-    compartment means enrich NNMF group inference. Geometry-ineligible cells
-    remain in the output universe but all fit inputs are nulled, ensuring they
-    cannot estimate a divisor or receive a marker call.
+    The selected-expression artifact is the sole threshold/call scale. NNMF
+    compartments are routed independently by the registry: exact QuPath
+    ``Mean (norm)`` measurements for ``qupath_norm`` markers, and REDSEA
+    compartments for all other markers. Signed QuPath-normalized values are
+    preserved upstream and finite negative values are left-censored to zero
+    here because NNMF requires a nonnegative matrix. Missing values stay
+    missing. No raw, REDSEA, or RESTORE-output fallback can satisfy a missing
+    QuPath-normalized input.
     """
 
     donor = str(donor_id)
@@ -231,7 +260,6 @@ def build_restore_input_frame(
         "image",
         "X_centroid",
         "Y_centroid",
-        *marker_order,
     }
     missing_cells = sorted(required_cells.difference(cells.columns))
     if missing_cells:
@@ -245,12 +273,21 @@ def build_restore_input_frame(
     redsea_aligned = _align_exact(
         redsea, object_ids, name=f"donor {donor} REDSEA"
     )
+    expression_aligned = _align_exact(
+        selected_expression,
+        object_ids,
+        name=f"donor {donor} selected expression",
+    )
     geometry_aligned = _align_exact(
         geometry, object_ids, name=f"donor {donor} geometry QC"
     )
     if "analysis_eligible" not in geometry_aligned:
         raise ContractError(
             f"donor {donor}: geometry QC is missing analysis_eligible"
+        )
+    if "estimation_eligible" not in geometry_aligned:
+        raise ContractError(
+            f"donor {donor}: geometry QC is missing estimation_eligible"
         )
     eligibility = geometry_aligned["analysis_eligible"]
     if eligibility.isna().any() or not eligibility.isin(
@@ -260,24 +297,18 @@ def build_restore_input_frame(
             f"donor {donor}: analysis_eligible must contain explicit booleans"
         )
     analysis_eligible = eligibility.astype(bool).to_numpy()
-
-    sample_aligned: pd.DataFrame | None = None
-    sample_coverage = 0
-    if compartment_sample is not None:
-        sample_keyed = _keyed(
-            compartment_sample,
-            name=f"donor {donor} RESTORE compartment sample",
+    estimation = geometry_aligned["estimation_eligible"]
+    if estimation.isna().any() or not estimation.isin(
+        [True, False, 0, 1]
+    ).all():
+        raise ContractError(
+            f"donor {donor}: estimation_eligible must contain explicit booleans"
         )
-        extras = sample_keyed.index.difference(object_ids)
-        if len(extras):
-            raise ContractError(
-                f"donor {donor}: RESTORE compartment sample has "
-                f"{len(extras):,} noncanonical cells; examples={extras[:5].tolist()}"
-            )
-        sample_coverage = int(
-            object_ids[analysis_eligible].isin(sample_keyed.index).sum()
+    estimation_eligible = estimation.astype(bool).to_numpy()
+    if np.any(estimation_eligible & ~analysis_eligible):
+        raise ContractError(
+            f"donor {donor}: estimation-eligible cells must also be analysis eligible"
         )
-        sample_aligned = sample_keyed.reindex(object_ids)
 
     columns: dict[str, object] = {
         "donor_id": np.full(len(canonical), donor, dtype=object),
@@ -290,27 +321,77 @@ def build_restore_input_frame(
             canonical["Y_centroid"], errors="coerce"
         ).to_numpy(),
         "qc_analysis_eligible": analysis_eligible,
+        "qc_estimation_eligible": estimation_eligible,
     }
-    for marker in marker_order:
-        raw = pd.to_numeric(canonical[marker], errors="coerce").to_numpy(
-            dtype=float
-        )
-        redsea_column = f"Cell__{marker}"
-        if redsea_column not in redsea_aligned:
-            raise ContractError(
-                f"donor {donor}: REDSEA is missing {redsea_column}"
-            )
-        corrected = pd.to_numeric(
-            redsea_aligned[redsea_column], errors="coerce"
-        ).to_numpy(dtype=float)
-        # Whole-cell raw means are already canonical in cells and were proven
-        # equivalent to the historical sample's Cell__ columns up to float32
-        # round-trip. They are therefore available even for markers added after
-        # the compartment extraction.
-        columns[f"raw__{marker}"] = raw.copy()
-        columns[f"redsea__{marker}"] = corrected.copy()
+    measurement_sources: dict[str, str] = {}
+    input_transforms: dict[str, str] = {}
+    left_censored_counts: dict[str, int] = {}
 
-        # NNMF FEATURES COME FROM REDSEA'S COMPARTMENT DECOMPOSITION.
+    def restore_values(
+        source: pd.Series,
+        *,
+        marker: str,
+        measurement_source: str,
+    ) -> np.ndarray:
+        values = np.array(
+            pd.to_numeric(source, errors="coerce").to_numpy(dtype=float),
+            copy=True,
+        )
+        if measurement_source != "qupath_norm":
+            return values
+        finite_negative = np.isfinite(values) & (values < 0)
+        if marker not in left_censored_counts:
+            left_censored_counts[marker] = int(np.count_nonzero(finite_negative))
+        values[finite_negative] = 0.0
+        return values
+
+    for marker in marker_order:
+        try:
+            spec = registry.marker(marker)
+        except KeyError as exc:
+            raise ContractError(
+                f"donor {donor}: RESTORE marker {marker!r} is absent from the registry"
+            ) from exc
+        measurement_source = str(spec.measurement_source)
+        measurement_sources[marker] = measurement_source
+        input_transforms[marker] = (
+            "qupath_norm_left_censor_zero"
+            if measurement_source == "qupath_norm"
+            else "none"
+        )
+        if marker not in expression_aligned:
+            raise ContractError(
+                f"donor {donor}: selected expression is missing marker {marker!r}"
+            )
+        if measurement_source == "qupath_norm":
+            cell_source_name = f"QuPathNorm__Cell__{marker}"
+            if cell_source_name not in canonical:
+                raise ContractError(
+                    f"donor {donor}: QuPath-normalized RESTORE marker {marker!r} "
+                    f"requires exact cells column {cell_source_name!r}; raw, "
+                    "REDSEA, and RESTORE-normalized fallbacks are forbidden"
+                )
+            selected_signed = pd.to_numeric(
+                expression_aligned[marker], errors="coerce"
+            ).to_numpy(dtype=float)
+            canonical_signed = pd.to_numeric(
+                canonical[cell_source_name], errors="coerce"
+            ).to_numpy(dtype=float)
+            if not np.array_equal(
+                selected_signed, canonical_signed, equal_nan=True
+            ):
+                raise ContractError(
+                    f"donor {donor}: selected expression for QuPath-normalized "
+                    f"marker {marker!r} differs from exact cells column "
+                    f"{cell_source_name!r}"
+                )
+        columns[f"selected__{marker}"] = restore_values(
+            expression_aligned[marker],
+            marker=marker,
+            measurement_source=measurement_source,
+        )
+
+        # NNMF features are marker-source routed, not pair-source routed.
         #
         # Chang et al. 2020, Methods: "If we consider a 2-dimensional feature
         # set (i.e., mean intensity profile), there exists a trivial solution,
@@ -326,26 +407,34 @@ def build_restore_input_frame(
         # is why 279 of 479 pairs were falling back to whole cell alone.
         for compartment in feature_compartments:
             name = f"{compartment}__{marker}"
-            source: pd.Series | None = None
-            if name in redsea_aligned:
-                source = redsea_aligned[name]
-            elif sample_aligned is not None and name in sample_aligned:
-                source = sample_aligned[name]
-            elif compartment == "Cell":
-                columns[name] = raw.copy()
-                continue
-            elif name in canonical:
-                source = canonical[name]
-            if source is not None:
-                columns[name] = pd.to_numeric(
-                    source, errors="coerce"
-                ).to_numpy(dtype=float)
+            if measurement_source == "qupath_norm":
+                source_name = f"QuPathNorm__{compartment}__{marker}"
+                if source_name not in canonical:
+                    raise ContractError(
+                        f"donor {donor}: QuPath-normalized RESTORE marker "
+                        f"{marker!r} requires exact cells column {source_name!r}; "
+                        "raw, REDSEA, and RESTORE-normalized fallbacks are forbidden"
+                    )
+                source = canonical[source_name]
+            else:
+                source_name = name
+                if source_name not in redsea_aligned:
+                    raise ContractError(
+                        f"donor {donor}: RESTORE marker {marker!r} requires "
+                        f"REDSEA compartment column {source_name!r}"
+                    )
+                source = redsea_aligned[source_name]
+            columns[name] = restore_values(
+                source,
+                marker=marker,
+                measurement_source=measurement_source,
+            )
 
     result = pd.DataFrame(columns)
     measurement_columns = [
         column
         for column in result.columns
-        if column.startswith(("raw__", "redsea__"))
+        if column.startswith("selected__")
         or any(
             column.startswith(f"{compartment}__")
             for compartment in feature_compartments
@@ -353,7 +442,10 @@ def build_restore_input_frame(
     ]
     result.loc[~analysis_eligible, measurement_columns] = np.nan
     result.attrs["analysis_eligible_n"] = int(analysis_eligible.sum())
-    result.attrs["compartment_sample_covered_n"] = sample_coverage
+    result.attrs["estimation_eligible_n"] = int(estimation_eligible.sum())
+    result.attrs["measurement_source_by_marker"] = measurement_sources
+    result.attrs["input_transform_by_marker"] = input_transforms
+    result.attrs["left_censored_n_by_marker"] = left_censored_counts
     return result
 
 
@@ -368,7 +460,7 @@ def cell_calls_from_evaluation(
     pair_state = PairState(str(evaluation["state"]))
     positive = np.zeros(n, dtype=bool)
     normalized = np.full(n, np.nan, dtype=float)
-    state = np.full(n, CELL_UNAVAILABLE, dtype="<U11")
+    state = np.full(n, CELL_UNAVAILABLE, dtype="<U13")
 
     if pair_state in CALLABLE_STATES:
         # ``valid_idx`` is the set of cells that carried finite, nonnegative
@@ -412,7 +504,8 @@ def _technical_row(
     config: RestoreStageConfig,
 ) -> dict[str, object]:
     return {
-        "method_version": RESTORE_METHOD_VERSION,
+        "method_version": SEEDED_RESTORE_METHOD_VERSION,
+        "pipeline_stage_method_version": METHOD_VERSION,
         "donor": donor,
         "target": target,
         "reference": reference,
@@ -440,7 +533,8 @@ def restore_marker_evidence(
     expression_reviews: Mapping[
         tuple[str, str], ExpressionReview
     ] | None = None,
-    evaluator: Callable[..., dict] = evaluate_locked_pair,
+    reference_controls: Mapping[str, np.ndarray] | None = None,
+    evaluator: Callable[..., dict] | None = None,
 ) -> RestoreStageResult:
     """Fit every production RESTORE pair and emit wide tri-state evidence."""
 
@@ -470,17 +564,40 @@ def restore_marker_evidence(
     for target, reference in pairs:
         evaluation: dict | None = None
         try:
-            evaluation = evaluator(
-                donor_frame,
-                donor,
-                target,
-                reference,
-                config=pair_config,
-                expression_review=reviews.get(
-                    (donor, target), ExpressionReview.UNREVIEWED
-                ),
-                pair_review=PairReview.ACCEPTED,
-            )
+            if evaluator is None:
+                if reference_controls is None or reference not in reference_controls:
+                    raise ContractError(
+                        f"donor {donor}: no validated reference-control mask "
+                        f"for {reference}"
+                    )
+                evaluation = evaluate_reference_seeded_pair(
+                    donor_frame,
+                    donor,
+                    target,
+                    reference,
+                    config=pair_config,
+                    marker_alpha=registry.marker_alpha(target),
+                    reference_positive=reference_controls[reference],
+                    feature_transform=config.feature_transform,
+                    expression_review=reviews.get(
+                        (donor, target), ExpressionReview.UNREVIEWED
+                    ),
+                    pair_review=PairReview.UNREVIEWED,
+                )
+            else:
+                # Explicit injection remains available for focused tests and
+                # historical review tooling. Production never supplies it.
+                evaluation = evaluator(
+                    donor_frame,
+                    donor,
+                    target,
+                    reference,
+                    config=pair_config,
+                    expression_review=reviews.get(
+                        (donor, target), ExpressionReview.UNREVIEWED
+                    ),
+                    pair_review=PairReview.UNREVIEWED,
+                )
             pair_state = PairState(evaluation["state"])
             if pair_state not in CALLABLE_STATES:
                 reason = (
@@ -491,7 +608,10 @@ def restore_marker_evidence(
                     raise RuntimeError(
                         f"donor {donor} {target} <- {reference}: {reason}"
                     )
-            row = dict(locked_pair_metrics(evaluation))
+            row = dict(
+                evaluation.get("model_row")
+                or locked_pair_metrics(evaluation)
+            )
             positive, normalized, states = cell_calls_from_evaluation(
                 evaluation, analysis_eligible=analysis_eligible
             )
@@ -509,7 +629,7 @@ def restore_marker_evidence(
             )
             positive = np.zeros(n, dtype=bool)
             normalized = np.full(n, np.nan, dtype=float)
-            states = np.full(n, CELL_UNAVAILABLE, dtype="<U11")
+            states = np.full(n, CELL_UNAVAILABLE, dtype="<U13")
 
         finite_norm = np.isfinite(normalized) & (normalized >= 0)
         log2_ratio = np.full(n, np.nan, dtype=float)
@@ -520,11 +640,11 @@ def restore_marker_evidence(
             np.isin(states, [CELL_POSITIVE, CELL_NEGATIVE])
             & analysis_eligible
         )
-        corrected = pd.to_numeric(
-            donor_frame[f"redsea__{target}"], errors="coerce"
+        selected = pd.to_numeric(
+            donor_frame[f"selected__{target}"], errors="coerce"
         ).to_numpy(dtype=float)
         prefix = f"{target}__"
-        evidence[prefix + "corrected_intensity"] = corrected
+        evidence[prefix + "selected_intensity"] = selected
         evidence[prefix + "state"] = pd.Categorical(
             states, categories=CELL_STATES
         )
@@ -532,6 +652,23 @@ def restore_marker_evidence(
         evidence[prefix + "model_valid"] = model_valid
         evidence[prefix + "restore_positive"] = positive
         evidence[prefix + "restore_normalized"] = normalized
+        evidence[prefix + "empirical_tail_probability"] = np.asarray(
+            evaluation.get(
+                "full_empirical_tail_probability",
+                np.full(n, np.nan, dtype=float),
+            )
+            if evaluation is not None
+            else np.full(n, np.nan, dtype=float),
+            dtype=float,
+        )
+        evidence[prefix + "censored_below"] = np.asarray(
+            evaluation.get(
+                "full_censored_below", np.zeros(n, dtype=bool)
+            )
+            if evaluation is not None
+            else np.zeros(n, dtype=bool),
+            dtype=bool,
+        )
         evidence[prefix + "calibration_status"] = np.full(
             n, str(row["state"]), dtype=object
         )
@@ -556,7 +693,7 @@ def restore_marker_evidence(
         row.setdefault("donor", donor)
         row.setdefault("target", target)
         row.setdefault("reference", reference)
-        row.setdefault("method_version", RESTORE_METHOD_VERSION)
+        row.setdefault("method_version", SEEDED_RESTORE_METHOD_VERSION)
         row["called_negative_n"] = int(
             np.count_nonzero(states == CELL_NEGATIVE)
         )
@@ -564,8 +701,22 @@ def restore_marker_evidence(
             np.count_nonzero(states == CELL_UNAVAILABLE)
         )
         row["analysis_eligible_n"] = int(analysis_eligible.sum())
-        row["compartment_sample_covered_n"] = int(
-            donor_frame.attrs.get("compartment_sample_covered_n", 0)
+        sources = donor_frame.attrs.get("measurement_source_by_marker", {})
+        transforms = donor_frame.attrs.get("input_transform_by_marker", {})
+        censored_counts = donor_frame.attrs.get(
+            "left_censored_n_by_marker", {}
+        )
+        row["target_measurement_source"] = str(sources.get(target, "unknown"))
+        row["reference_measurement_source"] = str(
+            sources.get(reference, "unknown")
+        )
+        row["target_input_transform"] = str(transforms.get(target, "unknown"))
+        row["reference_input_transform"] = str(
+            transforms.get(reference, "unknown")
+        )
+        row["target_left_censored_n"] = int(censored_counts.get(target, 0))
+        row["reference_left_censored_n"] = int(
+            censored_counts.get(reference, 0)
         )
         row["pipeline_stage_method_version"] = METHOD_VERSION
         audit_rows.append(row)
@@ -608,107 +759,128 @@ def _read_columns(
     return pd.read_parquet(path, columns=selected)
 
 
+def restore_input_frame_from_paths(
+    *,
+    donor_id: str,
+    cells_root: Path,
+    redsea_root: Path,
+    expression_root: Path,
+    geometry_root: Path,
+    registry: MarkerRegistry,
+    config: RestoreStageConfig,
+    pairs: Sequence[tuple[str, str]] | None = None,
+) -> pd.DataFrame:
+    """Read and assemble one donor's source-routed RESTORE input frame."""
+
+    donor = str(donor_id)
+    selected_pairs = production_pairs(registry) if pairs is None else tuple(pairs)
+    markers = tuple(
+        dict.fromkeys(marker for pair in selected_pairs for marker in pair)
+    )
+    qupath_norm_markers = tuple(
+        marker
+        for marker in markers
+        if registry.marker(marker).measurement_source == "qupath_norm"
+    )
+    redsea_markers = tuple(
+        marker for marker in markers if marker not in qupath_norm_markers
+    )
+    cells = _read_columns(
+        cells_root,
+        donor,
+        [
+            "object_id",
+            "image",
+            "X_centroid",
+            "Y_centroid",
+            *(
+                f"QuPathNorm__{compartment}__{marker}"
+                for compartment in dict.fromkeys(
+                    ("Cell", *config.feature_compartments)
+                )
+                for marker in qupath_norm_markers
+            ),
+        ],
+    )
+    expression = _read_columns(
+        expression_root,
+        donor,
+        ["object_id", *markers],
+    )
+    redsea = _read_columns(
+        redsea_root,
+        donor,
+        [
+            "object_id",
+            *(
+                f"{compartment}__{marker}"
+                for compartment in config.feature_compartments
+                for marker in redsea_markers
+            ),
+        ],
+    )
+    geometry = _read_columns(
+        geometry_root,
+        donor,
+        ["object_id", "analysis_eligible", "estimation_eligible"],
+    )
+    return build_restore_input_frame(
+        cells,
+        redsea,
+        expression,
+        geometry,
+        donor_id=donor,
+        pairs=selected_pairs,
+        registry=registry,
+        feature_compartments=config.feature_compartments,
+    )
+
+
 def restore_donor_from_paths(
     *,
     donor_id: str,
     cells_root: Path,
     redsea_root: Path,
+    expression_root: Path,
     geometry_root: Path,
+    reference_controls_root: Path,
     registry: MarkerRegistry,
     config: RestoreStageConfig,
-    compartment_sample_root: Path | None = None,
     expression_reviews_path: Path | None = None,
 ) -> RestoreStageResult:
     """Read one donor with column projection, then run RESTORE."""
 
     donor = str(donor_id)
     pairs = production_pairs(registry)
-    markers = tuple(dict.fromkeys(marker for pair in pairs for marker in pair))
-    cells_columns = [
-        "object_id",
-        "image",
-        "X_centroid",
-        "Y_centroid",
-        *markers,
-        *(
-            f"{compartment}__{marker}"
-            for compartment in config.feature_compartments
-            if compartment != "Cell"
-            for marker in markers
-        ),
-    ]
-    cells = _read_columns(
-        cells_root, donor, cells_columns, allow_missing=True
-    )
-    # Bare marker means and the key/context columns are mandatory. Only optional
-    # raw compartment columns may be missing from canonical cells.
-    required_cells = {
-        "object_id",
-        "image",
-        "X_centroid",
-        "Y_centroid",
-        *markers,
-    }
-    missing_cells = sorted(required_cells.difference(cells.columns))
-    if missing_cells:
-        raise ContractError(
-            f"donor {donor}: cells are missing required columns {missing_cells}"
-        )
-    # Cell__ is mandatory (it is the corrected whole-cell intensity behind
-    # `redsea__`); the other compartments are the NNMF feature basis and are
-    # requested from the same REDSEA output.
-    redsea = _read_columns(
-        redsea_root,
-        donor,
-        [
-            "object_id",
-            *(f"Cell__{marker}" for marker in markers),
-            *(
-                f"{compartment}__{marker}"
-                for compartment in config.feature_compartments
-                if compartment != "Cell"
-                for marker in markers
-            ),
-        ],
-        allow_missing=True,
-    )
-    missing_redsea = sorted(
-        {f"Cell__{marker}" for marker in markers}.difference(redsea.columns)
-    )
-    if missing_redsea:
-        raise ContractError(
-            f"donor {donor}: REDSEA is missing {missing_redsea}"
-        )
-    geometry = _read_columns(
-        geometry_root, donor, ["object_id", "analysis_eligible"]
-    )
-    sample = None
-    if compartment_sample_root is not None:
-        sample = _read_columns(
-            compartment_sample_root,
-            donor,
-            [
-                "object_id",
-                *(
-                    f"{compartment}__{marker}"
-                    for compartment in config.feature_compartments
-                    if compartment != "Cell"
-                    for marker in markers
-                ),
-            ],
-            allow_missing=True,
-        )
     review_map: Mapping[tuple[str, str], ExpressionReview] = {}
     if expression_reviews_path is not None:
         review_map, _ = load_expression_reviews(expression_reviews_path)
-    donor_frame = build_restore_input_frame(
-        cells,
-        redsea,
-        geometry,
+    donor_frame = restore_input_frame_from_paths(
         donor_id=donor,
+        cells_root=cells_root,
+        redsea_root=redsea_root,
+        expression_root=expression_root,
+        geometry_root=geometry_root,
+        registry=registry,
+        config=config,
         pairs=pairs,
-        feature_compartments=config.feature_compartments,
-        compartment_sample=sample,
+    )
+    controls_wide = pd.read_parquet(
+        _single_partition(reference_controls_root, donor)
+    )
+    controls_long = reference_masks_from_wide(
+        controls_wide, registry=registry
+    )
+    validated_controls = validate_reference_masks(
+        controls_long,
+        donor_id=donor,
+        object_ids=donor_frame["object_id"].to_numpy(),
+        registry=registry,
+    )
+    control_arrays = reference_masks_as_arrays(
+        validated_controls.masks_long,
+        object_ids=donor_frame["object_id"].to_numpy(),
+        donor_id=donor,
     )
     return restore_marker_evidence(
         donor_frame,
@@ -716,6 +888,7 @@ def restore_donor_from_paths(
         registry=registry,
         config=config,
         expression_reviews=review_map,
+        reference_controls=control_arrays,
     )
 
 
@@ -731,5 +904,6 @@ __all__ = [
     "cell_calls_from_evaluation",
     "production_pairs",
     "restore_donor_from_paths",
+    "restore_input_frame_from_paths",
     "restore_marker_evidence",
 ]

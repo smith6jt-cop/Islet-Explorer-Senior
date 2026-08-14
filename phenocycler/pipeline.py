@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
@@ -43,11 +42,10 @@ from .geometry_stage import (
 from .geometry_stage import (
     run_geometry_qc_for_image,
 )
-from .hierarchical_typing import TypingRegistry
-from .marker_registry import MarkerRegistry, load_registry
-from .simultaneous_typing import (
-    BroadGatePolicy,
-    load_broad_gate_policy,
+from .marker_registry import (
+    NO_VERIFIED_PAIRS_STATUS,
+    MarkerRegistry,
+    load_registry,
 )
 from .production_typing import (
     METHOD_VERSION as PRODUCTION_TYPING_VERSION,
@@ -69,15 +67,13 @@ from .restore_stage import (
     METHOD_VERSION as RESTORE_STAGE_VERSION,
 )
 from .restore_stage import RestoreStageConfig, restore_donor_from_paths
-from .state_markers import annotate_proliferation
-from .typing_model_bundle import (
-    TypingModelBundle,
-    TypingModelPromotionManifest,
-    load_typing_model_bundle,
-    load_typing_model_promotion_manifest,
+from .simultaneous_typing import (
+    BroadGatePolicy,
+    load_broad_gate_policy,
 )
+from .state_markers import annotate_proliferation
 
-INGEST_VERSION = "qupath-ingest-union-v2"
+INGEST_VERSION = "qupath-ingest-union-v3-qupath-norm-inputs"
 REDSEA_VERSION = "redsea-compartment-only-v1"
 STATE_VERSION = "orthogonal-state-v1"
 RUN_SCHEMA_VERSION = 1
@@ -92,6 +88,9 @@ STAGE_ORDER = (
     "type",
     "states",
 )
+DEFAULT_STAGE_ORDER = STAGE_ORDER[: STAGE_ORDER.index("expression") + 1]
+PAIR_DEPENDENT_STAGES = frozenset({"controls", "calibrate", "type"})
+NO_VERIFIED_PAIRS_REASON = "NO_VERIFIED_PAIRS"
 STAGE_METHODS = {
     "ingest": INGEST_VERSION,
     "geometry": GEOMETRY_VERSION,
@@ -136,6 +135,8 @@ STAGE_SOURCE_PATHS = {
         "phenocycler/cells_parquet.py",
         "phenocycler/artifacts.py",
         "phenocycler/cohort.py",
+        "phenocycler/marker_registry.py",
+        "phenocycler/marker_registry.json",
     ),
     "geometry": (
         "phenocycler/donor_pipeline.py",
@@ -164,6 +165,8 @@ STAGE_SOURCE_PATHS = {
     ),
     "calibrate": (
         "phenocycler/donor_pipeline.py",
+        "phenocycler/reference_controls.py",
+        "phenocycler/restore_seeded.py",
         "phenocycler/restore_stage.py",
         "phenocycler/restore_validation.py",
         "phenocycler/marker_registry.py",
@@ -173,12 +176,7 @@ STAGE_SOURCE_PATHS = {
         "phenocycler/production_typing.py",
         "phenocycler/simultaneous_typing.py",
         "phenocycler/broad_gates.json",
-        "phenocycler/typing_stage.py",
-        "phenocycler/typing_model_bundle.py",
-        "phenocycler/refinement_contracts.py",
-        "phenocycler/hierarchical_typing.py",
         "phenocycler/marker_registry.py",
-        "phenocycler/typing_rules.json",
     ),
     "states": (
         "phenocycler/donor_pipeline.py",
@@ -193,10 +191,7 @@ class RunContext:
     config: PipelineConfig
     cohort: QuPathCohortManifest
     registry: MarkerRegistry
-    typing_registry: TypingRegistry
     broad_gate_policy: BroadGatePolicy | None
-    typing_model_bundle: TypingModelBundle | None
-    typing_model_promotion_manifest: TypingModelPromotionManifest | None
     donors: tuple[str, ...]
     repository: Path
     code: CodeMetadata
@@ -217,54 +212,42 @@ class RunContext:
 def _identity_config(
     cfg: PipelineConfig,
     *,
+    registry: MarkerRegistry | None = None,
     broad_gate_policy: BroadGatePolicy | None = None,
-    typing_model_bundle: TypingModelBundle | None = None,
-    typing_model_promotion_manifest: TypingModelPromotionManifest | None = None,
 ) -> dict:
     """Configuration that changes scientific content, excluding output location."""
 
-    typing_model: dict[str, object] = {"mode": "restore_simultaneous"}
+    active_registry = (
+        load_registry(cfg.marker_registry) if registry is None else registry
+    )
+    verified_pairs = (
+        active_registry.production_status != NO_VERIFIED_PAIRS_STATUS
+    )
     gate_policy = broad_gate_policy
-    if typing_model_bundle is None and gate_policy is None:
+    if verified_pairs and gate_policy is None:
         gate_policy = load_broad_gate_policy(
             cfg.broad_gate_rules,
-            registry=load_registry(cfg.marker_registry),
+            registry=active_registry,
         )
-    if typing_model_bundle is not None:
-        if typing_model_promotion_manifest is None:
-            raise ContractError(
-                "probabilistic typing run identity requires a promotion manifest"
-            )
-        typing_model = {
-            "mode": "probabilistic_bundle",
-            "content_id": typing_model_bundle.content_id,
-            "method_version": typing_model_bundle.method_version,
-            "feature_schema_version": typing_model_bundle.feature_schema_version,
-            "promotion_manifest_content_id": (
-                typing_model_promotion_manifest.content_id
-            ),
-        }
-    elif typing_model_promotion_manifest is not None:
-        raise ContractError(
-            "simultaneous RESTORE run cannot configure a promotion manifest"
-        )
-    restore_stage_config = RestoreStageConfig.from_pipeline(cfg)
-    compartment_sample_content_id = None
-    if cfg.restore_compartment_sample is not None:
-        compartment_sample_content_id = InputArtifact.from_path(
-            "restore_compartment_sample",
-            cfg.restore_compartment_sample,
-            hash_mode="sampled",
-        ).content_sha256
+    verified_pair_config = None
     expression_reviews_content_id = None
-    if cfg.restore_expression_reviews is not None:
-        expression_reviews_content_id = InputArtifact.from_path(
-            "restore_expression_reviews",
-            cfg.restore_expression_reviews,
-        ).content_sha256
+    if verified_pairs:
+        verified_pair_config = RestoreStageConfig.from_pipeline(cfg)
+        if cfg.restore_expression_reviews is not None:
+            expression_reviews_content_id = InputArtifact.from_path(
+                "restore_expression_reviews",
+                cfg.restore_expression_reviews,
+            ).content_sha256
     return {
         "run_schema_version": RUN_SCHEMA_VERSION,
-        "typing_model": typing_model,
+        "typing_model": (
+            {"mode": "restore_simultaneous"}
+            if verified_pairs
+            else {
+                "mode": "unavailable",
+                "reason": NO_VERIFIED_PAIRS_REASON,
+            }
+        ),
         "simultaneous_broad_typing": (
             {
                 "method_version": PRODUCTION_TYPING_VERSION,
@@ -276,7 +259,10 @@ def _identity_config(
                 },
             }
             if gate_policy is not None
-            else {"mode": "not_selected"}
+            else {
+                "mode": "blocked",
+                "reason": NO_VERIFIED_PAIRS_REASON,
+            }
         ),
         "cells_min_cell_area": cfg.cells_min_cell_area,
         "geometry_qc": {
@@ -301,14 +287,21 @@ def _identity_config(
             "exclude_no_spillover": cfg.redsea_exclude_no_spillover,
             "output_schema": "Nucleus/Cytoplasm/Membrane/Cell",
         },
-        "reference_controls": asdict(ReferenceControlConfig()),
-        "phenotyping": {
-            "method": "RESTORE",
-            "method_version": RESTORE_STAGE_VERSION,
-            **asdict(restore_stage_config),
-            "compartment_sample_content_id": compartment_sample_content_id,
-            "expression_reviews_content_id": expression_reviews_content_id,
-        },
+        "reference_controls": (
+            asdict(ReferenceControlConfig())
+            if verified_pairs
+            else {"mode": "blocked", "reason": NO_VERIFIED_PAIRS_REASON}
+        ),
+        "phenotyping": (
+            {
+                "method": "RESTORE",
+                "method_version": RESTORE_STAGE_VERSION,
+                **asdict(verified_pair_config),
+                "expression_reviews_content_id": expression_reviews_content_id,
+            }
+            if verified_pair_config is not None
+            else {"mode": "blocked", "reason": NO_VERIFIED_PAIRS_REASON}
+        ),
     }
 
 
@@ -328,80 +321,14 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
             "cohort donor order/set changed after exclusion validation"
         )
     registry = load_registry(cfg.marker_registry)
-    typing_registry = TypingRegistry.from_marker_registry(
-        registry, typing_rules=cfg.typing_rules
-    )
-    broad_gate_policy = None
-    if cfg.typing_model_bundle is None:
-        broad_gate_policy = load_broad_gate_policy(
+    broad_gate_policy = (
+        None
+        if registry.production_status == NO_VERIFIED_PAIRS_STATUS
+        else load_broad_gate_policy(
             cfg.broad_gate_rules,
             registry=registry,
         )
-    typing_model_bundle = None
-    typing_model_promotion_manifest = None
-    if cfg.typing_model_bundle is not None:
-        if cfg.typing_model_promotion_manifest is None:
-            raise ContractError(
-                "configured typing model bundle requires a promotion manifest"
-            )
-        typing_model_bundle = load_typing_model_bundle(
-            cfg.typing_model_bundle,
-            marker_registry=registry,
-            typing_registry=typing_registry,
-        )
-        release_signing_key_file = os.environ.get(
-            "PHENOCYCLER_RELEASE_SIGNING_KEY_FILE", ""
-        )
-        if not release_signing_key_file:
-            raise ContractError(
-                "probabilistic production typing requires the external "
-                "PHENOCYCLER_RELEASE_SIGNING_KEY_FILE"
-            )
-        release_signing_key_path = Path(release_signing_key_file).expanduser()
-        if not release_signing_key_path.is_file():
-            raise ContractError(
-                "probabilistic production release signing-key file is unavailable"
-            )
-        release_signing_key = release_signing_key_path.read_bytes()
-        if len(release_signing_key) < 16:
-            raise ContractError(
-                "probabilistic production release signing key must contain at "
-                "least 16 bytes"
-            )
-        typing_model_promotion_manifest = load_typing_model_promotion_manifest(
-            cfg.typing_model_promotion_manifest,
-            model_bundle=typing_model_bundle,
-            marker_registry=registry,
-            typing_registry=typing_registry,
-            release_signing_key=release_signing_key,
-        )
-        if typing_model_bundle.input_artifact is None:
-            raise ContractError(
-                "configured typing model bundle has no captured input artifact"
-            )
-        typing_model_bundle.input_artifact.validate_current(mode="content")
-        if typing_model_promotion_manifest.input_artifact is None:
-            raise ContractError(
-                "configured typing promotion has no captured input artifact"
-            )
-        typing_model_promotion_manifest.input_artifact.validate_current(
-            mode="content"
-        )
-        typing_model_promotion_manifest.validate_for_bundle(
-            typing_model_bundle,
-            release_signing_key=release_signing_key,
-        )
-        del release_signing_key
-        if (
-            typing_model_bundle.split_manifest.cohort_content_id
-            != cohort.content_id
-        ):
-            raise ContractError(
-                "typing model bundle was developed for a different cohort "
-                f"({typing_model_bundle.split_manifest.cohort_content_id} != "
-                f"{cohort.content_id})"
-            )
-        typing_model_bundle.split_manifest.validate_cohort(donors)
+    )
     repository = Path(__file__).resolve().parents[1]
     code = CodeMetadata.capture(
         repository,
@@ -409,15 +336,16 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     )
     identity = _identity_config(
         cfg,
+        registry=registry,
         broad_gate_policy=broad_gate_policy,
-        typing_model_bundle=typing_model_bundle,
-        typing_model_promotion_manifest=typing_model_promotion_manifest,
     )
     run_id = sha256_json(
         {
             "cohort": cohort.content_id,
             "registry": registry.fingerprint,
-            "typing_rules": typing_registry.rules_fingerprint,
+            "broad_gate_rules": (
+                "" if broad_gate_policy is None else broad_gate_policy.fingerprint
+            ),
             "configuration": identity,
             "code": code.source_sha256,
         }
@@ -429,10 +357,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
         config=run_cfg,
         cohort=cohort,
         registry=registry,
-        typing_registry=typing_registry,
         broad_gate_policy=broad_gate_policy,
-        typing_model_bundle=typing_model_bundle,
-        typing_model_promotion_manifest=typing_model_promotion_manifest,
         donors=donors,
         repository=repository,
         code=code,
@@ -448,7 +373,6 @@ def _stage_config(context: RunContext, stage: str) -> dict:
         "method_version": STAGE_METHODS[stage],
         "configuration": context.identity_config,
         "registry_fingerprint": context.registry.fingerprint,
-        "typing_rules_fingerprint": context.typing_registry.rules_fingerprint,
         "broad_gate_rules_fingerprint": (
             context.broad_gate_policy.fingerprint
             if context.broad_gate_policy is not None
@@ -464,38 +388,6 @@ def _stage_code(context: RunContext, stage: str) -> CodeMetadata:
     )
 
 
-def _validate_typing_calibration_compatibility(
-    context: RunContext,
-) -> StageManifest | None:
-    """Require exact current marker-evidence content used by the fitted bundle."""
-
-    bundle = context.typing_model_bundle
-    if bundle is None:
-        return None
-    manifest_path = context.stage_manifest_path("calibrate")
-    if not manifest_path.exists():
-        raise PartialArtifactError(
-            "probabilistic typing requires the sealed cohort calibrate manifest"
-        )
-    manifest = StageManifest.read_json(manifest_path)
-    if manifest.stage != "calibrate":
-        raise ContractError(
-            f"calibration manifest declares stage {manifest.stage!r}"
-        )
-    manifest.validate_current(
-        config=_stage_config(context, "calibrate"),
-        validation_mode="content",
-    )
-    expected = bundle.evidence_provenance.source_artifact_content_id
-    actual = manifest.output.content_sha256
-    if actual != expected:
-        raise ContractError(
-            "current calibration dataset differs from model training evidence "
-            f"({actual} != {expected})"
-        )
-    return manifest
-
-
 def _stage_external_inputs(
     context: RunContext,
     stage: str,
@@ -509,21 +401,13 @@ def _stage_external_inputs(
                 "qupath_cohort", context.base_config.qupath_manifest
             )
         )
-    if stage in {"redsea", "expression", "controls", "calibrate", "type"}:
+    if stage in {"ingest", "redsea", "expression", "controls", "calibrate", "type"}:
         inputs.append(
             InputArtifact.from_path(
                 "marker_registry", context.base_config.marker_registry
             )
         )
     if stage == "calibrate":
-        if context.base_config.restore_compartment_sample is not None:
-            inputs.append(
-                InputArtifact.from_path(
-                    "restore_compartment_sample",
-                    context.base_config.restore_compartment_sample,
-                    hash_mode="sampled",
-                )
-            )
         if context.base_config.restore_expression_reviews is not None:
             inputs.append(
                 InputArtifact.from_path(
@@ -532,37 +416,16 @@ def _stage_external_inputs(
                 )
             )
     if stage == "type":
-        if context.typing_model_bundle is None:
-            inputs.append(
-                InputArtifact.from_path(
-                    "broad_gate_rules",
-                    context.base_config.broad_gate_rules,
-                )
+        inputs.append(
+            InputArtifact.from_path(
+                "broad_gate_rules",
+                context.base_config.broad_gate_rules,
             )
-        else:
-            inputs.append(
-                InputArtifact.from_path(
-                    "typing_rules", context.base_config.typing_rules
-                )
-            )
-            artifact = context.typing_model_bundle.input_artifact
-            if artifact is None:
-                raise ContractError(
-                    "configured typing model bundle has no captured input artifact"
-                )
-            inputs.append(artifact)
-            promotion = context.typing_model_promotion_manifest
-            if promotion is None or promotion.input_artifact is None:
-                raise ContractError(
-                    "configured typing model bundle requires a captured promotion manifest"
-                )
-            inputs.append(promotion.input_artifact)
+        )
     return tuple(inputs)
 
 
 def _stage_inputs(context: RunContext, stage: str) -> tuple[InputArtifact, ...]:
-    if stage == "type" and context.typing_model_bundle is not None:
-        _validate_typing_calibration_compatibility(context)
     inputs: list[InputArtifact] = []
     for dependency in STAGE_DEPENDENCIES[stage]:
         path = context.stage_manifest_path(dependency)
@@ -693,12 +556,11 @@ def _run_calibrate(context: RunContext) -> None:
             donor_id=donor,
             cells_root=context.config.cells_dir,
             redsea_root=context.config.redsea_dir,
+            expression_root=context.config.selected_expression_dir,
             geometry_root=context.config.geometry_qc_dir,
+            reference_controls_root=context.config.reference_controls_dir,
             registry=context.registry,
             config=restore_config,
-            compartment_sample_root=(
-                context.config.restore_compartment_sample
-            ),
             expression_reviews_path=context.config.restore_expression_reviews,
         )
         write_donor_partition(
@@ -720,9 +582,6 @@ def _run_type(context: RunContext) -> None:
             read_single_partition(context.config.marker_evidence_dir, donor),
             marker_registry=context.registry,
             broad_gate_policy=context.broad_gate_policy,
-            typing_registry=context.typing_registry,
-            model_bundle=context.typing_model_bundle,
-            model_promotion_manifest=context.typing_model_promotion_manifest,
         )
         write_donor_partition(
             assignments,
@@ -771,6 +630,8 @@ STAGE_RUNNERS: dict[str, Callable[[RunContext], None]] = {
 
 def run_stage(context: RunContext, stage: str) -> StageManifest:
     """Run or validate one immutable stage."""
+
+    _assert_stages_available(context, (stage,))
 
     manifest_path = context.stage_manifest_path(stage)
     if manifest_path.exists():
@@ -874,6 +735,8 @@ def _validate_export(context: RunContext) -> bool:
 def export_qupath(context: RunContext) -> None:
     """Write and fingerprint one uncertainty-preserving CSV per donor."""
 
+    _assert_stages_available(context, ("type",), operation="QuPath export")
+
     if _validate_export(context):
         print("[current] qupath export")
         return
@@ -917,23 +780,28 @@ def export_qupath(context: RunContext) -> None:
 def run_pipeline(
     context: RunContext,
     *,
-    stages: Sequence[str] = STAGE_ORDER,
+    stages: Sequence[str] = DEFAULT_STAGE_ORDER,
     export: bool = True,
 ) -> RunManifest | None:
     """Run selected stages and write a complete run manifest when possible."""
 
+    _assert_stages_available(context, stages)
     context.run_root.mkdir(parents=True, exist_ok=True)
     for stage in stages:
         run_stage(context, stage)
     if export and "type" in stages:
         export_qupath(context)
 
-    all_paths = [context.stage_manifest_path(stage) for stage in STAGE_ORDER]
+    completion_stages = _completion_stage_order(context)
+    all_paths = [context.stage_manifest_path(stage) for stage in completion_stages]
     if not all(path.exists() for path in all_paths):
         return None
-    # Existence is not completion. Validate every stage—including stages not
-    # selected in this invocation—before writing run.json or advancing LATEST.
-    for stage, path in zip(STAGE_ORDER, all_paths, strict=True):
+    # Existence is not completion. Validate every required stage—including
+    # stages not selected in this invocation—before writing run.json or
+    # advancing LATEST. In development_no_verified_pairs, the content-addressed
+    # run product intentionally ends at expression; states remains an optional
+    # add-on and blocked pair stages cannot be completion requirements.
+    for stage, path in zip(completion_stages, all_paths, strict=True):
         manifest = StageManifest.read_json(path)
         if manifest.stage != stage:
             raise ContractError(
@@ -948,7 +816,11 @@ def run_pipeline(
         **context.identity_config,
         "cohort_content_id": context.cohort.content_id,
         "registry_fingerprint": context.registry.fingerprint,
-        "typing_rules_fingerprint": context.typing_registry.rules_fingerprint,
+        "broad_gate_rules_fingerprint": (
+            ""
+            if context.broad_gate_policy is None
+            else context.broad_gate_policy.fingerprint
+        ),
     }
     run_manifest = RunManifest.create(
         run_name=context.run_id,
@@ -979,14 +851,31 @@ def run_pipeline(
     return run_manifest
 
 
+def _completion_stage_order(context: RunContext) -> tuple[str, ...]:
+    """Stages that define a complete content-addressed run in the current workflow."""
+
+    if context.registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+        return DEFAULT_STAGE_ORDER
+    return STAGE_ORDER
+
+
 def status(context: RunContext) -> int:
     """Print evidence-backed stage status; return nonzero for stale/partial state."""
 
     print(f"run_id {context.run_id}")
     healthy = True
     for stage in STAGE_ORDER:
+        if (
+            stage in PAIR_DEPENDENT_STAGES
+            and context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+        ):
+            print(f"  {stage:11s} BLOCKED {NO_VERIFIED_PAIRS_REASON}")
+            continue
         path = context.stage_manifest_path(stage)
         if not path.exists():
+            if stage == "states":
+                print(f"  {stage:11s} OPTIONAL (explicit-only)")
+                continue
             if stage != "ingest":
                 from .donor_pipeline import donor_progress
 
@@ -1017,14 +906,17 @@ def status(context: RunContext) -> int:
                 f"{manifest.output.total_rows:>12,} rows "
                 f"{manifest.content_id[:12]}"
             )
-    try:
-        export_current = _validate_export(context)
-    except (ContractError, OSError, ValueError) as exc:
-        print(f"  {'qupath':11s} STALE   {exc}")
-        healthy = False
+    if context.registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+        print(f"  {'qupath':11s} BLOCKED {NO_VERIFIED_PAIRS_REASON}")
     else:
-        print(f"  {'qupath':11s} {'CURRENT' if export_current else 'MISSING'}")
-        healthy &= export_current
+        try:
+            export_current = _validate_export(context)
+        except (ContractError, OSError, ValueError) as exc:
+            print(f"  {'qupath':11s} STALE   {exc}")
+            healthy = False
+        else:
+            print(f"  {'qupath':11s} {'CURRENT' if export_current else 'MISSING'}")
+            healthy &= export_current
     return 0 if healthy else 1
 
 
@@ -1035,7 +927,39 @@ def _selected_stages(only: Sequence[str] | None, through: str | None) -> tuple[s
         return tuple(only)
     if through:
         return STAGE_ORDER[: STAGE_ORDER.index(through) + 1]
-    return STAGE_ORDER
+    return DEFAULT_STAGE_ORDER
+
+
+def _assert_stages_available(
+    context: RunContext,
+    stages: Sequence[str],
+    *,
+    operation: str = "pipeline stage selection",
+) -> None:
+    """Fail before output creation when pair-derived production is unavailable."""
+
+    _assert_registry_stages_available(
+        context.registry,
+        stages,
+        operation=operation,
+    )
+
+
+def _assert_registry_stages_available(
+    registry: MarkerRegistry,
+    stages: Sequence[str],
+    *,
+    operation: str = "pipeline stage selection",
+) -> None:
+    """Registry-only preflight for CLIs that have not resolved cohort data."""
+
+    requested = sorted(PAIR_DEPENDENT_STAGES.intersection(stages))
+    if requested and registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+        raise ContractError(
+            f"{operation} is blocked by {NO_VERIFIED_PAIRS_REASON}: "
+            "the marker registry declares no verified production pairs; "
+            f"requested={requested}"
+        )
 
 
 def main(argv=None) -> int:
@@ -1056,14 +980,6 @@ def main(argv=None) -> int:
         from .adoption import main as adoption_main
 
         return adoption_main(raw[1:])
-    if raw and raw[0] == "probabilistic":
-        if len(raw) > 1 and raw[1] == "evaluate":
-            from .candidate_evaluation import main as candidate_evaluation_main
-
-            return candidate_evaluation_main(raw[2:])
-        from .probabilistic_training import main as probabilistic_main
-
-        return probabilistic_main(raw[1:])
     if not raw or raw[0].startswith("-"):
         raw.insert(0, "run")
 
@@ -1113,35 +1029,30 @@ def main(argv=None) -> int:
         print("  phenocycler manifest create --spec data/qupath_manifest_spec.json "
               "--out data/qupath_manifest.json")
         return 0
+    stages: tuple[str, ...] | None = None
+    registry = load_registry(cfg.marker_registry)
+    if args.command == "export":
+        _assert_registry_stages_available(
+            registry,
+            ("type",),
+            operation="QuPath export",
+        )
+    elif args.command == "run":
+        stages = _selected_stages(args.only, args.through)
+        if getattr(args, "pipelined", False) and args.only:
+            parser.error("--pipelined supports --through, not --only")
+        _assert_registry_stages_available(registry, stages)
     context = resolve_run_context(cfg)
     if args.command == "status":
         return status(context)
     if args.command == "export":
         export_qupath(context)
         return 0
-    stages = _selected_stages(args.only, args.through)
+    assert stages is not None
+    _assert_stages_available(context, stages)
     if getattr(args, "pipelined", False):
-        if args.only:
-            parser.error("--pipelined supports --through, not --only")
         from .donor_pipeline import run_pipelined_pipeline
 
-        if (
-            getattr(context, "typing_model_bundle", None) is not None
-            and "type" in stages
-        ):
-            # Donor-ready typing would otherwise begin as soon as each donor's
-            # calibrate receipt exists. A promoted model is tied to the exact
-            # cohort calibration dataset, so first seal the complete calibrate
-            # manifest and verify its aggregate content before any type task.
-            through_calibrate = STAGE_ORDER[
-                : STAGE_ORDER.index("calibrate") + 1
-            ]
-            run_pipelined_pipeline(
-                context,
-                stages=through_calibrate,
-                export=False,
-            )
-            _validate_typing_calibration_compatibility(context)
         run_pipelined_pipeline(
             context,
             stages=stages,

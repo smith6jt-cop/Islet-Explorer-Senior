@@ -1,8 +1,8 @@
 """Compact configuration for the content-addressed workflow.
 
-Biological marker meaning lives in ``marker_registry.json`` and the production
-gate membership lives in ``broad_gates.json``. Optional probabilistic
-rules live in ``typing_rules.json``. Raw input identity lives in the QuPath cohort manifest.
+Biological marker meaning lives in ``marker_registry.json`` and production
+gate membership lives in ``broad_gates.json``. Raw input identity lives in the
+QuPath cohort manifest.
 This file therefore contains only output roots, fixed image/QC parameters and
 operational compute settings; it does not duplicate marker pairs or cell-type
 rules.
@@ -67,23 +67,18 @@ class PipelineConfig:
     data_dir: Path = _REPO_ROOT / "data"
     qupath_manifest: Path = _REPO_ROOT / "data" / "qupath_manifest.json"
     marker_registry: Path = _PACKAGE_DIR / "marker_registry.json"
-    typing_rules: Path = _PACKAGE_DIR / "typing_rules.json"
     broad_gate_rules: Path = _PACKAGE_DIR / "broad_gates.json"
-    # Optional, immutable probabilistic rescue model. Keeping this unset selects
-    # the production RESTORE ordered residual default. Probabilistic production
-    # requires its separately configured immutable promotion manifest.
-    typing_model_bundle: Path | None = None
-    typing_model_promotion_manifest: Path | None = None
 
-    # RESTORE is the production marker-calling method.  The optional
-    # compartment sample is the already-extracted raw QuPath Membrane/Cell
-    # matrix used by the validated v10 fit; when it is absent, RESTORE uses the
-    # canonical raw whole-cell measurements only and records that reduced
-    # feature set in its audit table.
+    # Retained RESTORE research settings. They are deliberately optional while
+    # the registry has no verified pairs; the upstream workflow must not need a
+    # placeholder pair policy merely to ingest and select expression.
     restore_control_definition: str = "reference_only"
-    restore_divisor_statistic: str = "p99"
-    restore_feature_compartments: str = "Membrane,Cell"
+    restore_divisor_statistic: str | None = None
+    restore_feature_compartments: str | None = None
     restore_on_technical_failure: str = "unavailable"
+    restore_nnmf_fit_basis: str = "all"
+    restore_control_membership: str = "component"
+    restore_feature_transform: str = "linear_upper_scale"
     restore_compartment_sample: Path | None = None
     restore_expression_reviews: Path | None = None
 
@@ -425,18 +420,16 @@ _INI_SCHEMA = {
         "data_dir": ("data_dir", Path),
         "qupath_manifest": ("qupath_manifest", Path),
         "marker_registry": ("marker_registry", Path),
-        "typing_rules": ("typing_rules", Path),
         "broad_gate_rules": ("broad_gate_rules", Path),
-    },
-    "typing": {
-        "model_bundle": ("typing_model_bundle", Path),
-        "promotion_manifest": ("typing_model_promotion_manifest", Path),
     },
     "restore": {
         "control_definition": ("restore_control_definition", str),
         "divisor_statistic": ("restore_divisor_statistic", str),
         "feature_compartments": ("restore_feature_compartments", str),
         "on_technical_failure": ("restore_on_technical_failure", str),
+        "nnmf_fit_basis": ("restore_nnmf_fit_basis", str),
+        "control_membership": ("restore_control_membership", str),
+        "feature_transform": ("restore_feature_transform", str),
         "compartment_sample": ("restore_compartment_sample", Path),
         "expression_reviews": ("restore_expression_reviews", Path),
     },
@@ -579,7 +572,6 @@ def load_config(
         "data_dir",
         "qupath_manifest",
         "marker_registry",
-        "typing_rules",
         "broad_gate_rules",
     ):
         path = Path(getattr(cfg, name)).expanduser()
@@ -588,8 +580,6 @@ def load_config(
         setattr(cfg, name, path)
 
     for name in (
-        "typing_model_bundle",
-        "typing_model_promotion_manifest",
         "restore_compartment_sample",
         "restore_expression_reviews",
     ):
@@ -600,44 +590,10 @@ def load_config(
         if not path.is_absolute():
             path = (base / path).resolve()
         setattr(cfg, name, path)
-    if (cfg.typing_model_bundle is None) != (
-        cfg.typing_model_promotion_manifest is None
-    ):
-        raise ValueError(
-            "[typing] model_bundle and promotion_manifest must be configured together"
-        )
-
-    if cfg.restore_control_definition not in {
-        "reference_only",
-        "reference_and_target",
-    }:
-        raise ValueError(
-            "[restore] control_definition must be 'reference_only' or "
-            "'reference_and_target'"
-        )
-    if cfg.restore_divisor_statistic not in {"max", "p999", "p99", "p95"}:
-        raise ValueError(
-            "[restore] divisor_statistic must be one of max, p999, p99, p95"
-        )
-    restore_compartments = tuple(
-        item.strip()
-        for item in cfg.restore_feature_compartments.split(",")
-        if item.strip()
-    )
-    unknown_restore_compartments = sorted(
-        set(restore_compartments)
-        - {"Nucleus", "Cytoplasm", "Membrane", "Cell"}
-    )
-    if not restore_compartments or unknown_restore_compartments:
-        raise ValueError(
-            "[restore] feature_compartments must be a nonempty comma-separated "
-            "subset of Nucleus,Cytoplasm,Membrane,Cell; unknown="
-            f"{unknown_restore_compartments}"
-        )
-    if cfg.restore_on_technical_failure not in {"halt", "unavailable"}:
-        raise ValueError(
-            "[restore] on_technical_failure must be 'halt' or 'unavailable'"
-        )
+    # Pair-method policy is validated by RestoreStageConfig only after a
+    # verified registry makes a pair stage reachable. Keeping it out of the
+    # general loader prevents retired RESTORE assumptions from becoming an
+    # upstream ingest prerequisite.
 
     for name in ("images_dir", "donor_metadata", "xenium_paths_csv",
                  "donor_overrides_csv", "panel_explorer"):

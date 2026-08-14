@@ -20,14 +20,14 @@ import argparse
 import csv
 import json
 import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Optional, Sequence
 
 import pandas as pd
 
 from .artifacts import ContractError, QuPathCohortManifest, image_id_to_donor_id
 from .config import PipelineConfig
-
+from .marker_registry import load_registry
 
 REQUIRED_CONTEXT_COLUMNS = (
     "Image",
@@ -38,6 +38,28 @@ REQUIRED_CONTEXT_COLUMNS = (
     "Cell: Area µm^2",
     "Cell: Solidity",
 )
+
+# These are QuPath-created, per-image normalized measurements used by the
+# original object classifiers.  They are upstream inputs, not RESTORE outputs.
+# Keep the list exact: several historical exports also contain ``(norm)``
+# columns for other markers, but only these three have been requested as the
+# authoritative pre-RESTORE measurements here.
+QUPATH_NORMALIZED_MARKERS = tuple(
+    marker.name
+    for marker in load_registry().markers
+    if marker.measurement_source == "qupath_norm"
+)
+QUPATH_NORMALIZED_COMPARTMENTS = ("Cell", "Cytoplasm", "Membrane", "Nucleus")
+
+
+def qupath_normalized_column(compartment: str, marker: str) -> str:
+    """Canonical name for one signed QuPath ``Mean (norm)`` measurement."""
+
+    if compartment not in QUPATH_NORMALIZED_COMPARTMENTS:
+        raise ValueError(f"unsupported QuPath normalized compartment: {compartment}")
+    if marker not in QUPATH_NORMALIZED_MARKERS:
+        raise ValueError(f"unsupported QuPath normalized marker: {marker}")
+    return f"QuPathNorm__{compartment}__{marker}"
 
 
 def header_cols(csv_path: Path) -> list[str]:
@@ -65,6 +87,53 @@ def compartment_means(cols: list[str], compartment: str) -> dict[str, str]:
         if match:
             out[column] = sanitize(match.group(1))
     return out
+
+
+def qupath_normalized_means(cols: Sequence[str]) -> dict[str, str]:
+    """Return the exact object-classifier ``Mean (norm)`` source columns.
+
+    The output names deliberately contain ``QuPathNorm`` so they cannot be
+    confused with RESTORE's downstream ``*_restore_normalized`` evidence or
+    the retired flat-table ``*_norm`` fields.
+    """
+
+    available = set(cols)
+    result: dict[str, str] = {}
+    for marker in QUPATH_NORMALIZED_MARKERS:
+        for compartment in QUPATH_NORMALIZED_COMPARTMENTS:
+            source = f"{compartment}: {marker}: Mean (norm)"
+            if source in available:
+                result[source] = qupath_normalized_column(compartment, marker)
+    return result
+
+
+def reconcile_qupath_normalized_headers(
+    csv_paths: Sequence[Path],
+) -> dict[str, str]:
+    """Require all three QuPath norm measurements in every contracted export.
+
+    There is intentionally no fallback to the original marker mean.  A source
+    export lacking any exact normalized compartment is not a valid input for
+    this workflow and fails before DuckDB starts writing donor partitions.
+    """
+
+    expected = {
+        f"{compartment}: {marker}: Mean (norm)": qupath_normalized_column(
+            compartment, marker
+        )
+        for marker in QUPATH_NORMALIZED_MARKERS
+        for compartment in QUPATH_NORMALIZED_COMPARTMENTS
+    }
+    for path in csv_paths:
+        columns = header_cols(Path(path))
+        observed = qupath_normalized_means(columns)
+        missing = sorted(set(expected).difference(observed))
+        if missing:
+            raise SystemExit(
+                f"[err] QuPath export {path} is missing required pre-RESTORE "
+                f"Mean (norm) columns: {missing}"
+            )
+    return expected
 
 
 def sanitize(name: str) -> str:
@@ -207,7 +276,7 @@ def contracted_image_source(
 def build_sql(
     csv_paths: Sequence[Path],
     out_dir: Path,
-    limit: Optional[int],
+    limit: int | None,
     min_cell_area: float,
     *,
     image_to_donor: Mapping[str, str],
@@ -215,6 +284,7 @@ def build_sql(
     csv_paths = [Path(p) for p in ([csv_paths] if isinstance(csv_paths, (str, Path)) else csv_paths)]
     mm, _report = reconcile_headers(csv_paths)
     nucleus_mm = reconcile_compartment_headers(csv_paths, "Nucleus")
+    qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     selects = [
         f"{donor_case_expression(image_to_donor)} AS donor_id",
         '"Image" AS image',
@@ -237,6 +307,8 @@ def build_sql(
     # every marker while preserving every source required by marker_registry.
     for orig, output_column in nucleus_mm.items():
         selects.append(f'TRY_CAST("{orig}" AS DOUBLE) AS "{output_column}"')
+    for orig, output_column in qupath_norm_mm.items():
+        selects.append(f'TRY_CAST("{orig}" AS DOUBLE) AS "{output_column}"')
     sel = ",\n  ".join(selects)
     # Align batched exports by column NAME, then apply the cohort manifest's exact
     # image allow-list. A shared QuPath export may contain deliberately excluded
@@ -258,8 +330,8 @@ def build_sql(
     return sql, mm
 
 
-def build_cells_parquet(cfg: PipelineConfig, *, limit: Optional[int] = None,
-                        memory_limit: Optional[str] = None) -> Path:
+def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
+                        memory_limit: str | None = None) -> Path:
     """Run the DuckDB CSV -> partitioned-parquet build. Returns the cells dir.
 
     Scans each unique measurement export declared by ``cfg.qupath_manifest``
@@ -272,12 +344,20 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: Optional[int] = None,
     csv_paths = tuple(Path(path) for path in sorted(contracted_csvs))
     donor_mapping = image_id_to_donor_id(cohort)
     mm, report = reconcile_headers(csv_paths)
+    qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     for path, n in report["files"].items():
         print(f"[info] {Path(path).name}: {n} marker means")
     print(
         f"[info] panel union={report['union']} intersection={report['intersection']}; "
         "batch-specific markers are retained with explicit null availability"
     )
+    report["qupath_normalized_inputs"] = {
+        "markers": list(QUPATH_NORMALIZED_MARKERS),
+        "compartments": list(QUPATH_NORMALIZED_COMPARTMENTS),
+        "columns": dict(qupath_norm_mm),
+        "scale": "signed (raw - tissue_p50) / (tissue_p99 - tissue_p50)",
+        "role": "pre_RESTORE_input",
+    }
     report["cohort_manifest_content_id"] = cohort.content_id
     report["images"] = {
         image.image_id: {

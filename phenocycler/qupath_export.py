@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export hierarchical labels and their uncertainty to QuPath-keyed CSVs."""
+"""Export broad assignments and their uncertainty to QuPath-keyed CSVs."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def export_assignment_frame(
     cell_context: pd.DataFrame,
     out_dir: Path,
 ) -> list[Path]:
-    """Write the current hierarchical assignment schema, one CSV per image.
+    """Write the current assignment schema, one CSV per image.
 
     The full uncertainty contract is exported instead of collapsing ambiguous or unavailable cells
     into a named QuPath class. ``compartment`` and ``cell_type`` compatibility columns are included

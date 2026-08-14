@@ -1,4 +1,4 @@
-"""Donor-local RESTORE evidence and simultaneous broad Phenocycler typing."""
+"""Manifest-driven QuPath ingest, geometry, REDSEA, and expression workflow."""
 
 from .config import PipelineConfig, load_config
 from .marker_registry import MarkerRegistry, load_registry

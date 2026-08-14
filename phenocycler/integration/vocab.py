@@ -678,6 +678,9 @@ def run_vocab(cfg: PipelineConfig, panel_genes: Optional[Iterable[str]] = None,
     ``vocab_crosswalk_{tissue}.csv``, and the canonical ``vocab_crosswalk.csv`` is the
     concatenation of them, tagged by tissue.
     """
+    from .export_pheno import require_current_pheno
+
+    require_current_pheno("integration phenotype vocabulary")
     tissue = tissue or cfg.tissue
     tax = load_panel_taxonomy(cfg, tissue)
     if panel_genes is None:

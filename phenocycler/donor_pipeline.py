@@ -572,15 +572,6 @@ def donor_stage_inputs(
             )
         )
     if stage == "calibrate":
-        if context.base_config.restore_compartment_sample is not None:
-            inputs.append(
-                InputArtifact.from_path(
-                    "restore_compartment_sample",
-                    Path(context.base_config.restore_compartment_sample)
-                    / f"donor_id={donor_id}",
-                    hash_mode="sampled",
-                )
-            )
         if context.base_config.restore_expression_reviews is not None:
             inputs.append(
                 InputArtifact.from_path(
@@ -589,36 +580,12 @@ def donor_stage_inputs(
                 )
             )
     if stage == "type":
-        if context.typing_model_bundle is None:
-            inputs.append(
-                InputArtifact.from_path(
-                    "broad_gate_rules",
-                    context.base_config.broad_gate_rules,
-                )
+        inputs.append(
+            InputArtifact.from_path(
+                "broad_gate_rules",
+                context.base_config.broad_gate_rules,
             )
-        else:
-            inputs.append(
-                InputArtifact.from_path(
-                    "typing_rules",
-                    context.base_config.typing_rules,
-                )
-            )
-            from .pipeline import _validate_typing_calibration_compatibility
-
-            _validate_typing_calibration_compatibility(context)
-            artifact = context.typing_model_bundle.input_artifact
-            if artifact is None:
-                raise ContractError(
-                    "configured typing model bundle has no captured input artifact"
-                )
-            inputs.append(artifact)
-            promotion = context.typing_model_promotion_manifest
-            if promotion is None or promotion.input_artifact is None:
-                raise ContractError(
-                    "configured typing model bundle requires a captured promotion manifest"
-                )
-            promotion.validate_for_bundle(context.typing_model_bundle)
-            inputs.append(promotion.input_artifact)
+        )
     return tuple(inputs)
 
 
@@ -728,12 +695,11 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
             donor_id=donor,
             cells_root=context.config.cells_dir,
             redsea_root=context.config.redsea_dir,
+            expression_root=context.config.selected_expression_dir,
             geometry_root=context.config.geometry_qc_dir,
+            reference_controls_root=context.config.reference_controls_dir,
             registry=context.registry,
             config=RestoreStageConfig.from_pipeline(context.config),
-            compartment_sample_root=(
-                context.config.restore_compartment_sample
-            ),
             expression_reviews_path=context.config.restore_expression_reviews,
         )
         write_donor_partition(
@@ -756,9 +722,6 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
             ),
             marker_registry=context.registry,
             broad_gate_policy=context.broad_gate_policy,
-            typing_registry=context.typing_registry,
-            model_bundle=context.typing_model_bundle,
-            model_promotion_manifest=context.typing_model_promotion_manifest,
         )
         write_donor_partition(
             assignments,
@@ -801,7 +764,13 @@ def _partition_has_content(root: Path, donor_id: str) -> bool:
 def execute_donor_stage(context, stage: str, donor_id: str) -> str:
     """Run one ready donor task and atomically publish its receipt."""
 
-    from .pipeline import STAGE_METHODS, _stage_code
+    from .pipeline import STAGE_METHODS, _assert_stages_available, _stage_code
+
+    _assert_stages_available(
+        context,
+        (stage,),
+        operation="direct donor-stage execution",
+    )
 
     donor = str(donor_id)
     path = donor_receipt_path(context, stage, donor)
@@ -856,7 +825,13 @@ def create_receipt_for_existing_output(
 ) -> DonorStageReceipt:
     """Seal externally verified donor output without recomputing its values."""
 
-    from .pipeline import STAGE_METHODS, _stage_code
+    from .pipeline import STAGE_METHODS, _assert_stages_available, _stage_code
+
+    _assert_stages_available(
+        context,
+        (stage,),
+        operation="donor-receipt creation",
+    )
 
     donor = str(donor_id)
     path = donor_receipt_path(context, stage, donor)
@@ -993,19 +968,9 @@ def task_ready(task: DonorTask, completed: set[DonorTask]) -> bool:
 
 
 def _cohort_barrier_ready(context, task: DonorTask) -> bool:
-    """Hold probabilistic typing until cohort calibration is sealed.
+    """Donor-local dependencies are sufficient for simultaneous typing."""
 
-    Donor-local calibration receipts are sufficient for rules-only typing. A
-    fitted model, however, is authorized for one exact cohort calibration
-    content hash, which cannot be checked until the aggregate stage manifest
-    exists.
-    """
-
-    return not (
-        task.stage == "type"
-        and getattr(context, "typing_model_bundle", None) is not None
-        and not context.stage_manifest_path("calibrate").is_file()
-    )
+    return True
 
 
 def _task_priority(
@@ -1377,6 +1342,9 @@ def run_donor_queue(
     """Execute a donor-stage DAG under explicit CPU/GPU/group limits."""
 
     selected = tuple(stages)
+    from .pipeline import _assert_stages_available
+
+    _assert_stages_available(context, selected)
     unknown = sorted(set(selected).difference(DONOR_STAGES))
     if unknown:
         raise ContractError(f"unknown donor stages: {unknown}")
@@ -1438,12 +1406,14 @@ def run_pipelined_pipeline(
 
     from .pipeline import (
         STAGE_ORDER,
+        _assert_stages_available,
         export_qupath,
         run_pipeline,
         run_stage,
     )
 
     selected = tuple(stages)
+    _assert_stages_available(context, selected)
     expected_prefix = STAGE_ORDER[: len(selected)]
     if selected != expected_prefix:
         raise ContractError(

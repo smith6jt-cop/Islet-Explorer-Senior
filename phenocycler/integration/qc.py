@@ -301,6 +301,9 @@ def concordance_summary(results: dict[str, pd.DataFrame]) -> str:
 def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
            tissue: Optional[str] = None, write: bool = True) -> pd.DataFrame:
     """Stage entry point: grade registrations, write the gate table and the report."""
+    from .export_pheno import require_current_pheno
+
+    require_current_pheno("integration QC")
     qc, report = summarize(cfg, roi, tissue)
     results = gather_results(cfg)
     full = report + "\n" + concordance_summary(results)

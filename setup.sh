@@ -35,27 +35,23 @@ python - <<'PY'
 from importlib.resources import files
 
 import phenocycler
-from phenocycler.hierarchical_typing import TypingRegistry
 from phenocycler.marker_registry import load_registry
 from phenocycler.pipeline import STAGE_ORDER
-from phenocycler.simultaneous_typing import load_broad_gate_policy
 
 package = files("phenocycler")
 for name in (
-    "broad_gates.json",
+    "fundamental_pair_diagnostics.json",
     "marker_registry.json",
-    "restore_expression_reviews.csv",
-    "typing_rules.json",
 ):
     resource = package.joinpath(name)
     if not resource.is_file():
         raise SystemExit(f"missing installed package data: {name}")
 registry = load_registry()
-gates = load_broad_gate_policy(registry=registry)
-TypingRegistry.from_marker_registry(registry)
 print(f"  phenocycler {phenocycler.__version__}")
 print(f"  registry {registry.registry_version} ({len(registry.markers)} markers)")
-print(f"  typing {gates.rules_version} ({' | '.join(gates.compartments)})")
+print(f"  production status: {registry.production_status}")
+print("  production pairs: none verified")
+print("  ordinary workflow boundary: expression")
 print(f"  stages: {' -> '.join(STAGE_ORDER)}")
 PY
 
@@ -67,6 +63,6 @@ echo "  conda activate ${ENVIRONMENT_NAME}"
 echo "  phenocycler manifest template --out data/qupath_manifest_spec.json"
 echo "  # Edit the specification, then:"
 echo "  phenocycler manifest create --spec data/qupath_manifest_spec.json --out data/qupath_manifest.json"
-echo "  phenocycler run --config config.ini"
+echo "  phenocycler run --config config.ini --pipelined --through expression"
 echo "  phenocycler status --config config.ini"
-echo "  python -m pytest tests"
+echo "  python -m pytest -q  # fast current-workflow contract"

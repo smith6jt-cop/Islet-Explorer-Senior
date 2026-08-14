@@ -239,6 +239,9 @@ def run_donor(
     up to three lymph-node sections, and each is its own comparison: keying by donor alone
     would keep whichever partition was discovered last and silently drop the other tissue.
     """
+    from .export_pheno import require_current_pheno
+
+    require_current_pheno("integration donor comparison")
     man = load_manifest(cfg)
     status_by_donor = dict(zip(man["donor_id"], man["disease_status"]))
 

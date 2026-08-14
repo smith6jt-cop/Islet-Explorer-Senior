@@ -45,7 +45,6 @@ BASELINE_PAIRS: tuple[tuple[str, str], ...] = (
     ("CD31", "E_cadherin"),
     ("CD3e", "E_cadherin"),
     ("CD68", "E_cadherin"),
-    ("CD11b", "E_cadherin"),
     ("B3TUBB", "EpCAM"),
     ("Vimentin", "E_cadherin"),
 )
@@ -56,7 +55,7 @@ BASELINE_PAIRS: tuple[tuple[str, str], ...] = (
 # comparator emits no divisor and no call, and its finding that pooling lifts CD20's worst-case anchor
 # recovery (0.217 -> 0.968) does NOT license reintroducing CD20: it is excluded from RESTORE by
 # maintainer decision on separate grounds (RESTORE_EXCLUDED_MARKERS), which the guard above enforces.
-IMMUNE_JOINT_MARKERS: tuple[str, ...] = ("CD3e", "CD20", "CD68", "CD11b")
+IMMUNE_JOINT_MARKERS: tuple[str, ...] = ("CD3e", "CD20", "CD68")
 # Markers held out of the RESTORE pair web in BOTH roles — neither target nor reference.  This is
 # stronger than "cannot be a reference": such a marker gets no threshold, no divisor and no positivity
 # call from this method, and is deferred to a validated second pass once the broad cell types are
@@ -80,11 +79,10 @@ IMMUNE_REFERENCE_SCREEN_PAIRS: tuple[tuple[str, str], ...] = (
     ("CD3e", "CD68"),
     ("CD3e", "CD163"),
     ("CD68", "CD3e"),
-    ("CD11b", "CD3e"),
 )
 EPITHELIAL_REFERENCE_COMPARATOR_PAIRS: tuple[tuple[str, str], ...] = tuple(
     (target, reference)
-    for target in ("CD3e", "CD68", "CD11b")
+    for target in ("CD3e", "CD68")
     for reference in ("Pan_Cytokeratin", "Ker8_18", "EpCAM")
 )
 # The three other epithelial markers as TARGETS (above they appear only as references).  Diagnostic
@@ -151,7 +149,7 @@ LEVEL1_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
     *((t, "E_cadherin") for t in _MESENCHYMAL_EXPANSION),
 )
 
-CANDIDATE_PAIRS: tuple[tuple[str, str], ...] = tuple(
+HISTORICAL_CANDIDATE_PAIRS: tuple[tuple[str, str], ...] = tuple(
     dict.fromkeys(
         BASELINE_PAIRS
         + IMMUNE_REFERENCE_SCREEN_PAIRS
@@ -160,7 +158,7 @@ CANDIDATE_PAIRS: tuple[tuple[str, str], ...] = tuple(
         + LEVEL1_EXPANSION_PAIRS
     )
 )
-for _target, _reference in CANDIDATE_PAIRS:  # fail at import, not mid-screen
+for _target, _reference in HISTORICAL_CANDIDATE_PAIRS:  # fail at import, not mid-screen
     for _marker, _role in ((_target, "target"), (_reference, "reference")):
         if _marker in RESTORE_EXCLUDED_MARKERS:
             raise ValueError(
@@ -170,72 +168,15 @@ for _target, _reference in CANDIDATE_PAIRS:  # fail at import, not mid-screen
     if _target == _reference:
         raise ValueError(f"{_target} cannot be its own reference")
 del _target, _reference, _marker, _role
-# The FROZEN production pairs (maintainer sign-off 2026-07-24): one predeclared reference per target
-# under the reference>=target frequency rule. Identical to BASELINE_PAIRS except CD11b takes EpCAM (a
-# maintainer override of the marginal E_cadherin baseline). E_cadherin<-CD31 is retained despite
-# failing the proportion because endothelium is the only biologically exclusive epithelial reference
-# (advisory for a structural target).
-#
-# This tuple is consumed by restore_stage.production_pairs, which cross-validates it against the
-# registry's active target/reference declarations and raises on drift. The modules that formerly
-# derived from it -- reference_selection.py and restore_apply.py -- were deleted in ac00c18 and no
-# longer exist; neither does config.COMPARTMENT_GATES. Broad-gate membership now lives in
-# phenocycler/broad_gates.json and is validated by simultaneous_typing.BroadGatePolicy.
-ACCEPTED_PAIRS: tuple[tuple[str, str], ...] = (
-    # --- the original 7 (Gate-2 sign-off 2026-07-24) ---
-    ("E_cadherin", "CD31"),
-    ("CD31", "E_cadherin"),
-    ("CD3e", "E_cadherin"),
-    ("CD68", "E_cadherin"),
-    ("CD11b", "EpCAM"),
-    ("B3TUBB", "EpCAM"),
-    ("Vimentin", "E_cadherin"),
-    # --- level-1 gate expansion (Gate-2 sign-off 2026-07-27) -------------------------------------
-    # Rationale, evidence and per-pair flags: data/restore_pair_validation/pair_reviews_accepted.csv
-    # and docs/ANATOMY_CHECK_2026-07-27.md. `Other` was the ordered residual's terminal bucket, so a
-    # cell whose only lineage marker was ungated could not be typed -- B cells, DC, neutrophils,
-    # macrophage subsets, ENDOCRINE cells, lymphatics and smooth muscle were all landing there by
-    # construction rather than by evidence.
-    #
-    # The three epithelial promotions take the SAME recorded exception as E_cadherin <- CD31: they
-    # fail the pure-proportion rule (0.03-0.18) because every majority-positive structural target
-    # must, not because the reference is poor (reference_fold 19-37x).
-    ("Pan_Cytokeratin", "CD31"),
-    ("Ker8_18", "CD31"),
-    ("EpCAM", "CD31"),
-    # Immune. CD163 was screened and REJECTED (see LEVEL1_EXPANSION_PAIRS).
-    ("CD79a", "E_cadherin"),
-    ("CD11c", "E_cadherin"),
-    ("Iba1", "E_cadherin"),
-    ("CD206", "E_cadherin"),
-    ("MPO", "E_cadherin"),
-    ("CD4", "E_cadherin"),
-    ("CD8", "E_cadherin"),
-    # Epithelial / endocrine. INS carries a live caveat: its signal collapses in T1D (beta-cell loss),
-    # so affected donors need an expression review resolving them to NO_TARGET_EXPRESSION_CONFIRMED
-    # rather than a technical halt. SST carries an UNEXPLAINED ND anomaly -- see the floor table.
-    ("Keratin_5", "CD31"),
-    ("INS", "Pan_Cytokeratin"),
-    ("GCG", "Pan_Cytokeratin"),
-    ("SST", "Pan_Cytokeratin"),
-    # Endothelial / mesenchymal.
-    ("CD34", "E_cadherin"),
-    ("Podoplanin", "E_cadherin"),
-    ("SMA", "E_cadherin"),
-)
-for _t, _r in ACCEPTED_PAIRS:  # fail at import if the frozen set drifts from the candidate web
-    if (_t, _r) not in set(CANDIDATE_PAIRS):
-        raise ValueError(f"accepted pair {_t} <- {_r} is not in CANDIDATE_PAIRS")
-if len({_t for _t, _ in ACCEPTED_PAIRS}) != len(ACCEPTED_PAIRS):
-    raise ValueError("ACCEPTED_PAIRS must carry exactly one reference per target")
-del _t, _r
-PAIR_SETS: dict[str, tuple[tuple[str, str], ...]] = {
+# No accepted or production pair roster exists. These explicitly named sets
+# survive only as reproducible research inputs for the retired separator
+# experiments; none can be selected by the production pipeline.
+RESEARCH_PAIR_SETS: dict[str, tuple[tuple[str, str], ...]] = {
     "baseline": BASELINE_PAIRS,
     "immune-screen": IMMUNE_REFERENCE_SCREEN_PAIRS,
     "epithelial-comparator": EPITHELIAL_TARGET_COMPARATOR_PAIRS,
     "level1-expansion": LEVEL1_EXPANSION_PAIRS,
-    "accepted": ACCEPTED_PAIRS,
-    "all": CANDIDATE_PAIRS,
+    "all": HISTORICAL_CANDIDATE_PAIRS,
 }
 COMPARTMENTS: tuple[str, ...] = ("Nucleus", "Cytoplasm", "Membrane", "Cell")
 # HISTORICAL. This was the v10 feature basis, read from the QuPath compartment sample. Production
@@ -321,6 +262,10 @@ DIVISOR_STATISTICS: dict[str, float | None] = {
     "p999": 0.999,
     "p99": 0.99,
     "p95": 0.95,
+    # The production successor. Its quantile is marker-specific and therefore
+    # supplied through ``marker_alpha`` rather than encoded as a fixed number
+    # here. Historical review paths may continue to request the fixed rules.
+    "empirical_alpha": None,
 }
 QUPATH_MARKER_ALIASES = {
     "E_cadherin": "E-cadherin",
@@ -334,7 +279,7 @@ QUPATH_MARKER_ALIASES = {
 DEFERRED_EXTRACTION_MARKERS: tuple[str, ...] = tuple(RESTORE_EXCLUDED_MARKERS)
 QUPATH_MARKERS: dict[str, str] = {
     marker: QUPATH_MARKER_ALIASES.get(marker, marker)
-    for marker in [m for pair in CANDIDATE_PAIRS for m in pair] + list(DEFERRED_EXTRACTION_MARKERS)
+    for marker in [m for pair in HISTORICAL_CANDIDATE_PAIRS for m in pair] + list(DEFERRED_EXTRACTION_MARKERS)
 }
 LINEAR_OTSU_FLOOR = "linear_otsu"
 MAX_LINEAR_OTSU_TRIANGLE_FLOOR = "max_linear_otsu_triangle"
@@ -344,7 +289,6 @@ MARKER_INPUT_FLOOR_METHODS: dict[str, str] = {
     "CD3e": MAX_LINEAR_OTSU_TRIANGLE_FLOOR,
     "CD20": MAX_LINEAR_OTSU_TRIANGLE_FLOOR,
     "CD68": LINEAR_OTSU_FLOOR,
-    "CD11b": LINEAR_OTSU_FLOOR,
     "B3TUBB": LINEAR_OTSU_FLOOR,
     "EpCAM": LINEAR_OTSU_FLOOR,
     "Vimentin": LINEAR_OTSU_FLOOR,
@@ -1082,8 +1026,13 @@ def directional_groups(
 
 
 def negative_control_statistics(
-    values: np.ndarray, statistic: str = "max"
-) -> dict[str, float | int]:
+    values: np.ndarray,
+    statistic: str = "max",
+    *,
+    marker_alpha: float | None = None,
+    contamination_z: float = 6.0,
+    max_contamination_fraction: float = 0.05,
+) -> dict[str, object]:
     """Summarise the negative-control population into a divisor, plus sensitivity statistics.
 
     ``statistic`` selects which summary becomes ``"divisor"``:
@@ -1092,6 +1041,9 @@ def negative_control_statistics(
                 "negatives normalise to <= 1" is exact. With real noise it is an extreme order
                 statistic: it has no limiting value and grows with control-set size.
       "p999" / "p99" / "p95" -- robust upper quantiles, stable in n.
+      "empirical_alpha" -- the finite-sample order statistic at the target's
+                registry-allocated alpha, after a fixed robust contamination
+                screen. It refuses when the control cannot resolve alpha.
 
     ``"maximum"`` is always returned so the manuscript value stays auditable regardless of policy, and
     ``"control_fraction_le_1"`` reports what fraction of the control population the chosen divisor
@@ -1110,6 +1062,65 @@ def negative_control_statistics(
     maximum = float(values.max())
     if maximum <= 0:
         raise ValueError("negative-control maximum must be positive")
+
+    if statistic == "empirical_alpha":
+        from statsmodels.robust.scale import qn_scale
+
+        from .empirical_tail import empirical_upper_threshold
+
+        if marker_alpha is None or not 0 < float(marker_alpha) < 1:
+            raise ValueError(
+                "empirical_alpha requires marker_alpha between 0 and 1"
+            )
+        if np.any(values <= 0):
+            raise ValueError(
+                "empirical_alpha controls must be strictly positive; "
+                "zero is a left-censored REDSEA value"
+            )
+        if not np.isfinite(contamination_z) or contamination_z <= 0:
+            raise ValueError("contamination_z must be finite and positive")
+        if not 0 <= max_contamination_fraction < 1:
+            raise ValueError("max_contamination_fraction must be in [0, 1)")
+        log_values = np.log1p(values)
+        median = float(np.median(log_values))
+        scale = float(qn_scale(log_values))
+        if not np.isfinite(median) or not np.isfinite(scale):
+            raise ValueError("negative-control robust background is not finite")
+        scale_for_z = max(scale, 1e-9)
+        contaminated = (log_values - median) / scale_for_z > contamination_z
+        contaminated_n = int(contaminated.sum())
+        contamination_fraction = float(contaminated.mean())
+        if contamination_fraction > max_contamination_fraction:
+            raise ValueError(
+                f"negative control contamination is "
+                f"{100 * contamination_fraction:.3f}%; allowed at most "
+                f"{100 * max_contamination_fraction:.3f}%"
+            )
+        clean_log = np.sort(log_values[~contaminated])
+        threshold_log = empirical_upper_threshold(
+            clean_log, float(marker_alpha)
+        )
+        divisor = float(np.expm1(threshold_log))
+        if not np.isfinite(divisor) or divisor <= 0:
+            raise ValueError(
+                "empirical negative-control divisor must be finite and positive"
+            )
+        return {
+            "n": int(values.size),
+            "clean_n": int(len(clean_log)),
+            "contaminated_n": contaminated_n,
+            "contamination_fraction": contamination_fraction,
+            "divisor": divisor,
+            "statistic": statistic,
+            "marker_alpha": float(marker_alpha),
+            "maximum": maximum,
+            "control_fraction_le_1": float(np.mean(values <= divisor)),
+            "mean_plus_3sd": float(values.mean() + 3.0 * values.std(ddof=0)),
+            "median": float(np.median(values)),
+            "p95": float(np.quantile(values, 0.95)),
+            "threshold_log1p": threshold_log,
+            "sorted_clean_log1p": clean_log,
+        }
 
     quantile = DIVISOR_STATISTICS[statistic]
     divisor = maximum if quantile is None else float(np.quantile(values, quantile))
@@ -2370,7 +2381,7 @@ def evaluate_locked_pair(
         context="RESTORE pair evaluation",
     )[0]
     config = config or PairValidationConfig()
-    if (target, reference) not in CANDIDATE_PAIRS:
+    if (target, reference) not in HISTORICAL_CANDIDATE_PAIRS:
         raise ValueError(f"pair is not in the candidate specification: {target} <- {reference}")
     # `config.feature_compartments` is the DECLARED PREFERENCE; the effective set is the richest subset
     # of it that this pair's two markers actually have. Markers added after the compartment sample was
@@ -3219,7 +3230,7 @@ def evaluate_locked_cohort(
     pairs = tuple((str(target), str(reference)) for target, reference in pairs)
     if not pairs or len(set(pairs)) != len(pairs):
         raise ValueError("pairs must be a nonempty unique sequence")
-    unknown_pairs = set(pairs).difference(CANDIDATE_PAIRS)
+    unknown_pairs = set(pairs).difference(HISTORICAL_CANDIDATE_PAIRS)
     if unknown_pairs:
         raise ValueError(f"pairs are outside the candidate specification: {unknown_pairs}")
     review_map, review_table = load_expression_reviews(expression_reviews)
@@ -3714,7 +3725,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     locked.add_argument("--pair-reviews", type=Path)
     locked.add_argument(
         "--pair-set",
-        choices=tuple(PAIR_SETS),
+        choices=tuple(RESEARCH_PAIR_SETS),
         default="baseline",
         help="predeclared candidate pair set to evaluate",
     )
@@ -3821,7 +3832,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.redsea_cells,
             args.output,
             donors=args.donor,
-            pairs=PAIR_SETS[args.pair_set],
+            pairs=RESEARCH_PAIR_SETS[args.pair_set],
             config=PairValidationConfig(
                 fit_cap=args.fit_cap,
                 seeds=tuple(args.seed or [0, 1, 2]),

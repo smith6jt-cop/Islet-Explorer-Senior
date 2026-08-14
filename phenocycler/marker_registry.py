@@ -1,28 +1,38 @@
-"""Validated marker registry for donor-local expression calibration.
+"""Validated marker registry for upstream marker measurement selection.
 
 The JSON beside this module is deliberately the source of truth.  This module
 only supplies typed access, validation, and deterministic familywise error
 allocation; it does not copy marker lists from ``config`` or
 ``marker_taxonomy``.
 
-An ``active`` marker has one pre-declared mutually exclusive reference.  A
-marker can still be present as ``deferred`` or ``standalone`` so that absence
-of a calibrated call is explicit rather than silently interpreted as a
-negative result.
+The current registry deliberately declares no verified calibration pairs.
+Marker measurement sources remain authoritative inputs, while pair selection
+lives only in mutable development diagnostics until it is validated.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
+from .artifacts import ContractError
 
 DEFAULT_REGISTRY_PATH = Path(__file__).with_name("marker_registry.json")
 ALLOWED_KINDS = frozenset({"type", "state", "structural", "excluded"})
-ALLOWED_CALIBRATION_STATUSES = frozenset({"active", "deferred", "standalone"})
+ALLOWED_CALIBRATION_STATUSES = frozenset(
+    {"active", "unverified", "deferred", "standalone"}
+)
+NO_VERIFIED_PAIRS_STATUS = "development_no_verified_pairs"
+
+
+class NoVerifiedPairsError(ContractError):
+    """Raised when a caller requests pair-derived production output."""
+
+
 ALLOWED_BROAD_COMPARTMENTS = frozenset(
     {"Immune", "Endothelial", "Epithelial", "Neural", "Mesenchymal"}
 )
@@ -58,6 +68,7 @@ class MarkerSpec:
     reference: str | None
     families: tuple[str, ...]
     compartment: str
+    measurement_source: str
     spillover_policy: str
     mutually_exclusive: bool
 
@@ -71,8 +82,10 @@ class MarkerSpec:
 
     @property
     def measurement_column(self) -> str:
-        """Corrected-compartment column selected by this specification."""
+        """Canonical upstream measurement selected by this specification."""
 
+        if self.measurement_source == "qupath_norm":
+            return f"QuPathNorm__{self.compartment}__{self.name}"
         return f"{self.compartment}__{self.name}"
 
 
@@ -83,8 +96,10 @@ class MarkerRegistry:
     schema_version: int
     registry_version: str
     method_version: str
+    production_status: str
     description: str
     allowed_compartments: tuple[str, ...]
+    allowed_measurement_sources: tuple[str, ...]
     allowed_spillover_policies: tuple[str, ...]
     families: Mapping[str, FamilySpec]
     markers: tuple[MarkerSpec, ...]
@@ -106,7 +121,13 @@ class MarkerRegistry:
 
     @property
     def broad_markers(self) -> tuple[MarkerSpec, ...]:
-        return tuple(marker for marker in self.markers if "broad" in marker.uses)
+        """Return verified production broad markers (currently none)."""
+
+        return tuple(
+            marker
+            for marker in self.markers
+            if marker.active and "broad" in marker.uses
+        )
 
     @property
     def type_markers(self) -> tuple[MarkerSpec, ...]:
@@ -121,12 +142,7 @@ class MarkerRegistry:
 
     @property
     def reference_graph(self) -> dict[str, str]:
-        """Directed active target -> mutually-exclusive reference graph.
-
-        Reciprocal pairs (notably E-cadherin and CD31) are valid.  The graph is
-        an audit representation, not an instruction to estimate one call from
-        the other: calibration receives explicit reference-positive masks.
-        """
+        """Directed verified target -> reference graph (currently empty)."""
 
         return {
             marker.name: marker.reference
@@ -142,12 +158,7 @@ class MarkerRegistry:
         )
 
     def marker_alpha(self, marker: str | MarkerSpec) -> float:
-        """Return the marker's fixed Bonferroni allocation.
-
-        A marker can participate in more than one interpretation family (INS
-        and GCG are both broad epithelial and endocrine subtype evidence).  In
-        that case the strictest pre-declared allocation is used.
-        """
+        """Return a future verified marker's fixed Bonferroni allocation."""
 
         spec = self.marker(marker) if isinstance(marker, str) else marker
         if not spec.active:
@@ -227,6 +238,10 @@ def registry_from_dict(payload: Mapping[str, Any]) -> MarkerRegistry:
             raise ValueError(
                 f"marker row {index} is missing required keys: {sorted(missing)}"
             )
+        spillover_policy = str(row["spillover_policy"])
+        default_source = (
+            "qupath_raw" if spillover_policy == "uncompensated" else "redsea"
+        )
         markers.append(
             MarkerSpec(
                 name=str(row["name"]),
@@ -243,7 +258,10 @@ def registry_from_dict(payload: Mapping[str, Any]) -> MarkerRegistry:
                 ),
                 families=tuple(str(value) for value in row["families"]),
                 compartment=str(row["compartment"]),
-                spillover_policy=str(row["spillover_policy"]),
+                measurement_source=str(
+                    row.get("measurement_source", default_source)
+                ),
+                spillover_policy=spillover_policy,
                 mutually_exclusive=bool(row["mutually_exclusive"]),
             )
         )
@@ -253,9 +271,19 @@ def registry_from_dict(payload: Mapping[str, Any]) -> MarkerRegistry:
             schema_version=int(payload["schema_version"]),
             registry_version=str(payload["registry_version"]),
             method_version=str(payload["method_version"]),
+            production_status=str(
+                payload.get("production_status", NO_VERIFIED_PAIRS_STATUS)
+            ),
             description=str(payload.get("description", "")),
             allowed_compartments=tuple(
                 str(value) for value in payload["allowed_compartments"]
+            ),
+            allowed_measurement_sources=tuple(
+                str(value)
+                for value in payload.get(
+                    "allowed_measurement_sources",
+                    ("redsea", "qupath_raw", "qupath_norm"),
+                )
             ),
             allowed_spillover_policies=tuple(
                 str(value) for value in payload["allowed_spillover_policies"]
@@ -274,14 +302,21 @@ def validate_registry(registry: MarkerRegistry) -> None:
     """Raise ``ValueError`` for an internally contradictory registry."""
 
     errors: list[str] = []
-    if registry.schema_version != 1:
+    if registry.schema_version not in {1, 2, 3}:
         errors.append(f"unsupported schema_version {registry.schema_version!r}")
     if not registry.registry_version.strip():
         errors.append("registry_version must be non-empty")
     if not registry.method_version.strip():
         errors.append("method_version must be non-empty")
+    if registry.production_status != NO_VERIFIED_PAIRS_STATUS:
+        errors.append(
+            "production_status must declare development_no_verified_pairs until "
+            "a separate verified roster is approved"
+        )
     if not registry.allowed_compartments:
         errors.append("allowed_compartments must be non-empty")
+    if not registry.allowed_measurement_sources:
+        errors.append("allowed_measurement_sources must be non-empty")
     if not registry.allowed_spillover_policies:
         errors.append("allowed_spillover_policies must be non-empty")
 
@@ -290,6 +325,17 @@ def validate_registry(registry: MarkerRegistry) -> None:
     if duplicated_names:
         errors.append(f"duplicate marker names: {duplicated_names}")
     name_set = set(names)
+    qupath_normalized = {
+        marker.name
+        for marker in registry.markers
+        if marker.measurement_source == "qupath_norm"
+    }
+    expected_qupath_normalized = {"Iba1", "CD68", "M2Gal3"}
+    if qupath_normalized != expected_qupath_normalized:
+        errors.append(
+            "QuPath-normalized pre-RESTORE markers must be exactly "
+            f"{sorted(expected_qupath_normalized)}, got {sorted(qupath_normalized)}"
+        )
 
     for family in registry.families.values():
         if not (0.0 < family.familywise_alpha < 1.0):
@@ -332,6 +378,33 @@ def validate_registry(registry: MarkerRegistry) -> None:
         if marker.spillover_policy == "uncompensated" and marker.compartment != "Nucleus":
             errors.append(
                 f"{label}: uncompensated per-cell markers must select Nucleus"
+            )
+        if marker.measurement_source not in registry.allowed_measurement_sources:
+            errors.append(
+                f"{label}: unsupported measurement source "
+                f"{marker.measurement_source!r}"
+            )
+        if marker.measurement_source == "qupath_norm" and marker.name not in {
+            "Iba1",
+            "CD68",
+            "M2Gal3",
+        }:
+            errors.append(
+                f"{label}: QuPath normalization is contracted only for Iba1, CD68, "
+                "and M2Gal3"
+            )
+        if marker.measurement_source == "qupath_raw" and marker.spillover_policy != (
+            "uncompensated"
+        ):
+            errors.append(
+                f"{label}: qupath_raw measurement source requires uncompensated policy"
+            )
+        if marker.measurement_source == "redsea" and marker.spillover_policy not in {
+            "redsea_corrected",
+            "redsea_passthrough",
+        }:
+            errors.append(
+                f"{label}: redsea measurement source requires a REDSEA spillover policy"
             )
         if marker.broad_compartment not in ALLOWED_BROAD_COMPARTMENTS | {None}:
             errors.append(
@@ -398,24 +471,35 @@ def validate_registry(registry: MarkerRegistry) -> None:
                     f"family {family.name}: member {name!r} is not active"
                 )
 
-    # Locked decisions that prompted this registry.  Keeping them here makes a
-    # stale edited JSON fail at load rather than silently reintroducing the
-    # contradictory pair/gate paths this module replaces.
-    cd11b = by_name.get("CD11b")
-    if cd11b is None or cd11b.reference != "EpCAM":
-        errors.append("CD11b must use EpCAM as its active reference")
-    sst = by_name.get("SST")
-    if (
-        sst is None
-        or sst.reference != "Pan_Cytokeratin"
-        or not sst.subtype_only
-        or not sst.active
-    ):
+    if registry.active_markers:
         errors.append(
-            "SST must be active subtype-only evidence with Pan_Cytokeratin "
-            "as its reference"
+            "development_no_verified_pairs registry cannot contain active calibrations"
+        )
+    if registry.families:
+        errors.append(
+            "development_no_verified_pairs registry cannot allocate production testing families"
+        )
+    if registry.reference_graph:
+        errors.append(
+            "development_no_verified_pairs registry cannot contain operative references"
         )
 
+    # CD11b remains assay-QC-only independent of pair development.
+    cd11b = by_name.get("CD11b")
+    if (
+        cd11b is None
+        or cd11b.kind != "excluded"
+        or cd11b.uses != ("assay_qc",)
+        or cd11b.calibration_status != "standalone"
+        or cd11b.reference is not None
+        or cd11b.families
+        or cd11b.broad_compartment is not None
+        or cd11b.mutually_exclusive
+    ):
+        errors.append(
+            "CD11b must remain a standalone assay-QC measurement with no "
+            "phenotyping use, calibration reference, or error family"
+        )
     if errors:
         raise ValueError("invalid marker registry:\n- " + "\n- ".join(errors))
 
@@ -443,6 +527,8 @@ __all__ = [
     "FamilySpec",
     "MarkerRegistry",
     "MarkerSpec",
+    "NO_VERIFIED_PAIRS_STATUS",
+    "NoVerifiedPairsError",
     "load_registry",
     "registry_from_dict",
     "validate_registry",

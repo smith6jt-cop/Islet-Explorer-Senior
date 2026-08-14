@@ -34,6 +34,7 @@ from .pipeline import (
     STAGE_ORDER,
     STAGE_SIDECARS,
     RunContext,
+    _assert_stages_available,
     _selected_stages,
     _stage_code,
     _stage_config,
@@ -632,6 +633,8 @@ def resume(
     if jobs is not None:
         overrides["n_jobs"] = jobs
     context = resolve_run_context(load_config(config_path, **overrides))
+    stages = _selected_stages(None, through)
+    _assert_stages_available(context, stages, operation="resume")
     source_root = _source_run_root(context, source_run_id)
     print(f"[resume] source run {source_run_id}")
     print(f"[resume] target run {context.run_id}")
@@ -643,7 +646,6 @@ def resume(
         target_ingest,
         from_donor=from_donor,
     )
-    stages = _selected_stages(None, through)
     from .donor_pipeline import run_pipelined_pipeline
 
     run_pipelined_pipeline(

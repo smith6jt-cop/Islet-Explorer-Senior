@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
-  "registry_version": "marker-calibration-registry-v1",
-  "method_version": "donor-marker-calibration-v1",
-  "description": "Single source of truth for donor-local marker calibration. Active pairs are mutually exclusive reference controls; deferred markers remain visible without silently receiving an unvalidated threshold.",
+  "schema_version": 3,
+  "registry_version": "marker-measurement-registry-v3-no-verified-pairs",
+  "method_version": "upstream-marker-selection-v3-no-verified-pairs",
+  "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified.",
   "allowed_compartments": [
     "Nucleus",
     "Cytoplasm",
@@ -14,64 +14,12 @@
     "redsea_passthrough",
     "uncompensated"
   ],
-  "families": {
-    "broad_immune": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "CD3e",
-        "CD68",
-        "CD11b",
-        "CD79a",
-        "CD11c",
-        "Iba1",
-        "CD206",
-        "MPO",
-        "CD4",
-        "CD8"
-      ]
-    },
-    "broad_endothelial": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "CD31",
-        "CD34",
-        "Podoplanin"
-      ]
-    },
-    "broad_epithelial": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "E_cadherin",
-        "Pan_Cytokeratin",
-        "Ker8_18",
-        "EpCAM",
-        "Keratin_5",
-        "INS",
-        "GCG"
-      ]
-    },
-    "broad_neural": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "B3TUBB"
-      ]
-    },
-    "broad_mesenchymal": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "Vimentin",
-        "SMA"
-      ]
-    },
-    "subtype_endocrine": {
-      "familywise_alpha": 0.01,
-      "members": [
-        "INS",
-        "GCG",
-        "SST"
-      ]
-    }
-  },
+  "allowed_measurement_sources": [
+    "redsea",
+    "qupath_raw",
+    "qupath_norm"
+  ],
+  "families": {},
   "markers": [
     {
       "name": "E_cadherin",
@@ -80,14 +28,12 @@
         "broad"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "CD31",
-      "families": [
-        "broad_epithelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Pan_Cytokeratin",
@@ -96,14 +42,12 @@
         "broad"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "CD31",
-      "families": [
-        "broad_epithelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Ker8_18",
@@ -112,14 +56,12 @@
         "broad"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "CD31",
-      "families": [
-        "broad_epithelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Keratin_5",
@@ -128,14 +70,12 @@
         "broad"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "CD31",
-      "families": [
-        "broad_epithelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "EpCAM",
@@ -144,14 +84,12 @@
         "broad"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "CD31",
-      "families": [
-        "broad_epithelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "TP63",
@@ -189,15 +127,12 @@
         "subtype"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "Pan_Cytokeratin",
-      "families": [
-        "broad_epithelial",
-        "subtype_endocrine"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "GCG",
@@ -207,15 +142,12 @@
         "subtype"
       ],
       "broad_compartment": "Epithelial",
-      "calibration_status": "active",
-      "reference": "Pan_Cytokeratin",
-      "families": [
-        "broad_epithelial",
-        "subtype_endocrine"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "SST",
@@ -224,14 +156,12 @@
         "subtype"
       ],
       "broad_compartment": null,
-      "calibration_status": "active",
-      "reference": "Pan_Cytokeratin",
-      "families": [
-        "subtype_endocrine"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD31",
@@ -240,14 +170,12 @@
         "broad"
       ],
       "broad_compartment": "Endothelial",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_endothelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD34",
@@ -257,14 +185,12 @@
         "subtype"
       ],
       "broad_compartment": "Endothelial",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_endothelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Podoplanin",
@@ -274,14 +200,12 @@
         "subtype"
       ],
       "broad_compartment": "Endothelial",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_endothelial"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Caveolin",
@@ -304,14 +228,12 @@
         "broad"
       ],
       "broad_compartment": "Neural",
-      "calibration_status": "active",
-      "reference": "EpCAM",
-      "families": [
-        "broad_neural"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD56",
@@ -335,14 +257,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD8",
@@ -352,14 +272,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD4",
@@ -369,14 +287,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "FOXP3",
@@ -414,14 +330,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD68",
@@ -431,14 +345,13 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
+      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD163",
@@ -462,14 +375,13 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
+      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD206",
@@ -479,14 +391,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "M2Gal3",
@@ -499,6 +409,7 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
+      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -510,14 +421,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "CD209",
@@ -535,19 +444,17 @@
     },
     {
       "name": "CD11b",
-      "kind": "type",
+      "kind": "excluded",
       "uses": [
-        "subtype"
+        "assay_qc"
       ],
       "broad_compartment": null,
-      "calibration_status": "active",
-      "reference": "EpCAM",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "standalone",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "MPO",
@@ -557,14 +464,12 @@
         "subtype"
       ],
       "broad_compartment": "Immune",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_immune"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "SMA",
@@ -574,14 +479,12 @@
         "subtype"
       ],
       "broad_compartment": "Mesenchymal",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_mesenchymal"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "Vimentin",
@@ -590,14 +493,12 @@
         "broad"
       ],
       "broad_compartment": "Mesenchymal",
-      "calibration_status": "active",
-      "reference": "E_cadherin",
-      "families": [
-        "broad_mesenchymal"
-      ],
+      "calibration_status": "unverified",
+      "reference": null,
+      "families": [],
       "compartment": "Cell",
       "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": true
+      "mutually_exclusive": false
     },
     {
       "name": "b_Catenin1",
@@ -977,5 +878,6 @@
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     }
-  ]
+  ],
+  "production_status": "development_no_verified_pairs"
 }

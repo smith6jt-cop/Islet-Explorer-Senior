@@ -5,6 +5,8 @@ marker: raw QuPath whole-cell means, multiple corrected compartment means,
 normalised values, and binary gates.  This module makes the current selection
 explicit and registry-driven.  Each marker appears exactly once:
 
+* ``qupath_normalized`` markers come from QuPath's exact signed
+  ``Mean (norm)`` object-classifier measurement;
 * ``redsea_corrected`` markers come from the marker's declared REDSEA
   compartment;
 * ``uncompensated`` markers come from the declared raw QuPath compartment; and
@@ -21,9 +23,9 @@ from __future__ import annotations
 
 import os
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -31,8 +33,7 @@ import pandas as pd
 from .artifacts import ContractError, DuplicateObjectError
 from .marker_registry import MarkerRegistry, MarkerSpec, load_registry
 
-
-METHOD_VERSION = "selected-expression-v1"
+METHOD_VERSION = "selected-expression-v2-qupath-norm-inputs"
 KEY_COLUMNS = ("donor_id", "object_id")
 CONTEXT_COLUMNS = (
     "image",
@@ -52,6 +53,7 @@ class ExpressionAvailability:
     available: bool
     source: str
     compartment: str
+    measurement_source: str
     spillover_policy: str
     calibration_status: str
     reason: str
@@ -141,7 +143,17 @@ def _resolve_measurement(
             "marker_not_acquired_in_panel",
         )
 
-    if spec.spillover_policy in {"redsea_corrected", "redsea_passthrough"}:
+    if spec.measurement_source == "qupath_norm":
+        source = spec.measurement_column
+        if source not in cells:
+            raise ContractError(
+                f"acquired marker {spec.name!r} requires exact QuPath normalized "
+                f"column {source!r}; raw and RESTORE-normalized fallbacks are forbidden"
+            )
+        values = pd.to_numeric(cells[source], errors="coerce").to_numpy(dtype=float)
+        return values, f"qupath_norm:{source}", ""
+
+    if spec.measurement_source == "redsea":
         source = spec.measurement_column
         if source not in redsea:
             raise ContractError(
@@ -150,7 +162,7 @@ def _resolve_measurement(
         values = pd.to_numeric(redsea[source], errors="coerce").to_numpy(dtype=float)
         return values, f"redsea:{source}", ""
 
-    if spec.spillover_policy == "uncompensated":
+    if spec.measurement_source == "qupath_raw":
         source = next((column for column in _raw_candidates(spec) if column in cells), None)
         if source is None:
             raise ContractError(
@@ -161,7 +173,7 @@ def _resolve_measurement(
         return values, f"qupath:{source}", ""
 
     raise ContractError(
-        f"{spec.name}: unsupported spillover policy {spec.spillover_policy!r}"
+        f"{spec.name}: unsupported measurement source {spec.measurement_source!r}"
     )
 
 
@@ -235,6 +247,7 @@ def build_selected_expression(
                 available=is_acquired,
                 source=source,
                 compartment=spec.compartment,
+                measurement_source=spec.measurement_source,
                 spillover_policy=spec.spillover_policy,
                 calibration_status=spec.calibration_status,
                 reason=reason,

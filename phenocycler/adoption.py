@@ -8,10 +8,11 @@ import json
 import shlex
 import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from .artifacts import (
     CodeMetadata,
@@ -26,13 +27,17 @@ from .artifacts import (
     validate_dataset_snapshot_current,
 )
 from .config import load_config
+from .marker_registry import NO_VERIFIED_PAIRS_STATUS
 from .pipeline import (
+    DEFAULT_STAGE_ORDER,
+    PAIR_DEPENDENT_STAGES,
     STAGE_DEPENDENCIES,
     STAGE_METHODS,
     STAGE_ORDER,
     STAGE_SIDECARS,
     STAGE_SOURCE_PATHS,
     RunContext,
+    _completion_stage_order,
     _stage_code,
     _stage_config,
     _stage_external_inputs,
@@ -45,9 +50,10 @@ from .resume import (
     _content_payload,
     _hardlink_once,
     _source_run_root,
+)
+from .resume import (
     _write_json_once as _write_immutable_json,
 )
-
 
 ADOPTION_CONTRACT_VERSION = 1
 ADOPTION_POLICY_PATH = Path(__file__).with_name("adoption_compatibility.json")
@@ -109,9 +115,6 @@ def project_stage_configuration(
     for key in STAGE_CONFIGURATION_KEYS[stage]:
         if key in configuration:
             result[key] = configuration[key]
-        elif key == "typing_model":
-            # Before bundles existed, absence meant the same rules-only lane.
-            result[key] = {"mode": "rules_only"}
         else:
             result[key] = _missing_value()
     return result
@@ -126,33 +129,6 @@ def _upstream_incompatibilities(
         for dependency in STAGE_DEPENDENCIES[stage]
         if decisions.get(dependency, {}).get("action") not in ADOPT_ACTIONS
     ]
-
-
-def _typing_calibration_plan(
-    context: RunContext,
-    decisions: Mapping[str, Mapping[str, Any]],
-) -> tuple[dict[str, str | None] | None, str | None]:
-    if context.typing_model_bundle is None:
-        return None, None
-    expected = (
-        context.typing_model_bundle.evidence_provenance.source_artifact_content_id
-    )
-    calibrate = decisions.get("calibrate")
-    planned = (
-        calibrate.get("source_output_content_sha256")
-        if calibrate is not None and calibrate.get("action") in ADOPT_ACTIONS
-        else None
-    )
-    detail = {
-        "bundle_evidence_content_sha256": expected,
-        "planned_calibrate_content_sha256": planned,
-    }
-    reason = (
-        "typing_bundle_calibration_mismatch"
-        if planned is not None and planned != expected
-        else None
-    )
-    return detail, reason
 
 
 def _load_policy() -> tuple[dict[str, Any], str]:
@@ -178,8 +154,7 @@ def _git_blob(repository: Path, commit: str, relative: str) -> bytes:
         return subprocess.run(
             ["git", "-C", str(repository), "show", f"{commit}:{relative}"],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         ).stdout
     except (FileNotFoundError, subprocess.CalledProcessError) as exc:
         raise ContractError(
@@ -215,8 +190,36 @@ def _marker_registry_projection(
         isinstance(item, dict) for item in markers
     ):
         raise ContractError("marker registry has no valid marker list")
+    def measurement_source(item: Mapping[str, Any]) -> str:
+        explicit = item.get("measurement_source")
+        if explicit is not None:
+            return str(explicit)
+        return (
+            "qupath_raw"
+            if item.get("spillover_policy") == "uncompensated"
+            else "redsea"
+        )
+
+    if stage == "ingest":
+        return {
+            "markers": [
+                {
+                    "name": str(item["name"]),
+                    "measurement_source": measurement_source(item),
+                }
+                for item in markers
+            ]
+        }
     if stage == "redsea":
-        return {"markers": [str(item["name"]) for item in markers]}
+        return {
+            "markers": [
+                {
+                    "name": str(item["name"]),
+                    "spillover_policy": item.get("spillover_policy"),
+                }
+                for item in markers
+            ]
+        }
     if stage == "expression":
         fields = (
             "name",
@@ -226,7 +229,10 @@ def _marker_registry_projection(
         )
         return {
             "markers": [
-                {field: item.get(field) for field in fields}
+                {
+                    **{field: item.get(field) for field in fields},
+                    "measurement_source": measurement_source(item),
+                }
                 for item in markers
             ]
         }
@@ -247,9 +253,9 @@ def _marker_registry_input_compatibility(
 
     detail: dict[str, Any] = {
         "basis": "stage_consumer_projection",
-        "allowed_stages": ["redsea", "expression"],
+        "allowed_stages": ["ingest", "redsea", "expression"],
     }
-    if stage not in {"redsea", "expression"}:
+    if stage not in {"ingest", "redsea", "expression"}:
         detail["reason"] = "stage_not_allowed"
         return False, detail
     try:
@@ -439,8 +445,7 @@ def _reviewed_transition(
                 *changed_paths,
             ],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         ).stdout
         if hashlib.sha256(diff).hexdigest() != record["reviewed_diff_sha256"]:
             raise ContractError("reviewed source diff differs")
@@ -637,14 +642,6 @@ def _stage_plan_record(
         reasons.append("configuration_mismatch")
     if source.method_version != STAGE_METHODS[stage]:
         reasons.append("method_version_mismatch")
-    typing_calibration = None
-    if stage == "type":
-        typing_calibration, typing_reason = _typing_calibration_plan(
-            context, decisions
-        )
-        if typing_reason is not None:
-            reasons.append(typing_reason)
-
     current_code = _stage_code(context, stage)
     compatibility_policy = None
     if source.code.source_sha256 == current_code.source_sha256:
@@ -707,7 +704,6 @@ def _stage_plan_record(
         "source_configuration": source_projection,
         "target_configuration": target_projection,
         "inputs": input_details,
-        "typing_calibration": typing_calibration,
     }
 
 
@@ -725,7 +721,12 @@ def build_adoption_plan(
     policy, policy_content_id = _load_policy()
     source_manifests: dict[str, StageManifest] = {}
     source_errors: dict[str, str] = {}
+    pair_stages_blocked = (
+        context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+    )
     for stage in STAGE_ORDER:
+        if pair_stages_blocked and stage in PAIR_DEPENDENT_STAGES:
+            continue
         path = source_root / "manifests" / f"{stage}.json"
         if not path.is_file():
             source_errors[stage] = "source_manifest_missing"
@@ -752,6 +753,17 @@ def build_adoption_plan(
     decisions: dict[str, dict[str, Any]] = {}
     records = []
     for stage in STAGE_ORDER:
+        if pair_stages_blocked and stage in PAIR_DEPENDENT_STAGES:
+            record = {
+                "stage": stage,
+                "action": "blocked",
+                "reason_codes": ["no_verified_pairs"],
+                "dependencies": list(STAGE_DEPENDENCIES[stage]),
+                "source_bytes": 0,
+            }
+            decisions[stage] = record
+            records.append(record)
+            continue
         record = _stage_plan_record(
             context=context,
             source_root=source_root,
@@ -778,7 +790,10 @@ def build_adoption_plan(
         "source_run_id": source_run_id,
         "source_run_root": str(source_root),
         "source_has_run_manifest": (source_root / "run.json").is_file(),
-        "source_complete_stage_set": len(source_manifests) == len(STAGE_ORDER),
+        "source_complete_stage_set": all(
+            stage in source_manifests
+            for stage in _completion_stage_order(context)
+        ),
         "target_run_id": context.run_id,
         "target_run_root": str(context.run_root.resolve()),
         "validation_mode": validation_mode,
@@ -792,6 +807,9 @@ def build_adoption_plan(
             ],
             "recompute_stages": [
                 item["stage"] for item in records if item["action"] == "recompute"
+            ],
+            "blocked_stages": [
+                item["stage"] for item in records if item["action"] == "blocked"
             ],
             "source_stage_bytes": total_bytes,
             "reusable_stage_bytes": reusable_bytes,
@@ -1328,7 +1346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--continue",
         dest="continue_run",
         action="store_true",
-        help="run incompatible stages and QuPath export after adoption",
+        help="run currently available stages after adoption; export only when verified",
     )
     apply_parser.add_argument(
         "--jobs", type=int, help="total donor tasks when --continue is used"
@@ -1386,10 +1404,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.continue_run:
         from .donor_pipeline import run_pipelined_pipeline
 
+        no_pairs = (
+            context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+        )
         run_pipelined_pipeline(
             context,
-            stages=STAGE_ORDER,
-            export=not args.no_export,
+            stages=DEFAULT_STAGE_ORDER if no_pairs else STAGE_ORDER,
+            export=False if no_pairs else not args.no_export,
         )
     else:
         config_option = (
