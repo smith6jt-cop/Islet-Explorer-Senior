@@ -31,7 +31,10 @@ from pathlib import Path
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "Phenocycler_Analysis"))
+# The package lives in the `core/phenocycler/` subtree (it was the `Phenocycler_Analysis` submodule
+# until Phase 2 dissolved it). Inserting the path lets this run against a working tree that has not
+# had `pip install -e core/phenocycler` done; an installed copy takes precedence either way.
+sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 from phenocycler.cohort import DONOR_EXCLUSIONS                                # noqa: E402
 
 # The 2026-07 cohort expansion: 15 donors acquired first, then these 7. A separate staining/imaging run
