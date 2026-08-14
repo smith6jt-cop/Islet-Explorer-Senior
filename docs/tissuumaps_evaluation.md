@@ -318,9 +318,45 @@ python scripts/senior/build_tissuumaps_project.py \
 Writes `/data/tissuumaps/6539.tmap`, `channels/6539/<idx>_<marker>.tif`,
 `regions/6539.geojson`, `markers/6539.csv`.
 
+**Whole cohort in one command.** `scripts/senior/build_all_tissuumaps_projects.py` loops the
+builder over every donor, parsing the case ids from the `MAP` in `convert_viewer_ometiff.sh` and
+importing the exclusions from `phenocycler.cohort` — neither list is restated, and it exits 1
+rather than proceeding if it cannot import the exclusions. Batch-1 donors build first (they are
+the ones with outlines and cells), missing inputs are recorded rather than fatal, and the run ends
+on a coverage table that names any donor missing an overlay:
+
+```
+case     channels  islets  structs     cells   status
+6539            2       6      300      2400   ok
+6450            2       0        0         0   ok
+1 gap(s):
+   6450: no islet outlines
+```
+
+The two inputs the builder needs beyond the slide are produced by:
+
+- `scripts/senior/export_viewer_cell_markers.py` → `data/tissuumaps_inputs/markers/<case>.csv`,
+  from the Parquet tissue partitions (legacy `app_data/donors/*.csv` as fallback). Deliberately
+  **not** `data/app_data/cells/<case>_tissue.csv`, the path older examples named: that directory
+  is the per-islet drill-down namespace, and `drilldown_available()` decides the whole feature is
+  present by globbing it for any `*.csv`.
+- `scripts/senior/build_viewer_assets.py --structures` →
+  `app_data/json/structures/<case>_structures.geojson`. Separate from the app's own per-donor
+  GeoJSON, and `CLASS_MAP` stays islets-only, because merging them is what the v1 deferral rules
+  out — ~200k features per donor makes `sf::st_read` unusably slow on the first drill-down click.
+
 `--regions` takes the **directory** the QuPath exports live in (`data/Islets`) and finds the
 donor's file by case id, or a single file if you'd rather be explicit. `.gz` is read
-transparently, since exports are often stored compressed.
+transparently, since exports are often stored compressed. `--structures` takes a second directory
+the same way, and attaches it as its own region layer that **does not auto-load**: islets are what
+people open the viewer for, so a donor whose structures are too heavy to draw still opens
+instantly. Keep the two in different directories — a case-id search that matches both
+`6539.geojson` and `6539_structures.geojson` is ambiguous, and the builder refuses to guess.
+
+Structure classes get distinct outline colours (`classification.color` as `[r,g,b]`, which
+`regionUtils` converts with a plain `rgbToHex`; the alternative `colorRGB` is a *signed* 32-bit
+int). Without them every class draws the same, which defeats the point of overlaying three.
+A colour QuPath already exported is never overwritten, and islets are left alone.
 
 Two rules keep that lookup from attaching the wrong donor's islets, which would land as a
 plausible-looking overlay rather than an error. The case id must not be flanked by further
@@ -364,7 +400,7 @@ re-running the build script and restarting the service — there is no auto-upda
 ## 6. Re-running the verification
 
 ```bash
-# Synthetic: builds both panels, 30 checks, ~2 min. Currently 30/30.
+# Synthetic: builds both panels, 36 checks, ~2 min. Currently 36/36.
 python scripts/senior/tissuumaps_smoke_test.py
 
 # A real donor. --channels keeps the first pass quick; drop it for the full panel.
@@ -376,6 +412,7 @@ python scripts/senior/tissuumaps_smoke_test.py \
 
 Rscript scripts/test_viewer_helpers.R                  # 14 unit tests for the R helpers
 python scripts/test_build_tissuumaps_regions.py        # 26 unit tests for region handling
+python scripts/test_export_viewer_cell_markers.py      # 18 unit tests for the cell exporter
 ```
 
 `test_build_tissuumaps_regions.py` needs no slide, server or pyvips — it covers the directory
