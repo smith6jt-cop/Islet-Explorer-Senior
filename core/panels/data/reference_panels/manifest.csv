@@ -1,0 +1,12 @@
+panel_id,display_name,species,tissue,n_genes,file,source_url
+hBrain,Human Brain,Human,Brain,266,hBrain.csv,https://10xgen.com/v1-human-brain
+hBreast,Human Breast,Human,Breast,280,hBreast.csv,https://10xgen.com/v1-human-breast
+hColon,Human Colon,Human,Colon,322,hColon.csv,https://10xgen.com/v1-human-colon
+hIO,Human Immuno-Oncology,Human,Multi-Tissue,380,hIO.csv,https://10xgen.com/v1-human-immunooncology
+hLung,Human Lung,Human,Lung,289,hLung.csv,https://10xgen.com/v1-human-lung
+hMulti,Human Multi-Tissue & Cancer,Human,Multi-Tissue,377,hMulti.csv,https://10xgen.com/v1-human-multi
+hPrime5K,Human Prime 5K Pan-Tissue & Pathways,Human,Pan-Tissue,5001,hPrime5K.csv,https://10xgen.com/prime-5k-human
+hSkin,Human Skin,Human,Skin,260,hSkin.csv,https://10xgen.com/v1-human-skin
+mBrain,Mouse Brain,Mouse,Brain,247,mBrain.csv,https://10xgen.com/v1-mouse-brain
+mMulti,Mouse Tissue Atlas,Mouse,Multi-Tissue,379,mMulti.csv,https://10xgen.com/v1-mouse-multi
+mPrime5K,Mouse Prime 5K Pan-Tissue & Pathways,Mouse,Pan-Tissue,5006,mPrime5K.csv,https://10xgen.com/prime-5k-mouse

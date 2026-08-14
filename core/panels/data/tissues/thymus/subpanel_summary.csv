@@ -1,0 +1,54 @@
+subpanel,n_genes,description,pct_of_5K_kept_pool
+01_thymic_epithelial_cortical,49,Cortical thymic epithelial cells (cTEC); cortex markers,1
+02_thymic_epithelial_medullary,52,Medullary thymic epithelial cells (mTEC); medulla markers,1
+03_hassall_keratinized,5,Hassall's corpuscles; keratinized medullary structures,0.1
+04_thymic_specialized_TEC,152,"Specialized TEC subsets (tuft, neuroendocrine, ionocyte, mTEC-mimetics)",3.1
+05_thymic_myoid,3,Thymic myoid cells; striated muscle features in thymus,0.1
+06_thymocyte_DN,163,Double-negative (DN1-DN4) thymocyte stages,3.3
+07_thymocyte_DP,61,Double-positive (CD4+CD8+) thymocytes,1.2
+08_thymocyte_SP,230,Single-positive CD4+ and CD8+ thymocytes,4.6
+09_thymic_treg,83,Thymic regulatory T cells (tTreg); FOXP3 program,1.7
+10_TCR_VDJ_machinery,15,"TCR/BCR V(D)J recombination machinery (RAG, TDT, etc.)",0.3
+11_positive_negative_selection,22,Positive and negative selection programs,0.4
+12_thymic_DC_myeloid,470,Thymic dendritic cells and myeloid populations,9.5
+13_thymic_B_plasma,343,Thymic B cells and plasma cells,6.9
+14_thymic_NK_ILC,209,Thymic NK cells and innate lymphoid cells,4.2
+15_thymic_stroma_fibroblast,400,Thymic stromal fibroblasts,8.1
+16_thymic_endothelial_pericyte,549,Thymic vasculature: endothelial cells and pericytes,11.1
+17_notch_il7_signaling,27,Notch and IL-7 signaling (T-cell lineage commitment),0.5
+18_crosstalk_RANKL_LTBR,27,Thymic crosstalk: RANKL and LTbR signaling,0.5
+19_AIRE_TRA_program,7,AIRE-driven tissue-restricted antigen (TRA) expression,0.1
+20_thymic_egress_S1P,8,Thymic egress: S1P signaling and sphingosine receptors,0.2
+21_HALLMARK_mTORC1_Signaling,94,HALLMARK gene set: mTORC1 signaling,1.9
+22_HALLMARK_p53_Pathway,92,HALLMARK gene set: p53 pathway,1.9
+23_HALLMARK_Apoptosis,105,HALLMARK gene set: apoptosis,2.1
+24_HALLMARK_Hypoxia,98,HALLMARK gene set: hypoxia,2
+25_HALLMARK_PI3K_AKT_mTOR_Signaling,68,HALLMARK gene set: PI3K/AKT/mTOR signaling,1.4
+26_HALLMARK_Interferon_Gamma_Response,120,HALLMARK gene set: interferon-gamma response,2.4
+27_HALLMARK_TNF_alpha_Signaling_via_NF_kB,115,HALLMARK gene set: TNF-alpha signaling via NF-kB,2.3
+28_HALLMARK_IL_2_STAT5_Signaling,125,HALLMARK gene set: IL-2/STAT5 signaling,2.5
+29_REACTOME_Immune_System_R_HSA_168256,829,Reactome pathway: Immune System (R-HSA-168256),16.7
+30_REACTOME_Innate_Immune_System_R_HSA_168249,418,Reactome pathway: Innate Immune System (R-HSA-168249),8.4
+31_REACTOME_Cytokine_Signaling_In_Immune_System_R_HSA_1280215,417,Reactome pathway: Cytokine Signaling in Immune System (R-HSA-1280215),8.4
+32_REACTOME_GPCR_Downstream_Signaling_R_HSA_388396,301,Reactome pathway: GPCR Downstream Signaling (R-HSA-388396),6.1
+33_REACTOME_Cell_Cycle_R_HSA_1640170,209,Reactome pathway: Cell Cycle (R-HSA-1640170),4.2
+34_REACTOME_Adaptive_Immune_System_R_HSA_1280218,293,Reactome pathway: Adaptive Immune System (R-HSA-1280218),5.9
+35_REACTOME_Signaling_By_Interleukins_R_HSA_449147,286,Reactome pathway: Signaling by Interleukins (R-HSA-449147),5.8
+36_REACTOME_Transcriptional_Regulation_By_TP53_R_HSA_3700989,144,Reactome pathway: Transcriptional Regulation by TP53 (R-HSA-3700989),2.9
+37_REACTOME_Cell_Cycle_Mitotic_R_HSA_69278,164,"Reactome pathway: Cell Cycle, Mitotic (R-HSA-69278)",3.3
+38_REACTOME_Deubiquitination_R_HSA_5688426,98,Reactome pathway: Deubiquitination (R-HSA-5688426),2
+39_REACTOME_MAPK_Family_Signaling_Cascades_R_HSA_5683057,135,Reactome pathway: MAPK Family Signaling Cascades (R-HSA-5683057),2.7
+40_REACTOME_Class_I_MHC_Mediated_Antigen_Processing_And_Presentation_R_H,99,Reactome pathway: Class I MHC-Mediated Antigen Processing and Presentation,2
+41_KEGG_PI3K_Akt_signaling_pathway,213,KEGG pathway: PI3K-Akt signaling,4.3
+42_KEGG_MAPK_signaling_pathway,180,KEGG pathway: MAPK signaling,3.6
+43_KEGG_Cytokine_cytokine_receptor_interaction,232,KEGG pathway: Cytokine-cytokine receptor interaction,4.7
+44_KEGG_Chemokine_signaling_pathway,128,KEGG pathway: Chemokine signaling,2.6
+45_KEGG_JAK_STAT_signaling_pathway,128,KEGG pathway: JAK-STAT signaling,2.6
+46_KEGG_Apoptosis,97,KEGG pathway: Apoptosis,2
+47_KEGG_mTOR_signaling_pathway,77,KEGG pathway: mTOR signaling,1.6
+48_KEGG_Ubiquitin_mediated_proteolysis,62,KEGG pathway: Ubiquitin-mediated proteolysis,1.3
+49_KEGG_Cell_cycle,79,KEGG pathway: Cell cycle,1.6
+50_custom_100_addon,92,Custom 100-gene T1D-GWAS add-on (not in 5K reference),1.9
+99_uncategorized,3216,Genes not assigned to any biology/pathway subpanel (first pass),64.9
+99c_residual_after_pathway_pass,2244,Residual uncategorized genes after pathway-assignment pass,45.3
+99d_truly_unannotated,1134,Genes with no curated category from any source,22.9

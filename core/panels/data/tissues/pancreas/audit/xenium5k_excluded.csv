@@ -1,0 +1,107 @@
+gene,category,rationale,single_gene_panel_note,exclude_recommended,detection_pct_0041323,detection_pct_0041326,n_cells_0041323,n_cells_0041326,log2_detection_ratio
+ABCA4,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.064,0.021,732,250,-1.579
+ACTN2,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.275,0.209,3146,2442,-0.394
+AHSG,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.036,0.042,410,487,0.219
+AKAP4,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.043,,491,0,
+AQP3,nephron_specific,"Specific nephron segment; not in pancreas/LN. Some broadly-expressed kidney genes (e.g., RBP1, KL) deliberately kept.",,yes,7.158,11.942,81984,139542,0.738
+ARG1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.126,0.057,1444,664,-1.15
+ARR3,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.019,,214,0,
+BAAT,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.184,0.091,2112,1069,-1.011
+BHMT,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.058,0.016,660,188,-1.841
+BOLL,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.132,0.026,1513,306,-2.335
+C8B,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.045,0.014,516,158,-1.736
+C9,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.032,,366,0,
+CASQ2,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.055,0.023,630,270,-1.251
+CNGB1,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.027,,309,0,
+CNGB3,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.047,0.01,540,113,-2.286
+COL10A1,bone_cartilage_tooth,"Bone matrix, hypertrophic chondrocyte, or tooth-specific.",,yes,0.08,0.039,916,451,-1.051
+COL11A1,bone_cartilage_tooth,"Bone matrix, hypertrophic chondrocyte, or tooth-specific.",,yes,0.228,0.083,2608,974,-1.45
+COL2A1,bone_cartilage_tooth,"Bone matrix, hypertrophic chondrocyte, or tooth-specific.",,yes,0.033,0.009,382,106,-1.878
+COMP,bone_cartilage_tooth,"Bone matrix, hypertrophic chondrocyte, or tooth-specific.",,yes,0.308,0.177,3526,2074,-0.795
+CYP7A1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.057,0.014,653,168,-1.988
+DAZL,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.073,0.019,831,218,-1.959
+DDX25,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.319,0.206,3655,2403,-0.634
+DDX3Y,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,0.017,7.707,196,90053,8.815
+DMD,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,6.987,7.998,80021,93459,0.195
+DOK7,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.843,1.036,9659,12109,0.297
+DPY19L2,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.755,0.706,8643,8254,-0.095
+DSG1,skin_cornification,Cornified envelope / hard skin keratinization; not in pancreas ductal or LN.,,yes,0.022,,254,0,
+DSG3,skin_cornification,Cornified envelope / hard skin keratinization; not in pancreas ductal or LN.,,yes,0.06,0.01,685,112,-2.642
+EIF1AY,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,,5.273,0,61615,
+F11,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,5.537,7.362,63420,86019,0.411
+F12,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.105,0.114,1207,1337,0.119
+F13A1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,2.38,3.544,27261,41415,0.574
+F7,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.785,0.289,8987,3377,-1.441
+GDF9,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.091,0.041,1037,484,-1.128
+GJA5,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.274,0.172,3139,2014,-0.669
+GUCA1A,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.021,,244,0,
+GUCY2D,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.012,,133,0,
+HCN2,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.181,0.16,2075,1872,-0.177
+HCN4,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.127,0.068,1454,798,-0.894
+HORMAD2,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.078,0.014,889,166,-2.45
+IMPG1,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.037,,420,0,
+ITIH1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.059,0.035,675,412,-0.741
+JAG1,oocyte_germline,Oocyte / female germline-specific expression.,,yes,6.925,8.023,79313,93744,0.212
+KCNH2,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.28,0.176,3205,2062,-0.665
+KCNJ1,nephron_specific,"Specific nephron segment; not in pancreas/LN. Some broadly-expressed kidney genes (e.g., RBP1, KL) deliberately kept.",,yes,0.047,0.018,533,210,-1.373
+KCNQ1,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,16.493,15.822,188888,184879,-0.06
+KDM5D,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,0.01,10.341,116,120832,9.996
+KHDC3L,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.028,,318,0,
+KRT1,skin_cornification,Cornified envelope / hard skin keratinization; not in pancreas ductal or LN.,,yes,0.034,0.027,392,320,-0.322
+KRT14,skin_cornification,Cornified envelope / hard skin keratinization; not in pancreas ductal or LN.,,yes,0.07,0.028,796,324,-1.326
+MAGEA1,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.015,,177,0,
+MAGEA10,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.036,,411,0,
+MAGEA12,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.014,,162,0,
+MAGEA3,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.03,,349,0,
+MAGEA4,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.025,,285,0,
+MEIOB,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.064,0.017,738,204,-1.884
+MYH1,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.027,,312,0,
+MYH13,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.018,,210,0,
+MYH2,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.029,,330,0,
+MYH4,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.02,,232,0,
+MYOD1,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.011,,125,0,
+MYOG,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.051,0.012,584,144,-2.049
+NANOG,embryonic_pluripotency,Pluripotency factors / embryonic-restricted; not in adult pancreas or LN.,,yes,0.193,0.109,2213,1269,-0.831
+NLRP5,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.017,,200,0,
+NLRP7,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.017,0.009,189,102,-0.919
+NPPA,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.3,0.095,3433,1112,-1.655
+NPPB,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.026,,300,0,
+NPPC,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.092,0.013,1049,148,-2.854
+NR2E3,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.325,0.362,3721,4235,0.158
+OPN1LW,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.022,,254,0,
+OTX2,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.041,0.012,472,145,-1.732
+PCK1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.028,0.03,315,349,0.119
+PDE6H,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.049,0.011,558,131,-2.12
+PHEX,bone_cartilage_tooth,"Bone matrix, hypertrophic chondrocyte, or tooth-specific.",,yes,0.083,0.042,946,488,-0.984
+PIWIL1,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.045,0.009,515,106,-2.309
+PLN,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.247,0.257,2834,3007,0.057
+POU5F1,embryonic_pluripotency,Pluripotency factors / embryonic-restricted; not in adult pancreas or LN.,,yes,2.611,1.997,29903,23329,-0.387
+PRM1,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.026,,300,0,
+PROC,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.038,0.023,438,274,-0.706
+PROS1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,2.639,2.404,30230,28095,-0.135
+PRPH2,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.817,0.821,9352,9591,0.008
+RFX2,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.671,0.713,7682,8331,0.088
+RPE65,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.017,,192,0,
+RYR1,skeletal_muscle,Skeletal-muscle-specific contractile machinery; not expressed in pancreas/LN smooth muscle or myofibroblasts.,,yes,0.207,0.276,2374,3228,0.414
+SERPINC1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.021,,242,0,
+SERPIND1,hepatocyte,Hepatocyte-specific; absent from pancreatic exocrine/endocrine and lymphoid tissues.,,yes,0.085,0.03,970,356,-1.475
+SLC22A8,nephron_specific,"Specific nephron segment; not in pancreas/LN. Some broadly-expressed kidney genes (e.g., RBP1, KL) deliberately kept.",,yes,0.018,,208,0,
+SPATA16,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.047,,541,0,
+SPATA22,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.124,0.045,1422,522,-1.475
+SPATA4,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.126,0.039,1444,457,-1.689
+STK31,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.247,0.336,2824,3924,0.446
+SYCP1,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.049,0.01,556,113,-2.328
+TAS2R38,chemosensory_receptor,Olfactory / taste receptors; nasal/oral epithelium only.,,yes,0.034,,393,0,
+TBL1Y,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,,0.461,0,5390,
+TBX5,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.015,,174,0,
+TDGF1,embryonic_pluripotency,Pluripotency factors / embryonic-restricted; not in adult pancreas or LN.,,yes,0.174,0.024,1990,280,-2.858
+TEX14,spermatogenesis,Spermatogenic / testis-only expression; absent from pancreas/LN tissues.,,yes,0.104,0.062,1188,720,-0.751
+TGM3,skin_cornification,Cornified envelope / hard skin keratinization; not in pancreas ductal or LN.,,yes,0.021,,244,0,
+TLE6,oocyte_germline,Oocyte / female germline-specific expression.,,yes,0.454,0.326,5197,3812,-0.476
+TNNI3,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.072,0.068,820,789,-0.085
+TNNT2,cardiac_muscle,Cardiac-muscle-specific; not in pancreas/LN.,,yes,0.072,0.082,819,958,0.197
+TSPY1,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,,0.02,0,234,
+UMOD,nephron_specific,"Specific nephron segment; not in pancreas/LN. Some broadly-expressed kidney genes (e.g., RBP1, KL) deliberately kept.",,yes,1.604,3.164,18374,36975,0.98
+USP9Y,sex_chromosome,"Y-chromosome / X-inactivation genes with strong sex-of-donor bias. Empirical signature in this dataset: KDM5D and DDX3Y are 10.3% / 7.7% in 0041326 vs ~0% in 0041323 — donor-sex differs between samples. Exclude from cell-type scoring, PCA/scVI input, and any cross-sample comparison; retain in obs as a sex-confirmation tag only.",,yes,,6.51,0,76072,
+VSX2,photoreceptor_retinal,Restricted to retinal photoreceptors / RPE; not present in pancreas or LN.,,yes,0.029,,329,0,
+WT1,nephron_specific,"Specific nephron segment; not in pancreas/LN. Some broadly-expressed kidney genes (e.g., RBP1, KL) deliberately kept.",,yes,0.052,0.015,590,179,-1.75

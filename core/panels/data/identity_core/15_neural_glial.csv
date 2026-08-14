@@ -1,0 +1,18 @@
+gene,subtype_hint,evidence,note
+ASCL1,neuron,both,canonical identity marker
+MPZ,,canonical,canonical identity marker (CL-unannotated)
+NEFH,neuron,canonical,canonical identity marker (CL-unannotated)
+NEFL,neuron,both,canonical identity marker
+NEFM,neuron,both,canonical identity marker
+NGFR,,canonical,canonical identity marker (CL-unannotated)
+PHOX2B,neuron,both,canonical identity marker
+PRPH,neuron,both,canonical identity marker
+RET,neuron,canonical,canonical identity marker (CL-unannotated)
+SCN7A,,both,canonical identity marker
+SNAP25,neuron,canonical,canonical identity marker (CL-unannotated)
+SOX10,,both,canonical identity marker
+STMN2,neuron,both,canonical identity marker
+SYP,neuron,canonical,canonical identity marker (CL-unannotated)
+TH,neuron,both,canonical identity marker
+TUBB3,neuron,both,canonical identity marker
+UCHL1,neuron,both,canonical identity marker

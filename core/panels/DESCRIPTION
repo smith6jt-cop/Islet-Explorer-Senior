@@ -1,0 +1,57 @@
+Package: xeniumPanelExplorer
+Type: Package
+Title: Interactive Browser and Reclusterer for Xenium Prime 5K Subpanels
+Version: 0.0.0.9000
+Authors@R: person("Smith", "JT", email = "smith6jt@ufl.edu",
+    role = c("aut", "cre"))
+Description: Shiny app for exploring 49 curated subpanels of the 10x Genomics
+    Xenium Prime 5K Human Pan Tissue and Pathways panel and re-clustering
+    user-loaded Xenium runs against any chosen subpanel.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.4)
+Imports:
+    shiny (>= 1.9.0),
+    bslib (>= 0.8.0),
+    DT (>= 0.33),
+    plotly (>= 4.10.4),
+    data.table (>= 1.16.0),
+    ggplot2 (>= 3.5.0),
+    Seurat (>= 5.1.0),
+    SeuratObject (>= 5.0.2),
+    Matrix,
+    qs2 (>= 0.1.3),
+    arrow (>= 17.0.0),
+    rhdf5 (>= 2.48.0),
+    shinyFiles (>= 0.9.3),
+    waiter (>= 0.2.5),
+    harmony (>= 1.2.0),
+    clustree (>= 0.5.1),
+    aricode,
+    presto (>= 1.0.0),
+    viridisLite (>= 0.4.2),
+    htmltools,
+    shinycssloaders (>= 1.1.0),
+    shinyWidgets (>= 0.8.6),
+    scales,
+    ggrastr (>= 1.0.2),
+    fs (>= 1.6.4),
+    rlang,
+    methods,
+    stats,
+    tools,
+    utils
+Suggests:
+    testthat (>= 3.0.0),
+    pkgload,
+    devtools,
+    shinytest2,
+    chromote,
+    rprojroot,
+    leidenAlg,
+    zellkonverter,
+    SingleCellExperiment,
+    SummarizedExperiment
+Remotes:
+    immunogenomics/presto
+Config/testthat/edition: 3

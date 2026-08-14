@@ -1,0 +1,15 @@
+gene,subtype_hint,evidence,note
+ASCL1,neuroendocrine,both,canonical identity marker
+CDH1,,canonical,canonical identity marker (CL-unannotated)
+CFTR,ionocyte,canonical,canonical identity marker (CL-unannotated)
+CHGA,neuroendocrine,canonical,canonical identity marker (CL-unannotated)
+DCLK1,tuft,canonical,canonical identity marker (CL-unannotated)
+EPCAM,,canonical,canonical identity marker (CL-unannotated)
+FOXI1,ionocyte,canonical,canonical identity marker (CL-unannotated)
+GNAT3,tuft,canonical,canonical identity marker (CL-unannotated)
+INSM1,neuroendocrine,canonical,canonical identity marker (CL-unannotated)
+NEUROD1,neuroendocrine,canonical,canonical identity marker (CL-unannotated)
+POU2F3,tuft,canonical,canonical identity marker (CL-unannotated)
+SOX9,tuft,canonical,canonical identity marker (CL-unannotated)
+SPIB,microfold,canonical,canonical identity marker (CL-unannotated)
+SYP,neuroendocrine,canonical,canonical identity marker (CL-unannotated)

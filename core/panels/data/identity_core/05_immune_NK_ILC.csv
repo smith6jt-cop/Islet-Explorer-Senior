@@ -1,0 +1,32 @@
+gene,subtype_hint,evidence,note
+APOBEC3C,,cellxgene,marks lineage (CL)
+CD244,,both,canonical identity marker
+CD300A,,cellxgene,marks lineage (CL)
+CMKLR1,,cellxgene,marks lineage (CL)
+DDX3X,,cellxgene,marks lineage (CL)
+EOMES,,both,canonical identity marker
+FCGR3A,,both,canonical identity marker
+GATA3,ILC2,both,canonical identity marker
+IL1RL1,ILC2,both,canonical identity marker
+KCNE1,,cellxgene,marks lineage (CL)
+KIR2DL1,,both,canonical identity marker
+KIR2DL4,,both,canonical identity marker
+KIR3DL1,,both,canonical identity marker
+KIT,ILC2,both,canonical identity marker
+KLRB1,,both,canonical identity marker
+KLRC1,,both,canonical identity marker
+KLRC2,,both,canonical identity marker
+KLRD1,,both,canonical identity marker
+KLRF1,,both,canonical identity marker
+KLRG1,,both,canonical identity marker
+KLRK1,,both,canonical identity marker
+NCAM1,,canonical,canonical identity marker (CL-unannotated)
+NCR1,,both,canonical identity marker
+NCR3,,both,canonical identity marker
+PRF1,,both,canonical identity marker
+RORC,ILC2,both,canonical identity marker
+SH2D1B,,cellxgene,marks lineage (CL)
+SMARCA2,,cellxgene,marks lineage (CL)
+TBX21,,both,canonical identity marker
+TKTL1,,cellxgene,marks lineage (CL)
+TNFSF11,,cellxgene,marks lineage (CL)

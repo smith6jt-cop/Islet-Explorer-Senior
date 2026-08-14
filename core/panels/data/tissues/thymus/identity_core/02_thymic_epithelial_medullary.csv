@@ -1,0 +1,14 @@
+gene,subtype_hint,evidence,note
+AIRE,mTEC,both,canonical identity marker
+ASCL1,neuroendocrine,both,canonical identity marker
+CCL21,mTEC,canonical,canonical identity marker (CL-unannotated)
+CCL25,cTEC,both,canonical identity marker
+CD40,mTEC,both,canonical identity marker
+FEZF2,mTEC,canonical,canonical identity marker (CL-unannotated)
+KRT14,,canonical,canonical identity marker (CL-unannotated)
+LY75,cTEC,both,canonical identity marker
+PAX1,,both,canonical identity marker
+PRSS16,cTEC,both,canonical identity marker
+SIX1,,cellxgene,marks lineage (CL)
+SPIB,microfold,canonical,canonical identity marker (CL-unannotated)
+TNFRSF11A,microfold,canonical,canonical identity marker (CL-unannotated)
