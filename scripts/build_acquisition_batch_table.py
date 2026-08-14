@@ -32,8 +32,9 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
 # The package lives in the `core/phenocycler/` subtree (it was the `Phenocycler_Analysis` submodule
-# until Phase 2 dissolved it). Inserting the path lets this run against a working tree that has not
-# had `pip install -e core/phenocycler` done; an installed copy takes precedence either way.
+# until Phase 2 dissolved it), so the script runs without `pip install -e core/phenocycler`.
+# Index 0 pre-dates the subtree move and is kept: the checkout wins over any installed copy, so the
+# exclusions enforced below are the ones readable in this tree rather than in some older wheel.
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 from phenocycler.cohort import DONOR_EXCLUSIONS                                # noqa: E402
 
