@@ -83,27 +83,45 @@ def free_gb(path: Path) -> float:
     return shutil.disk_usage(path).free / 1e9
 
 
+# Above this, a region file is summarised by its size instead of its feature
+# count. Islet exports are a few hundred KB and worth counting exactly; structure
+# exports run to hundreds of MB, and parsing 20 of those at the end of a build --
+# purely to print a number -- is a slow way to risk an OOM in the reporting step.
+REGION_COUNT_MAX_BYTES = 25_000_000
+
+
+def region_summary(path: Path) -> tuple[int, int]:
+    """(feature_count, bytes) for a region file; count is -1 when not counted."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return 0, 0
+    if size > REGION_COUNT_MAX_BYTES:
+        return -1, size
+    try:
+        return len(json.loads(path.read_text()).get("features", [])), size
+    except (OSError, ValueError):
+        return -1, size
+
+
 def project_summary(out_dir: Path, case_id: str) -> dict:
     """What a built project actually contains, read back from its .tmap."""
     tmap = out_dir / f"{case_id}.tmap"
+    empty = {"channels": 0, "regions": {}, "markers": 0}
     if not tmap.is_file():
-        return {"channels": 0, "regions": {}, "markers": 0}
+        return empty
     try:
         p = json.loads(tmap.read_text())
     except ValueError:
-        return {"channels": 0, "regions": {}, "markers": 0}
+        return empty
     regions = {}
     for r in p.get("regionFiles", []):
-        f = out_dir / r["path"]
-        try:
-            regions[r["title"].split(" (")[0]] = len(
-                json.loads(f.read_text()).get("features", []))
-        except (OSError, ValueError):
-            regions[r["title"].split(" (")[0]] = -1
+        regions[r["title"].split(" (")[0]] = region_summary(out_dir / r["path"])
     markers = 0
     for mf in p.get("markerFiles", []):
         f = out_dir / mf["path"]
         try:
+            # Streamed: a whole-slide donor is hundreds of thousands of rows.
             with open(f) as fh:
                 markers = sum(1 for _ in fh) - 1
         except OSError:
@@ -243,18 +261,26 @@ def report(out_dir: Path, cases: list[str], args, results: dict | None = None) -
     against: a donor that quietly has no cell layer looks identical to one that
     was never meant to have one.
     """
+    def cell(summary: tuple[int, int]) -> str:
+        """Feature count where it was cheap to get, size where it was not."""
+        n, size = summary
+        if size == 0:
+            return "0"
+        return f"{size / 1e6:.0f}MB" if n < 0 else str(n)
+
     log("")
     log(f"{'case':<8}{'channels':>9}{'islets':>8}{'structs':>9}{'cells':>10}   status")
     gaps = []
     for case_id in cases:
         s = project_summary(out_dir, case_id)
-        islets = s["regions"].get("Islets", 0)
-        structs = s["regions"].get("Structures", 0)
+        islets = s["regions"].get("Islets", (0, 0))
+        structs = s["regions"].get("Structures", (0, 0))
         status = (results or {}).get(case_id, {}).get("status", "—")
-        log(f"{case_id:<8}{s['channels']:>9}{islets:>8}{structs:>9}{s['markers']:>10}   {status}")
+        log(f"{case_id:<8}{s['channels']:>9}{cell(islets):>8}{cell(structs):>9}"
+            f"{s['markers']:>10}   {status}")
         if s["channels"] == 0:
             gaps.append(f"{case_id}: no project")
-        elif not islets:
+        elif islets[1] == 0:
             gaps.append(f"{case_id}: no islet outlines")
     if gaps:
         log("")
