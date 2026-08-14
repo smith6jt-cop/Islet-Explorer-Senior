@@ -1,6 +1,6 @@
 # Spatial Neighborhood Analysis — Detailed Reference
 
-Detailed reference for the Spatial tab. Linked from `app/shiny_app/CLAUDE.md`.
+Detailed reference for the Spatial tab. Linked from `apps/islet/CLAUDE.md`.
 
 ## Spatial Neighborhood Analysis (Phase 7, Feb 2026 — extended Apr 2026)
 

@@ -186,7 +186,7 @@ viewer_server <- function(id, forced_image, current_tab) {
           tags$div(
             style = "padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 10px;",
             tags$strong("No images found."),
-            " Place OME-TIFF files in ", tags$code("app/shiny_app/www/local_images/"),
+            " Place OME-TIFF files in ", tags$code("apps/islet/www/local_images/"),
             " or set ", tags$code("LOCAL_IMAGE_ROOT"), " environment variable."
           )
         },

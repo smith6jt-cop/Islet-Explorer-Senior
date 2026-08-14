@@ -7,7 +7,7 @@ This repository contains two related but separate systems:
 1. `Phenocycler_Analysis/` currently produces UUID-keyed upstream expression
    data from raw QuPath exports. It does not currently produce verified marker
    calls or cell identities.
-2. `app/shiny_app/` serves aggregated islet, spatial, trajectory, and
+2. `apps/islet/` serves aggregated islet, spatial, trajectory, and
    single-cell views.
 
 The source workflow is authoritative for upstream measurement provenance. The
@@ -115,15 +115,15 @@ feed provisional or stale labels into application scripts.
 
 ## App architecture
 
-- Entrypoint: `app/shiny_app/app.R`
-- Shared constants and state: `app/shiny_app/R/00_globals.R`
-- Data loading: `app/shiny_app/R/data_loading.R`
-- Plot modules: `app/shiny_app/R/mod_plot_*.R`
+- Entrypoint: `apps/islet/app.R`
+- Shared constants and state: `apps/islet/R/00_globals.R`
+- Data loading: `apps/islet/R/data_loading.R`
+- Plot modules: `apps/islet/R/mod_plot_*.R`
 - Drill-down and segmentation helpers:
-  `app/shiny_app/R/drilldown_helpers.R`,
-  `app/shiny_app/R/segmentation_helpers.R`
-- Spatial helpers: `app/shiny_app/R/spatial_helpers.R`
-- Viewer helpers: `app/shiny_app/R/viewer_helpers.R`
+  `apps/islet/R/drilldown_helpers.R`,
+  `apps/islet/R/segmentation_helpers.R`
+- Spatial helpers: `apps/islet/R/spatial_helpers.R`
+- Viewer helpers: `apps/islet/R/viewer_helpers.R`
 
 ## Viewer backend (Avivator | TissUUmaps, Jul 2026)
 
@@ -136,10 +136,10 @@ own OME-XML — required because the cohort mixes panels (batch-1 SST@35 vs batc
 The server we run is **our fork, `smith6jt-cop/TissUUmaps`**, built locally by
 `deploy/build_tissuumaps_image.sh` (no registry pull, no auto-update).
 Findings, costs and the deployment recipe: [`docs/tissuumaps_evaluation.md`](docs/tissuumaps_evaluation.md);
-app wiring in `app/shiny_app/CLAUDE.md` § "Viewer Tab — pluggable backend".
+app wiring in `apps/islet/CLAUDE.md` § "Viewer Tab — pluggable backend".
 
 App-specific UI, deployment, browser, plotting, and reticulate guidance lives
-in `app/shiny_app/CLAUDE.md`. Script-level guidance lives in
+in `apps/islet/CLAUDE.md`. Script-level guidance lives in
 `scripts/CLAUDE.md`.
 
 Important app conventions:
@@ -160,12 +160,12 @@ Important app conventions:
 Development:
 
 ```bash
-cd app/shiny_app
+cd apps/islet
 Rscript -e 'shiny::runApp(".", port = 7777)'
 ```
 
 Production is served through nginx and shiny-server. See
-`deploy/DEPLOY.md` and `app/shiny_app/CLAUDE.md`; do not treat the development
+`deploy/DEPLOY.md` and `apps/islet/CLAUDE.md`; do not treat the development
 server as a production deployment test.
 
 ## Source-control hygiene

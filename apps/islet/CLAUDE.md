@@ -1,6 +1,6 @@
 # CLAUDE.md - Shiny App (Islet Explorer)
 
-Deep details for the modular Shiny app under `app/shiny_app/`. The top-level `CLAUDE.md` covers the entrypoint architecture, root-level outputs, shared reactive state, and data loading. This file documents per-tab features and conventions.
+Deep details for the modular Shiny app under `apps/islet/`. The top-level `CLAUDE.md` covers the entrypoint architecture, root-level outputs, shared reactive state, and data loading. This file documents per-tab features and conventions.
 
 **Per-tab capability status** (what actually works on the current data, verified by launching the dev server + screenshotting every tab, 2026-06-29) lives in [`docs/capability_status.md`](docs/capability_status.md). Headline: all 5 data tabs work; Viewer is empty-but-graceful (no OME-TIFFs); **Trajectory works** but was slow to first render — vectorized 2026-06-29 (see below). All tabs still serve the OLD provisional fine-phenotype labels by design — the new broad-lineage outputs are notebook-only.
 
@@ -161,7 +161,7 @@ The 120b model is a reasoning model (similar to DeepSeek R1):
 ### Credential Loading
 
 `ai_helpers.R` searches for `.Renviron` in priority order:
-1. `app/shiny_app/.Renviron` (deployment)
+1. `apps/islet/.Renviron` (deployment)
 2. Script directory `.Renviron`
 3. `R_ENVIRON_USER` env var
 4. `~/.Renviron`
@@ -202,7 +202,7 @@ intermediate Zarr goes to `/data/tmp_b2r`. The `MAP` covers all 22 case_ids (`11
 `6476`→`_Scan2`, batch-2 `6450`→`6450panc…`, etc.); targets: `all22` (or `all15`, or explicit ids).
 ~30 min for a 35 GB slide (≈ hours for the whole cohort).
 
-**Wiring:** `app/shiny_app/www/local_images` is a symlink → `/data/islet_ome_tiff`; the modular
+**Wiring:** `apps/islet/www/local_images` is a symlink → `/data/islet_ome_tiff`; the modular
 Viewer enumerates that dir live (no manifest) and lists `<case_id>.ome.tiff` in the dropdown.
 
 **Channel config — name-based, panel-agnostic (the load-bearing fix).** The cohort **mixes panels**:

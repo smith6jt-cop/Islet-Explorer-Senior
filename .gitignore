@@ -13,11 +13,11 @@ pdfs/
 gson/
 single_cell_analysis/*.h5ad
 single_cell_analysis/*.tsv
-app/shiny_app/www/local_images/
-app/shiny_app/www/local_images
+apps/islet/www/local_images/
+apps/islet/www/local_images
 local_images/
-app/shiny_app/Channel_names.junior35.bak
-app/shiny_app/www/segmentation_data/
+apps/islet/Channel_names.junior35.bak
+apps/islet/www/segmentation_data/
 AI_Markdown/
 analysis_output/*
 islet_analysis/
@@ -27,7 +27,7 @@ figures/*
 # R workspace and environment files
 .RData
 .Rhistory
-app/shiny_app/.Renviron
+apps/islet/.Renviron
 .Renviron
 # Filled-in PubApps EnvironmentFile (may hold secrets if AI is re-enabled); template is deploy/env.sh.example
 deploy/env.sh
@@ -42,8 +42,8 @@ notebooks/*_executed.ipynb
 notebooks/*.png
 
 # App runtime flags
-app/shiny_app/APP_LOADED_FLAG
-app/shiny_app/R/APP_LOADED_FLAG
+apps/islet/APP_LOADED_FLAG
+apps/islet/R/APP_LOADED_FLAG
 
 # Temporary files
 tmp/

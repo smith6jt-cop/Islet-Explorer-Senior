@@ -32,7 +32,7 @@ did**, not a code read. Screenshots are in `docs/img/capability/`.
   (`notebooks/senior_phenotyping_redsea_restore.ipynb`). No app data rebuild was requested.
 
 Startup log confirmed: DuckDB views `islets` + `tissue` registered; 4 mirai workers; 9,677 islet
-spatial records. The channel sidecar is now the **59-channel Senior panel** (`app/shiny_app/Channel_names`,
+spatial records. The channel sidecar is now the **59-channel Senior panel** (`apps/islet/Channel_names`,
 regenerated from the qptiff biomarker order; the old 35-plex Junior file is backed up as
 `Channel_names.junior35.bak`); `www/local_images` → `/data/islet_ome_tiff`.
 
@@ -85,7 +85,7 @@ columns as the loop (same first-match semantics, same lookup columns), so it onl
 ## Reproduce
 
 ```bash
-cd app/shiny_app
+cd apps/islet
 RETICULATE_PYTHON=/home/smith6jt/miniconda3/envs/scvi-env/bin/python \
   Rscript -e 'shiny::runApp(".", port = 7777, host = "127.0.0.1")'
 # then load http://127.0.0.1:7777 and click through Plot / Trajectory / Viewer / Statistics / Spatial

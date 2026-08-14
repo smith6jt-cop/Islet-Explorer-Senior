@@ -39,7 +39,7 @@ Islet Explorer is a modular R Shiny application for analyzing **5,214 islets** f
 Rscript scripts/install_shiny_deps.R
 
 # Run the application
-R -q -e "shiny::runApp('app/shiny_app', launch.browser=TRUE)"
+R -q -e "shiny::runApp('apps/islet', launch.browser=TRUE)"
 ```
 
 **Production URL**: `http://<server-ip>:8080/islet-explorer/`
@@ -246,7 +246,7 @@ python scripts/build_master_excel.py
 
 ```
 Islet-Explorer/
-├── app/shiny_app/                 # Modular R Shiny application
+├── apps/islet/                 # Modular R Shiny application
 │   ├── app.R                      # Entrypoint: UI layout, CSS, server wiring
 │   ├── R/
 │   │   ├── 00_globals.R           # Package loads, constants, palettes, paths
@@ -280,7 +280,7 @@ Islet-Explorer/
 
 ```bash
 # From command line
-R -q -e "shiny::runApp('app/shiny_app', launch.browser=FALSE)"
+R -q -e "shiny::runApp('apps/islet', launch.browser=FALSE)"
 
 # Or use the VS Code task: "Run Shiny app to reproduce issues"
 ```
@@ -288,7 +288,7 @@ R -q -e "shiny::runApp('app/shiny_app', launch.browser=FALSE)"
 ### Deployment
 
 - **nginx** (port 8080) reverse-proxies `/islet-explorer/` → **shiny-server** (port 3838)
-- Symlink: `/srv/shiny-server/islet-explorer` → `app/shiny_app/`
+- Symlink: `/srv/shiny-server/islet-explorer` → `apps/islet/`
 - Code changes take effect when shiny-server spawns a fresh R worker (no restart needed)
 
 ### Testing & Diagnostics

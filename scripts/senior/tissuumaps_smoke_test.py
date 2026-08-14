@@ -40,7 +40,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 BUILDER = REPO / "scripts" / "senior" / "build_tissuumaps_project.py"
-CHANNEL_NAMES = REPO / "app" / "shiny_app" / "Channel_names"
+CHANNEL_NAMES = REPO / "apps" / "islet" / "Channel_names"
 
 PASS, FAIL = "PASS", "FAIL"
 results: list[tuple[str, str, str]] = []

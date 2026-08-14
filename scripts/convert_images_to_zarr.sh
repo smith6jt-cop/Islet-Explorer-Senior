@@ -16,7 +16,7 @@
 #
 # Usage:
 #   scripts/convert_images_to_zarr.sh                         # defaults
-#   scripts/convert_images_to_zarr.sh app/shiny_app/www/local_images data/zarr_images
+#   scripts/convert_images_to_zarr.sh apps/islet/www/local_images data/zarr_images
 #
 # Environment:
 #   B2R_TILE_WIDTH   (default 1024) -- tile width passed to bioformats2raw
@@ -33,7 +33,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-INPUT_DIR="${1:-$REPO_ROOT/app/shiny_app/www/local_images}"
+INPUT_DIR="${1:-$REPO_ROOT/apps/islet/www/local_images}"
 OUTPUT_DIR="${2:-$REPO_ROOT/data/zarr_images}"
 
 TILE_WIDTH="${B2R_TILE_WIDTH:-1024}"

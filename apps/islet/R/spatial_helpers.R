@@ -110,7 +110,7 @@ load_donor_tissue <- function(imageid) {
 #              for the 10 RESTORE-gated lineage markers, + case_id (hive).
 # Marker positivity is the RESTORE `_pos` call (per-image calibrated threshold on
 # REDSEA-corrected MFI), NOT a raw-intensity heuristic. Built by
-# scripts/senior/build_cell_distance_parquet.py. See app/shiny_app/docs/spatial.md.
+# scripts/senior/build_cell_distance_parquet.py. See apps/islet/docs/spatial.md.
 
 .cd_con <- function() get0("con", envir = globalenv(), ifnotfound = NULL)
 cell_distance_view_ready <- function() {

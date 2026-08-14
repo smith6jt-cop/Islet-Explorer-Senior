@@ -105,7 +105,7 @@ broad, specific, ambiguous, or unavailable QuPath class.
 
 OME-TIFF conversion and browser-specific viewer behavior are downstream
 application concerns. Keep channel order explicit and follow
-`../app/shiny_app/CLAUDE.md` for viewer, plotting, reticulate, and deployment
+`../apps/islet/CLAUDE.md` for viewer, plotting, reticulate, and deployment
 details.
 
 The Viewer runs on either backend (`ISLET_VIEWER_BACKEND=avivator|tissuumaps`):

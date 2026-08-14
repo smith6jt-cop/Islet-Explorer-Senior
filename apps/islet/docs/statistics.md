@@ -1,6 +1,6 @@
 # Statistics Tab — Detailed Reference
 
-Detailed reference for the Statistics tab. Linked from `app/shiny_app/CLAUDE.md`.
+Detailed reference for the Statistics tab. Linked from `apps/islet/CLAUDE.md`.
 
 ## Statistics Tab (Phase 6+14+16, Feb-Mar 2026)
 

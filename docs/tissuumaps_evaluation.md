@@ -23,8 +23,8 @@ here: **two different panels**, real marker names in the OME-XML, pyramids as Su
 | channels | 59 | 58 (no CD38) |
 | DAPI / INS / SST / GCG index | 0 / 13 / 35 / 46 | 0 / 14 / **1** / 45 |
 
-Those are the real batch-1 and batch-2 layouts from `app/shiny_app/Channel_names` and
-`app/shiny_app/CLAUDE.md`. **Re-run `scripts/senior/tissuumaps_smoke_test.py` against a real
+Those are the real batch-1 and batch-2 layouts from `apps/islet/Channel_names` and
+`apps/islet/CLAUDE.md`. **Re-run `scripts/senior/tissuumaps_smoke_test.py` against a real
 donor slide before trusting any of the size/time numbers below.**
 
 The one thing since confirmed on real data: the generator run against

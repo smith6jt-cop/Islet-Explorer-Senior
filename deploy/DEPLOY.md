@@ -76,7 +76,7 @@ HiPerGator hop or Globus):
 - **Core app data (~1.6 GB)** → `/pubapps/<project>/prod/islet-explorer/data/`: copy `data/app_data/`
   **and its four symlink targets** — `islet_explorer_senior.h5ad`, `islets_core_senior.h5ad`,
   `parquet/`, `phenotype_rules.csv` — preserving the relative `../` symlink layout so
-  `../../data/app_data/…` resolves from `app/shiny_app/`. Do **not** copy the ~113 GB of pipeline
+  `../../data/app_data/…` resolves from `apps/islet/`. Do **not** copy the ~113 GB of pipeline
   scratch (`redsea_scratch/`, `cells_redsea/`, top-level `cells/`, `phenotype/`, `restore*`,
   `singlecell_protein.h5ad`, …) — the app never reads it.
 - **OME-TIFFs (~1.2 TB)** → `/pubapps/<project>/islet_ome_tiff/`: Globus-transfer every
@@ -174,7 +174,7 @@ up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
 - **Reboot:** RC does not auto-start pubapps services on VM reboot — after one, `systemctl --user start islet-explorer islet-images`.
 - **Logs:** app → `/pubapps/<project>/prod/logs/app.log`; sidecar → `podman logs islet-images`.
 - **Local dev keeps the AI tab:** run with `ISLET_ENABLE_AI=TRUE`.
-- **Security:** the previously-committed-on-disk UF Navigator key (`app/shiny_app/.Renviron`) should be
+- **Security:** the previously-committed-on-disk UF Navigator key (`apps/islet/.Renviron`) should be
   **rotated/revoked** — it isn't used on the public host (AI off), but the old key is compromised.
 - **Data sensitivity:** the app is fully open; if any data is unpublished/sensitive, ask RC to gate the
   `/` route behind **GatorLink SSO** (a ticket toggle).
