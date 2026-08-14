@@ -7,10 +7,12 @@ import pandas as pd
 import pytest
 
 from phenocycler.artifacts import (
+    ContractError,
     PartialArtifactError,
     StaleArtifactError,
     hash_identifiers,
 )
+from phenocycler import resume as resume_module
 from phenocycler.geometry_qc import GeometryQCConfig, evaluate_geometry_metrics
 from phenocycler.resume import (
     _hardlink_once,
@@ -121,4 +123,27 @@ def test_geometry_partition_validation_checks_ingest_universe(tmp_path):
             path,
             expected=changed,
             require_no_duplicates=True,
+        )
+
+
+def test_resume_blocks_pair_prefix_before_reusing_outputs(monkeypatch):
+    context = SimpleNamespace(
+        registry=SimpleNamespace(
+            production_status="development_no_verified_pairs"
+        )
+    )
+    monkeypatch.setattr(resume_module, "load_config", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(resume_module, "resolve_run_context", lambda _cfg: context)
+    monkeypatch.setattr(
+        resume_module,
+        "_source_run_root",
+        lambda *_args: pytest.fail("source reuse must not begin"),
+    )
+
+    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+        resume_module.resume(
+            config_path=None,
+            source_run_id="a" * 20,
+            from_donor="D",
+            through="type",
         )

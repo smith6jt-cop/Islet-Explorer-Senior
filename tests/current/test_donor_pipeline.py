@@ -27,8 +27,10 @@ from phenocycler.donor_pipeline import (
     _seal_ready_stages,
     _terminate_executor_workers,
     _validate_task_receipt,
+    create_receipt_for_existing_output,
     donor_receipt_path,
     donor_stage_inputs,
+    execute_donor_stage,
     run_donor_queue,
     select_ready_task,
     snapshot_donor_partition,
@@ -37,7 +39,7 @@ from phenocycler.donor_pipeline import (
 )
 from phenocycler.expression import write_donor_partition
 
-REPOSITORY = Path(__file__).resolve().parents[1]
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 def _frame(donor: str, objects=("a", "b")) -> pd.DataFrame:
@@ -160,9 +162,26 @@ def test_task_readiness_follows_the_donor_local_dag():
     assert task_ready(DonorTask("states", "1"), completed)
 
 
+@pytest.mark.parametrize(
+    "entrypoint",
+    [execute_donor_stage, create_receipt_for_existing_output],
+)
+def test_direct_donor_mutation_refuses_pair_stages_before_paths(entrypoint):
+    context = SimpleNamespace(
+        registry=SimpleNamespace(
+            production_status="development_no_verified_pairs"
+        ),
+        output_root=lambda _stage: pytest.fail("output path must not be resolved"),
+    )
+
+    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+        entrypoint(context, "controls", "D")
+
+
 def test_resource_selection_keeps_one_gpu_redsea_job_and_feeds_geometry():
     context = SimpleNamespace(
         donors=("1", "2"),
+        registry=SimpleNamespace(production_status="verified"),
         config=SimpleNamespace(
             n_jobs=4,
             use_gpu=True,
@@ -250,6 +269,7 @@ def test_serial_queue_obeys_dependencies_without_stage_barriers(
 
     context = SimpleNamespace(
         donors=("1", "2"),
+        registry=SimpleNamespace(production_status="verified"),
         config=SimpleNamespace(
             n_jobs=1,
             use_gpu=False,
@@ -327,13 +347,10 @@ def test_all_declared_donor_stages_have_resource_requests():
     } == {"geometry", "redsea", "downstream"}
 
 
-def test_donor_type_inputs_reuse_captured_bundle_artifact(monkeypatch, tmp_path):
-    from phenocycler import donor_pipeline, pipeline
+def test_donor_type_inputs_use_broad_gate_policy(monkeypatch, tmp_path):
+    from phenocycler import donor_pipeline
 
-    captured_bundle = object()
-    captured_promotion = object()
     generated = []
-    validated = []
     monkeypatch.setattr(
         donor_pipeline,
         "_dependency_input",
@@ -344,39 +361,25 @@ def test_donor_type_inputs_reuse_captured_bundle_artifact(monkeypatch, tmp_path)
         "from_path",
         lambda name, path: generated.append((name, path)) or (name, path),
     )
-    monkeypatch.setattr(
-        pipeline,
-        "_validate_typing_calibration_compatibility",
-        lambda context: validated.append(context),
-    )
-    promotion = SimpleNamespace(
-        input_artifact=captured_promotion,
-        validate_for_bundle=lambda bundle: validated.append(bundle),
-    )
-    bundle = SimpleNamespace(input_artifact=captured_bundle)
     context = SimpleNamespace(
         base_config=SimpleNamespace(
             marker_registry=tmp_path / "markers.json",
-            typing_rules=tmp_path / "rules.json",
+            broad_gate_rules=tmp_path / "gates.json",
         ),
-        typing_model_bundle=bundle,
-        typing_model_promotion_manifest=promotion,
     )
 
     inputs = donor_stage_inputs(context, "type", "1")
-    assert inputs[-2:] == (captured_bundle, captured_promotion)
-    assert validated == [context, bundle]
+    assert inputs[0] == ("calibrate", "1")
     assert generated == [
         ("marker_registry", tmp_path / "markers.json"),
-        ("typing_rules", tmp_path / "rules.json"),
+        ("broad_gate_rules", tmp_path / "gates.json"),
     ]
+    assert inputs[1:] == tuple(generated)
 
 
-def test_probabilistic_donor_typing_waits_for_sealed_calibration(tmp_path):
+def test_simultaneous_donor_typing_needs_only_donor_calibration():
     context = SimpleNamespace(
         donors=("1",),
-        typing_model_bundle=object(),
-        stage_manifest_path=lambda stage: tmp_path / f"{stage}.json",
         config=SimpleNamespace(use_gpu=False),
     )
     task = DonorTask("type", "1")
@@ -391,17 +394,6 @@ def test_probabilistic_donor_typing_waits_for_sealed_calibration(tmp_path):
         downstream_workers=1,
     )
 
-    assert (
-        select_ready_task(
-            pending,
-            completed,
-            context=context,
-            resources=resources,
-            limits=limits,
-        )
-        is None
-    )
-    context.stage_manifest_path("calibrate").write_text("{}\n")
     assert select_ready_task(
         pending,
         completed,
@@ -411,13 +403,11 @@ def test_probabilistic_donor_typing_waits_for_sealed_calibration(tmp_path):
     ) == task
 
 
-def test_donor_type_body_passes_configured_bundle(monkeypatch, tmp_path):
+def test_donor_type_body_uses_simultaneous_interface(monkeypatch, tmp_path):
     from phenocycler import donor_pipeline
 
     evidence = pd.DataFrame({"donor_id": ["1"], "object_id": ["a"]})
     assignments = evidence.assign(cell_type="Immune")
-    bundle = object()
-    promotion = object()
     observed = {}
     monkeypatch.setattr(
         donor_pipeline,
@@ -442,18 +432,13 @@ def test_donor_type_body_passes_configured_bundle(monkeypatch, tmp_path):
         ),
         cohort=SimpleNamespace(images=()),
         registry="markers",
-        typing_registry="rules",
-        broad_gate_policy=None,
-        typing_model_bundle=bundle,
-        typing_model_promotion_manifest=promotion,
+        broad_gate_policy="gates",
     )
 
     assert _run_donor_stage_body(context, "type", "1") == ()
     assert observed["frame"] is evidence
     assert observed["marker_registry"] == "markers"
-    assert observed["typing_registry"] == "rules"
-    assert observed["model_bundle"] is bundle
-    assert observed["model_promotion_manifest"] is promotion
+    assert observed["broad_gate_policy"] == "gates"
 
 
 def test_state_donor_body_writes_output_and_donor_audit(tmp_path):

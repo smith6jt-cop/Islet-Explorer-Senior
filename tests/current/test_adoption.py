@@ -16,7 +16,12 @@ from phenocycler.artifacts import (
     StaleArtifactError,
     sha256_file,
 )
-from phenocycler.pipeline import STAGE_DEPENDENCIES, STAGE_ORDER, STAGE_SOURCE_PATHS
+from phenocycler.pipeline import (
+    DEFAULT_STAGE_ORDER,
+    STAGE_DEPENDENCIES,
+    STAGE_ORDER,
+    STAGE_SOURCE_PATHS,
+)
 from phenocycler.resume import _content_payload
 
 
@@ -46,7 +51,7 @@ def _write_partition(root: Path, donor: str) -> None:
 
 
 def _tiny_adoption(tmp_path: Path) -> tuple[_TinyContext, dict, StageManifest]:
-    repository = Path(__file__).resolve().parents[1]
+    repository = Path(__file__).resolve().parents[2]
     runs = tmp_path / "runs"
     source_id = "a" * 20
     target_id = "b" * 20
@@ -130,12 +135,12 @@ def _tiny_adoption(tmp_path: Path) -> tuple[_TinyContext, dict, StageManifest]:
     return context, plan, source
 
 
-def test_configuration_projection_is_stage_scoped_and_legacy_rules_only():
+def test_configuration_projection_is_stage_scoped_and_fails_closed_when_missing():
     configuration = {
         "run_schema_version": 1,
         "cells_min_cell_area": 10,
         "geometry_qc": {"duplicate_policy": "deterministic_keep"},
-        "typing_model": {"mode": "probabilistic_bundle"},
+        "typing_model": {"mode": "restore_simultaneous"},
     }
     ingest = adoption.project_stage_configuration(configuration, "ingest")
     geometry = adoption.project_stage_configuration(configuration, "geometry")
@@ -145,7 +150,7 @@ def test_configuration_projection_is_stage_scoped_and_legacy_rules_only():
 
     assert "typing_model" not in ingest
     assert "typing_model" not in geometry
-    assert typing["typing_model"] == {"mode": "rules_only"}
+    assert typing["typing_model"] == {"missing": True}
 
 
 def test_stage_graph_keeps_states_independent_of_type():
@@ -187,34 +192,46 @@ def test_registry_projection_ignores_restore_reference_only_upstream():
         old, "redsea"
     ) == adoption._marker_registry_projection(new, "redsea")
     assert adoption._marker_registry_projection(
+        old, "ingest"
+    ) == adoption._marker_registry_projection(new, "ingest")
+    assert adoption._marker_registry_projection(
         old, "expression"
     ) == adoption._marker_registry_projection(new, "expression")
     with pytest.raises(ContractError, match="not allowed"):
         adoption._marker_registry_projection(old, "controls")
 
 
-def test_probabilistic_bundle_is_checked_against_planned_calibration():
-    context = SimpleNamespace(
-        typing_model_bundle=SimpleNamespace(
-            evidence_provenance=SimpleNamespace(
-                source_artifact_content_id="expected-calibration"
-            )
-        )
-    )
-    detail, reason = adoption._typing_calibration_plan(
-        context,
-        {
-            "calibrate": {
-                "action": "adopt_reviewed",
-                "source_output_content_sha256": "different-calibration",
+def test_registry_projection_tracks_measurement_source_before_restore():
+    raw = {
+        "markers": [
+            {
+                "name": "Iba1",
+                "compartment": "Cell",
+                "measurement_source": "redsea",
+                "spillover_policy": "redsea_corrected",
+                "calibration_status": "active",
             }
-        },
-    )
-    assert detail == {
-        "bundle_evidence_content_sha256": "expected-calibration",
-        "planned_calibrate_content_sha256": "different-calibration",
+        ]
     }
-    assert reason == "typing_bundle_calibration_mismatch"
+    normalized = {
+        "markers": [
+            {
+                **raw["markers"][0],
+                "measurement_source": "qupath_norm",
+            }
+        ]
+    }
+
+    assert adoption._marker_registry_projection(raw, "ingest") != (
+        adoption._marker_registry_projection(normalized, "ingest")
+    )
+    assert adoption._marker_registry_projection(raw, "expression") != (
+        adoption._marker_registry_projection(normalized, "expression")
+    )
+    # Measurement selection does not rename or change the acquired REDSEA channel.
+    assert adoption._marker_registry_projection(raw, "redsea") == (
+        adoption._marker_registry_projection(normalized, "redsea")
+    )
 
 
 def test_plan_identity_rejects_tampering():
@@ -352,3 +369,34 @@ def test_apply_rejects_source_manifest_swap_before_writing(tmp_path, monkeypatch
     with pytest.raises(StaleArtifactError, match="differs from the reviewed plan"):
         adoption.apply_adoption_plan(context, plan)
     assert not context.run_root.exists()
+
+
+def test_continue_with_no_pairs_runs_only_upstream_without_export(monkeypatch, tmp_path):
+    context = SimpleNamespace(
+        registry=SimpleNamespace(
+            production_status="development_no_verified_pairs"
+        ),
+        run_id="target",
+    )
+    plan = {"summary": {"continuation_blockers": []}}
+    observed = {}
+    monkeypatch.setattr(adoption, "load_config", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(adoption, "resolve_run_context", lambda _cfg: context)
+    monkeypatch.setattr(adoption, "read_adoption_plan", lambda _path: plan)
+    monkeypatch.setattr(adoption, "apply_adoption_plan", lambda *_args: ("expression",))
+    from phenocycler import donor_pipeline
+
+    monkeypatch.setattr(
+        donor_pipeline,
+        "run_pipelined_pipeline",
+        lambda passed, *, stages, export: observed.update(
+            context=passed, stages=stages, export=export
+        ),
+    )
+
+    assert adoption.main(["apply", "--plan", str(tmp_path / "plan.json"), "--continue"]) == 0
+    assert observed == {
+        "context": context,
+        "stages": DEFAULT_STAGE_ORDER,
+        "export": False,
+    }

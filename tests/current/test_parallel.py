@@ -92,7 +92,7 @@ def test_parallel_interrupt_terminates_submitted_workers(monkeypatch):
     monkeypatch.setattr(
         parallel,
         "ProcessPoolExecutor",
-        lambda max_workers: executor,
+        lambda max_workers, mp_context: executor,
     )
     monkeypatch.setattr(
         parallel,

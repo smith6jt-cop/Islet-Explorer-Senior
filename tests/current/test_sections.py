@@ -9,6 +9,7 @@ one overlapping point cloud. Nothing would raise.
 
 from __future__ import annotations
 
+import duckdb
 import pytest
 
 from phenocycler import sections as S
@@ -45,8 +46,6 @@ def test_sql_and_python_agree_on_every_shape():
     drift would mean the integration layer looking for partitions the core pipeline never
     wrote. Checked directly rather than trusted.
     """
-    duckdb = pytest.importorskip("duckdb")
-
     rows = ", ".join(f"('{img}')" for img, _k, _d, _r in IMAGES)
     q = (f'SELECT "Image", {S.SECTION_KEY_SQL} AS key '
          f'FROM (VALUES {rows}) AS t("Image")')

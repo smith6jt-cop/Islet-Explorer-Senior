@@ -5,11 +5,11 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import pytest
 
 from phenocycler import cells_parquet as cp
-
 
 HEADER = [
     "Image", "Object ID", "Centroid X µm", "Centroid Y µm", "Parent", "Classification",
@@ -19,6 +19,11 @@ HEADER = [
     "Nucleus: Max diameter µm", "Nucleus: Min diameter µm", "Nucleus/Cell area ratio",
     "Signed distance to annotation Islet µm", "Signed distance to annotation Tissue µm",
     "Cell: DAPI: Mean", "Cell: E-cadherin: Mean", "Nucleus: DAPI: Mean",
+    *(
+        f"{compartment}: {marker}: Mean (norm)"
+        for marker in cp.QUPATH_NORMALIZED_MARKERS
+        for compartment in cp.QUPATH_NORMALIZED_COMPARTMENTS
+    ),
 ]
 
 
@@ -40,6 +45,13 @@ def _row(oid, area, parent="Annotation (Tissue)", image="6374_Scan1.er.qptiff", 
         "Signed distance to annotation Islet µm": "-5",
         "Signed distance to annotation Tissue µm": "3",
         "Cell: DAPI: Mean": "500", "Cell: E-cadherin: Mean": "700", "Nucleus: DAPI: Mean": "600",
+        **{
+            f"{compartment}: {marker}: Mean (norm)": str(
+                -0.25 if compartment == "Cell" and marker == "Iba1" else 0.5
+            )
+            for marker in cp.QUPATH_NORMALIZED_MARKERS
+            for compartment in cp.QUPATH_NORMALIZED_COMPARTMENTS
+        },
     }
 
 
@@ -54,7 +66,6 @@ def _csv(tmp_path, rows) -> Path:
 
 
 def _run(tmp_path, rows, min_cell_area, image_to_donor=None):
-    duckdb = pytest.importorskip("duckdb")
     csv_path = _csv(tmp_path, rows)
     out = tmp_path / "out"
     (out / "cells").mkdir(parents=True, exist_ok=True)
@@ -92,6 +103,29 @@ def test_marker_means_maps_only_whole_cell_means():
     }
 
 
+def test_qupath_normalized_means_are_explicit_pre_restore_inputs():
+    observed = cp.qupath_normalized_means(HEADER)
+    assert len(observed) == 12
+    assert observed["Cell: Iba1: Mean (norm)"] == "QuPathNorm__Cell__Iba1"
+    assert observed["Cytoplasm: CD68: Mean (norm)"] == (
+        "QuPathNorm__Cytoplasm__CD68"
+    )
+    assert observed["Nucleus: M2Gal3: Mean (norm)"] == (
+        "QuPathNorm__Nucleus__M2Gal3"
+    )
+    assert "Cell: Iba1: Mean" not in observed
+
+
+def test_qupath_normalized_headers_fail_closed_without_raw_fallback(tmp_path):
+    missing = [
+        column for column in HEADER if column != "Cell: Iba1: Mean (norm)"
+    ]
+    row = _row("a", 60.0)
+    path = _csv_named(tmp_path, "missing_norm.csv", [row], missing)
+    with pytest.raises(SystemExit, match=r"Cell: Iba1: Mean \(norm\)"):
+        cp.reconcile_qupath_normalized_headers([path])
+
+
 def test_sanitize_matches_the_redsea_column_convention():
     assert cp.sanitize("E-cadherin") == "E_cadherin"
     assert cp.sanitize("Pan-Cytokeratin") == "Pan_Cytokeratin"
@@ -103,6 +137,13 @@ def test_min_cell_area_predicate_is_inclusive_at_the_threshold(tmp_path):
     rows = [_row("a", 19.999), _row("b", 20.0), _row("c", 20.001), _row("d", 100.0)]
     df, _ = _run(tmp_path, rows, 20.0)
     assert sorted(df.object_id) == ["b", "c", "d"]
+
+
+def test_ingest_preserves_signed_qupath_norm_separately_from_raw(tmp_path):
+    df, _ = _run(tmp_path, [_row("a", 60.0)], 20.0)
+    assert df.loc[0, "QuPathNorm__Cell__Iba1"] == pytest.approx(-0.25)
+    assert df.loc[0, "QuPathNorm__Membrane__CD68"] == pytest.approx(0.5)
+    assert "Iba1_norm" not in df
 
 
 def test_min_cell_area_zero_disables_the_filter(tmp_path):
@@ -134,7 +175,11 @@ def test_donor_id_comes_from_the_exact_manifest_mapping(tmp_path):
             "6450panc_Scan1.er.qptiff": "6450",
         },
     )
-    assert dict(zip(df.object_id, df.donor_id)) == {"a": "6374", "b": "115", "c": "6450"}
+    assert dict(zip(df.object_id, df.donor_id, strict=True)) == {
+        "a": "6374",
+        "b": "115",
+        "c": "6450",
+    }
 
 
 def test_out_of_cohort_image_in_a_shared_export_is_ignored(tmp_path):
@@ -167,10 +212,10 @@ def test_cell_region_scheme(tmp_path):
         _row("other", 60.0, parent="Something Else"),
     ]
     df, _ = _run(tmp_path, rows, 20.0)
-    got = dict(zip(df.object_id, df.cell_region))
+    got = dict(zip(df.object_id, df.cell_region, strict=True))
     assert got == {"core": "core", "peri": "peri", "tissue": "tissue",
                    "root": "tissue", "other": "other"}
-    assert dict(zip(df.object_id, df.islet_num))["core"] == "7"
+    assert dict(zip(df.object_id, df.islet_num, strict=True))["core"] == "7"
 
 
 def test_morphology_columns_needed_by_geometry_qc_are_all_present(tmp_path):
@@ -245,7 +290,6 @@ def test_reconcile_headers_fails_loudly_on_a_missing_export(tmp_path):
 
 def test_build_sql_reads_every_export_in_one_pass(tmp_path):
     """Both batches must reach the output, aligned by NAME (their column counts differ)."""
-    duckdb = pytest.importorskip("duckdb")
     p1, p2 = _two_batch_exports(tmp_path)
     out = tmp_path / "out"
     (out / "cells").mkdir(parents=True, exist_ok=True)

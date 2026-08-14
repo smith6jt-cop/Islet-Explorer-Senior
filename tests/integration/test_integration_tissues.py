@@ -14,8 +14,12 @@ import pytest
 
 from phenocycler import load_config
 from phenocycler.integration import tissues as T
-from phenocycler.integration.contract import (CellTable, ContractError, coerce_cell_table,
-                                              validate_cell_table)
+from phenocycler.integration.contract import (
+    CellTable,
+    ContractError,
+    coerce_cell_table,
+    validate_cell_table,
+)
 from phenocycler.integration.donor import COMPARABLE, comparable_for, composition, disease_trend
 from phenocycler.integration.pipeline import NEEDS_STRUCTURES, applicable_tissues
 from phenocycler.integration.qc import FAIL, PASS, WARN, verdict_for
@@ -288,11 +292,11 @@ def test_disease_trend_groups_by_tissue():
     assert len(t_nk) == 2
 
 
-def test_run_donor_keeps_both_sections_of_a_donor(cfg, tmp_path):
-    """The regression this guards: `{donor: roi for donor, roi in partitions}` keeps only the
-    last ROI, so a donor with a pancreas and a lymph node would silently lose one tissue."""
+def test_run_donor_refuses_cached_retired_pheno_sections(cfg, tmp_path):
+    """A direct runner cannot reuse cached sections while phenotype export is blocked."""
     from phenocycler.integration.contract import write_cell_table
     from phenocycler.integration.donor import run_donor
+    from phenocycler.integration.export_pheno import ExportError
 
     data = tmp_path / "data"
     local = load_config()
@@ -303,9 +307,8 @@ def test_run_donor_keeps_both_sections_of_a_donor(cfg, tmp_path):
             t = _table(roi, modality=modality)
             write_cell_table(t.df, base / "donor_id=6539" / f"roi={roi}" / "cells.parquet")
 
-    stats = run_donor(local, ["6539"])
-    assert set(stats["roi"]) == {"panc", "pln_1"}, "both sections must be compared"
-    assert set(stats["tissue"]) == {T.PANCREAS, T.LYMPH_NODE}
+    with pytest.raises(ExportError, match="integration donor comparison"):
+        run_donor(local, ["6539"])
 
 
 # --------------------------------------------------------------------------- #

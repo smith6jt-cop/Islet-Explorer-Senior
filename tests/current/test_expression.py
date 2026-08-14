@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -74,6 +73,37 @@ def test_declared_acquired_marker_missing_from_its_source_is_fatal():
             qc,
             donor_id="D1",
             acquired_markers={"CD3e", "E_cadherin", "Ki67", "SST"},
+        )
+
+
+@pytest.mark.parametrize("marker", ["Iba1", "CD68", "M2Gal3"])
+def test_qupath_norm_is_the_exact_signed_pre_restore_source_without_fallback(marker):
+    cells, redsea, qc = _frames()
+    source_column = f"QuPathNorm__Cell__{marker}"
+    cells[source_column] = [-0.25, 0.4, 1.3]
+    # A contradictory REDSEA value proves the source cannot silently fall back.
+    redsea[f"Cell__{marker}"] = [900.0, 800.0, 700.0]
+    expression, availability = build_selected_expression(
+        cells,
+        redsea,
+        qc,
+        donor_id="D1",
+        acquired_markers={"CD3e", "E_cadherin", "Ki67", marker},
+    )
+
+    assert expression[marker].tolist() == [-0.25, 0.4, 1.3]
+    audit = availability.set_index("marker").loc[marker]
+    assert audit["source"] == f"qupath_norm:{source_column}"
+    assert audit["measurement_source"] == "qupath_norm"
+    assert audit["spillover_policy"] == "redsea_corrected"
+
+    with pytest.raises(ContractError, match="raw and RESTORE-normalized fallbacks"):
+        build_selected_expression(
+            cells.drop(columns=source_column),
+            redsea,
+            qc,
+            donor_id="D1",
+            acquired_markers={marker},
         )
 
 

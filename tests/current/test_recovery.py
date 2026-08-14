@@ -14,6 +14,7 @@ from phenocycler.artifacts import (
     SchemaField,
     StageManifest,
     StaleArtifactError,
+    ContractError,
     hash_identifiers,
 )
 from phenocycler.expression import write_donor_partition
@@ -23,7 +24,7 @@ from phenocycler.recovery import (
 )
 
 
-REPOSITORY = Path(__file__).resolve().parents[1]
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 def _expected(donor: str, object_ids: list[str]) -> DonorDatasetSnapshot:
@@ -160,3 +161,27 @@ def test_recover_cli_is_dispatched_before_the_run_parser(monkeypatch):
         "a" * 20,
         "--prepare-only",
     ]
+
+
+def test_recovery_blocks_pair_prefix_before_preparing_outputs(monkeypatch):
+    from phenocycler import recovery
+
+    context = SimpleNamespace(
+        registry=SimpleNamespace(
+            production_status="development_no_verified_pairs"
+        )
+    )
+    monkeypatch.setattr(recovery, "load_config", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(recovery, "resolve_run_context", lambda _cfg: context)
+    monkeypatch.setattr(
+        recovery,
+        "prepare_interrupted_run_recovery",
+        lambda *_args, **_kwargs: pytest.fail("recovery mutation must not begin"),
+    )
+
+    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+        recovery.recover(
+            config_path=None,
+            source_run_id="a" * 20,
+            through="type",
+        )

@@ -9,8 +9,9 @@ until someone ran it or read it and believed it.
   documented install verification crashed.
 * ``pyproject.toml`` declared the deleted ``ordered_residual_rules.json`` as
   package data and omitted ``broad_gates.json``.
-* ``notebooks/03`` still reads ``audit/marker_calibration_models.parquet``,
-  which no stage writes.
+* the retired ``notebooks/03`` once still read
+  ``audit/marker_calibration_models.parquet`` after its producer was deleted;
+  the notebook is now removed and executable notebook cells are scanned below.
 
 Prose about deleted modules is legitimate -- history belongs in comments and in
 ``docs/METHOD_HISTORY.md``. What must never dangle is an executable reference.
@@ -24,16 +25,22 @@ import re
 import tomllib
 from pathlib import Path
 
-import pytest
-
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 PACKAGE = REPO / "phenocycler"
+RETIRED_EXECUTABLE_NAMES = (
+    "phenocycler.marker_calibration",
+    "phenocycler.marker_debug",
+    "phenocycler.hierarchical_typing",
+    "phenocycler.typing_stage",
+    "phenocycler.probabilistic_training",
+    "phenocycler.candidate_evaluation",
+)
 
 
 def _python_sources() -> list[Path]:
     return sorted(
         path
-        for directory in (PACKAGE, REPO / "tests")
+        for directory in (PACKAGE, REPO / "scripts")
         for path in directory.rglob("*.py")
         if "__pycache__" not in path.parts
     )
@@ -80,21 +87,39 @@ def _imported_package_modules(source: Path) -> set[str]:
     return modules
 
 
-@pytest.mark.parametrize("source", _python_sources(), ids=lambda p: p.name)
-def test_every_imported_package_module_exists(source: Path) -> None:
-    for module in sorted(_imported_package_modules(source)):
-        assert importlib.util.find_spec(module) is not None, (
-            f"{source.relative_to(REPO)} imports {module!r}, which does not exist"
-        )
+def test_all_executable_package_imports_resolve() -> None:
+    stale: list[str] = []
+    for source in _python_sources():
+        for module in sorted(_imported_package_modules(source)):
+            if importlib.util.find_spec(module) is None:
+                stale.append(f"{source.relative_to(REPO)} -> {module}")
+    assert not stale, "unresolved executable package imports:\n" + "\n".join(stale)
 
 
-def test_setup_script_imports_resolve() -> None:
-    """`setup.sh` is the documented install check; it must not name dead modules."""
-    text = (REPO / "setup.sh").read_text()
-    for module in re.findall(r"^from (phenocycler[.\w]*) import", text, re.MULTILINE):
-        assert importlib.util.find_spec(module) is not None, (
-            f"setup.sh imports {module!r}, which does not exist"
-        )
+def test_declared_entrypoints_and_setup_imports_resolve() -> None:
+    """Installed and documented executable imports must name live modules."""
+
+    config = tomllib.loads((REPO / "pyproject.toml").read_text())
+    modules = {
+        target.partition(":")[0]
+        for target in config["project"].get("scripts", {}).values()
+    }
+    setup_text = (REPO / "setup.sh").read_text()
+    modules.update(
+        re.findall(r"^from (phenocycler[.\w]*) import", setup_text, re.MULTILINE)
+    )
+    stale = sorted(module for module in modules if importlib.util.find_spec(module) is None)
+    assert not stale, f"entry points or setup import deleted modules: {stale}"
+
+
+def test_notebook_code_does_not_name_retired_executables() -> None:
+    stale = []
+    for path in sorted((REPO / "notebooks").glob("*.ipynb")):
+        payload = path.read_text(encoding="utf-8")
+        for name in RETIRED_EXECUTABLE_NAMES:
+            if name in payload:
+                stale.append(f"{path.relative_to(REPO)} -> {name}")
+    assert not stale, "notebook code names retired modules:\n" + "\n".join(stale)
 
 
 def test_declared_package_data_exists() -> None:
@@ -106,14 +131,24 @@ def test_declared_package_data_exists() -> None:
         )
 
 
-def test_shipped_rule_files_are_declared_as_package_data() -> None:
-    """A rule file that is not declared is missing from an installed wheel."""
+def test_shipped_rules_and_stage_sources_resolve() -> None:
+    """Rule files must ship, and every stage source must exist."""
     config = tomllib.loads((REPO / "pyproject.toml").read_text())
     declared = set(config["tool"]["setuptools"]["package-data"]["phenocycler"])
     shipped = {
         path.name
         for path in PACKAGE.glob("*.json")
         if path.name != "adoption_compatibility.json"
-    } | {"restore_expression_reviews.csv"}
+    }
     missing = sorted(shipped - declared)
     assert not missing, f"shipped package data not declared in pyproject.toml: {missing}"
+
+    from phenocycler.pipeline import STAGE_SOURCE_PATHS
+
+    stale_sources = sorted(
+        path
+        for paths in STAGE_SOURCE_PATHS.values()
+        for path in paths
+        if not (REPO / path).is_file()
+    )
+    assert not stale_sources, f"stage source paths do not exist: {stale_sources}"

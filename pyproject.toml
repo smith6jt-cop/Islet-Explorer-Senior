@@ -10,7 +10,7 @@ name = "phenocycler-analysis"
 # commit that produced the results is worse than having no version at all. This branch
 # already hashes the source tree into every run_id for the same reason.
 dynamic = ["version"]
-description = "Manifest-driven Phenocycler RESTORE evidence and ordered residual typing"
+description = "Manifest-driven Phenocycler ingest, geometry, REDSEA, and expression workflow"
 readme = "README.md"
 requires-python = ">=3.10"
 # Runtime bounds remain unpinned here so editable installs can share an existing
@@ -63,9 +63,8 @@ include-package-data = true
 phenocycler = [
     "adoption_compatibility.json",
     "broad_gates.json",
+    "fundamental_pair_diagnostics.json",
     "marker_registry.json",
-    "restore_expression_reviews.csv",
-    "typing_rules.json",
 ]
 
 [tool.setuptools_scm]
@@ -96,21 +95,16 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Tests redefine fixtures, shadow builtins, and use bare asserts freely.
-"tests/*" = ["B011", "B018"]
+"tests/**/*.py" = ["B011", "B018"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests"]
-# `refinement.py` is a repo-root, dependency-light helper module (used by the audit
-# notebooks and tests/test_refinement.py); it is intentionally NOT part of the installed
-# `phenocycler` package, so `pip install -e .` does not put it on sys.path. Local runs pass
-# because the documented invocation is `PYTHONPATH=. pytest`; the CI job invokes the `pytest`
-# console script, which does not add the repo root, so `import refinement` fails at collection.
-# Adding the rootdir to sys.path here makes both environments resolve top-level modules the
-# same way, without shipping `refinement` as a distributed top-level module.
+testpaths = ["tests/current"]
 pythonpath = ["."]
-addopts = ["-ra", "--strict-markers"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
 markers = [
-    "slow: tests that need real imaging data (skipped in CI)",
+    "research: exploratory-method tests run explicitly, outside the default gate",
+    "integration: optional cross-modal stack tests run in the integration CI job",
+    "data: tests that require external imaging data and are not part of synthetic CI",
     "gpu: tests that need a GPU (HiPerGator only)",
 ]

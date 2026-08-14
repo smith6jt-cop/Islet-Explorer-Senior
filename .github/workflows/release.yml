@@ -81,15 +81,10 @@ jobs:
           path: dist/
 
   test:
-    name: Test the built artifact
+    name: Smoke-test the built wheel
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
-          fetch-depth: 0
-          submodules: recursive
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -98,20 +93,15 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Install the wheel (not the source tree) and run the suite against it
+      - name: Install the wheel outside the source tree
         run: |
           python -m pip install --upgrade pip
           pip install dist/*.whl
-          pip install pytest
-          python -c "import phenocycler; print('installed version:', phenocycler.__version__)"
-          # Run from a directory without the source tree, so the import under test is the
-          # installed wheel rather than the checkout sitting next to it.
-          mkdir -p /tmp/wheeltest && cd /tmp/wheeltest
-          python -c "
-          from phenocycler import load_config
-          from phenocycler.pipeline import STAGES
-          print(f'{len(STAGES)} core stages resolve from the installed wheel')
-          "
+          mkdir -p /tmp/phenocycler-wheel-smoke
+          cd /tmp/phenocycler-wheel-smoke
+          python -c "import phenocycler; from phenocycler.pipeline import DEFAULT_STAGE_ORDER, STAGE_ORDER; assert DEFAULT_STAGE_ORDER == ('ingest', 'geometry', 'redsea', 'expression'); print('installed version:', phenocycler.__version__, 'stages:', STAGE_ORDER)"
+          python -c "from importlib.resources import files; names = ('adoption_compatibility.json', 'broad_gates.json', 'fundamental_pair_diagnostics.json', 'marker_registry.json'); missing = [name for name in names if not files('phenocycler').joinpath(name).is_file()]; assert not missing, f'missing wheel package data: {missing}'; print('package data OK')"
+          phenocycler --help
 
   release:
     name: Publish GitHub release
