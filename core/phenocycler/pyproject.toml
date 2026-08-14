@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phenocycler-analysis"
+# Version is derived from git tags by setuptools-scm — see [tool.setuptools_scm] below.
+# Deliberately NOT a literal: a hardcoded string and a git tag drift apart the moment
+# someone forgets one, and an analysis pipeline whose recorded version does not match the
+# commit that produced the results is worse than having no version at all. This branch
+# already hashes the source tree into every run_id for the same reason.
+dynamic = ["version"]
+description = "Manifest-driven Phenocycler ingest, geometry, REDSEA, and expression workflow"
+readme = "README.md"
+requires-python = ">=3.10"
+# Runtime bounds remain unpinned here so editable installs can share an existing
+# scientific Python environment.  The reproducible conda reference versions
+# live in environment.yml.
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "scipy",
+    "scikit-image",
+    "scikit-learn",
+    "statsmodels",
+    "tifffile",
+    "imagecodecs",
+    "duckdb",
+    # integration/manifest.py reads the donor metadata workbook.
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+gpu = ["cupy-cuda12x"]
+test = ["pytest"]
+notebook = ["jupyterlab", "ipykernel", "ipywidgets", "matplotlib"]
+# PhenoCycler <-> Xenium integration (phenocycler/integration/). The core pipeline never
+# imports these; every integration module degrades to a clear ImportError naming the extra.
+# `maxfuse` is deliberately absent — its only release is 0.0.2 (2023) with unpinned deps, so
+# phenocycler.integration.crossmodal implements the algorithm directly instead.
+integration = [
+    "anndata",
+    "scanpy",
+    "spatialdata",
+    "spatialdata-io",
+    "zarr",
+    "geopandas",
+    "shapely",
+    "opencv-python-headless",
+    "SimpleITK",
+    "h5py",
+]
+
+[project.scripts]
+phenocycler = "phenocycler.pipeline:main"
+
+[tool.setuptools]
+packages = ["phenocycler", "phenocycler.integration"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+phenocycler = [
+    "adoption_compatibility.json",
+    "broad_gates.json",
+    "fundamental_pair_diagnostics.json",
+    "marker_registry.json",
+]
+
+[tool.setuptools_scm]
+# Version comes from the nearest git tag. A tagged commit gives a clean release version
+# (`v0.4.0` -> `0.4.0`); anything after it gets a dev suffix carrying the distance and commit
+# (`0.4.1.dev3+g2fc0002`), so a result can always be traced back to the exact tree.
+version_file = "phenocycler/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+# Working from a tarball or a shallow clone with no tags (CI, HiPerGator scratch) must not
+# be a hard failure — fall back rather than refusing to build.
+fallback_version = "0.0.0+unknown"
+
+# --------------------------------------------------------------------------- #
+# Lint
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["notebooks", "data", "figures", "logs", "external"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length — scientific kwargs and long literals make this noisy
+    "B008",  # function call in default arg — Path() defaults are idiomatic here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests redefine fixtures, shadow builtins, and use bare asserts freely.
+"tests/**/*.py" = ["B011", "B018"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests/current"]
+pythonpath = ["."]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+markers = [
+    "research: exploratory-method tests run explicitly, outside the default gate",
+    "integration: optional cross-modal stack tests run in the integration CI job",
+    "data: tests that require external imaging data and are not part of synthetic CI",
+    "gpu: tests that need a GPU (HiPerGator only)",
+]

@@ -1,0 +1,35 @@
+name: phenocycler-analysis
+# Reference environment for the manifest-driven QuPath -> REDSEA ->
+# RESTORE donor-marker evidence -> ordered residual typing workflow. Downstream
+# embedding, trajectory and application stacks are intentionally out of scope.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+
+  # Runtime dependencies mirrored from pyproject.toml.
+  - numpy=1.26
+  - scipy=1.13
+  - pandas=2.2
+  - pyarrow=16
+  - duckdb=1.0
+  - scikit-image=0.24
+  - scikit-learn=1.5
+  - statsmodels=0.14
+  - tifffile=2024.7
+  - imagecodecs=2024.6
+
+  # Development, notebooks and verification.
+  - jupyter=1.1
+  - jupyterlab=4.2
+  - ipykernel=6.29
+  - ipywidgets=8.1
+  - matplotlib=3.9
+  - pytest=8.3
+  - pip=24
+
+# ---------------------------------------------------------------------------
+# Optional GPU acceleration (install manually into the env if you have CUDA):
+#   python -m pip install cupy-cuda12x
+# Then set [compute] use_gpu = true and run with one donor worker per GPU.
+# ---------------------------------------------------------------------------
