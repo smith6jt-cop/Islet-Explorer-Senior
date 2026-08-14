@@ -748,6 +748,32 @@ def region_features(gj) -> list:
     return gj if isinstance(gj, list) else [gj]
 
 
+def marker_extent(csv_path: Path, x_col: str, y_col: str) -> tuple[float, float] | None:
+    """Largest X and Y in a marker CSV, or None if the columns aren't usable.
+
+    Streamed a row at a time -- a whole-slide donor runs to hundreds of thousands
+    of cells and there is no reason to hold them.
+    """
+    import csv as _csv
+
+    x_max = y_max = float("-inf")
+    try:
+        with open(csv_path, newline="") as fh:
+            reader = _csv.DictReader(fh)
+            if not reader.fieldnames or x_col not in reader.fieldnames \
+                    or y_col not in reader.fieldnames:
+                return None
+            for rec in reader:
+                try:
+                    x, y = float(rec[x_col]), float(rec[y_col])
+                except (TypeError, ValueError):
+                    continue
+                x_max, y_max = max(x_max, x), max(y_max, y)
+    except OSError:
+        return None
+    return None if x_max == float("-inf") else (x_max, y_max)
+
+
 def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0,
                  class_colors: dict[str, tuple[int, int, int]] | None = None) -> int:
     """Write a QuPath GeoJSON out, scaling coordinates into full-res pixel space.
@@ -1134,15 +1160,43 @@ def main() -> int:
             + ("  <-- not auto-loaded" if not auto else ""))
         region_specs.append((title, rel, auto))
 
-    marker_rel = None
-    if args.markers:
-        marker_rel = f"markers/{case_id}.csv"
-        dst = out_dir / marker_rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(args.markers, dst)
-        log(f"markers: {dst.stat().st_size / 1e6:.1f} MB -> {marker_rel}")
-
     x_col, y_col, group_col = (c.strip() for c in args.marker_cols.split(","))
+
+    marker_rel = None
+    markers_rejected = False
+    if args.markers:
+        # Falsify the coordinate factor before attaching, the way the region
+        # scale is falsified against the image bounds.
+        #
+        # coord_factor is 1/um_per_px on the assumption that the CSV is in µm. If
+        # it is already in pixels, every cell lands at ~4x its true position: a
+        # zoomed-out view looks unremarkable because the dots still cover tissue,
+        # and only at cell-level zoom does it become obvious. That is the same
+        # silently-wrong failure as a mis-scaled region file, and it gets the
+        # same treatment -- cells cannot legitimately sit outside the slide.
+        coord_factor = round(1.0 / args.um_per_px, 6)
+        extent = marker_extent(args.markers, x_col, y_col)
+        if extent is None:
+            log(f"WARNING: could not read {x_col}/{y_col} from {args.markers}; "
+                f"markers not attached")
+            markers_rejected = True
+        else:
+            img_w, img_h = read_image_size(image)
+            span = (extent[0] * coord_factor, extent[1] * coord_factor)
+            if span[0] > img_w * 1.02 or span[1] > img_h * 1.02:
+                log(f"ERROR: markers reach {span[0]:.0f}x{span[1]:.0f} px after x{coord_factor} "
+                    f"but the image is only {img_w}x{img_h}. The CSV is not in µm, or "
+                    f"--um-per-px is wrong. NOT attaching them rather than placing every "
+                    f"cell in the wrong spot; pass the right --um-per-px or fix the export.")
+                markers_rejected = True
+            else:
+                marker_rel = f"markers/{case_id}.csv"
+                dst = out_dir / marker_rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(args.markers, dst)
+                log(f"markers: {dst.stat().st_size / 1e6:.1f} MB -> {marker_rel} "
+                    f"(extent {span[0]:.0f}x{span[1]:.0f} px of {img_w}x{img_h})")
+
     project = build_project(
         case_id, kept_names, channel_files, args.um_per_px,
         marker_rel, (x_col, y_col, group_col),
@@ -1168,6 +1222,12 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - validation errors are informational
         log(f"WARNING: schema validation failed: {exc}")
 
+    # The project is written and usable -- channels and outlines are unaffected --
+    # but a caller that scripted this run must not record it as a clean success
+    # when a requested overlay was refused.
+    if markers_rejected:
+        log("exit 3: project written WITHOUT the requested cell overlay (see ERROR above)")
+        return 3
     return 0
 
 

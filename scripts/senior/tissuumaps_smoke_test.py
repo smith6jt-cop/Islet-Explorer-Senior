@@ -505,6 +505,37 @@ def main() -> int:
             verdict, _, detail = line.split("VERDICT:", 1)[1].strip().partition(" - ")
             return verdict, detail
 
+        # Marker coordinates are trusted to be µm and multiplied by 1/µm-per-px.
+        # If they were already pixels every cell lands ~4x out -- which looks
+        # unremarkable zoomed out and is only obvious at cell-level zoom. Prove
+        # the builder refuses rather than attaching them, by feeding it the same
+        # CSV with the coordinates pre-multiplied so they overflow the slide.
+        if hit[2]:
+            import csv as _csv
+
+            # Into its OWN out-dir, and one channel: this run writes a .tmap for
+            # the same case id, so sharing the project directory would overwrite
+            # the real one -- without its regions, because this invocation does
+            # not pass them.
+            probe_dir = projects.parent / "marker_probe"
+            bad = probe_dir / "_bad_markers.csv"
+            bad.parent.mkdir(parents=True, exist_ok=True)
+            with open(hit[2], newline="") as fh, open(bad, "w", newline="") as out:
+                r = _csv.reader(fh)
+                w = _csv.writer(out)
+                head = next(r)
+                w.writerow(head)
+                for row in r:
+                    row[0], row[1] = str(float(row[0]) * 40), str(float(row[1]) * 40)
+                    w.writerow(row)
+            proc = subprocess.run(
+                [sys.executable, str(BUILDER), "--image", str(hit[0]),
+                 "--out-dir", str(probe_dir), "--markers", str(bad), "--channels", "DAPI"],
+                capture_output=True, text=True)
+            check("out-of-bounds markers are refused, not attached",
+                  proc.returncode == 3 and "NOT attaching" in proc.stdout,
+                  f"exit {proc.returncode}")
+
         good_v, good_d = report("20")
         old_v, old_d = report("3")
         check("stretch does not blow out the markers", good_v == "ok",
