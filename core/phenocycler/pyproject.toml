@@ -78,6 +78,18 @@ local_scheme = "node-and-date"
 # be a hard failure — fall back rather than refusing to build.
 fallback_version = "0.0.0+unknown"
 
+# This package lives at core/phenocycler inside the monorepo, so the git root is two levels
+# up. setuptools-scm does NOT walk up to find it: without this it silently produced
+# fallback_version, which CI asserts against.
+root = "../.."
+
+# Confine the version to THIS project's own tags. The monorepo carries unrelated history and
+# archive/* tags, so an unfiltered `git describe` would count every commit in the repository
+# -- including R changes under apps/ -- and the version would stop being a fact about this
+# package. Tags are namespaced `phenocycler-v0.4.0`.
+tag_regex = '^phenocycler-v(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+]*)(?:\+.*)?$'
+git_describe_command = "git describe --dirty --tags --long --match phenocycler-v*"
+
 # --------------------------------------------------------------------------- #
 # Lint
 # --------------------------------------------------------------------------- #

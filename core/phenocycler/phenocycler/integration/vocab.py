@@ -48,10 +48,11 @@ endocrine cells and scoring them as one lineage biases the argmax. PhenoCycler's
 ``Epithelial``, meanwhile, is a *default sink*. Mapping it to Exocrine is defensible but the
 asymmetry is real, which is why the contract carries ``evidence_positive``.
 
-The mapping is *derived* from ``external/XeniumPanelExplorer/data/panel_roles.csv`` and the
+The mapping is *derived* from ``core/panels/data/panel_roles.csv`` and the
 ``identity_core/*.csv`` files rather than hardcoded — the upstream repo ships those two
 artifacts specifically as a machine-readable contract for Python consumers, and warns that
-unpinned masks drift silently. We pin the submodule and read them.
+unpinned masks drift silently. The taxonomy used to be a pinned submodule; in the monorepo it
+is the ``core/panels`` subtree, so the pin is a directory rather than a gitlink.
 
 The molecular crosswalk has its own trap. 46 of 55 PhenoCycler markers have a gene on the
 deployed 5,081-gene panel, which sounds like plenty — but **INS, GCG, SST and Vimentin are
@@ -360,9 +361,9 @@ def load_panel_taxonomy(cfg: PipelineConfig, tissue: Optional[str] = None) -> Pa
     ``01_pancreas_endocrine`` would put weight on an endocrine axis that cannot exist there,
     and the broad call is an argmax over those axes.
 
-    Raises with an actionable message when the submodule is not checked out — this is the
-    single most likely first-run failure, and 'FileNotFoundError: panel_roles.csv' would not
-    tell anyone to run ``git submodule update``.
+    Raises with an actionable message when the taxonomy is missing — this is the single most
+    likely first-run failure, and a bare 'FileNotFoundError: panel_roles.csv' would not tell
+    anyone where it is meant to come from.
     """
     from .tissues import applies as tissue_applies
     from .tissues import panel_tissue_dir
@@ -372,9 +373,9 @@ def load_panel_taxonomy(cfg: PipelineConfig, tissue: Optional[str] = None) -> Pa
     roles_csv = root / "data" / "panel_roles.csv"
     if not roles_csv.exists():
         raise VocabError(
-            f"XeniumPanelExplorer panel taxonomy not found at {roles_csv}.\n"
-            f"  git submodule update --init --recursive\n"
-            f"or point [integration] panel_explorer at a checkout."
+            f"Panel taxonomy not found at {roles_csv}.\n"
+            f"It ships as the core/panels subtree; point [integration] panel_explorer\n"
+            f"at a checkout if you have moved it."
         )
 
     tax = PanelTaxonomy(tissue=tissue, root=root)

@@ -140,7 +140,9 @@ class PipelineConfig:
     xenium_paths_csv: Path = _REPO_ROOT / "data" / "integration" / "xenium_paths.csv"
     donor_overrides_csv: Path = _REPO_ROOT / "data" / "integration" / "donor_overrides.csv"
     xenium_root: str = ""                         # optional prefix rewrite for bundle paths
-    panel_explorer: Path = _REPO_ROOT / "external" / "XeniumPanelExplorer"
+    # The panel taxonomy is a sibling subtree in the monorepo (core/panels), not a submodule
+    # under this package. _REPO_ROOT is core/phenocycler, so its parent is core/.
+    panel_explorer: Path = _REPO_ROOT.parent / "panels"
     tissue: str = "pancreas"                      # default for datasets that do not declare one
     tissues: str = "pancreas,pancreatic_lymph_node"   # comma-separated; the cohort's tissues
     pheno_tissue_dirs: str = ""
