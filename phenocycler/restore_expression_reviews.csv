@@ -1,2 +1,0 @@
-donor,target,review,evidence
-6566,INS,CONFIRMED_ABSENT,"Maintainer image review recorded in the accepted RESTORE v10 application: the target-arm fold was 1.67 (below 2), and donor 6566 has no INS-positive cells."
