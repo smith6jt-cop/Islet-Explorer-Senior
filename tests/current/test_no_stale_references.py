@@ -22,9 +22,30 @@ from __future__ import annotations
 import ast
 import importlib.util
 import re
-import tomllib
 from pathlib import Path
 
+import pytest
+
+# `tomllib` is stdlib only from 3.11, but `requires-python` is >=3.10 and CI runs the floor,
+# so importing it unconditionally made this whole module fail collection on 3.10 — taking the
+# rest of the file's checks down with it. Fall back to `tomli`, and if neither is present skip
+# with a reason rather than silently: CI runs pytest with `-rs`, so a skip is visible in the
+# summary, whereas a collection error is just a red job that says nothing about coverage.
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - depends on the interpreter
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:  # pragma: no cover
+        tomllib = None
+
+pytestmark = pytest.mark.skipif(
+    tomllib is None,
+    reason="no TOML reader: tomllib needs Python >= 3.11 and tomli is not installed",
+)
+
+# tests/current/ is two levels below the repo root, not one: this file moved when the suite
+# was split into current/research/integration lanes.
 REPO = Path(__file__).resolve().parents[2]
 PACKAGE = REPO / "phenocycler"
 RETIRED_EXECUTABLE_NAMES = (

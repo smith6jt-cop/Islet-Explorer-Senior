@@ -421,11 +421,54 @@ def normalize_image(image: np.ndarray, *, low: float = 1.0, high: float = 99.5) 
     return np.clip((img - lo) / (hi - lo), 0.0, 1.0).astype(np.float32)
 
 
-def find_qptiff(images_dir: Path, donor_id: str) -> Optional[Path]:
-    """Locate a donor's qptiff by the leading-digits convention the pipeline already uses."""
+def find_qptiff(images_dir: Path, donor_id: str, roi: str = "") -> Optional[Path]:
+    """Locate a SECTION's qptiff — the donor's image for this ROI, not just the donor's.
+
+    ``roi`` is what makes this correct. A donor has one pancreas image and 1-4 lymph-node
+    images, all named for the same donor:
+
+        6539_Scan1.er.qptiff        -> section 6539     (panc)
+        6539pLN_Scan1.er.qptiff     -> section 6539pln  (pln_1)
+        6539pLN2_Scan1.er.qptiff    -> section 6539pln2 (pln_2)
+
+    A ``{donor}*`` glob returns all of them and ``_`` sorts before ``p``, so taking the
+    first hit handed every lymph-node ROI the *pancreas* image. That is not a cosmetic
+    mismatch: this image is the PhenoCycler DAPI raster the image-registration track aligns
+    against, and for a lymph node the structure-seeded point-set track cannot run at all
+    (no islets to seed on) — so the image track is the only track, and it was being fed the
+    wrong tissue. ``manifest._pheno_paths`` already resolves this correctly via the section
+    key; this is the same rule.
+
+    Falls back to the donor-prefix glob only when the ROI is not given, for callers that
+    genuinely have just a donor. When an ROI *is* given it is honoured strictly: an ROI with
+    no image, or one that names no section, returns ``None`` rather than another section's
+    file. The caller then registers on cell-density rasters, which is a weaker alignment but
+    an honest one.
+    """
     images_dir = Path(images_dir)
     if not images_dir.exists():
         return None
+
+    if roi:
+        from ..sections import SectionError, key_from_image
+        from ..sections import key_for as section_key_for
+
+        try:
+            want = section_key_for(str(donor_id), roi)
+        except SectionError:
+            # An ROI we cannot name a section for is not a licence to guess. Falling through
+            # to the donor-prefix glob here would reinstate exactly the "take the donor's
+            # first image" bug this parameter exists to prevent.
+            return None
+        # A section key always starts with the donor's digits, so the donor prefix is a
+        # complete filter as well as a cheap one.
+        for p in sorted(images_dir.glob(f"{donor_id}*.qptiff")):
+            if key_from_image(p.name) == want:
+                return p
+        # The donor has images but none is this section's. Returning another section's
+        # would silently misregister against a different piece of tissue.
+        return None
+
     hits = sorted(images_dir.glob(f"{donor_id}*.qptiff"))
     if hits:
         return hits[0]
