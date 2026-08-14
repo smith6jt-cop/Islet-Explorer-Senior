@@ -1,0 +1,76 @@
+name: Islet app (R)
+
+# SCOPE, stated plainly: this is a syntax gate plus ten unit tests. It is NOT R test
+# coverage for the app.
+#
+# The app needs shiny, bslib, duckdb, rdeck and reticulate. Installing that stack in CI is a
+# ~20-minute job and rdeck does not install cleanly from CRAN, so nothing here loads the app.
+# scripts/test_viewer_helpers.R is the one real test that can run unattended: its own header
+# says "base R only; no Shiny needed", and it works by parse()ing viewer_helpers.R and
+# eval'ing five named functions.
+#
+# parse() catches exactly what it says -- syntax errors, and any file that stopped being
+# loadable after a rename. That is worth having on every PR; it is not worth calling coverage.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/islet/**'
+      - 'scripts/**/*.R'
+      - '.github/workflows/islet-r.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/islet/**'
+      - 'scripts/**/*.R'
+      - '.github/workflows/islet-r.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    name: Parse and unit-test the R sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Every R source parses
+        run: |
+          Rscript -e 'fs <- c("apps/islet/app.R", list.files("apps/islet/R", "[.]R$", full.names = TRUE), list.files("scripts", "[.]R$", full.names = TRUE, recursive = TRUE)); bad <- unlist(lapply(fs, function(f) { m <- tryCatch({ parse(f); NULL }, error = function(e) conditionMessage(e)); if (is.null(m)) NULL else paste(f, m) })); if (length(bad)) { cat(bad, sep = "\n"); quit(status = 1) }; cat("parsed", length(fs), "files OK\n")'
+
+      - name: Viewer-helper unit tests
+        # Base R only. Also the canary for the apps/islet rename: it parse()s
+        # apps/islet/R/viewer_helpers.R by path, so a bad move fails here.
+        run: Rscript scripts/test_viewer_helpers.R
+
+      - name: The app's data paths stay two levels below the repo root
+        # apps/islet is exactly 2 deep, so file.path("..","..") from the app's working
+        # directory is the repo root. Nesting the app one level deeper would silently break
+        # all 16 of these call sites at runtime, not at parse time -- hence a real check.
+        run: |
+          Rscript -e '
+            depth <- length(strsplit("apps/islet", "/")[[1]])
+            if (depth != 2L) {
+              cat("apps/islet is", depth, "levels deep; the file.path(\"..\",\"..\") data paths require exactly 2\n")
+              quit(status = 1)
+            }
+            fs <- list.files("apps/islet/R", "[.]R$", full.names = TRUE)
+            hits <- sum(vapply(fs, function(f) {
+              length(grep("file.path(\"..\", \"..\"", readLines(f, warn = FALSE), fixed = TRUE))
+            }, integer(1)))
+            if (hits == 0L) {
+              cat("expected depth-2 data paths in apps/islet/R and found none - did the layout change?\n")
+              quit(status = 1)
+            }
+            cat("apps/islet depth OK (2);", hits, "depth-2 call sites intact\n")'

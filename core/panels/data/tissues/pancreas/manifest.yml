@@ -1,0 +1,16 @@
+tissue_id: pancreas
+display_name: "Human Pancreas"
+reference_runs:
+  - "0041323"
+  - "0041326"
+# Pancreas ships self-contained "fat" subpanels under subpanels/ (built by
+# scripts/build_pancreas_fat_subpanels.R), so it does not pull the shared pool.
+use_shared_subpanels: false
+custom_panel:
+  file: custom_panel.csv
+  display_name: "T1D-GWAS custom 100"
+notes: |
+  Audit columns: detection_pct_<run>, n_cells_<run>,
+  log2_detection_ratio (between first two reference_runs),
+  exclude_recommended.
+

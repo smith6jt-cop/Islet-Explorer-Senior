@@ -4,33 +4,31 @@
 
 This repository contains two related but separate systems:
 
-1. `Phenocycler_Analysis/` produces per-cell marker evidence and hierarchical
-   cell identities from raw QuPath exports.
-2. `app/shiny_app/` serves aggregated islet, spatial, trajectory, and
+1. `core/phenocycler/` currently produces UUID-keyed upstream expression
+   data from raw QuPath exports. It does not currently produce verified marker
+   calls or cell identities.
+2. `apps/islet/` serves aggregated islet, spatial, trajectory, and
    single-cell views.
 
-The source workflow is authoritative for marker calibration and cell identity.
-The app is a downstream consumer, but its current H5AD is not yet connected to
+The source workflow is authoritative for upstream measurement provenance. The
+app is a downstream consumer, but its current H5AD is not connected to current
 content-addressed source runs. App code and existing H5AD phenotype columns
-must not redefine thresholds or train the source workflow.
+must not define thresholds, pairs, or train the source workflow.
 
 ## Non-negotiable analysis rules
 
 - Never infer positivity from a desired frequency, cross-donor uniformity, or
   disease ordering.
-- Marker calibration is donor-local and uses the marker's registered,
-  mutually exclusive reference control.
+- There are no verified production target/reference pairs. Do not infer one
+  from historical registries, outputs, or expected cell frequencies.
 - Existing QuPath classifications, annotations, phenotypes, clusters, disease
   labels, and gold-standard reviews are audit context only. They are not
   training, tuning, or release-gating inputs.
-- Preserve the QuPath UUID as `object_id` from ingest through QuPath import.
+- Preserve the QuPath UUID as `object_id` throughout the upstream workflow.
   Do not substitute centroid matching or donor-name parsing.
-- A missing measurement is unavailable, not zero or negative. An invalid
-  donor-marker model is indeterminate and must fail closed.
-- Keep identity separate from process/state biology. Ki67 and PCNA are
-  orthogonal state outputs, not identity evidence.
+- A missing measurement is unavailable, not zero or negative.
 - Donors `6457` and `6579` are centrally excluded in
-  `Phenocycler_Analysis/phenocycler/cohort.py`. Configuration must not bypass
+  `core/phenocycler/phenocycler/cohort.py`. Configuration must not bypass
   those exclusions.
 
 ## Authoritative Phenocycler workflow
@@ -43,67 +41,54 @@ QuPath cohort manifest
   -> geometry QC
   -> REDSEA boundary-spillover correction
   -> one authoritative intensity per marker
-  -> deterministic donor-local reference controls
-  -> RESTORE donor-marker calling with uncertainty
-  -> simultaneous broad typing
-  -> parent-constrained subtype typing
-  -> orthogonal state annotation
-  -> uncertainty-preserving QuPath export
 ```
 
-Run it **from `Phenocycler_Analysis/`**, which owns the only real `config.ini`:
+Ordinary execution stops after expression. Pair-dependent `controls`,
+`calibrate`, `type`, state calling, and assignment export are blocked. The
+run/stage manifest architecture remains authoritative for upstream stages.
+
+Run it **from `core/phenocycler/`**, which owns the only real `config.ini`:
 
 ```bash
-python -m pip install -e Phenocycler_Analysis
-cd Phenocycler_Analysis
-python -m phenocycler.pipeline run --config config.ini
+python -m pip install -e core/phenocycler
+cd core/phenocycler
+python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
 
-There is exactly one `config.ini`, and it is the submodule's. A repo-root copy
-existed until 2026-08-10 with no `[restore]` section at all, so running the
-command from the repository root silently fell back to the stale defaults it
-omitted. If a root `config.ini` ever reappears, it is a bug.
+There is exactly one `config.ini`, and it is `core/phenocycler/config.ini`. A
+repo-root copy existed until 2026-08-10 with no `[restore]` section at all, so
+running the command from the repository root silently fell back to the stale
+defaults it omitted. If a root `config.ini` ever reappears, it is a bug.
 
 Raw CSV, qptiff, cell/nucleus geometry, pixel calibration, channel mapping,
 panel identity, and segmentation version belong in
-`Phenocycler_Analysis/data/qupath_manifest.json`. Generated results live under
-`Phenocycler_Analysis/data/runs/<run_id>/`; stages and runs are immutable and
-content addressed. Pilots are review artifacts and live under
-`Phenocycler_Analysis/data/pilots/`; they never write a stage manifest and never
-mutate `data/runs/`.
-
-The six notebooks are review interfaces over the production APIs:
-
-- `01_qupath_ingest_and_geometry_qc.ipynb`
-- `02_redsea_spillover.ipynb`
-- `03_marker_calibration.ipynb`
-- `04_hierarchical_cell_typing.ipynb`
-- `05_error_aware_refinement.ipynb`
-- `06_probabilistic_validation_and_promotion.ipynb`
-
-They must not duplicate algorithms or write around stage manifests.
+`core/phenocycler/data/qupath_manifest.json`. Generated results live under
+`core/phenocycler/data/runs/<run_id>/`; stages and runs are immutable and
+content addressed. Active mutable review artifacts live under the repo-root
+`data/development/` — a level above `core/`, not inside the package; they never
+write a stage manifest or mutate `data/runs/`. Only the ingest/geometry and REDSEA/expression notebooks
+describe current stages. Calibration, hierarchical/probabilistic typing,
+marker-debug, and Otsu material is historical.
 
 Authoritative documentation:
 
-- `Phenocycler_Analysis/README.md`
-- `Phenocycler_Analysis/docs/WORKFLOW.md`
-- `Phenocycler_Analysis/DATA_README.md`
-- `Phenocycler_Analysis/docs/METHOD_HISTORY.md`
-- `Phenocycler_Analysis/phenocycler/marker_registry.json`
-- `Phenocycler_Analysis/phenocycler/broad_gates.json` (broad-typing authority)
-- `Phenocycler_Analysis/phenocycler/typing_rules.json` (subtype lane only)
+- `core/phenocycler/README.md`
+- `core/phenocycler/docs/WORKFLOW.md`
+- `core/phenocycler/DATA_README.md`
+- `core/phenocycler/docs/METHOD_HISTORY.md`
+- `core/phenocycler/phenocycler/marker_registry.json`
+- `core/phenocycler/phenocycler/fundamental_pair_diagnostics.json`
 
-**RESTORE is the production marker-calling method.** It is the scientific
-producer behind the immutable `calibrate` stage key, implemented in
-`phenocycler/restore_stage.py` and `phenocycler/restore_validation.py`, and its
-NNMF separator is part of it. Do not describe either as retired.
+The mutable diagnostic roster contains only raw CD3e/Ker8_18 and exact signed
+QuPath Iba1_norm/raw Ker8_18. CD79a is excluded as a pair candidate because its
+expression is too sparse in normal tissue. These are rank/overlap comparisons,
+not production pairs or calls.
 
-Retired, and not to be revived as compatibility fallbacks: the ordered residual
-lineage (replaced by simultaneous broad typing), the Gate 2-5 screen and
-counterfactual apparatus, the donor-local marker-calibration replacement for
-RESTORE, flat `cells_redsea*`/`restore*` output roots as source-stage inputs,
-and the former anatomy-check release arms. Preserve their history in Git.
+Retired, and not to be revived as compatibility fallbacks: RESTORE pair webs,
+hierarchical/simultaneous/probabilistic typing, marker-debug/oracle and Otsu
+lanes, the Gate 2-5 apparatus, and flat `cells_redsea*`/`restore*` output roots.
+Preserve their history in Git.
 
 Note the flat `data/restore_gated_redsea/` and `data/phenotype/broad/` roots at
 the repository root are still read by the Shiny app's Card C. They are retired
@@ -111,35 +96,34 @@ for the source workflow, not deleted for the app.
 
 ## Downstream application boundary
 
-The source workflow currently ends at immutable per-cell assignments and
-QuPath export. The existing application aggregation scripts consume a legacy
-single-cell H5AD and are not yet a supported bridge from a content-addressed
-Phenocycler run.
+The source workflow currently ends at immutable upstream expression. The
+existing application aggregation scripts consume a legacy single-cell H5AD and
+are not a supported bridge from a current content-addressed Phenocycler run.
 
 The next downstream implementation must make one canonical adapter:
 
 ```text
-<run>/cells + expression + marker_evidence + assignments + cell_states
+<future verified run>/cells + expression + marker_evidence + assignments + cell_states
   -> run-aware single-cell H5AD
   -> islet, spatial, trajectory, and application aggregates
 ```
 
-That adapter must join by donor and `object_id`, retain ambiguous/unavailable
-assignments, and embed the run ID plus relevant manifest content IDs. Until it
-exists, do not describe the legacy H5AD rebuild as current, and do not feed
-provisional or stale labels into the application scripts.
+That future adapter must join by donor and `object_id` and embed the run ID plus
+relevant manifest content IDs. Until a verified pair/typing workflow and its
+adapter exist, do not describe the legacy H5AD rebuild as current, and do not
+feed provisional or stale labels into application scripts.
 
 ## App architecture
 
-- Entrypoint: `app/shiny_app/app.R`
-- Shared constants and state: `app/shiny_app/R/00_globals.R`
-- Data loading: `app/shiny_app/R/data_loading.R`
-- Plot modules: `app/shiny_app/R/mod_plot_*.R`
+- Entrypoint: `apps/islet/app.R`
+- Shared constants and state: `apps/islet/R/00_globals.R`
+- Data loading: `apps/islet/R/data_loading.R`
+- Plot modules: `apps/islet/R/mod_plot_*.R`
 - Drill-down and segmentation helpers:
-  `app/shiny_app/R/drilldown_helpers.R`,
-  `app/shiny_app/R/segmentation_helpers.R`
-- Spatial helpers: `app/shiny_app/R/spatial_helpers.R`
-- Viewer helpers: `app/shiny_app/R/viewer_helpers.R`
+  `apps/islet/R/drilldown_helpers.R`,
+  `apps/islet/R/segmentation_helpers.R`
+- Spatial helpers: `apps/islet/R/spatial_helpers.R`
+- Viewer helpers: `apps/islet/R/viewer_helpers.R`
 
 ## Viewer backend (Avivator | TissUUmaps, Jul 2026)
 
@@ -152,10 +136,10 @@ own OME-XML — required because the cohort mixes panels (batch-1 SST@35 vs batc
 The server we run is **our fork, `smith6jt-cop/TissUUmaps`**, built locally by
 `deploy/build_tissuumaps_image.sh` (no registry pull, no auto-update).
 Findings, costs and the deployment recipe: [`docs/tissuumaps_evaluation.md`](docs/tissuumaps_evaluation.md);
-app wiring in `app/shiny_app/CLAUDE.md` § "Viewer Tab — pluggable backend".
+app wiring in `apps/islet/CLAUDE.md` § "Viewer Tab — pluggable backend".
 
 App-specific UI, deployment, browser, plotting, and reticulate guidance lives
-in `app/shiny_app/CLAUDE.md`. Script-level guidance lives in
+in `apps/islet/CLAUDE.md`. Script-level guidance lives in
 `scripts/CLAUDE.md`.
 
 Important app conventions:
@@ -176,18 +160,20 @@ Important app conventions:
 Development:
 
 ```bash
-cd app/shiny_app
+cd apps/islet
 Rscript -e 'shiny::runApp(".", port = 7777)'
 ```
 
 Production is served through nginx and shiny-server. See
-`deploy/DEPLOY.md` and `app/shiny_app/CLAUDE.md`; do not treat the development
+`deploy/DEPLOY.md` and `apps/islet/CLAUDE.md`; do not treat the development
 server as a production deployment test.
 
 ## Source-control hygiene
 
-- Commit the `Phenocycler_Analysis` submodule first, push it, then commit the
-  parent submodule pointer.
+- There are no submodules. `Phenocycler_Analysis` and `XeniumPanelExplorer`
+  became the `core/phenocycler` and `core/panels` subtrees in Phase 2, so the
+  old "commit the submodule first, then the pointer" rule is retired. One
+  commit now covers a change and its tests.
 - Do not mix generated `data/`, run manifests, notebooks with outputs, caches,
   or local model/image paths into Git.
 - When replacing a workflow, remove obsolete live entrypoints and rely on Git

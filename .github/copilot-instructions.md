@@ -3,7 +3,7 @@
 Purpose: Interactive R Shiny app to explore human pancreatic islet measurements by donor group and islet size, plus a lightweight embedded image viewer (Avivator/Viv) for local OME-TIFFs.
 
 Big picture
-- App entrypoint: `app/shiny_app/app.R` (single-file Shiny app). Data come from `data/master_results.xlsx` with sheets: `Islet_Markers`, `Islet_Targets`, `Islet_Composition`, and optional `LGALS3`.
+- App entrypoint: `apps/islet/app.R` (single-file Shiny app). Data come from `data/master_results.xlsx` with sheets: `Islet_Markers`, `Islet_Targets`, `Islet_Composition`, and optional `LGALS3`.
 - Core server data flow:
   1) `load_master()` reads sheets via readxl.
   2) `prep_data()` normalizes and joins into three tables: `targets_all`, `markers_all`, `comp`, and computes islet diameter (µm) from Islet_Targets CORE area: `islet_diam_um = 2*sqrt(core_region_um2/pi)`.
@@ -21,15 +21,15 @@ Project-specific conventions you must preserve
 - Stats tab: Global model is `value ~ donor_status + islet_diam_um`; pairwise t-tests on residuals from `value ~ islet_diam_um` with BH adjustment. Respect factor order ND < Aab+ < T1D.
 
 Embedded viewer (Avivator/Viv)
-- Static bundle lives under `app/shiny_app/www/avivator/`. Install via `scripts/install_avivator.sh` (mirrors public site; or builds if source present and Node+pnpm are available).
-- Optional channel mapping from `app/shiny_app/Channel_names` or `Channel_names.txt` lines like `INS (C26)`. `build_channel_config_b64()` encodes a config sent to the viewer; it highlights INS (red), GCG (blue), SST (yellow), DAPI (grey) if present.
+- Static bundle lives under `apps/islet/www/avivator/`. Install via `scripts/install_avivator.sh` (mirrors public site; or builds if source present and Node+pnpm are available).
+- Optional channel mapping from `apps/islet/Channel_names` or `Channel_names.txt` lines like `INS (C26)`. `build_channel_config_b64()` encodes a config sent to the viewer; it highlights INS (red), GCG (blue), SST (yellow), DAPI (grey) if present.
 - Local OME-TIFFs can be served by setting `LOCAL_IMAGE_ROOT` or placing files in `local_images/` (resource path `/local_images`).
 
 Developer workflows
 - Install R deps: run `scripts/install_shiny_deps.R` (adds CRAN pkgs; Bioconductor extras are optional and not required for current app features).
 - Run the app:
   - VS Code task: “Run Shiny app to reproduce issues”.
-  - Or shell: `R -q -e "shiny::runApp('app/shiny_app', launch.browser=FALSE)"`.
+  - Or shell: `R -q -e "shiny::runApp('apps/islet', launch.browser=FALSE)"`.
 - Build `data/master_results.xlsx` from TSVs: `python scripts/build_master_excel.py` (expects `data/results/*.tsv` and `CODEX_Pancreas_Donors.xlsx`; writes `data/master_results.xlsx`).
 - Alternate donor compilation: `python scripts/compile_donors.py --input donors.zip --output out.xlsx [--donor-map-xlsx CODEX_Pancreas_Donors.xlsx]`.
 

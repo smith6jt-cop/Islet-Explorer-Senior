@@ -21,7 +21,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=5
-WorkingDirectory=/pubapps/<project>/prod/islet-explorer/app/shiny_app
+WorkingDirectory=/pubapps/<project>/prod/islet-explorer/apps/islet
 EnvironmentFile=/pubapps/<project>/prod/islet-explorer/deploy/env.sh
 ExecStart=/pubapps/<project>/prod/conda/bin/R --no-echo --no-restore --file=/pubapps/<project>/prod/islet-explorer/deploy/run.R
 StandardOutput=file:/pubapps/<project>/prod/logs/app.log

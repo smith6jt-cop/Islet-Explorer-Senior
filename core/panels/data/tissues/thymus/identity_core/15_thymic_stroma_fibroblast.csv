@@ -1,0 +1,41 @@
+gene,subtype_hint,evidence,note
+ADAMTS2,,cellxgene,marks lineage (CL)
+ADGRD1,,cellxgene,marks lineage (CL)
+ANGPTL7,,cellxgene,marks lineage (CL)
+BDKRB1,,cellxgene,marks lineage (CL)
+COCH,,cellxgene,marks lineage (CL)
+COL5A1,,both,canonical identity marker
+COL5A2,,both,canonical identity marker
+COL6A1,,canonical,canonical identity marker (CL-unannotated)
+DDR2,,cellxgene,marks lineage (CL)
+DPT,,both,canonical identity marker
+FAP,,both,canonical identity marker
+FGF7,,cellxgene,marks lineage (CL)
+FGFR4,,cellxgene,marks lineage (CL)
+GLA,,cellxgene,marks lineage (CL)
+GXYLT2,,cellxgene,marks lineage (CL)
+HSD11B1,,cellxgene,marks lineage (CL)
+IL11,,cellxgene,marks lineage (CL)
+IL1R1,,cellxgene,marks lineage (CL)
+LAMC1,,cellxgene,marks lineage (CL)
+MCTP2,,cellxgene,marks lineage (CL)
+MFAP5,,both,canonical identity marker
+MSC,,cellxgene,marks lineage (CL)
+NMB,,cellxgene,marks lineage (CL)
+PDGFRA,,both,canonical identity marker
+PDPN,,both,canonical identity marker
+PLEKHH2,,cellxgene,marks lineage (CL)
+POSTN,,both,canonical identity marker
+PRDM6,,cellxgene,marks lineage (CL)
+PRKD1,,cellxgene,marks lineage (CL)
+PRRX1,,cellxgene,marks lineage (CL)
+RAI14,,cellxgene,marks lineage (CL)
+RBMS1,,cellxgene,marks lineage (CL)
+RGS5,stellate,canonical,canonical identity marker (CL-unannotated)
+RSPO2,,cellxgene,marks lineage (CL)
+SLC5A5,,cellxgene,marks lineage (CL)
+SLITRK4,,cellxgene,marks lineage (CL)
+THBS2,,cellxgene,marks lineage (CL)
+THY1,,canonical,canonical identity marker (CL-unannotated)
+TRPC6,,cellxgene,marks lineage (CL)
+VEGFD,,cellxgene,marks lineage (CL)

@@ -1,0 +1,14 @@
+tissue_id: thymus
+display_name: "Human Thymus"
+reference_runs:
+  - "0041435"
+  - "0041534"
+use_shared_subpanels: false
+custom_panel:
+  file: custom_panel.csv
+  display_name: "T1D-GWAS custom 100"
+notes: |
+  Audit columns: detection_pct_<run>, n_cells_<run>,
+  log2_detection_ratio (between first two reference_runs),
+  exclude_recommended.
+

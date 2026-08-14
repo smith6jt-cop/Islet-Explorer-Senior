@@ -1,0 +1,100 @@
+gene,hIO_annotation,also_in_user_custom_100
+A2M,,FALSE
+ACTA2,Stromal Cell,TRUE
+ACTB,Cytoskeleton,FALSE
+AIF1,Macrophage,FALSE
+ANXA1,Receptor Ligand,FALSE
+APOE,,FALSE
+AREG,Mast Cell,FALSE
+ARPC3,,FALSE
+ARPC5,,FALSE
+C1QB,Monocyte;Complement,FALSE
+C1R,Tumor;Complement,FALSE
+C1S,Tumor;Complement,FALSE
+CCL2,Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,FALSE
+CCL21,Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,TRUE
+CCL3,T Cell;Effector Memory;Resident Memory;Activated;Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,FALSE
+CCL3L1,Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,FALSE
+CCL4,T Cell;Effector Memory;Resident Memory;Activated;Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,FALSE
+CCL5,T Cell;Effector Memory;Resident Memory;Activated;Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction,TRUE
+CD37,B Cell;CD Molecule,FALSE
+CD3D,T Cell;CD8+;Effector;CD Molecule,FALSE
+CD74,CD Molecule;Macrophage,TRUE
+CDK12,Tumorigenesis,FALSE
+CDKN2C,Macrophage;Phagocytosis;Immune Escape;Tumorigenesis,FALSE
+CDKN2D,Macrophage;Phagocytosis;Immune Escape;Tumorigenesis,FALSE
+CEACAM6,Epithelial Cell,FALSE
+CORO1A,T Cell;Macrophage;Apoptosis,FALSE
+COTL1,Tumor Suppression,FALSE
+CPA3,Mast Cell,FALSE
+CTSB,,FALSE
+CTSD,Tumor,FALSE
+CTSS,Tumor,FALSE
+CTSW,Tumor,FALSE
+CXCL1,Macrophage,FALSE
+CXCL14,Immune Cell Migration;Dendritic Cell;Chemokine,FALSE
+CXCL3,Oncogene,FALSE
+DCN,Fibroblast;Lineage Marker,FALSE
+DGKA,T Cell;Exhausted,FALSE
+DMBT1,Tumor Suppression,FALSE
+DUSP2,Tumorigenesis,FALSE
+ERBB4,Oncogene,FALSE
+FHIT,Tumor Supression,FALSE
+FLT1,Macrophage;Tumorigenesis;Metastasis,FALSE
+FN1,Fibroblast;Lineage Marker,FALSE
+FOS,Proto-Oncogene,FALSE
+G0S2,Cell Division,FALSE
+GNLY,T Cell;CD8+;Effector;Cytotoxic,FALSE
+GPR171,T Cell,FALSE
+GPR183,T Cell,FALSE
+HLA-B,,FALSE
+ID1,Tumorigenesis,FALSE
+ID2,Tumorigenesis,FALSE
+IFITM3,Tumorigenesis,TRUE
+IGFBP7,Oncogene,FALSE
+IGHG1,Plasma Cell,FALSE
+IGHG2,Plasma Cell,FALSE
+IGHG3,Plasma Cell,FALSE
+IGHG4,Plasmablast,FALSE
+IGHGP,Plasma Cell,FALSE
+IGHM,B Cell;Naive;Plasma Cell;Plasmablast,FALSE
+IGKC,Plasma Cell;Plasmablast,FALSE
+IGLC3,Plasmablast,FALSE
+IL22RA2,Immune Cell Regulation;T Cell,FALSE
+IL7R,T Cell;Survival;Memory,TRUE
+IRF2,,FALSE
+ISG15,,TRUE
+JCHAIN,Plasma Cell;Plasmablast,FALSE
+JUN,Proto-Oncogene,FALSE
+JUNB,Proto-Oncogene,FALSE
+KMT2C,,FALSE
+LTB,TNF Superfamily,TRUE
+LUM,Fibroblast,FALSE
+LY6E,,FALSE
+MCEMP1,Macrophage,FALSE
+MGP,,FALSE
+MIS18BP1,Monocyte;Non-Classical,FALSE
+MPEG1,Dendritic Cell;Plasmacytoid,FALSE
+NELL2,,FALSE
+NKG7,Natural Killer Cell,TRUE
+NOSIP,,FALSE
+PGA5,Chief Cell;Lineage Marker,FALSE
+PLD4,Dendritic Cell;Lineage Marker,FALSE
+PLEK,,FALSE
+PRDX4,Plasma Cell,FALSE
+PSMB10,,TRUE
+PTPRC,,TRUE
+REG4,Intestinal Cell;Lineage Marker,FALSE
+RGS1,,TRUE
+S100A9,Neutrophils,FALSE
+S100B,Dendritic Cell;Myeloid,FALSE
+SAMD3,Natural Killer Cell,FALSE
+SDC1,Plasma Cell,TRUE
+SPARC,,FALSE
+SPARCL1,,TRUE
+SSR4,Plasma Cell,FALSE
+TFF3,Intestinal;Lineage Marker,FALSE
+TRAT1,,FALSE
+TUBA1B,,FALSE
+TXLNA,,FALSE
+VCAN,Macrophage;M1,FALSE

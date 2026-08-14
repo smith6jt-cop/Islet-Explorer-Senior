@@ -1,0 +1,10 @@
+name: xenium-panel-explorer
+title: Xenium Panel Explorer (demo)
+username: kintsugi-pipeline
+account: kintsugi-pipeline
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17275438
+bundleId: 12029525
+url: https://kintsugi-pipeline.shinyapps.io/xenium-panel-explorer/
+version: 1

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "rules_version": "restore-simultaneous-broad-gates-v2",
+  "description": "Broad-lineage gate membership for simultaneous typing. Every gate is evaluated against the same RESTORE tri-state evidence and no gate has precedence over another: a cell supported by more than one gate is Ambiguous, not awarded to whichever gate is listed first. Gate membership must agree with each marker's registered broad_compartment.",
+  "gates": {
+    "Immune": [
+      "CD3e",
+      "CD68",
+      "CD79a",
+      "CD11c",
+      "Iba1",
+      "CD206",
+      "MPO",
+      "CD4",
+      "CD8"
+    ],
+    "Endothelial": [
+      "CD31",
+      "CD34",
+      "Podoplanin"
+    ],
+    "Epithelial": [
+      "E_cadherin",
+      "Pan_Cytokeratin",
+      "Ker8_18",
+      "EpCAM",
+      "Keratin_5",
+      "INS",
+      "GCG"
+    ],
+    "Neural": [
+      "B3TUBB"
+    ],
+    "Mesenchymal": [
+      "Vimentin",
+      "SMA"
+    ]
+  },
+  "other_label": "Other",
+  "ambiguous_label": "Ambiguous",
+  "unavailable_label": "Unavailable"
+}

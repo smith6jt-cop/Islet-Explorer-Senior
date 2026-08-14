@@ -1,17 +1,23 @@
 # Data and large binary outputs
-data/
-/data
+#
+# These are ANCHORED (leading slash) on purpose. A pattern whose only slash is a
+# trailing one matches at every depth, and git does not descend into an excluded
+# directory -- so an unanchored `data/` here would swallow core/phenocycler/data/
+# and make that subtree's own `!/data/integration/` negation unreachable. Its three
+# tracked CSVs would stay tracked (ignore rules never untrack), but every future
+# file under it would be silently invisible. Keep the slash.
+/data/
 pdfs/
 *.pdf
 *.Rout
 gson/
 single_cell_analysis/*.h5ad
 single_cell_analysis/*.tsv
-app/shiny_app/www/local_images/
-app/shiny_app/www/local_images
+apps/islet/www/local_images/
+apps/islet/www/local_images
 local_images/
-app/shiny_app/Channel_names.junior35.bak
-app/shiny_app/www/segmentation_data/
+apps/islet/Channel_names.junior35.bak
+apps/islet/www/segmentation_data/
 AI_Markdown/
 analysis_output/*
 islet_analysis/
@@ -21,7 +27,7 @@ figures/*
 # R workspace and environment files
 .RData
 .Rhistory
-app/shiny_app/.Renviron
+apps/islet/.Renviron
 .Renviron
 # Filled-in PubApps EnvironmentFile (may hold secrets if AI is re-enabled); template is deploy/env.sh.example
 deploy/env.sh
@@ -36,12 +42,14 @@ notebooks/*_executed.ipynb
 notebooks/*.png
 
 # App runtime flags
-app/shiny_app/APP_LOADED_FLAG
-app/shiny_app/R/APP_LOADED_FLAG
+apps/islet/APP_LOADED_FLAG
+apps/islet/R/APP_LOADED_FLAG
 
 # Temporary files
 tmp/
-HANDOFF*
+# Anchored: unanchored, this hid core/phenocycler/docs/HANDOFF_*.md at any depth --
+# and the consolidation docs reference those by name.
+/HANDOFF*
 scratch_recovered*
 
 # Virtual environments and caches
@@ -64,7 +72,16 @@ scripts/tools/
 
 # Vendored third-party code (cloned, not committed; see scripts/CLAUDE.md for the
 # clone command + pinned commit, e.g. external/RESTORE @ 38df59b)
-external/
+# Anchored so it cannot shadow a subtree's own external/ directory.
+/external/
+
+# Test and agent caches (previously untracked but NOT ignored, so they would have
+# been swept into the monorepo by the first `git add -A`)
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.agents/
+.codex/
 
 # Large package files
 *.deb

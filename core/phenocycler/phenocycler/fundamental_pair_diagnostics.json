@@ -1,0 +1,33 @@
+{
+  "schema_version": 3,
+  "roster_version": "fundamental-qupath-input-pairs-v4",
+  "method_status": "development_mutable",
+  "description": "Two upstream QuPath input comparisons for fundamental cell-type troubleshooting. Iba1 uses QuPath's acquisition-normalized cell measurement; CD3e and Ker8_18 use raw QuPath cell means. CD79a is excluded as a pair candidate because its expression is too sparse in normal tissue. Mixed scales are evaluated by rank and are never treated as RESTORE-normalized calls.",
+  "required_tail_quantiles": [0.9, 0.95, 0.99, 0.995, 0.999],
+  "pairs": [
+    {
+      "target": "CD3e",
+      "target_column": "CD3e",
+      "target_source_measurement": "Cell: CD3e: Mean",
+      "target_source_kind": "qupath_raw_cell_mean",
+      "target_class": "T_cell",
+      "reference": "Ker8_18",
+      "reference_column": "Ker8_18",
+      "reference_source_measurement": "Cell: Ker8-18: Mean",
+      "reference_source_kind": "qupath_raw_cell_mean",
+      "reference_class": "Epithelial"
+    },
+    {
+      "target": "Iba1",
+      "target_column": "Iba1_norm",
+      "target_source_measurement": "Cell: Iba1: Mean (norm)",
+      "target_source_kind": "qupath_acquisition_normalized_cell_mean",
+      "target_class": "Myeloid",
+      "reference": "Ker8_18",
+      "reference_column": "Ker8_18",
+      "reference_source_measurement": "Cell: Ker8-18: Mean",
+      "reference_source_kind": "qupath_raw_cell_mean",
+      "reference_class": "Epithelial"
+    }
+  ]
+}

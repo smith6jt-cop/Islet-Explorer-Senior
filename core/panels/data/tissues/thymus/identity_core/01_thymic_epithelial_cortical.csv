@@ -1,0 +1,14 @@
+gene,subtype_hint,evidence,note
+ASCL1,neuroendocrine,both,canonical identity marker
+CCL25,cTEC,both,canonical identity marker
+DLL4,,canonical,canonical identity marker (CL-unannotated)
+ENPEP,cTEC,canonical,canonical identity marker (CL-unannotated)
+EPCAM,,canonical,canonical identity marker (CL-unannotated)
+FOXN1,,both,canonical identity marker
+LY75,cTEC,both,canonical identity marker
+MGMT,,cellxgene,marks lineage (CL)
+PAX1,,both,canonical identity marker
+PITHD1,,cellxgene,marks lineage (CL)
+PRSS16,cTEC,both,canonical identity marker
+PSMB11,cTEC,canonical,canonical identity marker (CL-unannotated)
+SIX1,,cellxgene,marks lineage (CL)

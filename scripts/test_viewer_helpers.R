@@ -6,7 +6,7 @@
 # viewer_helpers.R and eval only the function definitions we care about.
 project_root <- NULL
 
-exprs <- parse("app/shiny_app/R/viewer_helpers.R")
+exprs <- parse("apps/islet/R/viewer_helpers.R")
 wanted <- c("resolve_viewer_backend", "resolve_tissuumaps_base",
             "resolve_tissuumaps_project_dir", "list_available_tmap_projects",
             "build_tissuumaps_iframe_url")

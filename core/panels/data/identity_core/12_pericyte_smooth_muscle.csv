@@ -1,0 +1,10 @@
+gene,subtype_hint,evidence,note
+ABCC9,pericyte,both,canonical identity marker
+CSPG4,pericyte,both,canonical identity marker
+KCNJ8,pericyte,both,canonical identity marker
+LGR6,,cellxgene,marks lineage (CL)
+MCAM,pericyte,both,canonical identity marker
+MYLK,SMC,both,canonical identity marker
+NOTCH3,pericyte,both,canonical identity marker
+PDGFRB,pericyte,both,canonical identity marker
+RGS5,pericyte,both,canonical identity marker

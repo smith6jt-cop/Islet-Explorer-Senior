@@ -1,0 +1,19 @@
+gene,subtype_hint,evidence,note
+ABCC8,beta,both,canonical identity marker
+ADCYAP1,beta,both,canonical identity marker
+ARX,alpha,both,canonical identity marker
+CUTA,,cellxgene,marks lineage (CL)
+FEV,,both,canonical identity marker
+HHEX,delta,both,canonical identity marker
+INSM1,,both,canonical identity marker
+ISL1,,both,canonical identity marker
+KCNJ11,beta,canonical,canonical identity marker (CL-unannotated)
+MAFB,alpha,canonical,canonical identity marker (CL-unannotated)
+NEUROD1,,both,canonical identity marker
+PAX6,,both,canonical identity marker
+PCSK1,,both,canonical identity marker
+PDX1,beta,both,canonical identity marker
+SCG2,,both,canonical identity marker
+SCG5,,both,canonical identity marker
+SELENOT,,cellxgene,marks lineage (CL)
+SLC30A8,beta,both,canonical identity marker
