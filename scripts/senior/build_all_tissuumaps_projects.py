@@ -176,8 +176,9 @@ def main() -> int:
     excluded, source = read_exclusions()
     if not excluded:
         log(f"ERROR: could not import the central donor exclusions ({source}). "
-            f"Refusing to guess — run `git submodule update --init Phenocycler_Analysis`, "
-            f"or pass --cases explicitly if you know what you are doing.")
+            f"Refusing to guess — check that core/phenocycler/phenocycler/cohort.py is "
+            f"present and importable, or pass --cases explicitly if you know what you "
+            f"are doing.")
         if not args.cases:
             return 1
 
