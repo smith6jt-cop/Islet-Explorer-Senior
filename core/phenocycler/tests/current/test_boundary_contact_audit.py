@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -93,7 +94,13 @@ def test_default_pair_roster_and_explicit_iba1_display_mapping():
     assert selection_source_kind("Iba1_norm") == ("qupath_acquisition_normalized_cell_mean")
     assert selection_source_measurement("Ker8_18") == "Cell: Ker8-18: Mean"
     assert DEFAULT_LABEL == "boundary_contact_diagnostics"
-    assert DEFAULT_DEVELOPMENT_ROOT.as_posix().endswith("/data/development")
+    # Not just "ends with /data/development": that passed even when the monorepo move
+    # silently repointed this from the repo root to core/data/development, which would have
+    # orphaned every existing development artifact. Pin it to the actual repo root, which is
+    # two levels above the package. From this file: tests/current -> tests ->
+    # core/phenocycler -> core -> repo root.
+    repo_root = Path(__file__).resolve().parents[4]
+    assert DEFAULT_DEVELOPMENT_ROOT == repo_root / "data" / "development"
 
 
 def test_boundary_defaults_follow_a_reduced_shared_roster(tmp_path):

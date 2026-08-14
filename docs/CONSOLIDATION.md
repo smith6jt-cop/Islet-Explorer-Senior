@@ -9,29 +9,35 @@ per-file ownership decisions, the archive list, and the reconciled rule hierarch
 > bridge) and requires Phase 4 to be rewritten. The layout, ownership table and archive list
 > below are unaffected.
 >
-> **Status 2026-08-14:** the retirement is **committed and pushed** (four commits on
-> `Phenocycler_Analysis` branch `agent/retire-typing-lane`), so Phase 2 is unblocked once that
-> branch reaches `main`. Read § "Corrections from the 2026-08-14 audit" at the end of this file
-> before executing Phase 2 — it lists five wrong statements in the earlier record and three
-> ways to lose data or leak a secret.
+> **Status 2026-08-14:** the retirement is merged to `main`, and **Phase 2 is complete**
+> (PR #14, branch `consolidate/phase-2`). The layout below is now real: there are no
+> submodules and no `.gitmodules`. Read § "Corrections from the 2026-08-14 audit" and
+> § "What Phase 2 actually found" at the end of this file before executing Phase 3.
 
 Backups: `/home/smith6jt/repo-backups/2026-08-13/` — seven verified bundles plus working-tree
 snapshots for the two dirty repos. See that directory's `README.md`.
 
 ## Target layout
 
+`[done]` marks what Phase 2 actually created; the rest is still target.
+
 ```
 islet-explorer/                  (this repo, reshaped)
-  core/phenocycler/      Python package incl. integration/ — the scientific authority
-  core/panels/           XeniumPanelExplorer: panel taxonomy data + its app
-  core/bridge/           run -> H5AD -> app aggregates
+  core/phenocycler/      [done] Python package incl. integration/ — the scientific authority
+  core/panels/           [done] XeniumPanelExplorer: panel taxonomy data + its app
+  core/bridge/           run -> H5AD -> app aggregates     (VOID until a verified run exists)
   analysis/xenium/       Xenium notebooks on the shared cell-table contract
   analysis/follicle/     SpleenFollicleCounterQP
   apps/R/ieCore/         shared R package: domain config, theme, stats, helpers
-  apps/islet/            the unified Shiny app
+  apps/islet/            [done] the unified Shiny app
   apps/lymph/            a domain config + data dir, not a fork
-  deploy/ docs/ data/
+  deploy/ docs/ data/    [done]
 ```
+
+`core/bridge/` is listed for completeness only. The handoff records Phase 1 as void: three of
+its five inputs no longer exist, and `CLAUDE.md` forbids describing the legacy H5AD rebuild as
+current. A consequence to keep in view — `data/app_data/` does not exist, so **the Shiny app
+cannot currently load data**. That is a known, accepted state, not a regression from Phase 2.
 
 ## Ground rules
 
@@ -98,10 +104,12 @@ Target:
    ID by HDL prefix", implemented at `analysis/data_utils.py:62` with a hardcoded
    `_ALT_TO_HANDEL` map at `:48`). The root rule forbids exactly this. The guidance is deleted
    and the code replaced by a manifest lookup in Phase 3.
-3. **"There is exactly one `config.ini`, and it is the submodule's"** becomes false the moment
-   the submodule is dissolved. Restate as: `core/phenocycler/config.ini` is the pipeline
-   authority; `analysis/xenium/config.ini` is a reference mirror whose live values come from
-   `XENIUM_*` env vars, and it must be labelled as such or deleted.
+3. **"There is exactly one `config.ini`, and it is the submodule's"** — **now false**, as of
+   Phase 2. There is no submodule. `core/phenocycler/config.ini` is the pipeline authority and
+   the root `CLAUDE.md` still needs updating to say so (its "Run it from
+   `Phenocycler_Analysis/`" instructions are stale). When `analysis/xenium/` lands, its
+   `config.ini` is a reference mirror whose live values come from `XENIUM_*` env vars, and it
+   must be labelled as such or deleted.
 4. **Xenium's numbered "do not regress" decisions** are referenced by number across its docs
    ("decisions #16/#17"). Renumbering breaks those references — carry the list across intact.
 
@@ -165,3 +173,52 @@ Five statements elsewhere in the consolidation record are wrong. Correct version
 - The root `.gitignore` `data/` pattern (no leading slash) matches at **any depth**, so it would
   shadow `core/phenocycler/data/` and make that subtree's own `!/data/integration/` negation
   unreachable. Anchor it to `/data/`, and anchor `external/` and `HANDOFF*` too.
+
+## What Phase 2 actually found (2026-08-14)
+
+Executed as PR #14. Order run: preflight → anchor `.gitignore` → dissolve submodule →
+subtree `core/phenocycler` (full history, 117 commits) → subtree `core/panels` (squashed) →
+drop the nested gitlink → CI → `git mv` the app → restore the data last.
+
+**The data survived intact.** 157,857,924,055 bytes, 48 top-level entries, top-level listing
+identical to the pre-flight invariant. Both runs present (`3bf4fc8e…` 99G, `c8412757…` 121G,
+all stages). `df` was unchanged across both moves, confirming `rename(2)` rather than copy.
+
+Four things were true only once the work was underway:
+
+1. **The subtree import fixed the private-submodule problem outright.** `core/panels` is now
+   vendored, so the taxonomy is always present. Integration went from *214 passed / 18
+   skipped* to *229 passed / 3 skipped*, and the `PANEL_EXPLORER_TOKEN` workaround plus the
+   non-fatal fetch are no longer needed — the strict zero-skip contract is restored.
+2. **setuptools-scm broke silently on the move, in the opposite way to what was predicted.**
+   It does *not* walk up to find a git root and start counting monorepo commits; it finds no
+   root at all and emits `fallback_version` (`0.0.0+unknown`) — which CI asserts against, so
+   this was a red build waiting to happen, not a cosmetic version drift. Fixed with
+   `root = "../.."` plus `phenocycler-v*` tag namespacing.
+3. **The nested gitlink was worse than inert.** A mode-160000 entry at
+   `core/phenocycler/external/XeniumPanelExplorer` made `git submodule status` fail outright
+   ("no submodule mapping found"), because git reads `.gitmodules` only at the worktree root.
+4. **`.Renviron` was already safe.** The exact-path ignore rule was not its only protection —
+   a bare `.Renviron` pattern matches at any depth. The exact-path lines were repointed
+   anyway, since silently-stale rules are not something to leave to chance.
+
+Confirmed as designed: the three grep forms find genuinely different sets (the split-pathlib
+site at `scripts/senior/tissuumaps_smoke_test.py:43` is invisible to a literal search); the 16
+depth-2 R data paths survive the move because `apps/islet` is still exactly 2 levels deep, and
+`islet-r.yml` now asserts that; `git subtree` cannot sweep in ignored data, because
+`read-tree --prefix` reads a commit's tree and never consults the working directory.
+
+### Left deliberately undone
+
+- **No `phenocycler-v*` tag.** No `v*` tag has ever existed in that project, and a published
+  version cannot be reused, so the first version number is a decision rather than a guess.
+  The current version is `0.0.1.dev<N>+g<sha>`, which satisfies CI and still pins the exact
+  commit; the dev distance counts monorepo commits until a tag exists.
+- **`/home/smith6jt/IO60panc2nd/Phenocycler_Analysis.preserved` and
+  `.git/modules/Phenocycler_Analysis` are retained** as rollback assets until Phase 2 sign-off.
+- **Production untouched.** `/srv/shiny-server/islet-explorer` points at the Junior checkout,
+  so this rename structurally cannot affect it. Cutover remains Phase 6.
+
+> **After the data was restored, `git reset --hard` and `git clean -xfd` are no longer safe in
+> this repository** — 157.9 GB of untracked, ignored data now sits under `core/phenocycler/data/`.
+> Roll back with `git revert`.

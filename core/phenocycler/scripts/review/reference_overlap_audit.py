@@ -36,7 +36,7 @@ from scripts.review.qupath_fundamental_inputs import (  # noqa: E402
 )
 
 DEFAULT_ROSTER = REPO / "phenocycler" / "fundamental_pair_diagnostics.json"
-DEFAULT_OUTPUT_ROOT = REPO.parent / "data" / "development"
+DEFAULT_OUTPUT_ROOT = REPO.parents[1] / "data" / "development"
 METHOD_VERSION = "qupath-input-rank-overlap-development-v4"
 WORKSPACE_MARKER = ".reference_overlap_workspace"
 TAIL_QUANTILES = (0.9, 0.95, 0.99, 0.995, 0.999)

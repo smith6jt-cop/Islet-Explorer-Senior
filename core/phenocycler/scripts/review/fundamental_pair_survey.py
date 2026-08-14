@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
-WORKSPACE = REPO.parent
+WORKSPACE = REPO.parents[1]
 sys.path.insert(0, str(REPO))
 
 from scripts.review.qupath_fundamental_inputs import (  # noqa: E402

@@ -4,7 +4,7 @@
 
 This repository contains two related but separate systems:
 
-1. `Phenocycler_Analysis/` currently produces UUID-keyed upstream expression
+1. `core/phenocycler/` currently produces UUID-keyed upstream expression
    data from raw QuPath exports. It does not currently produce verified marker
    calls or cell identities.
 2. `apps/islet/` serves aggregated islet, spatial, trajectory, and
@@ -28,7 +28,7 @@ must not define thresholds, pairs, or train the source workflow.
   Do not substitute centroid matching or donor-name parsing.
 - A missing measurement is unavailable, not zero or negative.
 - Donors `6457` and `6579` are centrally excluded in
-  `Phenocycler_Analysis/phenocycler/cohort.py`. Configuration must not bypass
+  `core/phenocycler/phenocycler/cohort.py`. Configuration must not bypass
   those exclusions.
 
 ## Authoritative Phenocycler workflow
@@ -47,38 +47,38 @@ Ordinary execution stops after expression. Pair-dependent `controls`,
 `calibrate`, `type`, state calling, and assignment export are blocked. The
 run/stage manifest architecture remains authoritative for upstream stages.
 
-Run it **from `Phenocycler_Analysis/`**, which owns the only real `config.ini`:
+Run it **from `core/phenocycler/`**, which owns the only real `config.ini`:
 
 ```bash
-python -m pip install -e Phenocycler_Analysis
-cd Phenocycler_Analysis
+python -m pip install -e core/phenocycler
+cd core/phenocycler
 python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
 
-There is exactly one `config.ini`, and it is the submodule's. A repo-root copy
-existed until 2026-08-10 with no `[restore]` section at all, so running the
-command from the repository root silently fell back to the stale defaults it
-omitted. If a root `config.ini` ever reappears, it is a bug.
+There is exactly one `config.ini`, and it is `core/phenocycler/config.ini`. A
+repo-root copy existed until 2026-08-10 with no `[restore]` section at all, so
+running the command from the repository root silently fell back to the stale
+defaults it omitted. If a root `config.ini` ever reappears, it is a bug.
 
 Raw CSV, qptiff, cell/nucleus geometry, pixel calibration, channel mapping,
 panel identity, and segmentation version belong in
-`Phenocycler_Analysis/data/qupath_manifest.json`. Generated results live under
-`Phenocycler_Analysis/data/runs/<run_id>/`; stages and runs are immutable and
-content addressed. Active mutable review artifacts live under
-`Phenocycler_Analysis/../data/development/`; they never write a stage manifest
-or mutate `data/runs/`. Only the ingest/geometry and REDSEA/expression notebooks
+`core/phenocycler/data/qupath_manifest.json`. Generated results live under
+`core/phenocycler/data/runs/<run_id>/`; stages and runs are immutable and
+content addressed. Active mutable review artifacts live under the repo-root
+`data/development/` — a level above `core/`, not inside the package; they never
+write a stage manifest or mutate `data/runs/`. Only the ingest/geometry and REDSEA/expression notebooks
 describe current stages. Calibration, hierarchical/probabilistic typing,
 marker-debug, and Otsu material is historical.
 
 Authoritative documentation:
 
-- `Phenocycler_Analysis/README.md`
-- `Phenocycler_Analysis/docs/WORKFLOW.md`
-- `Phenocycler_Analysis/DATA_README.md`
-- `Phenocycler_Analysis/docs/METHOD_HISTORY.md`
-- `Phenocycler_Analysis/phenocycler/marker_registry.json`
-- `Phenocycler_Analysis/phenocycler/fundamental_pair_diagnostics.json`
+- `core/phenocycler/README.md`
+- `core/phenocycler/docs/WORKFLOW.md`
+- `core/phenocycler/DATA_README.md`
+- `core/phenocycler/docs/METHOD_HISTORY.md`
+- `core/phenocycler/phenocycler/marker_registry.json`
+- `core/phenocycler/phenocycler/fundamental_pair_diagnostics.json`
 
 The mutable diagnostic roster contains only raw CD3e/Ker8_18 and exact signed
 QuPath Iba1_norm/raw Ker8_18. CD79a is excluded as a pair candidate because its
@@ -170,8 +170,10 @@ server as a production deployment test.
 
 ## Source-control hygiene
 
-- Commit the `Phenocycler_Analysis` submodule first, push it, then commit the
-  parent submodule pointer.
+- There are no submodules. `Phenocycler_Analysis` and `XeniumPanelExplorer`
+  became the `core/phenocycler` and `core/panels` subtrees in Phase 2, so the
+  old "commit the submodule first, then the pointer" rule is retired. One
+  commit now covers a change and its tests.
 - Do not mix generated `data/`, run manifests, notebooks with outputs, caches,
   or local model/image paths into Git.
 - When replacing a workflow, remove obsolete live entrypoints and rely on Git

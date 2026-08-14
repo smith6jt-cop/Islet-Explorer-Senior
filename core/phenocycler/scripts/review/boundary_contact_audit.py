@@ -71,7 +71,7 @@ from scripts.review.qupath_fundamental_inputs import (  # noqa: E402
 SCRATCH_AVAILABLE = "AVAILABLE"
 SCRATCH_MISSING = "MISSING"
 SCRATCH_INVALID = "INVALID_SCRATCH"
-DEFAULT_DEVELOPMENT_ROOT = REPOSITORY.parent / "data" / "development"
+DEFAULT_DEVELOPMENT_ROOT = REPOSITORY.parents[1] / "data" / "development"
 DEFAULT_LABEL = "boundary_contact_diagnostics"
 
 REQUIRED_SCRATCH_KEYS = frozenset({"oids", "m_data", "m_indices", "m_indptr", "m_shape"})

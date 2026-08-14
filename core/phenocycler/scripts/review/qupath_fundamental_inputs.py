@@ -33,7 +33,7 @@ import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-WORKSPACE = REPO.parent
+WORKSPACE = REPO.parents[1]
 DEFAULT_SPEC = REPO / "cohort-spec.json"
 DEFAULT_OUTPUT_ROOT = WORKSPACE / "data" / "development" / "qupath_fundamental_inputs"
 METHOD_VERSION = "qupath-fundamental-input-projection-v3"
