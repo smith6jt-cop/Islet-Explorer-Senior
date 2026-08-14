@@ -1,0 +1,86 @@
+gene,hIO_annotation
+A2M,
+ACTB,Cytoskeleton
+AIF1,Macrophage
+ANXA1,Receptor Ligand
+APOE,
+AREG,Mast Cell
+ARPC3,
+ARPC5,
+C1QB,Monocyte;Complement
+C1R,Tumor;Complement
+C1S,Tumor;Complement
+CCL2,Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction
+CCL3,T Cell;Effector Memory;Resident Memory;Activated;Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction
+CCL3L1,Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction
+CCL4,T Cell;Effector Memory;Resident Memory;Activated;Cytokines & Growth Factors;Chemokine Ligand;Cytokine-Cytokine-Receptor Interaction
+CD37,B Cell;CD Molecule
+CD3D,T Cell;CD8+;Effector;CD Molecule
+CDK12,Tumorigenesis
+CDKN2C,Macrophage;Phagocytosis;Immune Escape;Tumorigenesis
+CDKN2D,Macrophage;Phagocytosis;Immune Escape;Tumorigenesis
+CEACAM6,Epithelial Cell
+CORO1A,T Cell;Macrophage;Apoptosis
+COTL1,Tumor Suppression
+CPA3,Mast Cell
+CTSB,
+CTSD,Tumor
+CTSS,Tumor
+CTSW,Tumor
+CXCL1,Macrophage
+CXCL14,Immune Cell Migration;Dendritic Cell;Chemokine
+CXCL3,Oncogene
+DCN,Fibroblast;Lineage Marker
+DGKA,T Cell;Exhausted
+DMBT1,Tumor Suppression
+DUSP2,Tumorigenesis
+ERBB4,Oncogene
+FHIT,Tumor Supression
+FLT1,Macrophage;Tumorigenesis;Metastasis
+FN1,Fibroblast;Lineage Marker
+FOS,Proto-Oncogene
+G0S2,Cell Division
+GNLY,T Cell;CD8+;Effector;Cytotoxic
+GPR171,T Cell
+GPR183,T Cell
+HLA-B,
+ID1,Tumorigenesis
+ID2,Tumorigenesis
+IGFBP7,Oncogene
+IGHG1,Plasma Cell
+IGHG2,Plasma Cell
+IGHG3,Plasma Cell
+IGHG4,Plasmablast
+IGHGP,Plasma Cell
+IGHM,B Cell;Naive;Plasma Cell;Plasmablast
+IGKC,Plasma Cell;Plasmablast
+IGLC3,Plasmablast
+IL22RA2,Immune Cell Regulation;T Cell
+IRF2,
+JCHAIN,Plasma Cell;Plasmablast
+JUN,Proto-Oncogene
+JUNB,Proto-Oncogene
+KMT2C,
+LUM,Fibroblast
+LY6E,
+MCEMP1,Macrophage
+MGP,
+MIS18BP1,Monocyte;Non-Classical
+MPEG1,Dendritic Cell;Plasmacytoid
+NELL2,
+NOSIP,
+PGA5,Chief Cell;Lineage Marker
+PLD4,Dendritic Cell;Lineage Marker
+PLEK,
+PRDX4,Plasma Cell
+REG4,Intestinal Cell;Lineage Marker
+S100A9,Neutrophils
+S100B,Dendritic Cell;Myeloid
+SAMD3,Natural Killer Cell
+SPARC,
+SSR4,Plasma Cell
+TFF3,Intestinal;Lineage Marker
+TRAT1,
+TUBA1B,
+TXLNA,
+VCAN,Macrophage;M1

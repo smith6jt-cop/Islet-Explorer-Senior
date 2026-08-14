@@ -1,0 +1,4 @@
+# NOT_CRAN=true allows tests that internally call testthat::skip_on_cran
+# (notably shinytest2::AppDriver) to actually run during local
+# development. Mirrors CLAUDE_CODE_ENV.md §2 guidance.
+NOT_CRAN=true

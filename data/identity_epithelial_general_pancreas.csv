@@ -1,0 +1,381 @@
+source,subpanel,gene,lineage_hint,cl_terms
+pancreas,01_pancreas_endocrine,CASR,Endocrine,kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle medullary thick ascending limb epithelial cell;kidney loop of Henle cortical thick ascending limb epithelial cell;kidney epithelial cell
+pancreas,01_pancreas_endocrine,ERP27,Endocrine,kidney collecting duct intercalated cell;pancreatic acinar cell;acinar cell;parietal epithelial cell
+pancreas,01_pancreas_endocrine,FOXA1,Endocrine,brush cell of bronchus
+pancreas,01_pancreas_endocrine,FOXA2,Endocrine,pulmonary neuroendocrine cell;large intestine goblet cell;colon goblet cell;PP cell
+pancreas,01_pancreas_endocrine,GATA6,Endocrine,mesothelial cell
+pancreas,01_pancreas_endocrine,HNF1B,Endocrine,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney epithelial cell
+pancreas,01_pancreas_endocrine,HNF4A,Endocrine,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;transit amplifying cell of small intestine
+pancreas,01_pancreas_endocrine,IFT57,Endocrine,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;lung multiciliated epithelial cell
+pancreas,01_pancreas_endocrine,ITGAV,Endocrine,pigmented ciliary epithelial cell;kidney glomerular epithelial cell;podocyte;retinal pigment epithelial cell
+pancreas,01_pancreas_endocrine,ITGB6,Endocrine,epithelial cell;luminal epithelial cell of mammary gland;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+pancreas,01_pancreas_endocrine,MNX1,Endocrine,type EC enteroendocrine cell
+pancreas,01_pancreas_endocrine,NKX3-1,Endocrine,Sertoli cell;brush cell of bronchus;epithelial cell of prostate;luminal cell of prostate epithelium
+pancreas,01_pancreas_endocrine,PAPPA2,Endocrine,non-pigmented ciliary epithelial cell;enteroendocrine cell of colon;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney loop of Henle epithelial cell
+pancreas,01_pancreas_endocrine,SLC23A2,Endocrine,pigmented epithelial cell;pigmented ciliary epithelial cell;anterior lens cell;retinal pigment epithelial cell
+pancreas,01_pancreas_endocrine,TNFRSF12A,Endocrine,duct epithelial cell;pancreatic ductal cell;luminal epithelial cell of mammary gland;mesothelial cell of pleura;epithelial cell of prostate;basal cell of prostate epithelium
+pancreas,01_pancreas_endocrine,TPH1,Endocrine,neuroendocrine cell;chromaffin cell;type EC enteroendocrine cell;pulmonary neuroendocrine cell;intestinal enteroendocrine cell;enteroendocrine cell of small intestine
+pancreas,02_pancreas_exocrine,ANPEP,Exocrine,intestinal crypt stem cell of small intestine;ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine
+pancreas,02_pancreas_exocrine,ANXA2,Exocrine,basal cell of epithelium of bronchus;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;bronchial epithelial cell;epithelial cell of urethra;conjunctival epithelial cell
+pancreas,02_pancreas_exocrine,AQP5,Exocrine,epithelial cell;epithelial cell of lacrimal sac;glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell;tracheal goblet cell
+pancreas,02_pancreas_exocrine,ATP1A1,Exocrine,intestinal crypt stem cell of small intestine;enterocyte of epithelium of small intestine;intrahepatic cholangiocyte;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;pulmonary ionocyte
+pancreas,02_pancreas_exocrine,CXCL6,Exocrine,intrahepatic cholangiocyte;epithelial cell of prostate;basal cell of prostate epithelium;club cell
+pancreas,02_pancreas_exocrine,ERP27,Exocrine,kidney collecting duct intercalated cell;type B pancreatic cell;acinar cell;parietal epithelial cell
+pancreas,02_pancreas_exocrine,LAD1,Exocrine,keratinocyte;stratified epithelial cell;epidermal cell
+pancreas,02_pancreas_exocrine,MUC5B,Exocrine,intestinal crypt stem cell of colon;lung goblet cell;intestine goblet cell;large intestine goblet cell;colon goblet cell;epithelial cell of large intestine
+pancreas,02_pancreas_exocrine,PDIA2,Exocrine,glandular secretory epithelial cell;paneth cell;acinar cell
+pancreas,02_pancreas_exocrine,SDC4,Exocrine,duct epithelial cell;luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;mammary gland epithelial cell
+pancreas,02_pancreas_exocrine,SERPINA5,Exocrine,duct epithelial cell;intrahepatic cholangiocyte;Sertoli cell;mesothelial cell;kidney distal convoluted tubule epithelial cell
+pancreas,02_pancreas_exocrine,SLC3A1,Exocrine,ciliated epithelial cell;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell
+pancreas,02_pancreas_exocrine,TNFRSF12A,Exocrine,duct epithelial cell;luminal epithelial cell of mammary gland;mesothelial cell of pleura;pancreatic D cell;epithelial cell of prostate;basal cell of prostate epithelium
+shared,16_epithelial_general,ABCA3,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,ABCC3,Epithelial,cholangiocyte;intrahepatic cholangiocyte;basal epithelial cell of prostatic duct;paneth cell of epithelium of small intestine;hepatocyte;periportal region hepatocyte
+shared,16_epithelial_general,ABCC8,Epithelial,pancreatic endocrine cell;type B pancreatic cell;pancreatic D cell;pancreatic PP cell;glandular secretory epithelial cell;enteroendocrine cell
+shared,16_epithelial_general,ABHD11,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,ABTB2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell;cortical cell of adrenal gland;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,ACE,Epithelial,epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,ACE2,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of small intestine;columnar/cuboidal epithelial cell;type L enteroendocrine cell;intestinal epithelial cell
+shared,16_epithelial_general,ACSL4,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;intestinal tuft cell;tuft cell of colon;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,ADAMTS19,Epithelial,interstitial cell of Cajal;taste receptor cell;cortical cell of adrenal gland;kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,AGER,Epithelial,epithelial cell;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,AGR3,Epithelial,epithelial cell;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;intestine goblet cell
+shared,16_epithelial_general,AIRE,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,AKR1C3,Epithelial,intestinal crypt stem cell of small intestine;enterocyte of epithelium of small intestine;intrahepatic cholangiocyte;paneth cell of epithelium of small intestine;urothelial cell;bladder urothelial cell
+shared,16_epithelial_general,AMH,Epithelial,duct epithelial cell;Sertoli cell;squamous epithelial cell;mesothelial cell
+shared,16_epithelial_general,ANKRD30A,Epithelial,epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,ANPEP,Epithelial,intestinal crypt stem cell of small intestine;ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine
+shared,16_epithelial_general,ANXA2,Epithelial,basal cell of epithelium of bronchus;pancreatic ductal cell;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;bronchial epithelial cell;epithelial cell of urethra
+shared,16_epithelial_general,APOB,Epithelial,epithelial cell;ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine
+shared,16_epithelial_general,APOL6,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,APOM,Epithelial,epithelial cell of proximal tubule
+shared,16_epithelial_general,AQP5,Epithelial,epithelial cell;epithelial cell of lacrimal sac;glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell;tracheal goblet cell
+shared,16_epithelial_general,ARG2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell
+shared,16_epithelial_general,ATF3,Epithelial,ileal goblet cell;paneth cell of epithelium of small intestine;epithelial cell of uterus
+shared,16_epithelial_general,ATOH8,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,ATP1A1,Epithelial,intestinal crypt stem cell of small intestine;enterocyte of epithelium of small intestine;pancreatic ductal cell;intrahepatic cholangiocyte;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,BACE2,Epithelial,basal epithelial cell of prostatic duct;lung goblet cell;luminal cell of prostate epithelium
+shared,16_epithelial_general,BAIAP2,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,BBC3,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;epithelial cell of uterus;mammary gland epithelial cell
+shared,16_epithelial_general,BCAM,Epithelial,pulmonary neuroendocrine cell;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pancreatic PP cell;pancreatic epsilon cell;PP cell
+shared,16_epithelial_general,BCL10,Epithelial,luminal epithelial cell of mammary gland;epithelial cell of uterus;mammary gland epithelial cell;epithelial cell of urethra
+shared,16_epithelial_general,BCL2L13,Epithelial,corneal epithelial cell
+shared,16_epithelial_general,BNIP3,Epithelial,pancreatic acinar cell;cortical thymic epithelial cell;ovarian surface epithelial cell
+shared,16_epithelial_general,C5,Epithelial,intrahepatic cholangiocyte;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;hepatocyte;periportal region hepatocyte;midzonal region hepatocyte
+shared,16_epithelial_general,CA12,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,CA4,Epithelial,paneth cell;paneth cell of colon;epithelial cell of large intestine;colon epithelial cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,CA9,Epithelial,ovarian surface epithelial cell
+shared,16_epithelial_general,CASP7,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,CASR,Epithelial,pancreatic D cell;kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle medullary thick ascending limb epithelial cell;kidney loop of Henle cortical thick ascending limb epithelial cell
+shared,16_epithelial_general,CBR1,Epithelial,enterocyte;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;pulmonary ionocyte;paneth cell of epithelium of small intestine
+shared,16_epithelial_general,CCDC170,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;respiratory tract epithelial cell;epithelial cell of lower respiratory tract;bronchial epithelial cell
+shared,16_epithelial_general,CCL15,Epithelial,enterocyte of epithelium of large intestine;colonocyte;intestine goblet cell;large intestine goblet cell;colon goblet cell;paneth cell
+shared,16_epithelial_general,CCL20,Epithelial,pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;paneth cell;M cell of gut;club cell;epithelial cell of urethra
+shared,16_epithelial_general,CCL25,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine
+shared,16_epithelial_general,CCNO,Epithelial,goblet cell;respiratory tract goblet cell;tracheal goblet cell;respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,CD55,Epithelial,epithelial cell of lacrimal sac;pulmonary alveolar type 1 cell;respiratory tract goblet cell;tracheal goblet cell;paneth cell of epithelium of small intestine;urothelial cell
+shared,16_epithelial_general,CDH16,Epithelial,epithelial cell;duct epithelial cell;kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;columnar/cuboidal epithelial cell
+shared,16_epithelial_general,CDH3,Epithelial,basal epithelial cell of prostatic duct;myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of thymus;medullary thymic epithelial cell
+shared,16_epithelial_general,CDHR2,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,CDX1,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;intestinal crypt stem cell of colon;enterocyte of epithelium of large intestine;intestine goblet cell;large intestine goblet cell
+shared,16_epithelial_general,CDX2,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;intestinal crypt stem cell of colon;enterocyte of epithelium of large intestine;intestine goblet cell;large intestine goblet cell
+shared,16_epithelial_general,CFAP43,Epithelial,ciliated epithelial cell;ependymal cell;choroid plexus epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;columnar/cuboidal epithelial cell
+shared,16_epithelial_general,CFAP47,Epithelial,ependymal cell;columnar/cuboidal epithelial cell
+shared,16_epithelial_general,CFB,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;mesothelial cell of pleura;goblet cell;respiratory tract goblet cell;tracheal goblet cell
+shared,16_epithelial_general,CFTR,Epithelial,intestinal crypt stem cell of colon;pancreatic ductal cell;cholangiocyte;columnar/cuboidal epithelial cell;pulmonary ionocyte;lung goblet cell
+shared,16_epithelial_general,CGNL1,Epithelial,lens epithelial cell;anterior lens cell;renal beta-intercalated cell;epithelial cell of lung;pulmonary alveolar type 1 cell;kidney loop of Henle ascending limb epithelial cell
+shared,16_epithelial_general,CLCN5,Epithelial,kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,CLDN1,Epithelial,basal cell of epidermis;pancreatic ductal cell;intrahepatic cholangiocyte;epithelial cell of lacrimal sac;mesothelial cell of pleura;corneal epithelial cell
+shared,16_epithelial_general,CLDN18,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell;paneth cell;paneth cell of epithelium of small intestine
+shared,16_epithelial_general,CLEC4M,Epithelial,Sertoli cell;mesothelial cell;ovarian surface epithelial cell
+shared,16_epithelial_general,CLIC6,Epithelial,ependymal cell;choroid plexus epithelial cell;retinal pigment epithelial cell
+shared,16_epithelial_general,CLNK,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;pulmonary ionocyte
+shared,16_epithelial_general,COL18A1,Epithelial,pancreatic ductal cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,COL4A3,Epithelial,lens epithelial cell;anterior lens cell;epithelial cell of lung;pulmonary alveolar type 1 cell;kidney loop of Henle thin ascending limb epithelial cell;lens fiber cell
+shared,16_epithelial_general,COL4A5,Epithelial,basal epithelial cell of prostatic duct;lens epithelial cell;anterior lens cell;lens fiber cell;secondary lens fiber
+shared,16_epithelial_general,CP,Epithelial,non-pigmented ciliary epithelial cell;respiratory tract goblet cell;tracheal goblet cell;hepatocyte;periportal region hepatocyte;midzonal region hepatocyte
+shared,16_epithelial_general,CPA6,Epithelial,basal epithelial cell of prostatic duct;pigmented epithelial cell;interstitial cell of Cajal;epithelial cell of prostate;basal cell of prostate epithelium
+shared,16_epithelial_general,CPEB3,Epithelial,epithelial cell of sweat gland;lens fiber cell
+shared,16_epithelial_general,CPS1,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;enterocyte of epithelium of small intestine;hepatocyte;periportal region hepatocyte;midzonal region hepatocyte
+shared,16_epithelial_general,CRB2,Epithelial,parietal epithelial cell
+shared,16_epithelial_general,CRNDE,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;luminal epithelial cell of mammary gland;pulmonary neuroendocrine cell;bronchial epithelial cell;mammary gland epithelial cell
+shared,16_epithelial_general,CRNN,Epithelial,stratified epithelial cell;respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,CRYGS,Epithelial,lens epithelial cell;anterior lens cell;lens fiber cell;secondary lens fiber
+shared,16_epithelial_general,CRYZ,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,CSPP1,Epithelial,ciliated epithelial cell;ependymal cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree
+shared,16_epithelial_general,CTBP2,Epithelial,lens epithelial cell;anterior lens cell;lens fiber cell;secondary lens fiber
+shared,16_epithelial_general,CTDSPL,Epithelial,kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,CTNNA1,Epithelial,epithelial cell
+shared,16_epithelial_general,CTRL,Epithelial,pancreatic acinar cell;glandular secretory epithelial cell;acinar cell
+shared,16_epithelial_general,CUBN,Epithelial,ciliated epithelial cell;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,CUZD1,Epithelial,pancreatic acinar cell;glandular secretory epithelial cell;acinar cell
+shared,16_epithelial_general,CXCL11,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,CXCL6,Epithelial,pancreatic ductal cell;intrahepatic cholangiocyte;epithelial cell of prostate;basal cell of prostate epithelium;club cell
+shared,16_epithelial_general,CXCL9,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,CYFIP2,Epithelial,kidney collecting duct principal cell;renal principal cell;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell
+shared,16_epithelial_general,CYHR1,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,CYP17A1,Epithelial,epithelial cell;neuroendocrine cell;chromaffin cell;glandular secretory epithelial cell;cortical cell of adrenal gland
+shared,16_epithelial_general,CYP2D6,Epithelial,enterocyte of epithelium of large intestine;colon epithelial cell
+shared,16_epithelial_general,CYP3A5,Epithelial,enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;cholangiocyte;intrahepatic cholangiocyte;paneth cell of epithelium of small intestine;hepatocyte
+shared,16_epithelial_general,DEPTOR,Epithelial,kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle epithelial cell;kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,DGAT1,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,DIRAS3,Epithelial,pancreatic A cell;pancreatic D cell;pancreatic PP cell;PP cell;intestinal enteroendocrine cell;granulosa cell
+shared,16_epithelial_general,DMKN,Epithelial,basal cell of epidermis;keratinocyte;epithelial cell of uterus;epidermal cell
+shared,16_epithelial_general,DMRT2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct intercalated cell;renal intercalated cell;renal alpha-intercalated cell;pulmonary ionocyte;epithelial cell of thymus
+shared,16_epithelial_general,DNAH10,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree
+shared,16_epithelial_general,DNAH11,Epithelial,ependymal cell;choroid plexus epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,DNAH12,Epithelial,ciliated epithelial cell;ependymal cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;respiratory tract epithelial cell;epithelial cell of lower respiratory tract
+shared,16_epithelial_general,DNAH5,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;bronchial epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,DNAH7,Epithelial,ciliated epithelial cell;ependymal cell;choroid plexus epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;lung multiciliated epithelial cell
+shared,16_epithelial_general,DNAH9,Epithelial,ciliated epithelial cell;ependymal cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;lung multiciliated epithelial cell
+shared,16_epithelial_general,DRAM1,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,DSG2,Epithelial,intestinal crypt stem cell of small intestine;intestinal crypt stem cell of colon;intestinal tuft cell;tuft cell of colon
+shared,16_epithelial_general,DUOX2,Epithelial,glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell;tracheal goblet cell;respiratory tract epithelial cell;epithelial cell of lower respiratory tract
+shared,16_epithelial_general,DUOXA1,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,DUOXA2,Epithelial,glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell;tracheal goblet cell;epithelial cell of urethra
+shared,16_epithelial_general,DUSP5,Epithelial,epithelial cell of lacrimal sac;urothelial cell;bladder urothelial cell;club cell;epithelial cell of urethra;conjunctival epithelial cell
+shared,16_epithelial_general,ECEL1,Epithelial,epithelial cell of lung
+shared,16_epithelial_general,EFHC1,Epithelial,ependymal cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;bronchial epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,EIF4G1,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,EMP2,Epithelial,keratinocyte;stratified epithelial cell;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,ENKUR,Epithelial,multiciliated epithelial cell;bronchial epithelial cell
+shared,16_epithelial_general,ENOSF1,Epithelial,non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,ENPEP,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of small intestine;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;M cell of gut
+shared,16_epithelial_general,ENPP3,Epithelial,cortical cell of adrenal gland;epithelial cell of prostate;basal cell of prostate epithelium
+shared,16_epithelial_general,EPHA2,Epithelial,basal cell of epithelium of bronchus;paneth cell of epithelium of small intestine;urothelial cell;bladder urothelial cell;club cell;basal epithelial cell of tracheobronchial tree
+shared,16_epithelial_general,EPHX2,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;intestinal epithelial cell;epithelial cell of small intestine
+shared,16_epithelial_general,EPS8L3,Epithelial,enterocyte of epithelium of small intestine;tuft cell;intestinal tuft cell;intestinal epithelial cell;epithelial cell of large intestine;epithelial cell of small intestine
+shared,16_epithelial_general,ERP27,Epithelial,kidney collecting duct intercalated cell;type B pancreatic cell;pancreatic acinar cell;acinar cell;parietal epithelial cell
+shared,16_epithelial_general,ERRFI1,Epithelial,cholangiocyte;intrahepatic cholangiocyte;basal epithelial cell of prostatic duct;epithelial cell of lacrimal sac;mesothelial cell of pleura;hepatocyte
+shared,16_epithelial_general,ESRRG,Epithelial,kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;epithelial cell of sweat gland;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,ETV5,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,F11R,Epithelial,urothelial cell;bladder urothelial cell;epithelial cell of urethra
+shared,16_epithelial_general,F5,Epithelial,non-pigmented ciliary epithelial cell;hepatocyte
+shared,16_epithelial_general,FABP2,Epithelial,epithelial cell;ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine
+shared,16_epithelial_general,FAS,Epithelial,basal cell of prostate epithelium;medullary thymic epithelial cell
+shared,16_epithelial_general,FCGBP,Epithelial,goblet cell;intestine goblet cell;large intestine goblet cell;colon goblet cell;small intestine goblet cell;ileal goblet cell
+shared,16_epithelial_general,FGF1,Epithelial,kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,FGFR2,Epithelial,basal cell of epidermis;choroid plexus epithelial cell;cholangiocyte;intrahepatic cholangiocyte;pigmented epithelial cell;non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,FHAD1,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree
+shared,16_epithelial_general,FLRT3,Epithelial,basal epithelial cell of prostatic duct;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;basal cell of prostate epithelium
+shared,16_epithelial_general,FMO5,Epithelial,cholangiocyte;pulmonary alveolar type 2 cell;epithelial cell of sweat gland
+shared,16_epithelial_general,FOLH1,Epithelial,enterocyte of epithelium of small intestine;paneth cell of epithelium of small intestine;luminal cell of prostate epithelium;epithelial cell of small intestine
+shared,16_epithelial_general,FOSL1,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;basal cell of prostate epithelium;epithelial cell of urethra
+shared,16_epithelial_general,FOXA1,Epithelial,brush cell of bronchus
+shared,16_epithelial_general,FOXA2,Epithelial,pulmonary neuroendocrine cell;pancreatic PP cell;large intestine goblet cell;colon goblet cell;PP cell
+shared,16_epithelial_general,FOXJ1,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;lung multiciliated epithelial cell
+shared,16_epithelial_general,FOXN1,Epithelial,epithelial cell of thymus
+shared,16_epithelial_general,FREM1,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;taste receptor cell
+shared,16_epithelial_general,FZD6,Epithelial,basal cell of epithelium of bronchus;basal epithelial cell of tracheobronchial tree
+shared,16_epithelial_general,GABRA5,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,GABRP,Epithelial,lung goblet cell;glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell;tracheal goblet cell;tuft cell
+shared,16_epithelial_general,GAS6,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of thymus;cortical thymic epithelial cell
+shared,16_epithelial_general,GBP1,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,GIPC1,Epithelial,keratinocyte;stratified epithelial cell
+shared,16_epithelial_general,GLS,Epithelial,kidney collecting duct principal cell;renal principal cell;pancreatic A cell;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,GPBP1,Epithelial,cortical thymic epithelial cell
+shared,16_epithelial_general,GRHL2,Epithelial,basal cell of epidermis;basal epithelial cell of prostatic duct;taste receptor cell;epithelial cell of prostate;luminal cell of prostate epithelium;kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,GSTM3,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;pancreatic D cell
+shared,16_epithelial_general,GTF2I,Epithelial,epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;enteroendocrine cell of small intestine;fallopian tube secretory epithelial cell;brush cell of bronchus
+shared,16_epithelial_general,HBEGF,Epithelial,ileal goblet cell;paneth cell of epithelium of small intestine;epithelial cell of prostate;basal cell of prostate epithelium;endosteal cell;epithelial cell of urethra
+shared,16_epithelial_general,HCAR2,Epithelial,epithelial cell of prostate;basal cell of prostate epithelium;medullary thymic epithelial cell
+shared,16_epithelial_general,HNF1B,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney epithelial cell
+shared,16_epithelial_general,HNF4A,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;transit amplifying cell of small intestine
+shared,16_epithelial_general,HNRNPLL,Epithelial,non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,HOXB13,Epithelial,enteroendocrine cell of colon;epithelial cell of prostate;luminal cell of prostate epithelium
+shared,16_epithelial_general,HPD,Epithelial,epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;kidney epithelial cell;kidney cortex tubule cell
+shared,16_epithelial_general,HRH1,Epithelial,parietal epithelial cell
+shared,16_epithelial_general,HS6ST2,Epithelial,chromaffin cell;kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle epithelial cell
+shared,16_epithelial_general,HSD11B2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;renal principal cell;renal intercalated cell;intestine goblet cell
+shared,16_epithelial_general,HSD17B6,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell;periportal region hepatocyte;midzonal region hepatocyte
+shared,16_epithelial_general,HTR2C,Epithelial,ependymal cell;choroid plexus epithelial cell;columnar/cuboidal epithelial cell;pigmented ciliary epithelial cell
+shared,16_epithelial_general,IFNGR2,Epithelial,epithelial cell of urethra
+shared,16_epithelial_general,IFT57,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;pancreatic epsilon cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,IL18,Epithelial,kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;corneal epithelial cell;conjunctival epithelial cell
+shared,16_epithelial_general,INHA,Epithelial,duct epithelial cell;Sertoli cell;squamous epithelial cell;mesothelial cell;cortical cell of adrenal gland;granulosa cell
+shared,16_epithelial_general,IQGAP2,Epithelial,pigmented ciliary epithelial cell;non-pigmented ciliary epithelial cell;renal beta-intercalated cell;podocyte
+shared,16_epithelial_general,IRX1,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,ITGA2,Epithelial,luminal epithelial cell of mammary gland;basal epithelial cell of prostatic duct;myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of prostate;basal cell of prostate epithelium
+shared,16_epithelial_general,ITGA3,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;kidney glomerular epithelial cell;podocyte;parietal epithelial cell
+shared,16_epithelial_general,ITGAV,Epithelial,pigmented ciliary epithelial cell;type B pancreatic cell;kidney glomerular epithelial cell;podocyte;retinal pigment epithelial cell
+shared,16_epithelial_general,ITGB6,Epithelial,epithelial cell;luminal epithelial cell of mammary gland;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,JAZF1,Epithelial,lens epithelial cell;anterior lens cell;lens fiber cell;secondary lens fiber
+shared,16_epithelial_general,JUP,Epithelial,epithelial cell;keratinocyte;stratified epithelial cell;paneth cell of epithelium of small intestine;urothelial cell;bladder urothelial cell
+shared,16_epithelial_general,KCNJ15,Epithelial,epithelial cell of proximal tubule;cholangiocyte;kidney collecting duct principal cell;renal principal cell;pulmonary alveolar type 2 cell;kidney epithelial cell
+shared,16_epithelial_general,KCNJ16,Epithelial,epithelial cell;epithelial cell of proximal tubule;kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,KCNK15,Epithelial,glandular secretory epithelial cell
+shared,16_epithelial_general,KHK,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,KITLG,Epithelial,kidney collecting duct principal cell;renal principal cell;granulosa cell;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,KL,Epithelial,kidney distal convoluted tubule epithelial cell;kidney cortex tubule cell;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,KLF5,Epithelial,basal cell of epithelium of bronchus;epithelial cell of lacrimal sac;corneal epithelial cell;urothelial cell;bladder urothelial cell;microfold cell of epithelium of small intestine
+shared,16_epithelial_general,KLHL13,Epithelial,kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney cortex tubule cell;kidney loop of Henle epithelial cell
+shared,16_epithelial_general,KMO,Epithelial,lens epithelial cell;anterior lens cell
+shared,16_epithelial_general,KRT20,Epithelial,epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,LAD1,Epithelial,pancreatic ductal cell;keratinocyte;stratified epithelial cell;epidermal cell
+shared,16_epithelial_general,LAMA3,Epithelial,basal cell of epidermis;epithelial cell;myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of lung;pulmonary alveolar epithelial cell
+shared,16_epithelial_general,LAMB3,Epithelial,basal cell of epithelium of bronchus;myoepithelial cell;basal-myoepithelial cell of mammary gland;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;urothelial cell
+shared,16_epithelial_general,LAMC2,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;pulmonary alveolar type 1 cell;epithelial cell of uterus;epithelial cell of prostate;basal cell of prostate epithelium
+shared,16_epithelial_general,LPCAT1,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,LRCH1,Epithelial,kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,LRP2,Epithelial,ciliated epithelial cell;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;non-pigmented ciliary epithelial cell;kidney epithelial cell;kidney glomerular epithelial cell
+shared,16_epithelial_general,LY75,Epithelial,epithelial cell of thymus
+shared,16_epithelial_general,MAGI3,Epithelial,renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,MAL2,Epithelial,corneal epithelial cell;fallopian tube secretory epithelial cell
+shared,16_epithelial_general,MALL,Epithelial,enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium proper of ileum;pulmonary alveolar type 2 cell;M cell of gut
+shared,16_epithelial_general,MAOA,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;enterocyte of epithelium of small intestine;epithelial cell of small intestine;transit amplifying cell of small intestine
+shared,16_epithelial_general,MAP3K1,Epithelial,kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,MECOM,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;basal epithelial cell of prostatic duct;non-pigmented ciliary epithelial cell;renal principal cell;renal alpha-intercalated cell
+shared,16_epithelial_general,MGAM,Epithelial,ciliated epithelial cell;enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum
+shared,16_epithelial_general,MGMT,Epithelial,epithelial cell of thymus;cortical thymic epithelial cell
+shared,16_epithelial_general,MLF1,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree
+shared,16_epithelial_general,MPPED2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;basal epithelial cell of prostatic duct;renal principal cell;renal intercalated cell
+shared,16_epithelial_general,MSI2,Epithelial,ependymal cell;choroid plexus epithelial cell;pigmented epithelial cell;pigmented ciliary epithelial cell;non-pigmented ciliary epithelial cell;lens epithelial cell
+shared,16_epithelial_general,MTR,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell
+shared,16_epithelial_general,MUC16,Epithelial,epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;corneal epithelial cell;pulmonary ionocyte;lung goblet cell
+shared,16_epithelial_general,MUC5AC,Epithelial,epithelial cell;pulmonary ionocyte;lung goblet cell;glandular secretory epithelial cell;goblet cell;respiratory tract goblet cell
+shared,16_epithelial_general,MUC5B,Epithelial,intestinal crypt stem cell of colon;lung goblet cell;intestine goblet cell;large intestine goblet cell;colon goblet cell;epithelial cell of large intestine
+shared,16_epithelial_general,MYO6,Epithelial,epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;corneal epithelial cell;taste receptor cell;microfold cell of epithelium of small intestine
+shared,16_epithelial_general,NAV2,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;lens fiber cell;secondary lens fiber
+shared,16_epithelial_general,NDNF,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,NECTIN1,Epithelial,basal cell of epithelium of bronchus;keratinocyte;basal epithelial cell of tracheobronchial tree;epidermal cell;conjunctival epithelial cell
+shared,16_epithelial_general,NECTIN2,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,NECTIN3,Epithelial,non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,NEDD4L,Epithelial,kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;epithelial cell of lung;pulmonary alveolar epithelial cell
+shared,16_epithelial_general,NEFH,Epithelial,granulosa cell;epithelial cell of prostate;luminal cell of prostate epithelium
+shared,16_epithelial_general,NEK11,Epithelial,ependymal cell;choroid plexus epithelial cell
+shared,16_epithelial_general,NELL1,Epithelial,kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell
+shared,16_epithelial_general,NFE2L2,Epithelial,basal cell of epithelium of bronchus;bronchial epithelial cell;basal epithelial cell of tracheobronchial tree;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,NKX2-1,Epithelial,neuroendocrine cell;pulmonary neuroendocrine cell;epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,NKX3-1,Epithelial,Sertoli cell;pancreatic D cell;brush cell of bronchus;epithelial cell of prostate;luminal cell of prostate epithelium
+shared,16_epithelial_general,NMU,Epithelial,keratinocyte;stratified epithelial cell;tuft cell;brush cell of bronchus;epidermal cell
+shared,16_epithelial_general,NORAD,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,NPR1,Epithelial,parietal epithelial cell
+shared,16_epithelial_general,NQO1,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;corneal epithelial cell;paneth cell of epithelium of small intestine;conjunctival epithelial cell
+shared,16_epithelial_general,NR1H2,Epithelial,epithelial cell of lung
+shared,16_epithelial_general,NR3C2,Epithelial,renal beta-intercalated cell;renal alpha-intercalated cell;kidney distal convoluted tubule epithelial cell;kidney connecting tubule epithelial cell
+shared,16_epithelial_general,NT5C2,Epithelial,choroid plexus epithelial cell;corneal epithelial cell;respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,NXN,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;lens epithelial cell;anterior lens cell;cortical thymic epithelial cell
+shared,16_epithelial_general,NXPH4,Epithelial,granulosa cell;ovarian surface epithelial cell
+shared,16_epithelial_general,OCLN,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,ODF2L,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,OPRPN,Epithelial,epithelial cell of lacrimal sac
+shared,16_epithelial_general,PAH,Epithelial,epithelial cell;epithelial cell of proximal tubule;cholangiocyte;intrahepatic cholangiocyte;columnar/cuboidal epithelial cell;hepatocyte
+shared,16_epithelial_general,PAK4,Epithelial,ovarian surface epithelial cell
+shared,16_epithelial_general,PAPPA2,Epithelial,non-pigmented ciliary epithelial cell;pancreatic A cell;enteroendocrine cell of colon;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,PAWR,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;mammary gland epithelial cell;kidney glomerular epithelial cell
+shared,16_epithelial_general,PAX1,Epithelial,epithelial cell of thymus;cortical thymic epithelial cell;medullary thymic epithelial cell
+shared,16_epithelial_general,PAX2,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;renal principal cell;taste receptor cell;kidney loop of Henle ascending limb epithelial cell
+shared,16_epithelial_general,PAX8,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,PBLD,Epithelial,intestinal crypt stem cell of small intestine;enterocyte;enterocyte of epithelium of small intestine;paneth cell of epithelium of small intestine;intestinal epithelial cell;epithelial cell of small intestine
+shared,16_epithelial_general,PCAT1,Epithelial,ependymal cell;choroid plexus epithelial cell;kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,PDCD6,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,PDHB,Epithelial,pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,PDIA2,Epithelial,pancreatic acinar cell;glandular secretory epithelial cell;paneth cell;acinar cell
+shared,16_epithelial_general,PDLIM4,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;mesothelial cell of pleura;pancreatic D cell;epithelial cell of urethra
+shared,16_epithelial_general,PDZK1,Epithelial,ciliated epithelial cell;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,PEBP4,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,PHLDB2,Epithelial,renal beta-intercalated cell;epithelial cell of lung;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,PITHD1,Epithelial,epithelial cell of thymus;cortical thymic epithelial cell
+shared,16_epithelial_general,PKHD1,Epithelial,epithelial cell of proximal tubule;cholangiocyte;kidney collecting duct epithelial cell;kidney collecting duct principal cell;renal principal cell;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,PLA2R1,Epithelial,lung goblet cell;acinar cell of salivary gland;epithelial cell of sweat gland;kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,PLAU,Epithelial,luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of prostate;basal cell of prostate epithelium;mammary gland epithelial cell
+shared,16_epithelial_general,PLD1,Epithelial,pigmented epithelial cell;non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,PLEKHA1,Epithelial,epithelial cell
+shared,16_epithelial_general,PLEKHM2,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,PLTP,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;epithelial cell of thymus;cortical thymic epithelial cell;medullary thymic epithelial cell
+shared,16_epithelial_general,PMAIP1,Epithelial,epithelial cell of lacrimal sac;keratinocyte;urothelial cell;bladder urothelial cell;epithelial cell of uterus;cortical thymic epithelial cell
+shared,16_epithelial_general,POU3F3,Epithelial,kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney loop of Henle epithelial cell
+shared,16_epithelial_general,PPARGC1A,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;epithelial cell of sweat gland
+shared,16_epithelial_general,PPM1H,Epithelial,kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,PPP4R1,Epithelial,corneal epithelial cell;conjunctival epithelial cell
+shared,16_epithelial_general,PRAME,Epithelial,glandular secretory epithelial cell
+shared,16_epithelial_general,PRKCI,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,PRLR,Epithelial,choroid plexus epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;kidney collecting duct intercalated cell;renal intercalated cell;renal alpha-intercalated cell
+shared,16_epithelial_general,PRSS16,Epithelial,epithelial cell of thymus;cortical thymic epithelial cell;medullary thymic epithelial cell
+shared,16_epithelial_general,PSENEN,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;lung multiciliated epithelial cell
+shared,16_epithelial_general,PTGER3,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct intercalated cell;renal intercalated cell;renal beta-intercalated cell;renal alpha-intercalated cell;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,PTH1R,Epithelial,epithelial cell of proximal tubule;pulmonary alveolar type 1 cell;kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,PTH2R,Epithelial,epithelial cell of proximal tubule;renal principal cell;kidney distal convoluted tubule epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney epithelial cell
+shared,16_epithelial_general,PTPRF,Epithelial,pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;fallopian tube secretory epithelial cell
+shared,16_epithelial_general,PYGB,Epithelial,pulmonary ionocyte;epithelial cell of sweat gland;ionocyte
+shared,16_epithelial_general,RAPGEF3,Epithelial,kidney glomerular epithelial cell;parietal epithelial cell
+shared,16_epithelial_general,RASSF8,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;non-pigmented ciliary epithelial cell
+shared,16_epithelial_general,RCOR1,Epithelial,conjunctival epithelial cell
+shared,16_epithelial_general,REEP6,Epithelial,enterocyte;colonocyte;enterocyte of epithelium proper of ileum;Sertoli cell;mesothelial cell;granulosa cell
+shared,16_epithelial_general,RIDA,Epithelial,epithelial cell of proximal tubule
+shared,16_epithelial_general,RILPL1,Epithelial,epithelial cell of lung;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,RIPK2,Epithelial,epithelial cell of uterus
+shared,16_epithelial_general,RIPK4,Epithelial,basal epithelial cell of tracheobronchial tree
+shared,16_epithelial_general,RIPOR1,Epithelial,kidney glomerular epithelial cell;podocyte
+shared,16_epithelial_general,RNF39,Epithelial,basal cell of epithelium of bronchus;club cell;basal epithelial cell of tracheobronchial tree
+shared,16_epithelial_general,ROS1,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,RPRM,Epithelial,neuroendocrine cell;pulmonary neuroendocrine cell;mesothelial cell;granulosa cell;ovarian surface epithelial cell
+shared,16_epithelial_general,RREB1,Epithelial,corneal epithelial cell
+shared,16_epithelial_general,SCG5,Epithelial,type EC enteroendocrine cell;pulmonary neuroendocrine cell;pancreatic endocrine cell;type B pancreatic cell;pancreatic A cell;pancreatic D cell
+shared,16_epithelial_general,SCGB1D2,Epithelial,epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;glandular secretory epithelial cell;epithelial cell of uterus;epithelial cell of sweat gland
+shared,16_epithelial_general,SCGN,Epithelial,neuroendocrine cell;type EC enteroendocrine cell;pulmonary neuroendocrine cell;pancreatic endocrine cell;type B pancreatic cell;pancreatic A cell
+shared,16_epithelial_general,SCIN,Epithelial,kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;renal principal cell;renal intercalated cell;renal beta-intercalated cell
+shared,16_epithelial_general,SCNN1G,Epithelial,duct epithelial cell;kidney collecting duct epithelial cell;kidney collecting duct principal cell;basal epithelial cell of prostatic duct;renal principal cell;pulmonary ionocyte
+shared,16_epithelial_general,SDC4,Epithelial,duct epithelial cell;pancreatic ductal cell;luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,SERPINA3,Epithelial,epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;respiratory tract epithelial cell
+shared,16_epithelial_general,SERPINA5,Epithelial,duct epithelial cell;pancreatic ductal cell;intrahepatic cholangiocyte;Sertoli cell;mesothelial cell;kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,SERPINI2,Epithelial,pancreatic acinar cell;glandular secretory epithelial cell;acinar cell
+shared,16_epithelial_general,SIM2,Epithelial,kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,SINHCAF,Epithelial,fallopian tube secretory epithelial cell
+shared,16_epithelial_general,SIX1,Epithelial,brush cell of bronchus;epithelial cell of thymus;cortical thymic epithelial cell;medullary thymic epithelial cell
+shared,16_epithelial_general,SLC15A1,Epithelial,enterocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;columnar/cuboidal epithelial cell;type L enteroendocrine cell;M cell of gut
+shared,16_epithelial_general,SLC16A9,Epithelial,ciliated epithelial cell;epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;cortical cell of adrenal gland;kidney epithelial cell;kidney cortex tubule cell
+shared,16_epithelial_general,SLC22A2,Epithelial,epithelial cell of proximal tubule;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,SLC23A2,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;anterior lens cell;pancreatic A cell;retinal pigment epithelial cell
+shared,16_epithelial_general,SLC26A2,Epithelial,intestinal crypt stem cell of large intestine;enterocyte of epithelium of large intestine;acinar cell of salivary gland;epithelial cell of large intestine
+shared,16_epithelial_general,SLC30A8,Epithelial,pancreatic endocrine cell;type B pancreatic cell;pancreatic A cell;pancreatic PP cell;glandular secretory epithelial cell;enteroendocrine cell
+shared,16_epithelial_general,SLC39A8,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 1 cell;pulmonary alveolar type 2 cell;acinar cell of salivary gland
+shared,16_epithelial_general,SLC3A1,Epithelial,ciliated epithelial cell;epithelial cell of proximal tubule;pancreatic ductal cell;columnar/cuboidal epithelial cell;kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell
+shared,16_epithelial_general,SLC5A1,Epithelial,enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;cholangiocyte
+shared,16_epithelial_general,SLC5A3,Epithelial,kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,SLC6A12,Epithelial,kidney loop of Henle thin ascending limb epithelial cell
+shared,16_epithelial_general,SLC9A3,Epithelial,kidney loop of Henle ascending limb epithelial cell;kidney loop of Henle thick ascending limb epithelial cell;kidney loop of Henle thin ascending limb epithelial cell;kidney loop of Henle epithelial cell
+shared,16_epithelial_general,SNX30,Epithelial,epithelial cell of lung;pulmonary alveolar epithelial cell;pulmonary alveolar type 2 cell
+shared,16_epithelial_general,SOX21,Epithelial,club cell;basal epithelial cell of tracheobronchial tree
+shared,16_epithelial_general,SPA17,Epithelial,multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;bronchial epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,SPAG17,Epithelial,ciliated epithelial cell;ependymal cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;bronchial epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,SPAG6,Epithelial,ciliated epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,SPATA18,Epithelial,multiciliated epithelial cell;bronchial epithelial cell
+shared,16_epithelial_general,SQSTM1,Epithelial,intestinal crypt stem cell of large intestine;pancreatic PP cell;PP cell;epithelial cell of urethra
+shared,16_epithelial_general,SRCAP,Epithelial,respiratory tract epithelial cell;epithelial cell of lower respiratory tract;club cell
+shared,16_epithelial_general,STC2,Epithelial,epithelial cell;duct epithelial cell;luminal epithelial cell of mammary gland;myoepithelial cell;basal-myoepithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,STK33,Epithelial,ependymal cell;choroid plexus epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,STK39,Epithelial,choroid plexus epithelial cell;pigmented ciliary epithelial cell;epithelial cell of sweat gland
+shared,16_epithelial_general,STRIP2,Epithelial,pigmented epithelial cell;pigmented ciliary epithelial cell;retinal pigment epithelial cell
+shared,16_epithelial_general,STX1A,Epithelial,pancreatic endocrine cell;type B pancreatic cell;pancreatic D cell;glandular secretory epithelial cell;enteroendocrine cell;PP cell
+shared,16_epithelial_general,SULT1A1,Epithelial,enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;pulmonary alveolar type 1 cell
+shared,16_epithelial_general,SULT2A1,Epithelial,chromaffin cell;glandular secretory epithelial cell;cortical cell of adrenal gland
+shared,16_epithelial_general,SYTL2,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;intestine goblet cell;large intestine goblet cell;colon goblet cell;small intestine goblet cell
+shared,16_epithelial_general,TEKT1,Epithelial,ciliated epithelial cell;lung multiciliated epithelial cell
+shared,16_epithelial_general,TES,Epithelial,myoepithelial cell;basal-myoepithelial cell of mammary gland;epithelial cell of uterus
+shared,16_epithelial_general,TGM4,Epithelial,basal epithelial cell of prostatic duct;epithelial cell of prostate;luminal cell of prostate epithelium
+shared,16_epithelial_general,TINAG,Epithelial,epithelial cell of proximal tubule;columnar/cuboidal epithelial cell;kidney epithelial cell;kidney cortex tubule cell;epithelial cell of nephron
+shared,16_epithelial_general,TM4SF5,Epithelial,enterocyte;enterocyte of epithelium of large intestine;colonocyte;enterocyte of epithelium of small intestine;enterocyte of epithelium proper of ileum;type EC enteroendocrine cell
+shared,16_epithelial_general,TMEM45B,Epithelial,enterocyte of epithelium of small intestine;intestinal epithelial cell
+shared,16_epithelial_general,TNFRSF11B,Epithelial,kidney loop of Henle thin ascending limb epithelial cell;parietal epithelial cell;kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,TNFRSF12A,Epithelial,duct epithelial cell;pancreatic ductal cell;luminal epithelial cell of mammary gland;mesothelial cell of pleura;pancreatic D cell;epithelial cell of prostate
+shared,16_epithelial_general,TOM1L2,Epithelial,corneal epithelial cell;podocyte
+shared,16_epithelial_general,TRAFD1,Epithelial,duct epithelial cell;luminal epithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,TRPM6,Epithelial,kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,TRPM8,Epithelial,epithelial cell of prostate;luminal cell of prostate epithelium
+shared,16_epithelial_general,TSPAN8,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;intestinal crypt stem cell of colon;enterocyte;enterocyte of epithelium of large intestine;colonocyte
+shared,16_epithelial_general,UCA1,Epithelial,epithelial cell of uterus
+shared,16_epithelial_general,UGDH,Epithelial,luminal epithelial cell of mammary gland;mammary gland epithelial cell
+shared,16_epithelial_general,UGT2B17,Epithelial,intestinal crypt stem cell;intestinal crypt stem cell of small intestine;intestinal crypt stem cell of colon;enterocyte;enterocyte of epithelium of large intestine;enterocyte of epithelium of small intestine
+shared,16_epithelial_general,UGT2B7,Epithelial,epithelial cell of proximal tubule;epithelial cell of uterus;kidney loop of Henle thin ascending limb epithelial cell;kidney epithelial cell;parietal epithelial cell;kidney cortex tubule cell
+shared,16_epithelial_general,UPK3B,Epithelial,mesothelial cell;mesothelial cell of pleura;mesothelial cell of visceral pleura;pulmonary alveolar type 1 cell;ovarian surface epithelial cell
+shared,16_epithelial_general,VAV3,Epithelial,kidney distal convoluted tubule epithelial cell
+shared,16_epithelial_general,VGF,Epithelial,pancreatic endocrine cell;type B pancreatic cell;pancreatic A cell;pancreatic D cell;pancreatic PP cell;pancreatic epsilon cell
+shared,16_epithelial_general,VTCN1,Epithelial,duct epithelial cell;pancreatic ductal cell;luminal epithelial cell of mammary gland
+shared,16_epithelial_general,WDR72,Epithelial,epithelial cell of proximal tubule;kidney collecting duct epithelial cell;kidney collecting duct principal cell;kidney collecting duct intercalated cell;columnar/cuboidal epithelial cell;renal principal cell
+shared,16_epithelial_general,WWC1,Epithelial,kidney loop of Henle thin descending limb epithelial cell
+shared,16_epithelial_general,WWOX,Epithelial,ependymal cell;non-pigmented ciliary epithelial cell;lens epithelial cell;anterior lens cell
+shared,16_epithelial_general,XDH,Epithelial,corneal epithelial cell
+shared,16_epithelial_general,ZC3H12A,Epithelial,medullary thymic epithelial cell
+shared,16_epithelial_general,ZCCHC2,Epithelial,epithelial cell of sweat gland
+shared,16_epithelial_general,ZMYND10,Epithelial,ciliated epithelial cell;multiciliated epithelial cell;multiciliated columnar cell of tracheobronchial tree;respiratory tract epithelial cell;epithelial cell of lower respiratory tract;bronchial epithelial cell
+shared,16_epithelial_general,ZNF608,Epithelial,epithelial cell

@@ -1,0 +1,9 @@
+gene,subtype_hint,evidence,note
+CFTR,ductal,both,canonical identity marker
+CLDN1,ductal,both,canonical identity marker
+CTRL,acinar,both,canonical identity marker
+CUZD1,acinar,both,canonical identity marker
+HNF1B,ductal,canonical,canonical identity marker (CL-unannotated)
+MUC1,ductal,canonical,canonical identity marker (CL-unannotated)
+SOX9,ductal,canonical,canonical identity marker (CL-unannotated)
+VTCN1,ductal,both,canonical identity marker

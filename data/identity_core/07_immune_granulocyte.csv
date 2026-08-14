@@ -1,0 +1,22 @@
+gene,subtype_hint,evidence,note
+CAMP,,both,canonical identity marker
+CCR3,eosinophil,canonical,canonical identity marker (CL-unannotated)
+CEACAM3,neutrophil,canonical,canonical identity marker (CL-unannotated)
+CSF3R,neutrophil,both,canonical identity marker
+CTSG,,both,canonical identity marker
+CXCR1,neutrophil,canonical,canonical identity marker (CL-unannotated)
+CXCR2,neutrophil,both,canonical identity marker
+ELANE,,both,canonical identity marker
+ENPP3,basophil,canonical,canonical identity marker (CL-unannotated)
+FCGR3B,neutrophil,both,canonical identity marker
+FLOT2,,cellxgene,marks lineage (CL)
+FUT4,neutrophil,canonical,canonical identity marker (CL-unannotated)
+GATA2,basophil,both,canonical identity marker
+IL5RA,eosinophil,both,canonical identity marker
+MMP8,neutrophil,both,canonical identity marker
+MMP9,neutrophil,both,canonical identity marker
+MPO,,both,canonical identity marker
+PRG2,eosinophil,both,canonical identity marker
+PRTN3,,both,canonical identity marker
+RNASE3,eosinophil,both,canonical identity marker
+XPO6,,cellxgene,marks lineage (CL)

@@ -1,0 +1,26 @@
+gene,subtype_hint,evidence,note
+BCL11B,,cellxgene,marks lineage (CL)
+CD1A,DP,both,canonical identity marker
+CD1B,DP,both,canonical identity marker
+CD1E,DP,both,canonical identity marker
+CD3E,,both,canonical identity marker
+CD3G,,both,canonical identity marker
+CD4,CD4,both,canonical identity marker
+CD5,,cellxgene,marks lineage (CL)
+CD8A,CD8,both,canonical identity marker
+CD8B,CD8,both,canonical identity marker
+DNTT,DN,both,canonical identity marker
+LAT,,cellxgene,marks lineage (CL)
+LCK,,both,canonical identity marker
+LEF1,,cellxgene,marks lineage (CL)
+NEIL3,,cellxgene,marks lineage (CL)
+PTPN2,,cellxgene,marks lineage (CL)
+RAG1,DN,both,canonical identity marker
+RAG2,DN,canonical,canonical identity marker (CL-unannotated)
+RORC,DP,canonical,canonical identity marker (CL-unannotated)
+SATB1,,cellxgene,marks lineage (CL)
+SH2D1A,,cellxgene,marks lineage (CL)
+SLC29A1,,cellxgene,marks lineage (CL)
+TCF7,,cellxgene,marks lineage (CL)
+THEMIS,,cellxgene,marks lineage (CL)
+ZAP70,,both,canonical identity marker

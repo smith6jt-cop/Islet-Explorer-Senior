@@ -1,0 +1,5 @@
+gene,subtype_hint,evidence,note
+DSG1,keratinocyte,both,canonical identity marker
+DSG3,keratinocyte,both,canonical identity marker
+KRT1,keratinocyte,canonical,canonical identity marker (CL-unannotated)
+KRT14,,canonical,canonical identity marker (CL-unannotated)

@@ -1,0 +1,52 @@
+subpanel,n_genes,description,pct_of_5K_kept_pool
+01_pancreas_endocrine,168,"Endocrine pancreas (A/B/D/PP/epsilon, endocrine TFs, beta-cell function)",3.4
+02_pancreas_exocrine,52,"Exocrine pancreas: acinar, ductal, centroacinar",1.1
+03_immune_T_cell,783,"T cells: CD3/4/8/TCR, T-helper TFs, Treg, naive/memory/effector, exhaustion",16
+04_immune_B_plasma,228,B cells and plasma cells,4.7
+05_immune_NK_ILC,208,NK and innate lymphoid cells,4.3
+06_immune_myeloid,484,"Monocytes, macrophages, dendritic cells, Langerhans",9.9
+07_immune_granulocyte,217,"Neutrophils, mast cells, eosinophils, basophils",4.4
+08_antigen_presentation_MHC,17,MHC class I/II machinery and master regulators,0.3
+09_cytokines_chemokines,126,Cytokine and chemokine ligands and receptors,2.6
+10_interferon_antiviral,48,"IFN signaling, JAK/STAT, ISGs",1
+11_endothelial_vascular,348,"Endothelial cells, junctions, angiogenesis receptors",7.1
+12_pericyte_smooth_muscle,232,Pericytes and vascular/visceral smooth muscle,4.7
+13_fibroblast_stellate,342,Fibroblasts and pancreatic stellate cells,7
+14_ECM_remodeling,57,"Extracellular matrix: collagens, laminins, MMPs/TIMPs/ADAMs",1.2
+15_neural_glial,457,"Pancreatic innervation: Schwann, peripheral neurons, autonomic",9.3
+16_epithelial_general,779,"EPCAM, cadherins, keratins, junctions",15.9
+17_cell_cycle_proliferation,46,Curated cell cycle / mitosis / proliferation markers,0.9
+18_apoptosis_cell_death,48,"Curated apoptosis, pyroptosis, necroptosis",1
+19_ER_stress_UPR,20,Curated UPR/ER stress markers,0.4
+20_signaling_pathways_developmental,61,WNT/NOTCH/TGF-beta/BMP/FGF/Hedgehog (CellChat tags),1.2
+21_glycolysis_glucose_metabolism,102,"Glycolysis, glucose metabolism (HALLMARK + KEGG + Reactome)",2.1
+22_oxphos_TCA_mitochondria,67,"Oxidative phosphorylation, TCA, mitochondrial respiration",1.4
+23_hypoxia_HIF,167,"Hypoxia, HIF signaling",3.4
+24_DNA_repair_damage,132,DNA repair and replication,2.7
+25_p53_senescence,276,p53 pathway and cellular senescence,5.6
+26_mTOR_PI3K_AKT,401,"mTOR, PI3K, AKT signaling axis",8.2
+27_MAPK_RAS_KRAS,405,MAPK/RAS/KRAS signaling cascades,8.3
+28_TNF_NFkB_inflammation,336,TNF-alpha / NF-kB / inflammatory response,6.9
+29_allograft_autoimmunity_antigen_processing,269,"Allograft rejection, antigen processing, T1D KEGG",5.5
+30_complement_extended,125,Complement system,2.6
+31_JAK_STAT_IL_extended,424,"JAK-STAT, IL-2/IL-6 signaling, Th differentiation",8.7
+32_innate_PRR_TLR_NLR_RLR,191,Innate PRRs (TLR/NLR/RLR/cGAS-STING/CLR),3.9
+33_cell_adhesion_junctions_ECM_extended,413,"Cell-cell adhesion, junctions, focal adhesion, ECM",8.4
+34_endocytosis_phagosome_lysosome_autophagy,189,"Vesicular trafficking, phagosome, lysosome, autophagy",3.9
+35_cell_death_extended,287,Apoptosis + necroptosis + ferroptosis (extends 18),5.9
+36_cell_cycle_extended,390,"Cell cycle, S-phase, MYC targets (extends 17)",8
+37_UPR_ER_stress_extended,87,"Unfolded protein response, ER stress (extends 19)",1.8
+38_insulin_biology_T1D_extended,240,"Insulin secretion/signaling, T1D/T2D KEGG, beta-cell regulation",4.9
+39_reactive_oxygen_species,30,ROS / glutathione / redox,0.6
+40_EMT,98,Epithelial-mesenchymal transition,2
+41_lipid_bile_heme_peroxisome_metabolism,266,"Lipid, fatty acid, bile, cholesterol, heme, peroxisome",5.4
+42_calcium_cAMP_signaling,264,"Calcium, cAMP, cGMP signaling",5.4
+43_iron_zinc_metal_homeostasis,46,"Iron / zinc transport, metal homeostasis",0.9
+44_translation_RNA_proteasome,79,"Translation, ribosome, spliceosome, proteasome",1.6
+45_hematopoietic_lineage_KEGG,74,KEGG hematopoietic cell lineage CD markers,1.5
+46_GPCR_signaling,404,"GPCR signaling, ligand binding, downstream",8.3
+47_ion_channels,92,K/Ca/Na ion channels (islet excitability),1.9
+48_chromatin_transcription,481,"Chromatin, histone modifiers, RNA Pol II transcription",9.8
+49_synapse_neurotransmission,241,"Synaptic transmission, neurotransmitter receptors",4.9
+99c_residual_after_reannotation,1296,5K-kept genes not assigned to any of the 49 subpanels,26.5
+99d_truly_unannotated_subset_of_99c,956,Subset of 99c with NO HALLMARK/KEGG/Reactome hit (general housekeeping or uncharacterized),19.5
