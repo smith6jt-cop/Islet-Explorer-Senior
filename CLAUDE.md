@@ -4,31 +4,29 @@
 
 This repository contains two related but separate systems:
 
-1. `Phenocycler_Analysis/` produces per-cell marker evidence and hierarchical
-   cell identities from raw QuPath exports.
+1. `Phenocycler_Analysis/` currently produces UUID-keyed upstream expression
+   data from raw QuPath exports. It does not currently produce verified marker
+   calls or cell identities.
 2. `app/shiny_app/` serves aggregated islet, spatial, trajectory, and
    single-cell views.
 
-The source workflow is authoritative for marker calibration and cell identity.
-The app is a downstream consumer, but its current H5AD is not yet connected to
+The source workflow is authoritative for upstream measurement provenance. The
+app is a downstream consumer, but its current H5AD is not connected to current
 content-addressed source runs. App code and existing H5AD phenotype columns
-must not redefine thresholds or train the source workflow.
+must not define thresholds, pairs, or train the source workflow.
 
 ## Non-negotiable analysis rules
 
 - Never infer positivity from a desired frequency, cross-donor uniformity, or
   disease ordering.
-- Marker calibration is donor-local and uses the marker's registered,
-  mutually exclusive reference control.
+- There are no verified production target/reference pairs. Do not infer one
+  from historical registries, outputs, or expected cell frequencies.
 - Existing QuPath classifications, annotations, phenotypes, clusters, disease
   labels, and gold-standard reviews are audit context only. They are not
   training, tuning, or release-gating inputs.
-- Preserve the QuPath UUID as `object_id` from ingest through QuPath import.
+- Preserve the QuPath UUID as `object_id` throughout the upstream workflow.
   Do not substitute centroid matching or donor-name parsing.
-- A missing measurement is unavailable, not zero or negative. An invalid
-  donor-marker model is indeterminate and must fail closed.
-- Keep identity separate from process/state biology. Ki67 and PCNA are
-  orthogonal state outputs, not identity evidence.
+- A missing measurement is unavailable, not zero or negative.
 - Donors `6457` and `6579` are centrally excluded in
   `Phenocycler_Analysis/phenocycler/cohort.py`. Configuration must not bypass
   those exclusions.
@@ -43,20 +41,18 @@ QuPath cohort manifest
   -> geometry QC
   -> REDSEA boundary-spillover correction
   -> one authoritative intensity per marker
-  -> deterministic donor-local reference controls
-  -> RESTORE donor-marker calling with uncertainty
-  -> simultaneous broad typing
-  -> parent-constrained subtype typing
-  -> orthogonal state annotation
-  -> uncertainty-preserving QuPath export
 ```
+
+Ordinary execution stops after expression. Pair-dependent `controls`,
+`calibrate`, `type`, state calling, and assignment export are blocked. The
+run/stage manifest architecture remains authoritative for upstream stages.
 
 Run it **from `Phenocycler_Analysis/`**, which owns the only real `config.ini`:
 
 ```bash
 python -m pip install -e Phenocycler_Analysis
 cd Phenocycler_Analysis
-python -m phenocycler.pipeline run --config config.ini
+python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
 
@@ -69,20 +65,11 @@ Raw CSV, qptiff, cell/nucleus geometry, pixel calibration, channel mapping,
 panel identity, and segmentation version belong in
 `Phenocycler_Analysis/data/qupath_manifest.json`. Generated results live under
 `Phenocycler_Analysis/data/runs/<run_id>/`; stages and runs are immutable and
-content addressed. Pilots are review artifacts and live under
-`Phenocycler_Analysis/data/pilots/`; they never write a stage manifest and never
-mutate `data/runs/`.
-
-The six notebooks are review interfaces over the production APIs:
-
-- `01_qupath_ingest_and_geometry_qc.ipynb`
-- `02_redsea_spillover.ipynb`
-- `03_marker_calibration.ipynb`
-- `04_hierarchical_cell_typing.ipynb`
-- `05_error_aware_refinement.ipynb`
-- `06_probabilistic_validation_and_promotion.ipynb`
-
-They must not duplicate algorithms or write around stage manifests.
+content addressed. Active mutable review artifacts live under
+`Phenocycler_Analysis/../data/development/`; they never write a stage manifest
+or mutate `data/runs/`. Only the ingest/geometry and REDSEA/expression notebooks
+describe current stages. Calibration, hierarchical/probabilistic typing,
+marker-debug, and Otsu material is historical.
 
 Authoritative documentation:
 
@@ -91,19 +78,17 @@ Authoritative documentation:
 - `Phenocycler_Analysis/DATA_README.md`
 - `Phenocycler_Analysis/docs/METHOD_HISTORY.md`
 - `Phenocycler_Analysis/phenocycler/marker_registry.json`
-- `Phenocycler_Analysis/phenocycler/broad_gates.json` (broad-typing authority)
-- `Phenocycler_Analysis/phenocycler/typing_rules.json` (subtype lane only)
+- `Phenocycler_Analysis/phenocycler/fundamental_pair_diagnostics.json`
 
-**RESTORE is the production marker-calling method.** It is the scientific
-producer behind the immutable `calibrate` stage key, implemented in
-`phenocycler/restore_stage.py` and `phenocycler/restore_validation.py`, and its
-NNMF separator is part of it. Do not describe either as retired.
+The mutable diagnostic roster contains only raw CD3e/Ker8_18 and exact signed
+QuPath Iba1_norm/raw Ker8_18. CD79a is excluded as a pair candidate because its
+expression is too sparse in normal tissue. These are rank/overlap comparisons,
+not production pairs or calls.
 
-Retired, and not to be revived as compatibility fallbacks: the ordered residual
-lineage (replaced by simultaneous broad typing), the Gate 2-5 screen and
-counterfactual apparatus, the donor-local marker-calibration replacement for
-RESTORE, flat `cells_redsea*`/`restore*` output roots as source-stage inputs,
-and the former anatomy-check release arms. Preserve their history in Git.
+Retired, and not to be revived as compatibility fallbacks: RESTORE pair webs,
+hierarchical/simultaneous/probabilistic typing, marker-debug/oracle and Otsu
+lanes, the Gate 2-5 apparatus, and flat `cells_redsea*`/`restore*` output roots.
+Preserve their history in Git.
 
 Note the flat `data/restore_gated_redsea/` and `data/phenotype/broad/` roots at
 the repository root are still read by the Shiny app's Card C. They are retired
@@ -111,23 +96,22 @@ for the source workflow, not deleted for the app.
 
 ## Downstream application boundary
 
-The source workflow currently ends at immutable per-cell assignments and
-QuPath export. The existing application aggregation scripts consume a legacy
-single-cell H5AD and are not yet a supported bridge from a content-addressed
-Phenocycler run.
+The source workflow currently ends at immutable upstream expression. The
+existing application aggregation scripts consume a legacy single-cell H5AD and
+are not a supported bridge from a current content-addressed Phenocycler run.
 
 The next downstream implementation must make one canonical adapter:
 
 ```text
-<run>/cells + expression + marker_evidence + assignments + cell_states
+<future verified run>/cells + expression + marker_evidence + assignments + cell_states
   -> run-aware single-cell H5AD
   -> islet, spatial, trajectory, and application aggregates
 ```
 
-That adapter must join by donor and `object_id`, retain ambiguous/unavailable
-assignments, and embed the run ID plus relevant manifest content IDs. Until it
-exists, do not describe the legacy H5AD rebuild as current, and do not feed
-provisional or stale labels into the application scripts.
+That future adapter must join by donor and `object_id` and embed the run ID plus
+relevant manifest content IDs. Until a verified pair/typing workflow and its
+adapter exist, do not describe the legacy H5AD rebuild as current, and do not
+feed provisional or stale labels into application scripts.
 
 ## App architecture
 
