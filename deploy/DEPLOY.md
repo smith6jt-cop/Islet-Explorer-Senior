@@ -73,12 +73,18 @@ git clone <repo-url> /pubapps/<project>/prod/islet-explorer
 Stage data (nothing is in git; PubApps can't see /blue, so copy from the source machine, e.g. via a
 HiPerGator hop or Globus):
 
-- **Core app data (~1.6 GB)** → `/pubapps/<project>/prod/islet-explorer/data/`: copy `data/app_data/`
-  **and its four symlink targets** — `islet_explorer_senior.h5ad`, `islets_core_senior.h5ad`,
-  `parquet/`, `phenotype_rules.csv` — preserving the relative `../` symlink layout so
-  `../../data/app_data/…` resolves from `apps/islet/`. Do **not** copy the ~113 GB of pipeline
-  scratch (`redsea_scratch/`, `cells_redsea/`, top-level `cells/`, `phenotype/`, `restore*`,
-  `singlecell_protein.h5ad`, …) — the app never reads it.
+- **Core app data (~1.9 GB)** → `/pubapps/<project>/prod/islet-explorer/data/`: copy
+  `data/app_data/` as a plain directory of real files (it was symlink-based historically;
+  since 2026-08-16 it is a self-contained copy, so there is no symlink layout to preserve).
+  `../../data/app_data/…` then resolves from `apps/islet/`, which is exactly 2 levels below
+  the repo root. Do **not** copy the ~113 GB of pipeline scratch (`redsea_scratch/`,
+  `cells_redsea/`, top-level `cells/`, `phenotype/`, `restore*`, `singlecell_protein.h5ad`, …)
+  — the app never reads it.
+
+  > **`data/app_data/cells/` and top-level `data/cells/` are different things.** The former is
+  > 5,214 per-islet CSVs the drill-down reads; the latter is 13 GB of hive-partitioned
+  > `donor_id=…` pipeline output. Same basename, unrelated content — never merge them. This is
+  > why the app keeps the `app_data/` segment rather than reading `data/` flat.
 - **OME-TIFFs (~1.2 TB)** → `/pubapps/<project>/islet_ome_tiff/`: Globus-transfer every
   `<case>.ome.tiff` **and** its `<case>.offsets.json` sidecar.
 
