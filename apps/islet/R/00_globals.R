@@ -335,6 +335,17 @@ if (!nzchar(Sys.getenv("RETICULATE_PYTHON", ""))) {
 DEBUG_CREDS <- isTRUE(as.logical(Sys.getenv("DEBUG_CREDENTIALS", "0")))
 VIEWER_DEBUG_ENABLED <- identical(Sys.getenv("VIEWER_DEBUG", "0"), "1")
 
+# Feature flags
+#
+# Inflammation tab: HIDDEN by default (Aug 2026, at the user's request). The
+# module and its docs are untouched — this only controls whether the tab is
+# mounted, so re-enabling is a one-line env change rather than a code revert.
+# Both the tabPanel and the inflammation_server() call in app.R are gated on it;
+# leaving the server running without its UI would be harmless (Shiny reactives
+# are lazy) but would still be dead wiring, so both are gated together.
+#   SHOW_INFLAMMATION_TAB=1 in .Renviron  ->  tab reappears
+SHOW_INFLAMMATION_TAB <- identical(Sys.getenv("SHOW_INFLAMMATION_TAB", "0"), "1")
+
 # ============================================================================
 # Plot font + theme helpers (May 2026)
 # ============================================================================

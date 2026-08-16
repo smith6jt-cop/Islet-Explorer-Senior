@@ -396,7 +396,14 @@ ui <- fluidPage(
         ),
         tabPanel("Spatial",
           spatial_ui("spatial")
-        )
+        ),
+        # Hidden unless SHOW_INFLAMMATION_TAB=1 (see 00_globals.R).
+        # tabsetPanel drops NULL entries, so this mounts nothing when off.
+        if (SHOW_INFLAMMATION_TAB) {
+          tabPanel("Inflammation",
+            inflammation_ui("inflam")
+          )
+        }
       )
     )
   )
@@ -610,6 +617,12 @@ server <- function(input, output, session) {
   spatial_server("spatial", prepared, active_palette, active_donor_colors,
                  remove_outliers = remove_outliers_global,
                  outlier_threshold = outlier_z_global)
+
+  # Inflammation module. Gated on the same flag as its tabPanel (see
+  # 00_globals.R) so the module is not wired up when the tab is hidden.
+  if (SHOW_INFLAMMATION_TAB) {
+    inflammation_server("inflam", prepared, active_donor_colors)
+  }
 
   # AI Assistant module (self-contained; gated so public builds omit it — see AI_ENABLED)
   if (AI_ENABLED) ai_assistant_server("ai")
