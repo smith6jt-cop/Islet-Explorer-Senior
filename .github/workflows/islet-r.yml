@@ -40,14 +40,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: 'release'
-          use-public-rspm: true
+
+      # Ubuntu's precompiled r-cran-* debs bundle their system dependencies
+      # (BLAS/LAPACK, gfortran runtime, etc.), so there is no compilation and no binary
+      # lookup to go wrong. Only what tests/testthat needs is installed: the full app also
+      # wants sf / reticulate / anndata / shiny plus the gitignored data/, which is why this
+      # workflow parse-checks the app rather than sourcing it.
+      - name: Install R and test packages
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            r-base-core \
+            r-cran-testthat r-cran-dplyr r-cran-tidyr \
+            r-cran-tibble r-cran-lme4 r-cran-lmertest
 
       - name: Every R source parses
         run: |
           Rscript -e 'fs <- c("apps/islet/app.R", list.files("apps/islet/R", "[.]R$", full.names = TRUE), list.files("scripts", "[.]R$", full.names = TRUE, recursive = TRUE)); bad <- unlist(lapply(fs, function(f) { m <- tryCatch({ parse(f); NULL }, error = function(e) conditionMessage(e)); if (is.null(m)) NULL else paste(f, m) })); if (length(bad)) { cat(bad, sep = "\n"); quit(status = 1) }; cat("parsed", length(fs), "files OK\n")'
+
+      - name: Unit tests (testthat)
+        # Inherited from the Junior app lane in the 2026-08-16 merge, along with the
+        # utils_stats.R they exercise. 15 test_that blocks, 73 assertions. This is the first
+        # real R test coverage this repo has had.
+        run: |
+          cd apps/islet
+          Rscript tests/run_tests.R
 
       - name: Viewer-helper unit tests
         # Base R only. Also the canary for the apps/islet rename: it parse()s
