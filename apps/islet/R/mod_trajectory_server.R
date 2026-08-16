@@ -1,3 +1,14 @@
+# Coerce the "Min cells/islet" numericInput to a usable threshold.
+#
+# `%||%` catches NULL but NOT NA, and a cleared numericInput sends NA — so
+# `if (min_cells > 1)` aborts the reactive with "missing value where TRUE/FALSE
+# needed", blanking every card on the tab. Both filter sites route through here
+# so they cannot disagree.
+traj_min_cells_value <- function(x) {
+  v <- suppressWarnings(as.numeric(x %||% 1))
+  if (length(v) == 1 && is.finite(v) && v >= 1) v else 1
+}
+
 trajectory_server <- function(id, prepared, selected_islet, forced_image, active_tab = reactive("Trajectory"),
                               donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                               remove_outliers = reactive(FALSE),
@@ -385,7 +396,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       result_df <- result_df[valid_idx, , drop = FALSE]
 
       # Apply min cells/islet filter
-      min_cells <- input$min_cells %||% 1
+      min_cells <- traj_min_cells_value(input$min_cells)
       if (min_cells > 1 && "total_cells" %in% colnames(result_df)) {
         tc <- suppressWarnings(as.integer(result_df$total_cells))
         result_df <- result_df[is.finite(tc) & tc >= min_cells, , drop = FALSE]
@@ -1373,7 +1384,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       result <- result[is.finite(result$pt), , drop = FALSE]
 
       # Apply min cells/islet filter (matches traj_data_clean)
-      min_cells <- input$min_cells %||% 1
+      min_cells <- traj_min_cells_value(input$min_cells)
       if (min_cells > 1) {
         result <- result[is.finite(result$total_cells) & result$total_cells >= min_cells, , drop = FALSE]
         if (nrow(result) == 0) return(NULL)
