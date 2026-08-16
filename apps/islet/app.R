@@ -594,10 +594,14 @@ server <- function(input, output, session) {
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
 
-  # Statistics module: wired to Plot module's reactive outputs
+  # Statistics module: wired to Plot module's reactive outputs.
+  # It takes `raw_df_prezero`, NOT `raw_df`, so the Plot sidebar's zero-exclusion
+  # checkbox cannot silently move statistical results; Statistics applies its own
+  # `stats_exclude_zero` and reports that choice in the CSV header. `summary_df`
+  # is deliberately not passed — this module derives AUC itself rather than
+  # integrating the Plot tab's binned summary.
   statistics_server("stats",
-                    raw_df                  = plot_returns$raw_df,
-                    summary_df              = plot_returns$summary_df,
+                    raw_df                  = plot_returns$raw_df_prezero,
                     get_selection_description = plot_returns$get_selection_description,
                     donor_colors             = active_donor_colors,
                     remove_outliers          = remove_outliers_global)

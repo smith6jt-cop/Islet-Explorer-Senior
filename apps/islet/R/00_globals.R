@@ -862,6 +862,48 @@ extract_phenotype_from_column <- function(col) {
   col
 }
 
+# Human-readable label for a raw data-column / selection encoding, for use in
+# plot axes, card titles and CSV headers.
+#
+# The Statistics tab took its feature name straight from the Plot module's
+# `selection_used` attribute, so raw encodings leaked onto the page as if they
+# were the feature's name: "prop_Beta cell", "peri_prop_CD8a_Tcell",
+# "Capillary|islet_core". This resolves the two encodings the app actually uses:
+#   - `<prefix>_<phenotype>`  (prop_ / peri_prop_ / combined_prop_ / ...)
+#   - `<class>|<region>`      (Microenvironment targets)
+# Anything unrecognised is returned unchanged, so this is always safe to apply.
+feature_display_label <- function(col) {
+  if (is.null(col) || length(col) != 1 || is.na(col) || !nzchar(col)) return(col)
+
+  # Microenvironment encoding: "Capillary|islet_core"
+  if (grepl("|", col, fixed = TRUE)) {
+    parts  <- strsplit(col, "|", fixed = TRUE)[[1]]
+    region <- switch(parts[2],
+                     islet_core  = "islet core",
+                     islet_band  = "peri-islet",
+                     islet_union = "core+peri",
+                     gsub("_", " ", parts[2], fixed = TRUE))
+    return(paste0(parts[1], " (", region, ")"))
+  }
+
+  region <- if (startsWith(col, "combined_prop_")) "core+peri"
+            else if (startsWith(col, "peri_prop_") || startsWith(col, "peri_count_")) "peri-islet"
+            else if (startsWith(col, "prop_") || startsWith(col, "count_")) "core"
+            else NULL
+
+  measure <- if (grepl("^(combined_prop_|peri_prop_|prop_)", col)) "% of cells"
+             else if (grepl("^(peri_count_|count_)", col)) "cells"
+             else if (startsWith(col, "enrich_z_")) "enrichment z"
+             else if (startsWith(col, "min_dist_")) "min distance, um"
+             else NULL
+
+  pheno <- extract_phenotype_from_column(col)
+  if (is.null(pheno) || identical(pheno, col)) return(col)   # no prefix matched
+
+  qual <- paste(c(region, measure), collapse = ", ")
+  if (nzchar(qual)) paste0(pheno, " (", qual, ")") else pheno
+}
+
 # UI button that opens the Phenotype Rules modal. The caller chooses the input
 # id (one per tab to avoid duplicate-DOM-id collisions across simultaneously
 # rendered tabPanels) and registers a matching `observeEvent` that calls

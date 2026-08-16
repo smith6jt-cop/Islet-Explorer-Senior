@@ -1336,8 +1336,14 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     # Return values for other modules (Statistics, etc.)
     # ===========================================================================
 
+    # `raw_df_prezero` is `raw_df_base` — the per-islet frame with every sidebar
+    # filter applied but BEFORE `input$exclude_zero_top`. The Statistics tab
+    # consumes this one so the Plot sidebar's zero checkbox cannot silently
+    # alter statistical results; Statistics applies its own `stats_exclude_zero`
+    # and reports it truthfully in the CSV header.
     list(
       raw_df                  = raw_df,
+      raw_df_prezero          = raw_df_base,
       summary_df              = summary_df,
       get_selection_description = get_selection_description
     )
