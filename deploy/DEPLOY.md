@@ -184,3 +184,42 @@ up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
   **rotated/revoked** — it isn't used on the public host (AI off), but the old key is compromised.
 - **Data sensitivity:** the app is fully open; if any data is unpublished/sensitive, ask RC to gate the
   `/` route behind **GatorLink SSO** (a ticket toggle).
+
+---
+
+## Local workstation: two apps served side by side (2026-08-16)
+
+This workstation serves **two** builds through shiny-server, deliberately, and they must not be
+conflated.
+
+| Path | Points at | Purpose |
+|---|---|---|
+| `/srv/shiny-server/islet-explorer` | `~/panc_CODEX/Islet-Explorer/app/shiny_app` | **Publication-linked build. Do not repoint or retire it.** |
+| `/srv/shiny-server/islet-explorer-merged` | `~/IO60panc2nd/Islet-Explorer-Senior/apps/islet` | The merged monorepo app (this repo) |
+
+The two have **separate data roots** and neither reads the other's: the publication build reads
+`~/panc_CODEX/Islet-Explorer/data/`, the merged build reads
+`~/IO60panc2nd/Islet-Explorer-Senior/data/app_data/`. They are copies, not symlinks, so work on
+one cannot perturb the other.
+
+Creating the second entry needs root (the directory is root-owned), so it is **not** done by any
+script in this repo:
+
+```bash
+sudo ln -sfn /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/apps/islet \
+             /srv/shiny-server/islet-explorer-merged
+sudo systemctl restart shiny-server
+```
+
+Then set `IMAGE_BASE_URL` in `apps/islet/.Renviron` for the Viewer — that file is gitignored and
+does not travel with a clone. Optional: `SHOW_INFLAMMATION_TAB=1` to surface the Inflammation tab,
+`ISLET_ENABLE_AI=TRUE` for the AI panel (keep it off on anything public — it needs a UF Navigator
+key).
+
+Verified before this was written: the merged app boots against the staged data (DuckDB views
+registered, mirai pool up, 10,736 islet spatial records, 59 channels, 15 viewer images), serves
+HTTP 200, and renders all five tabs. Run it directly with:
+
+```bash
+cd apps/islet && Rscript -e 'shiny::runApp(".", port = 7788)'
+```
