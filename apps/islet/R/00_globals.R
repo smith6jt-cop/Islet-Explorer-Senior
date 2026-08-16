@@ -343,16 +343,24 @@ VIEWER_DEBUG_ENABLED <- identical(Sys.getenv("VIEWER_DEBUG", "0"), "1")
 # baseline: base 16pt, 18pt titles, 14pt legends, 12pt minimum for dense rows.
 
 ISLET_FONT_SIZES <- list(
-  base         = 16,
+  base         = 18,
   title        = 18,
-  subtitle     = 14,
+  subtitle     = 15,
   axis_title   = 16,
-  axis_text    = 14,
+  axis_text    = 16,
   legend_title = 16,
-  legend_text  = 14,
-  strip        = 14,
-  dense_min    = 12   # heatmap row labels, dense tick labels
+  legend_text  = 16,
+  strip        = 16,
+  dense_min    = 14,  # heatmap row labels, in-cell values, dense tick labels
+  hover        = 15,  # plotly tooltips — NOT covered by layout(font=)
+  annotation   = 15   # plotly annotations / ggplotly facet strips
 )
+
+# ggplot's `annotate("text", size = N)` / `geom_text(size = N)` take
+# MILLIMETRES, not points. Passing a point-like number (14, 16) silently
+# produces enormous text; passing 4 or 5 — as this app did — produces 11.4pt /
+# 14.2pt, i.e. BELOW the 18pt base. Convert explicitly.
+ISLET_ANNOTATE_SIZE <- ISLET_FONT_SIZES$base / ggplot2::.pt
 
 # Standard ggplot theme. Use directly: `theme_islet()` or extend with
 # additional `theme(...)` calls for plot-specific overrides.
@@ -388,7 +396,15 @@ plotly_islet_fonts <- function() {
 # Resulting PNG is `width * scale` x `height * scale` px (default 2800x1800).
 # Use as `p %>% plotly_islet_config("filename_root")`.
 plotly_islet_config <- function(p, filename_root = "islet_explorer_plot",
-                                width = 1400, height = 900, scale = 2) {
+                                width = 1400, height = 900, scale = 2,
+                                uniform_text_mode = "hide") {
+  # Tooltips and in-cell heatmap text ignore layout(font=), so they have to be
+  # set explicitly or they render at plotly's default and undo the type scale.
+  p <- plotly::layout(p,
+    hoverlabel  = list(font = list(size = ISLET_FONT_SIZES$hover)),
+    uniformtext = list(minsize = ISLET_FONT_SIZES$dense_min,
+                       mode    = uniform_text_mode)
+  )
   plotly::config(p,
     toImageButtonOptions = list(
       format   = "png",
@@ -453,6 +469,78 @@ function(el, x){
   }, true);
 }", input_id)
   htmlwidgets::onRender(p, js)
+}
+
+# ============================================================================
+# CSV export helper
+# ============================================================================
+# Every CSV the app emits should carry a `#`-commented provenance block naming
+# the filters that produced it — otherwise two files with different row sets are
+# indistinguishable after download. Writing to an open connection (rather than
+# writeLines() + write.table(append = TRUE)) also avoids R's "appending column
+# names to file" warning.
+#
+# @param file    Path or connection from a downloadHandler `content` function.
+# @param df      Data frame to write. NULL/empty writes the header alone.
+# @param header  Character vector of provenance lines (the "# " is added here).
+write_islet_csv <- function(file, df, header = character(0)) {
+  con <- base::file(file, open = "w", encoding = "UTF-8")
+  on.exit(close(con), add = TRUE)
+  if (length(header) > 0) {
+    writeLines(paste("#", header), con)
+    writeLines("", con)
+  }
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0) {
+    writeLines("# No data for the current selection", con)
+  } else {
+    utils::write.csv(df, con, row.names = FALSE)
+  }
+  invisible(TRUE)
+}
+
+# Standard first lines of a provenance block. Callers append their own.
+islet_csv_header <- function(title, ...) {
+  c(title, paste("Generated:", Sys.time()), ...)
+}
+
+# Empty-state placeholder with the standard title font. `plotly_empty()` on its
+# own renders its title at plotly's default size, so the nine "No data" messages
+# across the app read noticeably smaller than everything around them.
+plotly_islet_empty <- function(msg) {
+  plotly::layout(plotly::plotly_empty(),
+                 title = list(text = msg,
+                              font = list(size = ISLET_FONT_SIZES$title)))
+}
+
+# ggplotly() silently DROPS `labs(subtitle = ...)`. Several plots put their
+# p-value / correction annotations there, so those lines simply never rendered.
+# Build a plotly title string that carries the subtitle as a `<sup>` second line
+# and pass it to `layout(title = list(text = ...))`.
+plotly_title_with_sub <- function(title, subtitle = NULL) {
+  if (is.null(subtitle) || !nzchar(trimws(subtitle))) return(title)
+  paste0(title, "<br><sup>", subtitle, "</sup>")
+}
+
+# Restyle the layout ANNOTATIONS that ggplotly() creates and that no `layout()`
+# overlay can reach.
+#
+# For an unfaceted plot ggplotly keeps axis titles in `layout.xaxis.title`, so
+# the usual `layout(xaxis = list(title = list(font = ...)))` works. Add a facet
+# and it relocates BOTH the strip labels and the axis titles into
+# `layout.annotations` — where that overlay is silently ignored and they render
+# at ggplot's converted default (~14.6px). Verified with plotly_build().
+#
+# Strip labels have no `annotationType`; axis titles carry `"axis"`.
+plotly_islet_strip_fonts <- function(gg,
+                                     strip_size = ISLET_FONT_SIZES$strip,
+                                     axis_title_size = ISLET_FONT_SIZES$axis_title) {
+  ann <- gg$x$layout$annotations
+  if (is.null(ann) || length(ann) == 0) return(gg)
+  for (i in seq_along(ann)) {
+    gg$x$layout$annotations[[i]]$font$size <-
+      if (identical(ann[[i]]$annotationType, "axis")) axis_title_size else strip_size
+  }
+  gg
 }
 
 # Standard PNG download dimensions for ggplot ggsave() in downloadHandlers.

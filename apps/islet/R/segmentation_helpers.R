@@ -632,7 +632,7 @@ render_islet_segmentation_plot <- function(info, show_peri_boundary = TRUE, show
         ggplot2::annotate("text", x = 0.5, y = 0.5,
                           label = paste("No segmentation data found for", info$islet_key,
                                         "in case", info$case_id),
-                          size = 5, color = "gray50") +
+                          size = ISLET_ANNOTATE_SIZE, color = "gray50") +
         ggplot2::theme_void() +
         ggplot2::xlim(0, 1) + ggplot2::ylim(0, 1)
     )

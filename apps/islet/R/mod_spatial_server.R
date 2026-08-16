@@ -133,10 +133,16 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     })
 
     # ---- Phenotype filter ----
+    # Choices come from the CANONICAL vocabulary (`canonical_phenotype_order()`,
+    # backed by PHENOTYPE_COLORS), never from `unique(donor_cells()$phenotype)`.
+    # Deriving them per-donor is why "CD4 Tcell" could vanish: the default donor
+    # (112) has zero CD4 cells, as do 6533 and 6534, so the checkbox simply did
+    # not exist on first load. Phenotypes with no cells for the current donor are
+    # still listed, so the list never changes shape when the donor changes.
     output$phenotype_filter <- renderUI({
       cells <- tryCatch(donor_cells(), error = function(e) NULL)
       if (is.null(cells)) return(NULL)
-      phenos <- sort(unique(cells$phenotype))
+      phenos <- canonical_phenotype_order(cells$phenotype)
       if (length(phenos) == 0) return(NULL)
       # Preserve previous selections if available (donor change shouldn't reset)
       prev <- isolate(input$pheno_filter)
@@ -164,7 +170,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     observeEvent(input$pheno_all, {
       cells <- tryCatch(donor_cells(), error = function(e) NULL)
       if (!is.null(cells)) {
-        phenos <- sort(unique(cells$phenotype))
+        # Same canonical list the checkboxes were built from, so "All" selects
+        # every box that exists rather than only the ones this donor populates.
+        phenos <- canonical_phenotype_order(cells$phenotype)
         updateCheckboxGroupInput(session, "pheno_filter", selected = phenos)
       }
     })

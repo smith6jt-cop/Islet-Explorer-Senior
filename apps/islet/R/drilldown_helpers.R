@@ -245,10 +245,22 @@ render_islet_drilldown_plot <- function(info, cells, color_by = "phenotype", sho
       ggplot2::labs(title = paste(info$islet_key, "- Single Cells"))
   }
 
+  # theme_islet() FIRST, then the local overrides. Without it this plot inherited
+  # whatever base_plot carried — and on the `theme_void()` fallback path (no
+  # GeoJSON) that meant ggplot's 11pt default for the entire phenotype legend,
+  # the densest text in the drill-down.
   p +
+    theme_islet() +
     ggplot2::theme(
       legend.position = "right",
-      legend.key.size = ggplot2::unit(0.9, "cm")
+      legend.key.size = ggplot2::unit(0.9, "cm"),
+      legend.text     = ggplot2::element_text(size = ISLET_FONT_SIZES$legend_text),
+      legend.title    = ggplot2::element_text(size = ISLET_FONT_SIZES$legend_title,
+                                              face = "bold"),
+      # Spatial map: axes are pixel coordinates and carry no meaning.
+      axis.title      = ggplot2::element_blank(),
+      axis.text       = ggplot2::element_blank(),
+      panel.grid      = ggplot2::element_blank()
     )
 }
 

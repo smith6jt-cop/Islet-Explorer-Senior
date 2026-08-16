@@ -310,3 +310,20 @@ query_tissue_bbox <- function(imageid, xmin, xmax, ymin, ymax) {
     df[keep, , drop = FALSE]
   }
 }
+
+#' Canonical phenotype ordering for selectors
+#'
+#' Selectors must NOT derive their choices from whichever slice of data happens
+#' to be loaded — that is how "CD4 Tcell" disappeared from the Spatial tab, since
+#' the default donor (112) has zero CD4 cells and two other donors (6533, 6534)
+#' do too. `PHENOTYPE_COLORS` (drilldown_helpers.R) is the documented single
+#' source of truth for phenotype labels; `extra` lets an unexpected value from
+#' the data still appear rather than being silently dropped.
+#'
+#' @param extra Optional character vector of phenotypes observed in the data.
+#' @return Canonical names first (PHENOTYPE_COLORS order), then any extras.
+canonical_phenotype_order <- function(extra = character(0)) {
+  canon <- names(PHENOTYPE_COLORS)
+  extra <- unique(as.character(extra[!is.na(extra) & nzchar(extra)]))
+  c(canon, sort(setdiff(extra, canon)))
+}
