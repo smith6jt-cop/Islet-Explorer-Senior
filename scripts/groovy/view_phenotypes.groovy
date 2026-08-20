@@ -1,5 +1,5 @@
 // view_phenotypes.groovy — show/hide detection classes on the image (QuPath 0.7).
-// Run AFTER Phenocycler_Analysis/scripts/groovy/import_cell_assignments.groovy.
+// Run AFTER core/phenocycler/scripts/groovy/import_cell_assignments.groovy.
 // Broad imports use classes such as "Immune"; specific imports use classes such
 // as "Immune - T_cell", plus "Phenocycler - Ambiguous" and "Phenocycler - Unavailable".
 // (QuPath 0.7 replaced OverlayOptions.hiddenClassesProperty() with setPathClassHidden(PathClass, boolean).)

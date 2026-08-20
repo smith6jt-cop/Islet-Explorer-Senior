@@ -187,15 +187,20 @@ up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
 
 ---
 
-## Local workstation: two apps served side by side (2026-08-16)
+## Local workstation: two apps to be served side by side (2026-08-16)
 
-This workstation serves **two** builds through shiny-server, deliberately, and they must not be
-conflated.
+This workstation is intended to serve **two** builds through shiny-server, deliberately, and they
+must not be conflated.
 
-| Path | Points at | Purpose |
-|---|---|---|
-| `/srv/shiny-server/islet-explorer` | `~/panc_CODEX/Islet-Explorer/app/shiny_app` | **Publication-linked build. Do not repoint or retire it.** |
-| `/srv/shiny-server/islet-explorer-merged` | `~/IO60panc2nd/Islet-Explorer-Senior/apps/islet` | The merged monorepo app (this repo) |
+| Path | Points at | Purpose | State |
+|---|---|---|---|
+| `/srv/shiny-server/islet-explorer` | `~/panc_CODEX/Islet-Explorer/app/shiny_app` | **Publication-linked build. Do not repoint or retire it.** | live |
+| `/srv/shiny-server/islet-explorer-merged` | `~/IO60panc2nd/Islet-Explorer-Senior/apps/islet` | The merged monorepo app (this repo) | **not created yet** |
+
+**Checked 2026-08-20:** `/srv/shiny-server/` contains only `index.html`, `islet-explorer` and
+`sample-apps`. The second entry has not been made, so the merged app is **not currently served**;
+it has only been verified under a local `runApp`. Create it with the command below when you want
+it up.
 
 The two have **separate data roots** and neither reads the other's: the publication build reads
 `~/panc_CODEX/Islet-Explorer/data/`, the merged build reads

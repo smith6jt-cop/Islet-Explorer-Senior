@@ -36,8 +36,10 @@ islet-explorer/                  (this repo, reshaped)
 
 `core/bridge/` is listed for completeness only. The handoff records Phase 1 as void: three of
 its five inputs no longer exist, and `CLAUDE.md` forbids describing the legacy H5AD rebuild as
-current. A consequence to keep in view — `data/app_data/` does not exist, so **the Shiny app
-cannot currently load data**. That is a known, accepted state, not a regression from Phase 2.
+current. This said, until 2026-08-16, that `data/app_data/` did not exist and the Shiny app
+could not load data. **That is no longer true:** the 08-16 round staged 1.9 GB into
+`data/app_data/` and the merged app boots and renders every tab against it. Phase 1 stays
+void; the app simply no longer depends on it.
 
 ## Ground rules
 

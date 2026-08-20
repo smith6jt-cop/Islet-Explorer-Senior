@@ -2,25 +2,27 @@
 
 ## Ownership boundary
 
-`Phenocycler_Analysis/` owns the raw QuPath-to-cell-identity workflow. Root
-scripts will consume completed assignments after a run-aware H5AD adapter is
+`core/phenocycler/` owns the raw QuPath-to-expression workflow. Root scripts
+will consume completed assignments after a run-aware H5AD adapter is
 implemented; current app scripts still consume a legacy H5AD. Root scripts
 must not invent marker thresholds, positivity frequencies, or alternate
 cell-typing rules.
 
-Current source stages:
+Current source stages — the workflow **stops after expression**. Pair-dependent
+`controls`, `calibrate`, `type`, state calling and assignment export are blocked
+while the marker registry declares `development_no_verified_pairs`:
 
 ```text
-manifest -> ingest -> geometry -> redsea -> expression -> controls
-         -> calibrate -> type -> states -> QuPath export
+QuPath cohort manifest -> ingest -> geometry QC -> REDSEA -> one intensity per marker
 ```
 
-Run and inspect them through the package:
+Run and inspect them through the package, **from `core/phenocycler/`**, which owns
+the only real `config.ini`:
 
 ```bash
-conda activate scvi-env
-python -m pip install -e Phenocycler_Analysis
-python -m phenocycler.pipeline run --config config.ini
+python -m pip install -e core/phenocycler
+cd core/phenocycler
+python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
 
@@ -30,9 +32,9 @@ different configuration file is intentional.
 
 See:
 
-- `../Phenocycler_Analysis/README.md`
-- `../Phenocycler_Analysis/docs/WORKFLOW.md`
-- `../Phenocycler_Analysis/DATA_README.md`
+- `../core/phenocycler/README.md`
+- `../core/phenocycler/docs/WORKFLOW.md`
+- `../core/phenocycler/DATA_README.md`
 
 ## Downstream scripts and current boundary
 
@@ -60,7 +62,7 @@ legacy H5AD maintenance only and must not modify current assignments.
 ## Environment separation
 
 - `scvi-env` is the established downstream Scanpy/scVI/Harmony environment.
-- `Phenocycler_Analysis/environment.yml` is the focused reproducible source
+- `core/phenocycler/environment.yml` is the focused reproducible source
   workflow environment.
 - Do not add embedding, trajectory, Shiny, or app-only dependencies to the
   focused source environment.
@@ -78,7 +80,7 @@ legacy H5AD maintenance only and must not modify current assignments.
 ## Retired phenotyping code
 
 RESTORE itself is **not** retired: it is the production marker-calling method
-in `Phenocycler_Analysis/phenocycler/restore_stage.py`, and its NNMF separator
+in `core/phenocycler/phenocycler/restore_stage.py`, and its NNMF separator
 is part of that production path. What is retired is the flat-file apparatus
 that grew around it.
 
@@ -94,7 +96,7 @@ fallbacks:
 - hard-coded QuPath import/export paths and the old broad-lineage importer.
 
 The active QuPath handoff is
-`Phenocycler_Analysis/scripts/groovy/import_cell_assignments.groovy`, which
+`core/phenocycler/scripts/groovy/import_cell_assignments.groovy`, which
 uses UUIDs and preserves uncertainty. Historical experiments remain
 recoverable from Git history.
 
