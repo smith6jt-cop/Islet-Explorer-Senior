@@ -336,9 +336,7 @@ def run_match(
     cohort). ROIs whose tissue has no structural unit are announced and skipped — a combined
     pancreas + lymph-node run therefore does the right thing without the caller filtering.
     """
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration structure matching")
+    # Geometry only: islet polygons on both sides.
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
     if donors:
         man = man[man["donor_id"].isin({str(d) for d in donors})]

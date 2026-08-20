@@ -296,9 +296,8 @@ def disease_trend_figure(cfg: PipelineConfig,
 def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
                 *, roi: Optional[str] = None, tissue: Optional[str] = None) -> list[Path]:
     """Stage entry point: render everything that has data behind it."""
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration figures")
+    # Geometry only. The identity-dependent figures below (composition, disease trend) read
+    # files written by identity-gated stages, so they self-skip when those never ran.
     cfg.integration_figures_dir.mkdir(parents=True, exist_ok=True)
     made: list[Path] = []
 

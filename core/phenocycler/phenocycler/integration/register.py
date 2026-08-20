@@ -836,9 +836,7 @@ def run_register(
     One call covers the whole selection. Registration is per (donor, roi) — a donor's
     pancreas and each of its lymph nodes are separate sections with separate transforms.
     """
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration registration")
+    # Geometry only: coordinates and rasters. Registration does not read a lineage label.
     import json
 
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)

@@ -93,7 +93,27 @@ CELL_TABLE_COLUMNS: dict[str, str] = {
 }
 
 #: Columns a producer must supply; the rest are filled with typed nulls.
-REQUIRED_COLUMNS = ("cell_id", "donor_id", "modality", "x_um", "y_um", "lineage_native")
+#:
+#: ``lineage_native`` is deliberately NOT here. A cell table that carries only geometry and
+#: intensity is a legitimate product — it is what ``runs/<id>/expression`` can supply while no
+#: target/reference pair is verified — and the stages that need only coordinates must be able
+#: to consume it. Identity-dependent stages gate on :func:`has_identity` instead, so the
+#: question asked is "does this table actually carry labels?" rather than "is this stage on a
+#: hardcoded list?".
+REQUIRED_COLUMNS = ("cell_id", "donor_id", "modality", "x_um", "y_um")
+
+
+def has_identity(df: pd.DataFrame) -> bool:
+    """True when the table carries at least one non-empty ``lineage_native`` label.
+
+    ``coerce_cell_table`` fills an absent ``lineage_native`` with the empty string, and
+    ``import_xenium`` already uses ``''`` for a cell it could not label, so "no identity" is
+    one value everywhere rather than a mix of missing-column and null. An all-empty column is
+    therefore the same thing as no column at all, and both answer False.
+    """
+    if "lineage_native" not in df.columns:
+        return False
+    return bool((df["lineage_native"].fillna("").astype(str).str.strip() != "").any())
 
 
 class ContractError(ValueError):

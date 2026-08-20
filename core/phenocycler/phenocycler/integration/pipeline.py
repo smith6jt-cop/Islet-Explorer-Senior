@@ -94,30 +94,60 @@ NEEDS_STRUCTURES = {"structures", "match", "cellmatch"}
 #: Stages that run once for the whole selection rather than once per ROI.
 COHORT_WIDE = {"manifest", "vocab", "structures", "donor", "qc"}
 
-# These stages either create, directly read, or scientifically depend on the main
-# PhenoCycler cell contract. Historical ``integration/cells_pheno`` files are not a
-# cache for the current workflow and must never make one of these stages runnable.
-PHENO_DEPENDENT_STAGES = frozenset(
+# Split along what a stage READS, not which workflow produced it.
+#
+# The single flat gate this replaces blocked thirteen stages because one of them needed a
+# marker call. Registration, transforms and islet matching need coordinates and rasters; they
+# do not need to know what any cell IS. Conflating the two meant the identity-independent
+# core — the expensive, risky part, and the part that stays useful when a verified pair
+# roster eventually lands — was unreachable for a reason that did not apply to it.
+
+#: Stages that consume a cell IDENTITY: a lineage label, not a coordinate. Blocked while no
+#: target/reference pair is verified. Historical ``integration/cells_pheno`` files are not a
+#: cache for the current workflow and must never make one of these runnable.
+PHENO_IDENTITY_STAGES = frozenset(
     {
-        "export_pheno",
         "postxen",
         "vocab",
-        "structures",
-        "register",
-        "match",
         "cellmatch",
         "sameslide",
         "grid",
         "donor",
         "crossmodal",
+    }
+)
+
+#: Stages that need only geometry — coordinates, areas, rasters, ``islet_num``/``cell_region``.
+#: Runnable against ``runs/<id>/expression`` with ``lineage_native`` absent.
+GEOMETRY_STAGES = frozenset(
+    {
+        "manifest",
+        "export_pheno",
+        "import_xenium",
+        "structures",
+        "register",
+        "transform",
+        "match",
         "qc",
         "figures",
     }
 )
 
+#: Retained so a stale import fails loudly rather than silently gating nothing.
+PHENO_DEPENDENT_STAGES = PHENO_IDENTITY_STAGES
+
+#: Stages whose existing outputs never count as "already done".
+#:
+#: ``integration/cells_pheno`` may still hold tables written by the retired typing lane. While
+#: ``export_pheno`` was blocked outright, a cached directory could not be reached; now that the
+#: geometry half is runnable, an untouched historical directory would otherwise make the stage
+#: skip and hand retired identity data to everything downstream. Re-deriving is cheap next to
+#: that, so this stage is always re-run and its cache is never trusted.
+NEVER_CACHED_STAGES = frozenset({"export_pheno"})
+
 
 def _assert_current_pheno_available(stages: list[str]) -> None:
-    blocked = sorted(PHENO_DEPENDENT_STAGES.intersection(stages))
+    blocked = sorted(PHENO_IDENTITY_STAGES.intersection(stages))
     if blocked:
         require_current_pheno(f"integration stage(s): {', '.join(blocked)}")
 
@@ -153,11 +183,14 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
         n = _has_outputs(cfg, pattern)
         mark = "ok " if n else "   "
         scope = ""
+        if name in NEVER_CACHED_STAGES and n:
+            mark = "   "
+            scope = "  [outputs present but never trusted as a cache; always re-derived]"
         if name not in order:
             mark = "n/a"
-        elif name in PHENO_DEPENDENT_STAGES:
+        elif name in PHENO_IDENTITY_STAGES:
             mark = "BLOCKED"
-            scope = "  [no verified PhenoCycler phenotype input; cached files ignored]"
+            scope = "  [needs a cell identity; no verified pair roster. cached files ignored]"
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:
@@ -223,7 +256,7 @@ def run_pipeline(
         ``islets.parquet``, ``crossmodal_qc.csv``), so calling a stage once per ROI would have
         each ROI's write silently clobber the previous one's.
         """
-        if not force and _has_outputs(cfg, patterns[name]):
+        if not force and name not in NEVER_CACHED_STAGES and _has_outputs(cfg, patterns[name]):
             print(f"[SKIP] {name}: outputs already present at "
                   f"{cfg.data_dir / patterns[name]}", flush=True)
             return

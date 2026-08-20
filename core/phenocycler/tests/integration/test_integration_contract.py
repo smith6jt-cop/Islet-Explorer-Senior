@@ -10,8 +10,8 @@ import pytest
 
 from phenocycler.integration.contract import (
     CELL_TABLE_COLUMNS, CellTable, ContractError, coerce_cell_table, discover_partitions,
-    empty_cell_table, feature_columns, normalize_donor_id, partition_path, read_cell_table,
-    validate_cell_table, write_cell_table,
+    empty_cell_table, feature_columns, has_identity, normalize_donor_id, partition_path,
+    read_cell_table, validate_cell_table, write_cell_table,
 )
 
 
@@ -51,9 +51,35 @@ def test_coerce_preserves_extra_columns_and_sorts_features():
 
 
 def test_missing_required_column_raises():
-    bad = _minimal().drop(columns=["lineage_native"])
+    bad = _minimal().drop(columns=["x_um"])
     with pytest.raises(ContractError, match="missing"):
         coerce_cell_table(bad, modality="phenocycler", donor_id="1", roi="panc")
+
+
+def test_geometry_only_table_is_valid_without_identity():
+    """A table with no ``lineage_native`` is a legitimate product, not a broken one.
+
+    This is what ``runs/<id>/expression`` can supply while no pair roster is verified, and the
+    geometry stages must be able to consume it.
+    """
+    geom = _minimal().drop(columns=["lineage_native"])
+    out = coerce_cell_table(geom, modality="phenocycler", donor_id="1", roi="panc")
+    assert "lineage_native" in out.columns          # filled, not required
+    assert (out["lineage_native"] == "").all()
+    assert not has_identity(out)
+
+
+def test_has_identity_is_about_content_not_column_presence():
+    labelled = coerce_cell_table(_minimal(), modality="phenocycler", donor_id="1", roi="panc")
+    assert has_identity(labelled)
+
+    blanked = labelled.copy()
+    blanked["lineage_native"] = ""
+    assert not has_identity(blanked)
+
+    whitespace = labelled.copy()
+    whitespace["lineage_native"] = "   "
+    assert not has_identity(whitespace)
 
 
 def test_unknown_modality_raises():

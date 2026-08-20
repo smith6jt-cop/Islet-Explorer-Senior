@@ -88,7 +88,14 @@ def test_downstream_only_cannot_bypass_the_missing_current_export(cfg):
         )
 
 
-def test_status_marks_cached_historical_export_blocked(cfg, capsys):
+def test_status_never_reports_a_cached_historical_export_as_done(cfg, capsys):
+    """A retired cells_pheno directory must not read as a satisfied stage.
+
+    ``export_pheno`` is no longer blocked outright — its geometry half is runnable — so the
+    protection that matters now is that its cache is never trusted. A historical directory
+    left on disk must still show as not-done, or the next run skips the stage and hands
+    retired identity data to everything downstream.
+    """
     from phenocycler.integration import pipeline
 
     (cfg.data_dir / "integration/cells_pheno/donor_id=6436").mkdir(parents=True)
@@ -97,8 +104,8 @@ def test_status_marks_cached_historical_export_blocked(cfg, capsys):
     export_line = next(
         line for line in capsys.readouterr().out.splitlines() if "export_pheno" in line
     )
-    assert "BLOCKED" in export_line
-    assert "cached files ignored" in export_line
+    assert "ok" not in export_line
+    assert "never trusted as a cache" in export_line
 
 
 @pytest.mark.parametrize(
@@ -106,23 +113,54 @@ def test_status_marks_cached_historical_export_blocked(cfg, capsys):
     [
         ("postxen", "run_postxen"),
         ("vocab", "run_vocab"),
-        ("structures", "run_structures"),
-        ("register", "run_register"),
-        ("match", "run_match"),
         ("cellmatch", "run_cellmatch"),
         ("sameslide", "run_sameslide"),
         ("grid", "run_grid"),
         ("donor", "run_donor"),
         ("crossmodal", "run_crossmodal"),
-        ("qc", "run_qc"),
-        ("figures", "run_figures"),
     ],
 )
-def test_public_pheno_dependent_runners_refuse_before_reading_cache(
-    cfg, module_name, runner_name
-):
+def test_identity_runners_refuse_before_reading_cache(cfg, module_name, runner_name):
+    """Stages that consume a lineage label stay fail-closed, and refuse before touching disk."""
     module = importlib.import_module(f"phenocycler.integration.{module_name}")
     runner = getattr(module, runner_name)
 
     with pytest.raises(export_pheno.ExportError, match="Cached files are ignored"):
         runner(cfg)
+
+
+@pytest.mark.parametrize(
+    ("module_name", "runner_name"),
+    [
+        ("structures", "run_structures"),
+        ("register", "run_register"),
+        ("match", "run_match"),
+        ("qc", "run_qc"),
+        ("figures", "run_figures"),
+    ],
+)
+def test_geometry_runners_are_not_identity_gated(cfg, module_name, runner_name):
+    """Stages that need only coordinates must NOT refuse for want of a verified pair.
+
+    They may still fail or no-op for want of input — an empty tmp_path has no manifest and no
+    cell tables — but the one thing they must not do is raise the no-verified-pairs refusal.
+    Registration does not need to know what a cell is.
+    """
+    module = importlib.import_module(f"phenocycler.integration.{module_name}")
+    runner = getattr(module, runner_name)
+
+    try:
+        runner(cfg)
+    except export_pheno.ExportError as exc:  # pragma: no cover - the failure we are guarding
+        pytest.fail(f"{runner_name} is identity-gated but should not be: {exc}")
+    except Exception:
+        pass  # missing inputs are fine; identity refusal is not
+
+
+def test_the_two_stage_sets_are_disjoint_and_cover_the_pipeline():
+    from phenocycler.integration import pipeline
+
+    assert not (pipeline.PHENO_IDENTITY_STAGES & pipeline.GEOMETRY_STAGES)
+    every_stage = {name for name, _, _ in pipeline.STAGES}
+    uncovered = every_stage - pipeline.PHENO_IDENTITY_STAGES - pipeline.GEOMETRY_STAGES
+    assert not uncovered, f"stages classified as neither identity nor geometry: {uncovered}"

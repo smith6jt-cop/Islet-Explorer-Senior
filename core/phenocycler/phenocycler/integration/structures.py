@@ -404,9 +404,8 @@ def run_structures(
     tissues: Optional[Iterable[str]] = None,
 ) -> pd.DataFrame:
     """Stage entry point: extract structures for every exported section that supports them."""
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration structures")
+    # Geometry only: QuPath ``islet_num``/``cell_region`` and coordinates. Never propagates
+    # identity — see the hormone-seed note in this module's docstring.
     roots = {"phenocycler": cfg.cells_pheno_dir, "xenium": cfg.cells_xen_dir}
     summary = []
 
