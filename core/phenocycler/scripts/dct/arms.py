@@ -78,10 +78,11 @@ class Arm:
     name: str
     hypothesis: str
     window: int = 2048          # concentric read around the anchor; core is always CORE_PX
-    panel: str = "all"          # "all" | "type_only"
+    panel: str = "all"          # "all" | "type_only" | "random30"
     mask: str = "cell"          # "cell" | "nucleus"
     ins: str | None = "C-peptide"   # None drops insulin entirely
     with_dapi: bool = False
+    seed: int = 0               # only used by the random-subset panel
 
 
 ARMS = [
@@ -100,6 +101,20 @@ ARMS = [
         "cost of having no insulin channel at all", ins=None),
     Arm("A6b-ins-wrong-name", f"trained-but-wrong-name control: insulin pixels under "
         f"{WRONG_NAME!r}", ins=WRONG_NAME),
+]
+
+#: Round two, run only if C1 flags an axis.  Kept OUT of ``ARMS`` so it cannot contaminate
+#: the screen it exists to interrogate.
+#:
+#: If the type-only panel moves the gate, the obvious next question is whether it was the
+#: COMPOSITION (30 lineage markers, close to the 34-channel training median) or merely the
+#: SIZE (30 channels instead of 52).  Five seeded random 30-channel draws answer it: if they
+#: move the gate as far as the type-only panel does, the effect is size and the type/state
+#: split is incidental.
+ROUND2_ARMS = [
+    Arm(f"A1b-random30-s{i}", "size-matched control for A1: is it composition or panel size?",
+        panel="random30", seed=i)
+    for i in range(5)
 ]
 
 
@@ -154,6 +169,15 @@ def _channels(im, arm, registry_kind):
         if arm.panel == "type_only" and registry_kind.get(mk) != "type":
             continue
         sel.append((c["channel_index"], mk, dct))
+    if arm.panel == "random30":
+        # Size-matched control for the type-only arm: SAME panel size, composition drawn at
+        # random. Without it, "restricting to 30 type markers helps" cannot be told apart
+        # from "handing the model 30 channels instead of 52 helps" -- and the model's
+        # channel-wise transformer has no positional encoding, so panel SIZE alone is a live
+        # explanation. Seeded, so the draw is reproducible and stated rather than fished for.
+        rng = np.random.default_rng(arm.seed)
+        keep = sorted(rng.choice(len(sel), size=min(30, len(sel)), replace=False).tolist())
+        sel = [sel[i] for i in keep]
     return sel
 
 
