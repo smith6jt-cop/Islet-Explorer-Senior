@@ -379,3 +379,51 @@ Panel subsets are declared in advance rather than searched greedily, because a g
   positional encoding, so panel size alone is a live explanation.
 
 ---
+
+### Executed 2026-08-24 — C1 screening factorial
+
+144 runs, 58 min, **zero errors**. Three selection donors (6539 cd38-59ch archived mask; 6450
+b-catenin1-59ch rasterized; 6523 neither-58ch rasterized), three regions each (two blind hash draws
+and the first islet-anchored one), eight arms, both checkpoints. Scored on the 28 registry-derived
+anchors in the restricted label space, per region, meaned per donor.
+
+**Baseline (`A0-baseline`, all 52 channels, 2048-px window, cell mask):**
+
+| donor | checkpoint | sign + | rank-1 | AUROC ≥ bar | mean AUROC | coherent | impossible mass |
+|---|---|---|---|---|---|---|---|
+| 6539 | 2026-06-15 | 16.7/28 | 9.7 | 11.0 | 0.578 | 15.7 | 0.279 |
+| 6539 | **ptft** | **22.3/28** | **15.7** | **13.0** | **0.677** | **19.0** | **0.071** |
+| 6450 | 2026-06-15 | 10.7/28 | 6.0 | 4.3 | 0.469 | 7.7 | 0.155 |
+| 6450 | **ptft** | **20.0/28** | **14.7** | **11.7** | **0.678** | **18.3** | **0.169** |
+| 6523 | 2026-06-15 | 16.7/28 | 5.3 | 5.7 | 0.552 | 21.7 | 0.274 |
+| 6523 | **ptft** | **21.7/28** | **16.7** | **12.7** | **0.683** | **19.3** | **0.093** |
+
+**Three things this settles.**
+
+1. **The checkpoint.** `2026-06-23-ptft` beats `2026-06-15` on every statistic, on all three donors,
+   across all three panel variants. Its mean anchor AUROC is 0.677 / 0.678 / 0.683 — strikingly
+   stable across donors — against 0.578 / 0.469 / 0.552. The 2026-08-20 plan pinned `2026-06-15` as
+   primary because it is the paper's Fig-3c headline. That was a citation, not a measurement, and
+   the measurement disagrees. **ptft is the checkpoint.**
+
+2. **Reducing the panel to bare lineage markers is the wrong move, and only looked right on the
+   wrong checkpoint.** `A1-type-only` (30 channels) flags on 3/3 donors for `2026-06-15` — +5.0
+   anchors clearing their AUROC bar, +3.2 coherent, −0.177 impossible mass. On **ptft it does the
+   opposite**: −4.4 sign, −3.8 rank-1, −2.0 AUROC-pass, −0.057 mean AUROC, flagging on only 1/3.
+   The stronger checkpoint is *using* the functional and subtype markers, and stripping them costs
+   real anchor performance. What rescues a degenerate model is not what improves a working one.
+   This is why round two asks the sharper question — which functional markers carry compartment
+   information by **exclusivity** (`A1d`, 43 channels) — rather than treating `state` as a synonym
+   for `noise`.
+
+3. **Three axes are settled as non-issues and need no further arms.** On ptft, across three donors:
+   window size (1024 / 1500 / 2048 / 4096) moves mean AUROC by ≤ 0.006 in either direction; the
+   nucleus mask is worse (−0.025 mean AUROC, −2.1 coherent), so the cell mask stays; and insulin's
+   marker name — `C-peptide`, dropped, or the trained-but-wrong `AQP2` — changes nothing measurable
+   (≤ 0.005). `A2-window-1024` technically flags 2/3 on ptft but at +0.006 mean AUROC, at the very
+   edge of the movement rule; it is recorded as marginal, not as a finding.
+
+The DAPI and tile-density questions closed by the 2026-08-24 single-tile arms are unchanged by this.
+
+**Not a verdict.** These are the selection donors. The release verdict is computed on 115, 6521,
+6593, 6534 and 6591, which nothing here has touched.
