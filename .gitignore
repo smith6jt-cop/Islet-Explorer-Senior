@@ -91,3 +91,7 @@ scripts/scvi_comparison_results/new_latent_single_cell.npy
 # Local Claude Code settings + pipeline run logs
 .claude/settings.local.json
 logs/
+
+# DeepCell portal access token. Untracked AND unignored until 2026-08-24, so the
+# first `git add -A` of the DCT lane would have committed a live credential.
+/deepcellToken
