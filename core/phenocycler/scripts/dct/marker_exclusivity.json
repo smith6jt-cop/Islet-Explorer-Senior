@@ -1,0 +1,160 @@
+{
+  "entries": {
+    "Bcl_2": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Anti-apoptotic, broadly expressed; not compartment-restricted."
+    },
+    "Beta_actin": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Cytoskeletal housekeeping protein. Present in every cell; the registry already records its use as 'housekeeping'."
+    },
+    "CD107a": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "LAMP1, a lysosomal membrane protein present in all nucleated cells."
+    },
+    "CD11b": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": true,
+      "reason": "Myeloid integrin. Informative in principle; excluded by the registry, and carried as a marker-dropout arm rather than a panel member."
+    },
+    "CD38": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Plasma cells and activated lymphocytes, plus some endothelium. Batch-1 panel only."
+    },
+    "CD39": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "ENTPD1. Tregs, B-cell subsets and endothelium; not broadly expressed."
+    },
+    "CD44": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Broadly expressed across immune, epithelial and mesenchymal compartments."
+    },
+    "CD57": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "NK cells and terminally differentiated cytotoxic T cells."
+    },
+    "CD99": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": false,
+      "reason": "Broadly expressed. Also has no DCT vocabulary entry."
+    },
+    "Caveolin": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": true,
+      "reason": "Caveolae scaffolding protein, enriched in endothelium -- the registry itself types it Endothelial. It has the HIGHEST label-free Gini of any marker in the panel (0.753). Previously mislabelled uninformative here for the wrong reason: it has no DCT vocabulary entry, which is a different fact and is now recorded separately."
+    },
+    "Collagen_IV": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Basement-membrane ECM. It labels MATRIX, not cells: a per-cell mean reports adjacency to a basement membrane, not the cell's identity."
+    },
+    "DAPI": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Nuclear counterstain -- dsDNA IS in the vocabulary. Withheld by a crosswalk decision and carried as the with_dapi arm, not here."
+    },
+    "Granzyme_B": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Cytotoxic granule protein: CD8 T and NK. Absent from every other compartment."
+    },
+    "HLA_A": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "MHC class I. Near-universal on nucleated cells; level varies but presence does not separate compartments."
+    },
+    "HLA_DR": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "MHC class II. Constitutive on B cells, dendritic cells and macrophages; inducible on activated T cells; largely absent from resting exocrine epithelium and stroma. One of the strongest non-lineage discriminators here."
+    },
+    "IAPP": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": false,
+      "reason": "Failed marker throughout this project; excluded by the registry."
+    },
+    "ICOS": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Activated T cells, notably Tregs; T-lineage restricted."
+    },
+    "IDO1": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Dendritic cells and macrophages, and some epithelium under interferon. Partial, not universal -- which is what makes it discriminative."
+    },
+    "Ki67": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Proliferation. Orthogonal to identity by construction -- any compartment can cycle."
+    },
+    "LAG3": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "T-cell restricted, same argument as PD-1."
+    },
+    "M2Gal3": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": true,
+      "reason": "Galectin-3 / Mac-2, a macrophage marker. Informative in principle; the model cannot see it because there is no vocabulary entry."
+    },
+    "PCNA": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": false,
+      "reason": "Proliferation, orthogonal to identity. Also has no vocabulary entry."
+    },
+    "PD_1": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "T-cell restricted in this tissue, so its presence is lymphocyte evidence regardless of what its level means functionally."
+    },
+    "PD_L1": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Myeloid and interferon-exposed epithelium. Partial rather than universal."
+    },
+    "SOX2": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": false,
+      "reason": "Neural/stem transcription factor with no expected pancreatic resident population; carries no compartment signal in this tissue."
+    },
+    "TCF_1": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "TCF7. Naive/memory T cells; T-lineage restricted."
+    },
+    "TOX": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "T-cell restricted transcription factor; nuclear, so spatially crisp."
+    },
+    "VISTA": {
+      "in_dct_vocabulary": false,
+      "lineage_informative": false,
+      "reason": "Broad myeloid/lymphoid checkpoint. Also has no DCT vocabulary entry."
+    },
+    "iNOS": {
+      "in_dct_vocabulary": true,
+      "lineage_informative": true,
+      "reason": "Activated myeloid cells. Myeloid-restricted in this tissue."
+    }
+  },
+  "fields": {
+    "in_dct_vocabulary": "Can the model see it at all? A crosswalk fact, independent of the above.",
+    "lineage_informative": "Does exclusivity of this marker carry compartment information? Biology only."
+  },
+  "gini_caveat": "The cross-check is DESCRIPTIVE, not decisive, and the data says so: genuine lineage markers span the range (Caveolin 0.753 down to TP63 0.134, FOXP3 0.202, CD4 0.203), because a low Gini can mean 'rare or weakly stained' as easily as 'on everything'. So a high Gini is neither necessary nor sufficient for compartment information. ICOS, Granzyme_B and TOX are declared informative and sit low; that disagreement is reported and left standing, not reconciled.",
+  "how_decided": "Declared from known expression biology, per marker, in writing, so a reader who has never seen the model's output can check it. NOT fitted to the gate and not derived from any model output. Cross-checked independently against a label-free dispersion statistic computed from this run's own expression parquet -- see marker_exclusivity_gini.json -- and disagreements are reported, not reconciled. CORRECTED 2026-08-24 after the Gini cross-check: the first draft collapsed 'carries no compartment information' and 'has no DCT vocabulary entry' into one flag, which mislabelled Caveolin -- an endothelial marker the registry itself types Endothelial, and the highest-Gini marker in the panel. The two are now separate fields. The cross-check catching this is the reason it exists.",
+  "method_version": "dct-marker-exclusivity-2026-08-24",
+  "not_a_threshold": "This file selects which channels are handed to the model. It derives no cutoff, calls no marker positive, and asserts no expected frequency for any cell type.",
+  "question": "Which non-lineage markers carry compartment information by EXCLUSIVITY -- expressed on some compartments and not others -- and which are present on everything and so add a channel token without adding evidence?",
+  "schema_version": 1,
+  "why": "The type/state split from marker_registry.json is too crude to choose a panel subset with. The registry declines to assign state markers a broad_compartment at all (every one is uses=['deferred_state'], broad_compartment=null), and its mutually_exclusive and families fields are empty, so nothing pre-existing answers this."
+}

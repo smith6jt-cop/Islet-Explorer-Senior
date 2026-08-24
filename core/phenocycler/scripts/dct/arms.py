@@ -78,7 +78,7 @@ class Arm:
     name: str
     hypothesis: str
     window: int = 2048          # concentric read around the anchor; core is always CORE_PX
-    panel: str = "all"          # "all" | "type_only" | "random30"
+    panel: str = "all"          # "all" | "type_only" | "type_plus_exclusive" | "random30"
     mask: str = "cell"          # "cell" | "nucleus"
     ins: str | None = "C-peptide"   # None drops insulin entirely
     with_dapi: bool = False
@@ -121,6 +121,20 @@ ROUND2_ARMS = [
     # setting we adopt, this asks whether putting DAPI back into it is better still.
     Arm("A1c-type-plus-dna", "does the reduced panel want the nuclear channel back?",
         panel="type_only", with_dapi=True),
+    # The type/state split is too crude to choose a panel with. A functional marker that is
+    # present on some compartments and absent from others discriminates them even though it is
+    # not a lineage marker -- HLA-DR separates B cells, DCs and macrophages from resting
+    # exocrine epithelium; Granzyme B is CD8/NK and nothing else. This arm keeps those 13 and
+    # drops only the markers that are on everything or orthogonal to identity.
+    #
+    # Read against `all` (52) and `type_only` (30) it answers both halves at once: whether the
+    # exclusivity markers ADD over a bare lineage panel, and whether the ubiquitous ones SUBTRACT
+    # from the full one.
+    Arm("A1d-type-plus-exclusive", "do the functional markers that are exclusive to some "
+        "compartments add over a bare lineage panel, and do the ubiquitous ones subtract?",
+        panel="type_plus_exclusive"),
+    Arm("A1e-type-plus-exclusive-dna", "the same, with the nuclear channel",
+        panel="type_plus_exclusive", with_dapi=True),
 ]
 
 
@@ -149,6 +163,9 @@ def plan_windows(donor, arms, region_idx):
     return want
 
 
+_EXCLUSIVITY = json.loads((HERE / "marker_exclusivity.json").read_text())["entries"]
+
+
 def _channels(im, arm, registry_kind):
     """(plane index, registry marker, DCT name) for this arm's panel."""
     from deepcell_types.utils import resolve_supported_marker
@@ -172,8 +189,29 @@ def _channels(im, arm, registry_kind):
             dct = resolve_supported_marker(nm)
             if dct is None:
                 continue
-        if arm.panel == "type_only" and registry_kind.get(mk) != "type":
-            continue
+        # DAPI is admitted by `with_dapi` alone: it is the panel's only nuclear channel and the
+        # model's training panels essentially always carry one, so a reduced-panel arm must not
+        # silently drop it just because the registry types it `structural`.
+        if nm != "DAPI" and arm.panel != "all":
+            if registry_kind.get(mk) != "type":
+                if arm.panel == "type_only":
+                    continue
+                # Keep the non-lineage markers whose EXCLUSIVITY carries compartment information
+                # -- HLA-DR is on B cells, DCs and macrophages and not on resting exocrine
+                # epithelium; Granzyme B is on CD8 and NK and nothing else. Drop the ones present
+                # on everything (beta-actin, HLA class I, CD44, Bcl-2, CD107a) and the ones
+                # orthogonal to identity by construction (Ki67, PCNA). Declared per marker in
+                # marker_exclusivity.json, from biology, before this arm ran, and cross-checked
+                # label-free by its Gini sibling.
+                #
+                # A registry-`excluded` marker is never admitted here even when it is
+                # biologically informative: CD11b is myeloid and informative, and it is also
+                # excluded, so letting it in would change two things at once. It stays wherever
+                # the full panel already puts it.
+                if arm.panel == "type_plus_exclusive" and not (
+                        registry_kind.get(mk) not in ("excluded",)
+                        and _EXCLUSIVITY.get(mk, {}).get("lineage_informative")):
+                    continue
         sel.append((c["channel_index"], mk, dct))
     if arm.panel == "random30":
         # Size-matched control for the type-only arm: SAME panel size, composition drawn at
