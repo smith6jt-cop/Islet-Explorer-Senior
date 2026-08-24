@@ -34,10 +34,22 @@ cannot occur in this tissue or on this panel at all.
 
 ## What is being decided
 
-Whether DeepCellTypes' calls on this cohort are right enough to build on, **at broad-compartment
-granularity**. Islet location already comes from QuPath `Islet_N` geometry, so the model is never
-required to call a beta cell; what it must deliver is the immune compartment and its separation
-from the rest.
+**The best cell typing this panel can support, and the configuration that delivers it** — at
+broad-compartment granularity. Islet location already comes from QuPath `Islet_N` geometry, so the
+model is never required to call a beta cell; what it must deliver is the immune compartment and its
+separation from the rest.
+
+**The panel is fixed and is not under evaluation here.** Its composition is a given, not a finding
+and not an explanation to fall back on. It enters this protocol in exactly one way: as *scope* —
+which compartments and classes are callable at all, so the lane emits those and marks the rest
+`ambiguous` with a recorded reason instead of miscalling them. Exocrine epithelium is callable as
+`Epithelial` and not further; that is reported as the answer, which is honest, rather than as the
+Enterocyte/Paneth miscall it replaces.
+
+Everything the factorial varies is therefore a **configuration choice we control**: how many of the
+52 channels to hand the model at once, how large a window to normalize over, which mask, which
+marker name for insulin, which checkpoint. The output is a recommended setting, not a verdict on
+the inputs.
 
 Nothing downstream happens inside this piece of work: no cohort run, no `apps/islet` change, no
 promotion to a `vision_types` stage. A negative verdict is a real and expected outcome.
@@ -341,12 +353,29 @@ confound factorial exists rather than a verdict.
 Figure: `data/development/deepcell_types_review/6539/feasibility_gate_panels.png` — all four arms,
 28 anchors, drawn against the permutation null and the 0.920 ceiling.
 
-### Not yet run
+### The configuration search, and the split that keeps it honest
 
-The confound factorial and its confirmation set. Until they run, **no verdict about DeepCellTypes
-is recorded here**: the panel handed to the model is 52 channels against a training median of 34,
-20 of them activation/exhaustion state markers, with no Amylase, CD45, CHGA, CDX2, GP2 or MUC2 — so
-acinar cells have no positive identifier and gut epithelium has no negative one. A failure under
-that configuration is a statement about the configuration.
+The factorial is a **search for the best setting of this panel**, not a diagnosis. Once a
+configuration is chosen by the gate, that gate can no longer judge it, so the donor split is
+declared here, before the search concludes:
+
+| role | donors | why |
+|---|---|---|
+| **selection** | 6539, 6450, 6523 | the three the C1 screen already ran on — one per panel variant, both mask provenances. They have seen the gate and cannot un-see it. |
+| **evaluation** | 115, 6521, 6593, 6534, 6591 | held out. Also covers all three panel variants. The release verdict is computed **here**, on data no configuration choice was fitted to. |
+
+Nothing may move between the two sets after this line. A configuration chosen on the selection
+donors and gated on the evaluation donors is a measurement; one chosen and gated on the same donors
+is a preference with statistics attached.
+
+Panel subsets are declared in advance rather than searched greedily, because a greedy search over
+52 channels with the gate as its objective would fit the gate and could not then be judged by it:
+
+- `all` — all 52 usable channels (baseline)
+- `type_only` — the 30 with registry `kind == "type"`, close to the 34-channel training median
+- `type_only + dsDNA` — the same 30 plus the panel's nuclear channel
+- `random30` × 5 seeds — the **size-matched control**, without which "30 lineage markers help"
+  cannot be distinguished from "30 channels help". The model's channel-wise transformer has no
+  positional encoding, so panel size alone is a live explanation.
 
 ---

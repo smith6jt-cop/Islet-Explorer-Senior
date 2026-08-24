@@ -115,6 +115,12 @@ ROUND2_ARMS = [
     Arm(f"A1b-random30-s{i}", "size-matched control for A1: is it composition or panel size?",
         panel="random30", seed=i)
     for i in range(5)
+] + [
+    # The model's training panels essentially always carry a nuclear channel, and the panel's
+    # only one is withheld by default as a crosswalk decision.  If a reduced panel is the
+    # setting we adopt, this asks whether putting DAPI back into it is better still.
+    Arm("A1c-type-plus-dna", "does the reduced panel want the nuclear channel back?",
+        panel="type_only", with_dapi=True),
 ]
 
 
