@@ -117,11 +117,24 @@ means `git -C <checkout> status` is not clean and should not be treated as a cor
 | File | Role |
 |---|---|
 | `deepcell_types_crosswalk.json` | Phenocycler OME `channel_name` → DCT marker name. Holds **only** names the installed package cannot resolve itself, so it never silently forks from upstream. |
-| `broad_class_crosswalk.json` | DCT class → Phenocycler broad class / lineage. |
+| `broad_class_crosswalk.json` | DCT class → broad compartment, **and the label space**: `in_label_space`, `exclusion_reason` and a written reason for every one of the 25 excluded classes. Read its `policy` block before changing anything. |
+| `label_space.py` | Restricts the 51-way softmax to the 26 reachable classes. Exactly a renormalization over the kept columns — algebraically identical to masking the excluded logits. |
+| `anchors.json` | The 28 gate anchors, **generated** by `concordance_gate.derive_anchors()` and frozen. Hand-editing it is what the tests catch. |
+| `concordance_gate.py` | The pre-registered gate: does the model agree with this workflow's own REDSEA measurements, better than with anything else? Reports a permutation null and the 0.920 plane-identity ceiling beside every statistic. |
+| `regions.py` / `regions.json` | The frozen 8-donor × 8-region sampling frame. Content-blind hash draw, reproducible from the donor id alone. |
+| `window_mask.py` | Windowed rasterization for the seven donors with no archived mask, reusing `redsea._draw_geometry` unchanged. Verified bit-identical over 32 windows on four donors. |
+| `arms.py` / `run_factorial.py` | The confound factorial: one variable per arm over concentric windows around a fixed anchor, scoring only the common 1024-px core. |
 | `gates.py` | Fail-closed `Verdict` helpers. Absent, non-finite or under-powered evidence is a FAILURE, never a pass. |
 | `tiff_window.py` | Windowed reads from a tiled or stripped TIFF without zarr. |
 | `plane_identity.py` | Gate: does each marker *name* point at the right image *plane*? |
+| `feasibility_tile.py` / `figure_feasibility.py` | The 2026-08-24 single-tile check and its figure. Superseded as a decision procedure by the gate above; kept because its four arms are what the results appendix records. |
 | `tests/` | Run with `python -m pytest scripts/dct/tests -q` from `core/phenocycler/`. Not in the default `testpaths`. |
+
+## Where the decision lives
+
+`core/phenocycler/docs/DEEPCELL_TYPES_REVIEW_2026-08-24.md` — the pre-registered protocol, its
+bar, and the results appendix. It supersedes the 2026-08-21 document, whose body is left unedited
+on purpose.
 
 ## Naming trap
 
