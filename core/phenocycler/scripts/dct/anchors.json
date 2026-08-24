@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "method_version": "dct-anchors-2026-08-24",
+  "rule": "Every marker in phenocycler/marker_registry.json with kind == 'type' and a non-null broad_compartment, that resolves into the DeepCellTypes 278-marker vocabulary and is acquired on all 20 cohort donors (the 51-marker cross-donor intersection). Derived, never hand-picked: choosing anchors after seeing a result would be the tuning this lane exists to avoid.",
+  "reads": "the run's REDSEA expression parquet, one authoritative value per marker",
+  "anchors": [
+    {
+      "marker": "CD31",
+      "dct_marker": "CD31",
+      "compartment": "Endothelial"
+    },
+    {
+      "marker": "CD34",
+      "dct_marker": "CD34",
+      "compartment": "Endothelial"
+    },
+    {
+      "marker": "Podoplanin",
+      "dct_marker": "PDPN",
+      "compartment": "Endothelial"
+    },
+    {
+      "marker": "CD66",
+      "dct_marker": "CD66",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "E_cadherin",
+      "dct_marker": "E-cadherin",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "EpCAM",
+      "dct_marker": "EpCAM",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "GCG",
+      "dct_marker": "Glucagon",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "INS",
+      "dct_marker": "C-peptide",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "Ker8_18",
+      "dct_marker": "CK8",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "Keratin_5",
+      "dct_marker": "CK5",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "Pan_Cytokeratin",
+      "dct_marker": "PanCK",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "TP63",
+      "dct_marker": "P63",
+      "compartment": "Epithelial"
+    },
+    {
+      "marker": "CD11c",
+      "dct_marker": "CD11c",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD163",
+      "dct_marker": "CD163",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD20",
+      "dct_marker": "CD20",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD206",
+      "dct_marker": "CD206",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD209",
+      "dct_marker": "CD209",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD3e",
+      "dct_marker": "CD3e",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD4",
+      "dct_marker": "CD4",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD68",
+      "dct_marker": "CD68",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD79a",
+      "dct_marker": "CD79a",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "CD8",
+      "dct_marker": "CD8",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "FOXP3",
+      "dct_marker": "FoxP3",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "Iba1",
+      "dct_marker": "Iba1",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "MPO",
+      "dct_marker": "MPO",
+      "compartment": "Immune"
+    },
+    {
+      "marker": "SMA",
+      "dct_marker": "SMA",
+      "compartment": "Mesenchymal"
+    },
+    {
+      "marker": "Vimentin",
+      "dct_marker": "Vimentin",
+      "compartment": "Mesenchymal"
+    },
+    {
+      "marker": "B3TUBB",
+      "dct_marker": "Beta3-tubulin",
+      "compartment": "Neural"
+    }
+  ],
+  "excluded": [
+    {
+      "marker": "Caveolin",
+      "compartment": "Endothelial",
+      "reason": "no DeepCellTypes vocabulary entry"
+    },
+    {
+      "marker": "M2Gal3",
+      "compartment": "Immune",
+      "reason": "no DeepCellTypes vocabulary entry"
+    }
+  ]
+}
