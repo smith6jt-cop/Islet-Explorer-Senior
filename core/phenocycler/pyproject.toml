@@ -52,6 +52,22 @@ integration = [
     "h5py",
 ]
 
+# DeepCellTypes cell-type inference (scripts/dct/). Pinned BY COMMIT, not by version:
+# `deepcell_types.__version__` reports '0.1.0' on every master commit, so an unpinned
+# reinstall could silently change `resolve_supported_marker`, the crop/normalization path
+# or the abstention default with nothing in the output able to show it. Hashes are the
+# ones actually installed (read from each dist-info `direct_url.json`); 59d74a9 was
+# upstream master on 2026-08-21.
+#
+# NOTE: deepcell-types requires Python >=3.11, above this package's own >=3.10 floor, so
+# this extra does not resolve on 3.10. The repo `.venv` (3.12.3) is the supported target.
+# The model checkpoints are NOT installed by pip — see scripts/dct/README.md.
+dct = [
+    "deepcell-types @ git+https://github.com/vanvalenlab/deepcell-types.git@59d74a97711848dabc30fc01e242b6b1e4d3d3dc",
+    "deepcell-auth @ git+https://github.com/vanvalenlab/deepcell-auth.git@523a4dd5d29941e076ffd378c6b032122589bdb2",
+    "torch>=2.0",
+]
+
 [project.scripts]
 phenocycler = "phenocycler.pipeline:main"
 
