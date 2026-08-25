@@ -142,8 +142,20 @@ biology and one derivation rule, both checkable by someone who has never seen th
 The eleven over the bar are `Vimentin 0.852, HLA_A 0.584, Pan_Cytokeratin 0.405, Beta_actin
 0.339, E_cadherin 0.323, TCF_1 0.225, CD31 0.155, INS 0.145, PCNA 0.143, CD44 0.118,
 Ker8_18 0.109`. Three attempted improvements were measured and all made things worse or no
-better — see `uniform_adapter.py`'s module docstring, which records them so they are not
-retried.
+better — see `uniform_adapter.py`, which records them so they are not retried.
+
+**They fail for a reason no shift can fix: they differ between donors in distribution
+*shape*, not in location.** After the shift each donor's histogram correlates with the
+reference's at median 0.9704 for these eleven against 0.9915 for the other 44 —
+Spearman(residual SD, shape correlation) = **−0.607** over all 55 markers, Mann-Whitney
+p = 1.6 × 10⁻⁵. Vimentin shows it plainly: bimodal, with the modes at different relative
+positions in different donors, because it marks stroma, endothelium and immune cells in
+donor-varying proportions. A rigid shift is a location model, and landmark refinement moves a
+distribution rather than reshaping it, so neither applies.
+
+The consequence for Step 3 is stated here rather than left implicit: **for these eleven
+markers a single cohort-wide cutoff is not valid even after alignment.** Only within-donor
+rank statistics are safe on them.
 
 `verify_step2.py` proves the two claims the design rests on: the output is a pure
 per-(donor, marker) multiplicative rescaling (max deviation from the recorded scale

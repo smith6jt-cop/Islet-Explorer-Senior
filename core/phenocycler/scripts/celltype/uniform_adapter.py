@@ -44,8 +44,20 @@ helps -- they are recorded so they are not retried:
   splits distribution *shape* rather than negative from positive, assigning ~95% of control
   to the "contaminated" component for 18 of 24 markers.
 
-So the automatic registration stands, and the eleven are carried with their measured residual
-rather than given a fix that does not work.
+None of them helps because none of them addresses the actual cause, which is measurable:
+**the eleven differ between donors in distribution SHAPE, not in location.**  After the
+shift, each donor's histogram correlates with the reference's at median 0.9704 for the eleven
+against 0.9915 for the other 44 -- Spearman(residual SD, shape correlation) = -0.607 over all
+55 markers, Mann-Whitney p = 1.6e-05.  Vimentin is the clearest case: its histogram is bimodal
+and the two modes sit at different relative positions in different donors, because it marks
+stroma, endothelium and immune cells in donor-varying proportions, so the mixture weights and
+therefore the shape differ.
+
+A rigid shift is a location model.  It cannot align distributions whose shape differs, and
+neither can landmark refinement -- moving a distribution does not reshape it.  So the eleven
+are carried with their measured residual, and the consequence for anything downstream is
+stated rather than left implicit: **for these markers a single cohort-wide cutoff is not
+valid even after alignment**, and only within-donor rank statistics are safe.
 
 **What a shift cannot repair.**  A rigid shift models a per-donor scale difference.  It does
 not model a different antibody clone, which differs in specificity and background as well as
