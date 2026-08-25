@@ -19,7 +19,30 @@ import pandas as pd
 HERE = pathlib.Path(__file__).resolve().parent
 PKG = HERE.parents[1]                      # core/phenocycler
 REPO = PKG.parents[1]                      # repo root
+#: The run this lane reads.  Three reasons, in order of how much they matter:
+#:
+#: 1. **The choice is immaterial.**  Both runs on disk carry the SAME expression stage -- not
+#:    equivalent, identical: same inode, ``content_sha256``
+#:    ``86e148ed47fe2b1a49e070063b1fd40a590c92a44b9ddcc87e2a91cb7dc69dba``, 31,454,041 rows,
+#:    same ``schema_sha256``.  They diverge only at ``controls`` / ``calibrate`` / ``type``,
+#:    and this lane reads none of those.  So ``METHOD_HISTORY.md``'s judgement that
+#:    ``c8412757d12de36ca056`` is "evidence of a failed phenotyping implementation" is about
+#:    its assignments, not its expression, which is the same bytes.
+#: 2. ``data/runs/LATEST`` names it.
+#: 3. **It cannot be regenerated.**  The current registry asks for ``measurement_source =
+#:    qupath_norm`` on CD68, Iba1 and M2Gal3, which needs ``QuPathNorm__<marker>`` columns
+#:    that do not exist in ``cells/`` (0 present), so re-running ``expression`` today fails
+#:    closed.  The expression on disk is the only expression there is.
+#:
+#: Provenance caveat worth carrying: it was built 2026-08-05 from a **dirty** worktree at
+#: commit ``ab9a578``, so its source is identified by ``source_sha256 0c7489d2...`` but is
+#: not reconstructible from a commit alone.
 RUN_ID = "3bf4fc8e391d007766d1"
+
+#: Asserted by the test suite, so swapping the run or mutating the stage is caught rather
+#: than silently changing every number this lane produces.
+EXPRESSION_CONTENT_SHA256 = "86e148ed47fe2b1a49e070063b1fd40a590c92a44b9ddcc87e2a91cb7dc69dba"
+EXPRESSION_TOTAL_ROWS = 31_454_041
 EXPRESSION = PKG / "data" / "runs" / RUN_ID / "expression"
 REDSEA = PKG / "data" / "runs" / RUN_ID / "redsea"
 OUT = REPO / "data" / "development" / "celltype"

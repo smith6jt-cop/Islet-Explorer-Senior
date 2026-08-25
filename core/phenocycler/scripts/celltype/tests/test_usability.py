@@ -5,6 +5,8 @@ from __future__ import annotations
 import pathlib
 import sys
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -257,3 +259,30 @@ def test_background_mode_spread_is_zero_for_identical_donors():
     counts, ranges = UA.marker_histograms({"A": v.copy(), "B": v.copy(), "C": v.copy()})
     s = UA.background_mode_spread(counts, ranges)
     assert s["sd_log"] == 0.0 and s["fold"] == pytest.approx(1.0)
+
+
+# ------------------------------------------------------------------- the run this reads
+def test_the_expression_stage_is_the_one_this_lane_was_built_against():
+    """Pin the data, not just the run id.
+
+    The run choice is immaterial -- both runs on disk hardlink the same expression files --
+    but that is only true while the content hash holds.  Pinning it means a swapped run or a
+    mutated stage fails here instead of silently changing every number downstream.
+    """
+    m = json.loads((panel.PKG / "data" / "runs" / panel.RUN_ID /
+                    "manifests" / "expression.json").read_text())
+    assert m["output"]["content_sha256"] == panel.EXPRESSION_CONTENT_SHA256
+    assert m["output"]["total_rows"] == panel.EXPRESSION_TOTAL_ROWS
+    assert m["method_version"] == "selected-expression-v1"
+
+
+def test_the_other_run_carries_the_same_expression_bytes():
+    """The stated justification, asserted rather than remembered."""
+    other = "c8412757d12de36ca056"
+    root = panel.PKG / "data" / "runs"
+    if not (root / other).exists():
+        pytest.skip(f"{other} not on this machine")
+    a = json.loads((root / panel.RUN_ID / "manifests" / "expression.json").read_text())
+    b = json.loads((root / other / "manifests" / "expression.json").read_text())
+    assert a["output"]["content_sha256"] == b["output"]["content_sha256"]
+    assert a["output"]["schema_sha256"] == b["output"]["schema_sha256"]

@@ -30,6 +30,28 @@ git -C external/UniFORM checkout 7c33396d12e5a19dc0b36e46a94c3293de0cd814
 pip install -e "core/phenocycler[uniform]"
 ```
 
+## Which run this reads, and why it does not matter
+
+`core/phenocycler/data/runs/3bf4fc8e391d007766d1/expression/`. Three reasons, in order of
+how much they matter:
+
+1. **The choice is immaterial.** Both runs on disk carry the *same* expression stage — not
+   equivalent, identical: same inode, `content_sha256 86e148ed…`, 31,454,041 rows, same
+   `schema_sha256`. They diverge only at `controls` / `calibrate` / `type`, and this lane
+   reads none of those. `METHOD_HISTORY.md`'s judgement that `c8412757d12de36ca056` is
+   "evidence of a failed phenotyping implementation" is about its *assignments*; its
+   expression is the same bytes.
+2. `data/runs/LATEST` names it.
+3. **It cannot be regenerated.** The current registry asks for `measurement_source =
+   qupath_norm` on CD68, Iba1 and M2Gal3, which needs `QuPathNorm__<marker>` columns that do
+   not exist in `cells/` (0 present) — so re-running `expression` today fails closed. The
+   expression on disk is the only expression there is.
+
+Provenance caveat worth carrying: it was built 2026-08-05 from a **dirty** worktree at commit
+`ab9a578`, so its source is identified by `source_sha256 0c7489d2…` but is not reconstructible
+from a commit alone. `tests/` pins the content hash and row count, so swapping the run or
+mutating the stage fails a test rather than silently changing every number this lane produces.
+
 ## Why these statistics and not the obvious ones
 
 The measurement problem this lane exists for is that **raw intensities are not comparable
