@@ -29,6 +29,12 @@ ENCODING = "signed"          # measured: resolves 37 of 37 references; zero leav
 #: a common internal reference rather than against REDSEA whole-cell means.
 NUCLEAR_RATIO = True
 
+#: How far above a marker's own measured background a cell must sit for that marker to count
+#: as shown, on the [background mode, robust top] scale.  One number for the whole panel,
+#: swept and reported -- not a cut per marker, and deliberately not a quantile, which would
+#: assume how common each cell type is.
+REQUIRE_MIN = 0.10
+
 
 def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
     """One donor's aligned values, with the nuclear group put on DAPI if asked."""
@@ -74,7 +80,8 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
 
 
 def score_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame,
-                ceiling: bool = True, ratio: bool = NUCLEAR_RATIO) -> pd.DataFrame:
+                ceiling: bool = True, ratio: bool = NUCLEAR_RATIO,
+                reqs: dict | None = None, require_min: float = REQUIRE_MIN) -> pd.DataFrame:
     """Cosine-score one donor, over the markers that donor actually carries.
 
     A reference that needs a marker this donor lacks is not scored here -- it is scored on
@@ -91,7 +98,11 @@ def score_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame,
     S = SC.cosine_scores(X, Rm.loc[have, usable].to_numpy("float32"),
                          normalise_ceiling=ceiling)
     S[~elig] = np.nan
-    out = SC.call_from_scores(S, usable)
+    allowed = None
+    if reqs is not None:
+        allowed = SC.meets_requirements(X, have, reqs, usable, require_min)
+        allowed &= elig[:, None]
+    out = SC.call_from_scores(S, usable, allowed=allowed)
     out.insert(0, "object_id", df["object_id"].to_numpy())
     out.insert(0, "donor_id", donor)
     out["cell_region"] = df["cell_region"].to_numpy()
@@ -109,7 +120,7 @@ def islet_concordance(calls: pd.DataFrame) -> pd.DataFrame:
     """
     rows = []
     for d, g in calls.groupby("donor_id"):
-        g = g[g["call"] != "Unscored"]
+        g = g[~g["call"].isin(["Unscored", "Ambiguous"])]
         base = (g["cell_region"] == "core").mean()
         for c, gg in g.groupby("call"):
             if len(gg) < 100:
@@ -127,6 +138,9 @@ def main() -> int:
     ap.add_argument("--encoding", default=ENCODING, choices=("zero", "signed"))
     ap.add_argument("--no-nuclear-ratio", action="store_true",
                     help="score the raw-nucleus markers as-is instead of dividing by DAPI")
+    ap.add_argument("--no-gate", action="store_true",
+                    help="rank by cosine alone, without enforcing what each rule demands")
+    ap.add_argument("--require-min", type=float, default=REQUIRE_MIN)
     ap.add_argument("--no-ceiling", action="store_true",
                     help="do not divide by each reference's attainable maximum")
     args = ap.parse_args()
@@ -151,13 +165,19 @@ def main() -> int:
     print(f"  nuclear markers on DAPI: {'yes' if ratio else 'no'} "
           f"({', '.join(m for m in panel.NUCLEUS_MEASURED if m != 'DAPI')})")
     scale = build_scale(donors, list(Rm.index), ratio=ratio)
+    reqs = None if args.no_gate else R.requirements(R.load_rules())
+    if reqs is not None:
+        n_all = int(np.median([len(v[0]) for v in reqs.values()]))
+        print(f"  requirement gate ON: median {n_all} markers must be shown per reference, "
+              f"at >= {args.require_min} above their own background")
     print(f"    {time.time() - t0:.0f}s", flush=True)
 
     OUT.mkdir(parents=True, exist_ok=True)
     frames = []
     for d in donors:
         t = time.time()
-        c = score_donor(d, Rm, scale, ceiling=not args.no_ceiling, ratio=ratio)
+        c = score_donor(d, Rm, scale, ceiling=not args.no_ceiling, ratio=ratio,
+                        reqs=reqs, require_min=args.require_min)
         p = OUT / f"donor_id={d}"
         p.mkdir(parents=True, exist_ok=True)
         c.to_parquet(p / "data.parquet", index=False)
@@ -169,9 +189,12 @@ def main() -> int:
     calls = pd.concat(frames, ignore_index=True)
 
     print("\ncall composition, cohort (scored cells only):")
-    v = calls.loc[calls["call"] != "Unscored", "call"].value_counts(normalize=True)
+    v = calls.loc[~calls["call"].isin(["Unscored", "Ambiguous"]), "call"].value_counts(
+        normalize=True)
     for c, f in v.items():
         print(f"    {c:<38}{f:7.2%}")
+    print(f"    {'Ambiguous (no rule satisfied)':<38}"
+          f"{(calls['call'] == 'Ambiguous').mean():7.2%}")
     print(f"    {'Unscored (no signal at all)':<38}"
           f"{(calls['call'] == 'Unscored').mean():7.2%}")
 

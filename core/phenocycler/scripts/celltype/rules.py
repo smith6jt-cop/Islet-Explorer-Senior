@@ -62,8 +62,24 @@ RULES_CSV = pathlib.Path(os.environ["CELLTYPE_RULES_CSV"]) \
     if os.environ.get("CELLTYPE_RULES_CSV") else _default_rules_csv()
 CROSSWALK = HERE / "marker_name_crosswalk.json"
 
+#: ``anypos`` is an OR-group: at least one member.  A row may need TWO of them -- T-exhausted
+#: is "(CD4 or CD8) AND (VISTA or LAG3 or TOX)" -- and a bare ``anypos`` on both cannot say
+#: which marker belongs to which, so they merge into one OR that CD68 alone could satisfy.
+#: ``anypos2``, ``anypos3`` ... open further groups on the same row.  Backward compatible:
+#: a table using only ``anypos`` behaves exactly as before.
+OR_POS = re.compile(r"^anypos(\d*)$")
+OR_NEG = re.compile(r"^anyneg(\d*)$")
+
 POSITIVE = ("pos", "allpos", "anypos")
 NEGATIVE = ("neg", "allneg", "anyneg")
+
+
+def is_positive(token: str) -> bool:
+    return token in ("pos", "allpos") or bool(OR_POS.match(str(token)))
+
+
+def is_negative(token: str) -> bool:
+    return token in ("neg", "allneg") or bool(OR_NEG.match(str(token)))
 
 #: How a table names a phenotype's parent.  ``pancreas_phenotype_rules_v4.csv`` used an
 #: explicit ``parent`` column; ``phenotype_workflow_59plex_v2.csv`` puts the hierarchy in the
@@ -140,8 +156,15 @@ def load_rules(path: pathlib.Path | None = None) -> pd.DataFrame:
     return d
 
 
-def flatten(rules: pd.DataFrame) -> dict:
-    """phenotype -> {marker: token}, composed with every ancestor.  The child wins."""
+def flatten(rules: pd.DataFrame, with_source: bool = False) -> dict:
+    """phenotype -> {marker: token}, composed with every ancestor.  The child wins.
+
+    With ``with_source`` the value is ``(token, origin_phenotype)``.  That provenance is not
+    decoration: an ``anypos`` group means "at least one of THESE", and a flattened reference
+    can carry several such groups from different levels -- "is an immune cell" from Immune and
+    "is CD4+ or CD8+" from a T subset.  Merged into one OR they would be satisfied by CD68
+    alone, which is the opposite of what the subset rule asks.
+    """
     mk = [c for c in rules.columns if c not in ("parent", "phenotype")]
     row = {r["phenotype"]: {c: r[c] for c in mk if pd.notna(r[c])}
            for _, r in rules.iterrows()}
@@ -156,8 +179,8 @@ def flatten(rules: pd.DataFrame) -> dict:
                 raise ValueError(f"cycle in the rule hierarchy at {ph}")
         ref = {}
         for a in reversed(chain):
-            ref.update(row.get(a, {}))
-        out[ph] = ref
+            ref.update({m: (t, a) for m, t in row.get(a, {}).items()})
+        out[ph] = ref if with_source else {m: t for m, (t, _) in ref.items()}
     return out
 
 
@@ -192,14 +215,17 @@ def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
         usable = {m: t for m, t in ref.items() if m in M.index}
         for m in set(ref) - set(usable):
             dropped.setdefault(m, []).append(ph)
-        n_any = {t: sum(1 for x in usable.values() if x == t) for t in ("anypos", "anyneg")}
+        n_any: dict = {}
+        for t in usable.values():
+            if OR_POS.match(str(t)) or OR_NEG.match(str(t)):
+                n_any[t] = n_any.get(t, 0) + 1
         for m, tok in usable.items():
             w = 1.0
-            if split_or_groups and tok in n_any and n_any[tok] > 1:
+            if split_or_groups and n_any.get(tok, 0) > 1:
                 w = 1.0 / n_any[tok]
-            if tok in POSITIVE:
+            if is_positive(tok):
                 M.loc[m, ph] = w
-            elif tok in NEGATIVE and encoding == "signed":
+            elif is_negative(tok) and encoding == "signed":
                 M.loc[m, ph] = -w
     if strict and dropped:
         raise ValueError(
@@ -219,6 +245,60 @@ def evaluable_donors(flat: dict) -> pd.DataFrame:
         rows.append({"phenotype": ph, "n_markers": len(need), "n_donors": len(d),
                      "variant_markers": ",".join(variant), "donors": ",".join(d)})
     return pd.DataFrame(rows).sort_values(["n_donors", "phenotype"])
+
+
+def requirements(rules: pd.DataFrame) -> dict:
+    """phenotype -> (all_of, [any_of groups]) -- what the rule says a cell MUST show.
+
+    A cosine is a similarity, not a requirement: ``allpos`` reads as "must be positive" but
+    scoring it only adds a direction component, so a cell can win a reference without meeting
+    it.  Measured on donor 6450 before this gate existed, ``T-regulatory`` requires CD4 and
+    FOXP3 and 10.4% of the cells it was given met both; ``Imm-B-cell`` requires CD20 and 50.3%
+    met it.  References with one dominant requirement held up -- T-CD4-helper 98.0%,
+    T-CD8-cytotoxic 93.1% -- which is the pattern you would expect if nothing is enforced and
+    dilution decides.  So requirements are extracted here and enforced separately from the
+    ranking.
+
+    OR-groups are read from the row that DECLARED them, not from the flattened result, and
+    that distinction is load-bearing.  ``Epi-endocrine`` declares "any of B3TUBB|GCG|INS|SST";
+    ``Endo-alpha`` then commits GCG to ``allpos`` and INS/SST to ``allneg``.  Read off the
+    flattened tokens, only B3TUBB still carries ``anypos`` and the group collapses into a hard
+    requirement for it -- which took alpha cells from thousands to 79.  Read off the declaring
+    row, GCG is seen to satisfy the group and it is dropped.
+
+    So, per group: satisfied and dropped if the phenotype commits any member to a positive;
+    otherwise members it commits to a negative are removed; a group emptied that way is
+    dropped rather than made unsatisfiable.
+    """
+    mk = [c for c in rules.columns if c not in ("parent", "phenotype")]
+    row = {r["phenotype"]: {c: r[c] for c in mk if pd.notna(r[c])}
+           for _, r in rules.iterrows()}
+    par = dict(zip(rules["phenotype"], rules["parent"]))
+    flat = flatten(rules)
+    out = {}
+    for ph in rules["phenotype"]:
+        final = flat[ph]
+        all_of = sorted(m for m, t in final.items() if t in ("pos", "allpos"))
+        chain, cur = [], ph
+        while cur and cur != "all":
+            chain.append(cur)
+            cur = par.get(cur)
+            if cur in chain:
+                break
+        groups = []
+        for anc in chain:                       # every level that declared an OR-group
+            by_token: dict = {}
+            for m, t in row.get(anc, {}).items():
+                if OR_POS.match(str(t)):
+                    by_token.setdefault(t, []).append(m)
+            for _, members in sorted(by_token.items()):
+                if any(final.get(m) in ("pos", "allpos") for m in members):
+                    continue                    # the phenotype already commits to one
+                members = [m for m in members if not is_negative(str(final.get(m, "")))]
+                if members:
+                    groups.append(sorted(members))
+        out[ph] = (all_of, groups)
+    return out
 
 
 def distinct_references(M: pd.DataFrame) -> dict:

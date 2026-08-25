@@ -155,21 +155,69 @@ def cosine_scores(X: np.ndarray, R: np.ndarray, normalise_ceiling: bool = True) 
     return S
 
 
-def call_from_scores(S: np.ndarray, names: list) -> pd.DataFrame:
+def meets_requirements(Xs: np.ndarray, markers: list, reqs: dict, names: list,
+                       min_scaled: float) -> np.ndarray:
+    """(cells x references) boolean: does each cell show what each rule demands?
+
+    ``Xs`` is already scaled to [0, 1] over [aligned background mode, robust top], so
+    "elevated" means the value sits ``min_scaled`` of the way above this marker's own measured
+    background.  That is a statement about background, not about prevalence -- deliberately,
+    because a fixed quantile would assume how common each cell type is, which is the trap that
+    made the DeepCellTypes decile contrast unreadable.  One number for the whole panel, stated
+    and swept, rather than a cut per marker.
+
+    A marker a donor does not carry cannot be shown, so a reference needing it fails here and
+    is scored on the donors that have it.
+    """
+    idx = {m: i for i, m in enumerate(markers)}
+    hot = Xs >= min_scaled
+    ok = np.ones((len(Xs), len(names)), dtype=bool)
+    for j, ph in enumerate(names):
+        all_of, any_groups = reqs.get(ph, ([], []))
+        for m in all_of:
+            if m not in idx:
+                ok[:, j] = False
+                break
+            ok[:, j] &= hot[:, idx[m]]
+        else:
+            for grp in any_groups:
+                have = [idx[m] for m in grp if m in idx]
+                if not have:
+                    ok[:, j] = False
+                    break
+                ok[:, j] &= hot[:, have].any(axis=1)
+    return ok
+
+
+def call_from_scores(S: np.ndarray, names: list, allowed: np.ndarray | None = None,
+                     ) -> pd.DataFrame:
     """Best reference per cell, with the margin to the runner-up.
+
+    With ``allowed`` the gate sets the candidate set and the cosine only ranks within it, so a
+    reference cannot win a cell that fails what its rule demands.  A cell meeting nothing is
+    ``Ambiguous`` with a recorded reason rather than given its least-bad match.
 
     The margin is carried because an argmax alone hides how close the decision was, and a
     cell that ties two references is a different object from one that clearly matches one.
     """
-    S = np.asarray(S, dtype=np.float32)
+    S = np.asarray(S, dtype=np.float32).copy()
+    n_allowed = None
+    if allowed is not None:
+        n_allowed = np.asarray(allowed).sum(axis=1)
+        S[~np.asarray(allowed)] = np.nan       # the gate sets the candidates, cosine ranks
     ok = np.isfinite(S).any(axis=1)
     order = np.argsort(-np.nan_to_num(S, nan=-np.inf), axis=1)
     best, second = order[:, 0], order[:, 1] if S.shape[1] > 1 else order[:, 0]
     top = S[np.arange(len(S)), best]
     run = S[np.arange(len(S)), second] if S.shape[1] > 1 else np.zeros(len(S), np.float32)
-    return pd.DataFrame({
+    out = pd.DataFrame({
         "call": np.where(ok, np.asarray(names, dtype=object)[best], "Unscored"),
         "score": np.where(ok, top, np.nan),
         "runner_up": np.where(ok, np.asarray(names, dtype=object)[second], ""),
         "margin": np.where(ok, top - run, np.nan),
     })
+    if n_allowed is not None:
+        out["n_candidates"] = n_allowed
+        out.loc[(n_allowed == 0), ["call", "runner_up"]] = ["Ambiguous", ""]
+        out["reason"] = np.where(n_allowed == 0, "no_reference_requirements_met", "")
+    return out

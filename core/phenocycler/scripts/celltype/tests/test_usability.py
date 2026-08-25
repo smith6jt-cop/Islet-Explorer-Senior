@@ -485,3 +485,60 @@ def test_the_dapi_ratio_survives_a_zero_or_missing_denominator():
     unchanged, changed = SC.nuclear_ratio(df.drop(columns=["DAPI"]).copy(), ["TOX"], "DAPI",
                                           panel.NUCLEUS_MEASURED)
     assert changed == [] and list(unchanged["TOX"]) == [1.0, 1.0, 8.0]
+
+
+# ---------------------------------------------------- the requirement gate (Step 3)
+def test_an_or_group_is_satisfied_by_a_child_committing_to_one_member():
+    """Epi-endocrine declares "any of B3TUBB|GCG|INS|SST"; Endo-alpha commits GCG to allpos
+    and INS/SST to allneg.  Read off the flattened tokens only B3TUBB still carries anypos,
+    so the group collapses to a hard requirement for it -- which took alpha cells from
+    thousands to 79.  Read off the declaring row, GCG satisfies it and the group is dropped."""
+    t = pd.DataFrame({
+        "parent": ["all", "Endocrine"], "phenotype": ["Endocrine", "Alpha"],
+        "CD56": ["allpos", None], "B3TUBB": ["anypos", None],
+        "GCG": ["anypos", "allpos"], "INS": ["anypos", "allneg"], "SST": ["anypos", "allneg"]})
+    rq = R.requirements(t)
+    assert rq["Endocrine"] == (["CD56"], [["B3TUBB", "GCG", "INS", "SST"]])
+    assert rq["Alpha"] == (["CD56", "GCG"], []), rq["Alpha"]
+
+
+def test_two_or_groups_on_one_row_stay_separate():
+    """T-exhausted is "(CD4 or CD8) AND (VISTA or LAG3 or TOX)".  Merged into one OR it would
+    be satisfied by TOX alone, which is the opposite of requiring a lineage co-receptor."""
+    t = pd.DataFrame({
+        "parent": ["all"], "phenotype": ["Tex"],
+        "CD3e": ["allpos"], "CD4": ["anypos2"], "CD8": ["anypos2"],
+        "TOX": ["anypos"], "LAG3": ["anypos"]})
+    all_of, groups = R.requirements(t)["Tex"]
+    assert all_of == ["CD3e"]
+    assert sorted(groups) == [["CD4", "CD8"], ["LAG3", "TOX"]], groups
+
+
+def test_an_inherited_group_is_dropped_once_the_child_meets_it():
+    """Imm-T-cell commits CD3e, which already satisfies Immune's "is an immune cell" group,
+    so a T subset must not also be asked for CD68 or CD20."""
+    t = pd.DataFrame({
+        "parent": ["all", "Immune"], "phenotype": ["Immune", "Tcell"],
+        "CD3e": ["anypos", "allpos"], "CD68": ["anypos", None], "CD20": ["anypos", None]})
+    all_of, groups = R.requirements(t)["Tcell"]
+    assert all_of == ["CD3e"] and groups == []
+
+
+def test_the_gate_sets_the_candidates_and_the_cosine_only_ranks_within_them():
+    X = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    Rm = np.array([[1.0, 0.9], [0.0, 0.1]], dtype=np.float32)   # A would win both on angle
+    reqs = {"A": (["m0"], []), "B": (["m1"], [])}
+    allowed = SC.meets_requirements(X, ["m0", "m1"], reqs, ["A", "B"], 0.2)
+    out = SC.call_from_scores(SC.cosine_scores(X, Rm), ["A", "B"], allowed=allowed)
+    assert list(out["call"]) == ["A", "B"], "the gate did not override the angle"
+
+
+def test_a_cell_meeting_no_rule_is_ambiguous_with_a_reason():
+    X = np.array([[0.01, 0.01]], dtype=np.float32)
+    reqs = {"A": (["m0"], []), "B": (["m1"], [])}
+    allowed = SC.meets_requirements(X, ["m0", "m1"], reqs, ["A", "B"], 0.2)
+    out = SC.call_from_scores(SC.cosine_scores(X, np.eye(2, dtype=np.float32)),
+                              ["A", "B"], allowed=allowed)
+    assert out.loc[0, "call"] == "Ambiguous"
+    assert out.loc[0, "reason"] == "no_reference_requirements_met"
+    assert out.loc[0, "n_candidates"] == 0
