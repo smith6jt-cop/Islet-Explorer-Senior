@@ -47,9 +47,14 @@ EXPRESSION = PKG / "data" / "runs" / RUN_ID / "expression"
 REDSEA = PKG / "data" / "runs" / RUN_ID / "redsea"
 OUT = REPO / "data" / "development" / "celltype"
 
-#: Markers the registry refuses for identity work, for reasons recorded in the registry
-#: itself: CD11b is ``assay_qc`` and IAPP is ``failed_marker``.
-REGISTRY_EXCLUDED = ("CD11b", "IAPP")
+#: IAPP only.  The registry records it ``kind: excluded, uses: failed_marker``.
+#:
+#: CD11b carries the same registry flag (``assay_qc``) and is NOT excluded here: per the
+#: maintainer, it was set aside only for the retired RESTORE lane, and nothing in this lane
+#: depends on that decision.  It matters because the rule table's ``Myeloid`` gate is
+#: ``CD68 | CD11c | CD11b``, so dropping it would have silently removed a third of that
+#: gate's evidence.
+REGISTRY_EXCLUDED = ("IAPP",)
 
 #: Stored in ``expression`` as the RAW UNCOMPENSATED QuPath *nucleus* mean
 #: (``qupath:Nucleus__<m>``), not the REDSEA spillover-corrected whole-cell mean that the

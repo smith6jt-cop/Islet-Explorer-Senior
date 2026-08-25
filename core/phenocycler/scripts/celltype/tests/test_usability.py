@@ -223,3 +223,68 @@ def test_the_other_run_carries_the_same_expression_bytes():
     b = json.loads((root / other / "manifests" / "expression.json").read_text())
     assert a["output"]["content_sha256"] == b["output"]["content_sha256"]
     assert a["output"]["schema_sha256"] == b["output"]["schema_sha256"]
+
+
+# ------------------------------------------------------------ the rule table (Step 3)
+import rules as R                                    # noqa: E402
+
+
+def test_crosswalk_is_frozen_complete_injective_and_agrees_with_the_regex():
+    """A regex that silently misses one name turns that rule's constraint into no
+    constraint, which fails open.  The frozen map is the guard; this asserts it is still
+    right, so a v5 rename fails here instead of dropping evidence."""
+    cw = R.load_crosswalk()
+    cols = list(pd.read_csv(R.RULES_CSV, nrows=0).columns)[2:]
+    assert set(cw) == set(cols), set(cw) ^ set(cols)
+    assert len(set(cw.values())) == len(cw), "crosswalk is not injective"
+    known = set(panel.markers(include_variant=True)) | set(panel.REGISTRY_EXCLUDED)
+    assert not set(cw.values()) - known
+    assert cw == R.build_crosswalk()
+
+
+def test_flattening_composes_a_phenotype_with_its_ancestors():
+    """A row is a conditional refinement, not a reference.  Proliferating_beta says only
+    'Ki67 pos'; read alone it is indistinguishable from every other proliferating type."""
+    flat = R.flatten(R.load_rules())
+    pb = flat["Proliferating_beta"]
+    assert pb["Ki67"] in R.POSITIVE                 # its own row
+    assert pb["INS"] in R.POSITIVE                  # from Beta_cell
+    assert pb["CD3e"] in R.NEGATIVE                 # from Endocrine
+    assert len(pb) > 5, "ancestors were not composed in"
+    assert np.median([len(v) for v in flat.values()]) >= 5
+
+
+def test_flattening_refuses_a_cycle_rather_than_looping():
+    bad = pd.DataFrame({"parent": ["B", "A"], "phenotype": ["A", "B"], "CD3e": ["pos", "neg"]})
+    with pytest.raises(ValueError, match="cycle"):
+        R.flatten(bad)
+
+
+def test_a_constraint_on_an_absent_marker_is_never_dropped_silently():
+    """CD38 is absent on 7 donors, and losing its constraint is exactly what makes B_cell
+    and CD38_high_B identical.  Silence there would be a fail-open."""
+    flat = R.flatten(R.load_rules())
+    with pytest.raises(ValueError, match="dropped silently"):
+        R.reference_matrix(flat, panel.markers(), "zero", strict=True)
+    M, dropped = R.reference_matrix(flat, panel.markers(), "zero", strict=False)
+    assert "CD38" in dropped and dropped["CD38"]
+
+
+def test_cd11b_is_in_the_panel_and_carries_its_myeloid_constraint():
+    """Excluded only for the retired RESTORE lane.  The Myeloid gate is CD68|CD11c|CD11b, so
+    dropping it would silently remove a third of that gate's evidence."""
+    assert "CD11b" in panel.markers()
+    assert "IAPP" not in panel.markers(include_variant=True)
+    M, _ = R.reference_matrix(R.flatten(R.load_rules()), panel.markers(), "zero", strict=False)
+    assert M.loc["CD11b", "Myeloid"] == 1.0
+
+
+def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
+    flat = R.flatten(R.load_rules())
+    mk = panel.markers()
+    z, _ = R.reference_matrix(flat, mk, "zero", strict=False)
+    s, _ = R.reference_matrix(flat, mk, "signed", strict=False)
+    nz = len(z.columns) - sum(len(v) for v in R.distinct_references(z).values())
+    ns = len(s.columns) - sum(len(v) for v in R.distinct_references(s).values())
+    assert ns > nz, "signed must resolve at least the negation-defined phenotypes"
+    assert (s.to_numpy() < 0).any() and not (z.to_numpy() < 0).any()

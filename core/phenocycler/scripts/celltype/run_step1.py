@@ -25,16 +25,6 @@ import panel                                      # noqa: E402
 import usability as U                             # noqa: E402
 
 
-def _jsonable(check) -> list:
-    """One (name, value, ok, why) check, with numpy scalars and NaN made JSON-safe."""
-    name, value, ok, why = check
-    if value is None or (isinstance(value, (float, np.floating)) and not np.isfinite(value)):
-        value = None
-    elif isinstance(value, (int, float, np.integer, np.floating)):
-        value = round(float(value), 4)
-    return [name, value, None if ok is None else bool(ok), why]
-
-
 def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     """Analysis-eligible cells for one donor, complete across ``markers``."""
     cols = ["object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid"] + markers
@@ -121,13 +111,6 @@ def main() -> int:
                     **U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)})
     df = df.merge(pd.DataFrame(acq), on="marker", how="left")
 
-    recs = df.to_dict("records")
-    verdicts = [U.judge_marker(r) for r in recs]
-    df["verdict"] = ["usable" if v.passed else "unusable" for v in verdicts]
-    df["reason"] = [v.reason for v in verdicts]
-    for k, v in pd.DataFrame([U.flag_marker(r) for r in recs]).items():
-        df[k] = v
-    df["checks"] = [json.dumps([_jsonable(c) for c in v.rows]) for v in verdicts]
 
     out = pathlib.Path(args.out) if args.out else panel.OUT / "marker_donor_usability.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -135,12 +118,15 @@ def main() -> int:
     print(f"\nwrote {out}  ({len(df):,} rows, {time.time() - t0:.0f}s)")
     print("\nmarkers whose level steps with the acquisition group "
           f"(ratio >= {U.BARS['acq_ratio_flag']}) — the one measurement Step 2 acts on:")
-    r = df.groupby("marker")["acq_ratio"].first().sort_values(ascending=False)
-    for m, v in r.items():
-        if v >= U.BARS["acq_ratio_flag"]:
+    r = df.groupby("marker")["acq_ratio"].first().dropna().sort_values(ascending=False)
+    if r.empty:
+        print("    not computable: the ratio needs at least two acquisition groups")
+    else:
+        for m, v in r[r >= U.BARS["acq_ratio_flag"]].items():
             print(f"    {m:<18} {v:8.2f}")
-    print(f"    (next highest: {r[r < U.BARS['acq_ratio_flag']].idxmax()} "
-          f"{r[r < U.BARS['acq_ratio_flag']].max():.2f})")
+        rest = r[r < U.BARS["acq_ratio_flag"]]
+        if not rest.empty:
+            print(f"    (next highest: {rest.idxmax()} {rest.max():.2f})")
 
     print("\nweakest declared partner tails, pooled over donors (Step 3's input):")
     q = (df.groupby("marker")[["partner_best", "control_worst"]].median()
