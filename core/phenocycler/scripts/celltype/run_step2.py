@@ -9,6 +9,8 @@ all 20 donors at once; the second walks donors, because that is how the output i
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import pathlib
 import sys
@@ -60,8 +62,9 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
 
         hist = {m: {"counts": [counts[d] for d in donors],
                     "bin_edges": [None] * len(donors)}}
-        shift_map, refs, _ = reg.automatic_registration(
-            hist, [m], [m], donors, None, None, UA.NUM_BINS)
+        with contextlib.redirect_stdout(io.StringIO()):     # UniFORM narrates per marker
+            shift_map, refs, _ = reg.automatic_registration(
+                hist, [m], [m], donors, None, None, UA.NUM_BINS)
         if save_figs:
             plt.gcf().savefig(FIGS / f"{m}.png", bbox_inches="tight", dpi=130)
         plt.close("all")
@@ -78,13 +81,17 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
         refused = m in flagged
         if refused:
             scale = {d: 1.0 for d in donors}
+        over_bar = not refused and after["sd_log"] > BAR_MODE_SD
 
         result[m] = {
             "reference_donor": refs[0],
             "shift_bins": {d: int(bins[d]) for d in donors},
             "shift_log": {d: float(log_shift[d]) for d in donors},
             "scale": scale,
-            "provenance": "refused_reagent_change" if refused else "automatic_registration",
+            "provenance": ("refused_reagent_change" if refused else
+                           "automatic_registration_over_bar" if over_bar else
+                           "automatic_registration"),
+            "over_bar": bool(over_bar),
             "acq_ratio": float(usab.loc[usab.marker == m, "acq_ratio"].iloc[0]),
             "mode_sd_before": before["sd_log"], "mode_sd_after": after["sd_log"],
             "mode_fold_before": before["fold"], "mode_fold_after": after["fold"],
@@ -136,15 +143,18 @@ def main() -> int:
 
     shifts = derive(markers, donors, per_marker)
 
-    over = {m: v["mode_sd_after"] for m, v in shifts.items()
-            if v["provenance"] == "automatic_registration" and v["mode_sd_after"] > BAR_MODE_SD}
-    sd = [v["mode_sd_after"] for v in shifts.values() if v["provenance"] == "automatic_registration"]
+    over = {m: v["mode_sd_after"] for m, v in shifts.items() if v.get("over_bar")}
+    sd = [v["mode_sd_after"] for v in shifts.values()
+          if v["provenance"].startswith("automatic_registration")]
     print(f"\nbackground-mode SD after: median {np.median(sd):.4f}, "
           f"{len(sd) - len(over)}/{len(sd)} at or under the {BAR_MODE_SD} bar")
     if over:
-        print("  over the bar, needing landmark refinement or a `degraded` record:")
+        print("  over the bar, carried with the residual recorded (three attempted fixes were")
+        print("  measured and refused -- see uniform_adapter.py):")
         for m, v in sorted(over.items(), key=lambda kv: -kv[1]):
-            print(f"    {m:<18} {v:.3f}")
+            b = shifts[m]["mode_sd_before"]
+            print(f"    {m:<18} {b:.3f} -> {v:.3f}   ({b / v:.1f}x better, still over "
+                  f"{BAR_MODE_SD})")
 
     panel.OUT.mkdir(parents=True, exist_ok=True)
     meta = {"uniform_commit": UA.UNIFORM_COMMIT, "num_bins": UA.NUM_BINS,

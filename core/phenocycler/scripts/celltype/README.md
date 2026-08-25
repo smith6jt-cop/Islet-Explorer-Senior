@@ -11,9 +11,23 @@ goes to the mutable repo-root `data/development/celltype/`.
 
 ```bash
 cd core/phenocycler
-python scripts/celltype/run_step1.py                  # whole cohort, ~12 min
+python scripts/celltype/run_step1.py                  # whole cohort, ~10 min
 python scripts/celltype/run_step1.py --donors 6450    # one donor, ~10 s
+python scripts/celltype/figures.py                    # ~5 min
+python scripts/celltype/run_step2.py --dry-run        # derive shifts only, ~1 min
+python scripts/celltype/run_step2.py                  # + write normalised parquets
+python scripts/celltype/verify_step2.py               # prove the shift is pure
 python -m pytest scripts/celltype/tests -q
+```
+
+Step 2 needs the UniFORM source, which carries no packaging metadata, so pip cannot pin it.
+It is a gitignored checkout following this repo's existing convention (`.gitignore:74`), and
+`uniform_adapter.py` asserts the commit at import so a drifted checkout stops the lane:
+
+```bash
+git clone https://github.com/smith6jt-cop/UniFORM.git external/UniFORM
+git -C external/UniFORM checkout 7c33396d12e5a19dc0b36e46a94c3293de0cd814
+pip install -e "core/phenocycler[uniform]"
 ```
 
 ## Why these statistics and not the obvious ones
@@ -115,11 +129,37 @@ biology and one derivation rule, both checkable by someone who has never seen th
 - **`CD11c & CD209` is the one declared lineage pair with no shared population** — 0.7× of
   chance in the top 0.1%, on every donor. Dendritic cells are not supported by this panel.
 
+## What Step 2 produced
+
+44 of 55 markers land at or under the 0.10 background-mode bar; median residual SD **0.048**.
+
+| provenance | n | meaning |
+|---|---|---|
+| `automatic_registration` | 44 | shifted, under the bar |
+| `automatic_registration_over_bar` | 11 | shifted and improved 1.2–6.0×, still over the bar, carried with the residual recorded |
+| `refused_reagent_change` | 1 | CD57 — the shift is *not* applied, because a rigid shift cannot repair a clone change however good its statistic looks (716× → 2.79× would have looked fine) |
+
+The eleven over the bar are `Vimentin 0.852, HLA_A 0.584, Pan_Cytokeratin 0.405, Beta_actin
+0.339, E_cadherin 0.323, TCF_1 0.225, CD31 0.155, INS 0.145, PCNA 0.143, CD44 0.118,
+Ker8_18 0.109`. Three attempted improvements were measured and all made things worse or no
+better — see `uniform_adapter.py`'s module docstring, which records them so they are not
+retried.
+
+`verify_step2.py` proves the two claims the design rests on: the output is a pure
+per-(donor, marker) multiplicative rescaling (max deviation from the recorded scale
+2–9 × 10⁻¹⁶ over all 31.5M rows, `object_id` order identical), and therefore every Step 1
+tail statistic is bit-identical before and after — CD20 & CD79a 169.9 → 169.9,
+B3TUBB & CD56 483.0 → 483.0, and all four negative controls 0.0 → 0.0.
+
 ## Files
 
 | file | role |
 |---|---|
 | `panel.py` | the cohort, its acquisition groups, the marker set, declared lineage partners and derived negative controls |
-| `usability.py` | the statistics and the fail-closed verdict |
+| `usability.py` | the Step 1 statistics and the fail-closed verdict |
 | `run_step1.py` | Step 1 driver → `data/development/celltype/marker_donor_usability.parquet` |
+| `figures.py` | one sheet per marker plus the cohort verdict sheet |
+| `uniform_adapter.py` | the pinned UniFORM import, its histogramming, and the refuted-alternatives record |
+| `run_step2.py` | Step 2 driver → `data/development/celltype/{shifts.json, uniform/donor_id=*/data.parquet}` |
+| `verify_step2.py` | proves the shift is pure and rank statistics are invariant |
 | `tests/` | the statistics on data whose answer is known, and the verdict failing closed |

@@ -24,6 +24,29 @@ histogramming exactly -- same ``log_transform_intensities(min_value=1)``, same g
 same ``np.histogram(..., bins=num_bins, range=(global_min, global_max))`` -- at full
 resolution, and the GMM cutoffs are fitted separately on a capped subsample.
 
+**Three attempts to improve on UniFORM's default, all refuted by measurement.**  Eleven
+markers stay above the 0.10 background-mode bar after the automatic shift, and none of these
+helps -- they are recorded so they are not retried:
+
+* *normalise each donor's histogram to sum 1 before cross-correlating* (donors differ 8x in
+  cell count, and reference selection is an L2 distance to the mean histogram).  It changes
+  the chosen reference on 8 of 14 markers and the outcome on none: median residual SD 0.1507
+  against 0.1501.
+* *keep the exact zeros* by histogramming ``log1p`` instead of dropping everything below 1.
+  Motivated by the observation that residual SD tracks ``zero_frac`` at rho +0.60 while the
+  abundance hypothesis fails (+0.36, wrong sign).  Substantially **worse**: median 0.4437.
+  The zeros are all clamped to one value, so they add a fixed-position spike that anchors the
+  cross-correlation.
+* *place the landmark at the negative component's peak* via ``fit_two_component_gmm``, as a
+  reproducible stand-in for the interactive ``landmark.landmark_refinement``.  **Worse on
+  every marker tested**, including the four that were already fine (CD3e 0.015 -> 0.194).
+  ``docs/METHOD_HISTORY.md`` already records why: on these distributions a two-component GMM
+  splits distribution *shape* rather than negative from positive, assigning ~95% of control
+  to the "contaminated" component for 18 of 24 markers.
+
+So the automatic registration stands, and the eleven are carried with their measured residual
+rather than given a fix that does not work.
+
 **What a shift cannot repair.**  A rigid shift models a per-donor scale difference.  It does
 not model a different antibody clone, which differs in specificity and background as well as
 gain.  Step 1 flags such markers by their acquisition-group ratio, and this step refuses to
@@ -110,6 +133,39 @@ def gmm_cutoff(values: np.ndarray, ranges: dict, num_bins: int = NUM_BINS,
     cut, *_ = preprocessing.fit_two_component_gmm(
         np.log(v), num_bins, ranges["global_min"], ranges["global_max"])
     return float(np.exp(cut))
+
+
+def gmm_background_landmark(values_by_donor: dict, ranges: dict,
+                            num_bins: int = NUM_BINS, max_cells: int = GMM_MAX_CELLS,
+                            seed: int = 0) -> list:
+    """Per-donor bin index of the NEGATIVE component's peak, as a landmark.
+
+    UniFORM's automatic registration cross-correlates whole histograms, so it aligns whatever
+    peak is tallest.  For a marker present on most cells that is the *positive* population,
+    and the alignment then follows biology rather than background -- which is the case its
+    interactive ``landmark.landmark_refinement`` exists to fix, by having a person point at
+    the negative mode.
+
+    ``fit_two_component_gmm`` already separates the two components, so the landmark can be
+    placed by rule instead: take the peak of the lower-mean component.  This is UniFORM's own
+    model and UniFORM's own landmark pathway (``compute_landmark_shifts``); the only thing
+    replaced is the human's mouse, which makes the choice reproducible and auditable rather
+    than a click nobody can re-derive.
+    """
+    _, _, preprocessing = _import_uniform()
+    rng = np.random.default_rng(seed)
+    lo, hi = ranges["global_min"], ranges["global_max"]
+    binw = (hi - lo) / (num_bins - 1)
+    out = []
+    for d, v in values_by_donor.items():
+        v = np.asarray(v, dtype=float)
+        v = v[np.isfinite(v) & (v >= 1.0)]
+        if len(v) > max_cells:
+            v = v[rng.choice(len(v), max_cells, replace=False)]
+        _, pts, p0, p1 = preprocessing.fit_two_component_gmm(np.log(v), num_bins, lo, hi)
+        neg = p0 if pts[int(np.argmax(p0))] < pts[int(np.argmax(p1))] else p1
+        out.append(float((pts[int(np.argmax(neg))] - lo) / binw))
+    return out
 
 
 def background_mode_spread(counts: dict, ranges: dict, shifts: dict | None = None,
