@@ -174,22 +174,22 @@ biology and one derivation rule, both checkable by someone who has never seen th
 
 ## What Step 2 produced
 
-44 of 55 markers land at or under the 0.10 background-mode bar; median residual SD **0.048**.
+44 of 56 markers land at or under the 0.10 background-mode bar; median residual SD **0.048**.
 
 | provenance | n | meaning |
 |---|---|---|
 | `automatic_registration` | 44 | shifted, under the bar |
-| `automatic_registration_over_bar` | 11 | shifted and improved 1.2–6.0×, still over the bar, carried with the residual recorded |
+| `automatic_registration_over_bar` | 12 | shifted and improved 1.2–6.0×, still over the bar, carried with the residual recorded |
 | `refused_reagent_change` | 1 | CD57 — the shift is *not* applied, because a rigid shift cannot repair a clone change however good its statistic looks (716× → 2.79× would have looked fine) |
 
-The eleven over the bar are `Vimentin 0.852, HLA_A 0.584, Pan_Cytokeratin 0.405, Beta_actin
-0.339, E_cadherin 0.323, TCF_1 0.225, CD31 0.155, INS 0.145, PCNA 0.143, CD44 0.118,
-Ker8_18 0.109`. Three attempted improvements were measured and all made things worse or no
+The twelve over the bar are `Vimentin 0.852, HLA_A 0.584, CD11b 0.454, Pan_Cytokeratin 0.405,
+Beta_actin 0.339, E_cadherin 0.323, TCF_1 0.225, CD31 0.155, INS 0.145, PCNA 0.143,
+CD44 0.118, Ker8_18 0.109`. Three attempted improvements were measured and all made things worse or no
 better — see `uniform_adapter.py`, which records them so they are not retried.
 
 **They fail for a reason no shift can fix: they differ between donors in distribution
 *shape*, not in location.** After the shift each donor's histogram correlates with the
-reference's at median 0.9704 for these eleven against 0.9915 for the other 44 —
+reference's at median 0.9704 for these against 0.9915 for the other 44 —
 Spearman(residual SD, shape correlation) = **−0.607** over all 55 markers, Mann-Whitney
 p = 1.6 × 10⁻⁵. Vimentin shows it plainly: bimodal, with the modes at different relative
 positions in different donors, because it marks stroma, endothelium and immune cells in

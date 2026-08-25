@@ -129,9 +129,7 @@ def main() -> int:
     args = ap.parse_args()
 
     usab = pd.read_parquet(panel.OUT / "marker_donor_usability.parquet")
-    per_marker = usab.groupby("marker").agg(
-        acq_ratio=("acq_ratio", "first"),
-        n_unusable=("verdict", lambda s: (s == "unusable").sum())).reset_index()
+    per_marker = usab.groupby("marker").agg(acq_ratio=("acq_ratio", "first")).reset_index()
     donors = panel.cohort()["donor_id"].tolist()
     markers = args.markers or sorted(per_marker["marker"])
 
