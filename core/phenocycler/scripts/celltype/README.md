@@ -170,7 +170,10 @@ biology and one derivation rule, both checkable by someone who has never seen th
   (0.46–0.72) is better but still leaves that control at 13.8×. DAPI carries nuclear size
   and chromatin density, which are cell-type traits, not nuisance.
 - **`CD11c & CD209` is the one declared lineage pair with no shared population** — 0.7× of
-  chance in the top 0.1%, on every donor. Dendritic cells are not supported by this panel.
+  chance in the top 0.1%, on every donor. That is a measurement about these two markers'
+  bright tails, not a verdict on the panel: CD11c is shared with macrophages and CD209 is
+  narrow, so a DC call resting on their co-occurrence has no support here. Whether dendritic
+  cells are callable by some other combination is untested.
 
 ## What Step 2 produced
 

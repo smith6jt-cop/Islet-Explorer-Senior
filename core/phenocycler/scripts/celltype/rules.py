@@ -107,12 +107,16 @@ def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
                      strict: bool = True) -> tuple:
     """markers x phenotypes in the encoding named, plus what could not be encoded.
 
-    A constraint on a marker outside ``markers`` cannot be represented, and dropping one
-    silently is a fail-open: the rule simply stops constraining, and two phenotypes that
-    differ only by that marker become indistinguishable with nothing to show it.  That is not
-    hypothetical -- CD38 is absent from 7 donors, and its loss is exactly what makes
-    ``B_cell`` and ``CD38_high_B`` identical.  So every dropped constraint is returned, and
-    with ``strict`` the caller has to look at them.
+    Build this over the panel UNION (``panel.markers(include_variant=True)``), not the
+    cohort intersection.  The cohort is three panel variants, so marker availability is a
+    per-donor property: a rule naming CD38 is evaluable on the 13 donors that carry it and
+    ``unavailable`` on the other 7.  Restricting the reference to the intersection instead
+    throws that rule away for everyone, and does it silently -- which is exactly what made
+    ``B_cell`` and ``CD38_high_B`` come out identical.  Use :func:`evaluable_donors` to get
+    the n a phenotype is actually measured on.
+
+    Anything still unrepresentable is returned rather than skipped, and ``strict`` makes the
+    caller look at it.
     """
     if encoding not in ("zero", "signed"):
         raise ValueError(f"unknown encoding {encoding!r}")
@@ -135,6 +139,18 @@ def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
     return M, dropped
 
 
+def evaluable_donors(flat: dict) -> pd.DataFrame:
+    """Per phenotype: the markers its reference needs, and the donors that carry them all."""
+    rows = []
+    for ph, ref in flat.items():
+        need = sorted(ref)
+        d = panel.donors_with(need)
+        variant = sorted(set(need) & set(panel.PANEL_VARIANT_MARKERS))
+        rows.append({"phenotype": ph, "n_markers": len(need), "n_donors": len(d),
+                     "variant_markers": ",".join(variant), "donors": ",".join(d)})
+    return pd.DataFrame(rows).sort_values(["n_donors", "phenotype"])
+
+
 def distinct_references(M: pd.DataFrame) -> dict:
     """Which phenotypes share an identical reference vector, and are therefore unresolvable."""
     groups: dict = {}
@@ -154,7 +170,7 @@ def main() -> int:
 
     rules = load_rules()
     flat = flatten(rules)
-    markers = panel.markers()
+    markers = panel.markers(include_variant=True)      # the union: availability is per donor
     print(f"{len(flat)} phenotypes, {len(markers)} markers in this lane's panel")
     for enc in ("zero", "signed"):
         M, dropped = reference_matrix(flat, markers, enc, strict=False)
@@ -167,6 +183,13 @@ def main() -> int:
               f" of {len(M.columns)}   ({n_dup} phenotypes in {len(dup)} unresolvable groups)")
         for v in sorted(dup.values(), key=len, reverse=True)[:6]:
             print(f"      {' == '.join(v)}")
+
+    ev = evaluable_donors(flat)
+    short = ev[ev["n_donors"] < 20]
+    print(f"\nphenotypes measured on fewer than all 20 donors: {len(short)} of {len(ev)}")
+    for _, r in short.iterrows():
+        print(f"    {r['phenotype']:<22} n={r['n_donors']:2d} donors   "
+              f"needs {r['variant_markers']}")
     return 0
 
 

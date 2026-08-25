@@ -62,7 +62,11 @@ REGISTRY_EXCLUDED = ("IAPP",)
 #: others as though it were the same one.
 NUCLEUS_MEASURED = ("DAPI", "FOXP3", "Ki67", "PCNA", "SOX2", "TCF_1", "TOX", "TP63")
 
-#: Acquired on only some donors, so a per-donor statistic exists but a cohort one does not.
+#: Acquired on only some donors.  NOT a reason to drop them: the panel is three variants, so
+#: marker availability is a per-donor property and a comparison that uses one of these simply
+#: runs on fewer donors.  CD38 is on 13 of 20, b_Catenin1 on 4, and 3 donors carry neither.
+#: :func:`donor_markers` is the per-donor authority; ``markers()`` is the cohort intersection,
+#: for the places that genuinely need one common space.
 PANEL_VARIANT_MARKERS = ("CD38", "b_Catenin1")
 
 #: Declared biology: (a, b) label the same cell, so their bright tails should overlap.
@@ -174,6 +178,34 @@ def compartments() -> dict:
         near = [comp.get(p) for p, _ in partners.get(m, []) if comp.get(p)]
         comp[m] = near[0] if near else None
     return comp
+
+
+def donor_markers(donor: str | None = None) -> dict | list:
+    """Which markers each donor actually carries.
+
+    The cohort is three panel variants, so this is a property of the donor and not of the
+    project.  A rule that names CD38 is evaluable on the 13 donors that have it and
+    ``unavailable`` on the other 7 -- which is a smaller n, not an unencodable rule.
+    """
+    coh = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
+    coh = coh[coh["eligible"]]
+    base = [m for m in markers(include_variant=True) if m not in PANEL_VARIANT_MARKERS]
+    out = {}
+    for _, r in coh.iterrows():
+        got = list(base)
+        if r["has_CD38"]:
+            got.append("CD38")
+        if r["has_b_Catenin1"]:
+            got.append("b_Catenin1")
+        out[r["donor_id"]] = sorted(got)
+    return out[donor] if donor is not None else out
+
+
+def donors_with(markers_needed) -> list:
+    """The donors on which every named marker was acquired -- the n for a comparison."""
+    dm = donor_markers()
+    need = set(markers_needed)
+    return sorted(d for d, got in dm.items() if need <= set(got))
 
 
 def partner_map() -> dict:

@@ -268,15 +268,41 @@ def test_flattening_refuses_a_cycle_rather_than_looping():
         R.flatten(bad)
 
 
-@needs_rules
-def test_a_constraint_on_an_absent_marker_is_never_dropped_silently():
-    """CD38 is absent on 7 donors, and losing its constraint is exactly what makes B_cell
-    and CD38_high_B identical.  Silence there would be a fail-open."""
-    flat = R.flatten(R.load_rules())
-    with pytest.raises(ValueError, match="dropped silently"):
-        R.reference_matrix(flat, panel.markers(), "zero", strict=True)
-    M, dropped = R.reference_matrix(flat, panel.markers(), "zero", strict=False)
-    assert "CD38" in dropped and dropped["CD38"]
+def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
+    """The cohort is three panel variants, so availability is a per-donor property.
+
+    A rule naming CD38 is evaluable on the 13 donors that carry it, not unencodable.  Built
+    over the cohort intersection instead, its constraint vanishes and B_cell becomes
+    identical to CD38_high_B with nothing to show it -- which is the fail-open this guards.
+    """
+    t = pd.DataFrame({
+        "parent": ["all", "B_cell"], "phenotype": ["B_cell", "CD38_high_B"],
+        "CD20": ["pos", None], "CD38": [None, "pos"], "CD3e": ["neg", None]})
+    flat = R.flatten(t)
+    M, dropped = R.reference_matrix(flat, panel.markers(include_variant=True), "zero")
+    assert not dropped
+    assert not (M["B_cell"] == M["CD38_high_B"]).all()
+
+    ev = R.evaluable_donors(flat).set_index("phenotype")
+    assert ev.loc["B_cell", "n_donors"] == 20
+    assert ev.loc["CD38_high_B", "n_donors"] == 13
+    assert ev.loc["CD38_high_B", "variant_markers"] == "CD38"
+
+    thin, dropped = R.reference_matrix(flat, panel.markers(), "zero", strict=False)
+    assert dropped["CD38"], "the intersection must report what it cannot represent"
+    assert (thin["B_cell"] == thin["CD38_high_B"]).all()
+
+
+def test_marker_availability_is_a_property_of_the_donor():
+    dm = panel.donor_markers()
+    assert len(dm) == 20
+    assert len(panel.donors_with(["CD38"])) == 13
+    assert len(panel.donors_with(["b_Catenin1"])) == 4
+    assert len(panel.donors_with(["CD38", "b_Catenin1"])) == 0, "no donor carries both"
+    assert len(panel.donors_with(["CD3e"])) == 20
+    for d in ("6523", "6566", "6591"):
+        got = set(panel.donor_markers(d))
+        assert not got & set(panel.PANEL_VARIANT_MARKERS), f"{d} carries neither"
 
 
 def test_cd11b_is_in_the_panel_and_carries_its_myeloid_constraint():
@@ -286,14 +312,15 @@ def test_cd11b_is_in_the_panel_and_carries_its_myeloid_constraint():
     assert "IAPP" not in panel.markers(include_variant=True)
     if not R.RULES_CSV.exists():
         pytest.skip(f"no rule table at {R.RULES_CSV}")
-    M, _ = R.reference_matrix(R.flatten(R.load_rules()), panel.markers(), "zero", strict=False)
+    M, _ = R.reference_matrix(R.flatten(R.load_rules()),
+                              panel.markers(include_variant=True), "zero", strict=False)
     assert M.loc["CD11b", "Myeloid"] == 1.0
 
 
 @needs_rules
 def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
     flat = R.flatten(R.load_rules())
-    mk = panel.markers()
+    mk = panel.markers(include_variant=True)
     z, _ = R.reference_matrix(flat, mk, "zero", strict=False)
     s, _ = R.reference_matrix(flat, mk, "signed", strict=False)
     nz = len(z.columns) - sum(len(v) for v in R.distinct_references(z).values())
