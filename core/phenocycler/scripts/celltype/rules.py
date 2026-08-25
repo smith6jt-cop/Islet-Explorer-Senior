@@ -45,15 +45,40 @@ import panel                                     # noqa: E402
 #: adopted; the crosswalk is regenerated from whichever file is named, and the test suite
 #: asserts the frozen map still matches, so a rename in a v5 fails a test rather than
 #: silently turning that rule's constraint into no constraint.
-RULES_CSV = pathlib.Path(os.environ.get(
-    "CELLTYPE_RULES_CSV", panel.REPO / "pancreas_phenotype_rules_v4.csv"))
+#: Candidates in preference order; the first that exists wins.  Override with
+#: ``CELLTYPE_RULES_CSV`` to check a new table before adopting it.
+RULES_CANDIDATES = ("phenotype_workflow_59plex_v2.csv", "pancreas_phenotype_rules_v4.csv")
+
+
+def _default_rules_csv() -> pathlib.Path:
+    for name in RULES_CANDIDATES:
+        if (panel.REPO / name).exists():
+            return panel.REPO / name
+    return panel.REPO / RULES_CANDIDATES[0]
+
+
+RULES_CSV = pathlib.Path(os.environ["CELLTYPE_RULES_CSV"]) \
+    if os.environ.get("CELLTYPE_RULES_CSV") else _default_rules_csv()
 CROSSWALK = HERE / "marker_name_crosswalk.json"
 
 POSITIVE = ("pos", "allpos", "anypos")
-NEGATIVE = ("neg", "allneg")
+NEGATIVE = ("neg", "allneg", "anyneg")
+
+#: How a table names a phenotype's parent.  ``pancreas_phenotype_rules_v4.csv`` used an
+#: explicit ``parent`` column; ``phenotype_workflow_59plex_v2.csv`` puts the hierarchy in the
+#: name -- "Immune - T cell - CD4+ helper" under "Immune - T cell" under "Immune".  Both are
+#: read, because either way a row is a partial statement: in the 59-plex table a child drops
+#: between 2 and 8 of its parent's constraints and overrides up to 4, so reading a row alone
+#: loses real evidence.
+NAME_SEPARATOR = " - "
 
 
-def load_crosswalk() -> dict:
+def _marker_columns(path: pathlib.Path | None = None) -> list:
+    cols = list(pd.read_csv(path or RULES_CSV, nrows=0).columns)
+    return [c for c in cols if not str(c).startswith("Unnamed:")]
+
+
+def load_crosswalk(path: pathlib.Path | None = None) -> dict:
     """Display name -> registry name, from the frozen file.
 
     A frozen map rather than a regex: a regex that silently misses one name turns that rule's
@@ -61,11 +86,18 @@ def load_crosswalk() -> dict:
     and the test suite asserts the two still agree, so a v5 rename fails a test instead of
     dropping a constraint.
     """
-    return json.loads(CROSSWALK.read_text())["map"]
+    cw = json.loads(CROSSWALK.read_text())["map"]
+    missing = [c for c in _marker_columns(path) if c not in cw]
+    if missing:
+        raise ValueError(
+            f"{len(missing)} marker column(s) are not in the frozen crosswalk: {missing}. "
+            "Regenerate it with `python scripts/celltype/rules.py` and review the diff -- an "
+            "unmapped column would silently turn its rule's constraint into no constraint.")
+    return cw
 
 
-def build_crosswalk() -> dict:
-    cols = list(pd.read_csv(RULES_CSV, nrows=0).columns)[2:]
+def build_crosswalk(path: pathlib.Path | None = None) -> dict:
+    cols = _marker_columns(path)
     known = set(panel.markers(include_variant=True)) | set(panel.REGISTRY_EXCLUDED)
     out, missing = {}, []
     for c in cols:
@@ -76,9 +108,34 @@ def build_crosswalk() -> dict:
     return out
 
 
-def load_rules() -> pd.DataFrame:
-    d = pd.read_csv(RULES_CSV)
-    d.columns = ["parent", "phenotype"] + [load_crosswalk()[c] for c in d.columns[2:]]
+def load_rules(path: pathlib.Path | None = None) -> pd.DataFrame:
+    """Any supported rule table, as ``parent, phenotype, <marker columns>``.
+
+    Two layouts are read.  A table whose first two columns are unnamed is the v4 layout,
+    ``parent, phenotype``.  A table with one unnamed column is the 59-plex layout, where the
+    hierarchy lives in the name and the parent is the longest proper prefix that is itself a
+    row -- so "Immune - T cell - CD4+ helper" sits under "Immune - T cell", and a leaf whose
+    prefix is not a row (``Endothelial - vascular``) is top level.
+    """
+    d = pd.read_csv(path or RULES_CSV)
+    unnamed = [c for c in d.columns if str(c).startswith("Unnamed:")]
+    cw = load_crosswalk(path)
+    if len(unnamed) >= 2:
+        d.columns = ["parent", "phenotype"] + [cw[c] for c in d.columns[2:]]
+        return d
+    d = d.rename(columns={unnamed[0]: "phenotype"})
+    d.columns = ["phenotype"] + [cw[c] for c in d.columns[1:]]
+    names = set(d["phenotype"])
+
+    def parent(n: str) -> str:
+        parts = n.split(NAME_SEPARATOR)
+        for k in range(len(parts) - 1, 0, -1):
+            cand = NAME_SEPARATOR.join(parts[:k])
+            if cand in names:
+                return cand
+        return "all"
+
+    d.insert(0, "parent", [parent(n) for n in d["phenotype"]])
     return d
 
 

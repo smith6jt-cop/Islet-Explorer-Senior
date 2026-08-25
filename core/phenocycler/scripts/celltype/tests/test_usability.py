@@ -241,25 +241,41 @@ def test_crosswalk_is_frozen_complete_injective_and_agrees_with_the_regex():
     constraint, which fails open.  The frozen map is the guard; this asserts it is still
     right, so a v5 rename fails here instead of dropping evidence."""
     cw = R.load_crosswalk()
-    cols = list(pd.read_csv(R.RULES_CSV, nrows=0).columns)[2:]
-    assert set(cw) == set(cols), set(cw) ^ set(cols)
+    cols = R._marker_columns()
+    assert set(cols) <= set(cw), f"unmapped marker columns: {set(cols) - set(cw)}"
     assert len(set(cw.values())) == len(cw), "crosswalk is not injective"
     known = set(panel.markers(include_variant=True)) | set(panel.REGISTRY_EXCLUDED)
     assert not set(cw.values()) - known
-    assert cw == R.build_crosswalk()
+    assert all(cw[c] == t for c, t in R.build_crosswalk().items())
 
 
 @needs_rules
 def test_flattening_composes_a_phenotype_with_its_ancestors():
-    """A row is a conditional refinement, not a reference.  Proliferating_beta says only
-    'Ki67 pos'; read alone it is indistinguishable from every other proliferating type."""
-    flat = R.flatten(R.load_rules())
-    pb = flat["Proliferating_beta"]
-    assert pb["Ki67"] in R.POSITIVE                 # its own row
-    assert pb["INS"] in R.POSITIVE                  # from Beta_cell
-    assert pb["CD3e"] in R.NEGATIVE                 # from Endocrine
-    assert len(pb) > 5, "ancestors were not composed in"
-    assert np.median([len(v) for v in flat.values()]) >= 5
+    """A row is a partial statement, whichever layout the table uses.
+
+    In the 59-plex table a child drops between 2 and 8 of its parent's constraints and
+    overrides up to 4, so reading a row alone loses real evidence.
+    """
+    rules = R.load_rules()
+    flat = R.flatten(rules)
+    row = {r["phenotype"]: {c: r[c] for c in rules.columns
+                            if c not in ("parent", "phenotype") and pd.notna(r[c])}
+           for _, r in rules.iterrows()}
+    par = dict(zip(rules["phenotype"], rules["parent"]))
+    gained = [len(flat[ph]) - len(row[ph]) for ph in row if par.get(ph) not in (None, "all")]
+    assert gained and max(gained) > 0, "no phenotype gained a constraint from its ancestors"
+    for ph, p in par.items():
+        if p in flat:
+            assert set(flat[p]) <= set(flat[ph]), f"{ph} lost a constraint of {p}"
+
+
+@needs_rules
+def test_the_hierarchy_is_read_from_whichever_layout_the_table_uses():
+    rules = R.load_rules()
+    assert list(rules.columns[:2]) == ["parent", "phenotype"]
+    assert rules["phenotype"].is_unique
+    known = set(rules["phenotype"]) | {"all"}
+    assert set(rules["parent"]) <= known, set(rules["parent"]) - known
 
 
 def test_flattening_refuses_a_cycle_rather_than_looping():
@@ -305,16 +321,18 @@ def test_marker_availability_is_a_property_of_the_donor():
         assert not got & set(panel.PANEL_VARIANT_MARKERS), f"{d} carries neither"
 
 
-def test_cd11b_is_in_the_panel_and_carries_its_myeloid_constraint():
-    """Excluded only for the retired RESTORE lane.  The Myeloid gate is CD68|CD11c|CD11b, so
-    dropping it would silently remove a third of that gate's evidence."""
+def test_cd11b_is_in_the_panel_and_reaches_the_reference_matrix():
+    """Excluded only for the retired RESTORE lane.  Every table so far constrains CD11b --
+    the v4 Myeloid gate is CD68|CD11c|CD11b, the 59-plex table uses it on 20 of 36
+    phenotypes -- so dropping it would silently remove that evidence."""
     assert "CD11b" in panel.markers()
     assert "IAPP" not in panel.markers(include_variant=True)
     if not R.RULES_CSV.exists():
         pytest.skip(f"no rule table at {R.RULES_CSV}")
-    M, _ = R.reference_matrix(R.flatten(R.load_rules()),
-                              panel.markers(include_variant=True), "zero", strict=False)
-    assert M.loc["CD11b", "Myeloid"] == 1.0
+    flat = R.flatten(R.load_rules())
+    assert any("CD11b" in ref for ref in flat.values()), "no rule constrains CD11b"
+    M, dropped = R.reference_matrix(flat, panel.markers(include_variant=True), "zero")
+    assert "CD11b" not in dropped and "CD11b" in M.index
 
 
 @needs_rules

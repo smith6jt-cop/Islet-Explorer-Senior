@@ -1,6 +1,6 @@
 {
-  "source": "pancreas_phenotype_rules_v4.csv",
-  "n": 57,
+  "source": "phenotype_workflow_59plex_v2.csv",
+  "n": 56,
   "note": "Frozen so a v5 rename fails a test rather than silently dropping a constraint. Regenerate with `python scripts/celltype/rules.py`.",
   "map": {
     "B3TUBB": "B3TUBB",
@@ -28,7 +28,6 @@
     "CD8": "CD8",
     "CD99": "CD99",
     "Caveolin": "Caveolin",
-    "Collagen IV": "Collagen_IV",
     "E-cadherin": "E_cadherin",
     "EpCAM": "EpCAM",
     "FOXP3": "FOXP3",
