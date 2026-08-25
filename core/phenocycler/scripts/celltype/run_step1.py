@@ -133,20 +133,19 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     print(f"\nwrote {out}  ({len(df):,} rows, {time.time() - t0:.0f}s)")
-    print("\nverdict (is the measurement valid?):")
-    print(df["verdict"].value_counts().to_string())
-    bad = df[df.verdict != "usable"]
-    if len(bad):
-        print("\nunusable (donor, marker):")
-        print(bad.groupby(["marker", "reason"]).size().to_string())
-    print("\nflags reported beside the verdict, not folded into it:")
-    for f, what in (("flag_acquisition_group", "not comparable across acquisition groups"),
-                    ("flag_pair", "declared pair does not resolve a population")):
-        n = df.groupby("marker")[f].sum()
-        n = n[n > 0].sort_values(ascending=False)
-        print(f"  {f}  ({what}) — {len(n)} markers:")
-        for m, k in n.items():
-            print(f"      {m:<18} {int(k):2d}/20 donors")
+    print("\nmarkers whose level steps with the acquisition group "
+          f"(ratio >= {U.BARS['acq_ratio_flag']}) — the one measurement Step 2 acts on:")
+    r = df.groupby("marker")["acq_ratio"].first().sort_values(ascending=False)
+    for m, v in r.items():
+        if v >= U.BARS["acq_ratio_flag"]:
+            print(f"    {m:<18} {v:8.2f}")
+    print(f"    (next highest: {r[r < U.BARS['acq_ratio_flag']].idxmax()} "
+          f"{r[r < U.BARS['acq_ratio_flag']].max():.2f})")
+
+    print("\nweakest declared partner tails, pooled over donors (Step 3's input):")
+    q = (df.groupby("marker")[["partner_best", "control_worst"]].median()
+           .dropna().sort_values("partner_best"))
+    print(q.head(8).to_string(float_format=lambda v: f"{v:9.1f}"))
     return 0
 
 

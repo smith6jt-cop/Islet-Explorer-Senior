@@ -32,12 +32,12 @@ import usability as U                     # noqa: E402
 GROUP_COLOR = {"2.3.1/CD38": "#1f77b4", "2.4.0/CD38": "#4fa3d1",
                "2.4.1/b_Catenin1": "#d62728", "2.4.1/neither": "#ff9896"}
 
-#: The verdict answers one question -- is the measurement valid -- and the two flags answer
-#: different ones, so they are drawn as separate states rather than blended into a severity
-#: scale.  A flagged marker is not a worse marker; it is a marker with a recorded property
-#: that constrains a specific later step.
-STATE_COLOR = {"usable": "#2ca02c", "pair flag": "#1f77b4",
-               "acquisition-group flag": "#ff7f0e", "unusable": "#d62728"}
+#: The cohort sheet draws MEASUREMENTS, not a verdict.  An earlier version drew a
+#: usable/degraded/unusable grid; every marker passes on every donor, so the grid carried no
+#: information, and the version before it mislabelled markers by folding "this pair does not
+#: mark the same cells" into "this marker is bad".  What replaces it is the continuous
+#: quantity those labels were derived from, so a reader can see the margin rather than a
+#: thresholded shadow of it.
 
 
 def _asinh_axis(ax, hi: float):
@@ -122,14 +122,13 @@ def marker_sheet(marker: str, stats: pd.DataFrame, out_dir: pathlib.Path,
     ax.set_title("spatial coherence vs its own null", fontweight="bold")
     ax.legend(fontsize=7, frameon=False)
 
-    bits = [f"{k}: {v}" for k, v in s["verdict"].value_counts().to_dict().items()]
-    if s["flag_pair"].any():
-        bits.append(f"pair flag on {int(s['flag_pair'].sum())}/20")
-    if s["flag_acquisition_group"].any():
-        bits.append(f"acquisition-group flag on {int(s['flag_acquisition_group'].sum())}/20")
-    fig.suptitle(f"{marker}   —   " + "   ".join(bits)
-                 + f"   |   acquisition-group ratio {s['acq_ratio'].iloc[0]:.2f}",
-                 fontweight="bold", y=1.02)
+    pb, cw = s["partner_best"].median(), s["control_worst"].median()
+    bits = [f"acquisition-group ratio {s['acq_ratio'].iloc[0]:.2f}"]
+    if np.isfinite(pb):
+        bits.append(f"partner tail {pb:.1f}x vs worst control {cw:.1f}x (donor medians)")
+    else:
+        bits.append("no declared same-cell partner in this panel")
+    fig.suptitle(f"{marker}   —   " + "   |   ".join(bits), fontweight="bold", y=1.02)
     fig.tight_layout()
     out_dir.mkdir(parents=True, exist_ok=True)
     p = out_dir / f"{marker}.png"
@@ -139,39 +138,35 @@ def marker_sheet(marker: str, stats: pd.DataFrame, out_dir: pathlib.Path,
 
 
 def cohort_sheet(stats: pd.DataFrame, out_dir: pathlib.Path) -> pathlib.Path:
-    """Verdict per (marker, donor), and the acquisition-group ratio that drives `degraded`."""
+    """How far each marker's declared partner tail beats its non-partner controls, and
+    whether its level steps with the acquisition group."""
     coh = panel.cohort().sort_values(["acq_group", "donor_id"])
     donors = coh["donor_id"].tolist()
     markers = sorted(stats["marker"].unique())
-    M = stats.pivot(index="marker", columns="donor_id", values="verdict").reindex(
-        index=markers, columns=donors)
+
+    P = stats.pivot(index="marker", columns="donor_id", values="partner_best")
+    C = stats.pivot(index="marker", columns="donor_id", values="control_worst")
+    M = np.log10((P.reindex(index=markers, columns=donors).to_numpy() + 0.1)
+                 / (C.reindex(index=markers, columns=donors).to_numpy() + 0.1))
 
     fig, axes = plt.subplots(1, 2, figsize=(19, 13), dpi=140,
                              gridspec_kw={"width_ratios": [3, 1]})
     ax = axes[0]
-    grid = M.replace({"usable": 0, "unusable": 3}).astype(float).to_numpy()
-    P = stats.pivot(index="marker", columns="donor_id", values="flag_pair").reindex(
-        index=markers, columns=donors).fillna(False).to_numpy()
-    A = stats.pivot(index="marker", columns="donor_id",
-                    values="flag_acquisition_group").reindex(
-        index=markers, columns=donors).fillna(False).to_numpy()
-    grid = np.where(P & (grid == 0), 1, grid)
-    grid = np.where(A & (grid != 3), 2, grid)      # the comparability flag dominates
-    ax.imshow(grid, aspect="auto", cmap=matplotlib.colors.ListedColormap(
-        list(STATE_COLOR.values())), vmin=-0.5, vmax=3.5, interpolation="nearest")
+    im = ax.imshow(M, aspect="auto", cmap="RdBu_r", vmin=-2.5, vmax=2.5,
+                   interpolation="nearest")
     ax.set_xticks(range(len(donors)))
-    ax.set_xticklabels([f"{d}\n{coh.set_index('donor_id').loc[d,'acq_group']}"
+    ax.set_xticklabels([f"{d}\n{coh.set_index('donor_id').loc[d, 'acq_group']}"
                         for d in donors], rotation=90, fontsize=6)
     ax.set_yticks(range(len(markers)))
     ax.set_yticklabels(markers, fontsize=7)
     for i, g in enumerate(coh["acq_group"]):
         if i and g != coh["acq_group"].iloc[i - 1]:
             ax.axvline(i - 0.5, color="k", lw=1.5)
-    ax.set_title("measurement verdict, with the two flags shown beside it — "
-                 "vertical rules separate acquisition groups", fontweight="bold")
-    for k, c in STATE_COLOR.items():
-        ax.plot([], [], "s", color=c, label=k)
-    ax.legend(fontsize=8, frameon=False, loc="upper right", bbox_to_anchor=(1.0, 1.06), ncol=4)
+    ax.set_title("log10( declared partner tail / worst non-partner control )  —  RED means "
+                 "the pair marks the same cells and the controls do not\npale means it does "
+                 "not resolve; blank means no same-cell partner exists in this panel. "
+                 "Vertical rules separate acquisition groups", fontweight="bold", fontsize=10)
+    fig.colorbar(im, ax=ax, fraction=0.02, pad=0.01, label="log10 ratio")
 
     ax = axes[1]
     r = stats.groupby("marker")["acq_ratio"].first().reindex(markers)
@@ -187,7 +182,7 @@ def cohort_sheet(stats: pd.DataFrame, out_dir: pathlib.Path) -> pathlib.Path:
 
     fig.tight_layout()
     out_dir.mkdir(parents=True, exist_ok=True)
-    p = out_dir / "_cohort_verdicts.png"
+    p = out_dir / "_cohort_overview.png"
     fig.savefig(p, bbox_inches="tight")
     plt.close(fig)
     return p
