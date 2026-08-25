@@ -228,7 +228,14 @@ def test_the_other_run_carries_the_same_expression_bytes():
 # ------------------------------------------------------------ the rule table (Step 3)
 import rules as R                                    # noqa: E402
 
+#: The rule table lives outside version control and is revised by the maintainer, so its
+#: absence is a normal state rather than a failure.  These tests check the machinery against
+#: whichever table is present; with none, there is nothing to check.
+needs_rules = pytest.mark.skipif(not R.RULES_CSV.exists(),
+                                 reason=f"no rule table at {R.RULES_CSV}")
 
+
+@needs_rules
 def test_crosswalk_is_frozen_complete_injective_and_agrees_with_the_regex():
     """A regex that silently misses one name turns that rule's constraint into no
     constraint, which fails open.  The frozen map is the guard; this asserts it is still
@@ -242,6 +249,7 @@ def test_crosswalk_is_frozen_complete_injective_and_agrees_with_the_regex():
     assert cw == R.build_crosswalk()
 
 
+@needs_rules
 def test_flattening_composes_a_phenotype_with_its_ancestors():
     """A row is a conditional refinement, not a reference.  Proliferating_beta says only
     'Ki67 pos'; read alone it is indistinguishable from every other proliferating type."""
@@ -260,6 +268,7 @@ def test_flattening_refuses_a_cycle_rather_than_looping():
         R.flatten(bad)
 
 
+@needs_rules
 def test_a_constraint_on_an_absent_marker_is_never_dropped_silently():
     """CD38 is absent on 7 donors, and losing its constraint is exactly what makes B_cell
     and CD38_high_B identical.  Silence there would be a fail-open."""
@@ -275,10 +284,13 @@ def test_cd11b_is_in_the_panel_and_carries_its_myeloid_constraint():
     dropping it would silently remove a third of that gate's evidence."""
     assert "CD11b" in panel.markers()
     assert "IAPP" not in panel.markers(include_variant=True)
+    if not R.RULES_CSV.exists():
+        pytest.skip(f"no rule table at {R.RULES_CSV}")
     M, _ = R.reference_matrix(R.flatten(R.load_rules()), panel.markers(), "zero", strict=False)
     assert M.loc["CD11b", "Myeloid"] == 1.0
 
 
+@needs_rules
 def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
     flat = R.flatten(R.load_rules())
     mk = panel.markers()
@@ -288,3 +300,49 @@ def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
     ns = len(s.columns) - sum(len(v) for v in R.distinct_references(s).values())
     assert ns > nz, "signed must resolve at least the negation-defined phenotypes"
     assert (s.to_numpy() < 0).any() and not (z.to_numpy() < 0).any()
+
+
+# ------------------------------------------------ the plan's verification items, asserted
+def test_the_acquisition_group_statistic_reproduces_from_the_cohort_table_alone():
+    """Plan verification item 4.
+
+    CD57 must come back at ~35 and every other marker below the flag, derived from the donor
+    IDs and the group table -- not read from a stored result.  This is the one measurement
+    Step 2 acts on, so it is pinned rather than remembered.
+    """
+    out = panel.OUT / "marker_donor_usability.parquet"
+    if not out.exists():
+        pytest.skip("Step 1 has not been run on this machine")
+    d = pd.read_parquet(out)
+    grp = panel.cohort().set_index("donor_id")["acq_group"]
+    r = {m: U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)["acq_ratio"]
+         for m, g in d.groupby("marker")}
+    assert r["CD57"] == pytest.approx(35.1, abs=0.5)
+    others = {m: v for m, v in r.items() if m != "CD57" and np.isfinite(v)}
+    assert max(others.values()) < U.BARS["acq_ratio_flag"], \
+        f"a second marker steps with the group: {max(others, key=others.get)}"
+
+
+def test_step2_records_a_reference_donor_shift_and_provenance_for_every_marker():
+    """Plan verification item 5, in the part that survived.
+
+    The landmark half is void: refinement was measured and made every marker worse, so no
+    landmark_annotations.csv exists and nothing is reproduced from one.  What must hold is
+    that every shift is attributable.
+    """
+    f = panel.OUT / "shifts.json"
+    if not f.exists():
+        pytest.skip("Step 2 has not been run on this machine")
+    meta = json.loads(f.read_text())
+    assert meta["uniform_commit"]
+    for m, v in meta["shifts"].items():
+        assert v["reference_donor"] in meta["donors"], m
+        assert set(v["scale"]) == set(meta["donors"]), m
+        assert v["provenance"] in ("automatic_registration",
+                                   "automatic_registration_over_bar",
+                                   "refused_reagent_change"), (m, v["provenance"])
+    refused = [m for m, v in meta["shifts"].items()
+               if v["provenance"] == "refused_reagent_change"]
+    assert refused == ["CD57"]
+    assert all(s == 1.0 for s in meta["shifts"]["CD57"]["scale"].values()), \
+        "a refused marker must be left unshifted, not shifted and labelled"

@@ -100,9 +100,7 @@ def marker_sheet(marker: str, stats: pd.DataFrame, out_dir: pathlib.Path,
         for name, val in json.loads(r["controls"]).items():
             ax.scatter(i, max(val, 1e-2), s=30, facecolors="none", edgecolors="#d62728",
                        marker="s", zorder=3)
-    ax.axhline(1.0, color="k", lw=1, ls="--")
-    ax.axhline(U.BARS["partner_min"], color="#2ca02c", lw=0.8, ls=":")
-    ax.axhline(U.BARS["control_max"], color="#d62728", lw=0.8, ls=":")
+    ax.axhline(1.0, color="k", lw=1, ls="--")     # chance; the only line worth drawing here
     ax.set_yscale("log")
     ax.set_xticks(range(len(s)))
     ax.set_xticklabels(s["donor_id"], rotation=90, fontsize=7)

@@ -55,7 +55,7 @@ mutating the stage fails a test rather than silently changing every number this 
 ## Why these statistics and not the obvious ones
 
 The measurement problem this lane exists for is that **raw intensities are not comparable
-between donors** — donor-median fold-range is 4.2× across 55 markers, 22 of 55 span > 5×.
+between donors** — donor-median fold-range is 4.2× across the panel, 22 of 55 markers span > 5×.
 So every Step 1 statistic is computed *within* a donor and is invariant to any monotone
 per-donor rescaling. That rules out means, variances, and anything compared to a fixed
 number, and it rules in ranks, tails and spatial structure.
@@ -190,13 +190,13 @@ better — see `uniform_adapter.py`, which records them so they are not retried.
 **They fail for a reason no shift can fix: they differ between donors in distribution
 *shape*, not in location.** After the shift each donor's histogram correlates with the
 reference's at median 0.9704 for these against 0.9915 for the other 44 —
-Spearman(residual SD, shape correlation) = **−0.607** over all 55 markers, Mann-Whitney
+Spearman(residual SD, shape correlation) = **−0.607** over all shifted markers, Mann-Whitney
 p = 1.6 × 10⁻⁵. Vimentin shows it plainly: bimodal, with the modes at different relative
 positions in different donors, because it marks stroma, endothelium and immune cells in
 donor-varying proportions. A rigid shift is a location model, and landmark refinement moves a
 distribution rather than reshaping it, so neither applies.
 
-The consequence for Step 3 is stated here rather than left implicit: **for these eleven
+The consequence for Step 3 is stated here rather than left implicit: **for these twelve
 markers a single cohort-wide cutoff is not valid even after alignment.** Only within-donor
 rank statistics are safe on them.
 

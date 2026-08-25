@@ -29,6 +29,7 @@ So both encodings are provided and neither is assumed:
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import re
 import sys
@@ -40,7 +41,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import panel                                     # noqa: E402
 
-RULES_CSV = panel.REPO / "pancreas_phenotype_rules_v4.csv"
+#: The maintainer's rule table.  Overridable so a new version can be checked before it is
+#: adopted; the crosswalk is regenerated from whichever file is named, and the test suite
+#: asserts the frozen map still matches, so a rename in a v5 fails a test rather than
+#: silently turning that rule's constraint into no constraint.
+RULES_CSV = pathlib.Path(os.environ.get(
+    "CELLTYPE_RULES_CSV", panel.REPO / "pancreas_phenotype_rules_v4.csv"))
 CROSSWALK = HERE / "marker_name_crosswalk.json"
 
 POSITIVE = ("pos", "allpos", "anypos")
