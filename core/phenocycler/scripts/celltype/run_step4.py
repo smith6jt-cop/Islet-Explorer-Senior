@@ -26,9 +26,10 @@ import utag_adapter as UA                        # noqa: E402
 
 #: Cells per donor handed to UTAG.  The neighbour graph and the Leiden step, not the message
 #: passing, set the cost, and it does not scale linearly: 40k cells took 100 s for two
-#: resolutions, while 120k took over 12 minutes for two of three.  A cap also keeps every
-#: donor comparable in graph resolution rather than letting the largest slide get a finer one,
-#: and the realised count is recorded per run.
+#: resolutions; 120k took 2,145 s for three.  At 100k that is roughly half an hour a donor,
+#: so a cohort pass is most of a day and belongs in the background rather than inline.  A cap
+#: also keeps every donor comparable in graph resolution rather than letting the largest slide
+#: get a finer one, and the realised count is recorded per run.
 MAX_CELLS = 100_000
 RESOLUTIONS = (0.1, 0.3, 1.0)
 
