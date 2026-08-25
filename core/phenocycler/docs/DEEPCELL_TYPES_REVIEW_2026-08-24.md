@@ -427,3 +427,59 @@ The DAPI and tile-density questions closed by the 2026-08-24 single-tile arms ar
 
 **Not a verdict.** These are the selection donors. The release verdict is computed on 115, 6521,
 6593, 6534 and 6591, which nothing here has touched.
+
+### Executed 2026-08-24 — round two: which panel subset, and is it composition or size?
+
+144 runs, selection donors only. Eight arms: the exclusivity panel with and without the nuclear
+channel, the bare lineage panel with it, and five seeded size-matched random draws.
+
+**On `2026-06-23-ptft` — the checkpoint C1 selected — no subset beats the full panel:**
+
+| arm | channels | sign + | rank-1 | AUROC ≥ bar | mean AUROC | coherent | impossible mass |
+|---|---|---|---|---|---|---|---|
+| **A0 all** | **52** | 21.3 | 15.7 | **12.4** | **0.679** | **18.9** | **0.111** |
+| A1d type + exclusive | 43 | 21.6 | 17.6 | 11.0 | 0.662 | 12.0 | **0.573** |
+| A1e + dsDNA | 44 | 21.0 | 17.1 | 11.3 | 0.660 | 12.2 | 0.626 |
+| A1c type + dsDNA | 31 | 17.6 | 11.3 | 10.7 | 0.631 | 18.6 | 0.074 |
+| A1 type only | 30 | 16.9 | 11.9 | 10.4 | 0.622 | 19.1 | 0.046 |
+| A1b random-30 × 5 seeds | 30 | — | — | — | 0.610–**0.677** (mean 0.639) | — | 0.049–0.456 |
+
+**The size control answers its question.** Five random 30-channel draws average 0.639 mean AUROC and
+span 0.610–0.677; the curated 30 lineage markers reach 0.622 — *inside* that spread and below its
+mean. So the cost of the bare lineage panel is **not** a composition failure and **not** rescued by
+better composition at the same size: it is that 30 channels carry less than 52. No 30-channel
+subset, curated or random, matches the full panel. **The reduction is the loss.**
+
+**And dropping only the nine "ubiquitous" markers is worse than dropping twenty-two.** `A1d` keeps
+the 13 functional markers whose exclusivity carries compartment information and drops beta-actin,
+MHC class I, CD44, Bcl-2, CD107a, Ki67, SOX2, Collagen IV and CD11b. Its impossible-class mass rises
+from 0.111 to **0.573** — five-fold, on all nine donor/region combinations without exception
+(0.260–0.741 against a baseline 0.025–0.222) — and argmax coherence collapses from 18.9 to 12.0.
+
+The mechanism is specific and visible: **`Paneth` goes from 0.046 to 0.638.** Paneth cells are the
+model's nearest trained match for dense granular secretory epithelium, which is what acinar tissue
+is, and this checkpoint was already drifting that way — the 2026-08-24 single-tile check found it
+answering both MPO and CD8 with `Paneth`. The markers I classified as carrying no *lineage*
+information were carrying *contextual* information that kept acinar cells out of that attractor.
+The classification was right about what it claimed and wrong about what it implied.
+
+**On `2026-06-15` the ordering inverts** — `A1d` is the best panel there (0.629 against 0.533, and
+better on all three donors). That checkpoint is not the one in use, and the inversion is the point:
+a panel recommendation read off the weaker checkpoint would have been exactly backwards.
+
+### The configuration, selected
+
+Chosen on 6539 / 6450 / 6523 and frozen before the held-out donors are touched:
+
+| setting | value | why |
+|---|---|---|
+| checkpoint | **2026-06-23-ptft** | better on every statistic, all 3 donors, all 3 panel variants |
+| panel | **all 52 usable channels** | no subset matches it; the random-30 control shows the loss is size, not composition |
+| window | **2048 px**, scoring a 1024 core | window size moves mean AUROC ≤ 0.006 either way; this is the cheap middle |
+| mask | **cell** | the nucleus mask is worse (−0.025 mean AUROC, −2.1 coherent) |
+| insulin | **`C-peptide`** | dropping it or renaming it changes nothing measurable (≤ 0.005) |
+| label space | **26 of 51 classes** | fixed property of the gate, never an arm |
+
+The search's honest summary: **the defaults were right except the checkpoint.** Four of the five
+axes were already at their best setting, which is worth knowing — it means the 2026-08-24 negative
+was not a configuration accident, and the one axis that did move it moved it a long way.
