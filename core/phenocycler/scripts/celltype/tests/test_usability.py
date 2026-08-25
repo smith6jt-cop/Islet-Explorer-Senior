@@ -391,3 +391,74 @@ def test_step2_records_a_reference_donor_shift_and_provenance_for_every_marker()
     assert refused == ["CD57"]
     assert all(s == 1.0 for s in meta["shifts"]["CD57"]["scale"].values()), \
         "a refused marker must be left unshifted, not shifted and labelled"
+
+
+# ------------------------------------------------------------------- scoring (Step 3)
+import score as SC                                    # noqa: E402
+
+
+def test_cosine_is_invariant_to_scaling_the_whole_cell_vector():
+    """The property this lane adopted cosine for: the dominant axis between cells is overall
+    brightness, and rescaling a cell must not change which reference it matches."""
+    rng = np.random.default_rng(0)
+    X = rng.random((500, 8)).astype(np.float32)
+    Rm = rng.random((8, 4)).astype(np.float32)
+    a = SC.cosine_scores(X, Rm, normalise_ceiling=False)
+    b = SC.cosine_scores(X * 37.0, Rm, normalise_ceiling=False)
+    assert np.allclose(a, b, atol=1e-5)
+
+
+def test_cosine_cannot_manufacture_a_pairwise_association():
+    """Unlike dividing by a chosen marker, which turned a negative control from 0.1x to
+    14.8x, rescaling the whole vector leaves every pairwise relationship intact."""
+    rng = np.random.default_rng(1)
+    X = rng.random((2000, 6)).astype(np.float32)
+    order_before = np.argsort(X[:, 0])
+    X2 = X * rng.random((2000, 1)).astype(np.float32)     # per-cell magnitude, not per-marker
+    Rm = np.eye(6, dtype=np.float32)
+    S1 = SC.cosine_scores(X, Rm, normalise_ceiling=False)
+    S2 = SC.cosine_scores(X2, Rm, normalise_ceiling=False)
+    assert np.allclose(S1, S2, atol=1e-5), "a per-cell rescaling changed the angles"
+    assert order_before is not None
+
+
+def test_a_reference_with_negatives_cannot_reach_one_and_the_ceiling_says_so():
+    """Cell values are non-negative, so the best any cell can do against r is align with its
+    positive part: max cos = ||r+|| / ||r||.  Measured on donor 6450 that ran 1.000 down to
+    0.147 across the 37 references and predicted the call share at Spearman +0.48, so the
+    argmax was partly choosing on reference geometry."""
+    R_pos = np.array([[1.0], [1.0], [0.0]], dtype=np.float32)
+    R_mix = np.array([[1.0], [-1.0], [-1.0]], dtype=np.float32)
+    assert SC.reference_ceiling(R_pos)[0] == pytest.approx(1.0)
+    assert SC.reference_ceiling(R_mix)[0] == pytest.approx(1 / np.sqrt(3), rel=1e-5)
+
+    rng = np.random.default_rng(2)
+    X = rng.random((3000, 3)).astype(np.float32)
+    raw = SC.cosine_scores(X, np.hstack([R_pos, R_mix]), normalise_ceiling=False)
+    assert np.nanmax(raw[:, 1]) < np.nanmax(raw[:, 0]), "the mixed reference must be capped lower"
+    norm = SC.cosine_scores(X, np.hstack([R_pos, R_mix]), normalise_ceiling=True)
+    assert np.nanmax(norm[:, 1]) == pytest.approx(1.0, abs=0.05), "ceiling did not equalise them"
+
+
+def test_a_cell_with_no_signal_is_unscored_rather_than_called():
+    """Zero norm means there is no angle.  Calling such a cell would be inventing evidence."""
+    X = np.array([[0.0, 0.0], [1.0, 0.0]], dtype=np.float32)
+    Rm = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    out = SC.call_from_scores(SC.cosine_scores(X, Rm), ["A", "B"])
+    assert out.loc[0, "call"] == "Unscored" and np.isnan(out.loc[0, "score"])
+    assert out.loc[1, "call"] == "A"
+
+
+def test_the_margin_records_how_close_the_decision_was():
+    X = np.array([[1.0, 1.0]], dtype=np.float32)          # exactly between two references
+    Rm = np.eye(2, dtype=np.float32)
+    out = SC.call_from_scores(SC.cosine_scores(X, Rm), ["A", "B"])
+    assert out.loc[0, "margin"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_scaling_clips_at_the_measured_floor_and_a_robust_top():
+    scale = pd.DataFrame({"floor": [10.0], "top": [110.0], "span": [100.0]}, index=["M"])
+    X = np.array([[0.0], [10.0], [60.0], [110.0], [1e6]], dtype=np.float32)
+    out = SC.apply_scale(X, ["M"], scale)
+    assert out.min() == 0.0 and out.max() == 1.0
+    assert out[2, 0] == pytest.approx(0.5)

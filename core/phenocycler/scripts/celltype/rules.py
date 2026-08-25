@@ -47,7 +47,8 @@ import panel                                     # noqa: E402
 #: silently turning that rule's constraint into no constraint.
 #: Candidates in preference order; the first that exists wins.  Override with
 #: ``CELLTYPE_RULES_CSV`` to check a new table before adopting it.
-RULES_CANDIDATES = ("phenotype_workflow_59plex_v2.csv", "pancreas_phenotype_rules_v4.csv")
+RULES_CANDIDATES = ("phenotype_workflow.csv", "phenotype_workflow_59plex_v2.csv",
+                    "pancreas_phenotype_rules_v4.csv")
 
 
 def _default_rules_csv() -> pathlib.Path:
@@ -161,7 +162,7 @@ def flatten(rules: pd.DataFrame) -> dict:
 
 
 def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
-                     strict: bool = True) -> tuple:
+                     strict: bool = True, split_or_groups: bool = True) -> tuple:
     """markers x phenotypes in the encoding named, plus what could not be encoded.
 
     Build this over the panel UNION (``panel.markers(include_variant=True)``), not the
@@ -174,20 +175,32 @@ def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
 
     Anything still unrepresentable is returned rather than skipped, and ``strict`` makes the
     caller look at it.
+
+    ``split_or_groups`` shares unit weight across an ``anypos`` / ``anyneg`` group rather than
+    giving every member 1.  A group says "expect elevation in ONE of these", and encoding it
+    as k separate 1s says "expect all k", which also makes a parent's OR-group identical to a
+    child that names one of its members: on the 59-plex table that alone left Immune,
+    Imm-T-cell, Imm-B-cell and Imm-neutrophil sharing one vector.  Sharing the weight keeps
+    the group's contribution to the norm the same while letting a child that commits to one
+    member out-align it.
     """
     if encoding not in ("zero", "signed"):
         raise ValueError(f"unknown encoding {encoding!r}")
     M = pd.DataFrame(0.0, index=markers, columns=list(flat))
     dropped: dict = {}
     for ph, ref in flat.items():
-        for m, tok in ref.items():
-            if m not in M.index:
-                dropped.setdefault(m, []).append(ph)
-                continue
+        usable = {m: t for m, t in ref.items() if m in M.index}
+        for m in set(ref) - set(usable):
+            dropped.setdefault(m, []).append(ph)
+        n_any = {t: sum(1 for x in usable.values() if x == t) for t in ("anypos", "anyneg")}
+        for m, tok in usable.items():
+            w = 1.0
+            if split_or_groups and tok in n_any and n_any[tok] > 1:
+                w = 1.0 / n_any[tok]
             if tok in POSITIVE:
-                M.loc[m, ph] = 1.0
+                M.loc[m, ph] = w
             elif tok in NEGATIVE and encoding == "signed":
-                M.loc[m, ph] = -1.0
+                M.loc[m, ph] = -w
     if strict and dropped:
         raise ValueError(
             "constraints on markers outside the panel would be dropped silently: "
