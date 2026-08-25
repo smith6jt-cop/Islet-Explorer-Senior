@@ -462,3 +462,26 @@ def test_scaling_clips_at_the_measured_floor_and_a_robust_top():
     out = SC.apply_scale(X, ["M"], scale)
     assert out.min() == 0.0 and out.max() == 1.0
     assert out[2, 0] == pytest.approx(0.5)
+
+
+def test_the_dapi_ratio_is_applied_only_to_the_raw_nucleus_group():
+    """DAPI is the denominator, never a numerator, and no REDSEA whole-cell marker is
+    touched -- dividing one of those by DAPI compares two different measurements."""
+    df = pd.DataFrame({"DAPI": [2.0, 4.0], "TOX": [1.0, 8.0], "CD3e": [3.0, 6.0]})
+    out, changed = SC.nuclear_ratio(df.copy(), ["TOX", "CD3e"], "DAPI",
+                                    panel.NUCLEUS_MEASURED)
+    assert changed == ["TOX"]
+    assert list(out["TOX"]) == [0.5, 2.0]
+    assert list(out["CD3e"]) == [3.0, 6.0], "a whole-cell marker must not be divided"
+    assert list(out["DAPI"]) == [2.0, 4.0], "the denominator must not divide itself"
+
+
+def test_the_dapi_ratio_survives_a_zero_or_missing_denominator():
+    df = pd.DataFrame({"DAPI": [0.0, np.nan, 4.0], "TOX": [1.0, 1.0, 8.0]})
+    out, changed = SC.nuclear_ratio(df.copy(), ["TOX"], "DAPI", panel.NUCLEUS_MEASURED)
+    assert changed == ["TOX"]
+    assert np.isnan(out["TOX"].iloc[0]) and np.isnan(out["TOX"].iloc[1])
+    assert out["TOX"].iloc[2] == 2.0
+    unchanged, changed = SC.nuclear_ratio(df.drop(columns=["DAPI"]).copy(), ["TOX"], "DAPI",
+                                          panel.NUCLEUS_MEASURED)
+    assert changed == [] and list(unchanged["TOX"]) == [1.0, 1.0, 8.0]

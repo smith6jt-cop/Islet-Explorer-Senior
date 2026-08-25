@@ -25,9 +25,26 @@ ALIGNED = panel.OUT / "uniform"
 OUT = panel.OUT / "calls"
 ENCODING = "signed"          # measured: resolves 37 of 37 references; zero leaves 34
 
+#: Divide the eight raw-nucleus markers by DAPI before scoring, so that group is compared on
+#: a common internal reference rather than against REDSEA whole-cell means.
+NUCLEAR_RATIO = True
+
+
+def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
+    """One donor's aligned values, with the nuclear group put on DAPI if asked."""
+    have = [m for m in markers if m in set(panel.donor_markers(donor))]
+    need = list(dict.fromkeys(have + extra + (["DAPI"] if ratio else [])))
+    need = [c for c in need if c not in ("donor_id",)]
+    df = pq.read_table(ALIGNED / f"donor_id={donor}" / "data.parquet",
+                       columns=need).to_pandas()
+    changed = []
+    if ratio:
+        df, changed = SC.nuclear_ratio(df, have, "DAPI", panel.NUCLEUS_MEASURED)
+    return df, have, changed
+
 
 def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
-                seed: int = 0) -> pd.DataFrame:
+                seed: int = 0, ratio: bool = NUCLEAR_RATIO) -> pd.DataFrame:
     """Cohort-wide floor and top per marker, on the ALIGNED values.
 
     Cohort-wide on purpose.  A per-donor scale would re-impose exactly the distribution
@@ -37,9 +54,7 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
     rng = np.random.default_rng(seed)
     pool: dict = {m: [] for m in markers}
     for d in donors:
-        have = [m for m in markers if m in set(panel.donor_markers(d))]
-        t = pq.read_table(ALIGNED / f"donor_id={d}" / "data.parquet",
-                          columns=["qc_analysis_eligible"] + have).to_pandas()
+        t, have, _ = _read_donor(d, markers, ["qc_analysis_eligible"], ratio)
         t = t[t["qc_analysis_eligible"]]
         if len(t) > n_per_donor:
             t = t.iloc[rng.choice(len(t), n_per_donor, replace=False)]
@@ -59,21 +74,18 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
 
 
 def score_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame,
-                ceiling: bool = True) -> pd.DataFrame:
+                ceiling: bool = True, ratio: bool = NUCLEAR_RATIO) -> pd.DataFrame:
     """Cosine-score one donor, over the markers that donor actually carries.
 
     A reference that needs a marker this donor lacks is not scored here -- it is scored on
     the donors that have it.  Zeroing the missing row instead would quietly turn a
     13-donor comparison into a 20-donor one with weaker evidence on 7 of them.
     """
-    have = [m for m in Rm.index if m in set(panel.donor_markers(donor))]
-    missing = [m for m in Rm.index if m not in have]
+    missing = [m for m in Rm.index if m not in set(panel.donor_markers(donor))]
     usable = [p for p in Rm.columns if not (Rm.loc[missing, p] != 0).any()]
 
-    keep = ["donor_id", "object_id", "qc_analysis_eligible", "cell_region", "islet_num",
-            "X_centroid", "Y_centroid"]
-    df = pq.read_table(ALIGNED / f"donor_id={donor}" / "data.parquet",
-                       columns=keep + have).to_pandas()
+    keep = ["object_id", "qc_analysis_eligible", "cell_region", "islet_num"]
+    df, have, _ = _read_donor(donor, list(Rm.index), keep, ratio)
     elig = df["qc_analysis_eligible"].to_numpy()
     X = SC.apply_scale(df[have].to_numpy("float32"), have, scale)
     S = SC.cosine_scores(X, Rm.loc[have, usable].to_numpy("float32"),
@@ -113,6 +125,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--encoding", default=ENCODING, choices=("zero", "signed"))
+    ap.add_argument("--no-nuclear-ratio", action="store_true",
+                    help="score the raw-nucleus markers as-is instead of dividing by DAPI")
     ap.add_argument("--no-ceiling", action="store_true",
                     help="do not divide by each reference's attainable maximum")
     args = ap.parse_args()
@@ -133,14 +147,17 @@ def main() -> int:
 
     t0 = time.time()
     print("  building the cohort-wide marker scale ...", flush=True)
-    scale = build_scale(donors, list(Rm.index))
+    ratio = not args.no_nuclear_ratio
+    print(f"  nuclear markers on DAPI: {'yes' if ratio else 'no'} "
+          f"({', '.join(m for m in panel.NUCLEUS_MEASURED if m != 'DAPI')})")
+    scale = build_scale(donors, list(Rm.index), ratio=ratio)
     print(f"    {time.time() - t0:.0f}s", flush=True)
 
     OUT.mkdir(parents=True, exist_ok=True)
     frames = []
     for d in donors:
         t = time.time()
-        c = score_donor(d, Rm, scale, ceiling=not args.no_ceiling)
+        c = score_donor(d, Rm, scale, ceiling=not args.no_ceiling, ratio=ratio)
         p = OUT / f"donor_id={d}"
         p.mkdir(parents=True, exist_ok=True)
         c.to_parquet(p / "data.parquet", index=False)

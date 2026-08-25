@@ -40,6 +40,43 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import panel                                     # noqa: E402
 
+def nuclear_ratio(df, markers: list, denominator: str = "DAPI",
+                  nuclear: tuple = ()) -> tuple:
+    """Divide each raw-nucleus marker by DAPI, in place, returning the columns changed.
+
+    Eight markers reach ``expression`` as RAW UNCOMPENSATED QuPath *nucleus* means
+    (``qupath:Nucleus__<m>``) while the other 52 are REDSEA spillover-corrected whole-cell
+    means.  Mixing the two in one cosine compares quantities that were not measured the same
+    way.  DAPI is the natural internal reference for that group: same compartment, same
+    optical path, present on every nucleus, and measured with the same exposure on every
+    slide in this cohort.
+
+    The ratio removes what the group shares -- nuclear content in the optical section,
+    staining penetration, how much nucleus fell inside the mask.  What it also removes is
+    real: DAPI carries nuclear size and chromatin density, which are cell-type traits.
+
+    **Measured on the aligned values, 5 donors, top 0.1% tails.**  It strips the magnitude
+    coupling as intended (TOX's Spearman against the per-cell magnitude axis 0.63 -> 0.09)
+    and it takes the lineage evidence with it: partner tails fall from a median 53.6x to
+    0.7x -- TOX & CD3e 105.1 -> 0.7, TCF_1 & CD3e 53.6 -> 0.2, FOXP3 & CD3e 48.6 -> 6.0 --
+    while the TOX & E-cadherin negative control goes 0.0 -> 10.5, an association the ratio
+    invents rather than reveals.  Ki67 & PCNA survives best at 375.7 -> 147.0 because BOTH
+    are divided by the same quantity, which is the shape of the one case where this is safe:
+    nuclear against nuclear.  Against a REDSEA whole-cell marker it is not.
+
+    Regressing on ``log(DAPI)`` at its fitted slope (0.46-0.72 across the group) is milder
+    and still leaves that control at 13.8x, so the problem is not the exponent.
+    """
+    if denominator not in df.columns:
+        return df, []
+    d = df[denominator].to_numpy("float64")
+    d = np.where(np.isfinite(d) & (d > 0), d, np.nan)
+    changed = [m for m in markers if m in nuclear and m != denominator and m in df.columns]
+    for m in changed:
+        df[m] = df[m].to_numpy("float64") / d
+    return df, changed
+
+
 #: Upper point of the per-marker scale.  A high quantile rather than the maximum: pSAM
 #: divides by the image max, which one hot pixel can set.
 SCALE_Q = 99.9
