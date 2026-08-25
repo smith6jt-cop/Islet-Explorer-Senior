@@ -44,10 +44,21 @@ def nuclear_ratio(df, markers: list, denominator: str = "DAPI",
                   nuclear: tuple = ()) -> tuple:
     """Divide each raw-nucleus marker by DAPI, in place, returning the columns changed.
 
-    Eight markers reach ``expression`` as RAW UNCOMPENSATED QuPath *nucleus* means
+    Eight markers reach ``expression`` as UNCOMPENSATED *nucleus* means
     (``qupath:Nucleus__<m>``) while the other 52 are REDSEA spillover-corrected whole-cell
     means.  Mixing the two in one cosine compares quantities that were not measured the same
-    way.  DAPI is the natural internal reference for that group: same compartment, same
+    way.
+
+    REDSEA is compartment-aware and computed Nucleus / Cytoplasm / Membrane / Cell for all 60
+    markers.  What it did not do for these is apply the spillover compensation:
+    ``marker_taxonomy.NO_SPILLOVER`` lists Collagen_IV, DAPI, FOXP3, Ki67, PCNA, SOX2, TCF_1,
+    TOX and TP63, and ``config.ini`` sets ``exclude_no_spillover = true``.  So the REDSEA nucleus
+    value for them is uncompensated too -- measured on donor 115 it differs from the QuPath
+    nucleus mean by a median 2%, re-rasterisation rather than correction, and the two carry the
+    same tail evidence (partner medians 55.6 against 53.6, controls 0.2 against 0.2).  Which is
+    why ``expression`` selects the QuPath value and why substituting REDSEA's would change
+    nothing measurable.
+      DAPI is the natural internal reference for that group: same compartment, same
     optical path, present on every nucleus, and measured with the same exposure on every
     slide in this cohort.
 

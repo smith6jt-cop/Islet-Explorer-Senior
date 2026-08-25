@@ -160,9 +160,16 @@ biology and one derivation rule, both checkable by someone who has never seen th
   CD57: **a rigid shift models a per-donor scale difference and does not model a different
   clone**, so a marker flagged here must not be normalised as though it were a scale
   problem, however good its shift statistic looks.
-- **Eight markers are a different measurement.** `DAPI, FOXP3, Ki67, PCNA, SOX2, TCF_1,
-  TOX, TP63` are stored in `expression` as raw uncompensated QuPath **nucleus** means
-  (`qupath:Nucleus__<m>`), not REDSEA-corrected whole-cell means.
+- **Eight markers are a different measurement, and not because REDSEA skipped them.**
+  `DAPI, FOXP3, Ki67, PCNA, SOX2, TCF_1, TOX, TP63` are stored in `expression` as
+  uncompensated **nucleus** means (`qupath:Nucleus__<m>`) rather than REDSEA-corrected
+  whole-cell means. REDSEA *is* compartment-aware — it wrote `Nucleus__`, `Cytoplasm__`,
+  `Membrane__` and `Cell__` for all 60 markers. What it did not do is **compensate** these:
+  `marker_taxonomy.NO_SPILLOVER` lists them plus `Collagen_IV`, and `config.ini` sets
+  `exclude_no_spillover = true`. Measured on donor 115, REDSEA's nucleus value differs from
+  QuPath's by a median 2% — re-rasterisation, not correction — and the two carry the same
+  tail evidence (partner medians 55.6 vs 53.6, controls 0.2 vs 0.2). So substituting it
+  would change nothing measurable.
 - **DAPI is not usable as their denominator** — tested and rejected. It removes the
   magnitude coupling (TOX ρ vs magnitude 0.632 → 0.090) and destroys the identity signal
   (TOX & CD3e 115.7× → 0.0×), and it *manufactures* an association: the TOX & E-cadherin
