@@ -542,3 +542,39 @@ def test_a_cell_meeting_no_rule_is_ambiguous_with_a_reason():
     assert out.loc[0, "call"] == "Ambiguous"
     assert out.loc[0, "reason"] == "no_reference_requirements_met"
     assert out.loc[0, "n_candidates"] == 0
+
+
+# ------------------------------------------------------------- tissue domains (Step 4)
+import utag_adapter as UT                              # noqa: E402
+
+
+def test_utag_checkout_is_the_pinned_commit():
+    utag = UT._import_utag()
+    import inspect
+    params = inspect.signature(utag).parameters
+    for k in ("adata", "slide_key", "max_dist", "clustering_method", "resolutions"):
+        assert k in params, k
+
+
+def test_the_domain_input_never_contains_the_geometry_it_is_checked_against():
+    """`cell_region` is polygon containment and the domains are expression plus position.
+    Feeding the first into the second would make the concordance check circular."""
+    import panel as P
+    a = UT.donor_adata(P.cohort()["donor_id"].iloc[0], ["CD3e", "CD20", "E_cadherin"],
+                       max_cells=2000)
+    assert "cell_region" not in list(a.var_names)
+    assert "islet_num" not in list(a.var_names)
+    assert {"cell_region", "islet_num"} <= set(a.obs.columns), "carried for the check, not as input"
+    assert a.obsm["spatial"].shape == (a.n_obs, 2)
+
+
+def test_domain_concordance_is_an_enrichment_over_the_donor_own_base_rate():
+    obs = pd.DataFrame({
+        "d": ["islet"] * 100 + ["rest"] * 900,
+        "cell_region": ["core"] * 50 + ["tissue"] * 50 + ["tissue"] * 900,
+    })
+    t = UT.domain_islet_concordance(obs, "d").set_index("domain")
+    assert t.loc["islet", "core_frac"] == pytest.approx(0.5)
+    assert t.loc["islet", "base_rate"] == pytest.approx(0.05)
+    assert t.loc["islet", "enrichment"] == pytest.approx(10.0)
+    assert t.loc["rest", "enrichment"] == pytest.approx(0.0)

@@ -83,6 +83,20 @@ uniform = [
     "plotly",
 ]
 
+# UTAG tissue-domain discovery (scripts/celltype/run_step4.py). Dependencies only, for the
+# same reason as [uniform]: the UTAG repo is importable but not published to an index, so its
+# source is a gitignored checkout under /external/ at a pinned commit and
+# scripts/celltype/utag_adapter.py asserts that commit at import.
+#
+#   git clone https://github.com/smith6jt-cop/utag.git external/utag
+#   git -C external/utag checkout 056cb87ee90aa850450b806b075033bc8c50703a
+utag = [
+    "scanpy",
+    "squidpy",
+    "parmap",
+    "leidenalg",
+]
+
 [project.scripts]
 phenocycler = "phenocycler.pipeline:main"
 
