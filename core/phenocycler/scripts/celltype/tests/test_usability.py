@@ -75,6 +75,19 @@ def test_acquisition_group_ratio_separates_group_steps_from_donor_spread():
 
 
 # ---------------------------------------------------------------------- the verdict
+def test_partners_label_the_same_cell_and_controls_do_not():
+    """The definition, asserted: hormones mark different endocrine cells, so they are
+    controls; keratins mark the same epithelium, so they are partners."""
+    partners = {(a, b) for a, b, _ in panel.LINEAGE_PARTNERS}
+    partners |= {(b, a) for a, b, _ in panel.LINEAGE_PARTNERS}
+    controls = {(a, b) for a, b in panel.DECLARED_CONTROLS}
+    controls |= {(b, a) for a, b in panel.DECLARED_CONTROLS}
+    for pair in [("INS", "GCG"), ("GCG", "SST"), ("INS", "SST")]:
+        assert pair not in partners and pair in controls, pair
+    for pair in [("Ker8_18", "Pan_Cytokeratin"), ("CD3e", "Granzyme_B"), ("Ker8_18", "EpCAM")]:
+        assert pair in partners, pair
+
+
 def _row(**kw):
     base = {"n": U.MIN_CELLS * 10, "zero_frac": 0.05, "morans_null": 0.001,
             "morans_rank": 0.2, "morans_top1": 0.2, "partner_best": 100.0,
@@ -87,15 +100,29 @@ def test_verdict_passes_only_on_evidence_it_has():
 
 
 @pytest.mark.parametrize("bad", [
-    {"n": 10},                                     # under-powered
-    {"zero_frac": 0.9},                            # mostly exact zeros
-    {"morans_rank": np.nan, "morans_top1": np.nan, "partner_best": np.nan,
-     "control_worst": np.nan},                     # no evidence at all
-    {"morans_rank": 0.0005, "morans_top1": 0.0005, "partner_best": 1.0,
-     "control_worst": 1.0},                        # inside the null and no partner tail
+    {"n": 10},                                          # under-powered
+    {"zero_frac": 0.9},                                 # mostly exact zeros
+    {"morans_rank": np.nan, "morans_top1": np.nan},     # no spatial evidence at all
+    {"morans_rank": 0.0005, "morans_top1": 0.0005},     # inside its own null
 ])
 def test_verdict_fails_closed_on_absent_or_underpowered_evidence(bad):
     assert not U.judge_marker(_row(**bad)).passed
+
+
+def test_verdict_judges_the_measurement_and_nothing_else():
+    """A pair that does not resolve, or a marker that is not comparable across acquisition
+    groups, is REPORTED -- neither makes the measurement invalid.  CD11c is the real case:
+    spatially coherent, cleanly aligned, and its declared partner CD209 marks other cells."""
+    row = _row(partner_best=1.2, control_worst=0.0, acq_ratio=35.0)
+    assert U.judge_marker(row).passed
+    f = U.flag_marker(row)
+    assert f["flag_pair"] and f["flag_acquisition_group"]
+    assert f["flag_pair_why"] and f["flag_acquisition_group_why"]
+
+
+def test_a_marker_with_no_declared_partner_is_not_flagged_for_it():
+    f = U.flag_marker(_row(partner_best=np.nan, control_worst=np.nan))
+    assert not f["flag_pair"]
 
 
 def test_a_marker_on_everything_is_not_condemned_by_its_scattered_bright_tail():
@@ -104,14 +131,10 @@ def test_a_marker_on_everything_is_not_condemned_by_its_scattered_bright_tail():
     assert v.passed, v.reason
 
 
-def test_acquisition_group_step_is_degraded_not_unusable():
-    v = U.judge_marker(_row(acq_ratio=35.0))
-    assert not v.passed and v.reason.startswith("degraded")
-
-
-def test_partner_contradicted_by_its_control_is_recorded():
-    v = U.judge_marker(_row(partner_best=0.5, control_worst=30.0))
-    assert not v.passed and "non-partner" in v.reason
+def test_partner_contradicted_by_its_control_is_flagged_not_condemned():
+    row = _row(partner_best=0.5, control_worst=30.0)
+    assert U.judge_marker(row).passed
+    assert "more than its partner" in U.flag_marker(row)["flag_pair_why"]
 
 
 # ---------------------------------------------------------------------------- panel

@@ -180,14 +180,37 @@ def acquisition_group_ratio(level_by_donor: pd.Series, group_by_donor: pd.Series
 
 # ------------------------------------------------------------------------- the verdict
 def judge_marker(row: dict, bars: dict | None = None) -> Verdict:
-    """usable / degraded / unusable for one (donor, marker), fail-closed.
+    """Is this (donor, marker) a valid MEASUREMENT?  usable / unusable, fail-closed.
 
-    Absent, non-finite or under-powered evidence is a FAILURE, never a pass -- the rule
-    ``scripts/dct/gates.py`` exists to enforce.  ``Verdict.rows`` carries one
-    ``(check, value, ok, why)`` tuple per check so the reason survives into the output.
+    This answers one question and refuses to answer two.  An earlier draft folded the
+    partner-versus-control statistic into the verdict and called markers `degraded` for
+    failing it, which was wrong: that statistic is about whether a declared *pair* marks the
+    same cells, not about whether either marker was measured properly.  CD11c is spatially
+    coherent (Moran's I 0.17), aligns cleanly under UniFORM (residual SD 0.042) and has a
+    real distribution -- what fails is that CD11c and CD209 do not mark the same cells, which
+    is a fact about dendritic cells and this panel.  Ki67 "failed" with a partner tail of
+    334x because proliferating cells in this tissue are disproportionately lymphocytes.
+    Neither is a defect in the measurement, and neither should stop anything using it.
+
+    So the verdict covers measurement validity only:
+
+    * enough cells to judge at all;
+    * not mostly exact zeros -- a column that is half floor is not a measurement;
+    * spatially structured above this donor's own permutation null.  Real staining is
+      clustered because cells of a type sit together; noise is not.
+
+    Two further properties are REPORTED ALONGSIDE, never folded in, because they constrain
+    different downstream steps:
+
+    * ``flag_acquisition_group`` -- the level steps with the acquisition group rather than
+      with donors, i.e. a different antibody clone.  The marker is fine; it is not
+      *comparable* across those groups, which is what Step 2 keys its refusal off.
+    * ``flag_pair`` -- the declared partner tail does not clearly beat its non-partner
+      controls.  This is evidence about which cell types the panel can resolve, and it is
+      Step 3's input, not a mark against the marker.
     """
     B = dict(BARS if bars is None else bars)
-    checks, fatal, soft = [], [], []
+    checks, fatal = [], []
 
     why = require_evidence(int(row.get("n", 0) or 0), MIN_CELLS, "cells")
     checks.append(("n_cells", row.get("n"), why is None, why or ""))
@@ -198,64 +221,52 @@ def judge_marker(row: dict, bars: dict | None = None) -> Verdict:
     ok = np.isfinite(z) and z <= B["zero_frac_max"]
     checks.append(("zero_frac", z, ok, "" if ok else f"{z:.3f} of cells read exactly 0"))
     if not ok:
-        fatal.append("too many cells read exactly 0")
+        fatal.append(f"{z:.1%} of cells read exactly 0")
 
-    # Spatial structure, judged against this donor's own permutation null rather than a
-    # fixed number.  The two statistics answer different questions and a marker only has to
-    # pass one: ``morans_rank`` sees structure anywhere in the distribution, ``morans_top1``
-    # sees it in the bright tail.  A marker on ~90% of cells (E-cadherin, Keratin_5) has a
-    # scattered top 1% and low ``morans_top1`` while being perfectly real -- that is the
-    # "flat because it is on everything" case, and failing it here would be wrong.
     null = row.get("morans_null", np.nan)
     mr, mt = row.get("morans_rank", np.nan), row.get("morans_top1", np.nan)
     structured = np.isfinite(null) and ((np.isfinite(mr) and mr > null)
                                         or (np.isfinite(mt) and mt > null))
-    checks.append(("spatial_vs_null", max([v for v in (mr, mt) if np.isfinite(v)] or [np.nan]),
-                   structured, "" if structured else f"neither Moran's I exceeds the null {null:.4f}"))
-
-    # Partner evidence is only judged where a partner was declared.  A marker with none is
-    # not thereby degraded -- it is recorded as unjudged on that axis.
-    p, c = row.get("partner_best", np.nan), row.get("control_worst", np.nan)
-    has_partner = np.isfinite(p) and np.isfinite(c)
-    partner_ok = False
-    if has_partner:
-        partner_ok = bool(p >= B["partner_min"] and c <= B["control_max"]
-                          and p >= B["partner_over_control"] * c)
-        checks.append(("partner_vs_control", p / max(c, 1e-9), partner_ok,
-                       "" if partner_ok else f"partner {p:.1f}x vs control {c:.1f}x"))
-        # Name the clause that fired.  "does not beat its controls" can mean three different
-        # things and they call for different follow-up: a weak partner is a marker problem, a
-        # hot control is a specificity problem, and a thin ratio is neither on its own.
-        if p < c:
-            soft.append(f"bright tail overlaps {row.get('control_worst_with', 'a non-partner')} "
-                        f"({c:.1f}x) more than its partner {row.get('partner_best_with', '')} ({p:.1f}x)")
-        elif not partner_ok:
-            if p < B["partner_min"]:
-                soft.append(f"partner tail is only {p:.1f}x chance "
-                            f"(bar {B['partner_min']:.0f}x)")
-            elif c > B["control_max"]:
-                soft.append(f"non-partner {row.get('control_worst_with', '')} sits at {c:.1f}x "
-                            f"(bar {B['control_max']:.0f}x)")
-            else:
-                soft.append(f"partner {p:.1f}x is under {B['partner_over_control']:.0f}x "
-                            f"its control {c:.1f}x")
-    else:
-        checks.append(("partner_vs_control", np.nan, None, "no declared partner"))
-
-    # Unusable only when NOTHING shows signal: no spatial structure above the null and no
-    # partner tail either.  Either one alone is evidence the marker is measuring something.
-    if not structured and not partner_ok:
-        fatal.append("no spatial structure above the null and no partner tail")
-
-    ar = row.get("acq_ratio", np.nan)
-    ok = np.isfinite(ar) and ar < B["acq_ratio_flag"]
-    checks.append(("acq_group", ar, ok,
-                   "" if ok else "level steps with the acquisition group, not with donors"))
-    if not ok:
-        soft.append("reagent_change_between_acquisition_groups")
+    checks.append(("spatial_vs_null",
+                   max([v for v in (mr, mt) if np.isfinite(v)] or [np.nan]), structured,
+                   "" if structured else f"neither Moran's I exceeds the null {null:.4f}"))
+    if not structured:
+        fatal.append("no spatial structure above the permutation null")
 
     if fatal:
         return Verdict(False, checks, "unusable: " + "; ".join(fatal))
-    if soft:
-        return Verdict(False, checks, "degraded: " + "; ".join(soft))
     return Verdict(True, checks, "usable")
+
+
+def flag_marker(row: dict, bars: dict | None = None) -> dict:
+    """Properties reported beside the verdict, each constraining a different later step."""
+    B = dict(BARS if bars is None else bars)
+    out = {"flag_acquisition_group": False, "flag_pair": False,
+           "flag_acquisition_group_why": "", "flag_pair_why": ""}
+
+    ar = row.get("acq_ratio", np.nan)
+    if np.isfinite(ar) and ar >= B["acq_ratio_flag"]:
+        out["flag_acquisition_group"] = True
+        out["flag_acquisition_group_why"] = (
+            f"level steps with the acquisition group (ratio {ar:.1f}); not comparable across "
+            f"groups, and a rigid shift cannot repair a clone change")
+
+    p, c = row.get("partner_best", np.nan), row.get("control_worst", np.nan)
+    if np.isfinite(p) and np.isfinite(c):
+        if p < c:
+            out["flag_pair"] = True
+            out["flag_pair_why"] = (
+                f"bright tail overlaps {row.get('control_worst_with','a non-partner')} "
+                f"({c:.1f}x) more than its partner {row.get('partner_best_with','')} ({p:.1f}x)")
+        elif not (p >= B["partner_min"] and c <= B["control_max"]
+                  and p >= B["partner_over_control"] * c):
+            out["flag_pair"] = True
+            if p < B["partner_min"]:
+                out["flag_pair_why"] = f"partner tail is only {p:.1f}x chance"
+            elif c > B["control_max"]:
+                out["flag_pair_why"] = (
+                    f"non-partner {row.get('control_worst_with','')} sits at {c:.1f}x "
+                    f"beside a partner tail of {p:.1f}x")
+            else:
+                out["flag_pair_why"] = f"partner {p:.1f}x is under {B['partner_over_control']:.0f}x its control {c:.1f}x"
+    return out

@@ -73,18 +73,31 @@ That is the "flat because it is on everything" case, and condemning it would be 
 `unusable` requires failing on *every* axis: no spatial structure above the null **and** no
 partner tail.
 
-## Verdicts
+## Verdict, and the two flags that are NOT part of it
 
-`usable` / `degraded` / `unusable`, each carrying its reason and the per-check detail in
-`checks`. The verdict is fail-closed via `scripts/dct/gates.py` — imported, never copied —
-so absent, non-finite or under-powered evidence is a FAILURE, never a pass.
+The verdict answers exactly one question — **is this a valid measurement?** — and refuses to
+answer two. It is fail-closed via `scripts/dct/gates.py` (imported, never copied), so absent,
+non-finite or under-powered evidence is a FAILURE, never a pass.
 
-- **unusable** — fewer than `MIN_CELLS` usable cells; more than half the cells reading
-  exactly 0; or no evidence of signal on any axis.
-- **degraded** — the level steps with the acquisition group; or the bright tail overlaps a
-  non-partner more than its declared partner; or the partner tail does not clearly beat its
-  controls.
-- **usable** — otherwise.
+- **unusable** — fewer than `MIN_CELLS` cells; more than half the cells reading exactly 0; or
+  no spatial structure above this donor's own permutation null.
+- **usable** — otherwise. **On this cohort that is all 1,120 (donor, marker) cells.**
+
+Two further properties are **reported beside the verdict, never folded into it**, because
+they constrain different later steps and neither makes a measurement invalid:
+
+| column | means | constrains |
+|---|---|---|
+| `flag_acquisition_group` | the level steps with the acquisition group rather than with donors | Step 2 — the marker is fine but not *comparable* across those groups, and a rigid shift cannot repair a clone change |
+| `flag_pair` | the declared partner tail does not clearly beat its non-partner controls | Step 3 — evidence about which cell types the panel can resolve |
+
+An earlier draft folded `flag_pair` into the verdict and called 232 (donor, marker) cells
+`degraded` for it. That was wrong, and the counter-examples are plain: CD11c is spatially
+coherent (Moran's I 0.17), aligns cleanly under UniFORM (residual SD 0.042) and has a real
+distribution — what fails is that **CD11c and CD209 do not mark the same cells**, which is a
+fact about dendritic cells and this panel, not a defect in CD11c. Ki67 "failed" with a
+partner tail of 276× because proliferating cells in this tissue are disproportionately
+lymphocytes. CD79a "failed" with a partner tail of 170×.
 
 ## What changed after the first cohort run, and what did not
 
@@ -107,6 +120,14 @@ biology and one derivation rule, both checkable by someone who has never seen th
 3. **`CD31 ↔ Podoplanin` stays a same-compartment control on purpose** — blood and lymphatic
    endothelium are different cells, and measuring them as *anti*-correlated (0.3×) is
    informative rather than a defect.
+4. **The hormones were declared partners and are not.** `INS ↔ GCG` and `GCG ↔ SST` were
+   listed with the note "islet endocrine, adjacent cells", which admits they fail the
+   definition of a partner — *labelling the same cell*. Alpha, beta and delta are different
+   cells, so their measured 1.2–1.4× is the right answer, and they are now declared
+   controls. No hormone has a same-cell partner in this panel (no C-peptide), so they carry
+   no `flag_pair`.
+5. **The verdict was answering two questions and now answers one** (see above). The bars are
+   unchanged; what moved is which column the answer is written to.
 
 ## Known marker-level findings this lane was built to record
 

@@ -63,8 +63,6 @@ LINEAGE_PARTNERS = [
     ("CD31", "Caveolin", "blood endothelium"),
     ("B3TUBB", "CD56", "nerve"),
     ("SMA", "Vimentin", "mesenchyme"),
-    ("INS", "GCG", "islet endocrine, adjacent cells"),
-    ("GCG", "SST", "islet endocrine, adjacent cells"),
     ("Ki67", "PCNA", "proliferating cell"),
 ]
 
@@ -91,6 +89,11 @@ CONTROL_REPRESENTATIVES = {
 DECLARED_CONTROLS = [
     ("CD20", "SMA"), ("CD20", "INS"), ("TOX", "E_cadherin"), ("FOXP3", "SMA"),
     ("TP63", "CD3e"), ("CD31", "Podoplanin"), ("DAPI", "SMA"),
+    # Alpha, beta and delta are DIFFERENT cells, so the hormones must not co-occur.  An
+    # earlier draft declared these partners "islet endocrine, adjacent cells", which admits
+    # they do not satisfy the definition of a partner -- labelling the same cell.  Their
+    # measured 1.2-1.4x is the right answer, and it belongs on this side of the ledger.
+    ("INS", "GCG"), ("GCG", "SST"), ("INS", "SST"),
 ]
 
 

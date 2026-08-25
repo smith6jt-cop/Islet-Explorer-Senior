@@ -121,21 +121,32 @@ def main() -> int:
                     **U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)})
     df = df.merge(pd.DataFrame(acq), on="marker", how="left")
 
-    verdicts = [U.judge_marker(r) for r in df.to_dict("records")]
-    df["verdict"] = [("usable" if v.passed else v.reason.split(":")[0]) for v in verdicts]
+    recs = df.to_dict("records")
+    verdicts = [U.judge_marker(r) for r in recs]
+    df["verdict"] = ["usable" if v.passed else "unusable" for v in verdicts]
     df["reason"] = [v.reason for v in verdicts]
+    for k, v in pd.DataFrame([U.flag_marker(r) for r in recs]).items():
+        df[k] = v
     df["checks"] = [json.dumps([_jsonable(c) for c in v.rows]) for v in verdicts]
 
     out = pathlib.Path(args.out) if args.out else panel.OUT / "marker_donor_usability.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     print(f"\nwrote {out}  ({len(df):,} rows, {time.time() - t0:.0f}s)")
-    print("\nverdict counts:")
+    print("\nverdict (is the measurement valid?):")
     print(df["verdict"].value_counts().to_string())
-    bad = df[df.verdict != "usable"].groupby(["marker", "verdict"]).size()
+    bad = df[df.verdict != "usable"]
     if len(bad):
-        print("\nmarkers with any non-usable donor:")
-        print(bad.to_string())
+        print("\nunusable (donor, marker):")
+        print(bad.groupby(["marker", "reason"]).size().to_string())
+    print("\nflags reported beside the verdict, not folded into it:")
+    for f, what in (("flag_acquisition_group", "not comparable across acquisition groups"),
+                    ("flag_pair", "declared pair does not resolve a population")):
+        n = df.groupby("marker")[f].sum()
+        n = n[n > 0].sort_values(ascending=False)
+        print(f"  {f}  ({what}) — {len(n)} markers:")
+        for m, k in n.items():
+            print(f"      {m:<18} {int(k):2d}/20 donors")
     return 0
 
 

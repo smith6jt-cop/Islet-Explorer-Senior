@@ -31,7 +31,13 @@ import usability as U                     # noqa: E402
 
 GROUP_COLOR = {"2.3.1/CD38": "#1f77b4", "2.4.0/CD38": "#4fa3d1",
                "2.4.1/b_Catenin1": "#d62728", "2.4.1/neither": "#ff9896"}
-VERDICT_COLOR = {"usable": "#2ca02c", "degraded": "#ff7f0e", "unusable": "#d62728"}
+
+#: The verdict answers one question -- is the measurement valid -- and the two flags answer
+#: different ones, so they are drawn as separate states rather than blended into a severity
+#: scale.  A flagged marker is not a worse marker; it is a marker with a recorded property
+#: that constrains a specific later step.
+STATE_COLOR = {"usable": "#2ca02c", "pair flag": "#1f77b4",
+               "acquisition-group flag": "#ff7f0e", "unusable": "#d62728"}
 
 
 def _asinh_axis(ax, hi: float):
@@ -116,8 +122,12 @@ def marker_sheet(marker: str, stats: pd.DataFrame, out_dir: pathlib.Path,
     ax.set_title("spatial coherence vs its own null", fontweight="bold")
     ax.legend(fontsize=7, frameon=False)
 
-    verd = s["verdict"].value_counts().to_dict()
-    fig.suptitle(f"{marker}   —   " + "  ".join(f"{k}: {v}" for k, v in verd.items())
+    bits = [f"{k}: {v}" for k, v in s["verdict"].value_counts().to_dict().items()]
+    if s["flag_pair"].any():
+        bits.append(f"pair flag on {int(s['flag_pair'].sum())}/20")
+    if s["flag_acquisition_group"].any():
+        bits.append(f"acquisition-group flag on {int(s['flag_acquisition_group'].sum())}/20")
+    fig.suptitle(f"{marker}   —   " + "   ".join(bits)
                  + f"   |   acquisition-group ratio {s['acq_ratio'].iloc[0]:.2f}",
                  fontweight="bold", y=1.02)
     fig.tight_layout()
@@ -139,11 +149,16 @@ def cohort_sheet(stats: pd.DataFrame, out_dir: pathlib.Path) -> pathlib.Path:
     fig, axes = plt.subplots(1, 2, figsize=(19, 13), dpi=140,
                              gridspec_kw={"width_ratios": [3, 1]})
     ax = axes[0]
-    codes = {"usable": 0, "degraded": 1, "unusable": 2}
-    grid = M.replace(codes).astype(float).to_numpy()
+    grid = M.replace({"usable": 0, "unusable": 3}).astype(float).to_numpy()
+    P = stats.pivot(index="marker", columns="donor_id", values="flag_pair").reindex(
+        index=markers, columns=donors).fillna(False).to_numpy()
+    A = stats.pivot(index="marker", columns="donor_id",
+                    values="flag_acquisition_group").reindex(
+        index=markers, columns=donors).fillna(False).to_numpy()
+    grid = np.where(P & (grid == 0), 1, grid)
+    grid = np.where(A & (grid != 3), 2, grid)      # the comparability flag dominates
     ax.imshow(grid, aspect="auto", cmap=matplotlib.colors.ListedColormap(
-        [VERDICT_COLOR["usable"], VERDICT_COLOR["degraded"], VERDICT_COLOR["unusable"]]),
-        vmin=-0.5, vmax=2.5, interpolation="nearest")
+        list(STATE_COLOR.values())), vmin=-0.5, vmax=3.5, interpolation="nearest")
     ax.set_xticks(range(len(donors)))
     ax.set_xticklabels([f"{d}\n{coh.set_index('donor_id').loc[d,'acq_group']}"
                         for d in donors], rotation=90, fontsize=6)
@@ -152,11 +167,11 @@ def cohort_sheet(stats: pd.DataFrame, out_dir: pathlib.Path) -> pathlib.Path:
     for i, g in enumerate(coh["acq_group"]):
         if i and g != coh["acq_group"].iloc[i - 1]:
             ax.axvline(i - 0.5, color="k", lw=1.5)
-    ax.set_title("verdict per (marker, donor) — vertical rules separate acquisition groups",
-                 fontweight="bold")
-    for k, c in VERDICT_COLOR.items():
+    ax.set_title("measurement verdict, with the two flags shown beside it — "
+                 "vertical rules separate acquisition groups", fontweight="bold")
+    for k, c in STATE_COLOR.items():
         ax.plot([], [], "s", color=c, label=k)
-    ax.legend(fontsize=8, frameon=False, loc="upper right", bbox_to_anchor=(1.0, 1.06), ncol=3)
+    ax.legend(fontsize=8, frameon=False, loc="upper right", bbox_to_anchor=(1.0, 1.06), ncol=4)
 
     ax = axes[1]
     r = stats.groupby("marker")["acq_ratio"].first().reindex(markers)
