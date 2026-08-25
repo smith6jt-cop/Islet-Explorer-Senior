@@ -483,3 +483,76 @@ Chosen on 6539 / 6450 / 6523 and frozen before the held-out donors are touched:
 The search's honest summary: **the defaults were right except the checkpoint.** Four of the five
 axes were already at their best setting, which is worth knowing — it means the 2026-08-24 negative
 was not a configuration accident, and the one axis that did move it moved it a long way.
+
+---
+
+## Verdict — 2026-08-24
+
+**LANE: FAIL at the pre-registered bar. 0 of 5 held-out donors pass.**
+
+40 runs, 129,475 cells, on 115 / 6521 / 6593 / 6534 / 6591 — donors no configuration choice was
+fitted to — at the frozen configuration (ptft, all 52 channels, 2048-px window scoring a 1024 core,
+cell mask, insulin as `C-peptide`, 26-class label space).
+
+| donor | cells | regions clear | sign | specificity | detectability | coherence | impossible mass | null sep. |
+|---|---|---|---|---|---|---|---|---|
+| 115 | 26,185 | 0/8 | FAIL | FAIL | FAIL | FAIL | PASS | FAIL |
+| 6521 | 22,606 | 0/8 | FAIL | FAIL | FAIL | PASS | FAIL | FAIL |
+| 6593 | 27,599 | 0/8 | FAIL | FAIL | FAIL | PASS | PASS | FAIL |
+| 6534 | 23,822 | 0/8 | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL |
+| 6591 | 29,263 | 0/8 | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL |
+
+### The configuration search was sound; the model is what it is
+
+**There is no generalization gap.** Overall mean anchor AUROC is **0.678** on the selection donors
+and **0.667** on the held-out ones, and per compartment the held-out set is *better* on four of
+five. The split did its job and returned a null result: the configuration chosen on three donors
+transfers to five it never saw. Nothing here is an artifact of fitting.
+
+### What this panel and this model actually deliver
+
+Per anchor, across all 5 held-out donors, against the 0.920 plane-identity ceiling:
+
+| compartment | mean AUROC | reliable anchors (bar cleared on 5/5 donors) |
+|---|---|---|
+| **Epithelial** | **0.782** | **E-cadherin 0.970, Ker8-18 0.969, Pan-CK 0.961, EpCAM 0.941** |
+| **Mesenchymal** | **0.814** | **Vimentin 0.871** (SMA 0.757 on 4/5) |
+| Endothelial | 0.672 | none (CD34 0.690 on 3/5, CD31 0.687 on 2/5) |
+| Neural | 0.569 | none |
+| **Immune** | **0.570** | **none — 0 of 13 anchors on any donor** |
+
+Epithelial identity is recovered at 0.94–0.97 with a floor of 0.893 across five donors and three
+panel variants. That is close to the ceiling of what this join can show, and it is a real,
+releasable capability.
+
+**The immune compartment is not delivered.** Thirteen anchors, five donors, sixty-five
+donor-anchor tests, and **13 of 65 clear the 0.75 bar** — CD20 at 0.336, CD4 at 0.438, CD79a at
+0.443, CD206 at 0.446, all at or below chance. This is stable, not a held-out surprise: the
+selection donors gave 8 of 39.
+
+Testing a finer granularity does not rescue it. Scoring each immune anchor against its own
+**lineage** (Lymphocyte or Myeloid) rather than the 11-class Immune compartment gains +0.035 on
+average — CD206 +0.229 and CD11c +0.200, but CD209 −0.177 — and takes anchors clearing 0.75 from
+0/13 to 1/13. The dilution hypothesis is tested and rejected.
+
+### What that means for this study
+
+The study question is **the immune cell environment around islets as disease progresses**. Islet
+location already comes from QuPath `Islet_N` geometry, so epithelial identity — the one thing this
+model does excellently here — is not what the study is short of. The one compartment it needs is
+the one not delivered.
+
+**DeepCellTypes on this panel is therefore not a route to the immune phenotyping this study
+requires.** It is a good epithelial and mesenchymal caller, on evidence, at held-out scale.
+
+### A criterion that was mis-specified, recorded and not relaxed
+
+`null_separation` fails on all five donors, in each case on a **single** anchor (CD11c, B3TUBB,
+TP63, CD11c, CD163). Pooling eight regions gives ~25,000 cells per donor, which shrinks the
+permutation null to ±0.011–0.019, so "every anchor outside the null" becomes near-unsatisfiable —
+one uninformative anchor fails the whole criterion regardless of the other twenty-seven. That is a
+bar calibrated at region scale and applied at donor scale.
+
+It is recorded here and **left in force**. Relaxing a pre-registered criterion after seeing it fail
+is the move this protocol exists to prevent, and it would change nothing: `sign`, `specificity` and
+`detectability` fail on all five donors independently.
