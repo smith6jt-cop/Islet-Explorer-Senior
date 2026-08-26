@@ -26,7 +26,14 @@ import usability as U                             # noqa: E402
 
 
 def donor_frame(donor: str, markers: list) -> pd.DataFrame:
-    """Analysis-eligible cells for one donor, complete across ``markers``."""
+    """Analysis-eligible cells for one donor, complete across the markers IT CARRIES.
+
+    Intersecting with ``panel.donor_markers`` rather than demanding the full list is what
+    lets the panel-variant markers in at all: requiring CD38 of every donor would drop all
+    cells for the 7 that never acquired it, which is the opposite of "a comparison that uses
+    that marker runs on fewer donors".
+    """
+    markers = [m for m in markers if m in set(panel.donor_markers(donor))]
     cols = ["object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid"] + markers
     df = pq.read_table(panel.EXPRESSION / f"donor_id={donor}" / "data.parquet",
                        columns=cols).to_pandas()
@@ -41,6 +48,7 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
 
 def stats_for_donor(donor: str, markers: list, partners: dict, controls: dict) -> list:
     df = donor_frame(donor, markers)
+    markers = [m for m in markers if m in df.columns]
     c = df.attrs["counts"]
     print(f"  {donor}: {c['rows']:,} rows -> {c['eligible']:,} eligible -> "
           f"{c['complete']:,} complete", flush=True)
@@ -88,7 +96,7 @@ def main() -> int:
 
     coh = panel.cohort()
     donors = args.donors or coh["donor_id"].tolist()
-    markers = panel.markers()
+    markers = panel.markers(include_variant=True)
     partners, controls = panel.partner_map(), panel.control_map()
     print(f"Step 1 — {len(donors)} donors x {len(markers)} markers, "
           f"tail at top {U.BARS['tail_q']:.1%}, Moran's I k={U.BARS['morans_k']}")

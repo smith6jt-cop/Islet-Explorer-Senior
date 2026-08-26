@@ -614,3 +614,46 @@ def test_hormone_subtyping_survives_a_donor_missing_a_hormone():
         == "Endo-beta"
     assert RI.subtype_endocrine(np.array([[0.9]], np.float32), ["CD3e"], 0.1).loc[0, "call"] \
         == "Endo-unresolved"
+
+
+# ------------------------------------------------ panel-variant alignment (Steps 1 and 2)
+import run_step1 as S1                                  # noqa: E402
+import run_step2 as S2                                  # noqa: E402
+
+
+def test_a_variant_marker_does_not_cost_a_donor_its_cells():
+    """Requiring CD38 of every donor would drop every cell for the 7 that never acquired it,
+    which is the opposite of "a comparison using that marker runs on fewer donors"."""
+    with_cd38 = panel.donors_with(["CD38"])[0]
+    without = [d for d in panel.cohort()["donor_id"] if d not in set(panel.donors_with(["CD38"]))
+               and d not in set(panel.donors_with(["b_Catenin1"]))][0]
+    mk = panel.markers(include_variant=True)
+    a = S1.donor_frame(with_cd38, mk)
+    b = S1.donor_frame(without, mk)
+    assert "CD38" in a.columns and "CD38" not in b.columns
+    assert a.attrs["counts"]["complete"] > 0 and b.attrs["counts"]["complete"] > 0
+    assert b.attrs["counts"]["complete"] == b.attrs["counts"]["eligible"], \
+        "a marker this donor lacks must not drop its cells"
+
+
+def test_a_variant_marker_is_aligned_only_across_the_donors_that_carry_it():
+    """Aligning CD38 against donors that never acquired it would be aligning against
+    nothing.  13 donors carry it, 4 carry b_Catenin1, 3 carry neither."""
+    donors = panel.cohort()["donor_id"].tolist()
+    got = S2.marker_values.__doc__
+    assert "donors that carry it" in got
+    assert len(panel.donors_with(["CD38"])) == 13
+    assert len(panel.donors_with(["b_Catenin1"])) == 4
+
+
+def test_the_shift_record_says_how_many_donors_backed_each_marker():
+    f = panel.OUT / "shifts.json"
+    if not f.exists():
+        pytest.skip("Step 2 has not been run")
+    meta = json.loads(f.read_text())
+    for m in ("CD38", "b_Catenin1"):
+        if m not in meta["shifts"]:
+            continue
+        v = meta["shifts"][m]
+        assert v.get("n_donors", 0) in (4, 13), (m, v.get("n_donors"))
+        assert set(v["scale"]) == set(meta["donors"]), "every donor needs a scale, even 1.0"

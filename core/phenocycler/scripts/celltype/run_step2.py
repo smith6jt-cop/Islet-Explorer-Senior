@@ -39,9 +39,14 @@ BAR_MODE_SD = 0.10
 
 
 def marker_values(marker: str, donors: list) -> dict:
-    """One marker's analysis-eligible values, per donor."""
+    """One marker's analysis-eligible values, for the donors that carry it.
+
+    A panel-variant marker is aligned across its own donors -- CD38 over 13, b_Catenin1 over
+    4 -- and left alone on the rest.  Aligning it against donors that never acquired it would
+    be aligning against nothing.
+    """
     out = {}
-    for d in donors:
+    for d in [x for x in donors if marker in set(panel.donor_markers(x))]:
         t = pq.read_table(panel.EXPRESSION / f"donor_id={d}" / "data.parquet",
                           columns=["qc_analysis_eligible", marker]).to_pandas()
         out[d] = t.loc[t["qc_analysis_eligible"], marker].to_numpy("float64")
@@ -57,23 +62,36 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
     for m in markers:
         t = time.time()
         vals = marker_values(m, donors)
+        have = sorted(vals)
+        if len(have) < 2:
+            print(f"  {m:<18} acquired on {len(have)} donor(s) — no alignment possible")
+            result[m] = {"reference_donor": have[0] if have else "",
+                         "shift_bins": {}, "shift_log": {},
+                         "scale": {d: 1.0 for d in donors},
+                         "provenance": "too_few_donors_to_align", "over_bar": False,
+                         "acq_ratio": float("nan"), "n_donors": len(have),
+                         "mode_sd_before": float("nan"), "mode_sd_after": float("nan"),
+                         "mode_fold_before": float("nan"), "mode_fold_after": float("nan"),
+                         "global_min": float("nan"), "global_max": float("nan"),
+                         "gmm_cutoff": float("nan")}
+            continue
         counts, ranges = UA.marker_histograms(vals)
         before = UA.background_mode_spread(counts, ranges)
 
-        hist = {m: {"counts": [counts[d] for d in donors],
-                    "bin_edges": [None] * len(donors)}}
+        hist = {m: {"counts": [counts[d] for d in have],
+                    "bin_edges": [None] * len(have)}}
         with contextlib.redirect_stdout(io.StringIO()):     # UniFORM narrates per marker
             shift_map, refs, _ = reg.automatic_registration(
-                hist, [m], [m], donors, None, None, UA.NUM_BINS)
+                hist, [m], [m], have, None, None, UA.NUM_BINS)
         if save_figs:
             plt.gcf().savefig(FIGS / f"{m}.png", bbox_inches="tight", dpi=130)
         plt.close("all")
 
-        bins = dict(zip(donors, shift_map[m]))
+        bins = dict(zip(have, shift_map[m]))
         after = UA.background_mode_spread(counts, ranges, bins)
-        log_shift = dict(zip(donors, norm.calculate_shift_in_log_pixels(
+        log_shift = dict(zip(have, norm.calculate_shift_in_log_pixels(
             {m: ranges}, [m], UA.NUM_BINS, shift_map)[m]))
-        scale = {d: float(np.exp(-log_shift[d])) for d in donors}
+        scale = {d: float(np.exp(-log_shift[d])) if d in log_shift else 1.0 for d in donors}
 
         # A rigid shift models a scale difference.  It does not model a different antibody
         # clone: that changes specificity and background too, so aligning the modes would
@@ -85,14 +103,17 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
 
         result[m] = {
             "reference_donor": refs[0],
-            "shift_bins": {d: int(bins[d]) for d in donors},
-            "shift_log": {d: float(log_shift[d]) for d in donors},
+            # Only the donors that carry the marker have a shift; the rest carry scale 1.0
+            # and are listed in `scale` so every donor is accounted for either way.
+            "shift_bins": {d: int(bins[d]) for d in have},
+            "shift_log": {d: float(log_shift[d]) for d in have},
             "scale": scale,
             "provenance": ("refused_reagent_change" if refused else
                            "automatic_registration_over_bar" if over_bar else
                            "automatic_registration"),
             "over_bar": bool(over_bar),
             "acq_ratio": float(usab.loc[usab.marker == m, "acq_ratio"].iloc[0]),
+            "n_donors": len(have),
             "mode_sd_before": before["sd_log"], "mode_sd_after": after["sd_log"],
             "mode_fold_before": before["fold"], "mode_fold_after": after["fold"],
             "global_min": ranges["global_min"], "global_max": ranges["global_max"],
@@ -112,9 +133,12 @@ def apply_shift(shifts: dict, markers: list, donors: list) -> None:
     keep = ["donor_id", "object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid",
             "cell_region", "islet_num"]
     for d in donors:
+        got = [m for m in markers if m in set(panel.donor_markers(d))]
         df = pq.read_table(panel.EXPRESSION / f"donor_id={d}" / "data.parquet",
-                           columns=keep + markers).to_pandas()
+                           columns=keep + got).to_pandas()
         for m in markers:
+            if m not in df.columns:
+                continue                       # this donor never acquired it
             df[m] = df[m].to_numpy("float64") * shifts[m]["scale"][d]
         p = OUT / f"donor_id={d}"
         p.mkdir(parents=True, exist_ok=True)
@@ -132,6 +156,7 @@ def main() -> int:
     per_marker = usab.groupby("marker").agg(acq_ratio=("acq_ratio", "first")).reset_index()
     donors = panel.cohort()["donor_id"].tolist()
     markers = args.markers or sorted(per_marker["marker"])
+    markers = [m for m in markers if any(m in set(panel.donor_markers(d)) for d in donors)]
 
     print(f"Step 2 — UniFORM @ {UA.UNIFORM_COMMIT[:12]}, {len(markers)} markers x "
           f"{len(donors)} donors, {UA.NUM_BINS} bins")
