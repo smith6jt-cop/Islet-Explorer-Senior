@@ -578,3 +578,39 @@ def test_domain_concordance_is_an_enrichment_over_the_donor_own_base_rate():
     assert t.loc["islet", "base_rate"] == pytest.approx(0.05)
     assert t.loc["islet", "enrichment"] == pytest.approx(10.0)
     assert t.loc["rest", "enrichment"] == pytest.approx(0.0)
+
+
+# ------------------------------------------------------- the islet prior (run_islet)
+import run_islet as RI                                  # noqa: E402
+
+
+def test_the_endocrine_branch_and_everything_it_implies_is_out_of_contention():
+    """An endocrine cell is epithelial, so the epithelial branch cannot be evidence against
+    the prior.  Left in, the generic Epithelial parent took 42% of core cells off it and
+    Epi-exocrine another 26%."""
+    t = pd.DataFrame({
+        "parent": ["all", "Epithelial", "Epithelial", "Epi-endocrine", "all", "Immune"],
+        "phenotype": ["Epithelial", "Epi-endocrine", "Epi-exocrine", "Endo-alpha",
+                      "Immune", "Imm-macrophage"],
+        "CD3e": ["allneg", None, None, None, "anypos", None]})
+    got = RI.intruder_references(t, list(t["phenotype"]))
+    assert set(got) == {"Immune", "Imm-macrophage"}, got
+
+
+def test_hormone_subtyping_reads_the_hormones_and_names_the_negative_case():
+    """Inside the prior the question is which hormone, not whether the cell is endocrine.
+    A cell showing none is Endo-hormone-negative -- a real category in T1D islets."""
+    mk = ["INS", "GCG", "SST", "CD3e"]
+    X = np.array([[0.9, 0.1, 0.0, 0.0], [0.1, 0.8, 0.0, 0.0],
+                  [0.0, 0.0, 0.7, 0.0], [0.01, 0.01, 0.01, 0.9]], dtype=np.float32)
+    out = RI.subtype_endocrine(X, mk, 0.10)
+    assert list(out["call"]) == ["Endo-beta", "Endo-alpha", "Endo-delta",
+                                 "Endo-hormone-negative"]
+    assert out.loc[0, "margin"] == pytest.approx(0.8, abs=1e-5), "spillover must stay visible"
+
+
+def test_hormone_subtyping_survives_a_donor_missing_a_hormone():
+    assert RI.subtype_endocrine(np.array([[0.9]], np.float32), ["INS"], 0.1).loc[0, "call"] \
+        == "Endo-beta"
+    assert RI.subtype_endocrine(np.array([[0.9]], np.float32), ["CD3e"], 0.1).loc[0, "call"] \
+        == "Endo-unresolved"

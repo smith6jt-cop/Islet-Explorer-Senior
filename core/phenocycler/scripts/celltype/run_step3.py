@@ -37,8 +37,18 @@ REQUIRE_MIN = 0.10
 
 
 def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
-    """One donor's aligned values, with the nuclear group put on DAPI if asked."""
-    have = [m for m in markers if m in set(panel.donor_markers(donor))]
+    """One donor's aligned values, with the nuclear group put on DAPI if asked.
+
+    Availability is intersected with what the ALIGNED file actually holds, not only with what
+    the cohort table says the donor carries.  The two differ: Steps 1 and 2 ran on the cohort
+    intersection, so CD38 and b_Catenin1 were never aligned even though 13 and 4 donors
+    respectively acquired them.  A reference needing one is therefore scored on no donor at
+    present -- a gap to close by re-running Steps 1 and 2 with ``include_variant=True``, not
+    something to paper over by requesting a column that is not there.
+    """
+    on_disk = {f.name for f in
+               pq.ParquetFile(ALIGNED / f"donor_id={donor}" / "data.parquet").schema_arrow}
+    have = [m for m in markers if m in set(panel.donor_markers(donor)) & on_disk]
     need = list(dict.fromkeys(have + extra + (["DAPI"] if ratio else [])))
     need = [c for c in need if c not in ("donor_id",)]
     df = pq.read_table(ALIGNED / f"donor_id={donor}" / "data.parquet",
