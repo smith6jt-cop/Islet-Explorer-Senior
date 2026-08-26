@@ -40,7 +40,8 @@ AMB, CORE = "Ambiguous", "core"
 
 
 def near_miss(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
-              require_min: float, ratio: bool, intruders: list) -> pd.DataFrame:
+              require_min: float, ratio: bool, intruders: list,
+              ambiguous: pd.Series) -> pd.DataFrame:
     """For ambiguous cells: which single requirement, if met, would have admitted them.
 
     A cell short by one marker is a different object from one short by five.  The first is a
@@ -57,13 +58,17 @@ def near_miss(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
     hot = Xs >= require_min
     idx = {m: i for i, m in enumerate(have)}
     core = (df["cell_region"] == CORE).to_numpy()
+    # Only the cells that actually came out Ambiguous.  Counting every islet cell here was
+    # what produced "787.6% of ambiguous cells", a number no reader should have to unpick.
+    amb = df["object_id"].map(ambiguous).fillna(False).to_numpy(bool)
 
     rows = []
+    any_one_short = np.zeros(len(Xs), bool)     # a cell, not a (cell, reference) pair
     for j, ph in enumerate(Rm.columns):
         if ph not in reqs:
             continue
         # Intruders compete everywhere; the rest only in the ring, where there is no prior.
-        in_play = np.ones(len(Xs), bool) if ph in intruders else ~core
+        in_play = (np.ones(len(Xs), bool) if ph in intruders else ~core) & amb
         all_of, groups = reqs[ph]
         blockers = [m for m in all_of if m in idx]
         if len(blockers) != len(all_of):
@@ -78,6 +83,7 @@ def near_miss(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
         M = hot[:, [idx[m] for m in blockers]] if blockers else np.ones((len(Xs), 0), bool)
         n_short = (~M).sum(axis=1) + (~met_groups).astype(int)
         one_short = (n_short == 1) & in_play
+        any_one_short |= one_short
         if not one_short.any():
             continue
         which = np.where((~M).any(axis=1), np.asarray(blockers, dtype=object)[
@@ -88,7 +94,10 @@ def near_miss(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
                          "n": int(sel.sum()),
                          "n_core": int((sel & core).sum()),
                          "n_peri": int((sel & ~core).sum())})
-    return pd.DataFrame(rows)
+    out = pd.DataFrame(rows)
+    out.attrs["n_cells_one_short"] = int((any_one_short & amb).sum())
+    out.attrs["n_cells"] = int(amb.sum())
+    return out
 
 
 def figure(calls: pd.DataFrame, prof: pd.DataFrame, miss: pd.DataFrame,
@@ -169,7 +178,7 @@ def main() -> int:
     donors = panel.cohort()["donor_id"].tolist()
     scale = S3.build_scale(donors, list(Rm.index), ratio=S3.NUCLEAR_RATIO)
 
-    prof, miss = [], []
+    prof, miss, n_one_short = [], [], 0
     for d in donors:
         keep = ["object_id", "qc_analysis_eligible", "cell_region"]
         df, have, _ = S3._read_donor(d, list(Rm.index), keep, S3.NUCLEAR_RATIO)
@@ -184,7 +193,10 @@ def main() -> int:
         t["group"] = g
         t["max_scaled"] = Xs.max(axis=1)
         prof.append(t)
-        miss.append(near_miss(d, Rm, scale, reqs, S3.REQUIRE_MIN, S3.NUCLEAR_RATIO, intruders))
+        mm = near_miss(d, Rm, scale, reqs, S3.REQUIRE_MIN, S3.NUCLEAR_RATIO, intruders,
+                       lab.eq(AMB))
+        n_one_short += mm.attrs.get("n_cells_one_short", 0)
+        miss.append(mm)
         print(f"  {d}: {(g == 'amb').sum():,} ambiguous of {len(g):,}", flush=True)
 
     prof = pd.concat(prof, ignore_index=True)
@@ -194,12 +206,14 @@ def main() -> int:
     print(f"\nwrote {out}")
 
     if len(miss):
-        print("\nambiguous cells one requirement short, pooled over donors:")
+        print("\nambiguous cells one requirement short, pooled over donors.")
+        print("Rows count (cell, reference) pairs -- one cell can be one short of several "
+              "references at once, so these do NOT sum to a cell count:")
         g = miss.groupby(["reference", "blocker"])[["n", "n_core", "n_peri"]].sum()
         print(g.sort_values("n", ascending=False).head(15).to_string())
-        print(f"\n{miss['n'].sum():,} of {int(calls['call'].eq(AMB).sum()):,} ambiguous cells "
-              f"({miss['n'].sum() / max(calls['call'].eq(AMB).sum(), 1):.1%}) were short by "
-              f"exactly one requirement")
+        n_amb = int(calls["call"].eq(AMB).sum())
+        print(f"\ndistinct ambiguous cells short by exactly one requirement of SOME "
+              f"reference: {n_one_short:,} of {n_amb:,} ({n_one_short / max(n_amb, 1):.1%})")
     return 0
 
 

@@ -38,15 +38,18 @@ def main() -> int:
 
     print("1. the shift is a pure per-(donor, marker) multiplicative rescaling")
     for d in donors:
+        # Per donor, because the panel is not uniform: a donor without CD38 has no such
+        # column in either file, and asking for it would fail rather than report anything.
+        got = [m for m in markers if m in set(panel.donor_markers(d))]
         raw = pq.read_table(panel.EXPRESSION / f"donor_id={d}" / "data.parquet",
-                            columns=["object_id"] + markers).to_pandas()
+                            columns=["object_id"] + got).to_pandas()
         nrm = pq.read_table(R2.OUT / f"donor_id={d}" / "data.parquet",
-                            columns=["object_id"] + markers).to_pandas()
+                            columns=["object_id"] + got).to_pandas()
         if len(raw) != len(nrm) or not (raw["object_id"] == nrm["object_id"]).all():
             fails.append(f"{d}: object_id order or count changed")
             continue
         worst = 0.0
-        for m in markers:
+        for m in got:
             a, b = raw[m].to_numpy("float64"), nrm[m].to_numpy("float64")
             ok = np.isfinite(a) & np.isfinite(b) & (a > 0)
             if not ok.any():
@@ -62,10 +65,11 @@ def main() -> int:
           f"(tail overlap at top {U.BARS['tail_q']:.1%}, donor 115 + 6534)")
     print(f"   {'pair':<28}{'raw':>10}{'normalised':>13}")
     for d in ("115", "6534"):
+        got = [m for m in markers if m in set(panel.donor_markers(d))]
         raw = pq.read_table(panel.EXPRESSION / f"donor_id={d}" / "data.parquet",
-                            columns=["qc_analysis_eligible"] + markers).to_pandas()
+                            columns=["qc_analysis_eligible"] + got).to_pandas()
         nrm = pq.read_table(R2.OUT / f"donor_id={d}" / "data.parquet",
-                            columns=["qc_analysis_eligible"] + markers).to_pandas()
+                            columns=["qc_analysis_eligible"] + got).to_pandas()
         raw, nrm = raw[raw.qc_analysis_eligible], nrm[nrm.qc_analysis_eligible]
         for a, b in CHECK_PAIRS:
             x = U.tail_overlap(raw[a].to_numpy(), raw[b].to_numpy(), U.BARS["tail_q"])
