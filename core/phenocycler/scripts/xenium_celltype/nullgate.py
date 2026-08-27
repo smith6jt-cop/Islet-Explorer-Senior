@@ -136,8 +136,24 @@ def match_strata(X, n_bins: int = 10) -> np.ndarray:
 def _contrast(X, cols: Sequence[int], in_group: np.ndarray) -> float:
     """How much higher this core reads INSIDE the group than outside it.
 
+    KNOWN LIMIT, measured 2026-08-27 -- this statistic is blind to the MAJORITY compartment,
+    and that is structural rather than a tuning problem. The comparison is against the
+    complement, so when a compartment is most of the tissue, "outside" is also mostly that
+    compartment and the difference collapses however unambiguous the identity is.
+
+    On donor 6539 at k=30 the nine largest Unavailable groups (2,189-3,193 cells each) carry
+    acinar (CUZD1/CTRL) z of 1.51-1.82 -- the highest in the donor bar one -- against 0.43
+    for the awarded groups and 0.99 cohort-wide. Group 29 at acinar z=1.878 was awarded
+    Exocrine while group 2 at 1.823 was refused: near-identical identity, opposite outcome,
+    decided by which side of the mostly-acinar remainder each happened to fall.
+
+    So this gate answers "is this group ENRICHED for lineage L relative to the rest of the
+    tissue?", which is a real question, and NOT "what is this group?". For minority
+    compartments -- immune, vascular, neural, endocrine, which is what the islet work needs
+    -- the two coincide. For the dominant compartment they do not, and no composition
+    denominator computed from these calls is meaningful until that is addressed.
     A contrast, not a level. Scoring the level would award any core that happens to be
-    brightly expressed — a core detected in every cell reads high in every group while
+    brightly expressed -- a core detected in every cell reads high in every group while
     distinguishing none of them, which is the opposite of identity. The difference of means
     is ~0 for such a core in every group, so it clears no null anywhere.
     """

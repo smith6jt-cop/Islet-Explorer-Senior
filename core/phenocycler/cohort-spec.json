@@ -26,7 +26,8 @@
   "defaults": {
     "measurement_csv": [
       "/home/smith6jt/IO60panc2nd/results/Cellmeasurements.csv",
-      "/home/smith6jt/IO60panc2nd/results/CellmeasurementsBatch2.csv"
+      "/home/smith6jt/IO60panc2nd/results/CellmeasurementsBatch2.csv",
+      "/home/smith6jt/IO60panc2nd/results/Cellmeasurements_6539parentFixed.csv"
     ],
     "segmentation_version": "qupath-0.7.0__instanseg-fluorescence_nuclei_and_cells-0.1.1",
     "nucleus_geojson": null,
@@ -150,7 +151,7 @@
     {
       "donor_id": "6539",
       "image_id": "6539_Scan1.er.qptiff - resolution #1",
-      "measurement_csv_index": 0,
+      "measurement_csv_index": 2,
       "qptiff": "/home/smith6jt/IO60panc2nd/Images/6539_Scan1.er.qptiff",
       "cell_geojson": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/redsea_scratch/geojson/cells__6539_Scan1.er.qptiff_-_resolution__1.geojson",
       "panel_id": "panel-cd38-59ch"

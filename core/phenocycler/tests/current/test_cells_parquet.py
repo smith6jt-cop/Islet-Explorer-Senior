@@ -377,3 +377,55 @@ def test_annotation_coverage_names_a_donor_whose_ring_was_never_drawn(tmp_path):
     assert "donor broken" in warnings[0]
     assert "1/2 islets" in warnings[0]
     assert "no Annotation (Tissue)" in warnings[0]
+
+
+def test_an_image_in_two_exports_is_read_from_only_its_contracted_one():
+    """The guard against silently doubling a donor.
+
+    Donor 6539 was re-exported after its QuPath annotation was corrected, but the shared
+    batch-1 `Cellmeasurements.csv` still contains the old rows for that image. A filter
+    applied globally over the union admits both copies -- the corrected and the broken export
+    interleaved, one donor at double size, with nothing raised. The manifest already records
+    which export each image belongs to; the filter now honours it per file.
+    """
+    shared = "/exports/Cellmeasurements.csv"
+    fixed = "/exports/Cellmeasurements_6539parentFixed.csv"
+    image_to_donor = {"6374_Scan1": "6374", "6539_Scan1": "6539"}
+    image_to_csv = {"6374_Scan1": shared, "6539_Scan1": fixed}
+
+    src = cp.contracted_image_source([Path(shared), Path(fixed)], image_to_donor, image_to_csv)
+
+    # Each read_csv carries its own image filter. Inspect the per-file clauses only -- the
+    # trailing global filter still names every contracted image, deliberately, as a second
+    # line of defence.
+    clauses = src.split("read_csv(")[1:]
+    assert len(clauses) == 2
+    shared_clause = next(c for c in clauses if "Cellmeasurements.csv" in c[:60])
+    fixed_clause = next(c for c in clauses if "6539parentFixed" in c[:60])
+    # each clause is truncated at the start of the next one, so the filter it carries is its own
+    assert "'6374_Scan1'" in shared_clause.split("AS all_qupath_exports")[0]
+    assert "'6539_Scan1'" not in shared_clause.split("UNION ALL")[0]
+    assert "'6539_Scan1'" in fixed_clause.split("AS all_qupath_exports")[0]
+
+    # Without the assignment no per-file filter is emitted at all -- exactly the behaviour
+    # that would have admitted 6539 from both exports.
+    legacy = cp.contracted_image_source([Path(shared), Path(fixed)], image_to_donor)
+    first = legacy.split("read_csv(")[1].split("UNION ALL")[0]
+    assert "WHERE" not in first
+
+
+def test_an_incomplete_image_to_csv_assignment_is_refused():
+    """Fail closed: a partial assignment would read some export in full."""
+    image_to_donor = {"a": "1", "b": "2"}
+    with pytest.raises(Exception, match="does not assign an export to every image"):
+        cp.contracted_image_source([Path("/x.csv")], image_to_donor, {"a": "/x.csv"})
+
+    with pytest.raises(Exception, match="absent from image_to_donor"):
+        cp.contracted_image_source(
+            [Path("/x.csv")], image_to_donor,
+            {"a": "/x.csv", "b": "/x.csv", "ghost": "/x.csv"})
+
+    with pytest.raises(Exception, match="no contracted image is assigned to export"):
+        cp.contracted_image_source(
+            [Path("/x.csv"), Path("/unused.csv")], image_to_donor,
+            {"a": "/x.csv", "b": "/x.csv"})
