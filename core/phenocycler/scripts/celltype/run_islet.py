@@ -123,12 +123,21 @@ def run_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
     intruder = [p for p in usable if p in intruders]
 
     keep = ["object_id", "qc_analysis_eligible", "cell_region", "islet_num"]
-    df, have, _ = S3._read_donor(donor, list(Rm.index), keep, ratio)
+    df, have, _ = S3._read_donor(donor, list(Rm.index), keep, ratio=False)
     df = df[df["qc_analysis_eligible"] & df["cell_region"].isin(("core", "peri"))]
     if df.empty:
         return pd.DataFrame()
     df = df.reset_index(drop=True)
     Xs = SC.apply_scale(df[have].to_numpy("float32"), have, scale)
+    # The DAPI ratio is a per-reference decision -- see run_step3.NUCLEAR_RATIO.
+    nuc_all = (SC.nuclear_only_references(Rm, panel.NUCLEUS_MEASURED)
+               if ratio else np.zeros(len(Rm.columns), dtype=bool))
+    Xs_nuc = None
+    if nuc_all.any():
+        dfr, _ = SC.nuclear_ratio(df.copy(), have, "DAPI", panel.NUCLEUS_MEASURED)
+        Xs_nuc = SC.apply_scale(dfr[have].to_numpy("float32"), have,
+                                S3._nuclear_scale(scale, [donor], have))
+    nuc_by_ref = dict(zip(Rm.columns, nuc_all))
     core = (df["cell_region"] == "core").to_numpy()
 
     # The two regions are different questions and get different reference sets.  Inside
@@ -140,8 +149,10 @@ def run_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
         if not rows.any():
             return None
         Xr = Xs[rows]
-        S = SC.cosine_scores(Xr, Rm.loc[have, refs].to_numpy("float32"))
-        allowed = SC.meets_requirements(Xr, have, reqs, refs, require_min)
+        Xr_nuc = Xs_nuc[rows] if Xs_nuc is not None else None
+        nuc_ref = np.array([nuc_by_ref.get(r, False) for r in refs], dtype=bool)
+        S, allowed = SC.score_and_gate(Xr, Xr_nuc, Rm.loc[have, refs].to_numpy("float32"),
+                                       have, reqs, refs, require_min, nuc_ref)
         o = SC.call_from_scores(S, refs, allowed=allowed)
         o.index = np.flatnonzero(rows)
         return o

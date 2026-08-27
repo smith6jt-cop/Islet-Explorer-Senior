@@ -657,3 +657,63 @@ def test_the_shift_record_says_how_many_donors_backed_each_marker():
         v = meta["shifts"][m]
         assert v.get("n_donors", 0) in (4, 13), (m, v.get("n_donors"))
         assert set(v["scale"]) == set(meta["donors"]), "every donor needs a scale, even 1.0"
+
+
+# --- the DAPI ratio is a per-reference decision (2026-08-27) ---------------------------
+
+def test_no_reference_in_the_live_table_qualifies_for_the_dapi_ratio():
+    """The ratio is safe only nucleus-against-nucleus, and here that is never satisfied.
+
+    ``rules.flatten`` composes every phenotype with its ancestors, so even the proliferation
+    split -- which DECLARES only Ki67 and PCNA -- inherits ``Epi-exocrine`` and ``Epithelial``
+    constraints on Ker8-18, Pan-CK, E-cadherin and the immune negatives.  Every reference is
+    therefore a cross-compartment comparison, which is the shape the ratio was measured to
+    invert (partner tails 53.6x -> 0.7x; the TOX & E-cadherin control 0.0x -> 10.5x).
+
+    So the ratio is inert on this table.  If this test ever fails, a rule has been added that
+    constrains only nucleus markers, and the ratio switches on for that rule alone -- check
+    that is intended before changing the assertion.
+    """
+    flat = R.flatten(R.load_rules())
+    Rm, _ = R.reference_matrix(
+        flat, panel.markers(include_variant=True), "signed", strict=False)
+    Rm = Rm.loc[(Rm != 0).any(axis=1)]
+    mask = SC.nuclear_only_references(Rm, panel.NUCLEUS_MEASURED)
+    assert not mask.any(), f"unexpectedly nucleus-only: {list(Rm.columns[mask])}"
+
+    # and the reason is inheritance, not absence of nuclear rules
+    prolif = Rm["Exo-acinar-ductal-proliferating"]
+    constrained = set(Rm.index[prolif != 0])
+    assert {"Ki67", "PCNA"} <= constrained
+    assert constrained - set(panel.NUCLEUS_MEASURED)
+
+
+def test_a_nucleus_only_reference_does_qualify():
+    """The predicate is a real gate, not a constant."""
+    Rm = pd.DataFrame(
+        {"nuclear_pair": [1.0, 1.0, 0.0], "mixed": [1.0, 0.0, 1.0]},
+        index=["Ki67", "PCNA", "CD3e"],
+    )
+    mask = SC.nuclear_only_references(Rm, panel.NUCLEUS_MEASURED)
+    assert list(mask) == [True, False]
+
+    # a reference constraining nothing is not "nucleus-only"
+    empty = pd.DataFrame({"none": [0.0, 0.0]}, index=["Ki67", "PCNA"])
+    assert not SC.nuclear_only_references(empty, panel.NUCLEUS_MEASURED).any()
+
+
+def test_score_and_gate_is_the_plain_cosine_when_no_reference_qualifies():
+    """With an empty mask the ratio matrix is never consulted, whatever it contains."""
+    rng = np.random.default_rng(0)
+    Xs = rng.random((40, 3)).astype("float32")
+    poison = np.full_like(Xs, 99.0)          # would be obvious if it leaked in
+    Rmat = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], dtype="float32")
+    names = ["a", "b"]
+    reqs = {"a": (["Ki67"], []), "b": (["CD3e"], [])}
+    markers = ["Ki67", "PCNA", "CD3e"]
+    none = np.zeros(2, dtype=bool)
+
+    S, allowed = SC.score_and_gate(Xs, poison, Rmat, markers, reqs, names, 0.10, none)
+    S_ref = SC.cosine_scores(Xs, Rmat)
+    assert np.allclose(np.nan_to_num(S), np.nan_to_num(S_ref))
+    assert (allowed == SC.meets_requirements(Xs, markers, reqs, names, 0.10)).all()

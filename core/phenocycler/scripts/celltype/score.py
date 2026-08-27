@@ -88,6 +88,28 @@ def nuclear_ratio(df, markers: list, denominator: str = "DAPI",
     return df, changed
 
 
+def nuclear_only_references(R: pd.DataFrame, nucleus: tuple) -> np.ndarray:
+    """Which references constrain ONLY nucleus-measured markers.
+
+    The DAPI ratio is safe exactly when both sides of a comparison were measured the same
+    way.  Ki67 & PCNA survives it (375.7x -> 147.0x) because both are divided by the same
+    quantity; every cross-compartment pair does not, and the measured cost is not a
+    degradation but an inversion -- partner tails 53.6x -> 0.7x, and the TOX & E-cadherin
+    negative control 0.0x -> 10.5x, an association the ratio manufactures.
+
+    So the ratio is applied per REFERENCE, not per cell: a reference whose every constraint
+    is on a ``NUCLEUS_MEASURED`` marker is scored on the ratio, and every other reference is
+    scored on the aligned values untouched.  On the current 37-reference table that is the
+    proliferation split alone.
+    """
+    nuc = set(nucleus)
+    constrained = (R != 0)
+    return np.array([
+        bool(constrained[c].any()) and set(R.index[constrained[c]]).issubset(nuc)
+        for c in R.columns
+    ], dtype=bool)
+
+
 #: Upper point of the per-marker scale.  A high quantile rather than the maximum: pSAM
 #: divides by the image max, which one hot pixel can set.
 SCALE_Q = 99.9
@@ -187,6 +209,32 @@ def meets_requirements(Xs: np.ndarray, markers: list, reqs: dict, names: list,
                     break
                 ok[:, j] &= hot[:, have].any(axis=1)
     return ok
+
+
+def score_and_gate(Xs, Xs_nuc, R, markers: list, reqs: dict, names: list,
+                   min_scaled: float, nuc_ref, ceiling: bool = True):
+    """Cosine + requirement gate, with the DAPI ratio used ONLY where it is safe.
+
+    ``Xs`` is the aligned matrix untouched and scores every reference.  ``Xs_nuc`` is the
+    same cells with the nucleus-measured group divided by DAPI, and it replaces the score and
+    the gate for exactly those references :func:`nuclear_only_references` admits -- i.e. those
+    comparing nucleus against nucleus, where both sides carry the same denominator.
+
+    On the current rule table no reference qualifies, because ``rules.flatten`` composes each
+    phenotype with its ancestors and every leaf therefore inherits pan-epithelial or
+    pan-immune constraints.  That is not a special case to code around: it is the measurement
+    saying the ratio has no safe application here, and the ratio is correspondingly inert.
+    Add a rule that constrains only nucleus markers and it switches on for that rule alone.
+    """
+    S = cosine_scores(Xs, R, normalise_ceiling=ceiling)
+    allowed = meets_requirements(Xs, markers, reqs, names, min_scaled) if reqs is not None else None
+    idx = np.flatnonzero(np.asarray(nuc_ref, dtype=bool)) if nuc_ref is not None else np.array([], int)
+    if Xs_nuc is not None and idx.size:
+        S[:, idx] = cosine_scores(Xs_nuc, np.asarray(R)[:, idx], normalise_ceiling=ceiling)
+        if allowed is not None:
+            allowed[:, idx] = meets_requirements(
+                Xs_nuc, markers, reqs, [names[i] for i in idx], min_scaled)
+    return S, allowed
 
 
 def call_from_scores(S: np.ndarray, names: list, allowed: np.ndarray | None = None,

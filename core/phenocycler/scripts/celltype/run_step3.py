@@ -25,8 +25,18 @@ ALIGNED = panel.OUT / "uniform"
 OUT = panel.OUT / "calls"
 ENCODING = "signed"          # measured: resolves 37 of 37 references; zero leaves 34
 
-#: Divide the eight raw-nucleus markers by DAPI before scoring, so that group is compared on
-#: a common internal reference rather than against REDSEA whole-cell means.
+#: Allow the DAPI ratio where -- and only where -- it is a like-for-like comparison.
+#:
+#: The eight raw-nucleus markers reach ``expression`` as uncompensated nucleus means while the
+#: other 52 are REDSEA whole-cell means, and dividing the group by DAPI was meant to put it on
+#: a common internal reference.  Measured, that helps in exactly one shape and harms in every
+#: other: Ki67 & PCNA survives at 375.7x -> 147.0x because both sides carry the same
+#: denominator, while cross-compartment partner tails fall 53.6x -> 0.7x and the TOX &
+#: E-cadherin negative control rises 0.0x -> 10.5x -- an association the ratio manufactures.
+#:
+#: So this is no longer a global on/off.  ``score.nuclear_only_references`` decides per
+#: reference, and a reference qualifies only if every marker it constrains is nucleus-measured.
+#: ``--no-nuclear-ratio`` still switches it off outright.
 NUCLEAR_RATIO = True
 
 #: How far above a marker's own measured background a cell must sit for that marker to count
@@ -49,7 +59,7 @@ def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
     on_disk = {f.name for f in
                pq.ParquetFile(ALIGNED / f"donor_id={donor}" / "data.parquet").schema_arrow}
     have = [m for m in markers if m in set(panel.donor_markers(donor)) & on_disk]
-    need = list(dict.fromkeys(have + extra + (["DAPI"] if ratio else [])))
+    need = list(dict.fromkeys(have + extra + ["DAPI"]))
     need = [c for c in need if c not in ("donor_id",)]
     df = pq.read_table(ALIGNED / f"donor_id={donor}" / "data.parquet",
                        columns=need).to_pandas()
@@ -89,6 +99,24 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
     return SC.marker_scale({m: np.concatenate(c) for m, c in pool.items() if c}, floors)
 
 
+def _nuclear_scale(scale: pd.DataFrame, donors: list, markers: list) -> pd.DataFrame:
+    """``scale`` with the nucleus-measured rows recomputed on the DAPI ratio.
+
+    Dividing changes those markers' distribution, so their floor and top must be derived from
+    the ratio rather than inherited from the untouched values.  Built lazily and only over
+    that group, because on the current rule table nothing asks for it.
+    """
+    nuc = [m for m in markers if m in panel.NUCLEUS_MEASURED and m != "DAPI"]
+    if not nuc:
+        return scale
+    out = scale.copy()
+    ratio_scale = build_scale(donors, nuc, ratio=True)
+    for m in ratio_scale.index:
+        if m in out.index:
+            out.loc[m] = ratio_scale.loc[m]
+    return out
+
+
 def score_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame,
                 ceiling: bool = True, ratio: bool = NUCLEAR_RATIO,
                 reqs: dict | None = None, require_min: float = REQUIRE_MIN) -> pd.DataFrame:
@@ -102,15 +130,23 @@ def score_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame,
     usable = [p for p in Rm.columns if not (Rm.loc[missing, p] != 0).any()]
 
     keep = ["object_id", "qc_analysis_eligible", "cell_region", "islet_num"]
-    df, have, _ = _read_donor(donor, list(Rm.index), keep, ratio)
+    df, have, _ = _read_donor(donor, list(Rm.index), keep, ratio=False)
     elig = df["qc_analysis_eligible"].to_numpy()
     X = SC.apply_scale(df[have].to_numpy("float32"), have, scale)
-    S = SC.cosine_scores(X, Rm.loc[have, usable].to_numpy("float32"),
-                         normalise_ceiling=ceiling)
+
+    # The ratio is a per-reference decision, not a per-cell one -- see NUCLEAR_RATIO.
+    nuc_ref = (SC.nuclear_only_references(Rm[usable], panel.NUCLEUS_MEASURED)
+               if ratio else np.zeros(len(usable), dtype=bool))
+    X_nuc = None
+    if nuc_ref.any():
+        dfr, _ = SC.nuclear_ratio(df.copy(), have, "DAPI", panel.NUCLEUS_MEASURED)
+        X_nuc = SC.apply_scale(dfr[have].to_numpy("float32"), have,
+                               _nuclear_scale(scale, [donor], have))
+
+    S, allowed = SC.score_and_gate(X, X_nuc, Rm.loc[have, usable].to_numpy("float32"),
+                                   have, reqs, usable, require_min, nuc_ref, ceiling)
     S[~elig] = np.nan
-    allowed = None
-    if reqs is not None:
-        allowed = SC.meets_requirements(X, have, reqs, usable, require_min)
+    if allowed is not None:
         allowed &= elig[:, None]
     out = SC.call_from_scores(S, usable, allowed=allowed)
     out.insert(0, "object_id", df["object_id"].to_numpy())
