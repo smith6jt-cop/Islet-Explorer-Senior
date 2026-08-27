@@ -52,11 +52,18 @@ how much they matter:
    `expression` failed closed, and the expression on disk was the only expression there was.
    Those three now take the `redsea` default their `redsea_corrected` spillover policy
    already implied, so all 60 markers read one source and `expression` regenerates.
-   Two things follow, and both are the point rather than a cost: the run is re-keyed, and
-   **CD68, Iba1 and M2Gal3 change value**, moving off QuPath's signed scale (0 at tissue p50,
-   1 at p99) onto the REDSEA whole-cell mean. All three are Immune and CD68/Iba1 carry the
-   macrophage rules, so Step 1 tail statistics and Step 2 shifts are recomputed and compared
-   for them rather than assumed equivalent.
+   **Measured: no value changes.** The expectation was that those three markers would move
+   off QuPath's signed scale onto the REDSEA whole-cell mean, so Step 1 and Step 2 would have
+   to be recomputed for them. They do not move. Re-running `expression` on donor 6380 under
+   the corrected registry reproduces the old partition exactly — same 62 numeric columns,
+   same `object_id` order, every column `allclose`.
+
+   The reason is that the requirement was never satisfied in the first place. `cells/` has
+   never carried a `QuPathNorm__` column, so the old run cannot have read one; the demand was
+   added to the registry *after* that run was built, and it is precisely what made the stage
+   un-regenerable. Removing it restores what the data always was rather than changing it.
+   Step 1 and Step 2 outputs therefore remain valid, and the re-run's value is provenance
+   alone: a run keyed to a clean commit instead of a dirty worktree.
 
 Provenance caveat worth carrying: it was built 2026-08-05 from a **dirty** worktree at commit
 `ab9a578`, so its source is identified by `source_sha256 0c7489d2…` but is not reconstructible
