@@ -103,27 +103,28 @@ def test_marker_means_maps_only_whole_cell_means():
     }
 
 
-def test_qupath_normalized_means_are_explicit_pre_restore_inputs():
-    observed = cp.qupath_normalized_means(HEADER)
-    assert len(observed) == 12
-    assert observed["Cell: Iba1: Mean (norm)"] == "QuPathNorm__Cell__Iba1"
-    assert observed["Cytoplasm: CD68: Mean (norm)"] == (
-        "QuPathNorm__Cytoplasm__CD68"
-    )
-    assert observed["Nucleus: M2Gal3: Mean (norm)"] == (
-        "QuPathNorm__Nucleus__M2Gal3"
-    )
-    assert "Cell: Iba1: Mean" not in observed
-
-
-def test_qupath_normalized_headers_fail_closed_without_raw_fallback(tmp_path):
-    missing = [
-        column for column in HEADER if column != "Cell: Iba1: Mean (norm)"
+def test_no_marker_requests_a_qupath_normalized_column(tmp_path):
+    """The signed ``Mean (norm)`` columns were a RESTORE-era contract for Iba1, CD68 and
+    M2Gal3.  With that retired no marker selects the source, so nothing is requested -- even
+    from an export that still happens to carry the columns.
+    """
+    assert cp.QUPATH_NORMALIZED_MARKERS == ()
+    stale_header = [
+        *HEADER,
+        "Cell: Iba1: Mean (norm)",
+        "Cytoplasm: CD68: Mean (norm)",
+        "Nucleus: M2Gal3: Mean (norm)",
     ]
-    row = _row("a", 60.0)
-    path = _csv_named(tmp_path, "missing_norm.csv", [row], missing)
-    with pytest.raises(SystemExit, match=r"Cell: Iba1: Mean \(norm\)"):
-        cp.reconcile_qupath_normalized_headers([path])
+    assert cp.qupath_normalized_means(stale_header) == {}
+
+
+def test_an_export_without_norm_columns_ingests(tmp_path):
+    """This is the unblock: while Iba1/CD68/M2Gal3 were contracted to ``qupath_norm``, an
+    export lacking ``Mean (norm)`` columns aborted here -- and no export we hold has them, so
+    no donor could be re-ingested and the upstream was unreproducible.  It must now succeed.
+    """
+    path = _csv_named(tmp_path, "no_norm.csv", [_row("a", 60.0)], list(HEADER))
+    assert cp.reconcile_qupath_normalized_headers([path]) == {}
 
 
 def test_sanitize_matches_the_redsea_column_convention():
@@ -139,10 +140,12 @@ def test_min_cell_area_predicate_is_inclusive_at_the_threshold(tmp_path):
     assert sorted(df.object_id) == ["b", "c", "d"]
 
 
-def test_ingest_preserves_signed_qupath_norm_separately_from_raw(tmp_path):
+def test_ingest_writes_no_qupath_normalized_columns(tmp_path):
+    """Iba1, CD68 and M2Gal3 now take the REDSEA whole-cell mean like the other 57 markers,
+    so no second scale reaches the cell table under any name.
+    """
     df, _ = _run(tmp_path, [_row("a", 60.0)], 20.0)
-    assert df.loc[0, "QuPathNorm__Cell__Iba1"] == pytest.approx(-0.25)
-    assert df.loc[0, "QuPathNorm__Membrane__CD68"] == pytest.approx(0.5)
+    assert [c for c in df.columns if c.startswith("QuPathNorm__")] == []
     assert "Iba1_norm" not in df
 
 

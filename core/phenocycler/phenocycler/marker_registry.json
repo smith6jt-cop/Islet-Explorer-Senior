@@ -349,7 +349,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -379,7 +378,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -409,7 +407,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
