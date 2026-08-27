@@ -525,10 +525,10 @@ Epithelial identity is recovered at 0.94–0.97 with a floor of 0.893 across fiv
 panel variants. That is close to the ceiling of what this join can show, and it is a real,
 releasable capability.
 
-**The immune compartment is not delivered.** Thirteen anchors, five donors, sixty-five
-donor-anchor tests, and **13 of 65 clear the 0.75 bar** — CD20 at 0.336, CD4 at 0.438, CD79a at
-0.443, CD206 at 0.446, all at or below chance. This is stable, not a held-out surprise: the
-selection donors gave 8 of 39.
+**This model, at this checkpoint, did not recover the immune anchors.** Thirteen anchors, five
+donors, sixty-five donor-anchor tests, and **13 of 65 clear the 0.75 bar** — CD20 at 0.336, CD4 at
+0.438, CD79a at 0.443, CD206 at 0.446, all at or below chance for *this scoring*. This is stable,
+not a held-out surprise: the selection donors gave 8 of 39.
 
 Testing a finer granularity does not rescue it. Scoring each immune anchor against its own
 **lineage** (Lymphocyte or Myeloid) rather than the 11-class Immune compartment gains +0.035 on
@@ -539,11 +539,21 @@ average — CD206 +0.229 and CD11c +0.200, but CD209 −0.177 — and takes anch
 
 The study question is **the immune cell environment around islets as disease progresses**. Islet
 location already comes from QuPath `Islet_N` geometry, so epithelial identity — the one thing this
-model does excellently here — is not what the study is short of. The one compartment it needs is
-the one not delivered.
+model does excellently here — is not what the study is short of. The compartment the study needs
+is the one this configuration did not recover.
 
-**DeepCellTypes on this panel is therefore not a route to the immune phenotyping this study
-requires.** It is a good epithelial and mesenchymal caller, on evidence, at held-out scale.
+**This DeepCellTypes configuration is therefore not the route to the immune phenotyping this
+study requires.** It is a good epithelial and mesenchymal caller, on evidence, at held-out scale.
+
+> **Scope of that verdict (recorded 2026-08-25).** It is about *this model at this checkpoint on
+> these 28 derived anchors*, and nothing more. It is **not** evidence that the panel cannot
+> resolve immune cells, nor that some other method cannot. Two things measured since cut against
+> the broader reading: the Step 1 tail statistics put CD20 & CD79a at 211x chance and CD3e & CD8
+> at 434x in the top 0.1% on this same cohort, and the ordered-residual retirement showed the
+> cohort Immune fraction moving 20.50% -> 6.75% -> 3.33% on *gate order alone*, which is a
+> property of a declared hierarchy rather than of the measurements. An AUROC against a
+> compartment label is one scoring of one model's output; it does not bound what the data holds.
+> Do not cite this document as a capability verdict on the platform or the panel.
 
 ### A criterion that was mis-specified, recorded and not relaxed
 

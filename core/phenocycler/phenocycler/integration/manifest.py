@@ -348,19 +348,58 @@ def _discover_pheno_sections(cfg: PipelineConfig,
 
 
 def _rewrite_root(path: str, xenium_root: str) -> str:
-    """Re-root a bundle path recorded on one filesystem onto another.
+    """Resolve a recorded bundle path against ``xenium_root``.
 
-    ``xenium_root`` replaces everything up to and including ``.../xenium/``, so a manifest
-    written against ``/orange/brusko/xenium/...`` works on a machine that mounts the same
-    tree elsewhere without editing the vendored CSV.
+    ``xenium_paths.csv`` records paths **relative** to the Xenium tree::
+
+        HuPrime5kPanTissue/<batch>/<run>/output-XETG00298__0059865__Panc__...
+
+    which is all that identity needs — :func:`parse_bundle_path` reads the serial off the
+    bundle directory name and the prefix contributes nothing. Keeping the vendored manifest
+    site-neutral means no lab's filesystem layout is baked into a tracked file, and the tree
+    can live wherever it was transferred to.
+
+    Absolute paths carrying a ``/xenium/`` segment are still re-rooted, so a manifest that
+    predates the migration to relative paths keeps working. An absolute path without that
+    segment is returned unchanged and reported as ``unrewritten`` by
+    :func:`verify_bundle_paths` — silently resolving it against the recorded root is how a
+    wrong ``xenium_root`` turns into a "missing file" for the wrong reason.
     """
-    if not xenium_root or not path:
+    if not path:
+        return path
+    if not path.startswith("/"):
+        # Relative — the normal case. Without a root there is nothing to resolve against;
+        # returning it unchanged would silently resolve against the process's cwd.
+        return str(Path(xenium_root) / path) if xenium_root else path
+    if not xenium_root:
         return path
     marker = "/xenium/"
     idx = path.find(marker)
     if idx == -1:
         return path
     return str(Path(xenium_root) / path[idx + len(marker):])
+
+
+def _find_bundle(resolved: str, xenium_root: str) -> str:
+    """Locate a bundle by its directory name when the recorded path does not resolve.
+
+    The recorded relative path assumes the ``HuPrime5kPanTissue/<batch>/<run>/`` levels
+    survived whatever copy or transfer put the tree under ``xenium_root``. They may not
+    have. The bundle directory name is the part that cannot change without changing the
+    sample's identity, so searching for it recovers a tree that was reorganised, while
+    still refusing to invent one that is absent.
+
+    Returns ``""`` when there is no unambiguous match — an ambiguous hit is a refusal, not
+    a coin flip.
+    """
+    name = Path(resolved).name
+    if not name or not xenium_root:
+        return ""
+    root = Path(xenium_root)
+    if not root.is_dir():
+        return ""
+    hits = [p for p in root.rglob(name) if p.is_dir()]
+    return str(hits[0]) if len(hits) == 1 else ""
 
 
 #: Files every Xenium output bundle carries. Used to tell "the directory exists" from
@@ -375,10 +414,22 @@ def verify_bundle_paths(cfg: PipelineConfig,
     ``xenium_paths.csv`` is hand-maintained and, upstream, read by nothing — so nothing has
     ever checked that a path in it points at a bundle that exists. This is that check.
 
-    The status that matters most is ``unrewritten``: ``_rewrite_root`` keys on a literal
-    ``/xenium/`` segment and returns the path *unchanged* when it is absent, so setting
-    ``xenium_root`` against a manifest whose paths do not contain that segment silently
-    resolves against the original filesystem and reports "missing" for the wrong reason.
+    Two statuses carry more information than "it is not there":
+
+    ``no_root``
+        the manifest records relative paths (the normal case) and ``xenium_root`` is unset,
+        so there is nothing to resolve against. That is a configuration gap, not a missing
+        bundle, and calling it ``missing`` would send the reader to the wrong problem.
+
+    ``unrewritten``
+        an *absolute* recorded path carries no ``/xenium/`` segment, so ``_rewrite_root``
+        left it pointing at the filesystem it was recorded on. Setting ``xenium_root``
+        against such a manifest silently resolves against the original root and reports
+        "missing" for the wrong reason.
+
+    ``relocated`` is not a failure: the recorded relative path did not resolve, but the
+    bundle directory was found elsewhere under ``xenium_root``. Reported rather than
+    silently accepted, because it means the recorded path is stale.
     """
     xen = read_xenium_paths(cfg.xenium_paths_csv)
     out: list[dict] = []
@@ -388,14 +439,23 @@ def verify_bundle_paths(cfg: PipelineConfig,
             continue
         recorded = r["source_path"]
         resolved = _rewrite_root(recorded, cfg.xenium_root)
-        if cfg.xenium_root and resolved == recorded and "/xenium/" not in recorded:
+        relative = not recorded.startswith("/")
+        relocated = False
+        if not Path(resolved).is_dir():
+            found = _find_bundle(resolved, cfg.xenium_root)
+            if found:
+                resolved, relocated = found, True
+
+        if relative and not cfg.xenium_root:
+            status = "no_root"
+        elif cfg.xenium_root and not relative and resolved == recorded:
             status = "unrewritten"
         elif not Path(resolved).is_dir():
             status = "missing"
         elif not any((Path(resolved) / m).exists() for m in BUNDLE_MARKERS):
             status = "not_a_bundle"
         else:
-            status = "ok"
+            status = "relocated" if relocated else "ok"
         out.append({"donor_id": donor, "roi": r["roi"], "batch": r["batch"],
                     "recorded": recorded, "resolved": resolved, "status": status})
     for gap in xen.attrs.get("dropped_no_path", []):
@@ -408,7 +468,8 @@ def verify_bundle_paths(cfg: PipelineConfig,
 
 def render_path_verification(rows: list[dict], cfg: PipelineConfig) -> str:
     """Human-readable verification report. Every non-``ok`` row is named, not counted."""
-    order = ("ok", "missing", "unrewritten", "not_a_bundle", "no_path")
+    order = ("ok", "relocated", "missing", "no_root", "unrewritten", "not_a_bundle",
+             "no_path")
     counts = {s: sum(1 for r in rows if r["status"] == s) for s in order}
     lines = [
         "Xenium bundle path verification",
@@ -426,10 +487,19 @@ def render_path_verification(rows: list[dict], cfg: PipelineConfig) -> str:
         lines += ["", f"{status.upper()} ({len(bad)}):"]
         lines += [f"  {r['donor_id']:<6} {r['roi']:<7} {r['resolved'] or r['recorded'] or '-'}"
                   for r in bad]
+    if counts["no_root"]:
+        lines += ["", "'no_root' means the manifest records relative paths — which is the "
+                      "normal case — but [integration] xenium_root is unset, so there is "
+                      "nothing to resolve them against. Point it at the local Xenium tree."]
+    if counts["relocated"]:
+        lines += ["", "'relocated' means the bundle was found under xenium_root but NOT at "
+                      "its recorded relative path. The data is fine; the manifest is stale. "
+                      "Update source_path to the path shown above."]
     if counts["unrewritten"]:
-        lines += ["", "'unrewritten' means xenium_root is set but these paths carry no "
-                      "'/xenium/' segment, so they were left pointing at the recorded root. "
-                      "Fix the recorded paths or clear xenium_root — do not ignore this."]
+        lines += ["", "'unrewritten' means xenium_root is set but these ABSOLUTE paths carry "
+                      "no '/xenium/' segment, so they were left pointing at the root they "
+                      "were recorded on. Make them relative to the Xenium tree — do not "
+                      "ignore this."]
     return "\n".join(lines)
 
 
