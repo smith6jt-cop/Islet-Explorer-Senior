@@ -250,9 +250,9 @@ def disease_trend_figure(cfg: PipelineConfig,
                          out_path: Optional[Path] = None) -> Optional[Path]:
     """Lineage fraction by ND/AAB/T1D, per modality.
 
-    The cohort-level acceptance test. Two independent measurement systems reproducing the
-    same ND -> AAB -> T1D gradient is much stronger evidence that the harmonisation is sound
-    than agreement on any single donor.
+    A reporting figure, not an acceptance test -- see :func:`donor.disease_trend`.  Whether a
+    disease gradient exists is what the study is asking; a pipeline that is accepted for
+    producing one cannot then report it as evidence.
     """
     path = cfg.integration_qc_dir / "disease_trend.csv"
     if not path.exists():

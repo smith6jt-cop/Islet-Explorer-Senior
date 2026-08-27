@@ -1,7 +1,11 @@
-# Cell typing — preprocessing lane
+# Cell typing lane
 
-Two steps, in order. Step 1 decides which measurements the rest may lean on; Step 2 puts
-them on a common scale. Neither calls a cell type.
+Four steps plus an islet refinement. Step 1 decides which measurements the rest may lean on
+and Step 2 puts them on a common scale — neither calls a cell type. Step 3 scores each cell
+against the rule table by cosine, behind a requirement gate; Step 4 adds UTAG tissue domains
+beside the per-cell calls; the islet lane uses the QuPath islet annotation as a prior to
+improve endocrine assignment inside `Islet_N`, and lets every reference compete in the 20 µm
+ring.
 
 This lane derives no per-marker threshold, needs no target/reference pair, and does not
 depend on the blocked `controls` / `calibrate` / `type` stages. Nothing here writes a
@@ -42,10 +46,17 @@ how much they matter:
    "evidence of a failed phenotyping implementation" is about its *assignments*; its
    expression is the same bytes.
 2. `data/runs/LATEST` names it.
-3. **It cannot be regenerated.** The current registry asks for `measurement_source =
-   qupath_norm` on CD68, Iba1 and M2Gal3, which needs `QuPathNorm__<marker>` columns that do
-   not exist in `cells/` (0 present) — so re-running `expression` today fails closed. The
-   expression on disk is the only expression there is.
+3. ~~**It cannot be regenerated.**~~ **Fixed 2026-08-27.** The registry used to ask for
+   `measurement_source = qupath_norm` on CD68, Iba1 and M2Gal3, which needs
+   `QuPathNorm__<marker>` columns that do not exist in `cells/` (0 present) — so re-running
+   `expression` failed closed, and the expression on disk was the only expression there was.
+   Those three now take the `redsea` default their `redsea_corrected` spillover policy
+   already implied, so all 60 markers read one source and `expression` regenerates.
+   Two things follow, and both are the point rather than a cost: the run is re-keyed, and
+   **CD68, Iba1 and M2Gal3 change value**, moving off QuPath's signed scale (0 at tissue p50,
+   1 at p99) onto the REDSEA whole-cell mean. All three are Immune and CD68/Iba1 carry the
+   macrophage rules, so Step 1 tail statistics and Step 2 shifts are recomputed and compared
+   for them rather than assumed equivalent.
 
 Provenance caveat worth carrying: it was built 2026-08-05 from a **dirty** worktree at commit
 `ab9a578`, so its source is identified by `source_sha256 0c7489d2…` but is not reconstructible
@@ -170,12 +181,21 @@ biology and one derivation rule, both checkable by someone who has never seen th
   QuPath's by a median 2% — re-rasterisation, not correction — and the two carry the same
   tail evidence (partner medians 55.6 vs 53.6, controls 0.2 vs 0.2). So substituting it
   would change nothing measurable.
-- **DAPI is not usable as their denominator** — tested and rejected. It removes the
-  magnitude coupling (TOX ρ vs magnitude 0.632 → 0.090) and destroys the identity signal
-  (TOX & CD3e 115.7× → 0.0×), and it *manufactures* an association: the TOX & E-cadherin
-  negative control goes 0.1× → **14.8×**. Regressing on `log(DAPI)` at its fitted slope
-  (0.46–0.72) is better but still leaves that control at 13.8×. DAPI carries nuclear size
-  and chromatin density, which are cell-type traits, not nuisance.
+- **DAPI is usable as their denominator only nucleus-against-nucleus** — and on this rule
+  table, that is nowhere. It removes the magnitude coupling (TOX ρ vs magnitude 0.632 →
+  0.090) and destroys the identity signal (TOX & CD3e 115.7× → 0.0×), and it *manufactures*
+  an association: the TOX & E-cadherin negative control goes 0.1× → **14.8×**. Regressing on
+  `log(DAPI)` at its fitted slope (0.46–0.72) is better but still leaves that control at
+  13.8×. DAPI carries nuclear size and chromatin density, which are cell-type traits, not
+  nuisance. The one shape that survives is both sides carrying the same denominator —
+  Ki67 & PCNA, 375.7× → 147.0×.
+  So the ratio is decided **per reference**, not globally (`score.nuclear_only_references`):
+  a reference qualifies only if every marker it constrains is nucleus-measured. **No
+  reference in the current table qualifies**, because `rules.flatten` composes each phenotype
+  with its ancestors, so even the proliferation split — which declares only Ki67 and PCNA —
+  inherits Ker8-18/Pan-CK/E-cadherin and the immune negatives. The ratio is therefore inert
+  here, by measurement rather than by switch, and turns on for a purely nuclear rule if one
+  is ever added. `--no-nuclear-ratio` still disables it outright.
 - **`CD11c & CD209` is the one declared lineage pair with no shared population** — 0.7× of
   chance in the top 0.1%, on every donor. That is a measurement about these two markers'
   bright tails, not a verdict on the panel: CD11c is shared with macrophages and CD209 is
@@ -216,6 +236,41 @@ per-(donor, marker) multiplicative rescaling (max deviation from the recorded sc
 tail statistic is bit-identical before and after — CD20 & CD79a 169.9 → 169.9,
 B3TUBB & CD56 483.0 → 483.0, and all four negative controls 0.0 → 0.0.
 
+## What the islet lane measured, and the one donor it cannot measure
+
+Cohort-wide over `islet_residents_all.parquet` (1,336,828 cells, 20 donors). Recorded here
+because until 2026-08-27 these numbers existed only in commit messages.
+
+**12.70% of islet-associated cells satisfy no rule** — `call = Ambiguous`,
+`reason = no_reference_requirements_met`. All 169,734 of them are in `peri`; **zero** are in
+`core`, which is what the endocrine prior is for. Per donor the peri share runs 0.159–0.339,
+and it is **not** confounded with anything the cohort is unbalanced on: batch1 0.2547 vs
+batch2 0.2494; ND 0.2551 / Aab+ 0.2614 / T1D 0.2480; acquisition epoch 2.3.1 0.2583 /
+2.4.0 0.2525 / 2.4.1 0.2494.
+
+Read `ambiguous_near_miss.parquet` carefully before calling these near misses. It reports
+169,734 cells "one requirement short" for *eleven separate references* — the same 169,734
+each time, i.e. every ambiguous cell. They are not close to a call; they are **below
+`require_min` on every marker the table asks about**. That is a staining, segmentation or
+panel-coverage question, not a rule-tuning one, and the leading candidate is acinar tissue,
+which this 59-plex carries no enzyme marker for.
+
+**Donor 6539's peri-islet ring is missing from the export, not from the tissue.** It has 541
+islets and **124 peri cells**. `cell_region` is read off the QuPath `Parent` column
+(`cells_parquet.py:295-298`: `Islet_N` → core, `Islet_N_exp20um` → peri), so a ring exists
+only where the 20 µm expansion annotation was drawn:
+
+| | islets with core cells | with a ring | % ringed | `Annotation (Tissue)` |
+|---|---|---|---|---|
+| **6539** | **539** | **3** | **0.4%** | **absent — `Root object (Image)`** |
+| next lowest (6523) | 80 | 79 | 98.8% | present |
+| the other 18 | 67–1304 | 67–1304 | 99.5–100% | present |
+
+Until QuPath is re-run on it, 6539 is excluded from peri-islet statistics **with the reason
+recorded** — never averaged in, where it would read as a low-immune ND donor. Its
+whole-tissue denominator is wrong too, since nothing bounds its tissue. Both gaps are cheap
+fail-closed assertions that no stage currently makes.
+
 ## Files
 
 | file | role |
@@ -227,4 +282,10 @@ B3TUBB & CD56 483.0 → 483.0, and all four negative controls 0.0 → 0.0.
 | `uniform_adapter.py` | the pinned UniFORM import, its histogramming, and the refuted-alternatives record |
 | `run_step2.py` | Step 2 driver → `data/development/celltype/{shifts.json, uniform/donor_id=*/data.parquet}` |
 | `verify_step2.py` | proves the shift is pure and rank statistics are invariant |
+| `rules.py` | reads `phenotype_workflow.csv`, flattens the hierarchy onto each phenotype, and builds the reference matrix |
+| `score.py` | the [0,1] scale, the cosine, the requirement gate, and the per-reference DAPI-ratio policy |
+| `run_step3.py` | Step 3 driver → `data/development/celltype/calls/donor_id=*/data.parquet` |
+| `utag_adapter.py`, `run_step4.py` | Step 4: per-donor UTAG domains → `data/development/celltype/domains/` |
+| `run_islet.py` | the islet refinement → `data/development/celltype/islet_residents/` |
+| `figures_ambiguous.py` | what the cells satisfying no rule actually are |
 | `tests/` | the statistics on data whose answer is known, and the verdict failing closed |

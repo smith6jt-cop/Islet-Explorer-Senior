@@ -202,10 +202,17 @@ def compare_donor(pheno: CellTable, xen: CellTable) -> tuple[pd.DataFrame, dict]
 def disease_trend(compositions: pd.DataFrame, status_by_donor: dict) -> pd.DataFrame:
     """Per-lineage composition by disease status, per modality.
 
-    The cross-modal acceptance test at cohort level: the endocrine fraction should fall
-    ND -> AAB -> T1D and the immune fraction rise, *in both modalities independently*. Two
-    measurement systems reproducing the same biological gradient is much stronger evidence
-    that the harmonisation is sound than any single-donor agreement.
+    A REPORTING table, not an acceptance test.  It used to say that the endocrine fraction
+    "should fall ND -> AAB -> T1D and the immune fraction rise", and that reproducing that
+    gradient was evidence the harmonisation was sound.  That is the expected-disease-ordering
+    reasoning ``CLAUDE.md``'s first non-negotiable forbids, and using it as a release gate is
+    circular twice over: it decides the pipeline is correct because it produced the answer we
+    expected, and it then reports that answer as a finding.
+
+    Whether a gradient exists is the study's question, so nothing here may be gated on one.
+    The acceptance tests live elsewhere and are disease-blind by construction: agreement
+    between modalities on donor pairings (against a mismatched-donor null) and agreement on
+    islet geometry.
     """
     df = compositions.copy()
     df["status"] = df["donor_id"].map(status_by_donor).fillna("?")
