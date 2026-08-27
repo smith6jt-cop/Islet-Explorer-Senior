@@ -262,7 +262,7 @@ only where the 20 µm expansion annotation was drawn:
 
 | | islets with core cells | with a ring | % ringed | `Annotation (Tissue)` |
 |---|---|---|---|---|
-| **6539** | **539** | **3** | **0.4%** | **absent — `Root object (Image)`** |
+| **6539** | **539** | **3** | **0.6%** | **absent — `Root object (Image)`** |
 | next lowest (6523) | 80 | 79 | 98.8% | present |
 | the other 18 | 67–1304 | 67–1304 | 99.5–100% | present |
 

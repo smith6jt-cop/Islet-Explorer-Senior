@@ -331,3 +331,49 @@ def test_build_sql_still_accepts_a_single_path(tmp_path):
     )
     assert sql_single == sql_list and mm_single == mm_list
     assert "CD38" in mm_single.values()               # nothing dropped when there is nothing to reconcile
+
+
+def test_annotation_coverage_names_a_donor_whose_ring_was_never_drawn(tmp_path):
+    """The check that would have caught donor 6539.
+
+    `cell_region` comes from QuPath's `Parent`, so a cell lands in `peri` only where an
+    `Islet_N_exp20um` annotation exists. 6539 reached the cohort with 541 islets and 124 peri
+    cells -- the expansion had run on 3 of 539 -- and nothing flagged it, so it read
+    downstream as a low-immune ND donor in the one compartment the study is about.
+    """
+    import duckdb
+    import pandas as pd
+    from phenocycler.cells_parquet import annotation_coverage, report_annotation_coverage
+
+    def _write(donor, rows):
+        d = tmp_path / f"donor_id={donor}"
+        d.mkdir(parents=True)
+        pd.DataFrame(rows).to_parquet(d / "data.parquet", index=False)
+
+    # good donor: every islet with core cells also has ring cells, and a tissue boundary
+    _write("good", {
+        "parent_raw": ["Islet_1", "Islet_1_exp20um", "Islet_2", "Islet_2_exp20um",
+                       "Annotation (Tissue)"],
+        "cell_region": ["core", "peri", "core", "peri", "tissue"],
+        "islet_num": ["1", "1", "2", "2", None],
+    })
+    # broken donor: two islets, one stray ring cell, and no tissue annotation at all
+    _write("broken", {
+        "parent_raw": ["Islet_1", "Islet_2", "Islet_1_exp20um", "Root object (Image)"],
+        "cell_region": ["core", "core", "peri", "tissue"],
+        "islet_num": ["1", "2", "1", None],
+    })
+
+    con = duckdb.connect()
+    cov = annotation_coverage(con, tmp_path)
+
+    assert cov["good"]["ring_coverage"] == 1.0
+    assert cov["good"]["has_tissue_annotation"] is True
+    assert cov["broken"]["ring_coverage"] == 0.5
+    assert cov["broken"]["has_tissue_annotation"] is False
+
+    warnings = report_annotation_coverage(cov)
+    assert len(warnings) == 1
+    assert "donor broken" in warnings[0]
+    assert "1/2 islets" in warnings[0]
+    assert "no Annotation (Tissue)" in warnings[0]

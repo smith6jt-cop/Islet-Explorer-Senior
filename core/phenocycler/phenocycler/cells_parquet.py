@@ -393,6 +393,9 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     ]
     rejects = pd.concat(reject_frames, ignore_index=True) if reject_frames else pd.DataFrame()
     rejects.to_parquet(cfg.data_dir / "ingest_rejects.parquet", index=False)
+    report["annotation_coverage"] = annotation_coverage(con, cfg.cells_dir)
+    for line in report_annotation_coverage(report["annotation_coverage"]):
+        print(line)
     (cfg.data_dir / "panel_availability.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n"
     )
@@ -403,6 +406,69 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
         )
     print("[done] wrote", cfg.cells_dir)
     return cfg.cells_dir
+
+
+def annotation_coverage(con, cells_dir: Path) -> dict:
+    """Per donor: is the islet ring drawn, and is there a tissue boundary at all?
+
+    ``cell_region`` is read straight off QuPath's ``Parent``, so a cell only lands in ``peri``
+    where an ``Islet_N_exp20um`` annotation was actually drawn, and only in ``tissue`` where
+    ``Annotation (Tissue)`` was. Neither is a property of the tissue -- every islet has a 20 um
+    ring, and every section has a boundary -- so a donor missing them is missing an *export*,
+    not a structure.
+
+    That failed silently once. Donor 6539 reached the cohort with 541 islets and 124 peri
+    cells: the expansion had been run on 3 of 539 islets, and it carried no tissue annotation
+    at all, so its "tissue" was the raw image. Nothing flagged either, and it read downstream
+    as a low-immune ND donor in the one compartment this study is about.
+
+    Recorded rather than raised, deliberately. Aborting the cohort on one donor's annotation
+    would block nineteen good ones, and the honest place to refuse is where the number is used
+    -- so this reports coverage, names anything below the measured cohort floor, and leaves
+    the decision to the consumer.
+    """
+    rows = con.execute(
+        f"""
+        SELECT donor_id,
+               COUNT(DISTINCT CASE WHEN cell_region = 'core' THEN islet_num END) AS islets_core,
+               COUNT(DISTINCT CASE WHEN cell_region = 'peri' THEN islet_num END) AS islets_ring,
+               COUNT(*) FILTER (WHERE parent_raw = 'Annotation (Tissue)')        AS tissue_rows
+        FROM read_parquet('{cells_dir}/**/*.parquet', hive_partitioning = 1)
+        GROUP BY donor_id ORDER BY donor_id
+        """
+    ).fetchdf()
+    out = {}
+    for r in rows.itertuples(index=False):
+        core = int(r.islets_core)
+        out[str(r.donor_id)] = {
+            "islets_with_core_cells": core,
+            "islets_with_ring_cells": int(r.islets_ring),
+            "ring_coverage": (round(int(r.islets_ring) / core, 4) if core else None),
+            "has_tissue_annotation": bool(r.tissue_rows),
+        }
+    return out
+
+
+#: Cohort floor measured 2026-08-27: 19 of 20 donors sit at 0.988-1.000 ring coverage and
+#: carry a tissue annotation. Only donor 6539 falls outside, at 0.004 with none.
+MIN_RING_COVERAGE = 0.95
+
+
+def report_annotation_coverage(coverage: dict) -> list[str]:
+    """Name every donor whose QuPath annotation is incomplete. Returns the warnings."""
+    warnings = []
+    for donor, c in sorted(coverage.items()):
+        why = []
+        if c["ring_coverage"] is not None and c["ring_coverage"] < MIN_RING_COVERAGE:
+            why.append(
+                f"islet ring drawn on {c['islets_with_ring_cells']}/"
+                f"{c['islets_with_core_cells']} islets ({c['ring_coverage']:.1%})"
+            )
+        if not c["has_tissue_annotation"]:
+            why.append("no Annotation (Tissue): 'tissue' is the whole image")
+        if why:
+            warnings.append(f"[warn] donor {donor} annotation incomplete: " + "; ".join(why))
+    return warnings
 
 
 def main(argv=None) -> int:
