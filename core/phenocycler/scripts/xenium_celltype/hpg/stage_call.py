@@ -92,10 +92,10 @@ def main(argv=None) -> int:
         ann = annotate_groups(Xn, dd.genes, groups, cores, n_draws=a.n_draws, seed=seed)
         ann.insert(0, "k", k); ann.insert(0, "arm", a.arm); ann.insert(0, "donor_id", a.donor)
         rows.append(ann)
-        comp = run_donor.composition(ann, groups)
+        comp = run_donor.composition(ann, groups, lineages=sorted(cores))
         comp.insert(0, "k", k); comp.insert(0, "arm", a.arm); comp.insert(0, "donor_id", a.donor)
         comps.append(comp)
-        unavail = float(comp.loc[comp.lineage == "Unavailable", "frac"].sum())
+        unavail = float(comp.loc[comp.status == "unavailable", "frac"].sum())
         smallest = int(pd.Series(groups).value_counts().min())
         print(f"[call] {a.donor} arm={a.arm} k={k}: "
               f"{int((ann.lineage != '').sum())}/{len(ann)} groups cleared their null; "

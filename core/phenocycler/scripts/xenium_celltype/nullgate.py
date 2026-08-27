@@ -51,6 +51,12 @@ DEFAULT_DRAWS = 50
 #: handful of cells does not pool. Reported as ``too_few_cells``, never as a weak call.
 MIN_GROUP_CELLS = 50
 
+#: Fewest genes a matched stratum must offer, after the identity cores are removed from it,
+#: before the match is widened to the detection decile alone. Matching on detection AND
+#: magnitude makes strata narrow, and a narrow stratum on a small panel can leave a pool of
+#: one -- which is not a null.
+MIN_NULL_CANDIDATES = 8
+
 
 class NullGateError(RuntimeError):
     """The gate cannot be evaluated — never downgraded to a pass."""
@@ -78,6 +84,53 @@ def detection_deciles(X, n_bins: int = 10) -> np.ndarray:
     det = np.asarray((X > 0).mean(axis=0)).ravel()
     ranks = pd.Series(det).rank(method="first")
     return pd.qcut(ranks, n_bins, labels=False).to_numpy()
+
+
+def _gene_sd(X) -> np.ndarray:
+    """Per-gene standard deviation, computed without densifying a sparse matrix."""
+    n = X.shape[0]
+    mean = np.asarray(X.mean(axis=0)).ravel()
+    sq = X.multiply(X) if hasattr(X, "multiply") else np.square(X)
+    mean_sq = np.asarray(sq.mean(axis=0)).ravel()
+    return np.sqrt(np.maximum(mean_sq - mean ** 2, 0.0)) * np.sqrt(n / max(n - 1, 1))
+
+
+def standardise_genes(X):
+    """Scale each gene to unit SD, so no single gene can carry a core.
+
+    Measured on donor 6539: CUZD1 alone supplies 57% of the eight-gene Exocrine core's mean
+    and XBP1 39% of the 58-gene Immune_B core's. A core's contrast was therefore largely one
+    gene's contrast, and no random set of the same size shares that structure — so the null
+    could not see it.
+
+    Only the SCALE is applied, never the centring, and that is exact rather than a
+    concession to sparsity: the statistic is a difference of means, ``inside - outside``,
+    so a per-gene offset cancels between the two terms. Dividing by the SD alone therefore
+    gives precisely the z-scored contrast while leaving a sparse matrix sparse.
+    """
+    sd = _gene_sd(X)
+    inv = np.where(sd > 0, 1.0 / np.where(sd > 0, sd, 1.0), 0.0)
+    if hasattr(X, "multiply"):
+        import scipy.sparse as sp
+        return X @ sp.diags(inv)
+    return np.asarray(X) * inv[None, :]
+
+
+def match_strata(X, n_bins: int = 10) -> np.ndarray:
+    """Gene strata matched on BOTH detection and magnitude, not detection alone.
+
+    Matching on detection alone leaves the confound it was meant to remove. Measured on
+    donor 6539, the top detection decile spans 0.120–0.874 detection and 0.075–2.069 mean
+    lognorm — a 28x range in magnitude — and the genes that actually carry the cores sit at
+    its very top: XBP1 at the 97.8th percentile of its own decile, CUZD1 at the 99.4th. A
+    "matched" draw therefore replaced each core gene with one ~8–13x weaker, and the null was
+    systematically too easy for exactly the cores under test.
+    """
+    det = np.asarray((X > 0).mean(axis=0)).ravel()
+    mag = np.asarray(X.mean(axis=0)).ravel()
+    d = pd.qcut(pd.Series(det).rank(method="first"), n_bins, labels=False).to_numpy()
+    m = pd.qcut(pd.Series(mag).rank(method="first"), n_bins, labels=False).to_numpy()
+    return d * n_bins + m
 
 
 def _contrast(X, cols: Sequence[int], in_group: np.ndarray) -> float:
@@ -116,8 +169,9 @@ def annotate_groups(
     """
     genes = list(map(str, genes))
     index = {g: i for i, g in enumerate(genes)}
-    dec = detection_deciles(X)
-    by_dec = {d: np.where(dec == d)[0] for d in np.unique(dec)}
+    X = standardise_genes(X)                       # no gene may carry a core; see above
+    dec = match_strata(X)                          # matched on detection AND magnitude
+    coarse = detection_deciles(X)                  # the fallback when a stratum runs thin
     rng = np.random.default_rng(seed)
 
     n_cells = X.shape[0]
@@ -131,6 +185,33 @@ def annotate_groups(
             )
         resolved[lin] = cols
 
+    # A gene must never stand in for itself. Drawing the replacement from the same stratum
+    # can otherwise return the core's own gene -- certainly on a small panel, where a 10x10
+    # joint stratification leaves only a handful of genes per stratum -- and the "null" then
+    # contains the very signal it exists to be compared against.
+    #
+    # The exclusion is per core, not global. A gene belonging to some OTHER core is a
+    # perfectly good matched draw; excluding every core's genes from every pool is what
+    # empties a stratum that a bright core happens to monopolise. Where the fine stratum runs
+    # thin it widens to the detection decile rather than drawing from a pool of one.
+    def _pool(col: int, own: frozenset) -> np.ndarray:
+        fine = np.array([i for i in np.where(dec == dec[col])[0] if i not in own], dtype=int)
+        if fine.size >= MIN_NULL_CANDIDATES:
+            return fine
+        wide = np.array([i for i in np.where(coarse == coarse[col])[0] if i not in own],
+                        dtype=int)
+        if wide.size == 0:
+            raise NullGateError(
+                f"no gene outside this core shares {genes[col]!r}'s detection decile, so "
+                "its null cannot be matched"
+            )
+        return wide
+
+    pools = {
+        lin: {c: _pool(c, frozenset(cols)) for c in cols}
+        for lin, cols in resolved.items()
+    }
+
     out: list[GroupCall] = []
     for g in pd.unique(groups):
         rows = np.where(groups == g)[0]
@@ -141,18 +222,24 @@ def annotate_groups(
 
         in_group = np.zeros(n_cells, dtype=bool)
         in_group[rows] = True
-        cleared, stats = [], {}
+        cleared, stats, nulls = [], {}, {}
         for lin, cols in resolved.items():
             real = _contrast(X, cols, in_group)
             null = np.array([
-                _contrast(X, [rng.choice(by_dec[dec[c]]) for c in cols], in_group)
+                _contrast(X, [rng.choice(pools[lin][c]) for c in cols], in_group)
                 for _ in range(n_draws)
             ])
             sd = float(null.std(ddof=1))
             p95 = float(np.percentile(null, 95))
             z = (real - float(null.mean())) / sd if sd > 0 else np.nan
             stats[lin] = (real, float(null.mean()), p95, z)
-            if real > p95:
+            nulls[lin] = null
+            # A core must beat its null AND read higher inside the group than outside it.
+            # Without the second clause a group reading LOWER on a core than the rest of the
+            # tissue was awarded it whenever the random cores read lower still: measured,
+            # nonspatial k=30 group 11 took Vascular at real=-0.0134 and spatial k=30
+            # group 12 took Myeloid at real=-0.0045 across 833 cells.
+            if real > max(p95, 0.0):
                 cleared.append(lin)
 
         if not cleared:
@@ -165,6 +252,25 @@ def annotate_groups(
         cleared.sort(key=lambda k: stats[k][3], reverse=True)
         win = cleared[0]
         r, nm, p95, z = stats[win]
+
+        # Clearing is not winning. Two cores can both beat their nulls while being
+        # indistinguishable from each other, and ranking them by z then hands the group
+        # entirely to one: measured on donor 6539, Exocrine at z=3.597 and Immune_B at
+        # z=3.539 -- a gap of 0.06 -- decided a 100%-vs-0% assignment, and four groups
+        # swapped between k=20 and k=30 on gaps that size. The paired null says whether the
+        # gap means anything: for each draw, the two cores' random contrasts differ by some
+        # amount, and the real gap has to beat the 95th percentile of that.
+        if len(cleared) > 1:
+            runner = cleared[1]
+            paired = nulls[win] - nulls[runner]
+            gap = r - stats[runner][0]
+            if gap <= float(np.percentile(paired, 95)):
+                out.append(GroupCall(
+                    g, len(rows), "", "cores_cleared_but_are_not_separable",
+                    r, nm, p95, z, "|".join(cleared),
+                ))
+                continue
+
         out.append(GroupCall(
             g, len(rows), win,
             "" if len(cleared) == 1 else "multiple_cores_cleared",

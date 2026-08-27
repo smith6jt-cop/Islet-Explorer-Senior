@@ -33,6 +33,8 @@ claim that the compartment cannot be resolved.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import argparse
 import json
 import subprocess
@@ -80,24 +82,57 @@ def subsample(dd: "xenio.DonorData", max_cells: int, seed: int) -> tuple["xenio.
                  "subsample_seed": seed}
 
 
-def composition(ann: pd.DataFrame, groups: np.ndarray) -> pd.DataFrame:
-    """Cells per awarded lineage, with a binomial CI -- the donor-level deliverable.
+def composition(ann: pd.DataFrame, groups: np.ndarray,
+                lineages: Sequence[str] | None = None) -> pd.DataFrame:
+    """Cells per lineage, with a binomial CI -- the donor-level deliverable.
 
-    Groups that cleared no null contribute to ``Unavailable``; they are never redistributed
-    across the lineages that did clear, which would manufacture the very shares the gate
-    refused to award.
+    Two things this must never do, both of which it used to.
+
+    **It never redistributes.** Groups that cleared no null contribute to ``Unavailable``,
+    and are not spread across the lineages that did clear, which would manufacture the very
+    shares the gate refused to award. Each refusal keeps its own reason as a separate row --
+    ``too_few_cells`` is a statement about pooling and ``no_core_beats_its_matched_null`` is
+    a statement about evidence, and folding them together loses which one happened.
+
+    **It never renders an absence as a number.** Rows used to be built only from lineages
+    some group won, so a lineage that won nothing had no row at all -- and a reader turns a
+    missing row into a zero. That is exactly the conversion ``CLAUDE.md`` forbids, and it
+    misreported donor 6539's spatial arm as ``Immune_T`` 0.0% when Immune_T had in fact
+    cleared its null and been outranked in six groups. Every lineage in ``lineages`` now gets
+    a row carrying an explicit ``status``, and an unmeasured share is ``NaN``, never 0.
     """
     sizes = pd.Series(groups).value_counts()
-    lab = ann.set_index("group").lineage.reindex(sizes.index).fillna("")
-    lab = lab.replace("", "Unavailable")
+    meta = ann.set_index("group")
+    lab = meta.lineage.reindex(sizes.index).fillna("")
+    reason = meta.reason.reindex(sizes.index).fillna("")
+    # an unawarded group is labelled by WHY it was unawarded, not by one flat bucket
+    key = np.where(lab.to_numpy() != "", lab.to_numpy(),
+                   "Unavailable:" + reason.to_numpy().astype(str))
     n = int(sizes.sum())
-    tot = sizes.groupby(lab).sum()
-    frac = tot / n
-    se = np.sqrt(frac * (1 - frac) / n)
-    return pd.DataFrame({"n_cells": tot, "frac": frac,
-                         "ci_lo": (frac - 1.96 * se).clip(lower=0),
-                         "ci_hi": (frac + 1.96 * se).clip(upper=1)}).reset_index(
-                             names="lineage").sort_values("frac", ascending=False)
+    tot = sizes.groupby(key).sum()
+
+    rows = []
+    for name, cells in tot.items():
+        frac = cells / n
+        se = float(np.sqrt(frac * (1 - frac) / n))
+        rows.append({"lineage": name, "status": "awarded" if ":" not in str(name)
+                     else "unavailable", "n_cells": int(cells), "frac": float(frac),
+                     "ci_lo": max(frac - 1.96 * se, 0.0), "ci_hi": min(frac + 1.96 * se, 1.0)})
+
+    # every lineage that could have been awarded gets a row, awarded or not
+    awarded = {r["lineage"] for r in rows}
+    outranked = set()
+    for ru in meta.runners_up.fillna(""):
+        outranked.update(x for x in str(ru).split("|") if x)
+    for lin in (lineages or []):
+        if lin in awarded:
+            continue
+        rows.append({
+            "lineage": lin,
+            "status": "cleared_but_outranked" if lin in outranked else "no_group_cleared",
+            "n_cells": 0, "frac": np.nan, "ci_lo": np.nan, "ci_hi": np.nan,
+        })
+    return pd.DataFrame(rows).sort_values("frac", ascending=False, na_position="last")
 
 
 def prepare(dd: "xenio.DonorData", out: Path, *, n_comps: int = 50, seed: int = 0) -> dict:
@@ -148,9 +183,19 @@ def cluster(emb: pd.DataFrame, *, k: int, seed: int = 0) -> np.ndarray:
     return km.fit_predict(emb[["dim1", "dim2"]].to_numpy())
 
 
+def cores_of(tax) -> dict:
+    """The lineage -> identity-core gene mapping this panel supports, as one list.
+
+    Named rather than inlined because ``composition`` needs the SAME list the gate scored:
+    a lineage that was offered and won nothing must still get a row, or its absence reads as
+    a zero.
+    """
+    return {lin: tax.lineage_genes(lin)
+            for lin in sorted({v for v in tax.panel_to_lineage.values() if v})}
+
+
 def annotate(dd, groups, tax, *, n_draws: int, seed: int) -> pd.DataFrame:
-    cores = {lin: tax.lineage_genes(lin)
-             for lin in sorted({v for v in tax.panel_to_lineage.values() if v})}
+    cores = cores_of(tax)
     # the gate compares the real core against random cores on the caller's scale; lognorm
     # keeps a per-cell depth difference from masquerading as a lineage contrast
     return annotate_groups(xenio.lognorm(dd.counts), dd.genes, groups, cores,
@@ -204,11 +249,11 @@ def main(argv=None) -> int:
             ann = annotate(dd, groups, tax, n_draws=a.n_draws, seed=a.seed)
             ann.insert(0, "k", k); ann.insert(0, "arm", arm)
             rows.append(ann)
-            comp = composition(ann, groups)
+            comp = composition(ann, groups, lineages=sorted(cores_of(tax)))
             comp.insert(0, "k", k); comp.insert(0, "arm", arm); comp.insert(0, "donor_id", a.donor)
             comps.append(comp)
             n_called = int((ann.lineage != "").sum())
-            unavail = float(comp.loc[comp.lineage == "Unavailable", "frac"].sum())
+            unavail = float(comp.loc[comp.status == "unavailable", "frac"].sum())
             print(f"[annotate] arm={arm} k={k}: {n_called}/{len(ann)} groups cleared their "
                   f"null; Unavailable {unavail:.1%} of cells")
     out = pd.concat(rows, ignore_index=True)
