@@ -41,7 +41,9 @@ import scipy.sparse as sp
 # the two implementations while the tests still pass on each of them separately.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from nullgate import DEFAULT_DRAWS, MIN_GROUP_CELLS, GroupCall, NullGateError, detection_deciles
+from nullgate import (DEFAULT_DRAWS, MIN_GROUP_CELLS, GroupCall, NullGateError,
+                      build_null_pools, decide_group, detection_deciles, match_strata,
+                      resolve_cores, standardise_genes)
 
 
 def group_gene_deltas(X, groups: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -80,26 +82,26 @@ def annotate_groups(
 ) -> pd.DataFrame:
     """Drop-in replacement for :func:`nullgate.annotate_groups` with identical semantics.
 
-    Same award rule (``real > null p95``), same refusal to award a nearest lineage, same
-    ``too_few_cells`` and ``no_core_beats_its_matched_null`` reasons, same detection-decile
-    matching, same ``z`` used for ranking only -- and the same draws, because the RNG is
-    consumed in the same order. ``tests/test_nullgate_fast.py`` asserts the two
-    implementations return the same frame on the same inputs.
+    Every scientific decision is the reference's, imported rather than restated:
+    ``standardise_genes`` so no single gene carries a core, ``match_strata`` so the null is
+    matched on detection AND magnitude, ``build_null_pools`` so a gene never stands in for
+    itself, and ``decide_group`` for the award -- clearing the null, reading higher inside
+    the group than outside, and being separable from the runner-up. The draws are the same
+    draws, because the RNG is consumed in the same order. Only the arithmetic differs.
+
+    **This file drifted once and it matters how.** It was written before the reference gained
+    the negative-contrast and separability corrections, kept ``real > p95`` with no paired
+    null, and therefore awarded lineages on groups the reference refuses -- in the production
+    HiPerGator path, on every donor, silently. ``tests/test_nullgate_fast.py`` caught it and
+    was red. Nothing here may restate a rule the reference owns.
     """
-    genes = list(map(str, genes))
-    index = {g: i for i, g in enumerate(genes)}
-    dec = detection_deciles(X)
-    by_dec = {d: np.where(dec == d)[0] for d in np.unique(dec)}
+    X = standardise_genes(X)
+    dec = match_strata(X)
+    coarse = detection_deciles(X)
     rng = np.random.default_rng(seed)
 
-    resolved = {}
-    for lin, gs in core_genes.items():
-        cols = [index[g] for g in map(str, gs) if g in index]
-        if not cols:
-            raise NullGateError(
-                f"lineage {lin!r} has no identity-core gene on this panel; it cannot be "
-                f"scored and must be declared absent rather than silently skipped")
-        resolved[lin] = np.asarray(cols)
+    resolved = resolve_cores(genes, core_genes)
+    pools = build_null_pools(genes, resolved, dec, coarse)
 
     labels, sizes, delta = group_gene_deltas(X, groups)
     order = {lab: i for i, lab in enumerate(labels)}
@@ -112,31 +114,22 @@ def annotate_groups(
             out.append(GroupCall(g, n, "", "too_few_cells", np.nan, np.nan, np.nan, np.nan, ""))
             continue
         d = delta[i]
-        cleared, stats = [], {}
+        stats, nulls = {}, {}
         for lin, cols in resolved.items():
+            cols = np.asarray(cols)
             real = float(d[cols].mean())
             # Drawn inside the group loop, lineage by lineage, one index per core gene per
             # draw -- the reference's exact order of rng.choice calls. Matching the RNG
             # consumption is what lets tests/test_nullgate_fast.py assert the two
-            # implementations agree cell for cell rather than merely agree in distribution.
-            picks = np.stack([[rng.choice(by_dec[dec[c]]) for c in cols]
+            # implementations agree frame for frame rather than merely agree in distribution.
+            picks = np.stack([[rng.choice(pools[lin][c]) for c in cols]
                               for _ in range(n_draws)])
             null = d[picks].mean(axis=1)
             sd = float(null.std(ddof=1))
             p95 = float(np.percentile(null, 95))
             z = (real - float(null.mean())) / sd if sd > 0 else np.nan
             stats[lin] = (real, float(null.mean()), p95, z)
-            if real > p95:
-                cleared.append(lin)
+            nulls[lin] = null
 
-        if not cleared:
-            best = max(stats, key=lambda k: (stats[k][3] if np.isfinite(stats[k][3]) else -np.inf))
-            r, nm, p95, z = stats[best]
-            out.append(GroupCall(g, n, "", "no_core_beats_its_matched_null", r, nm, p95, z, ""))
-            continue
-        cleared.sort(key=lambda k: stats[k][3], reverse=True)
-        win = cleared[0]
-        r, nm, p95, z = stats[win]
-        out.append(GroupCall(g, n, win, "" if len(cleared) == 1 else "multiple_cores_cleared",
-                             r, nm, p95, z, "|".join(cleared[1:])))
+        out.append(decide_group(g, n, stats, nulls))
     return pd.DataFrame([vars(c) for c in out])

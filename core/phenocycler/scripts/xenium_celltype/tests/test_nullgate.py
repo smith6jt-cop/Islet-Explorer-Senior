@@ -189,3 +189,42 @@ def test_composition_never_renders_an_absence_as_a_zero():
     # and nothing is redistributed: the measured shares still account for every cell
     measured = c[c.status.isin(["awarded", "unavailable"])]
     assert measured.frac.sum() == pytest.approx(1.0)
+
+
+def test_the_award_rate_on_pure_noise_scales_with_the_number_of_lineages_offered():
+    """The gate has no family-wise correction, and the module docstring says so.
+
+    ``real > p95`` is a 5% rate per core, applied once per core offered, so offering more
+    cores buys more false positives -- and production offers eight. Pinned as a MEASUREMENT,
+    not as a bar to tighten: the bar is pre-registered, and relaxing or tightening one after
+    seeing it is the failure that closed the DeepCellTypes lane. What this protects is the
+    reading rule that follows from it, which lives in the docstring.
+
+    Asserted as an ordering plus a loose envelope rather than exact rates, so it pins the
+    property without pinning the RNG.
+    """
+    import scipy.sparse as sp
+
+    def noise_award_rate(n_lineages, seeds=4):
+        awarded = tot = 0
+        for seed in range(seeds):
+            rng = np.random.default_rng(seed)
+            n, p = 4000, 400
+            X = sp.random(n, p, density=0.04, format="csr", random_state=seed) * 5
+            genes = [f"g{i}" for i in range(p)]
+            groups = rng.integers(0, 12, n)
+            cores = {f"L{k}": [genes[i] for i in rng.choice(p, 20, replace=False)]
+                     for k in range(n_lineages)}
+            r = annotate_groups(X, genes, groups, cores, n_draws=50, seed=seed)
+            awarded += int((r.lineage != "").sum())
+            tot += len(r)
+        return awarded / tot
+
+    one = noise_award_rate(1)
+    eight = noise_award_rate(8)
+    assert one < 0.15, f"one core should award near its nominal 5% on noise, got {one:.1%}"
+    assert eight > 2 * one, (
+        f"the rate must grow with cores offered: 1 core {one:.1%}, 8 cores {eight:.1%}. "
+        "If this ever stops holding, a family-wise correction was added -- update the "
+        "docstring's measured table and this test together, and say who decided it."
+    )

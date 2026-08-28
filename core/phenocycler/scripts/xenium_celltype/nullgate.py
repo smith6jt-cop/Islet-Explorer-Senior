@@ -31,6 +31,26 @@ Two consequences are built in rather than documented:
   a core detected in every cell reads high everywhere while distinguishing nothing, and its
   contrast is ~0 in every group. A unit test pins this.
 
+**The bar is per lineage, and nothing corrects across lineages.** ``real > p95`` is a 5%
+false-positive rate for ONE core, and it is applied once per core offered. Measured on pure
+synthetic noise -- random sparse counts, random groups, so every award is a false positive --
+at 50 draws, 12 groups, 8 seeds:
+
+    lineages offered   1      2      4      8
+    groups awarded    6.2%  15.6%  27.1%  30.2%
+
+At one core the gate delivers its nominal rate. At the eight the pancreas taxonomy offers, a
+group of pure noise is awarded a lineage roughly **three times in ten**. The separability
+paired null damps this (30.2% against the 33.7% that 1-0.95^8 would give) but does not remove
+it, because it only compares the top two.
+
+This is recorded, not repaired. Moving the bar after seeing it fail is the specific failure
+that closed the DeepCellTypes lane, and the bar is pre-registered. What follows from it is a
+reading rule: **an award on a single group is at the family-wise rate above, so the evidence
+is a lineage awarded consistently across k, across arms and across donors -- never one group
+in one run.** Scoped to what was measured: synthetic sparse noise with no structure, which is
+a floor for the false-positive rate and says nothing about power on real tissue.
+
 The matching is on the detection decile because that is the confound: a core of ubiquitous
 genes scores high everywhere regardless of identity. Matching size alone would leave that in.
 """
@@ -167,6 +187,105 @@ def _contrast(X, cols: Sequence[int], in_group: np.ndarray) -> float:
     return float(inside.mean() - outside.mean())
 
 
+def resolve_cores(genes: Sequence[str], core_genes: Mapping[str, Sequence[str]]) -> dict:
+    """Core name -> column indices, refusing a core with no gene on this panel."""
+    index = {g: i for i, g in enumerate(map(str, genes))}
+    resolved = {}
+    for lin, gs in core_genes.items():
+        cols = [index[g] for g in map(str, gs) if g in index]
+        if not cols:
+            raise NullGateError(
+                f"lineage {lin!r} has no identity-core gene on this panel; it cannot be "
+                f"scored and must be declared absent rather than silently skipped"
+            )
+        resolved[lin] = cols
+    return resolved
+
+
+def build_null_pools(genes: Sequence[str], resolved: Mapping[str, Sequence[int]],
+                     dec: np.ndarray, coarse: np.ndarray) -> dict:
+    """Per core gene, the columns its matched replacement may be drawn from.
+
+    A gene must never stand in for itself. Drawing the replacement from the same stratum
+    can otherwise return the core's own gene -- certainly on a small panel, where a 10x10
+    joint stratification leaves only a handful of genes per stratum -- and the "null" then
+    contains the very signal it exists to be compared against.
+
+    The exclusion is per core, not global. A gene belonging to some OTHER core is a
+    perfectly good matched draw; excluding every core's genes from every pool is what
+    empties a stratum that a bright core happens to monopolise. Where the fine stratum runs
+    thin it widens to the detection decile rather than drawing from a pool of one.
+    """
+    genes = list(map(str, genes))
+
+    def _pool(col: int, own: frozenset) -> np.ndarray:
+        fine = np.array([i for i in np.where(dec == dec[col])[0] if i not in own], dtype=int)
+        if fine.size >= MIN_NULL_CANDIDATES:
+            return fine
+        wide = np.array([i for i in np.where(coarse == coarse[col])[0] if i not in own],
+                        dtype=int)
+        if wide.size == 0:
+            raise NullGateError(
+                f"no gene outside this core shares {genes[col]!r}'s detection decile, so "
+                "its null cannot be matched"
+            )
+        return wide
+
+    return {lin: {c: _pool(c, frozenset(cols)) for c in cols}
+            for lin, cols in resolved.items()}
+
+
+def decide_group(group, n_cells: int, stats: Mapping[str, tuple],
+                 nulls: Mapping[str, np.ndarray]) -> GroupCall:
+    """Award, or refuse with a reason, from one group's per-core statistics.
+
+    Shared verbatim by :func:`annotate_groups` and by ``hpg/nullgate_fast.py``, which differ
+    only in how ``stats`` and ``nulls`` are computed. They diverged once: the fast path was
+    written before the negative-contrast and separability corrections landed here, kept
+    ``real > p95`` and no paired null, and so awarded a lineage on a group this gate refuses
+    -- in the production scale-out path, silently. Sharing the decision is what stops that
+    recurring; ``hpg/tests/test_nullgate_fast.py`` asserts the two agree frame-for-frame.
+    """
+    cleared = []
+    for lin, (real, _nm, p95, _z) in stats.items():
+        # A core must beat its null AND read higher inside the group than outside it.
+        # Without the second clause a group reading LOWER on a core than the rest of the
+        # tissue was awarded it whenever the random cores read lower still: measured,
+        # nonspatial k=30 group 11 took Vascular at real=-0.0134 and spatial k=30
+        # group 12 took Myeloid at real=-0.0045 across 833 cells.
+        if real > max(p95, 0.0):
+            cleared.append(lin)
+
+    if not cleared:
+        best = max(stats, key=lambda k: (stats[k][3] if np.isfinite(stats[k][3]) else -np.inf))
+        r, nm, p95, z = stats[best]
+        return GroupCall(group, n_cells, "", "no_core_beats_its_matched_null",
+                         r, nm, p95, z, "")
+
+    cleared.sort(key=lambda k: stats[k][3], reverse=True)
+    win = cleared[0]
+    r, nm, p95, z = stats[win]
+
+    # Clearing is not winning. Two cores can both beat their nulls while being
+    # indistinguishable from each other, and ranking them by z then hands the group
+    # entirely to one: measured on donor 6539, Exocrine at z=3.597 and Immune_B at
+    # z=3.539 -- a gap of 0.06 -- decided a 100%-vs-0% assignment, and four groups
+    # swapped between k=20 and k=30 on gaps that size. The paired null says whether the
+    # gap means anything: for each draw, the two cores' random contrasts differ by some
+    # amount, and the real gap has to beat the 95th percentile of that.
+    if len(cleared) > 1:
+        runner = cleared[1]
+        paired = nulls[win] - nulls[runner]
+        gap = r - stats[runner][0]
+        if gap <= float(np.percentile(paired, 95)):
+            return GroupCall(group, n_cells, "", "cores_cleared_but_are_not_separable",
+                             r, nm, p95, z, "|".join(cleared))
+
+    return GroupCall(group, n_cells, win,
+                     "" if len(cleared) == 1 else "multiple_cores_cleared",
+                     r, nm, p95, z, "|".join(cleared[1:]))
+
+
 def annotate_groups(
     X,
     genes: Sequence[str],
@@ -183,50 +302,14 @@ def annotate_groups(
     a comparison of the real core against random cores on that same scale, so it inherits the
     caller's normalisation rather than imposing one.
     """
-    genes = list(map(str, genes))
-    index = {g: i for i, g in enumerate(genes)}
     X = standardise_genes(X)                       # no gene may carry a core; see above
     dec = match_strata(X)                          # matched on detection AND magnitude
     coarse = detection_deciles(X)                  # the fallback when a stratum runs thin
     rng = np.random.default_rng(seed)
 
     n_cells = X.shape[0]
-    resolved = {}
-    for lin, gs in core_genes.items():
-        cols = [index[g] for g in map(str, gs) if g in index]
-        if not cols:
-            raise NullGateError(
-                f"lineage {lin!r} has no identity-core gene on this panel; it cannot be "
-                f"scored and must be declared absent rather than silently skipped"
-            )
-        resolved[lin] = cols
-
-    # A gene must never stand in for itself. Drawing the replacement from the same stratum
-    # can otherwise return the core's own gene -- certainly on a small panel, where a 10x10
-    # joint stratification leaves only a handful of genes per stratum -- and the "null" then
-    # contains the very signal it exists to be compared against.
-    #
-    # The exclusion is per core, not global. A gene belonging to some OTHER core is a
-    # perfectly good matched draw; excluding every core's genes from every pool is what
-    # empties a stratum that a bright core happens to monopolise. Where the fine stratum runs
-    # thin it widens to the detection decile rather than drawing from a pool of one.
-    def _pool(col: int, own: frozenset) -> np.ndarray:
-        fine = np.array([i for i in np.where(dec == dec[col])[0] if i not in own], dtype=int)
-        if fine.size >= MIN_NULL_CANDIDATES:
-            return fine
-        wide = np.array([i for i in np.where(coarse == coarse[col])[0] if i not in own],
-                        dtype=int)
-        if wide.size == 0:
-            raise NullGateError(
-                f"no gene outside this core shares {genes[col]!r}'s detection decile, so "
-                "its null cannot be matched"
-            )
-        return wide
-
-    pools = {
-        lin: {c: _pool(c, frozenset(cols)) for c in cols}
-        for lin, cols in resolved.items()
-    }
+    resolved = resolve_cores(genes, core_genes)
+    pools = build_null_pools(genes, resolved, dec, coarse)
 
     out: list[GroupCall] = []
     for g in pd.unique(groups):
@@ -238,7 +321,7 @@ def annotate_groups(
 
         in_group = np.zeros(n_cells, dtype=bool)
         in_group[rows] = True
-        cleared, stats, nulls = [], {}, {}
+        stats, nulls = {}, {}
         for lin, cols in resolved.items():
             real = _contrast(X, cols, in_group)
             null = np.array([
@@ -250,47 +333,7 @@ def annotate_groups(
             z = (real - float(null.mean())) / sd if sd > 0 else np.nan
             stats[lin] = (real, float(null.mean()), p95, z)
             nulls[lin] = null
-            # A core must beat its null AND read higher inside the group than outside it.
-            # Without the second clause a group reading LOWER on a core than the rest of the
-            # tissue was awarded it whenever the random cores read lower still: measured,
-            # nonspatial k=30 group 11 took Vascular at real=-0.0134 and spatial k=30
-            # group 12 took Myeloid at real=-0.0045 across 833 cells.
-            if real > max(p95, 0.0):
-                cleared.append(lin)
 
-        if not cleared:
-            best = max(stats, key=lambda k: (stats[k][3] if np.isfinite(stats[k][3]) else -np.inf))
-            r, nm, p95, z = stats[best]
-            out.append(GroupCall(g, len(rows), "", "no_core_beats_its_matched_null",
-                                 r, nm, p95, z, ""))
-            continue
-
-        cleared.sort(key=lambda k: stats[k][3], reverse=True)
-        win = cleared[0]
-        r, nm, p95, z = stats[win]
-
-        # Clearing is not winning. Two cores can both beat their nulls while being
-        # indistinguishable from each other, and ranking them by z then hands the group
-        # entirely to one: measured on donor 6539, Exocrine at z=3.597 and Immune_B at
-        # z=3.539 -- a gap of 0.06 -- decided a 100%-vs-0% assignment, and four groups
-        # swapped between k=20 and k=30 on gaps that size. The paired null says whether the
-        # gap means anything: for each draw, the two cores' random contrasts differ by some
-        # amount, and the real gap has to beat the 95th percentile of that.
-        if len(cleared) > 1:
-            runner = cleared[1]
-            paired = nulls[win] - nulls[runner]
-            gap = r - stats[runner][0]
-            if gap <= float(np.percentile(paired, 95)):
-                out.append(GroupCall(
-                    g, len(rows), "", "cores_cleared_but_are_not_separable",
-                    r, nm, p95, z, "|".join(cleared),
-                ))
-                continue
-
-        out.append(GroupCall(
-            g, len(rows), win,
-            "" if len(cleared) == 1 else "multiple_cores_cleared",
-            r, nm, p95, z, "|".join(cleared[1:]),
-        ))
+        out.append(decide_group(g, len(rows), stats, nulls))
 
     return pd.DataFrame([vars(c) for c in out])
