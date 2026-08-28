@@ -26,11 +26,23 @@ ALLOWED_KINDS = frozenset({"type", "state", "structural", "excluded"})
 ALLOWED_CALIBRATION_STATUSES = frozenset(
     {"active", "unverified", "deferred", "standalone"}
 )
-NO_VERIFIED_PAIRS_STATUS = "development_no_verified_pairs"
+# The gate is deliberately named for what is MISSING (a verified way to assign an
+# identity), not for the mechanism a future method might use to get one. It was
+# NO_VERIFIED_PAIRS until 2026-08-28, which named RESTORE's target/reference pair
+# web -- a method this workflow retired. That wording made the interlock presuppose
+# its own replacement: a non-pair typing method would have had no "pairs" to verify,
+# yet to run at all would have had to declare a status asserting a RESTORE
+# precondition. What the gate actually enforces is narrower and method-agnostic --
+# no identity call has been verified, so no stage that emits one may run.
+#
+# validate_registry() below REQUIRES this value, so the branches guarded by
+# `production_status != NO_VERIFIED_TYPING_STATUS` are unreachable until that
+# requirement is deliberately lifted alongside an approved roster.
+NO_VERIFIED_TYPING_STATUS = "development_no_verified_typing"
 
 
-class NoVerifiedPairsError(ContractError):
-    """Raised when a caller requests pair-derived production output."""
+class NoVerifiedTypingError(ContractError):
+    """Raised when a caller requests production output that needs a verified call."""
 
 
 ALLOWED_BROAD_COMPARTMENTS = frozenset(
@@ -272,7 +284,7 @@ def registry_from_dict(payload: Mapping[str, Any]) -> MarkerRegistry:
             registry_version=str(payload["registry_version"]),
             method_version=str(payload["method_version"]),
             production_status=str(
-                payload.get("production_status", NO_VERIFIED_PAIRS_STATUS)
+                payload.get("production_status", NO_VERIFIED_TYPING_STATUS)
             ),
             description=str(payload.get("description", "")),
             allowed_compartments=tuple(
@@ -308,9 +320,9 @@ def validate_registry(registry: MarkerRegistry) -> None:
         errors.append("registry_version must be non-empty")
     if not registry.method_version.strip():
         errors.append("method_version must be non-empty")
-    if registry.production_status != NO_VERIFIED_PAIRS_STATUS:
+    if registry.production_status != NO_VERIFIED_TYPING_STATUS:
         errors.append(
-            "production_status must declare development_no_verified_pairs until "
+            "production_status must declare development_no_verified_typing until "
             "a separate verified roster is approved"
         )
     if not registry.allowed_compartments:
@@ -471,15 +483,15 @@ def validate_registry(registry: MarkerRegistry) -> None:
 
     if registry.active_markers:
         errors.append(
-            "development_no_verified_pairs registry cannot contain active calibrations"
+            "development_no_verified_typing registry cannot contain active calibrations"
         )
     if registry.families:
         errors.append(
-            "development_no_verified_pairs registry cannot allocate production testing families"
+            "development_no_verified_typing registry cannot allocate production testing families"
         )
     if registry.reference_graph:
         errors.append(
-            "development_no_verified_pairs registry cannot contain operative references"
+            "development_no_verified_typing registry cannot contain operative references"
         )
 
     # CD11b remains assay-QC-only independent of pair development.
@@ -525,8 +537,8 @@ __all__ = [
     "FamilySpec",
     "MarkerRegistry",
     "MarkerSpec",
-    "NO_VERIFIED_PAIRS_STATUS",
-    "NoVerifiedPairsError",
+    "NO_VERIFIED_TYPING_STATUS",
+    "NoVerifiedTypingError",
     "load_registry",
     "registry_from_dict",
     "validate_registry",

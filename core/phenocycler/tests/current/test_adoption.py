@@ -374,7 +374,7 @@ def test_apply_rejects_source_manifest_swap_before_writing(tmp_path, monkeypatch
 def test_continue_with_no_pairs_runs_only_upstream_without_export(monkeypatch, tmp_path):
     context = SimpleNamespace(
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         ),
         run_id="target",
     )

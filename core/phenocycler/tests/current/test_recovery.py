@@ -168,7 +168,7 @@ def test_recovery_blocks_pair_prefix_before_preparing_outputs(monkeypatch):
 
     context = SimpleNamespace(
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         )
     )
     monkeypatch.setattr(recovery, "load_config", lambda *_args, **_kwargs: object())
@@ -179,7 +179,7 @@ def test_recovery_blocks_pair_prefix_before_preparing_outputs(monkeypatch):
         lambda *_args, **_kwargs: pytest.fail("recovery mutation must not begin"),
     )
 
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         recovery.recover(
             config_path=None,
             source_run_id="a" * 20,

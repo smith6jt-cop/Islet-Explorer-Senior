@@ -22,7 +22,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from .artifacts import ContractError
-from .marker_registry import MarkerRegistry, NoVerifiedPairsError
+from .marker_registry import MarkerRegistry, NoVerifiedTypingError
 from .reference_controls import (
     reference_masks_as_arrays,
     reference_masks_from_wide,
@@ -181,7 +181,7 @@ def production_pairs(
     """Refuse production marker calling until a pair roster is verified."""
 
     del registry
-    raise NoVerifiedPairsError(
+    raise NoVerifiedTypingError(
         "no verified production marker pairs exist; use the mutable fundamental "
         "QuPath input diagnostics while pair design is under development"
     )

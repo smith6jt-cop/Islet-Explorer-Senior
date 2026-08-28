@@ -8,8 +8,8 @@ import pytest
 from phenocycler import marker_taxonomy
 from phenocycler.marker_registry import (
     DEFAULT_REGISTRY_PATH,
-    NO_VERIFIED_PAIRS_STATUS,
-    NoVerifiedPairsError,
+    NO_VERIFIED_TYPING_STATUS,
+    NoVerifiedTypingError,
     load_registry,
     registry_from_dict,
 )
@@ -23,7 +23,7 @@ def _payload() -> dict:
 def test_registry_covers_measurements_without_claiming_verified_pairs():
     registry = load_registry()
 
-    assert registry.production_status == NO_VERIFIED_PAIRS_STATUS
+    assert registry.production_status == NO_VERIFIED_TYPING_STATUS
     assert {marker.name for marker in registry.type_markers} == set(marker_taxonomy.TYPE)
     assert {marker.name for marker in registry.state_markers} == set(marker_taxonomy.PROCESS)
     assert registry.active_markers == ()
@@ -34,7 +34,7 @@ def test_registry_covers_measurements_without_claiming_verified_pairs():
     assert all(not marker.mutually_exclusive for marker in registry.markers)
 
     with pytest.raises(
-        NoVerifiedPairsError, match="no verified production marker pairs"
+        NoVerifiedTypingError, match="no verified production marker pairs"
     ):
         production_pairs(registry)
 
@@ -91,7 +91,7 @@ def test_registry_rejects_reintroducing_an_active_or_operative_pair():
 def test_registry_rejects_wrong_workflow_status_or_normalized_source_set():
     wrong_status = _payload()
     wrong_status["production_status"] = "production"
-    with pytest.raises(ValueError, match="development_no_verified_pairs"):
+    with pytest.raises(ValueError, match="development_no_verified_typing"):
         registry_from_dict(wrong_status)
 
     reintroduced_source = copy.deepcopy(_payload())

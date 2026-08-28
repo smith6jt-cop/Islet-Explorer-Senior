@@ -169,12 +169,12 @@ def test_task_readiness_follows_the_donor_local_dag():
 def test_direct_donor_mutation_refuses_pair_stages_before_paths(entrypoint):
     context = SimpleNamespace(
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         ),
         output_root=lambda _stage: pytest.fail("output path must not be resolved"),
     )
 
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         entrypoint(context, "controls", "D")
 
 

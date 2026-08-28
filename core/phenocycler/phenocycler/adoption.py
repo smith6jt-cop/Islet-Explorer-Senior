@@ -27,10 +27,10 @@ from .artifacts import (
     validate_dataset_snapshot_current,
 )
 from .config import load_config
-from .marker_registry import NO_VERIFIED_PAIRS_STATUS
+from .marker_registry import NO_VERIFIED_TYPING_STATUS
 from .pipeline import (
     DEFAULT_STAGE_ORDER,
-    PAIR_DEPENDENT_STAGES,
+    TYPING_DEPENDENT_STAGES,
     STAGE_DEPENDENCIES,
     STAGE_METHODS,
     STAGE_ORDER,
@@ -721,11 +721,11 @@ def build_adoption_plan(
     policy, policy_content_id = _load_policy()
     source_manifests: dict[str, StageManifest] = {}
     source_errors: dict[str, str] = {}
-    pair_stages_blocked = (
-        context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+    typing_stages_blocked = (
+        context.registry.production_status == NO_VERIFIED_TYPING_STATUS
     )
     for stage in STAGE_ORDER:
-        if pair_stages_blocked and stage in PAIR_DEPENDENT_STAGES:
+        if typing_stages_blocked and stage in TYPING_DEPENDENT_STAGES:
             continue
         path = source_root / "manifests" / f"{stage}.json"
         if not path.is_file():
@@ -753,11 +753,11 @@ def build_adoption_plan(
     decisions: dict[str, dict[str, Any]] = {}
     records = []
     for stage in STAGE_ORDER:
-        if pair_stages_blocked and stage in PAIR_DEPENDENT_STAGES:
+        if typing_stages_blocked and stage in TYPING_DEPENDENT_STAGES:
             record = {
                 "stage": stage,
                 "action": "blocked",
-                "reason_codes": ["no_verified_pairs"],
+                "reason_codes": ["no_verified_typing"],
                 "dependencies": list(STAGE_DEPENDENCIES[stage]),
                 "source_bytes": 0,
             }
@@ -1405,7 +1405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .donor_pipeline import run_pipelined_pipeline
 
         no_pairs = (
-            context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+            context.registry.production_status == NO_VERIFIED_TYPING_STATUS
         )
         run_pipelined_pipeline(
             context,
