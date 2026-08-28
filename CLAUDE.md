@@ -2,13 +2,26 @@
 
 ## Project scope
 
-This repository contains two related but separate systems:
+This repository contains three related but separate systems:
 
 1. `core/phenocycler/` currently produces UUID-keyed upstream expression
    data from raw QuPath exports. It does not currently produce verified marker
    calls or cell identities.
-2. `apps/islet/` serves aggregated islet, spatial, trajectory, and
+2. `analysis/xenium/` is the Xenium 5K spatial-transcriptomics lane, absorbed
+   2026-08-28 from `Xenium_Analysis@8062e554` (consolidation Phase 3). It carries the
+   established two-tier identity-core -> scANVI typer, the panel machinery that reads
+   `core/panels`, a dormant spatial-domain benchmark, and a HiPerGator-only `hpc/`
+   directory. Runs in `scvi-env`, **not** `xenium_analysis` (broken here). Its numbered
+   do-not-regress decisions #1-#17 are cited by number from other documents and must not
+   be renumbered. See `analysis/xenium/README.md` and `analysis/xenium/CLAUDE.md`.
+3. `apps/islet/` serves aggregated islet, spatial, trajectory, and
    single-cell views.
+
+The panel taxonomy has **one** authority: the `core/panels` subtree (= XeniumPanelExplorer
+@`076d1192`, verified byte-identical 2026-08-28). `analysis/xenium/scripts/fetch_subpanels.py`
+generates a regenerable, gitignored snapshot from it into
+`data/development/xenium_panels/subpanels/`, stamped with the source tree id. Never commit a
+second copy of those CSVs, and never hand-edit the snapshot.
 
 The source workflow is authoritative for upstream measurement provenance. The
 app is a downstream consumer, but its current H5AD is not connected to current

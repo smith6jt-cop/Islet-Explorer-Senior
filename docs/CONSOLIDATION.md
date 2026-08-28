@@ -26,7 +26,8 @@ islet-explorer/                  (this repo, reshaped)
   core/phenocycler/      [done] Python package incl. integration/ — the scientific authority
   core/panels/           [done] XeniumPanelExplorer: panel taxonomy data + its app
   core/bridge/           run -> H5AD -> app aggregates     (VOID until a verified run exists)
-  analysis/xenium/       Xenium notebooks on the shared cell-table contract
+  analysis/xenium/       [done] Xenium 5K lane: the two-tier typer, the panel machinery,
+                         the benchmark harness (dormant), and hpc/ (HiPerGator-only)
   analysis/follicle/     SpleenFollicleCounterQP
   apps/R/ieCore/         shared R package: domain config, theme, stats, helpers
   apps/islet/            [done] the unified Shiny app
@@ -92,7 +93,7 @@ Target:
 | `CLAUDE.md` (root) | project scope, the non-negotiable analysis rules, source-control hygiene, this layout |
 | `core/phenocycler/CLAUDE.md` | the workflow as it stands (ingest → geometry → REDSEA → expression), the retired-methods list |
 | `core/panels/CLAUDE.md` | panel taxonomy contract only |
-| `analysis/xenium/CLAUDE.md` | the two do-not-regress invariants |
+| `analysis/xenium/CLAUDE.md` | decisions #1-#17, carried across **intact** (conflict #4 below beats this row's earlier "two invariants" summary -- other docs cite them by number), plus dated standing notes |
 | `analysis/follicle/CLAUDE.md` | inventory + the per-image statistical framework |
 | `apps/CLAUDE.md` | Junior's 457-line per-tab reference, plus Senior's viewer-backend section |
 
@@ -119,6 +120,37 @@ Set read-only on GitHub after Phase 6, each with a final README commit pointing 
 `Islet-Explorer`, `Phenocycler_Analysis`, `Xenium_Analysis`, `XeniumPanelExplorer`,
 `SpleenFollicleCounterQP`, `LymphVizkit`.
 
+## Phase 3 — status 2026-08-28
+
+**`analysis/xenium/` has landed** (115 files, 3.5 MB). **`analysis/follicle/` has not** and is
+the remaining Phase 3 work, including the donor-ID-from-filename violation that conflict #2
+above names (`analysis/data_utils.py:48,62`, the hardcoded `_ALT_TO_HANDEL` map).
+
+Four things worth recording, because each contradicts an assumption above:
+
+1. **Imported by tree copy, not `git subtree add --squash`.** `Xenium_Analysis/.git` is
+   **889 MB** for a **3.4 MB** tracked tree (figures and `data/output*` committed before they
+   were gitignored). `subtree` fetches all of it before the squash discards the graph, and
+   recovering that needs `gc --prune=now` -- which this repo's own rules call unsafe with
+   157.9 GB of untracked ignored data present. A `git checkout` of the tracked paths into one
+   commit *is* a squash import and satisfies ground rule 2's intent, and it lets the pruning
+   (~20 dropped files) be part of the import instead of a second deletion commit.
+2. **`core/panels` IS the identity-core source, verified.** Everything
+   `fetch_subpanels.py` fetched over HTTP from `XeniumPanelExplorer@076d1192` is present in
+   the subtree -- 4 phases, 129 files, **0 missing** -- and `panel_roles.csv`,
+   `panel_gene_roles.csv` (1,613,132 bytes) and the identity cores are **byte-identical** to
+   the upstream pin. So the script now reads locally: one authority, one regenerable
+   gitignored cache stamped with `git rev-parse HEAD:core/panels/data` (`0348d149...`), and a
+   test that fails when the two drift.
+3. **The `xenium_analysis` conda env is broken here** (`ImportError: cannot import name
+   '_spropack'`). The lane runs in `scvi-env`, which has scvi-tools 1.4.0.post1 and CUDA.
+   `environment.yml` was dropped rather than carried across as a recipe for a broken env.
+4. **Two pre-existing defects surfaced on absorption and were fixed**: `cm.get_cmap` in
+   `utils/xenium_explorer_export.py` was **removed in matplotlib 3.9** and its `ImportError`
+   guard could not catch the resulting `AttributeError`, so the helper crashed rather than
+   degrading on both local environments; and `tests/test_repo_health.py` asserted an
+   `environment.yml`, a `config.ini` and a SLURM conda env that no longer exist.
+
 ## Blockers carried into later phases
 
 - ~~**`Phenocycler_Analysis` has 136 uncommitted files**~~ — **CLEARED 2026-08-14.** The real
@@ -126,9 +158,15 @@ Set read-only on GitHub after Phase 6, each with a final README commit pointing 
   plus 3 directories). Landed as four themed commits on
   `Phenocycler_Analysis` branch `agent/retire-typing-lane` (`8337e3a..f6953cf`), pushed.
   **`git subtree` reads `main`, so this branch must be merged to `main` before Phase 2 step C.**
-- **`Xenium_Analysis` hardcodes `ROOT = /blue/maigan/smith6jt/Xenium_Analysis`** in 12 files.
-  Fixed in Phase 3 using the `Path(__file__).resolve().parents[n]` pattern already used at
-  `thymic_zonation_analysis.py:54`.
+- ~~**`Xenium_Analysis` hardcodes `ROOT = /blue/maigan/smith6jt/Xenium_Analysis`** in 12
+  files.~~ **CLEARED 2026-08-28.** The real count was **39 files** (19 Python `ROOT` /
+  `PROCESSED_ROOT` constants, 2 R, the rest shell/SLURM/notebook). Fixed with
+  `Path(__file__).resolve().parents[n]` as planned, but on **two axes, not one**: `ROOT`
+  (code) and `DATA_ROOT` (h5ads, `XENIUM_DATA_ROOT`, default `/data/xenium`). A single root
+  would have put `data/processed/` under `analysis/xenium/` -- 60+ GB inside the repo, in a
+  directory the anchored `/data/` ignore does **not** cover. `_panel_roles.py` needed one
+  extra fix its module-level `SUBPANEL_DIR` had no override for. Asserted by
+  `analysis/xenium/tests/test_repo_health.py`.
 - **`XeniumPanelExplorer`'s live `renv.lock` and `.Rprofile` are missing** — only
   `.r46-backup` copies remain, so `renv::restore()` fails as documented in its README.
 
