@@ -52,7 +52,7 @@ __all__ = ["Arm", "ARMS", "CHECKPOINTS", "run_arm", "plan_windows"]
 
 MANIFEST = ROOT / "core/phenocycler/data/qupath_manifest.json"
 REGIONS = HERE / "regions.json"
-RUN_ID = "3bf4fc8e391d007766d1"
+RUN_ID = "30f6689e4d27d295f890"
 EXPRESSION = ROOT / f"core/phenocycler/data/runs/{RUN_ID}/expression"
 OUT = ROOT / "data/development/deepcell_types_review"
 ARCHIVE_MASKS = pathlib.Path("/data/codex_phenocycler/archive_2026-07-25/masks")

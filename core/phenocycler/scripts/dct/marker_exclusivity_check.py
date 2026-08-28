@@ -40,7 +40,7 @@ import pandas as pd
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
-EXPRESSION = ROOT / "core/phenocycler/data/runs/3bf4fc8e391d007766d1/expression"
+EXPRESSION = ROOT / "core/phenocycler/data/runs/30f6689e4d27d295f890/expression"
 OUT = ROOT / "data/development/deepcell_types_review"
 SELECTION = ["6539", "6450", "6523"]
 

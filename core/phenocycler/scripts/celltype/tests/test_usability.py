@@ -202,27 +202,40 @@ def test_background_mode_spread_is_zero_for_identical_donors():
 def test_the_expression_stage_is_the_one_this_lane_was_built_against():
     """Pin the data, not just the run id.
 
-    The run choice is immaterial -- both runs on disk hardlink the same expression files --
-    but that is only true while the content hash holds.  Pinning it means a swapped run or a
-    mutated stage fails here instead of silently changing every number downstream.
+    A run id names a directory; the content hash names what is in it.  Pinning both means a
+    swapped run or a mutated stage fails here instead of silently changing every number
+    downstream.
+
+    ``method_version`` moved ``selected-expression-v1`` -> ``selected-expression-v2-
+    qupath-norm-inputs`` when CD68/Iba1/M2Gal3 were taken off the ``qupath_norm``
+    measurement source they demanded and ``cells/`` never carried.  Asserted here rather
+    than left loose because the version is the only visible marker of that change, and the
+    change is the reason ``expression`` is regenerable at all.  It is a *provenance* move,
+    not a value move: the rebuilt partitions reproduced the old ones column-for-column.
     """
     m = json.loads((panel.PKG / "data" / "runs" / panel.RUN_ID /
                     "manifests" / "expression.json").read_text())
     assert m["output"]["content_sha256"] == panel.EXPRESSION_CONTENT_SHA256
     assert m["output"]["total_rows"] == panel.EXPRESSION_TOTAL_ROWS
-    assert m["method_version"] == "selected-expression-v1"
+    assert m["method_version"] == "selected-expression-v2-qupath-norm-inputs"
 
 
-def test_the_other_run_carries_the_same_expression_bytes():
-    """The stated justification, asserted rather than remembered."""
-    other = "c8412757d12de36ca056"
-    root = panel.PKG / "data" / "runs"
-    if not (root / other).exists():
-        pytest.skip(f"{other} not on this machine")
-    a = json.loads((root / panel.RUN_ID / "manifests" / "expression.json").read_text())
-    b = json.loads((root / other / "manifests" / "expression.json").read_text())
-    assert a["output"]["content_sha256"] == b["output"]["content_sha256"]
-    assert a["output"]["schema_sha256"] == b["output"]["schema_sha256"]
+def test_the_run_this_lane_reads_is_the_one_latest_names():
+    """The pin and the pointer must not drift apart.
+
+    Replaces ``test_the_other_run_carries_the_same_expression_bytes``, which asserted that
+    the two runs on disk hardlinked the same expression stage.  Both were deleted at the
+    maintainer's instruction, so that test could only ever skip -- and a permanently
+    skipping test asserting a vanished invariant is worse than none.  What is still worth
+    pinning is that ``panel.RUN_ID`` agrees with ``LATEST``: they drifted apart once
+    already, and every number this lane produces was unattributable until it was noticed.
+    """
+    latest = (panel.PKG / "data" / "runs" / "LATEST").read_text().strip()
+    assert latest == panel.RUN_ID, (
+        f"LATEST names {latest!r} but this lane is pinned to {panel.RUN_ID!r}; "
+        "repoint panel.RUN_ID and EXPRESSION_CONTENT_SHA256 together, then regenerate "
+        "data/development/celltype/ -- the old outputs are keyed to the old run"
+    )
 
 
 # ------------------------------------------------------------ the rule table (Step 3)

@@ -64,7 +64,7 @@ for nm,mk in sel:
 M=pd.DataFrame(meas); M['object_id']=tile_oid
 
 # --- join to the run's own expression table on object_id ------------------
-E=pd.read_parquet(f'{ROOT}/core/phenocycler/data/runs/3bf4fc8e391d007766d1/expression/donor_id={DONOR}/data.parquet')
+E=pd.read_parquet(f'{ROOT}/core/phenocycler/data/runs/30f6689e4d27d295f890/expression/donor_id={DONOR}/data.parquet')
 E['object_id']=E['object_id'].astype(str); M['object_id']=M['object_id'].astype(str)
 J=M.merge(E,on='object_id',suffixes=('_tile','_run'),how='inner')
 print(f"joined {len(J):,} of {len(M):,} tile cells to the expression table on object_id\n", flush=True)

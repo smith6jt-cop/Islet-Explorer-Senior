@@ -49,7 +49,7 @@ MEDIAN_TILE = "--median-tile" in sys.argv
 PTFT = "--ptft" in sys.argv
 
 DONOR, TILE, MPP = "6539", 2048, 0.5
-RUN = "3bf4fc8e391d007766d1"
+RUN = "30f6689e4d27d295f890"
 MASK = "/data/codex_phenocycler/archive_2026-07-25/masks/6539.tif"
 CKPT = pathlib.Path.home() / ".deepcell" / "models" / (
     "deepcell-types_2026-06-23_resmlp_ptft.pt" if PTFT else "deepcell-types_2026-06-15_resmlp.pt")
