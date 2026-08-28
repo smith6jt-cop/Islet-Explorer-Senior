@@ -34,41 +34,46 @@ git -C external/UniFORM checkout 7c33396d12e5a19dc0b36e46a94c3293de0cd814
 pip install -e "core/phenocycler[uniform]"
 ```
 
-## Which run this reads, and why it does not matter
+## Which run this reads
 
-`core/phenocycler/data/runs/3bf4fc8e391d007766d1/expression/`. Three reasons, in order of
-how much they matter:
+`core/phenocycler/data/runs/30f6689e4d27d295f890/expression/` — the **only** run on disk, and
+what `data/runs/LATEST` names.
 
-1. **The choice is immaterial.** Both runs on disk carry the *same* expression stage — not
-   equivalent, identical: same inode, `content_sha256 86e148ed…`, 31,454,041 rows, same
-   `schema_sha256`. They diverge only at `controls` / `calibrate` / `type`, and this lane
-   reads none of those. `METHOD_HISTORY.md`'s judgement that `c8412757d12de36ca056` is
-   "evidence of a failed phenotyping implementation" is about its *assignments*; its
-   expression is the same bytes.
-2. `data/runs/LATEST` names it.
-3. ~~**It cannot be regenerated.**~~ **Fixed 2026-08-27.** The registry used to ask for
-   `measurement_source = qupath_norm` on CD68, Iba1 and M2Gal3, which needs
-   `QuPathNorm__<marker>` columns that do not exist in `cells/` (0 present) — so re-running
-   `expression` failed closed, and the expression on disk was the only expression there was.
-   Those three now take the `redsea` default their `redsea_corrected` spillover policy
-   already implied, so all 60 markers read one source and `expression` regenerates.
-   **Measured: no value changes.** The expectation was that those three markers would move
-   off QuPath's signed scale onto the REDSEA whole-cell mean, so Step 1 and Step 2 would have
-   to be recomputed for them. They do not move. Re-running `expression` on donor 6380 under
-   the corrected registry reproduces the old partition exactly — same 62 numeric columns,
-   same `object_id` order, every column `allclose`.
+An earlier version of this section argued the run choice was immaterial, because the two runs
+then on disk hardlinked the same `expression` bytes. Both were deleted at the maintainer's
+instruction (143 GB recovered), so there is nothing left to choose between, and the argument
+describes nothing. What replaces it is the property that actually matters:
 
-   The reason is that the requirement was never satisfied in the first place. `cells/` has
-   never carried a `QuPathNorm__` column, so the old run cannot have read one; the demand was
-   added to the registry *after* that run was built, and it is precisely what made the stage
-   un-regenerable. Removing it restores what the data always was rather than changing it.
-   Step 1 and Step 2 outputs therefore remain valid, and the re-run's value is provenance
-   alone: a run keyed to a clean commit instead of a dirty worktree.
+**This run is regenerable and the deleted one was not.** The registry used to ask for
+`measurement_source = qupath_norm` on CD68, Iba1 and M2Gal3, which needs `QuPathNorm__<marker>`
+columns that do not exist in `cells/` (0 present) — so re-running `expression` failed closed,
+and the expression on disk was the only expression there was. Those three now take the `redsea`
+default their `redsea_corrected` spillover policy already implied, so all 60 markers read one
+source and `expression` regenerates.
 
-Provenance caveat worth carrying: it was built 2026-08-05 from a **dirty** worktree at commit
-`ab9a578`, so its source is identified by `source_sha256 0c7489d2…` but is not reconstructible
-from a commit alone. `tests/` pins the content hash and row count, so swapping the run or
-mutating the stage fails a test rather than silently changing every number this lane produces.
+**Measured: no value changes.** The expectation was that those three markers would move off
+QuPath's signed scale onto the REDSEA whole-cell mean, so Step 1 and Step 2 would have to be
+recomputed for them. They do not move. Re-running `expression` under the corrected registry
+reproduces the old partitions exactly — same 62 numeric columns, same `object_id` order, every
+column `allclose`.
+
+The reason is that the requirement was never satisfied in the first place. `cells/` has never
+carried a `QuPathNorm__` column, so the old run cannot have read one; the demand was added to
+the registry *after* that run was built, and it is precisely what made the stage
+un-regenerable. Removing it restores what the data always was rather than changing it. That is
+also why `method_version` reads `selected-expression-v2-qupath-norm-inputs` while no number
+moved — it is a provenance marker, not a value change.
+
+Provenance: built 2026-08-28 from commit `0f5ea04` with a **dirty** worktree, so its source is
+identified by `source_sha256 0542e887…` rather than by the commit alone. Its manifests record
+a canonical `output.root`, so unlike the two deleted runs it is adoptable.
+
+`tests/` pins the content hash (`35fa90fa…`), the row count (31,454,041) and the agreement
+between `panel.RUN_ID` and `LATEST`, so swapping the run or mutating the stage fails a test
+rather than silently changing every number this lane produces. **Those two drifted apart once
+already** — the pin outlived the run it named, and every output under
+`data/development/celltype/` was unattributable until it was noticed. Repoint `RUN_ID`,
+`EXPRESSION_CONTENT_SHA256` and the outputs together, never one without the others.
 
 ## Why these statistics and not the obvious ones
 
@@ -277,6 +282,69 @@ Until QuPath is re-run on it, 6539 is excluded from peri-islet statistics **with
 recorded** — never averaged in, where it would read as a low-immune ND donor. Its
 whole-tissue denominator is wrong too, since nothing bounds its tissue. Both gaps are cheap
 fail-closed assertions that no stage currently makes.
+
+## What the 2026-08-28 regeneration found: the proliferating leaf is a PCNA background readout
+
+The lane was re-run end to end against run `30f6689e4d27d295f890` — the first run of the
+*current* code, since `run_islet.py` had not been re-run after the DAPI-ratio change. The
+call distribution moved sharply, and the cause is measured, not inferred.
+
+**What moved.** Over 1,351,845 islet-associated cells (up from 1,336,828 — the whole increase
+is donor 6539's repaired ring, +18,395 peri and −3,378 core; **every other donor's cell count
+is identical to the digit**):
+
+| call | before | after |
+|---|---:|---:|
+| `Exo-acinar-ductal-proliferating` | 10,598 | **293,606** |
+| `Epithelial` | 198,495 | 22,987 |
+| `Epi-exocrine` | 37,385 | 0 |
+| `Exo-acinar-ductal` | 33,996 | 0 |
+
+**Why.** `Exo-acinar-ductal-proliferating`'s requirement gate is `any of [Ki67, PCNA]`, and
+those two are the only thing separating it from `Exo-acinar-ductal` — the four epithelial
+`anypos` markers are identical between them. So the leaf is decided by PCNA. Measured
+fraction of islet-associated cells clearing `require_min = 0.10` on PCNA:
+
+| donor | DAPI ratio inert (now) | DAPI ratio applied (before) |
+|---|---:|---:|
+| 115 | **22.26%** | 6.92% |
+| 6374 | **21.84%** | 2.53% |
+| 6476 | **25.52%** | 9.94% |
+
+Ki67 barely moves either way (0.07–1.56%). 293,606 / 1,351,845 = **21.7%**, which is PCNA's
+pass rate. Making the DAPI ratio inert — correct on its own terms, because the ratio
+*manufactured* a TOX & E-cadherin association at 14.8× — raised PCNA's pass rate 3–9× and the
+leaf absorbed the epithelial compartment.
+
+**And PCNA cannot carry that call, by this lane's own Step 1 evidence.** Nothing here appeals
+to how many cells "should" be proliferating; these are the pre-registered statistics, each
+reported against its negative controls:
+
+| | `top1_signal_share` | `control_worst` | `morans_top1` |
+|---|---:|---:|---:|
+| **PCNA** | **0.0295** | **15.1** (max 62.7) | 0.031 |
+| Ki67 | 0.117 | 10.7 | 0.057 |
+| Ker8_18 | 0.050 | 0.075 | 0.104 |
+| CD20 | 0.030 | 4.2 | 0.062 |
+| DAPI (the "flat" reference) | 0.0200 | 1.5 | 0.040 |
+
+PCNA concentrates **2.95%** of its signal in its brightest 1% of cells — against DAPI's 1.9%,
+and DAPI is on every nucleus. Its *negative controls* overlap its bright tail at a median
+**15× chance**, two orders of magnitude worse than Ker8_18's 0.075×. Its top 1% is barely
+spatially structured. On the concentration and control axes PCNA is the flattest non-structural
+marker sampled, so a gate on it selects background, and a scale whose top is `p99.9` puts that
+background above `require_min` — exactly the inherited property recorded in the Step 3 notes
+above.
+
+**Nothing was changed in response.** Not `require_min`, not the encoding, not the rule table.
+Relaxing or tightening a pre-registered bar after seeing it fail is the failure that closed the
+DeepCellTypes lane, and it is not repeated here. What follows is a question for the maintainer,
+with three candidate answers that are all *declarations*, not tunings: drop `PCNA` from the
+proliferation gate and let `Ki67` carry it alone; make the proliferation split a `state` score
+beside the identity call rather than a competing leaf (decision #17's shape); or accept the
+leaf and rename it for what it measures. **Until that is settled, no epithelial or exocrine
+share from this lane means what its label says**, and the `Ambiguous` peri fraction — 24.38%,
+170,405 of 698,974, still zero in `core` by construction — is the number to quote instead.
 
 ## Files
 
