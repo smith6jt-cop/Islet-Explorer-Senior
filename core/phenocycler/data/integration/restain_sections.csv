@@ -1,0 +1,29 @@
+# Post-Xenium IF sections: which section each image is, and what each Opal channel stained.
+#
+# HAND-RECORDED BY THE MAINTAINER. Neither fact is in any file. The qptiff carries channel
+# NAMES (DAPI / Opal 570 / Opal 690 / Opal 520 / Sample AF) but no <Biomarker> tag, so the
+# antibody assignment exists nowhere else; and serials 0059865/0059907/0059947 each carry BOTH
+# a __Panc__ and a __pLN__ Xenium bundle, so no filename token settles the ROI either.
+#
+# A blank required cell is REFUSED, never guessed -- same rule as xenium_paths.csv. Tracked
+# for the same reason: an analysis that silently depends on an untracked mapping is an
+# analysis nobody can reproduce.
+#
+# channel_* values name the marker, or one of:
+#   FAILED     -- the stain did not work; the channel must never be used
+#   AF         -- autofluorescence; not a marker
+#   NUCLEUS    -- DAPI
+#
+# Recorded 2026-08-29 by smith6jt: Opal 570 FAILED and is never to be used; Sample AF
+# disregarded; Opal 690 = INS; Opal 520 = GCG.
+#
+# ROI: the maintainer confirms 2026-08-29 that the post-Xenium IF exported is PANCREAS ONLY.
+# That settles what no file could: each of serials 0059865/0059907/0059947 carries BOTH a
+# __Panc__ and a __pLN__ Xenium bundle, so the roi column here is a recorded fact, not an
+# inference from the filename. A pLN export would need its own row.
+image_file,donor_id,roi,xenium_serial,pixel_size_um,channel_dapi,channel_opal520,channel_opal570,channel_opal690,channel_sampleaf,recorded_by,recorded_on
+0059865_Scan1.qptiff,6539,panc,0059865,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
+0059907_Scan1.qptiff,6436,panc,0059907,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
+0059947_Scan1.qptiff,6442,panc,0059947,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
+HDL115_Scan1.qptiff,115,panc,0041117,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
+npod6591_Scan1.qptiff,6591,panc,0041116,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29

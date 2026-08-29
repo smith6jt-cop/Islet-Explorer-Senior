@@ -221,6 +221,9 @@ __marimo__/
 !/data/integration/xenium_paths.csv
 !/data/integration/donor_overrides.csv
 !/data/integration/vocab_crosswalk.csv
+# Hand-recorded by the maintainer and recorded nowhere else: the qptiff carries channel
+# names but no <Biomarker> tag, and a serial carries both a Panc and a pLN bundle.
+!/data/integration/restain_sections.csv
 /figures/
 /logs/
 *.h5ad

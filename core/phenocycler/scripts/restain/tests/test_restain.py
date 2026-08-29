@@ -9,6 +9,7 @@ import pathlib
 import sys
 
 import numpy as np
+import pandas as pd
 import pytest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -121,3 +122,79 @@ def test_enrichment_finds_a_planted_signal_and_refuses_a_flat_one():
     miss = VAL.enrichment(flat, xy, landmarks, draws=10)
     assert 0.8 < miss["ratio"] < 1.25
     assert not miss["clears_null"]
+
+
+# --------------------------------------------------------------------- the hormone channels
+import hormone as HZ                                             # noqa: E402
+
+
+def test_a_channel_recorded_failed_is_refused_not_read(tmp_path):
+    """`Opal 570` is recorded FAILED. A caller who does not know that must not be able to
+    read it by asking for it -- which is why the refusal lives in the accessor rather than in
+    a comment."""
+    row = pd.Series({"image_file": "x.qptiff", "channel_opal570": "FAILED",
+                     "channel_opal690": "INS", "channel_sampleaf": "AF"})
+    with pytest.raises(HZ.HormoneError, match="FAILED"):
+        HZ.channel_index(tmp_path / "x.qptiff", "FAILED", row)
+    with pytest.raises(HZ.HormoneError, match="must not be read"):
+        HZ.channel_index(tmp_path / "x.qptiff", "AF", row)
+
+
+def test_the_section_map_refuses_a_blank_rather_than_guessing(tmp_path):
+    """Both facts in this file are in no image. A blank is the one thing that must fail."""
+    good = ("image_file,donor_id,roi,xenium_serial,pixel_size_um\n"
+            "a.qptiff,6442,panc,0059947,0.25\n")
+    p = tmp_path / "ok.csv"; p.write_text(good)
+    assert len(HZ.load_section_map(p)) == 1
+    bad = tmp_path / "bad.csv"
+    bad.write_text("image_file,donor_id,roi,xenium_serial,pixel_size_um\na.qptiff,,panc,0059947,0.25\n")
+    with pytest.raises(HZ.HormoneError, match="blank"):
+        HZ.load_section_map(bad)
+
+
+def test_sampling_returns_nan_off_the_image_not_zero():
+    """A cell that fell off the edge is unavailable, not dark. A 0 would sort it to the
+    bottom of every rank and quietly bias the AUROC."""
+    img = np.full((50, 50), 7.0, dtype=np.float32)
+    vals = HZ.sample_cells(img, 1.0, np.array([[25.0, 25.0], [-100.0, -100.0], [999.0, 999.0]]),
+                           radius_um=2.0)
+    assert vals[0] == pytest.approx(7.0)
+    assert np.isnan(vals[1]) and np.isnan(vals[2])
+
+
+def test_auroc_is_rank_based_and_has_no_threshold():
+    perfect = HZ.auroc(np.array([1.0, 2, 3, 4]), np.array([False, False, True, True]))
+    assert perfect == pytest.approx(1.0)
+    inverted = HZ.auroc(np.array([4.0, 3, 2, 1]), np.array([False, False, True, True]))
+    assert inverted == pytest.approx(0.0)
+    # a channel that is flat scores 0.5 rather than being rewarded for its tie structure
+    flat = HZ.auroc(np.ones(100), np.arange(100) < 50)
+    assert flat == pytest.approx(0.5)
+
+
+def test_the_permutation_null_keeps_both_distributions_and_destroys_only_the_pairing():
+    rng = np.random.default_rng(0)
+    score = rng.normal(size=2000)
+    pos = score > 0.5                                   # perfectly paired
+    real = HZ.auroc_with_null(score, pos, draws=50)
+    assert real["auroc"] > 0.9 and real["clears_null"]
+    assert real["null_mean"] == pytest.approx(0.5, abs=0.05)
+    shuffled = HZ.auroc_with_null(score, rng.permutation(pos), draws=50)
+    assert not shuffled["clears_null"]
+
+
+def test_agreement_by_scale_separates_an_offset_from_structure_level_agreement():
+    """The diagnostic exists to tell those two apart, so it is checked on both.
+
+    A fixed OFFSET plateaus once the radius covers it; a purely large-scale correspondence
+    keeps climbing past the size of the structures.
+    """
+    rng = np.random.default_rng(1)
+    xy = rng.uniform(0, 400, size=(1500, 2))
+    block = ((xy[:, 0] // 100) + (xy[:, 1] // 100)) % 2      # 100 um chequerboard
+    rna = block + rng.normal(0, 2.0, len(xy))                # buried in per-cell noise
+    prot = block + rng.normal(0, 2.0, len(xy))
+    prof = HZ.agreement_by_scale(xy, rna, prot, radii_um=(0, 10, 50))
+    assert prof[0]["spearman"] < prof[-1]["spearman"], (
+        "averaging must recover a structure-level correspondence buried in per-cell noise")
+    assert prof[0]["radius_um"] == 0 and prof[0]["mean_neighbours"] == 1.0

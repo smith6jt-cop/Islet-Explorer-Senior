@@ -100,13 +100,92 @@ diagnostic, not a result about T1D.
 panel, which is the thin-panel trap decision #12 exists to prevent. It is reported rather than
 hidden, and it should not be quoted.
 
+## The hormone check: it does NOT deliver cell-level correspondence
+
+With the channel map recorded (`Opal 690 = INS`, `Opal 520 = GCG`, `Opal 570` FAILED,
+`Sample AF` disregarded), the same-cell question is now runnable:
+
+```bash
+../../.venv/bin/python scripts/restain/run_hormone.py
+```
+
+Neither side uses a threshold. The protein side is an AUROC. The RNA side's label is
+`beta_surrogate > alpha_surrogate` **within the same cell** — a contrast, not a gate — over
+cells already inside an islet, which is what makes it a test of *subtype* rather than of
+whether the registration found islets.
+
+| donor | informative cells | INS ranks beta-like | GCG ranks alpha-like | null |
+|---|---:|---:|---:|---|
+| 6436 | 6,034 (2,807 β / 3,227 α) | **0.533** | **0.517** | 0.500 [0.484, 0.513] |
+| 6442 | 6,212 (5,194 β / 1,018 α) | **0.574** | **0.562** | 0.500 [0.479, 0.521] |
+
+Both clear a label-permutation null, so the correspondence is real rather than chance. **But
+0.53–0.57 is far below the 0.75 this was pre-registered at, and the bar is not moved.** On the
+evidence below, the cell-level claim is not supported and should not be made.
+
+### Where the signal actually lives
+
+Spearman of the RNA contrast (β−α) against the protein contrast (INS−GCG), widening the
+neighbourhood:
+
+| radius | 0 (cell) | 10 µm | 20 µm | 30 µm | 50 µm | 80 µm | 120 µm |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 6442 | +0.074 | +0.103 | +0.154 | +0.197 | +0.231 | +0.266 | **+0.287** |
+| 6436 | +0.025 | +0.036 | +0.050 | +0.054 | +0.053 | +0.051 | +0.045 |
+
+This is the diagnostic that says how to read the AUROCs, and it rules out the comfortable
+explanation. A fixed registration **offset** would make agreement climb and then *plateau*
+once the radius exceeded the offset. 6442 instead climbs monotonically and is **still climbing
+at 120 µm, which is wider than an islet** — so what agrees is islet-to-islet, not cell-to-cell.
+6436 is flat at every scale. Neither is an alignment artefact that better registration would
+fix.
+
+### Why each donor falls short — different reasons
+
+| | 6436 | 6442 |
+|---|---|---|
+| islet-resident cells with ≥2 β genes detected | **5.7%** | 36.0% |
+| …with ≥2 α genes | 1.7% | 2.2% |
+| "informative" cells decided by a single transcript | **49.2%** | 26.4% |
+| protein INS~GCG ρ (should be negative) | **−0.387** | **+0.085** |
+| `Opal 570` (FAILED) ~ `Opal 690` (INS) ρ | +0.290 | **+0.712** |
+
+**6436's ceiling is the RNA side.** Its protein is clean — INS and GCG anticorrelate at
+−0.387, and GCG ranks INS-low cells at AUROC 0.687 — but only 5.7% of its islet cells detect
+two beta surrogates, and half its "informative" labels rest on one transcript.
+
+**6442's ceiling is the protein side.** Its RNA label is much deeper, but its two hormone
+channels do *not* anticorrelate, and its INS channel shares a **0.712** rank correlation with
+the channel recorded FAILED. Whatever is in a failed channel is background, so that is a
+caution about what `Opal 690` is measuring in that section.
+
+### Autofluorescence is reported, not applied
+
+The instruction is to disregard `Sample AF`, so the headline numbers are raw. But it is not
+inert and that is recorded rather than argued: `Sample AF ~ Opal 690` is +0.50 (6442) / +0.44
+(6436), and regressing it out moves 6442's INS~GCG from **+0.085 to −0.006**. It does *not*
+rescue the AUROC (0.574 → 0.570), so AF is not the cap.
+
+`Sample AF` is **clipped at 255 in 18.1% (6442) and 28.8% (6436)** of islet-resident cells, so
+a linear AF correction is not even well defined there — the covariate is censored exactly
+where it is largest. Every AUROC ships with these numbers beside it.
+
 ## What this does not yet do
 
-The hormone AUROC — *does protein INS, on the same cell, rank Xenium-called Beta cells above
-non-Beta?* — needs the **Opal ↔ antibody assignment**, and that is in none of the five qptiffs:
-they carry `DAPI, Opal 570, Opal 690, Opal 520, Sample AF` and **no `<Biomarker>` tag**. Three
-stainable channels, unlabelled. Only the maintainer can supply that, and until then this lane
-reads geometry, never intensity.
+**Cell-level protein↔RNA typing.** The measurement above runs, clears its null, and does not
+reach the bar; the scale profile says the agreement is structure-level. So this lane currently
+supports islet-level cross-modality claims and **not** per-cell ones. What would change that
+is on the two ceilings above — a deeper RNA endocrine label, and a hormone channel not sharing
+0.7 with a failed one — not a better transform.
+
+**pLN.** The exports are **pancreas only** (maintainer, 2026-08-29), which is what settles the
+ROI column: each of serials 0059865/0059907/0059947 carries both a `__Panc__` and a `__pLN__`
+Xenium bundle, so the ROI was never derivable from the filename. A lymph-node export would
+need its own row in `restain_sections.csv`.
+
+**The other three sections.** `0059865` (6539), `HDL115` (115) and `npod6591` (6591) have
+qptiffs but no GeoJSON export yet. The registration half runs on them unchanged as soon as
+they exist.
 
 ## Files
 
@@ -114,5 +193,7 @@ reads geometry, never intensity.
 |---|---|
 | `geo.py` | the exports in microns, the islet size filter, the scale guard, polygon rasterisation |
 | `validate.py` | the endocrine gene-set score, the neighbourhood test and its placement null |
+| `hormone.py` | the channel map, per-cell sampling, AUROC + label-permutation null, the AF and saturation diagnostics, and `agreement_by_scale` |
+| `run_hormone.py` | driver → `data/development/restain/hormone_panc.json` |
 | `run_register.py` | driver → `data/development/restain/registration_panc.json` |
 | `tests/` | the machinery on geometry whose answer is arithmetic — no export or bundle needed |
