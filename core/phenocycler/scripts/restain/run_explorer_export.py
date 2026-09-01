@@ -516,10 +516,11 @@ def bundle_readme(m: dict) -> str:
         "this matrix puts them. Displayed from 0, not from a percentile black point, so the "
         "background you see is the background that is there.",
         "* **Right panel.** The shipped hormone channel with the shipped islet outlines on top. "
-        "This is the panel that shows what the AUROC table above is reporting: on 6442 the "
-        "outlines sit on an obviously INS-bright island; on 6436 they do not, and 6436's INS "
-        "channel looks much the same inside an islet as outside one. Both donors register "
-        "equally well, so that difference is in the staining, not in the alignment.",
+        "On 6442 the outlines sit on an obviously INS-bright island. On 6436 they do not — but "
+        "read that with `channel_check_<donor>_<serial>.png`, not on its own: 6436's islets are "
+        "marked at 66x by **Opal 520**, the channel recorded GCG, while **Opal 690**, the channel "
+        "recorded INS, carries no islet signal on that section (2.2x). Which of those two facts "
+        "is the error is unresolved, so this bundle is on hold.",
         "",
         "## What is deliberately not here",
         "",

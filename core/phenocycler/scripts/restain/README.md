@@ -253,9 +253,30 @@ result but two, and the difference is the point:
   is a registration that was previously costing real signal.
 * **6436 did not move at all** (0.533 → 0.514), and its zero-radius agreement is +0.055. Its
   registration is not the reason: `bundle_qc.png` shows its alignment peaking at zero offset
-  exactly as 6442's does. Its **INS channel simply does not distinguish islet from exocrine** —
-  the right-hand panel of that sheet shows the islet outlines sitting on nothing in particular.
-  That is a staining or section fact about 6436, and no transform addresses it.
+  exactly as 6442's does.
+
+**The first reading of that — "6436's staining does not distinguish islets" — was wrong, and
+`channel_check.py` is what corrects it.** 6436 has an excellent islet channel. It is **Opal 520**,
+the one recorded GCG, at **66× inside islets against elsewhere**; and it is **Opal 690**, the one
+recorded INS, that carries no islet signal (2.2×, p99.9 of 15 counts against 98 for Opal 520).
+Measured in the qptiff's own frame against the maintainer's own polygons, with no registration in
+the path at all:
+
+| donor | DAPI | Opal 570 (FAILED) | Opal 690 (INS) | Opal 520 (GCG) |
+|---|---:|---:|---:|---:|
+| 6436 | 1.4× | 1.9× | **2.2×** | **66.0×** |
+| 6442 | 1.1× | 117× | **17.1×** | **401×** |
+
+On 6442 both hormone channels are islet-restricted and visibly complementary *within* one islet,
+which is what INS and GCG should look like. On 6436 exactly one of the two worked, and it is not
+the one the AUROC was reading as INS. Whether that means the recorded mapping is wrong for this
+section or that its INS stain failed is **the maintainer's recorded fact to resolve, not a
+measurement** — `restain_sections.csv` is hand-recorded precisely because it is in no file.
+
+Note also, from the same sweep across all five recorded sections: `Opal 570` is recorded FAILED on
+every row, but on donors 115 (0041117) and 6591 (0041116) — the other acquisition batch — it
+carries a p99.9 of 253 and 156 against 0–1 on the three nPOD-batch sections. The blanket FAILED
+recording is a nPOD-batch fact that may not extend to those two.
 
 `agreement_by_scale` still climbs monotonically to 120 µm on both donors, which remains the
 reason to read this lane as supporting islet-level cross-modality claims and not per-cell ones.
