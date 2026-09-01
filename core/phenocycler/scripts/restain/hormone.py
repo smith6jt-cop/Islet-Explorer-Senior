@@ -96,6 +96,11 @@ def channel_index(qptiff: Path, marker: str, row: pd.Series) -> int:
     if str(row[col]).strip().upper() in UNUSABLE:
         raise HormoneError(f"{col} is recorded {row[col]!r} for {row['image_file']} "
                            "and must not be read")
+    return _page_for_column(qptiff, col)
+
+
+def _page_for_column(qptiff: Path, col: str) -> int:
+    """Page index whose qptiff ``<Name>`` matches the registry column ``col``."""
     want = col.replace("channel_", "")                 # e.g. 'opal690'
     names = channel_names(qptiff)
     norm = [re.sub(r"[^a-z0-9]", "", n.lower()) for n in names]
@@ -103,6 +108,31 @@ def channel_index(qptiff: Path, marker: str, row: pd.Series) -> int:
         if n == want:
             return i
     raise HormoneError(f"{qptiff.name} has channels {names}; none matches {want!r}")
+
+
+def channel_index_for_role(qptiff: Path, row: pd.Series, role: str) -> int | None:
+    """Page index of the channel recorded with role ``role`` (e.g. ``"AF"``), or ``None``.
+
+    Separate from :func:`channel_index` because ``UNUSABLE`` means "never read as a MARKER",
+    not "never read at all": the AF channel is a covariate and the FAILED one is a diagnostic,
+    and both must still be found the way every other channel is -- by the qptiff's own
+    ``<Name>`` XML, never by position.
+
+    This replaces a zip of the file's page order against a hardcoded list of registry columns.
+    That was correct only for the five sections recorded so far, and the first section
+    acquired in a different channel order would have regressed the wrong covariate out with no
+    error and no test to catch it.
+    """
+    hits = [k for k, v in row.items()
+            if isinstance(k, str) and k.startswith("channel_")
+            and str(v).strip().upper() == role.strip().upper()]
+    if not hits:
+        return None
+    if len(hits) > 1:
+        raise HormoneError(
+            f"{row['image_file']} records role {role!r} on {len(hits)} channels ({sorted(hits)}); "
+            "the registry is hand-recorded and an ambiguous role is refused, never picked.")
+    return _page_for_column(qptiff, hits[0])
 
 
 def channel_names(qptiff: Path) -> list[str]:

@@ -90,7 +90,17 @@ def donor_of(serial: str, xenium_paths: Path) -> str:
 
 
 def register_one(serial: str, gj: Path, *, xenium_paths: Path = XENIUM_PATHS,
-                 roi: str = "panc") -> dict:
+                 roi: str = "panc", transform=None) -> dict:
+    """Fit the tissue-outline registration, or SCORE one the caller already has.
+
+    ``transform`` short-circuits the fit. Two reasons, and the second is the important one:
+
+    * The coarse-orientation search is 72 angles x 2 mirror hypotheses plus two ECC passes, and
+      a caller measuring a different registration was paying for it and throwing it away.
+    * ``dice_after`` is then measured on the transform actually under test. It used to report
+      the ECC fit's Dice beside another registration's residual, which is two registrations in
+      one record with nothing saying so.
+    """
     donor = donor_of(serial, xenium_paths)
     ann = geo.load_annotations(gj)
     tissue = geo.tissue_polygon(ann)
@@ -106,7 +116,11 @@ def register_one(serial: str, gj: Path, *, xenium_paths: Path = XENIUM_PATHS,
     fixed = geo.rasterize([tissue], grid)          # IF: the drawn tissue outline
     moving = RZ.tissue_mask(dd.xy, grid)           # Xenium: the cell footprint
     before = RG.dice(moving, fixed)
-    res = RG.register_image(moving, fixed, grid, nonrigid=False)
+    if transform is None:
+        res = RG.register_image(moving, fixed, grid, nonrigid=False)
+    else:
+        res = RG.RegistrationResult(transform=transform, track="image", grid=grid)
+        res.notes.append("transform supplied by the caller; no tissue-outline fit was run")
     after = RG.dice(res.transform.warp_mask(moving, grid), fixed)
 
     return {

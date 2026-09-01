@@ -76,6 +76,18 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
     if not qptiff.exists():
         raise HZ.HormoneError(f"{qptiff} is absent")
 
+    # ONE pixel size, used at BOTH ends of the sampling path. `geo.PIXEL_UM` turned the
+    # annotations into the microns this registration was fitted in; `pixel_um` turns those
+    # microns back into pixels of the image being read. If they differ the two are no longer
+    # inverses, and the residual is a displacement proportional to the coordinate -- ~0 at the
+    # image origin, growing across the slide -- which no fitted affine can absorb, because it
+    # happens after the transform.
+    pixel_um = float(row.pixel_size_um)
+    if pixel_um != geo.PIXEL_UM:
+        raise HZ.HormoneError(
+            f"{row.image_file} records pixel_size_um={pixel_um} but annotations were scaled "
+            f"by geo.PIXEL_UM={geo.PIXEL_UM}. These must be the same number.")
+
     # Xenium cells -> IF frame. The transform maps moving (Xenium) -> fixed (IF), so this is
     # the forward direction and no inverse is involved.
     xy_if = res.transform.apply(dd.xy)
@@ -93,6 +105,7 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
 
     out = dict(rec)
     out["hormone"] = {"qptiff": str(qptiff), "target_um": TARGET_UM,
+                      "pixel_size_um_recorded": pixel_um,
                       "sample_radius_um": HZ.SAMPLE_RADIUS_UM,
                       "n_islet_resident": int(resident.sum()),
                       "n_informative": int(informative.sum()),
@@ -106,7 +119,8 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
     names = HZ.channel_names(qptiff)
     per_channel: dict[str, np.ndarray] = {}
     for i, nm in enumerate(names):
-        img, um_px = read_qptiff_channel(qptiff, i, target_um=TARGET_UM)
+        img, um_px = read_qptiff_channel(qptiff, i, target_um=TARGET_UM,
+                                         base_um_per_px=pixel_um)
         per_channel[nm] = HZ.sample_cells(img, um_px, xy_if)
         out["hormone"].setdefault("um_per_px", float(um_px))
         del img
@@ -114,10 +128,8 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
     out["hormone"]["diagnostics"] = HZ.channel_diagnostics(
         {k: v[resident] for k, v in per_channel.items()})
 
-    af_name = next((n for n, c in zip(names, ["channel_dapi", "channel_opal570",
-                                              "channel_opal690", "channel_opal520",
-                                              "channel_sampleaf"])
-                    if str(row.get(c, "")).strip().upper() == "AF"), None)
+    af_ch = HZ.channel_index_for_role(qptiff, row, "AF")
+    af_name = None if af_ch is None else names[af_ch]
     for marker, positive_is_beta in (("INS", True), ("GCG", False)):
         ch = HZ.channel_index(qptiff, marker, row)
         vals = per_channel[names[ch]][informative]

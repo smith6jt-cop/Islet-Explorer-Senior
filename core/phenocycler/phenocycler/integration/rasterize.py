@@ -271,6 +271,7 @@ def read_qptiff_channel(
     *,
     target_um: float = 2.0,
     default_um_per_px: float = 0.5,
+    base_um_per_px: float | None = None,
 ) -> tuple[np.ndarray, float]:
     """One channel of a PhenoCycler ``.qptiff`` at approximately ``target_um`` per pixel.
 
@@ -279,6 +280,22 @@ def read_qptiff_channel(
     Pyramid-aware and single-channel by construction: it reads the level whose resolution is
     closest to the target, and only the requested channel, so memory stays bounded no matter
     how large the slide is.
+
+    ``base_um_per_px`` overrides the full-resolution scale that would otherwise be derived
+    from the ``XResolution`` tag.  Pass it whenever the caller already holds a **recorded**
+    pixel size, because the returned ``um_per_px`` is what converts microns back into pixels
+    of this image -- and if that conversion disagrees with the one that put the caller's
+    geometry into microns in the first place, the two are no longer inverses.  The gap does
+    not appear as a scale error: it is a displacement proportional to the coordinate, so it
+    is ~0 near the image origin and grows across the slide, which is exactly the shape of
+    error a registration cannot absorb because it happens after the transform.
+
+    Measured on ``0059947_Scan1.qptiff``: the tag gives 0.2504699 um/px where the qptiff's own
+    XML and ``restain_sections.csv`` both record 0.25, and that 0.188% put cells up to ~34 um
+    from where they are at the far corner of the section -- about 3.6 Xenium cell diameters.
+    The tag itself is not broken; the PhenoCycler cohort qptiffs use the same clamped-numerator
+    encoding and reproduce their independently measured 0.5078 um/px.  Two sources merely
+    disagree, and the caller that knows which one its geometry is in should say so.
     """
     import tifffile
 
@@ -291,6 +308,12 @@ def read_qptiff_channel(
             shapes.append((shp[-2], shp[-1]))
 
         um_per_px = default_um_per_px
+        if base_um_per_px is not None:
+            if not (float(base_um_per_px) > 0.0):
+                raise ValueError(
+                    f"base_um_per_px must be positive, got {base_um_per_px!r}"
+                )
+            um_per_px = float(base_um_per_px)
         try:
             page = tif.pages[0]
             tags = page.tags
@@ -301,7 +324,7 @@ def read_qptiff_channel(
                     unit = tags["ResolutionUnit"].value if "ResolutionUnit" in tags else 3
                     # 3 == centimetre, 2 == inch (TIFF ResolutionUnit)
                     per_cm = px_per_unit if int(unit) == 3 else px_per_unit / 2.54
-                    if per_cm > 0:
+                    if per_cm > 0 and base_um_per_px is None:
                         um_per_px = 10_000.0 / per_cm
         except Exception:  # noqa: BLE001 - resolution tags are frequently absent/odd
             pass

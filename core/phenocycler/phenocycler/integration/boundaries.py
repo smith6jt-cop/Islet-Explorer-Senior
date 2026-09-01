@@ -177,14 +177,105 @@ def _find_geojson(cfg: PipelineConfig, cells: pd.DataFrame) -> Optional[Path]:
     return path if path.exists() else None
 
 
-def load_xenium_polygons(source: Path, *, cell_ids=None):
+#: 10x writes both boundary tables in the same long format, one row per vertex, with a
+#: ``label_id`` that is the RING key -- not the cell key.  In ``cell_boundaries.parquet`` the
+#: two coincide (958,744 labels over 958,744 cells on donor 6442).  In
+#: ``nucleus_boundaries.parquet`` they do NOT: 958,918 labels over 907,352 cells, up to 6
+#: labels on one cell, because a cell may hold more than one nucleus and a cell with none is
+#: simply absent.  Splitting rings on ``label_id`` is therefore exact; splitting them by
+#: looking for a vertex that repeats the group's first vertex silently FUSES the 2nd..nth
+#: nucleus of every multi-nucleus cell -- measured, 47,120 cells on donor 6442.
+_BOUNDARY_COLUMNS = ("cell_id", "vertex_x", "vertex_y")
+
+
+def _read_boundary_rings(path: Path, *, label_ids=None):
+    """Long vertex table -> (cell_id per ring, label_id per ring, ring geometries).
+
+    Vectorised on purpose.  The previous body read the whole table with ``pd.read_parquet``
+    and built one ``Polygon`` per cell in a Python ``groupby`` loop; on donor 6442 that is
+    23,951,541 rows and ~3.7 minutes, and passing ``cell_ids`` did not help because the filter
+    was an ``.isin`` on the long table, applied AFTER the full read.
+
+    ``shapely.linearrings(coords, indices=)`` then ``shapely.polygons(rings)`` is the correct
+    pair.  ``shapely.polygons(coords, indices=)`` raises ("geometries must be a
+    one-dimensional array"), and ``shapely.polygons(rings, indices=)`` turns the second ring
+    of a group into a HOLE -- an area-zero polygon rather than an error.
+    """
+    import shapely
+
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        pf = pq.ParquetFile(path)
+        available = set(pf.schema_arrow.names)
+        missing = [c for c in _BOUNDARY_COLUMNS if c not in available]
+        if missing:
+            raise BoundaryError(f"{path} lacks {missing}")
+        cols = list(_BOUNDARY_COLUMNS) + (["label_id"] if "label_id" in available else [])
+        tbl = pq.read_table(path, columns=cols)          # column pushdown: 4 of N columns
+        cell_id = tbl.column("cell_id").to_numpy(zero_copy_only=False).astype(str)
+        vx = tbl.column("vertex_x").to_numpy(zero_copy_only=False).astype(np.float64)
+        vy = tbl.column("vertex_y").to_numpy(zero_copy_only=False).astype(np.float64)
+        lab = (tbl.column("label_id").to_numpy(zero_copy_only=False)
+               if "label_id" in cols else None)
+    else:
+        df = pd.read_csv(path)
+        missing = [c for c in _BOUNDARY_COLUMNS if c not in df.columns]
+        if missing:
+            raise BoundaryError(f"{path} lacks {missing}")
+        cell_id = df["cell_id"].astype(str).to_numpy()
+        vx = df["vertex_x"].to_numpy(np.float64)
+        vy = df["vertex_y"].to_numpy(np.float64)
+        lab = df["label_id"].to_numpy() if "label_id" in df.columns else None
+
+    if lab is None:
+        # No ring key: fall back to runs of equal cell_id, which is what the long format
+        # guarantees. This cannot separate two nuclei of one cell, so it is only ever
+        # reached for a boundary table that is 1:1 with cells.
+        key = cell_id
+    else:
+        key = np.asarray(lab)
+
+    if label_ids is not None:
+        if lab is None:
+            raise BoundaryError(f"{path} has no label_id column to select on")
+        keep = np.isin(key, np.asarray(list(label_ids)))
+        key, cell_id, vx, vy = key[keep], cell_id[keep], vx[keep], vy[keep]
+
+    if key.size == 0:
+        return np.empty(0, dtype=object), np.empty(0, dtype=np.int64), np.empty(0, dtype=object)
+
+    # Runs, not groupby: the table is written ring-major, so equal keys are contiguous.
+    # Verified rather than assumed -- a re-sorted file would otherwise fragment every ring.
+    starts = np.flatnonzero(np.r_[True, key[1:] != key[:-1]])
+    lengths = np.diff(np.r_[starts, key.size])
+    if len(np.unique(key)) != len(starts):
+        raise BoundaryError(
+            f"{path} is not grouped by ring: {len(starts)} runs over {len(np.unique(key))} "
+            "distinct keys. Vertices of one ring must be contiguous.")
+
+    long_enough = lengths >= 3            # a ring needs 3 distinct vertices to have an area
+    ring_index = np.repeat(np.arange(starts.size), lengths)
+    vertex_keep = np.repeat(long_enough, lengths)
+    compact = np.cumsum(long_enough) - 1
+
+    coords = np.column_stack([vx[vertex_keep], vy[vertex_keep]])
+    rings = shapely.linearrings(coords, indices=compact[ring_index[vertex_keep]])
+    geoms = shapely.polygons(rings)
+    return cell_id[starts][long_enough], key[starts][long_enough], geoms
+
+
+def load_xenium_polygons(source: Path, *, cell_ids=None, label_ids=None):
     """Xenium ``cell_boundaries.parquet`` -> ``GeoSeries`` indexed by ``cell_id``, in microns.
 
     Long format upstream — one row per vertex — so vertices are grouped per cell and closed
     into polygons. Already in microns, so no scale fit is needed or wanted.
+
+    ``label_ids`` selects by the table's own 1-based ring key and is pushed down; ``cell_ids``
+    still filters after the read, because the cell key is a string column and selecting on it
+    cheaply would mean carrying a second index this lane does not have.
     """
     gpd = _require_geo()
-    from shapely.geometry import Polygon
 
     src = Path(source)
     path = src if src.is_file() else _find_xenium_boundaries(src)
@@ -193,26 +284,46 @@ def load_xenium_polygons(source: Path, *, cell_ids=None):
             f"no cell_boundaries.parquet / .csv.gz under {src} — it ships in the Xenium "
             f"output bundle; the zarr and the phenotyped h5ad do not carry polygons")
 
-    df = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
-    need = {"cell_id", "vertex_x", "vertex_y"}
-    if not need <= set(df.columns):
-        raise BoundaryError(f"{path} lacks {sorted(need - set(df.columns))}")
-    df["cell_id"] = df["cell_id"].astype(str)
+    ids, _labels, geoms = _read_boundary_rings(path, label_ids=label_ids)
     if cell_ids is not None:
-        df = df[df["cell_id"].isin(set(map(str, cell_ids)))]
+        want = set(map(str, cell_ids))
+        keep = np.array([i in want for i in ids], dtype=bool)
+        ids, geoms = ids[keep], geoms[keep]
+    return gpd.GeoSeries(list(geoms), index=pd.Index(list(ids), name="cell_id"))
 
-    ids, geoms = [], []
-    for cid, sub in df.groupby("cell_id", sort=False):
-        xy = sub.loc[:, ["vertex_x", "vertex_y"]].to_numpy(float)
-        if len(xy) < 3:
-            continue
-        ids.append(cid)
-        geoms.append(Polygon(xy))
-    return gpd.GeoSeries(geoms, index=pd.Index(ids, name="cell_id"))
+
+def load_xenium_nucleus_polygons(source: Path, *, label_ids=None):
+    """Xenium ``nucleus_boundaries.parquet`` -> ``(GeoSeries, cell_id array)``, in microns.
+
+    One entry per NUCLEUS, not per cell: the GeoSeries is indexed by the nucleus ``label_id``
+    and the returned array says which cell each belongs to.  A cell with two nuclei appears
+    twice; a cell with none does not appear at all, which is why the caller is handed the
+    cell ids rather than being left to infer them.
+    """
+    gpd = _require_geo()
+
+    src = Path(source)
+    path = src if src.is_file() else _find_xenium_nucleus_boundaries(src)
+    if path is None:
+        raise BoundaryError(
+            f"no nucleus_boundaries.parquet / .csv.gz under {src} — it ships in the Xenium "
+            f"output bundle alongside cell_boundaries.parquet")
+    ids, labels, geoms = _read_boundary_rings(path, label_ids=label_ids)
+    series = gpd.GeoSeries(list(geoms), index=pd.Index(list(labels), name="label_id"))
+    return series, np.asarray(ids, dtype=object)
 
 
 def _find_xenium_boundaries(bundle: Path) -> Optional[Path]:
     for name in ("cell_boundaries.parquet", "cell_boundaries.csv.gz", "cell_boundaries.csv"):
+        p = Path(bundle) / name
+        if p.exists():
+            return p
+    return None
+
+
+def _find_xenium_nucleus_boundaries(bundle: Path) -> Optional[Path]:
+    for name in ("nucleus_boundaries.parquet", "nucleus_boundaries.csv.gz",
+                 "nucleus_boundaries.csv"):
         p = Path(bundle) / name
         if p.exists():
             return p
