@@ -18,7 +18,15 @@ cd core/phenocycler
 ../../.venv/bin/python scripts/restain/run_align.py --transform refined      # the gate
 ../../.venv/bin/python scripts/restain/refine_figures.py --donors 6436 6442
 ../../.venv/bin/python scripts/restain/align_figures.py --transform refined
-../../.venv/bin/python -m pytest -q scripts/restain/tests                    # 52 passed
+../../.venv/bin/python -m pytest -q scripts/restain/tests                    # 78 passed
+```
+
+Then, to hand the result to someone who has Xenium Explorer and none of this:
+
+```bash
+../../.venv/bin/python scripts/restain/run_hormone.py --donors 6436 6442 --transform refined
+../../.venv/bin/python scripts/restain/run_explorer_export.py --donors 6436 6442
+../../.venv/bin/python scripts/restain/explorer_figures.py --donors 6436 6442
 ```
 
 Inputs are the maintainer's QuPath exports under `~/IO60panc2nd/PostXeniumIHC/`, the IF qptiffs,
@@ -223,22 +231,95 @@ The classifier emits thousands of sub-cell fragments beside the real islets:
 The median object is one cell wide. Filtered, the counts land in the range the PhenoCycler cohort
 shows (67–1,304 islets per donor).
 
-## The downstream checks have NOT been re-run
+## The hormone check, re-run on this transform — and it still does not reach the bar
 
-Everything below was measured on the **tissue-outline** transform, which this work now measures at
-31–42 µm — three to four cell diameters. They are kept for the record and **must not be read as
-current results**; re-running them on the new transform is deliberately out of scope for this pass.
+`run_hormone.py --transform refined` → `hormone_panc_refined.json`. Same AUROC, same null, same
+pre-registered bar of 0.75; only the registration changed. (The `ecc` numbers on disk carried two
+defects at once — 31–42 µm of misregistration *and* `um_per_px = 1.0018796`, the qptiff resolution
+tag rather than the recorded 0.25 — so they were never a usable "before". The `base_um_per_px`
+guard now in `read_qptiff_channel` closes the second one.)
+
+| | INS ranks beta-like | | GCG ranks alpha-like | |
+|---|---:|---:|---:|---:|
+| | ecc (31–42 µm) | **refined (0.55 µm)** | ecc | **refined** |
+| 6436 | 0.533 | **0.514** | 0.517 | **0.522** |
+| 6442 | 0.574 | **0.657** | 0.562 | **0.728** |
+
+**The bar is not met on either donor and it is not moved.** What the two rows say is not one
+result but two, and the difference is the point:
+
+* **6442 moved a long way and in the right direction** — GCG 0.562 → 0.728, and
+  `agreement_by_scale` at zero radius went **+0.074 → +0.486**. A registration fix producing that
+  is a registration that was previously costing real signal.
+* **6436 did not move at all** (0.533 → 0.514), and its zero-radius agreement is +0.055. Its
+  registration is not the reason: `bundle_qc.png` shows its alignment peaking at zero offset
+  exactly as 6442's does. Its **INS channel simply does not distinguish islet from exocrine** —
+  the right-hand panel of that sheet shows the islet outlines sitting on nothing in particular.
+  That is a staining or section fact about 6436, and no transform addresses it.
+
+`agreement_by_scale` still climbs monotonically to 120 µm on both donors, which remains the
+reason to read this lane as supporting islet-level cross-modality claims and not per-cell ones.
+
+## `validate.py` has NOT been re-run
 
 *IF islets against Xenium endocrine RNA* (`validate.py`, `registration_panc.json`): 6442 17.30×
 inside vs elsewhere, 6436 2.83×, against a placement null of ~0.117. 6436's alpha and beta moved
 together (2.83× / 2.89×) where 6442's did not (6.33× / 25.38×), and `validate.py`'s own docstring
-calls that the signature of a mask landing partly off-target.
+calls that the signature of a mask landing partly off-target. Those numbers were measured on the
+**tissue-outline** transform and **must not be read as current**.
 
-*The hormone check* (`hormone.py`, `hormone_panc.json`): INS ranks beta-like at AUROC 0.533 (6436)
-and 0.574 (6442) against a pre-registered bar of 0.75, and `agreement_by_scale` climbs monotonically
-out to 120 µm on 6442. `hormone_panc.json` also records `um_per_px = 1.0018796` — the qptiff
-resolution tag, not the recorded 0.25 — so it carries a second defect besides the transform and is
-not usable as a "before" without regenerating it.
+## Handing it to a colleague — the Xenium Explorer bundle
+
+`run_explorer_export.py` writes, per donor, a directory that needs neither this repository nor
+this environment: `data/development/restain/explorer_bundle/donor_<id>_<serial>/`.
+
+| file | what it is |
+|---|---|
+| `images/<serial>_IF.ome.tif` | DAPI + INS + GCG, pyramidal, tiled 1024, 0.25 µm/px, lossless — 10x's stated requirement for an importable post-Xenium image. 2.1–2.5 GB. Opal 570 (FAILED) and Sample AF are **not in the file**; `manifest.json` records that they exist and why they were dropped |
+| `images/<serial>_IF_imagealignment.csv` | the 3x3 row-major matrix, no header, last row `0,0,1`, mapping **IF image pixels → Xenium morphology pixels**. Also valid input to `xeniumranger import-segmentation` and `spatialdata_io.xenium_aligned_image` |
+| `annotations/tissue_islet_xenium_microns.{geojson,csv}` | `Tissue` and the ≥50 µm `Islet` polygons, warped into Xenium microns, class labels kept |
+| `cell_groups/*.csv` | `cell_id,group,color` for all 695,113 (6436) and 958,744 (6442) cells: islet membership, and the two hormone channels |
+| `README.md`, `manifest.json`, `bundle_qc.png` | the instructions, the provenance, and the proof |
+
+**The direction of the matrix is the one thing here that cannot be recovered by a careful
+reader**, so it is derived rather than assumed. This lane's affine maps Xenium µm → IF µm;
+Explorer wants IF px → Xenium px, so the matrix is `S_xen⁻¹ · A⁻¹ · S_if`. Three sources agree on
+the target: 10x's file format doc (0.2125 µm/px, origin at the image's upper left, "divide by the
+pixel size"), 10x's alignment doc ("row-major", "units are in pixels"), and `spatialdata_io`,
+which reads the CSV `header=None` and applies it as an `Affine` into the frame it puts Xenium
+geometry in by scaling microns by `1/pixel_size`. `S_if` carries the **measured** box-mean pixel
+origin; dropping it is a flat 0.125 µm per axis, and a test plants exactly that.
+
+One convention is genuinely unresolved and is recorded rather than assumed away: no 10x document
+says whether Explorer indexes an imported image by pixel corner or centre. That is ±0.125 µm.
+
+**`bundle_qc.png` checks the bundle the way the colleague will read it** — from the shipped
+OME-TIFF, the shipped CSV and the shipped GeoJSON only, never from the transform that made them,
+so it is able to disagree with them. Mean DAPI at Xenium nucleus centroids against a planted
+offset:
+
+| donor | at 0 µm | between nuclei | ratio | argmax |
+|---|---:|---:|---:|---:|
+| 6436 | 49.52 | 22.38 | 2.21× | **0 µm** |
+| 6442 | 39.76 | 19.08 | 2.08× | **0 µm** |
+
+Both curves fall to the floor by 4 µm and dip *below* it at 6 µm — one nucleus radius out lands in
+the gap between nuclei. A merely-plausible alignment does not produce that shape.
+
+## What the bundle refuses to claim
+
+The maintainer's rule for this export is that a per-cell hormone-positive label ships only if the
+check it rests on clears the bar that check was pre-registered at. Neither marker does, on either
+donor, so **no cell in either bundle is called INS+ or GCG+**. Both channels ship as deciles of
+the measured intensity, per donor, on that donor's own distribution, and the bundle README says in
+its own words that a `d10` cell is a cell where a channel read high and nothing more.
+
+The other branch is implemented and tested, not hypothetical: `_hormone_groups(..., cleared=True)`
+fits a two-component mixture to the donor's own log intensity and emits `INS_positive` /
+`INS_negative`. Which branch runs is read out of `hormone_panc_refined.json`. A test plants the
+same bimodal data at mixing weights of 5 %, 25 % and 50 % and requires the threshold to move by
+less than 0.5 in log space — the fit is not steered by how many cells come out positive, which is
+what the repository's no-frequency rule actually requires.
 
 ## Files
 
@@ -257,6 +338,9 @@ not usable as a "before" without regenerating it.
 | `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
 | `validate.py` / `hormone.py` / `run_hormone.py` | the downstream checks (not re-run — see above) |
 | `run_register.py` | the tissue-outline registration; also scores a supplied transform |
-| `tests/` | 52 tests, all on synthetic geometry — no export or bundle needed |
+| `explorer.py` | the Xenium Explorer file formats: the 3x3 matrix, the OME-TIFF, the annotations, the cell groups, the threshold |
+| `run_explorer_export.py` | driver, the AUROC gate and the bundle README -> `explorer_bundle/donor_<id>_<serial>/` |
+| `explorer_figures.py` | `bundle_qc.png`, drawn from the shipped files only |
+| `tests/` | 78 tests, all on synthetic geometry — no export or bundle needed |
 
 `data/development/restain/valis_baseline/` holds the 2026-08-31 arm this replaced.

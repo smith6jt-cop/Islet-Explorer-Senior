@@ -42,6 +42,12 @@ SECTIONS = HERE.parents[1] / "data" / "integration" / "restain_sections.csv"
 #: across a Xenium cell, which is enough to average over the cell rather than one pixel.
 TARGET_UM = 1.0
 
+#: The bar this check was pre-registered at, before any of it was run. It is recorded in the
+#: output beside every AUROC so that whatever downstream reads this file -- the Explorer export
+#: decides on it whether a cell may be labelled hormone-positive -- reads the bar from the same
+#: place as the number, and cannot be handed one without the other.
+PREREGISTERED_AUROC_BAR = 0.75
+
 
 def islet_residents(xy_if_um: np.ndarray, islets: list) -> np.ndarray:
     """Which warped Xenium cells fall inside a kept IF islet polygon.
@@ -65,8 +71,37 @@ def islet_residents(xy_if_um: np.ndarray, islets: list) -> np.ndarray:
     return inside
 
 
-def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc") -> dict:
-    rec, res, dd, isl, grid = register_one(serial, gj, roi=roi)
+def resolve_transform(serial: str, transform: str, *, roi: str, out_dir: Path):
+    """The transform this run is to be measured on, or ``None`` for the tissue-outline fit.
+
+    Same three sources ``run_align.py`` offers, resolved the same way and named by the same
+    words, because the two are read side by side: an AUROC measured on ``refined`` and a gate
+    measured on ``ecc`` would be two different registrations reported as one result.
+    """
+    if transform == "ecc":
+        return None
+    # Imported here rather than at module scope: `run_align` imports IMAGES and SECTIONS from
+    # this module, so a top-level import in this direction is a cycle. The two resolvers live
+    # there because that is where the three transform sources were first named, and having one
+    # definition read by both drivers is what keeps "refined" meaning the same thing in the
+    # gate and in the AUROC.
+    from run_align import _refined_transform, _valis_transform
+
+    donor = donor_of(serial, XENIUM_PATHS)
+    if transform == "valis":
+        return _valis_transform(donor, roi, out_dir)
+    if transform == "refined":
+        return _refined_transform(donor, roi, out_dir)
+    raise HZ.HormoneError(f"unknown transform source {transform!r}")
+
+
+def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc",
+            transform: str = "ecc", out_dir: Path = OUT) -> dict:
+    # Resolved BEFORE registering so `register_one` skips a tissue-outline fit it would only
+    # discard, and so every number below -- residency, the contrast, the AUROC -- is measured
+    # on the transform actually named in the output.
+    supplied = resolve_transform(serial, transform, roi=roi, out_dir=out_dir)
+    rec, res, dd, isl, grid = register_one(serial, gj, roi=roi, transform=supplied)
     donor = rec["donor_id"]
     row = sections[sections.xenium_serial == serial]
     if row.empty:
@@ -105,6 +140,8 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
 
     out = dict(rec)
     out["hormone"] = {"qptiff": str(qptiff), "target_um": TARGET_UM,
+                      "transform_source": transform,
+                      "preregistered_auroc_bar": PREREGISTERED_AUROC_BAR,
                       "pixel_size_um_recorded": pixel_um,
                       "sample_radius_um": HZ.SAMPLE_RADIUS_UM,
                       "n_islet_resident": int(resident.sum()),
@@ -143,6 +180,11 @@ def run_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc")
             rec_m["af_regressed"] = HZ.auroc_with_null(
                 HZ.regress_out(vals, per_channel[af_name][informative]), pos)
         rec_m.update(rec_m["raw"])          # headline stays raw
+        # Recorded, not renegotiated. `clears_null` says the correspondence is real; this says
+        # whether it reaches the strength the check was pre-registered to require before a
+        # per-cell claim rests on it. They are different questions and both are written down.
+        rec_m["clears_preregistered_bar"] = bool(
+            np.isfinite(rec_m["auroc"]) and rec_m["auroc"] >= PREREGISTERED_AUROC_BAR)
         out["hormone"][marker] = rec_m
 
     # How to read the AUROCs above: at what spatial scale do the two modalities agree?
@@ -161,6 +203,11 @@ def main(argv=None) -> int:
     ap.add_argument("--roi", default="panc")
     ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--transform", default="ecc", choices=["ecc", "valis", "refined"],
+                    help="which registration to measure on: the tissue-outline fit, the VALIS "
+                         "DAPI-to-DAPI fit, or the nucleus-matched transform run_refine.py "
+                         "chose. The numbers on disk under 'ecc' were measured at 31-42 um of "
+                         "misregistration and are not a usable comparison.")
     args = ap.parse_args(argv)
 
     sections = HZ.load_section_map(SECTIONS)
@@ -169,10 +216,11 @@ def main(argv=None) -> int:
         donor = donor_of(serial, XENIUM_PATHS)
         if args.donors and donor not in args.donors:
             continue
-        rec = run_one(serial, gj, sections, roi=args.roi)
+        rec = run_one(serial, gj, sections, roi=args.roi, transform=args.transform,
+                      out_dir=args.out)
         rows.append(rec)
         h = rec["hormone"]
-        print(f"\n  {donor} (IF {serial})  Dice {rec['dice_after']:.3f}   "
+        print(f"\n  {donor} (IF {serial}) [{args.transform}]  Dice {rec['dice_after']:.3f}   "
               f"islet residents {h['n_islet_resident']:,}   informative {h['n_informative']:,} "
               f"({h['n_beta_like']:,} beta-like / {h['n_alpha_like']:,} alpha-like)")
         for m in ("INS", "GCG"):
@@ -181,13 +229,18 @@ def main(argv=None) -> int:
             print(f"     {m:>3} ranks {tgt:>10}: AUROC {a['auroc']:.3f}   "
                   f"null {a['null_mean']:.3f} [{a['null_p2_5']:.3f}, {a['null_p97_5']:.3f}]   "
                   f"{'clears' if a['clears_null'] else 'INSIDE NULL'}"
+                  f"   bar {PREREGISTERED_AUROC_BAR:.2f} "
+                  f"{'MET' if a['clears_preregistered_bar'] else 'not met'}"
                   f"   off-image {a['n_off_image']:,}", flush=True)
         prof = rec["hormone"]["agreement_by_scale"]
         print("     agreement by scale (rho): " + "  ".join(
             f"{p['radius_um']:.0f}um {p['spearman']:+.3f}" for p in prof), flush=True)
 
     args.out.mkdir(parents=True, exist_ok=True)
-    p = args.out / f"hormone_{args.roi}.json"
+    # Same suffix rule as run_align.py, so `hormone_panc.json` keeps meaning "the tissue-outline
+    # arm" and a refined run cannot overwrite it with a differently-registered number.
+    suffix = "" if args.transform == "ecc" else f"_{args.transform}"
+    p = args.out / f"hormone_{args.roi}{suffix}.json"
     p.write_text(json.dumps(rows, indent=2))
     print(f"\nwrote {p}")
     return 0
