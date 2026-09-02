@@ -5,6 +5,8 @@
 `marker-qc-uniform-preprocessing` session has been committing to the same branch throughout)
 **Plan file:** `~/.claude/plans/wobbly-wibbling-quilt.md`
 **Nothing in this session is committed.** See [Uncommitted state](#uncommitted-state).
+*(2026-09-02: since committed as `d0b756f` … `3f68e24`; the branch is 56 commits ahead of `main`.
+Current state: `docs/WORKFLOW_2026-09-02_MAP.md` § 2.4.)*
 
 ---
 

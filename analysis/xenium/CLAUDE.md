@@ -463,7 +463,8 @@ notebooks/executed/{sample}/      # nbconvert-executed notebook copies (debug)
 > `env_rapids.sh` moved to `hpc/`, the `xenium_analysis` conda env is broken (see README), and
 > `ssh hpg.rc.ufl.edu` currently returns `Permission denied (publickey,keyboard-interactive)`.
 > The two stages that *do* run here are `finalize_panel.py` then `hierarchical_phenotype.py`,
-> driven directly with `--paths` under `conda run -n scvi-env` — see README.
+> driven directly under `conda run -n scvi-env` — see README (2026-09-02: `--paths` exists on
+> `finalize_panel.py` only; the typer's own flag is pending, README § The typer).
 
 `hpc/run_pipeline.sh` is the SINGLE raw→final driver. STAGES tokens:
 `01` `02` (notebooks) → `phenotype` (finalize_panel → hierarchical_phenotype
@@ -575,7 +576,7 @@ NOT driving the embedding."
 
 ## When in doubt
 
-- HANDOFF.md → "what just happened, how to resume"
+- `docs/HANDOFF_2026-07-13.md` (historical) and the repo-root `docs/HANDOFF_*.md` / `docs/WORKFLOW_2026-09-02_MAP.md` → "what just happened, how to resume"
 - This file (CLAUDE.md) → "how the repo is structured"
 - README.md → user-facing docs
 - DATA_README.md → expected data formats, h5ad contracts, headline CSVs

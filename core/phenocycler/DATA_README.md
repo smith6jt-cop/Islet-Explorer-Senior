@@ -252,12 +252,17 @@ the only accepted source for each marker:
 - biological kind: identity marker or process-state marker;
 - current availability/development status;
 - whole-cell or nucleus compartment;
-- measurement source: REDSEA, raw QuPath, or exact QuPath `Mean (norm)`;
+- measurement source: REDSEA or raw QuPath (`qupath_norm` is refused since `a30a517`);
 - REDSEA-corrected, REDSEA passthrough, or uncompensated policy;
 - historical interpretation metadata, which does not authorize a production pair.
 
+> **2026-08-27 (`a30a517`):** `qupath_norm` is no longer a permitted
+> `measurement_source` — `validate_registry` refuses it and all 60 markers
+> resolve to `redsea` or `qupath_raw`. The RESTORE-era text that follows is
+> historical.
+
 Measurement source and spillover policy are separate contracts. Iba1, CD68,
-and M2Gal3 have `measurement_source=qupath_norm`; their exact signed QuPath
+and M2Gal3 had `measurement_source=qupath_norm`; their exact signed QuPath
 measurements win even though their spillover policy remains recorded. Missing
 exact measurements fail closed rather than falling back to raw, REDSEA, or a
 historical RESTORE output. None of these markers currently receives a call.

@@ -189,6 +189,11 @@ up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
 
 ## Local workstation: two apps served side by side (2026-08-16)
 
+> **Status 2026-09-02.** The publication build moved to `/data/panc_CODEX/Islet-Explorer`, so the
+> `islet-explorer` symlink below and the nginx `local_images` alias both dangle, and the
+> `islet-explorer-merged` entry was never created: shiny-server currently serves no Islet Explorer.
+> Repointing is a root action and a maintainer decision; nothing in this repo does it.
+
 This workstation serves **two** builds through shiny-server, deliberately, and they must not be
 conflated.
 

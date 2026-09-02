@@ -53,6 +53,35 @@ XENIUM_UM_PER_PX = 0.2125
 #: tiled at 512, so re-tiling is the point of rewriting it rather than an incidental change.
 EXPLORER_TILE = 1024
 
+#: The alignment file Xenium Explorer itself writes, byte for byte. 10x's published
+#: ``Xenium_V1_hPancreas_Cancer_Add_on_FFPE_he_imagealignment.csv`` (73 bytes, hexdumped) is
+#: comma-delimited, has no header, CRLF between rows, NO newline after the last row, a last row
+#: that is literally ``0,0,1``, and numbers of at most nine significant digits with trailing
+#: zeros stripped -- every one of its nine tokens is what ``'%.9g'`` produces. Two other
+#: 10x-published matrices carry 16-17 digit floats, but nothing says Explorer wrote those, so
+#: this writer matches the exemplar instead of arguing that a parser ought to cope: on these
+#: sections nine digits move the far corner of the Xenium field by under 3e-4 px (6e-5 um).
+ALIGNMENT_CSV_EXEMPLAR = "Xenium_V1_hPancreas_Cancer_Add_on_FFPE_he_imagealignment.csv"
+ALIGNMENT_SIGNIFICANT_DIGITS = 9
+
+#: Explorer's keypoints file (v1.3+): ``fixed`` is the Xenium morphology (DAPI) image in pixels,
+#: ``alignment`` is the imported image in pixels. 10x's documented example and its published
+#: keypoints file both carry full-precision floats in every column, so those are written as-is.
+KEYPOINTS_HEADER = ("fixedX", "fixedY", "alignmentX", "alignmentY")
+
+#: How far the similarity fitted through the keypoints may sit from the transform's own
+#: rotation and scale before the keypoints path is declared inconsistent. A direction error is
+#: 0.24 degrees / a factor 1.39 on these sections; the shear a similarity absorbs is ~0.01
+#: degrees / ~1e-4.
+CONSISTENCY_ROTATION_DEG = 0.05
+CONSISTENCY_SCALE_REL = 1e-3
+
+#: A similarity fitted through keypoints that encode an affine misses them by the affine's
+#: anisotropy times the field (measured 4e-4 of the extent); through a reflected or otherwise
+#: incoherent correspondence it misses by the extent itself. One in a hundred of the extent
+#: separates the two by orders of magnitude on both sides.
+SIMILARITY_MAX_RESIDUAL_FRACTION = 1e-2
+
 #: The bar ``hormone.py`` was pre-registered at, before any of it was run. Quoted here because
 #: this module decides what may be called a hormone-positive cell, and that decision is not
 #: allowed to move the bar in either direction.
@@ -125,26 +154,310 @@ def matrix_round_trip_um(M: np.ndarray, affine: np.ndarray, *, if_um_per_px: flo
     return float(np.max(np.linalg.norm(back - xy, axis=1)))
 
 
-def write_alignment_csv(path: Path, M: np.ndarray) -> Path:
-    """The matrix as Explorer reads it: three rows, no header, last row exactly ``0,0,1``.
+def format_alignment_number(v: float) -> str:
+    """One matrix entry the way the exemplar writes it: <= 9 significant digits, positional.
 
-    Written with ``repr`` rather than a fixed number of decimals. The linear part here is
-    ~1.18 and the translation ~1e4 pixels, so rounding the matrix to six places would round
-    the translation to a tenth of a pixel while leaving the scale exact -- a formatting
-    choice that would show up as a real displacement in the viewer.
+    ``'%.9g'`` reproduces every token of the exemplar, but switches to an exponent below 1e-4,
+    which the exemplar never shows; ``format_float_positional`` gives the same digits without
+    ever doing that. Negative zero is written as ``0``.
+    """
+    x = float(v)
+    if not np.isfinite(x):
+        raise ExplorerExportError(f"cannot write a non-finite matrix entry ({x!r})")
+    if x == 0.0:
+        return "0"
+    s = np.format_float_positional(x, precision=ALIGNMENT_SIGNIFICANT_DIGITS, unique=False,
+                                   fractional=False, trim="-")
+    if s.endswith("."):
+        s = s[:-1]
+    return s
+
+
+def rounded_alignment_matrix(M: np.ndarray) -> np.ndarray:
+    """The matrix as it reads back from the file this module writes -- what actually ships."""
+    M = np.asarray(M, dtype=np.float64)
+    out = np.array([[float(format_alignment_number(v)) for v in M[r]] for r in (0, 1)]
+                   + [[0.0, 0.0, 1.0]])
+    return out
+
+
+def write_alignment_csv(path: Path, M: np.ndarray) -> Path:
+    """The matrix in the byte layout of Explorer's own export (see ``ALIGNMENT_CSV_EXEMPLAR``).
+
+    Three rows, no header, CRLF between rows and **no newline after the last row**, the last
+    row literally ``0,0,1``, the other entries at most nine significant digits. Nothing is left
+    to a library default: the previous version of this function used ``csv.writer`` and
+    ``repr``, which added a trailing CRLF and wrote ``0.0,0.0,1.0`` with 17-digit floats, and
+    Explorer 4.x refused that file with "Failed to load file." Whether any of those three
+    differences was the reason is unknown -- 10x documents no validation rule -- so all three
+    are removed. The rounding is worth under 3e-4 Xenium px at the far corner of the field.
     """
     M = np.asarray(M, dtype=np.float64)
     if M.shape != (3, 3):
         raise ExplorerExportError(f"an alignment matrix is 3x3, got {M.shape}")
     if not np.allclose(M[2], [0.0, 0.0, 1.0]):
         raise ExplorerExportError(f"the last row must be [0,0,1], got {M[2].tolist()}")
+    rows = [",".join(format_alignment_number(v) for v in M[r]) for r in (0, 1)] + ["0,0,1"]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as fh:
-        w = csv.writer(fh)
-        for row in M:
-            w.writerow([repr(float(v)) for v in row])
+    path.write_bytes("\r\n".join(rows).encode("ascii"))
     return path
+
+
+def read_alignment_csv(path: Path) -> np.ndarray:
+    """The file back as a 3x3, tolerating either line ending -- how a reader sees it."""
+    raw = Path(path).read_bytes().decode("ascii")
+    rows = [r for r in raw.replace("\r\n", "\n").split("\n") if r.strip()]
+    if len(rows) != 3:
+        raise ExplorerExportError(f"{path}: expected 3 rows, found {len(rows)}")
+    cells = [r.split(",") for r in rows]
+    if any(len(c) != 3 for c in cells):
+        raise ExplorerExportError(f"{path}: expected 3 comma-separated numbers per row, got "
+                                  f"{[len(c) for c in cells]}")
+    try:
+        return np.array([[float(v) for v in c] for c in cells], dtype=np.float64)
+    except ValueError as e:
+        raise ExplorerExportError(f"{path}: a cell is not a number ({e})") from None
+
+
+def alignment_csv_format() -> dict:
+    """What the bytes are, for the manifest, so a report of a refused file can be matched."""
+    return {"delimiter": ",", "header": False, "row_terminator": "CRLF",
+            "trailing_newline": False, "last_row": "0,0,1",
+            "number_format": f"positional, <= {ALIGNMENT_SIGNIFICANT_DIGITS} significant digits, "
+                             "trailing zeros stripped (the '%.9g' rule)",
+            "exemplar": ALIGNMENT_CSV_EXEMPLAR}
+
+
+# --------------------------------------------------------------------------- #
+# The keypoints, and the similarity Explorer would fit through them
+# --------------------------------------------------------------------------- #
+
+def keypoint_pairs(cells_xy_um: np.ndarray, M: np.ndarray, *, morph_hw: tuple[int, int],
+                   if_hw: tuple[int, int], grid: tuple[int, int] = (4, 5),
+                   cell_ids=None, xenium_um_per_px: float = XENIUM_UM_PER_PX) -> dict:
+    """Exact correspondences under ``M``, anchored on real Xenium nuclei.
+
+    Explorer's second import vehicle is a keypoints file it fits its own similarity through.
+    These are not a fit: each ``fixed`` point is a Xenium cell centroid (in morphology pixels)
+    and its ``alignment`` point is exactly ``M^-1`` of it, so the pairs encode the shipped
+    matrix and nothing else. They sit on nuclei rather than on a bare grid so that, in
+    Explorer's keypoint view, each one can be seen landing on the same nucleus in both images.
+    A pair outside either image is refused -- that is the one thing Explorer can legitimately
+    reject.
+    """
+    from scipy.spatial import cKDTree
+
+    xy = np.asarray(cells_xy_um, dtype=np.float64).reshape(-1, 2)
+    M = np.asarray(M, dtype=np.float64)
+    if M.shape != (3, 3) or not np.allclose(M[2], [0.0, 0.0, 1.0]):
+        raise ExplorerExportError("keypoints need a 3x3 alignment matrix with last row [0,0,1]")
+    nx, ny = int(grid[0]), int(grid[1])
+    if nx * ny < 3 or len(xy) < 3:
+        raise ExplorerExportError("Explorer needs at least 3 keypoints")
+    lo, hi = xy.min(axis=0), xy.max(axis=0)
+    gx = lo[0] + (hi[0] - lo[0]) * (np.arange(nx) + 0.5) / nx
+    gy = lo[1] + (hi[1] - lo[1]) * (np.arange(ny) + 0.5) / ny
+    nodes = np.array([(x, y) for y in gy for x in gx], dtype=np.float64)
+    _, idx = cKDTree(xy).query(nodes)
+    idx = np.array(sorted(set(int(i) for i in idx)))
+    if len(idx) < 3:
+        raise ExplorerExportError(f"only {len(idx)} distinct nuclei under the {nx}x{ny} grid")
+
+    fixed = xy[idx] / float(xenium_um_per_px)
+    alignment = (np.column_stack([fixed, np.ones(len(fixed))]) @ np.linalg.inv(M).T)[:, :2]
+    H_m, W_m = int(morph_hw[0]), int(morph_hw[1])
+    H_i, W_i = int(if_hw[0]), int(if_hw[1])
+    off_m = ((fixed[:, 0] < 0) | (fixed[:, 0] >= W_m) | (fixed[:, 1] < 0) | (fixed[:, 1] >= H_m))
+    # M's IF input is centre-indexed (pixel p is centred at coordinate p), so the image spans
+    # [-0.5, W-0.5] x [-0.5, H-0.5] in that frame; the morphology side is corner-origin.
+    off_i = ((alignment[:, 0] < -0.5) | (alignment[:, 0] > W_i - 0.5)
+             | (alignment[:, 1] < -0.5) | (alignment[:, 1] > H_i - 0.5))
+    if off_m.any() or off_i.any():
+        raise ExplorerExportError(
+            f"{int(off_m.sum())} keypoint(s) fall outside the morphology image and "
+            f"{int(off_i.sum())} outside the imported image; refusing to write them")
+    kp = np.column_stack([fixed, alignment])
+    return {"keypoints": kp, "index": idx, "grid": [nx, ny],
+            "cell_ids": ([str(cell_ids[i]) for i in idx] if cell_ids is not None else None)}
+
+
+def write_keypoints_csv(path: Path, kp: np.ndarray) -> Path:
+    """``fixedX,fixedY,alignmentX,alignmentY`` with full-precision floats, CRLF, no trailing newline.
+
+    The header and the float columns follow 10x's own keypoints exemplars; whether Explorer
+    minds a trailing newline on THIS file is unverified, so the matrix file's convention (none)
+    is used and the choice is recorded in the manifest.
+    """
+    kp = np.asarray(kp, dtype=np.float64)
+    if kp.ndim != 2 or kp.shape[1] != 4 or kp.shape[0] < 3:
+        raise ExplorerExportError(f"keypoints must be (n>=3, 4), got {kp.shape}")
+    if not np.isfinite(kp).all():
+        raise ExplorerExportError("keypoints carry non-finite entries")
+    rows = [",".join(KEYPOINTS_HEADER)]
+    rows += [",".join(repr(float(v)) for v in row) for row in kp]
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes("\r\n".join(rows).encode("ascii"))
+    return path
+
+
+def read_keypoints_csv(path: Path) -> np.ndarray:
+    raw = Path(path).read_bytes().decode("ascii")
+    rows = [r for r in raw.replace("\r\n", "\n").split("\n") if r.strip()]
+    if not rows or tuple(rows[0].split(",")) != KEYPOINTS_HEADER:
+        raise ExplorerExportError(f"{path}: header is not {','.join(KEYPOINTS_HEADER)}")
+    cells = [r.split(",") for r in rows[1:]]
+    if not cells or any(len(c) != 4 for c in cells):
+        raise ExplorerExportError(f"{path}: expected 4 comma-separated numbers per row, got "
+                                  f"{[len(c) for c in cells]}")
+    try:
+        return np.array([[float(v) for v in c] for c in cells], dtype=np.float64)
+    except ValueError as e:
+        raise ExplorerExportError(f"{path}: a cell is not a number ({e})") from None
+
+
+def keypoints_csv_format() -> dict:
+    return {"delimiter": ",", "header": list(KEYPOINTS_HEADER), "row_terminator": "CRLF",
+            "trailing_newline": False, "number_format": "repr (shortest round-trip float)",
+            "fixed": "Xenium morphology image pixels (cell centroid um / 0.2125)",
+            "alignment": "imported IF image pixels = M^-1 @ fixed"}
+
+
+def keypoints_residual_px(kp: np.ndarray, M: np.ndarray) -> float:
+    """Max |M @ alignment - fixed| in Xenium pixels: ~1e-9 by construction, or something is wrong."""
+    kp = np.asarray(kp, dtype=np.float64)
+    pushed = (np.column_stack([kp[:, 2:4], np.ones(len(kp))]) @ np.asarray(M).T)[:, :2]
+    return float(np.max(np.linalg.norm(pushed - kp[:, 0:2], axis=1)))
+
+
+def is_exact_similarity(M: np.ndarray) -> bool:
+    M = np.asarray(M, dtype=np.float64)
+    return bool(M[0, 0] == M[1, 1] and M[0, 1] == -M[1, 0])
+
+
+def similarity_from_keypoints(kp: np.ndarray) -> np.ndarray:
+    """The least-squares similarity through the keypoints, as Explorer's own aligner would fit.
+
+    10x documents Explorer's alignment as a similarity (Horn 1987: translation, uniform scale,
+    rotation, reflection); ``fit_rigid_umeyama`` is the same closed form. The linear part is
+    rebuilt from the fitted (scale, angle) so ``a == d`` and ``b == -c`` hold **bit-exactly**,
+    which is what every Explorer-exported matrix shows, and the translation is recomputed
+    against that canonical rotation. This is a projection of the shipped matrix at chosen
+    points -- a diagnostic with a recorded cost, never a registration.
+    """
+    from phenocycler.integration.transform import fit_rigid_umeyama
+
+    kp = np.asarray(kp, dtype=np.float64)
+    fixed, alignment = kp[:, 0:2], kp[:, 2:4]
+    T = fit_rigid_umeyama(alignment, fixed, allow_scale=True, allow_reflection=False)
+    A = T.affine
+    s = float(np.sqrt(abs(np.linalg.det(A[:, :2]))))
+    theta = float(np.arctan2(A[1, 0], A[0, 0]))
+    c, si = s * np.cos(theta), s * np.sin(theta)
+    L = np.array([[c, -si], [si, c]], dtype=np.float64)
+    t = fixed.mean(axis=0) - L @ alignment.mean(axis=0)
+    S = np.eye(3)
+    S[:2, :2] = L
+    S[:2, 2] = t
+    if not s > 0.0:
+        raise ExplorerExportError("the similarity through the keypoints has zero scale")
+    # ``det(L) = s^2 > 0`` and ``a == d, b == -c`` hold by construction, so they cannot be the
+    # check. What can fail is the fit itself: a proper-rotation fit through a reflected or
+    # incoherent correspondence still returns a matrix, one that misses the keypoints by the
+    # size of the field. Refuse that here rather than write it as a "diagnostic".
+    extent = float(np.ptp(fixed, axis=0).max())
+    resid = keypoints_residual_px(kp, S)
+    if extent > 0 and resid > SIMILARITY_MAX_RESIDUAL_FRACTION * extent:
+        raise ExplorerExportError(
+            f"the similarity misses the keypoints by {resid:.1f} px over a {extent:.0f} px "
+            f"field; the correspondence is not a similarity plus a small affine residual "
+            f"(reflected? swapped columns?)")
+    return S
+
+
+def similarity_deviation_um(M: np.ndarray, S: np.ndarray, pts_if_px: np.ndarray,
+                            *, xenium_um_per_px: float = XENIUM_UM_PER_PX) -> np.ndarray:
+    """Per-point |M p - S p| in microns, for imported-image pixel points ``p``."""
+    p = np.asarray(pts_if_px, dtype=np.float64).reshape(-1, 2)
+    h = np.column_stack([p, np.ones(len(p))])
+    d = (h @ np.asarray(M).T - h @ np.asarray(S).T)[:, :2]
+    return np.linalg.norm(d, axis=1) * float(xenium_um_per_px)
+
+
+def matrix_anisotropy(M: np.ndarray) -> dict:
+    """Why ``M`` is not a similarity, in numbers a reader can check."""
+    L = np.asarray(M, dtype=np.float64)[:2, :2]
+    sv = np.linalg.svd(L, compute_uv=False)
+    return {"a_minus_d": float(L[0, 0] - L[1, 1]), "b_plus_c": float(L[0, 1] + L[1, 0]),
+            "singular_values": [float(v) for v in sv],
+            "axis_ratio": float(sv.max() / sv.min()),
+            "is_exact_similarity": is_exact_similarity(M),
+            "mirrored": bool(np.linalg.det(L) < 0)}
+
+
+def similarity_consistency(S: np.ndarray, affine: np.ndarray, *, if_um_per_px: float,
+                           xenium_um_per_px: float = XENIUM_UM_PER_PX) -> dict:
+    """The one free check the exact keypoints residual cannot make.
+
+    ``affine`` maps Xenium um -> IF um; ``S`` maps IF px -> Xenium px. So the rotation of ``S``
+    must be the negative of the affine's and its scale must be ``(if_um_per_px / k) / scale(A)``.
+    A sign or direction error in the keypoints path shows up here as 0.24 degrees or a factor
+    1.39, where the keypoints residual -- exact by construction -- shows nothing. The tolerances
+    are wide enough for what a least-squares similarity through a sheared affine legitimately
+    absorbs (measured 0.008 degrees and 7e-5 on donor 6436) and a few times too narrow for
+    either failure.
+    """
+    A = np.asarray(affine, dtype=np.float64)
+    S = np.asarray(S, dtype=np.float64)
+    rot_A = float(np.degrees(np.arctan2(A[1, 0], A[0, 0])))
+    scale_A = float(np.sqrt(abs(np.linalg.det(A[:, :2]))))
+    rot_S = float(np.degrees(np.arctan2(S[1, 0], S[0, 0])))
+    scale_S = float(np.sqrt(abs(np.linalg.det(S[:2, :2]))))
+    expected_rot = -rot_A
+    expected_scale = (float(if_um_per_px) / float(xenium_um_per_px)) / scale_A
+    return {"rotation_deg": rot_S, "expected_rotation_deg": expected_rot,
+            "rotation_diff_deg": rot_S - expected_rot,
+            "scale": scale_S, "expected_scale": expected_scale,
+            "scale_rel_diff": (scale_S - expected_scale) / expected_scale,
+            "consistent": bool(abs(rot_S - expected_rot) < CONSISTENCY_ROTATION_DEG
+                               and abs(scale_S - expected_scale) / expected_scale
+                               < CONSISTENCY_SCALE_REL)}
+
+
+# --------------------------------------------------------------------------- #
+# The morphology grid Explorer places everything on
+# --------------------------------------------------------------------------- #
+
+def morphology_grid(bundle: Path, *, xenium_um_per_px: float = XENIUM_UM_PER_PX) -> dict:
+    """Level-0 size and pyramid of the Xenium morphology image, read from the bundle itself.
+
+    Opened with ``is_ome=False``: the OME-XML declares four files of which only ``_0000`` is
+    on this machine, and following it logs three failures for nothing. Page 0 and its SubIFDs
+    are the whole pyramid. Refused unless the pixel size is Xenium's and every level is exactly
+    floor-halved -- the warped image is written onto this grid, level for level.
+    """
+    import re
+    import tifffile
+
+    p = Path(bundle) / "morphology_focus" / "morphology_focus_0000.ome.tif"
+    if not p.exists():
+        raise ExplorerExportError(f"{p} is absent")
+    with tifffile.TiffFile(str(p), is_ome=False) as tif:
+        page = tif.pages[0]
+        shapes = [(int(lv.shape[-2]), int(lv.shape[-1])) for lv in tif.series[0].levels]
+        m = re.search(r'PhysicalSizeX="([^"]+)"', page.description or "")
+    if m is None:
+        raise ExplorerExportError(f"{p} carries no PhysicalSizeX")
+    um = float(m.group(1))
+    if abs(um - float(xenium_um_per_px)) > 1e-12:
+        raise ExplorerExportError(f"{p} is {um} um/px, not Xenium's {xenium_um_per_px}")
+    H, W = shapes[0]
+    expect = [(H >> L, W >> L) for L in range(len(shapes))]
+    if shapes != expect:
+        raise ExplorerExportError(f"{p} pyramid {shapes} is not floor-halved {expect}")
+    return {"file": str(p), "height": H, "width": W, "n_levels": len(shapes),
+            "level_shapes": [list(s) for s in shapes], "um_per_px": um}
 
 
 # --------------------------------------------------------------------------- #
@@ -264,6 +577,166 @@ def write_explorer_ome_tiff(qptiff: Path, out_path: Path, channels: list[int],
     return {"path": str(out_path), "dtype": str(dtype), "tile": int(tile),
             "compression": compression, "channels": list(channel_names),
             "channel_indices": [int(c) for c in channels], "levels": written,
+            "bytes": int(out_path.stat().st_size)}
+
+
+# --------------------------------------------------------------------------- #
+# The image on the Xenium grid, for "Yes, skip alignment"
+# --------------------------------------------------------------------------- #
+#
+# 10x documents "Yes, skip alignment" for an image "aligned and transformed into the Xenium
+# coordinate system with community-developed software", and its reference file for that option
+# has exactly the morphology image's dimensions at 0.2125 um/px: Explorer places such an image
+# with the identity in pixel space and ignores OME PhysicalSize. So the IF is resampled onto the
+# morphology's own level-0 grid through the same matrix, and needs no CSV at all.
+#
+# Conventions, each pinned by a test. Xenium pixels are corner-origin (10x: px = um / 0.2125),
+# so pixel (k, l) is centred at M-frame coordinate (k + 0.5, l + 0.5). The matrix's IF input is
+# centre-indexed (S_if carries the measured 0.125 um), and cv2 treats integer coordinates as
+# pixel centres, so no correction is needed on the IF side: output pixel (k, l) samples the IF
+# at M^-1 (k + 0.5, l + 0.5).
+
+def warp_tile_matrix(Minv: np.ndarray, x0: int, y0: int, cx0: int, cy0: int) -> np.ndarray:
+    """cv2's 2x3 for one output tile: output-local (i, j) -> crop-local IF coordinate."""
+    Minv = np.asarray(Minv, dtype=np.float64)
+    L, t = Minv[:2, :2], Minv[:2, 2]
+    A = np.empty((2, 3), dtype=np.float64)
+    A[:, :2] = L
+    A[:, 2] = L @ np.array([x0 + 0.5, y0 + 0.5]) + t - np.array([cx0, cy0], dtype=np.float64)
+    return A
+
+
+def warp_plane_to_xenium_grid(plane: np.ndarray, M: np.ndarray, height: int, width: int, *,
+                              tile: int = EXPLORER_TILE, margin: int = 3,
+                              out: np.ndarray | None = None) -> np.ndarray:
+    """One channel resampled onto a ``height x width`` Xenium grid, tile by tile.
+
+    Per output tile the corner extents are pushed through ``M^-1``, that crop of the source
+    (plus a margin) is warped with a crop-local matrix, and a tile whose source falls entirely
+    off the image is left at zero -- outside the IF is 0, never an edge replicated. Bilinear on
+    the stored values, no intensity rescaling. cv2 parallelises inside each call, which is why
+    the loop is a plain serial one.
+    """
+    import cv2
+
+    plane = np.asarray(plane)
+    if plane.ndim != 2:
+        raise ExplorerExportError(f"a plane is 2-D, got shape {plane.shape}")
+    M = np.asarray(M, dtype=np.float64)
+    Minv = np.linalg.inv(M)
+    H_if, W_if = plane.shape
+    if out is None:
+        out = np.zeros((int(height), int(width)), dtype=plane.dtype)
+    elif out.shape != (int(height), int(width)) or out.dtype != plane.dtype:
+        raise ExplorerExportError("`out` must match the requested grid and the plane's dtype")
+    flags = cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP
+    for y0 in range(0, int(height), tile):
+        th = min(tile, int(height) - y0)
+        for x0 in range(0, int(width), tile):
+            tw = min(tile, int(width) - x0)
+            corners = np.array([[x0, y0, 1.0], [x0 + tw, y0, 1.0],
+                                [x0, y0 + th, 1.0], [x0 + tw, y0 + th, 1.0]])
+            s = corners @ Minv.T
+            cx0 = max(int(np.floor(s[:, 0].min())) - margin, 0)
+            cy0 = max(int(np.floor(s[:, 1].min())) - margin, 0)
+            cx1 = min(int(np.ceil(s[:, 0].max())) + margin + 1, W_if)
+            cy1 = min(int(np.ceil(s[:, 1].max())) + margin + 1, H_if)
+            if cx1 <= cx0 or cy1 <= cy0:
+                out[y0:y0 + th, x0:x0 + tw] = 0          # written, not skipped: `out` may be reused
+                continue
+            crop = np.ascontiguousarray(plane[cy0:cy1, cx0:cx1])
+            A = warp_tile_matrix(Minv, x0, y0, cx0, cy0)
+            out[y0:y0 + th, x0:x0 + tw] = cv2.warpAffine(
+                crop, A, (tw, th), flags=flags, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+    return out
+
+
+def halve_box_mean(stack: np.ndarray) -> np.ndarray:
+    """``(C, h, w) -> (C, h//2, w//2)`` by 2x2 box mean, floor-halved, round half up for ints."""
+    stack = np.asarray(stack)
+    if stack.ndim != 3:
+        raise ExplorerExportError(f"a stack is (C, h, w), got shape {stack.shape}")
+    C, h, w = stack.shape
+    h1, w1 = h >> 1, w >> 1
+    if h1 < 1 or w1 < 1:
+        raise ExplorerExportError(f"cannot halve a {h}x{w} level")
+    blocks = stack[:, :2 * h1, :2 * w1].reshape(C, h1, 2, w1, 2)
+    if np.issubdtype(stack.dtype, np.integer):
+        # Four values of itemsize n fit in itemsize 2n: uint16 for uint8, so the level-1
+        # transient of a (3, 68119, 37187) stack is 3.8 GB rather than the 46 GB of uint64.
+        acc = {1: np.uint16, 2: np.uint32}.get(stack.dtype.itemsize, np.uint64)
+        s = blocks.sum(axis=(2, 4), dtype=acc)
+        s += 2
+        s >>= 2
+        return s.astype(stack.dtype)
+    return blocks.mean(axis=(2, 4), dtype=np.float64).astype(stack.dtype)
+
+
+def xenium_pyramid(level0: np.ndarray, n_levels: int) -> list[np.ndarray]:
+    """``n_levels`` levels from level 0, each an exact floor-halved box mean of the previous.
+
+    Level-L pixel k covers level-0 pixels ``2^L k .. 2^L (k+1) - 1``, so its centre sits at
+    ``0.2125 * 2^L * (k + 0.5)`` um. (10x's own morphology pyramid is decimated rather than
+    averaged, which differs from this by under half a level-L pixel and only at coarse levels;
+    level 0, the one that matters, is exact.)
+    """
+    level0 = np.asarray(level0)
+    if level0.ndim != 3:
+        raise ExplorerExportError(f"level 0 is (C, H, W), got shape {level0.shape}")
+    C, H, W = level0.shape
+    levels = [level0]
+    for L in range(1, int(n_levels)):
+        levels.append(halve_box_mean(levels[-1]))
+        if levels[-1].shape != (C, H >> L, W >> L):
+            raise ExplorerExportError(f"level {L} is {levels[-1].shape}, not {(C, H >> L, W >> L)}")
+    return levels
+
+
+def write_warped_ome_tiff(levels: list[np.ndarray], out_path: Path, channel_names: list[str], *,
+                          um_per_px: float = XENIUM_UM_PER_PX, compression: str = "zlib",
+                          tile: int = EXPLORER_TILE, workers: int = 8) -> dict:
+    """The in-RAM pyramid as a tiled, SubIFD-pyramidal, BigTIFF OME-TIFF on the Xenium grid.
+
+    ``ome=True`` is passed explicitly rather than inferred from the file name. PhysicalSize is
+    Xenium's, and the TIFF resolution tags are written as well (10x's Explorer-exported aligned
+    images carry both). Reuses ``_tile_stream`` over the in-RAM arrays, so the tile order and
+    padding are the same as for the native file.
+    """
+    import tifffile
+
+    if not levels:
+        raise ExplorerExportError("no pyramid levels to write")
+    C, H, W = levels[0].shape
+    if len(channel_names) != C:
+        raise ExplorerExportError(f"{C} channels but {len(channel_names)} names")
+    for L, arr in enumerate(levels):
+        if arr.ndim != 3 or arr.shape != (C, H >> L, W >> L):
+            raise ExplorerExportError(f"level {L} has shape {arr.shape}, expected {(C, H >> L, W >> L)}")
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    written = []
+    with tifffile.TiffWriter(str(out_path), bigtiff=True, ome=True) as tw:
+        for L, arr in enumerate(levels):
+            _, h, w = arr.shape
+            um = float(um_per_px) * (2 ** L)
+            opts = dict(tile=(tile, tile), compression=compression, photometric="minisblack",
+                        maxworkers=int(workers), resolution=(1e4 / um, 1e4 / um),
+                        resolutionunit="CENTIMETER")
+            stream = _tile_stream(arr, list(range(C)), h, w, arr.dtype, tile=tile)
+            if L == 0:
+                tw.write(stream, shape=(C, h, w), dtype=arr.dtype, subifds=len(levels) - 1,
+                         metadata={"axes": "CYX", "Channel": {"Name": list(channel_names)},
+                                   "PhysicalSizeX": float(um_per_px),
+                                   "PhysicalSizeY": float(um_per_px),
+                                   "PhysicalSizeXUnit": "µm", "PhysicalSizeYUnit": "µm"},
+                         **opts)
+            else:
+                tw.write(stream, shape=(C, h, w), dtype=arr.dtype, subfiletype=1, **opts)
+            written.append({"level": L, "height": h, "width": w, "factor": 2 ** L,
+                            "um_per_px": um})
+    return {"path": str(out_path), "dtype": str(levels[0].dtype), "tile": int(tile),
+            "compression": compression, "channels": list(channel_names), "levels": written,
+            "resolution_unit": "CENTIMETER", "pixels_per_cm": 1e4 / float(um_per_px),
             "bytes": int(out_path.stat().st_size)}
 
 

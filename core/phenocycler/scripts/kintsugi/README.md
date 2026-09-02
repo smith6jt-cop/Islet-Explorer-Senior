@@ -190,10 +190,10 @@ non-null tissue distance for all 503,962 cells, identical before and after the r
 QuPath could not have computed it without the annotation. `NO_TISSUE_ANNOTATION` is now empty
 and 6539's tissue distance is treated as the measurement it is.
 
-**What is still stale is `cell_region`.** The run's `cells/`, `expression/` and therefore
-`celltype/uniform/` all derive it from the pre-fix `Parent`, so 6539 still reads 3 rings
-there. That is an upstream re-ingest against the fixed export, not something this lane should
-patch around: a missing measurement is null, never 0.
+**`cell_region` was re-ingested on 2026-08-28.** Run `30f6689e4d27d295f890` was built from the
+fixed export (`cohort-spec.json` names `Cellmeasurements_6539parentFixed.csv`; `cells_parquet.py`
+filters each CSV to the images it is contracted to), so 6539 reads 569 rings and 23,455 peri
+cells in `cells/`, `expression/` and `celltype/uniform/`. Nothing in this lane patches around it.
 
 ## Step 1 — the feature block, and the scaling question
 
@@ -385,7 +385,7 @@ running when this was written.
 | `annotate.py` | the background-mode scale, the gate, hierarchy resolution, the matched null |
 | `run_step3.py` | Step 3 driver → `calls/` |
 | `concordance.py`, `run_step4.py` | the join against the cosine lane → `concordance/` |
-| `tests/` | 26 tests: the claims above, pinned |
+| `tests/` | 28 tests: the claims above, pinned (22 collect in the repo `.venv`, where the pyFlowSOM test is skipped; all 28 in `external/.venv-som`) |
 
 Reused unchanged: `scripts/celltype/panel.py` (cohort, markers, run pin),
 `scripts/celltype/shifts.json` (marker classes), `data/qupath_manifest.json` (paths, pixel size).
@@ -393,7 +393,7 @@ Reused unchanged: `scripts/celltype/panel.py` (cohort, markers, run pin),
 ## Status
 
 Steps −1, 0, 2, 3 and 4 run end to end on the donor 6551 pilot. `python -m pytest
-scripts/kintsugi/tests -q` — 26 passed.
+scripts/kintsugi/tests -q` — 28 passed in `external/.venv-som` (22 passed, 6 skipped in the repo `.venv`).
 
 Not yet done: the three-arm scaling bake-off at cohort scale (arm A only so far, and on one
 donor there is no cross-donor question for it to answer), the cohort run, and **Step 5** — the
@@ -401,8 +401,7 @@ three-level donor → islet → cell hierarchical bootstrap vendored from KINTSU
 `peri_islet_hierarchical_bootstrap.py`, which is what Step 0's continuous distance was
 extracted for.
 
-Two caveats travel with every downstream output: **6539 excluded from peri-islet statistics
-with the reason recorded**, and any ND → Aab+ → T1D reading is **aliased with acquisition
-batch** (batch 2 is every high-immune donor and no ND donor). A third now joins them:
-**donor 6482's peri rings are 25 µm, not 20 µm**, so any statistic over `cell_region == 'peri'`
-is comparing unequal annuli.
+Two caveats travel with every downstream output: any ND → Aab+ → T1D reading is **aliased with
+acquisition batch** (batch 2 is every high-immune donor and no ND donor), and **donor 6482's peri
+rings are 25 µm, not 20 µm**, so any statistic over `cell_region == 'peri'` is comparing unequal
+annuli. The former 6539 exclusion is lifted: the current run carries its repaired ring (§ Step 0).

@@ -92,6 +92,10 @@ Authoritative documentation:
 - `core/phenocycler/docs/METHOD_HISTORY.md`
 - `core/phenocycler/phenocycler/marker_registry.json`
 - `core/phenocycler/phenocycler/fundamental_pair_diagnostics.json`
+- `docs/WORKFLOW_2026-09-02_MAP.md` — what runs today, lane by lane, with evidence
+- `docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md` — the planned workflow and where every
+  auxiliary package sits in it
+- `docs/EXTERNAL_PACKAGES.md` — the pin index for external code
 
 The mutable diagnostic roster contains only raw CD3e/Ker8_18 and exact signed
 QuPath Iba1_norm/raw Ker8_18. CD79a is excluded as a pair candidate because its

@@ -64,6 +64,11 @@ behind a successful **Load Xenium**.
 
 ## Installation
 
+> **2026-09-02 (monorepo):** renv is deactivated in this subtree — only `renv.lock.r46-backup`
+> and `.Rprofile.r46-backup` exist, so `renv::restore()` fails as documented. On the development
+> workstation the app resolves every `DESCRIPTION` import from the host R 4.5.1 user library
+> (`docs/WORKFLOW_2026-09-02_MAP.md` § 3, § 7).
+
 R 4.4 or newer is required. The R *package* layer is reproducible
 through `renv`; the R *interpreter* itself is host-managed. If your
 workstation is set up by IT or carries multiple R series, the simplest

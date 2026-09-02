@@ -70,8 +70,8 @@ __pycache__/
 # Tool downloads (large jars)
 scripts/tools/
 
-# Vendored third-party code (cloned, not committed; see scripts/CLAUDE.md for the
-# clone command + pinned commit, e.g. external/RESTORE @ 38df59b)
+# Vendored third-party code (cloned, not committed; pins and clone commands are indexed in
+# docs/EXTERNAL_PACKAGES.md — e.g. external/UniFORM @ 7c33396d)
 # Anchored so it cannot shadow a subtree's own external/ directory.
 /external/
 

@@ -18,7 +18,7 @@ cd core/phenocycler
 ../../.venv/bin/python scripts/restain/run_align.py --transform refined      # the gate
 ../../.venv/bin/python scripts/restain/refine_figures.py --donors 6436 6442
 ../../.venv/bin/python scripts/restain/align_figures.py --transform refined
-../../.venv/bin/python -m pytest -q scripts/restain/tests                    # 78 passed
+../../.venv/bin/python -m pytest -q scripts/restain/tests                    # 102 passed
 ```
 
 Then, to hand the result to someone who has Xenium Explorer and none of this:
@@ -297,10 +297,12 @@ this environment: `data/development/restain/explorer_bundle/donor_<id>_<serial>/
 | file | what it is |
 |---|---|
 | `images/<serial>_IF.ome.tif` | DAPI + INS + GCG, pyramidal, tiled 1024, 0.25 µm/px, lossless — 10x's stated requirement for an importable post-Xenium image. 2.1–2.5 GB. Opal 570 (FAILED) and Sample AF are **not in the file**; `manifest.json` records that they exist and why they were dropped |
-| `images/<serial>_IF_imagealignment.csv` | the 3x3 row-major matrix, no header, last row `0,0,1`, mapping **IF image pixels → Xenium morphology pixels**. Also valid input to `xeniumranger import-segmentation` and `spatialdata_io.xenium_aligned_image` |
-| `annotations/tissue_islet_xenium_microns.{geojson,csv}` | `Tissue` and the ≥50 µm `Islet` polygons, warped into Xenium microns, class labels kept |
-| `cell_groups/*.csv` | `cell_id,group,color` for all 695,113 (6436) and 958,744 (6442) cells: islet membership, and the two hormone channels |
-| `README.md`, `manifest.json`, `bundle_qc.png` | the instructions, the provenance, and the proof |
+| `images/<serial>_IF_imagealignment.csv` | the 3x3 row-major matrix, no header, last row `0,0,1`, mapping **IF image pixels → Xenium morphology pixels**, in the byte layout of Explorer's own export (below). Also valid input to `xeniumranger import-segmentation` and `spatialdata_io.xenium_aligned_image` |
+| `images/<serial>_IF_similarity_imagealignment.csv` | a **diagnostic**: the nearest similarity to the affine, the only shape Explorer's own aligner ever exports; its cost against the affine is in `manifest.json → similarity_diagnostic` |
+| `images/<serial>_IF_keypoints.csv` | `fixedX,fixedY,alignmentX,alignmentY`: 20 Xenium nuclei and their exact pre-images under the matrix — Explorer's other documented input, which it fits its own similarity through |
+| `images/<serial>_IF_on_xenium_grid.ome.tif` | the same IF resampled onto the Xenium morphology grid (same width × height, 0.2125 µm/px, same 9 levels) through the same transform, for **"Yes, skip alignment"** — no CSV involved |
+| `cell_groups/hormone_positivity.csv` | `cell_id,group,color` for all 695,113 (6436) and 958,744 (6442) cells: INS/GCG positivity at the recorded threshold |
+| `README.md`, `manifest.json` | the instructions (which file goes with which Explorer option, in which order, and what to report) and the provenance; `bundle_qc.png` is regenerated beside them by `explorer_figures.py` |
 
 **The direction of the matrix is the one thing here that cannot be recovered by a careful
 reader**, so it is derived rather than assumed. This lane's affine maps Xenium µm → IF µm;
@@ -314,20 +316,76 @@ origin; dropping it is a flat 0.125 µm per axis, and a test plants exactly that
 One convention is genuinely unresolved and is recorded rather than assumed away: no 10x document
 says whether Explorer indexes an imported image by pixel corner or centre. That is ±0.125 µm.
 
-**`bundle_qc.png` checks the bundle the way the colleague will read it** — from the shipped
-OME-TIFF, the shipped CSV and the shipped GeoJSON only, never from the transform that made them,
-so it is able to disagree with them. Mean DAPI at Xenium nucleus centroids against a planted
-offset:
+**Why there are four ways in, and what each one is for.** Explorer 4.x refused the first
+version of the matrix file with "Failed to load file." and showed the native image unaligned
+under "Yes, skip alignment". The second is not a defect: 10x documents that option only for an
+image already resampled into the Xenium coordinate system (its reference file for it has
+exactly the morphology image's dimensions at 0.2125 µm/px), and Explorer places such an image
+with the identity in pixel space, ignoring OME PhysicalSize. The first has no documented cause —
+10x publishes no validation rule for the import — so everything in which the file differed from
+Explorer's own export was removed, and the other documented inputs were added:
 
-| donor | at 0 µm | between nuclei | ratio | argmax |
-|---|---:|---:|---:|---:|
-| 6436 | 49.52 | 22.38 | 2.21× | **0 µm** |
-| 6442 | 39.76 | 19.08 | 2.08× | **0 µm** |
+* **Bytes.** Three 10x-published `_imagealignment.csv` files were hexdumped. Explorer writes
+  CRLF between rows, **no newline after the last row**, the last row literally `0,0,1`, and at
+  most nine significant digits. The old writer (`csv.writer` + `repr`) added a trailing CRLF
+  and wrote `0.0,0.0,1.0` with 17-digit floats. The new writer reproduces the 10x exemplar
+  byte for byte (a test feeds it the exemplar's numbers and demands the same 73 bytes); nine
+  digits move the far corner of the field by under 3e-4 Xenium px.
+* **Structure.** Every Explorer-exported matrix is an *exact* similarity (`a == d`, `b == -c`);
+  Explorer's aligner is documented as similarity-only. Ours is a general affine (anisotropy
+  2.8e-4 / 4.2e-4), and whether the importer minds is unknown. So the bundle also carries the
+  nearest similarity (through the keypoints, canonicalised so the equalities hold bit-exactly)
+  and the keypoints themselves, which let Explorer fit what it accepts and keep the result
+  adjustable. Neither is a re-fit: both are the shipped matrix re-expressed at chosen points,
+  and the manifest records what they cost (`similarity_diagnostic.deviation_from_affine_um`).
+* **The warped image.** `<serial>_IF_on_xenium_grid.ome.tif` is the IF resampled onto the
+  morphology grid: output pixel `(k, l)` samples the native image at `M⁻¹(k + ½, l + ½)`
+  (Xenium pixels are corner-origin; the matrix's IF side is centre-indexed; cv2 treats integer
+  coordinates as centres — all three pinned by tests), bilinear on the stored 8-bit values,
+  zeros outside the IF, and a floor-halved box-mean pyramid with exactly the morphology's level
+  shapes. It is the one delivery whose placement depends on nothing but documented Explorer
+  behaviour. Positivity is still measured on the native raster, never on this one.
+
+Ruled out along the way: CRLF itself and float precision as *definite* causes (Explorer's own
+files use CRLF, and two other 10x files carry 17-digit floats — whose producer is unknown, so
+precision stays matched rather than argued), image size (10x ships Explorer-aligned images
+larger than ours on every metric), missing TIFF resolution tags and 1024-px tiles (10x's own
+skip-alignment file has neither), matrix direction, and pyramid level.
+
+**`bundle_qc.png` checks the bundle the way the colleague will read it** — from the shipped
+files only (native OME-TIFF, matrix CSV, similarity CSV, keypoints CSV, warped OME-TIFF), never
+from the transform that made them, so it is able to disagree with them. Three routes into the
+same overlay, each read as Explorer would read it: the native image through the shipped matrix,
+through the shipped similarity, and the warped image with the identity (`px = µm / 0.2125`,
+floor). Mean DAPI at Xenium nucleus centroids against a planted offset:
+
+| donor | route | at 0 µm | between nuclei | ratio | argmax |
+|---|---|---:|---:|---:|---:|
+| 6436 | native + matrix | 49.52 | 22.38 | 2.21× | **0 µm** |
+| 6436 | native + similarity | 49.45 | 22.37 | 2.21× | **0 µm** |
+| 6436 | warped + identity | 49.49 | 22.38 | 2.21× | **0 µm** |
+| 6442 | native + matrix | 39.76 | 19.08 | 2.08× | **0 µm** |
+| 6442 | native + similarity | 39.71 | 19.09 | 2.08× | **0 µm** |
+| 6442 | warped + identity | 39.72 | 19.08 | 2.08× | **0 µm** |
 
 Both curves fall to the floor by 4 µm and dip *below* it at 6 µm — one nucleus radius out lands in
-the gap between nuclei. A merely-plausible alignment does not produce that shape.
+the gap between nuclei. A merely-plausible alignment does not produce that shape, and the warped
+image read with the identity reproduces the native curve to the second decimal (peak ratio
+0.999, 0.999).
+Warp cross-check on the shipped files: 6436: p99 |diff| 0.00, max 1 count, 100.0 % within 1 count; 14/14 checks, PASS; 6442: p99 |diff| 0.00, max 1 count, 100.0 % within 1 count; 14/14 checks, PASS.
+
+The warp is pinned a second way: a 512² Xenium-px window of the shipped warped DAPI is
+differenced against the native DAPI resampled with `scipy.ndimage.map_coordinates` at
+`M⁻¹(k + ½, l + ½)` — an implementation sharing no code with the writer. A half-pixel error
+would show as tens of counts at nucleus edges; the writer's 1/32-px fixed point leaves about
+one. `bundle_qc.json` carries every number and a PASS/FAIL per donor.
 
 ## What the bundle refuses to claim
+
+*Stale as of 2026-09-02: this section describes the deciles-only bundle of `9e88272`. The current
+driver ships one absolute positivity cut (20 of 255, mean inside the cell's own polygon), recorded
+in the manifest and changeable with `--threshold`; it is left here unrewritten because the choice
+between the two is the maintainer's.*
 
 The maintainer's rule for this export is that a per-cell hormone-positive label ships only if the
 check it rests on clears the bar that check was pre-registered at. Neither marker does, on either
@@ -359,9 +417,9 @@ what the repository's no-frequency rule actually requires.
 | `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
 | `validate.py` / `hormone.py` / `run_hormone.py` | the downstream checks (not re-run — see above) |
 | `run_register.py` | the tissue-outline registration; also scores a supplied transform |
-| `explorer.py` | the Xenium Explorer file formats: the 3x3 matrix, the OME-TIFF, the annotations, the cell groups, the threshold |
-| `run_explorer_export.py` | driver, the AUROC gate and the bundle README -> `explorer_bundle/donor_<id>_<serial>/` |
-| `explorer_figures.py` | `bundle_qc.png`, drawn from the shipped files only |
-| `tests/` | 78 tests, all on synthetic geometry — no export or bundle needed |
+| `explorer.py` | the Xenium Explorer file formats: the 3x3 matrix in Explorer's own byte layout, the keypoints and the similarity diagnostic, the morphology grid, the native OME-TIFF, the warp onto the Xenium grid and its writer, the cell groups |
+| `run_explorer_export.py` | driver, one manifest schema, the bundle README with the import ladder -> `explorer_bundle/donor_<id>_<serial>/` |
+| `explorer_figures.py` | `bundle_qc.png` / `bundle_qc.json`, drawn from the shipped files only: three offset sweeps, the footprint, the warp cross-check, the file facts |
+| `tests/` | 102 tests, all on synthetic geometry — no export or bundle needed |
 
 `data/development/restain/valis_baseline/` holds the 2026-08-31 arm this replaced.

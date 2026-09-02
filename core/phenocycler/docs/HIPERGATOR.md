@@ -29,10 +29,14 @@ From a login node:
 
 ```bash
 git clone <repository-url> Islet-Explorer-Senior
-cd Islet-Explorer-Senior/Phenocycler_Analysis
+cd Islet-Explorer-Senior/core/phenocycler
 bash setup.sh
 conda activate phenocycler-analysis
 ```
+
+> The `phenocycler-analysis` conda environment is the HiPerGator recipe. On the
+> development workstation the pipeline runs from the repo `.venv`
+> (`docs/WORKFLOW_2026-09-02_MAP.md` § 7).
 
 `setup.sh` installs the package and verifies the marker registry plus current
 stage surface. It does not validate typing rules or RESTORE assets.

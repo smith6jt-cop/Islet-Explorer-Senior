@@ -38,14 +38,11 @@ only as method history; it is not a current command path or fallback.
 - Each registered marker has one authoritative intensity source and
   compartment. An acquired marker with a missing required source is an error;
   a marker absent from a panel remains explicitly unavailable.
-- Iba1, CD68, and M2Gal3 use QuPath's exact signed `Mean (norm)` measurements
-  in Cell, Nucleus, Cytoplasm, and Membrane compartments. Those measurements
-  were created upstream for the QuPath object classifier. Raw, REDSEA, and
-  historical RESTORE-normalized values are forbidden substitutes.
-  Their signed scale is `(raw - tissue p50)/(tissue p99 - tissue p50)`, so 1 is
-  the tissue p99 anchor rather than a cell-positivity threshold.
-- Signed QuPath norm values are preserved unchanged through ingest and
-  expression, including finite negative values and NaN.
+- Every marker reads one source: the declared REDSEA compartment, or the raw
+  QuPath compartment for the nine uncompensated markers. Since `a30a517`
+  (2026-08-27) no marker may select `qupath_norm` — the signed QuPath
+  `Mean (norm)` scale was a RESTORE-era exception and `cells/` carries no
+  `QuPathNorm__` column. Iba1, CD68 and M2Gal3 read REDSEA like the rest.
 - The only active pairwise work is a mutable, rank-only development diagnostic:
   raw CD3e versus raw Ker8_18 and exact QuPath `Iba1_norm` versus raw Ker8_18.
   CD79a is excluded as a pair candidate because its expression is too sparse in
@@ -212,7 +209,7 @@ An incompatible node and its DAG descendants are recomputed. Current adoption
 is limited to the upstream stages through expression; historical pair-dependent
 artifacts are not adopted into the current workflow. The generated plan is
 authoritative about the exact reusable stages and byte count.
-Run these commands from `Phenocycler_Analysis`, whose `config.ini` owns that
+Run these commands from `core/phenocycler`, whose `config.ini` owns that
 source run. To launch recomputation immediately instead of inspecting first,
 add `--continue` (and optionally `--jobs N`) to `adopt apply`. If code,
 configuration, or source content changes, write a newly named plan rather than
@@ -349,9 +346,9 @@ the cells are *not* the same cells, so pairing is at structure / niche / donor l
 environment:
 
 ```bash
-conda env create -f environment-integration.yml
-conda activate phenocycler_integration && pip install -e '.[integration]'
-python -m phenocycler.integration.manifest --report
+# On the workstation the repo .venv is the environment; the conda recipe is HPG-only.
+../../.venv/bin/pip install -e '.[integration]'
+../../.venv/bin/python -m phenocycler.integration.manifest --report
 ```
 
 Design and data caveats: **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.

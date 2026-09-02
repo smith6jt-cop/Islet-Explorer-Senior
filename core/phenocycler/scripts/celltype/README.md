@@ -54,8 +54,9 @@ source and `expression` regenerates.
 **Measured: no value changes.** The expectation was that those three markers would move off
 QuPath's signed scale onto the REDSEA whole-cell mean, so Step 1 and Step 2 would have to be
 recomputed for them. They do not move. Re-running `expression` under the corrected registry
-reproduces the old partitions exactly — same 62 numeric columns, same `object_id` order, every
-column `allclose`.
+reproduced the old partition exactly **on donor 6380, the one donor compared** — same 62 numeric
+columns, same `object_id` order, every column `allclose` (`panel.py:34-36` keeps that scope; the
+pre-fix run has since been deleted, so the comparison cannot be widened).
 
 The reason is that the requirement was never satisfied in the first place. `cells/` has never
 carried a `QuPathNorm__` column, so the old run cannot have read one; the demand was added to
@@ -267,21 +268,17 @@ each time, i.e. every ambiguous cell. They are not close to a call; they are **b
 panel-coverage question, not a rule-tuning one, and the leading candidate is acinar tissue,
 which this 59-plex carries no enzyme marker for.
 
-**Donor 6539's peri-islet ring is missing from the export, not from the tissue.** It has 541
-islets and **124 peri cells**. `cell_region` is read off the QuPath `Parent` column
-(`cells_parquet.py:295-298`: `Islet_N` → core, `Islet_N_exp20um` → peri), so a ring exists
-only where the 20 µm expansion annotation was drawn:
-
-| | islets with core cells | with a ring | % ringed | `Annotation (Tissue)` |
-|---|---|---|---|---|
-| **6539** | **539** | **3** | **0.6%** | **absent — `Root object (Image)`** |
-| next lowest (6523) | 80 | 79 | 98.8% | present |
-| the other 18 | 67–1304 | 67–1304 | 99.5–100% | present |
-
-Until QuPath is re-run on it, 6539 is excluded from peri-islet statistics **with the reason
-recorded** — never averaged in, where it would read as a low-immune ND donor. Its
-whole-tissue denominator is wrong too, since nothing bounds its tissue. Both gaps are cheap
-fail-closed assertions that no stage currently makes.
+**Donor 6539's peri-islet ring was missing from the export, not from the tissue — and it has
+been repaired.** The pre-repair export carried 541 islets with **124 peri cells** over 3 rings,
+because `cell_region` is read off the QuPath `Parent` column (`cells_parquet.py`: `Islet_N` →
+core, `Islet_N_exp20um` → peri) and 490,271 of 6539's cells were parented to `Root object
+(Image)`. The rings themselves were drawn for essentially every islet at the right width (569
+`IsletExpanded` polygons, median 20.08 µm — `scripts/kintsugi/README.md` § Step 0). The parent
+assignment was re-resolved upstream and re-exported on 2026-08-27
+(`Cellmeasurements_6539parentFixed.csv`, named in `cohort-spec.json`), and run
+`30f6689e4d27d295f890` was built from it: 6539 now reads core 7,630 / peri 23,455 cells over 569
+rings, and `islet_residents_all.parquet` carries 18,519 peri cells for it (the regeneration
+section below). The former "excluded from peri-islet statistics" caveat is lifted by the data.
 
 ## What the 2026-08-28 regeneration found: the proliferating leaf is a PCNA background readout
 

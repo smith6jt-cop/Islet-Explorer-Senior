@@ -9,16 +9,19 @@
 > raises before reading a legacy artifact by default, and the normal integration
 > orchestrator exposes no override. A PhenoCycler rewire must wait for a newly
 > verified calling/typing workflow; the Xenium half is unaffected.
+>
+> **2026-09-02.** The rewire route is now specified: a declared identity release
+> produced by the development lanes (`docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`,
+> Tracks A.4 and C.1), consumed through a geometry/identity split of this package.
+> Current stage status: `docs/WORKFLOW_2026-09-02_MAP.md` § 4.
 
 Picks up where `python -m phenocycler.pipeline` stops and integrates that with 10x Xenium spatial
-transcriptomics processed by [Xenium_Analysis](https://github.com/smith6jt-cop/Xenium_Analysis),
-using the curated panel taxonomy from
-[XeniumPanelExplorer](https://github.com/smith6jt-cop/XeniumPanelExplorer).
+transcriptomics processed by the `analysis/xenium` lane (absorbed from `Xenium_Analysis` on
+2026-08-28), using the curated panel taxonomy in the `core/panels` subtree (XeniumPanelExplorer).
 
 ```bash
-conda env create -f environment-integration.yml
-conda activate phenocycler_integration
-pip install -e .
+# On the workstation the repo .venv is the environment (environment-integration.yml is the HPG recipe).
+../../.venv/bin/pip install -e '.[integration]'
 
 python -m phenocycler.integration.manifest --report      # what pairs with what
 python -m phenocycler.integration.pipeline --status      # stage table
@@ -129,8 +132,8 @@ holds exactly one image as a backstop.
 A bare `pLN` resolves to `pln_1`. That is an **inference, not a measurement**: `pln_1` is the
 region every row of the vendored `xenium_paths.csv` carries (26 of the 26 donors listed there;
 three have a second, one a third). But that CSV is the upstream manifest, not the run cohort —
-the analysis cohort is 20 donors and **which 20 is not recorded anywhere in this repo**, so the
-statistic is drawn from a superset. The mapping is wrong for any donor whose single PhenoCycler
+the analysis cohort is the 20 donors of `cohort-spec.json` (settled 2026-08-14, see
+`docs/PLAN_2026-08-14_XENIUM_INTEGRATION_UNBLOCK.md`), so the statistic is drawn from a superset. The mapping is wrong for any donor whose single PhenoCycler
 lymph-node section corresponds to that donor's `pln_2` or `pln_3`. It would surface as a
 registration that will not align, not as silently wrong output; the fix is a per-donor override
 in `sections.REGION_TO_ROI`.
@@ -166,9 +169,12 @@ a different piece of tissue, and one partition must stay one section.
 
 `postxen` (S1c) pairs them against the transcriptome. It runs in **both** modes: the
 correspondence is a property of that section pair, not of the cohort, so gating it on
-`[integration] mode` would answer the wrong question. No registration is applied — a residual
-translation between two exports of one section is a coordinate-frame difference, estimated as
-a median offset and removed.
+`[integration] mode` would answer the wrong question.
+
+> **Measured 2026-08-31 / 09-01 — the "no registration needed" premise is wrong.** The two
+> frames sat 31–42 µm apart with a scale mismatch that a median offset cannot remove. The
+> re-stain is registered nucleus by nucleus in `scripts/restain/` (0.55–0.63 µm per cell), and
+> that lane — not this stage — hosts the protein-vs-RNA measurement; see its README.
 
 **What this unlocks.** INS/GCG/SST are off the 5K panel, so Xenium normally calls Beta/Alpha
 from surrogate cores (PDX1, ISL1, NEUROD1, ABCC8). With the re-stain those calls are *scored
@@ -345,8 +351,8 @@ Xenium        Exocrine    Stromal ──────────  Immune_T/B/Mye
 - **Epithelial.** Xenium deliberately has no epithelial mask — `16_epithelial_general` is
   `embedding_extra`, because KRT/EPCAM are shared by ductal, acinar and endocrine cells.
 
-The mapping is *derived* from the pinned XeniumPanelExplorer submodule
-(`external/XeniumPanelExplorer` @ `076d1192`), which ships `panel_roles.csv` and
+The mapping is *derived* from the `core/panels` subtree (XeniumPanelExplorer @ `076d1192`,
+verified byte-identical 2026-08-28), which ships `panel_roles.csv` and
 `identity_core/*.csv` specifically as a machine-readable contract for Python consumers. A
 drift guard fails loudly if an upstream lineage stops being covered.
 
@@ -458,7 +464,6 @@ longer align with `cells.parquet`.
 
 ```bash
 pip install -e '.[integration,test]'
-git submodule update --init --recursive
 pytest -q tests/integration                          # explicit optional lane
 python -m phenocycler.integration.pipeline --status
 python -m phenocycler.integration.pipeline --status --tissue pancreatic_lymph_node
@@ -486,12 +491,13 @@ sign (which fails silently by doubling the misalignment rather than removing it)
 
 ## Notes
 
-- The core pipeline is untouched: `python -m phenocycler.pipeline` still runs its eight
-  stages in the lean `phenocycler_analysis` environment with no new dependencies.
+- The core pipeline is untouched: `python -m phenocycler.pipeline` still runs its four
+  live stages (ingest → geometry → redsea → expression) with no new dependencies.
 - `Xenium_Analysis/notebooks/06_xenium_phenocycler_integration.ipynb` is superseded. It
   applied a 40×/20× "magnification" scale factor to coordinates that are already in microns,
   synthesised a disc segmentation instead of using the real polygons in the zarr, registered
   with translation only, and was never wired to the real cohort.
-- `Xenium_Analysis` hardcodes `ROOT = /blue/maigan/smith6jt/Xenium_Analysis` in 11+ files, so
-  nothing here imports it. Its *artifacts* are read; the handful of shared constants (DBSCAN
-  parameters, insulitis thresholds) are vendored with provenance comments.
+- `Xenium_Analysis` was absorbed as `analysis/xenium` on 2026-08-28 with its 39 hardcoded
+  `/blue/maigan` paths cleared onto two roots (`ROOT` for code, `XENIUM_DATA_ROOT` for data).
+  This package still reads its *artifacts* rather than importing it; the handful of shared
+  constants (DBSCAN parameters, insulitis thresholds) remain vendored with provenance comments.

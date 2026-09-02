@@ -187,17 +187,21 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 
 ## Data Pipeline
 
-The upstream single-cell source workflow is the manifest-controlled
-QuPath → geometry QC → REDSEA → RESTORE marker calling → simultaneous broad
-typing pipeline in
-[Phenocycler_Analysis/README.md](Phenocycler_Analysis/README.md). Run it from
-inside the submodule, which owns the only `config.ini`:
+The upstream source workflow is the manifest-controlled
+QuPath → ingest → geometry QC → REDSEA → expression pipeline in
+[core/phenocycler/README.md](core/phenocycler/README.md). It stops after
+expression: marker calling and typing are blocked until a verified typing
+workflow exists (root `CLAUDE.md`). Run it from `core/phenocycler/`, which owns
+the only `config.ini`:
 
 ```bash
-cd Phenocycler_Analysis
-python -m phenocycler.pipeline run --config config.ini
+cd core/phenocycler
+python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
+
+What runs today, lane by lane, is mapped in
+[docs/WORKFLOW_2026-09-02_MAP.md](docs/WORKFLOW_2026-09-02_MAP.md).
 
 That workflow writes immutable, content-addressed runs and QuPath-ready cell
 assignments. The application aggregation below consumes the resulting
@@ -268,7 +272,9 @@ Islet-Explorer/
 ├── data/                          # Data files (see Data section)
 ├── scripts/                       # Pipeline and utility scripts
 ├── islet_analysis/                # Generated islet-level H5ADs (gitignored)
-├── Phenocycler_Analysis/          # Submodule: QuPath→cell-type workflow + review notebooks
+├── core/phenocycler/              # Subtree: QuPath→expression workflow, development lanes, integration
+├── core/panels/                   # Subtree: XeniumPanelExplorer (panel taxonomy + its app)
+├── analysis/xenium/               # Xenium 5K lane (absorbed 2026-08-28)
 ├── docs/
 │   └── tissuumaps_evaluation.md   # TissUUmaps viewer evaluation and deployment recipe
 └── CLAUDE.md                      # Developer reference (architecture, conventions)

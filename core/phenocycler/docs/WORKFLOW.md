@@ -12,7 +12,10 @@ from declared QuPath inputs.
 > Otsu paths do not provide fallbacks.
 
 Start with [the project README](../README.md) for commands and
-[the data guide](../DATA_README.md) for schemas.
+[the data guide](../DATA_README.md) for schemas. For the state of every step
+on 2026-09-02 — this workflow, the development lanes, the Xenium lane, the
+integration layer and the app — see
+[`docs/WORKFLOW_2026-09-02_MAP.md`](../../../docs/WORKFLOW_2026-09-02_MAP.md).
 
 ## Intended outcome
 
@@ -86,19 +89,9 @@ fails rather than silently filtering it later.
 
 Ingest scans the declared CSVs, filters by exact image allow-list, assigns donor
 IDs from the manifest, preserves QuPath UUIDs, and unions panel-specific columns
-by name. It retains the exact four-compartment QuPath `Mean (norm)` fields for
-Iba1, CD68, and M2Gal3 as:
-
-```text
-QuPathNorm__Cell__<marker>
-QuPathNorm__Nucleus__<marker>
-QuPathNorm__Cytoplasm__<marker>
-QuPathNorm__Membrane__<marker>
-```
-
-These are upstream QuPath object-classifier measurements. They are not
-historical `*_norm` RESTORE outputs. Negative values are valid because QuPath
-used `(raw - tissue p50)/(tissue p99 - tissue p50)`.
+by name. It does not retain QuPath's signed `Mean (norm)` classifier fields:
+`cells/` carries no `QuPathNorm__` column (verified 2026-08-27, `a30a517`), and
+the registry refuses `measurement_source = qupath_norm`.
 
 ## Stage 2: geometry-only QC
 
@@ -127,8 +120,8 @@ universe. REDSEA does not assign positivity or cell identity.
 
 For each registered marker, expression selects exactly one declared source:
 
-- exact signed QuPath `Mean (norm)` for Iba1, CD68, and M2Gal3;
-- the declared REDSEA compartment for REDSEA-routed markers; or
+- the declared REDSEA compartment for REDSEA-routed markers (Iba1, CD68 and
+  M2Gal3 included — `qupath_norm` is refused since `a30a517`); or
 - the declared raw QuPath compartment for uncompensated markers.
 
 An acquired marker with a missing required source is fatal. A marker not
