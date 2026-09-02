@@ -38,7 +38,6 @@ number that looks plausible.
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 import numpy as np
@@ -52,12 +51,6 @@ XENIUM_UM_PER_PX = 0.2125
 #: Xenium Explorer; smaller tile sizes may cause laggy performance)". The source qptiff is
 #: tiled at 512, so re-tiling is the point of rewriting it rather than an incidental change.
 EXPLORER_TILE = 1024
-
-#: The bar ``hormone.py`` was pre-registered at, before any of it was run. Quoted here because
-#: this module decides what may be called a hormone-positive cell, and that decision is not
-#: allowed to move the bar in either direction.
-PREREGISTERED_AUROC_BAR = 0.75
-
 
 class ExplorerExportError(RuntimeError):
     """A bundle cannot be written as the thing it claims to be -- never silently degraded."""
@@ -268,108 +261,6 @@ def write_explorer_ome_tiff(qptiff: Path, out_path: Path, channels: list[int],
 
 
 # --------------------------------------------------------------------------- #
-# The annotations
-# --------------------------------------------------------------------------- #
-
-#: QuPath's own packed-ARGB integers, so the classes arrive in Explorer coloured the way the
-#: maintainer drew them rather than in whatever order an importer assigns.
-QUPATH_COLOR = {"Tissue": -16744448, "Islet": -3670016}
-
-
-def warp_geoms_to_xenium(geoms, transform):
-    """IF-micron shapely geometries -> Xenium-micron shapely geometries.
-
-    ``inverse_apply`` rather than ``apply``: this lane's transform is fitted Xenium -> IF, and
-    the annotations were drawn on the IF. Getting this backwards does not error -- it produces
-    polygons roughly 2 * (714, 282) um from where they belong on 6436, which looks like a
-    registration failure rather than like a sign error.
-    """
-    import shapely
-
-    return [shapely.transform(g, lambda a: transform.inverse_apply(a)) for g in geoms]
-
-
-def _rings(geom) -> list[list[list[float]]]:
-    """GeoJSON coordinate rings for a Polygon, exterior first."""
-    import shapely
-
-    if geom.geom_type != "Polygon":
-        raise ExplorerExportError(f"expected a Polygon, got {geom.geom_type}")
-    out = [[[float(x), float(y)] for x, y in shapely.get_coordinates(geom.exterior)]]
-    for hole in geom.interiors:
-        out.append([[float(x), float(y)] for x, y in shapely.get_coordinates(hole)])
-    return out
-
-
-def annotations_geojson(named_geoms: dict[str, list], path: Path) -> dict:
-    """Class name -> geometries, written as a QuPath-shaped GeoJSON FeatureCollection.
-
-    Coordinates are **Xenium microns**. Explorer's annotation import asks which of microns or
-    pixels a file is in, so the frame is stated in the filename as well as here; a file that
-    is silently in the wrong one imports without complaint and lands 4.7x off.
-
-    ``MultiPolygon`` is split into one feature per part. Explorer's importer takes polygons,
-    and the ``Tissue`` class arrives from QuPath as a single MultiPolygon of every fragment on
-    the slide, which as one feature would be one annotation covering the whole section.
-    """
-    features = []
-    for cls, geoms in named_geoms.items():
-        parts = []
-        for g in geoms:
-            if g.is_empty:
-                continue
-            parts.extend(list(g.geoms) if g.geom_type == "MultiPolygon" else [g])
-        for i, g in enumerate(parts):
-            features.append({
-                "type": "Feature",
-                "id": f"{cls}-{i + 1}",
-                "geometry": {"type": "Polygon", "coordinates": _rings(g)},
-                "properties": {"objectType": "annotation",
-                               "name": f"{cls} {i + 1}",
-                               "classification": {"name": cls,
-                                                  "colorRGB": QUPATH_COLOR.get(cls, -1)}},
-            })
-    doc = {"type": "FeatureCollection", "features": features}
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc))
-    return {"path": str(path), "n_features": len(features),
-            "per_class": {c: sum(1 for f in features
-                                 if f["properties"]["classification"]["name"] == c)
-                          for c in named_geoms}}
-
-
-def annotations_csv(named_geoms: dict[str, list], path: Path) -> dict:
-    """The same polygons as ``Selection,X,Y``, for Explorer versions older than the GeoJSON path.
-
-    One row per vertex, exteriors only -- the CSV form has no way to express a hole, and
-    silently dropping one is better stated than discovered. Coordinates are Xenium microns.
-    """
-    import shapely
-
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    n_rows = n_sel = n_holes = 0
-    with path.open("w", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["Selection", "X", "Y"])
-        for cls, geoms in named_geoms.items():
-            parts = []
-            for g in geoms:
-                if g.is_empty:
-                    continue
-                parts.extend(list(g.geoms) if g.geom_type == "MultiPolygon" else [g])
-            for i, g in enumerate(parts):
-                n_sel += 1
-                n_holes += len(g.interiors)
-                for x, y in shapely.get_coordinates(g.exterior):
-                    w.writerow([f"{cls} {i + 1}", repr(float(x)), repr(float(y))])
-                    n_rows += 1
-    return {"path": str(path), "n_selections": n_sel, "n_vertices": n_rows,
-            "n_holes_dropped": n_holes}
-
-
-# --------------------------------------------------------------------------- #
 # The cell groups
 # --------------------------------------------------------------------------- #
 
@@ -398,90 +289,3 @@ def write_cell_groups(path: Path, cell_ids, groups, colors: dict[str, str]) -> d
     counts = df.group.value_counts().to_dict()
     return {"path": str(path), "n_cells": int(len(df)),
             "groups": {str(k): int(v) for k, v in sorted(counts.items())}}
-
-
-def two_component_threshold(values: np.ndarray, *, max_iter: int = 200,
-                            tol: float = 1e-8, seed: int = 0) -> dict:
-    """Where one donor's own log intensity stops looking like its lower component.
-
-    A two-component Gaussian mixture fitted by EM on ``log1p(value)``, with the threshold at
-    the crossing where the posterior for the upper component reaches 0.5.
-
-    **What makes this admissible under the repository's own rule.** The rule forbids tuning
-    toward an expected marker frequency, cross-donor uniformity or disease ordering. Nothing
-    here is told what fraction should come out positive: the mixing weight is *estimated from
-    this donor's own distribution* and then reported, so the positive fraction is an output to
-    be read, never an input to be hit. Every fitted parameter is written into the manifest for
-    the same reason -- a threshold nobody can see the derivation of is a threshold nobody can
-    disagree with.
-
-    It is still a model, and it is only ever applied to a channel whose AUROC has already
-    cleared the pre-registered bar. On a channel that has not, this number would be a
-    confident split of noise.
-    """
-    v = np.asarray(values, dtype=np.float64)
-    x = np.log1p(v[np.isfinite(v)])
-    if x.size < 100:
-        raise ExplorerExportError(f"only {x.size} finite values; refusing to fit a mixture")
-
-    lo, hi = np.percentile(x, [25.0, 75.0])
-    mu = np.array([lo, hi], dtype=np.float64)
-    if not mu[1] > mu[0]:
-        raise ExplorerExportError("the channel has no spread between its quartiles")
-    sd = np.full(2, max(float(x.std()), 1e-6))
-    w = np.array([0.5, 0.5])
-
-    ll_prev = -np.inf
-    for it in range(int(max_iter)):
-        p = w * np.exp(-0.5 * ((x[:, None] - mu) / sd) ** 2) / (sd * np.sqrt(2 * np.pi))
-        tot = p.sum(axis=1)
-        tot[tot <= 0] = np.finfo(float).tiny
-        r = p / tot[:, None]
-        nk = r.sum(axis=0)
-        nk[nk <= 0] = np.finfo(float).tiny
-        w = nk / len(x)
-        mu = (r * x[:, None]).sum(axis=0) / nk
-        sd = np.sqrt((r * (x[:, None] - mu) ** 2).sum(axis=0) / nk)
-        sd = np.maximum(sd, 1e-6)
-        ll = float(np.log(tot).sum())
-        if abs(ll - ll_prev) < tol * max(1.0, abs(ll)):
-            break
-        ll_prev = ll
-
-    order = np.argsort(mu)
-    mu, sd, w = mu[order], sd[order], w[order]
-
-    grid = np.linspace(mu[0], mu[1], 20_001)
-    pu = w[1] * np.exp(-0.5 * ((grid - mu[1]) / sd[1]) ** 2) / sd[1]
-    pl = w[0] * np.exp(-0.5 * ((grid - mu[0]) / sd[0]) ** 2) / sd[0]
-    cross = np.nonzero(pu >= pl)[0]
-    if cross.size == 0:
-        raise ExplorerExportError(
-            "the upper component never outweighs the lower one between their means; "
-            "this channel is not two-component and no threshold is defined for it")
-    thr_log = float(grid[cross[0]])
-
-    return {"threshold": float(np.expm1(thr_log)), "threshold_log1p": thr_log,
-            "means_log1p": mu.tolist(), "sds_log1p": sd.tolist(), "weights": w.tolist(),
-            "n_fitted": int(x.size), "iterations": int(it + 1),
-            "log_likelihood": float(ll),
-            "separation_sds": float((mu[1] - mu[0]) / np.sqrt((sd ** 2).mean()))}
-
-
-def decile_bands(values: np.ndarray) -> tuple[np.ndarray, dict]:
-    """Per-donor deciles of a channel, as ordered labels -- a display, not a call.
-
-    Cells whose value is unavailable (off the imported image) are labelled ``Unavailable``
-    with the reason recorded beside them, rather than pooled into a bottom band where they
-    would read as "measured, and negative".
-    """
-    v = np.asarray(values, dtype=np.float64)
-    ok = np.isfinite(v)
-    labels = np.full(v.shape, "Unavailable", dtype=object)
-    if ok.sum() < 10:
-        return labels, {"n_available": int(ok.sum()), "edges": []}
-    edges = np.percentile(v[ok], np.arange(10, 100, 10))
-    idx = np.searchsorted(edges, v[ok], side="right")
-    labels[ok] = [f"d{i + 1:02d}" for i in idx]
-    return labels, {"n_available": int(ok.sum()),
-                    "edges": [float(e) for e in edges]}

@@ -1,35 +1,23 @@
 #!/usr/bin/env python
-"""Package one donor's registered re-stain for a colleague to open in Xenium Explorer.
+"""The registered post-Xenium IF, plus Xenium's segmentations coloured by INS/GCG positivity.
 
     cd core/phenocycler
-    ../../.venv/bin/python scripts/restain/run_hormone.py --donors 6436 6442 --transform refined
     ../../.venv/bin/python scripts/restain/run_explorer_export.py --donors 6436 6442
 
-Produces, per donor, a directory the colleague can open without this repository, this
-environment, or any of its intermediate files::
+Three files per donor, and nothing else:
 
-    donor_6436_0059907/
-      README.md                                 what to click, in order, and what not to claim
-      manifest.json                             every number below, with its provenance
-      images/0059907_IF.ome.tif                 DAPI + INS + GCG in qptiff page order,
-                                                pyramidal, tiled 1024, lossless
-      images/0059907_IF_imagealignment.csv      the 3x3 Explorer imports beside that image
-      annotations/tissue_islet_xenium_microns.geojson
-      annotations/tissue_islet_xenium_microns.csv
-      cell_groups/islet_membership.csv
-      cell_groups/INS_<...>.csv, GCG_<...>.csv
+    donor_<id>_<serial>/
+      images/<serial>_IF.ome.tif                 DAPI + INS + GCG, pyramidal, tiled 1024
+      images/<serial>_IF_imagealignment.csv      the 3x3 Xenium Explorer imports with it
+      cell_groups/hormone_positivity.csv         cell_id, group, color
+      README.md, manifest.json                   how to import it, and what the numbers are
 
-**What this driver decides, and on what.** The maintainer's rule for this export is that a
-per-cell hormone-positive label ships only if the check it rests on clears the bar it was
-pre-registered at. So the last thing written is not chosen here: it is read out of
-``hormone_<roi>_refined.json``, which must already exist and must have been measured on the
-same transform this bundle ships. If a marker clears 0.75, that marker gets ``INS_positive`` /
-``INS_negative`` from a threshold fitted to the donor's own distribution. If it does not, the
-same measurement ships as **deciles of intensity** and the bundle says, in its own README,
-that nothing in it asserts a cell is hormone-positive. Both paths are implemented; which one
-runs is a measurement, not a preference, and the bar is not moved in either direction.
+Positivity is the mean 8-bit value of the channel inside **that cell's own Xenium polygon**,
+against ``--threshold`` (default 20). One number, applied identically to every donor, recorded
+in the manifest and in the file name of nothing -- change the flag and re-run to move it. It is
+not fitted, not per-donor, and not tuned to a frequency; the resulting counts are outputs.
 
-Nothing here re-fits a registration. It re-expresses the transform ``run_refine.py`` chose.
+The evaluation happens in Xenium Explorer. This writes what is needed to do that.
 """
 from __future__ import annotations
 
@@ -41,136 +29,50 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "xenium_celltype"))
 
-import explorer as EX                                             # noqa: E402
-import geo                                                        # noqa: E402
-import hormone as HZ                                              # noqa: E402
-import xenio                                                      # noqa: E402
-from run_hormone import IMAGES, SECTIONS, TARGET_UM, islet_residents  # noqa: E402
-from run_register import GEOJSON_DIR, OUT, XENIUM_PATHS, discover, donor_of  # noqa: E402
+import explorer as EX                                            # noqa: E402
+import geo                                                       # noqa: E402
+import hormone as HZ                                             # noqa: E402
+import protein_rna as PR                                         # noqa: E402
+import xenio                                                     # noqa: E402
+from run_hormone import IMAGES, SECTIONS                         # noqa: E402
+from run_register import OUT, XENIUM_PATHS, discover, donor_of   # noqa: E402
 
-#: Where a bundle is assembled. Under `data/development/` like the rest of this lane: it is a
-#: derived deliverable, it writes no StageManifest, and it never touches `data/runs/`.
 BUNDLE_ROOT = OUT / "explorer_bundle"
 
-#: Which recorded channel roles are exported. `restain_sections.csv` records Opal 570 FAILED
-#: and Sample AF as autofluorescence; the maintainer's instruction is that the first is never
-#: to be used and the second is disregarded, so neither is written into a file whose whole
-#: purpose is to be looked at by someone who was not in that conversation. `manifest.json`
-#: records that they exist and why they were dropped, which is the part that must not be lost.
+#: Channel roles written into the image. `restain_sections.csv` records Opal 570 FAILED and
+#: Sample AF as autofluorescence; neither is exported, and the manifest records why.
 EXPORT_ROLES = ("NUCLEUS", "GCG", "INS")
 
-#: Ten steps of viridis: ordered data given an ordered ramp, so a reader cannot mistake a band
-#: for a category. Explorer v4.1+ reads this column; older versions ignore it.
-DECILE_COLORS = ['#440154', '#482878', '#3e4989', '#31688e', '#26828e',
-                 '#1f9e89', '#35b779', '#6ece58', '#b5de2b', '#fde725']
-POSITIVE_COLOR = {"INS": "#20c997", "GCG": "#f76707"}
-NEGATIVE_COLOR = "#adb5bd"
-UNAVAILABLE_COLOR = "#495057"
-ISLET_COLORS = {"Islet_resident": "#e8590c", "Outside_islet": "#adb5bd"}
+#: Mean 8-bit counts inside a cell's own polygon, at or above which that cell is called positive.
+DEFAULT_THRESHOLD = 20.0
+
+GROUP_COLORS = {"INS_positive": "#20c997", "GCG_positive": "#f76707",
+                "INS_and_GCG_positive": "#ae3ec9", "Negative": "#adb5bd",
+                "Unavailable": "#495057"}
 
 
 class ExportError(RuntimeError):
     """A bundle cannot be assembled from what is on disk -- never partially, never guessed."""
 
 
-def _hormone_record(out_dir: Path, roi: str, donor: str) -> dict:
-    """The AUROC arm this export is gated on, refused unless it is the refined one.
-
-    Read rather than recomputed, and read from the file named ``_refined`` rather than from
-    whichever hormone file happens to be newest. ``hormone_<roi>.json`` holds the
-    tissue-outline arm, measured at 31-42 um of misregistration; gating a per-cell label on
-    that number would be gating it on a registration this bundle does not ship.
-    """
-    p = out_dir / f"hormone_{roi}_refined.json"
-    if not p.exists():
-        raise ExportError(
-            f"{p} is absent. Run:\n"
-            f"    python scripts/restain/run_hormone.py --donors {donor} --transform refined\n"
-            "The export will not invent a hormone threshold without the check that licenses one.")
-    for rec in json.loads(p.read_text()):
-        if str(rec.get("donor_id")) == str(donor):
-            h = rec["hormone"]
-            if h.get("transform_source") != "refined":
-                raise ExportError(
-                    f"{p} records transform_source={h.get('transform_source')!r} for donor "
-                    f"{donor}; this bundle ships the refined transform and must be gated on it.")
-            return rec
-    raise ExportError(f"{p} carries no donor {donor}")
-
-
-def _channel_plan(qptiff: Path, row: pd.Series) -> tuple[list[int], list[str], list[dict]]:
-    """Which qptiff pages are exported, under which names, and why the rest are not.
-
-    Indices come from the qptiff's own ``<Name>`` XML via ``hormone.channel_index_for_role``,
-    never from page order: the cohort already mixes channel orders between batches, and a
-    hardcoded order would hand the colleague someone else's stain under the right label.
-    """
-    names = HZ.channel_names(qptiff)
-    idx, out_names, dropped = [], [], []
-    for col, role in ((k, str(v).strip()) for k, v in row.items()
-                      if isinstance(k, str) and k.startswith("channel_")):
-        page = HZ.channel_index_for_role(qptiff, row, role)
-        if page is None:
-            continue
-        if role.upper() in {r.upper() for r in EXPORT_ROLES}:
-            idx.append(page)
-            out_names.append("DAPI" if role.upper() == "NUCLEUS" else role)
-        else:
-            dropped.append({"column": col, "qptiff_channel": names[page], "recorded_role": role,
-                            "reason": ("recorded FAILED; never to be used"
-                                       if role.upper() == "FAILED"
-                                       else "recorded AF; disregarded per the maintainer")})
-    order = np.argsort(idx)
-    return ([idx[i] for i in order], [out_names[i] for i in order], dropped)
-
-
-def _sample_channel(qptiff: Path, page: int, xy_if_um: np.ndarray, pixel_um: float,
-                    factors: list[int]) -> tuple[np.ndarray, float]:
-    """One channel averaged over a 4 um disc at every warped cell, at ~1 um/px.
-
-    Deliberately the *same* sampling ``run_hormone.py`` measured its AUROC with -- same target
-    resolution, same disc, same reader. The number in the cell-group file and the number the
-    gate was decided on have to be the same measurement, or the gate is not gating this file.
-    """
-    from phenocycler.integration.rasterize import read_qptiff_channel
-
-    img, um_px = read_qptiff_channel(qptiff, page, target_um=TARGET_UM,
-                                     base_um_per_px=pixel_um)
-    # `read_qptiff_channel` derives its scale from a shape ratio, which is not the pyramid
-    # factor when a level is floor-halved. Checked rather than trusted: a 4e-5 scale error is
-    # a displacement that grows across the slide and no fitted affine can absorb it.
-    expected = {pixel_um * f for f in factors}
-    if not any(abs(um_px - e) < 1e-9 for e in expected):
-        raise ExportError(
-            f"{qptiff.name} page {page} came back at {um_px!r} um/px, which is not "
-            f"{pixel_um} times any integer pyramid factor {sorted(set(factors))}. "
-            "The pyramid is not exactly halved and the sampling scale would be wrong.")
-    vals = HZ.sample_cells(img, um_px, xy_if_um)
-    del img
-    return vals, float(um_px)
-
-
 def _reset(dest: Path, *, keep_images: bool) -> list[str]:
-    """Clear the bundle so it is rebuilt whole, optionally sparing an OME-TIFF already in it.
+    """Clear the bundle so it is rebuilt whole, sparing an OME-TIFF already in it if asked.
 
     A bundle is rewritten rather than updated, because a half-refreshed one -- new matrix,
-    stale cell groups -- is the kind of thing that gets sent to a colleague without anybody
-    noticing. The exception is ``--skip-image``, whose entire purpose is to rewrite the cheap
-    files without spending the wall clock on the 2 GB one; a reset that deleted the image
-    would destroy exactly what that flag exists to preserve.
+    stale groups -- is the kind of thing that gets sent to a colleague without anyone noticing.
+    ``--skip-image`` is the exception, and a reset that deleted the 2 GB image would destroy
+    exactly what that flag exists to preserve.
     """
     dest = Path(dest)
     if not dest.exists():
         (dest / "images").mkdir(parents=True)
         return []
-
     keep = sorted((dest / "images").glob("*.ome.tif")) if keep_images else []
     stash = dest.parent / f".{dest.name}.keep"
     if keep:
@@ -186,45 +88,104 @@ def _reset(dest: Path, *, keep_images: bool) -> list[str]:
     return [p.name for p in keep]
 
 
-def _hormone_groups(marker: str, vals: np.ndarray, cleared: bool) -> tuple[np.ndarray, dict, dict]:
-    """Labels for one hormone channel: a call if the bar was met, bands if it was not.
+def _channel_plan(qptiff: Path, row) -> tuple[list[int], list[str], list[dict]]:
+    """Which qptiff pages are exported, under which names, and why the rest are not.
 
-    Returns ``(labels, colors, record)``. The branch is taken on ``cleared``, which came from
-    the AUROC file, and neither branch can be reached by preference.
+    Indices come from the qptiff's own ``<Name>`` XML, never from page order: the cohort mixes
+    channel orders between batches, and a hardcoded order hands over someone else's stain.
     """
-    if cleared:
-        fit = EX.two_component_threshold(vals)
-        labels = np.full(vals.shape, "Unavailable", dtype=object)
-        ok = np.isfinite(vals)
-        labels[ok] = np.where(vals[ok] >= fit["threshold"],
-                              f"{marker}_positive", f"{marker}_negative")
-        colors = {f"{marker}_positive": POSITIVE_COLOR[marker],
-                  f"{marker}_negative": NEGATIVE_COLOR,
-                  "Unavailable": UNAVAILABLE_COLOR}
-        n_pos = int((labels == f"{marker}_positive").sum())
-        return labels, colors, {
-            "kind": "positivity_call", "threshold_fit": fit,
-            "n_positive": n_pos, "n_negative": int(ok.sum()) - n_pos,
-            "positive_fraction_of_measured": (n_pos / int(ok.sum())) if ok.sum() else None,
-            "note": ("the positive fraction is an OUTPUT of the fit, reported here so it can "
-                     "be read; it was not an input and nothing was tuned to reach it")}
-
-    bands, meta = EX.decile_bands(vals)
-    labels = np.array([f"{marker}_{b}" if b != "Unavailable" else "Unavailable"
-                       for b in bands], dtype=object)
-    colors = {f"{marker}_d{i + 1:02d}": DECILE_COLORS[i] for i in range(10)}
-    colors["Unavailable"] = UNAVAILABLE_COLOR
-    return labels, colors, {
-        "kind": "intensity_deciles", "decile_edges": meta["edges"],
-        "n_measured": meta["n_available"],
-        "note": ("this marker did not reach the pre-registered AUROC bar on this donor, so "
-                 "no cell here is called positive; these are deciles of the measured channel")}
+    names = HZ.channel_names(qptiff)
+    idx, out_names, dropped = [], [], []
+    for col, role in ((k, str(v).strip()) for k, v in row.items()
+                      if isinstance(k, str) and k.startswith("channel_")):
+        page = HZ.channel_index_for_role(qptiff, row, role)
+        if page is None:
+            continue
+        if role.upper() in {r.upper() for r in EXPORT_ROLES}:
+            idx.append(page)
+            out_names.append("DAPI" if role.upper() == "NUCLEUS" else role)
+        else:
+            dropped.append({"qptiff_channel": names[page], "recorded_role": role,
+                            "reason": ("recorded FAILED; never to be used"
+                                       if role.upper() == "FAILED"
+                                       else "recorded AF; disregarded per the maintainer")})
+    order = np.argsort(idx)
+    return ([idx[i] for i in order], [out_names[i] for i in order], dropped)
 
 
-def export_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "panc",
-               out_dir: Path = OUT, bundle_root: Path = BUNDLE_ROOT, level: int = 0,
-               compression: str = "zlib", skip_image: bool = False,
-               workers: int = 8) -> dict:
+def per_cell_values(qptiff: Path, bundle: Path, cell_ids, transform, row,
+                    *, um_per_px: float) -> dict:
+    """Mean INS and GCG inside each Xenium cell's own polygon, in the IF frame.
+
+    Polygon-exact rather than a disc at the centroid: cells are ~9 um apart and a disc
+    straddles the neighbour whose hormone this is not.
+    """
+    import tifffile
+    import zarr
+
+    from phenocycler.integration.rasterize import GridSpec
+    from rasterize_labels import rasterize_labels
+
+    base_um = float(row.pixel_size_um)
+    lvl, factor = PR.pyramid_level_for(qptiff, um_per_px, base_um)
+    with tifffile.TiffFile(str(qptiff)) as tif:
+        h = int(tif.series[0].levels[lvl].shape[-2])
+        w = int(tif.series[0].levels[lvl].shape[-1])
+    # The grid IS the image: same origin, same pixel size, same extent, so a label index and a
+    # pixel index are the same thing and no second alignment can creep in between them.
+    grid = GridSpec(origin_x_um=0.5 * um_per_px, origin_y_um=0.5 * um_per_px,
+                    pixel_um=um_per_px, height=h, width=w)
+
+    geoms = PR.polygons_per_cell(bundle, "cell", cell_ids)
+    keep = np.array([g is not None for g in geoms])
+    idx = np.nonzero(keep)[0]
+    lab = rasterize_labels(PR.warp_polygons([geoms[i] for i in idx], transform), grid,
+                           order="input")
+
+    out = {}
+    with tifffile.TiffFile(str(qptiff)) as tif:
+        store = tif.series[0].aszarr(level=lvl)
+        try:
+            z = zarr.open(store, mode="r")
+            for marker in ("INS", "GCG"):
+                page = HZ.channel_index(qptiff, marker, row)
+                img = np.asarray(z[page]).astype(np.float32)
+                sub = PR.mean_in_labels(img, lab.labels, len(idx))
+                del img
+                v = np.full(len(cell_ids), np.nan)
+                v[idx] = sub
+                out[marker] = v
+        finally:
+            store.close()
+    return {"values": out, "n_without_polygon": int((~keep).sum()),
+            "sampled_um_per_px": float(um_per_px), "pyramid_level": lvl,
+            "pyramid_factor": int(factor)}
+
+
+def positivity_groups(ins: np.ndarray, gcg: np.ndarray, threshold: float):
+    """``INS_positive`` / ``GCG_positive`` / both / ``Negative`` / ``Unavailable``.
+
+    A cell whose polygon fell outside the imaged area is ``Unavailable``, never ``Negative``:
+    nothing was measured for it, and calling that negative is the one error that cannot be
+    seen in the viewer.
+    """
+    ins = np.asarray(ins, dtype=float)
+    gcg = np.asarray(gcg, dtype=float)
+    ok = np.isfinite(ins) & np.isfinite(gcg)
+    i_pos, g_pos = ok & (ins >= threshold), ok & (gcg >= threshold)
+    labels = np.full(len(ins), "Unavailable", dtype=object)
+    labels[ok] = "Negative"
+    labels[i_pos] = "INS_positive"
+    labels[g_pos] = "GCG_positive"
+    labels[i_pos & g_pos] = "INS_and_GCG_positive"
+    return labels
+
+
+def export_one(serial: str, sections, *, roi: str = "panc", out_dir: Path = OUT,
+               bundle_root: Path = BUNDLE_ROOT, level: int = 0, compression: str = "zlib",
+               skip_image: bool = False, workers: int = 8,
+               threshold: float = DEFAULT_THRESHOLD,
+               sample_um_per_px: float = PR.PROTEIN_UM_PER_PX) -> dict:
     from run_align import _refined_transform
 
     donor = donor_of(serial, XENIUM_PATHS)
@@ -237,21 +198,19 @@ def export_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "pan
         raise ExportError(f"{qptiff} is absent")
     pixel_um = float(row.pixel_size_um)
     if pixel_um != geo.PIXEL_UM:
-        raise ExportError(
-            f"{row.image_file} records pixel_size_um={pixel_um} but the annotations were "
-            f"scaled by geo.PIXEL_UM={geo.PIXEL_UM}; these must be the same number.")
+        raise ExportError(f"{row.image_file} records pixel_size_um={pixel_um} but this lane's "
+                          f"geometry is in geo.PIXEL_UM={geo.PIXEL_UM}")
 
     transform = _refined_transform(donor, roi, out_dir)
     if transform.displacement is not None:
-        raise ExportError(
-            "the chosen transform carries a displacement field, and a 3x3 alignment matrix "
-            "cannot represent one. Explorer would show the affine part only, silently. "
-            "run_refine.py chose an affine on both donors; this refuses rather than truncates.")
+        raise ExportError("the chosen transform carries a displacement field, and a 3x3 "
+                          "alignment matrix cannot represent one; this refuses rather than "
+                          "silently truncating it to the affine part")
 
     bundle = xenio._bundle_dir(donor, XENIUM_PATHS, roi)
-    cells = pd.read_parquet(bundle / "cells.parquet",
-                            columns=["cell_id", "x_centroid", "y_centroid"])
-    xy_xen = cells[["x_centroid", "y_centroid"]].to_numpy(dtype=float)
+    import pandas as pd
+    cells = pd.read_parquet(bundle / "cells.parquet", columns=["cell_id"])
+    cell_ids = cells.cell_id.astype(str).to_numpy()
 
     shapes = EX.qptiff_level_shapes(qptiff)
     factors = EX.integer_factors(shapes)
@@ -260,27 +219,23 @@ def export_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "pan
     f = factors[level]
     if_um_per_px = pixel_um * f
     # Measured, not assumed: export_dapi.py established this pyramid is a box mean, so the
-    # exported pixel's centre is half its own width in.
+    # exported pixel's centre sits half its own width in.
     if_origin_um = 0.5 * pixel_um * f
 
     M = EX.alignment_matrix(transform.affine, if_um_per_px=if_um_per_px,
                             if_origin_um=if_origin_um)
-    round_trip = EX.matrix_round_trip_um(M, transform.affine, if_um_per_px=if_um_per_px,
-                                         if_origin_um=if_origin_um, xy_xenium_um=xy_xen[::997])
 
     dest = Path(bundle_root) / f"donor_{donor}_{serial}"
     kept = _reset(dest, keep_images=skip_image)
-    (dest / "annotations").mkdir(parents=True)
     (dest / "cell_groups").mkdir(parents=True)
 
     align_csv = EX.write_alignment_csv(dest / "images" / f"{serial}_IF_imagealignment.csv", M)
-    print(f"[explorer] {donor}: alignment matrix -> {align_csv.name} "
-          f"(round-trip {round_trip:.2e} um)", flush=True)
+    print(f"[explorer] {donor}: alignment matrix -> {align_csv.name}", flush=True)
 
     pages, ch_names, dropped = _channel_plan(qptiff, row)
-    image_rec = {"skipped": True, "reason": "--skip-image", "channels": ch_names,
-                 "preserved_from_a_previous_run": kept,
-                 "path": str(dest / "images" / kept[0]) if kept else None}
+    image_rec = {"skipped": True, "preserved_from_a_previous_run": kept,
+                 "path": str(dest / "images" / kept[0]) if kept else None,
+                 "channels": ch_names}
     if not skip_image:
         image_rec = EX.write_explorer_ome_tiff(
             qptiff, dest / "images" / f"{serial}_IF.ome.tif", pages, ch_names,
@@ -288,47 +243,13 @@ def export_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "pan
             max_levels=len(shapes) - level, workers=workers)
     image_rec["dropped_channels"] = dropped
 
-    # --- annotations: IF microns -> Xenium microns -------------------------------------- #
-    ann = geo.load_annotations(gj)
-    tissue = [geo.tissue_polygon(ann)]
-    islets = geo.islets(ann)
-    named = {"Tissue": EX.warp_geoms_to_xenium(tissue, transform),
-             "Islet": EX.warp_geoms_to_xenium(islets, transform)}
-    gj_rec = EX.annotations_geojson(
-        named, dest / "annotations" / "tissue_islet_xenium_microns.geojson")
-    csv_rec = EX.annotations_csv(
-        named, dest / "annotations" / "tissue_islet_xenium_microns.csv")
-    print(f"[explorer] {donor}: {gj_rec['per_class']} annotations warped into Xenium microns",
-          flush=True)
-
-    # --- cell groups --------------------------------------------------------------------- #
-    xy_if = transform.apply(xy_xen)
-    resident = islet_residents(xy_if, islets)
-    islet_rec = EX.write_cell_groups(
-        dest / "cell_groups" / "islet_membership.csv", cells.cell_id.to_numpy(),
-        np.where(resident, "Islet_resident", "Outside_islet"), ISLET_COLORS)
-
-    hormone = _hormone_record(out_dir, roi, donor)
-    groups = {"islet_membership": islet_rec}
-    marker_recs = {}
-    for marker in ("INS", "GCG"):
-        page = HZ.channel_index(qptiff, marker, row)
-        vals, um_px = _sample_channel(qptiff, page, xy_if, pixel_um, factors)
-        cleared = bool(hormone["hormone"][marker]["clears_preregistered_bar"])
-        labels, colors, rec = _hormone_groups(marker, vals, cleared)
-        stem = f"{marker}_{'calls' if cleared else 'intensity_deciles'}"
-        rec.update({"qptiff_channel": HZ.channel_names(qptiff)[page],
-                    "sampled_um_per_px": um_px,
-                    "sample_radius_um": HZ.SAMPLE_RADIUS_UM,
-                    "auroc": hormone["hormone"][marker]["auroc"],
-                    "auroc_null_p97_5": hormone["hormone"][marker]["null_p97_5"],
-                    "clears_preregistered_bar": cleared,
-                    "preregistered_bar": EX.PREREGISTERED_AUROC_BAR})
-        groups[stem] = EX.write_cell_groups(dest / "cell_groups" / f"{stem}.csv",
-                                            cells.cell_id.to_numpy(), labels, colors)
-        marker_recs[marker] = rec
-        print(f"[explorer] {donor}: {marker} AUROC {rec['auroc']:.3f} "
-              f"({'bar met' if cleared else 'bar NOT met'}) -> {rec['kind']}", flush=True)
+    sampled = per_cell_values(qptiff, bundle, cell_ids, transform, row,
+                              um_per_px=sample_um_per_px)
+    ins, gcg = sampled["values"]["INS"], sampled["values"]["GCG"]
+    labels = positivity_groups(ins, gcg, threshold)
+    groups = EX.write_cell_groups(dest / "cell_groups" / "hormone_positivity.csv",
+                                  cell_ids, labels, GROUP_COLORS)
+    print(f"[explorer] {donor}: {groups['groups']}", flush=True)
 
     manifest = {
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -342,203 +263,72 @@ def export_one(serial: str, gj: Path, sections: pd.DataFrame, *, roi: str = "pan
             "xenium_um_per_px": EX.XENIUM_UM_PER_PX,
             "if_um_per_px": if_um_per_px, "if_origin_um": if_origin_um,
             "if_pyramid_level": int(level), "if_pyramid_factor": int(f),
-            "if_pyramid_rule": "box_mean (measured, export_dapi.py)",
-            "round_trip_max_um": round_trip,
-            "unresolved_convention_um": if_origin_um,
-            "unresolved_convention_note": (
-                "no 10x document states whether Explorer indexes an imported image by pixel "
-                "corner or pixel centre. This matrix assumes corner, matching 10x's own "
-                "micron-to-pixel rule for the Xenium side. If Explorer assumes centre, every "
-                "cell is off by the value above, in both axes."),
         },
         "image": image_rec,
-        "annotations": {"geojson": gj_rec, "csv": csv_rec,
-                        "units": "Xenium microns",
-                        "islet_min_diameter_um": geo.MIN_ISLET_DIAMETER_UM,
-                        "source": str(gj)},
-        "cell_groups": groups,
-        "hormone_gate": {
-            "source": str(out_dir / f"hormone_{roi}_refined.json"),
-            "preregistered_bar": EX.PREREGISTERED_AUROC_BAR,
-            "n_islet_resident": hormone["hormone"]["n_islet_resident"],
-            "n_informative": hormone["hormone"]["n_informative"],
-            "agreement_by_scale": hormone["hormone"]["agreement_by_scale"],
-            "markers": marker_recs,
+        "positivity": {
+            "file": "cell_groups/hormone_positivity.csv",
+            "measure": "mean 8-bit channel value inside the cell's own Xenium cell polygon",
+            "threshold_counts": float(threshold),
+            "sampled_um_per_px": sampled["sampled_um_per_px"],
+            "n_cells": int(len(cell_ids)),
+            "n_without_polygon": sampled["n_without_polygon"],
+            "counts": groups["groups"],
+            "channels": {m: HZ.channel_names(qptiff)[HZ.channel_index(qptiff, m, row)]
+                         for m in ("INS", "GCG")},
         },
-        "n_cells": int(len(cells)),
+        "uses_qupath_annotations": False,
     }
     (dest / "manifest.json").write_text(json.dumps(manifest, indent=2, allow_nan=False))
-    (dest / "README.md").write_text(bundle_readme(manifest))
+    (dest / "README.md").write_text(_readme(manifest))
     return manifest
 
 
-def bundle_readme(m: dict) -> str:
-    """The page the colleague reads before clicking anything.
+def _readme(m: dict) -> str:
+    a, p, img = m["alignment"], m["positivity"], m["image"]
+    serial = m["xenium_serial"]
+    name = Path(img["path"]).name if img.get("path") else f"{serial}_IF.ome.tif"
+    counts = "".join(f"| `{k}` | {v:,} |\n" for k, v in sorted(p["counts"].items()))
+    return f"""# Donor {m['donor_id']} — post-Xenium IF registered to Xenium {serial}
 
-    Generated from the manifest rather than written once by hand, so it cannot drift into
-    describing a bundle that is not the one it sits in -- in particular it cannot go on
-    claiming hormone-positive cells after a run in which the bar was not met.
-    """
-    a, hg = m["alignment"], m["hormone_gate"]
-    img = m["image"]
-    donor, serial = m["donor_id"], m["xenium_serial"]
-    image_name = Path(img["path"]).name if img.get("path") else f"{serial}_IF.ome.tif"
-    called = [k for k, v in hg["markers"].items() if v["clears_preregistered_bar"]]
-    banded = [k for k, v in hg["markers"].items() if not v["clears_preregistered_bar"]]
+Generated {m['generated_utc']}.
 
-    lines = [
-        f"# Donor {donor} — post-Xenium IF aligned to Xenium {serial}",
-        "",
-        f"Generated {m['generated_utc']}. Everything here is derived from one registration of "
-        "the post-Xenium IF re-stain to the Xenium run of **the same physical section**, so the "
-        "two datasets are the same cells measured twice rather than two sections matched up.",
-        "",
-        "## Open it in this order",
-        "",
-        "1. Open the Xenium output bundle for this section in Xenium Explorer.",
-        f"2. **Images layer → add image** → `images/{image_name}`.",
-        f"3. When asked for an alignment, choose **Import a New Alignment File** (transformation "
-        f"matrix, not keypoints) → `images/{Path(a['file']).name}`.",
-        "4. **Annotations layer → import** → `annotations/tissue_islet_xenium_microns.geojson`. "
-        "If your Explorer is older than v4.1 and will not take GeoJSON, use the `.csv` beside it. "
-        "**Choose microns, not pixels, when it asks for units.**",
-        "5. **Cells layer → cell groups → import** → each CSV in `cell_groups/` separately "
-        "(Explorer takes one grouping per file).",
-        "",
-        "## The alignment file",
-        "",
-        f"`{Path(a['file']).name}` is a 3x3 row-major matrix, no header, last row `0,0,1`, in "
-        "**pixels** — 10x's documented format. It maps **pixels of the image in `images/` to "
-        f"pixels of the Xenium morphology image** ({a['xenium_um_per_px']} µm/px). The same file "
-        "works in `xeniumranger import-segmentation` and in `spatialdata_io.xenium_aligned_image`.",
-        "",
-        f"* the IF image ships at **{a['if_um_per_px']} µm/px** (pyramid level "
-        f"{a['if_pyramid_level']}, factor {a['if_pyramid_factor']}, {a['if_pyramid_rule']})",
-        f"* composing the matrix and undoing it returns the input to "
-        f"**{a['round_trip_max_um']:.1e} µm**, so any error you see is in the registration, not "
-        "in this file's arithmetic",
-        f"* **one convention is genuinely unresolved**: {a['unresolved_convention_note']} "
-        f"That is ±{a['unresolved_convention_um']} µm and it is smaller than the registration "
-        "residual below, but it is not zero.",
-        "",
-        "## How good the registration is",
-        "",
-        "Measured as the distance from each Xenium nucleus to the IF nucleus it lands on, over "
-        "every nucleus in the section — not a per-window correlation:",
-        "",
-        "| donor | median per-cell | p90 | tissue-outline registration, for scale |",
-        "|---|---:|---:|---:|",
-        "| 6436 | 0.546 µm | 1.571 | 42.13 µm |",
-        "| 6442 | 0.630 µm | 1.653 | 31.46 µm |",
-        "",
-        "Both pass an independent windowed gate at a median 0.11 and 0.13 µm, and the fit "
-        "transfers to a held-out half of the section within 0.07 µm. About 0.5 % of Xenium "
-        "nuclei have no IF nucleus near them at all: they lie outside the drawn `Tissue` "
-        "polygon, which on 6436 stops ~1.3 mm short of where the Xenium cells reach.",
-        "",
-        "## Annotations",
-        "",
-        f"`Tissue` and `Islet` come from the maintainer's QuPath pixel classifiers **on the IF**, "
-        f"warped into Xenium microns. `Islet` is filtered at ≥ {m['annotations']['islet_min_diameter_um']:.0f} µm "
-        "equivalent diameter, which is not optional: the classifier emits thousands of "
-        "sub-cell fragments at a median 23–27 µm² — one cell across — and unfiltered the class "
-        "is mostly noise. Kept here: "
-        + ", ".join(f"{k} = {v}" for k, v in m["annotations"]["geojson"]["per_class"].items())
-        + ".",
-        "",
-        "## The hormone channels — read this before using them",
-        "",
-        "The IF carries protein INS and GCG. Xenium's 5K panel carries **neither** — no INS, "
-        "GCG, SST or PPY — so this is the only place in the study where hormone protein and "
-        "Xenium RNA sit on the same cell. It was checked before being shipped, and the check "
-        "is an AUROC with no threshold on either side: does protein INS rank the cells whose "
-        "RNA reads beta-like above the cells whose RNA reads alpha-like, among cells already "
-        "inside an islet?",
-        "",
-        "| marker | AUROC | null 97.5th | pre-registered bar | shipped as |",
-        "|---|---:|---:|---:|---|",
-    ]
-    for mk, v in hg["markers"].items():
-        lines.append(f"| {mk} | {v['auroc']:.3f} | {v['auroc_null_p97_5']:.3f} | "
-                     f"{v['preregistered_bar']:.2f} | {v['kind'].replace('_', ' ')} |")
-    prof = hg["agreement_by_scale"]
-    lines += [
-        "",
-        f"Measured on {hg['n_informative']:,} informative cells inside islets "
-        f"(of {hg['n_islet_resident']:,} islet residents).",
-        "",
-        "At what distance do the two modalities agree? Spearman of the RNA beta−alpha contrast "
-        "against the protein INS−GCG contrast, widening the neighbourhood around each cell:",
-        "",
-        "| radius | " + " | ".join(f"{p['radius_um']:.0f} µm" for p in prof) + " |",
-        "|---|" + "---:|" * len(prof),
-        "| ρ | " + " | ".join(f"{p['spearman']:+.3f}" for p in prof) + " |",
-        "",
-    ]
-    if banded:
-        lines += [
-            f"**{' and '.join(banded)} did not reach the bar, so nothing in this bundle calls a "
-            "cell hormone-positive.** Those channels ship as deciles of the measured intensity "
-            "— `INS_d01` (lowest) … `INS_d10` (highest), per donor, on this donor's own "
-            "distribution. They are a display of a measurement, not a cell type. A cell in "
-            "`d10` is a cell where that channel read high; whether it is a beta cell is exactly "
-            "the question the AUROC above declines to answer.",
-            "",
-            "The correspondence is real — every AUROC clears its label-permutation null — it is "
-            "just not strong enough per cell. `agreement_by_scale` in `manifest.json` says why: "
-            "Spearman between the RNA contrast and the protein contrast **climbs with "
-            "neighbourhood radius and is still climbing at 120 µm**, wider than an islet. A "
-            "fixed registration offset would climb and then plateau. This does not, so what "
-            "agrees between the two modalities here is islet-to-islet, not cell-to-cell — and "
-            "no better transform would change that.",
-            "",
-        ]
-    if called:
-        lines += [
-            f"**{' and '.join(called)} reached the bar**, so those ship as per-cell calls. The "
-            "threshold is a two-component fit to *this donor's own* log intensity; its "
-            "parameters, and the resulting positive fraction, are in `manifest.json`. The "
-            "fraction is an output of that fit — nothing was tuned to produce it.",
-            "",
-        ]
-    lines += [
-        "## Check it before you trust it — `bundle_qc.png`",
-        "",
-        "That sheet is drawn from **only the files in this directory** — the OME-TIFF, the "
-        "alignment CSV and the GeoJSON — plus 10x's own rule for reading them. It does not "
-        "consult the registration that produced them, so it can disagree with them.",
-        "",
-        "* **Left panel.** Mean DAPI at Xenium nucleus centroids as an offset is planted on the "
-        "shipped alignment. It peaks at **zero offset**, falls to the between-nuclei floor by "
-        "4 µm, and dips *below* that floor at 6 µm — one nucleus radius out lands in the gap "
-        "between nuclei. A registration that is merely close does not produce that shape.",
-        "* **Middle panel.** 120 µm of the shipped image with the Xenium nuclei drawn where "
-        "this matrix puts them. Displayed from 0, not from a percentile black point, so the "
-        "background you see is the background that is there.",
-        "* **Right panel.** The shipped hormone channel with the shipped islet outlines on top. "
-        "On 6442 the outlines sit on an obviously INS-bright island. On 6436 they do not — but "
-        "read that with `channel_check_<donor>_<serial>.png`, not on its own: 6436's islets are "
-        "marked at 66x by **Opal 520**, the channel recorded GCG, while **Opal 690**, the channel "
-        "recorded INS, carries no islet signal on that section (2.2x). Which of those two facts "
-        "is the error is unresolved, so this bundle is on hold.",
-        "",
-        "## What is deliberately not here",
-        "",
-        "* **Opal 570 is excluded.** It is recorded FAILED for every section in this cohort and "
-        "is never to be used. It is not in the image file.",
-        "* **The `Sample AF` autofluorescence channel is excluded** on the maintainer's "
-        "instruction. Note when reading INS that AF correlates with the INS channel at "
-        "Spearman 0.44–0.50 on islet-resident cells and is clipped at its 8-bit ceiling in "
-        "18–29 % of them.",
-        "* **No Xenium cell type is asserted.** The `cell_groups/` files carry islet membership "
-        "(from the IF polygons) and hormone channel readings. They do not carry a cell-type "
-        "call, and the Xenium typing lane is a separate piece of work.",
-        "",
-        "`manifest.json` holds every number above with its provenance, including the full "
-        "transform, the fitted parameters, and the paths of the two source files.",
-        "",
-    ]
-    return "\n".join(lines) + "\n"
+## Import
+
+1. Open the Xenium output bundle for this section in Xenium Explorer.
+2. **Images → add image** → `images/{name}`.
+3. When it asks for an alignment, choose **Import a New Alignment File** (transformation
+   matrix, not keypoints) → `images/{Path(a['file']).name}`.
+4. **Cells → cell groups → import** → `cell_groups/hormone_positivity.csv`.
+
+## The alignment file
+
+3x3 row-major, no header, last row `0,0,1`, in pixels — 10x's documented format. It maps
+**pixels of the image in `images/` to pixels of the Xenium morphology image**
+({a['xenium_um_per_px']} µm/px). The IF ships at {a['if_um_per_px']} µm/px. The same file works
+in `xeniumranger import-segmentation` and `spatialdata_io.xenium_aligned_image`.
+
+## The positivity groups
+
+{p['measure']}, at or above **{p['threshold_counts']:.0f} of 255**, sampled at
+{p['sampled_um_per_px']} µm/px. INS is `{p['channels']['INS']}` and GCG is
+`{p['channels']['GCG']}`.
+
+| group | cells |
+|---|---:|
+{counts}
+`Unavailable` is a cell whose polygon fell outside the imaged area — nothing was measured for
+it, and it is not called negative. {p['n_without_polygon']:,} of {p['n_cells']:,} cells have no
+cell polygon in the Xenium bundle.
+
+The threshold is one number applied identically to both donors and is recorded here so it can
+be changed: re-run with `--threshold`.
+
+## Not in this bundle
+
+* **Opal 570** is recorded FAILED for this section and is not in the image.
+* **Sample AF** is disregarded per the maintainer and is not in the image.
+* **No QuPath annotation of any class**, on either modality.
+"""
 
 
 def main(argv=None) -> int:
@@ -546,46 +336,41 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--roi", default="panc")
-    ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
-    ap.add_argument("--out", type=Path, default=OUT,
-                    help="where this lane's own JSON lives (read for the hormone gate)")
+    ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--bundle-root", type=Path, default=BUNDLE_ROOT)
     ap.add_argument("--level", type=int, default=0,
-                    help="qptiff pyramid level to ship. 0 is full resolution (0.25 um/px); the "
-                         "alignment matrix is derived from whichever level is chosen.")
+                    help="qptiff pyramid level to ship. 0 is full resolution (0.25 um/px).")
+    ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
+                    help="mean 8-bit counts inside a cell's polygon at or above which it is "
+                         "called positive for that hormone.")
     ap.add_argument("--compression", default="zlib",
-                    choices=["zlib", "lzw", "jpeg2000", "none"],
-                    help="zlib is lossless and universally readable. 10x's own morphology "
-                         "files are jpeg2000.")
-    ap.add_argument("--workers", type=int, default=8,
-                    help="threads used to compress tiles. The tile order stays serial, so "
-                         "this changes the wall clock and not the file.")
+                    choices=["zlib", "lzw", "jpeg2000", "none"])
+    ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--skip-image", action="store_true",
-                    help="write everything except the OME-TIFF. The image is the slow, large "
-                         "part; the matrix, annotations and cell groups are seconds.")
+                    help="write the matrix and the cell groups, keeping any OME-TIFF already "
+                         "written. The image is the slow part; the rest is seconds.")
     args = ap.parse_args(argv)
 
     sections = HZ.load_section_map(SECTIONS)
     made = []
-    for serial, gj in discover(args.geojson_dir).items():
+    for serial in discover().keys():
         donor = donor_of(serial, XENIUM_PATHS)
         if args.donors and donor not in args.donors:
             continue
-        m = export_one(serial, gj, sections, roi=args.roi, out_dir=args.out,
+        if sections[sections.xenium_serial == serial].empty:
+            continue
+        m = export_one(serial, sections, roi=args.roi, out_dir=args.out,
                        bundle_root=args.bundle_root, level=args.level,
-                       compression=("none" if args.compression == "none"
-                                    else args.compression),
-                       skip_image=args.skip_image, workers=args.workers)
+                       compression=args.compression, skip_image=args.skip_image,
+                       workers=args.workers, threshold=args.threshold)
         made.append(m)
         print(f"[explorer] -> {args.bundle_root / f'donor_{donor}_{serial}'}\n", flush=True)
 
     if not made:
         print("no donor matched", file=sys.stderr)
         return 1
-    args.bundle_root.mkdir(parents=True, exist_ok=True)
-    idx = args.bundle_root / f"bundles_{args.roi}.json"
-    idx.write_text(json.dumps(made, indent=2, allow_nan=False))
-    print(f"wrote {idx}")
+    (args.bundle_root / f"bundles_{args.roi}.json").write_text(
+        json.dumps(made, indent=2, allow_nan=False))
     return 0
 
 
