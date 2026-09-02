@@ -21,9 +21,16 @@ endocrine identity core is the authority, and most of the 5,101-gene panel is no
 pancreas at all. An earlier version ranked every gene and reported the top 25; that list was
 mostly noise, and reading a cell type off the top of it is what produced a wrong conclusion.
 
-The statistic is the AUROC with which the IF channel ranks cells expressing a gene above cells
-that do not -- Mann-Whitney over ranks, so no threshold on the protein side and none on the RNA
-side.
+**No cell is labelled here, and no AUROC is computed.** An AUROC needs a confirmed positive
+class, and this lane has none: nobody has verified that a cell with one detected transcript is a
+cell of that type. An earlier version defined "positive = count > 0", scored an AUROC against
+it, and reported the result as though the label were truth -- an invented ground truth, which
+this repository's rules forbid. What is reported is Spearman rho between the per-cell IF
+intensity and the per-cell transcript count, plus the median IF intensity at each count level.
+Those are statements about two measurements agreeing; they assert nothing about what a cell is.
+
+**Defining a positive is the maintainer's call, not this file's.** If a truth set is ever
+supplied, a classification statistic can be computed against it here.
 
 **A whole-section AUROC is the wrong instrument for a focal signal, and this file cannot fix
 that on its own.** Donor 6436 is T1D: insulin survives in a minority of lobules and is absent
@@ -121,15 +128,23 @@ def mean_in_labels(image: np.ndarray, labels: np.ndarray, n: int) -> np.ndarray:
     return out
 
 
-def gene_auroc(counts, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Per gene: AUROC with which ``values`` ranks expressing cells above non-expressing ones.
+def gene_rank_association(counts, values: np.ndarray, gene_cols: list[int]) -> dict:
+    """Association between two MEASUREMENTS on the same cell. No labels, no truth set.
 
-    Mann-Whitney U over ranks, computed for all genes at once as one sparse mat-vec rather than
-    a loop -- 5,101 genes against ~700k cells is not a loop worth writing.
+    **Why this is not an AUROC.** An AUROC scores a ranking against a positive class, and this
+    lane has no confirmed positive class: nobody has verified that a cell with one detected
+    transcript of a gene is a cell of that type. An earlier version of this file defined
+    "positive = count > 0", computed an AUROC against it, and reported the result as if the
+    label were ground truth. It was a definition invented here, and the repository's own rule
+    is that existing classifications are audit context and never a gate.
 
-    No threshold anywhere. The protein side is a rank, so its scale and its background level
-    are irrelevant; the RNA side is detected-or-not, which is the natural dichotomy for counts
-    this sparse and needs no cutoff to be chosen.
+    So what is reported instead needs no class at all: Spearman rho between the per-cell IF
+    intensity and the per-cell transcript count for one gene, plus the median IF intensity at
+    each count level. Both are statements about two measurements agreeing or not. Neither
+    asserts that any cell is anything, and the count-stratified medians are there so the shape
+    can be read directly rather than through a coefficient.
+
+    Cells with no IF value are dropped, never zero-filled: nothing was measured for them.
     """
     import scipy.sparse as sp
     from scipy.stats import rankdata
@@ -138,19 +153,26 @@ def gene_auroc(counts, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     ok = np.isfinite(v)
     if ok.sum() < 1000:
         raise ProteinRnaError(f"only {int(ok.sum())} cells carry a protein value")
-    r = rankdata(v[ok])                                   # 1-based, ties averaged
-    X = sp.csc_matrix(counts[ok])
-    X.data = np.ones_like(X.data)                         # detected or not
-    X = X.tocsc()
-    n_pos = np.asarray(X.sum(axis=0)).ravel()
-    rank_sum = X.T.dot(r)
-    n = int(ok.sum())
-    n_neg = n - n_pos
-    auroc = np.full(X.shape[1], np.nan)
-    good = (n_pos > 0) & (n_neg > 0)
-    auroc[good] = ((rank_sum[good] - n_pos[good] * (n_pos[good] + 1) / 2.0)
-                   / (n_pos[good] * n_neg[good]))
-    return auroc, n_pos
+    r_if = rankdata(v[ok])
+    X = sp.csc_matrix(counts)[ok][:, gene_cols].toarray()
+
+    out = {}
+    for j, col in enumerate(gene_cols):
+        c = X[:, j].astype(np.float64)
+        r_c = rankdata(c)
+        rho = float(np.corrcoef(r_if, r_c)[0, 1]) if c.std() > 0 else float("nan")
+        strata = {}
+        for k in (0, 1, 2, 3):
+            m = (c >= k) if k == 3 else (c == k)
+            key = "3+" if k == 3 else str(k)
+            strata[key] = {"n": int(m.sum()),
+                           "median_if": float(np.median(v[ok][m])) if m.any() else None}
+        out[col] = {"spearman_rho": rho, "n_cells": int(ok.sum()),
+                    "n_cells_detected": int((c > 0).sum()), "median_if_by_count": strata}
+    return out
+
+
+
 
 
 def rank_contrast(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -181,29 +203,37 @@ def rank_contrast(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def score_against_genes(values: np.ndarray, dd, by_hint: dict) -> dict:
-    """One per-cell vector against the SUBPANEL's endocrine genes, grouped by subtype hint.
+    """One per-cell IF vector against the SUBPANEL's endocrine genes, grouped by subtype hint.
 
-    Restricted to ``core/panels``' 18-gene pancreas endocrine identity core, which is the
-    panel taxonomy's one authority. Ranking all 5,101 genes was a mistake and is gone: most of
-    the panel is not expressed in pancreas at all, so a ranked list of everything is mostly
-    noise dressed as a result, and reading a cell type off the top of it invites exactly the
-    over-reading it produced.
+    Restricted to ``core/panels``' 18-gene pancreas endocrine identity core, which is the panel
+    taxonomy's one authority. Ranking all 5,101 genes was a mistake and is gone: most of the
+    panel is not expressed in pancreas, so a ranked list of everything is mostly noise dressed
+    as a result.
+
+    ``subtype_hint`` is carried through from the subpanel and is a HINT, in its own file's
+    words. It is not used to label any cell here, and the per-hint means below are means of
+    association statistics -- not a classification score, and not evidence that a cell is a
+    beta cell.
     """
-    auroc, n_pos = gene_auroc(dd.counts, values)
     gi = {g: i for i, g in enumerate(dd.genes)}
-    out = {"n_cells_measured": int(np.isfinite(values).sum()), "genes": {}}
-    for hint, genes in by_hint.items():
-        for g in genes:
-            if g not in gi:
-                continue
-            i = gi[g]
-            out["genes"][g] = {"subtype_hint": hint or "pan",
-                               "auroc": float(auroc[i]),
-                               "n_cells_expressing": int(n_pos[i])}
+    wanted = [(g, hint or "pan") for hint, genes in by_hint.items() for g in genes if g in gi]
+    cols = [gi[g] for g, _ in wanted]
+    assoc = gene_rank_association(dd.counts, values, cols)
+
+    out = {"n_cells_measured": int(np.isfinite(values).sum()),
+           "statistic": "spearman_rho(IF intensity, transcript count) per cell",
+           "no_ground_truth": ("no cell is labelled here; there is no confirmed positive class "
+                               "for cell type in this lane and none is invented"),
+           "genes": {}}
+    for (g, hint), col in zip(wanted, cols):
+        out["genes"][g] = {"subtype_hint": hint, **assoc[col]}
     for hint in ("beta", "alpha"):
-        vals = [v["auroc"] for v in out["genes"].values() if v["subtype_hint"] == hint]
-        out[f"mean_auroc_{hint}"] = float(np.mean(vals)) if vals else None
+        vals = [v["spearman_rho"] for v in out["genes"].values()
+                if v["subtype_hint"] == hint and np.isfinite(v["spearman_rho"])]
+        out[f"mean_rho_{hint}"] = float(np.mean(vals)) if vals else None
     return out
+
+
 
 
 def polygons_per_cell(bundle: Path, compartment: str, cell_ids) -> list:
@@ -362,10 +392,11 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
                                        "within one cell; removes what the two channels share "
                                        "(islet membership) and keeps what differs (subtype)")
             comp["markers"][name] = entry
-            b, a = entry.get("mean_auroc_beta"), entry.get("mean_auroc_alpha")
-            print(f"[protein-rna]   {compartment}/{name}: "
-                  f"mean AUROC beta {b:.3f} / alpha {a:.3f}   "
-                  + ", ".join(f"{g} {v['auroc']:.3f}" for g, v in entry["genes"].items()
+            b, a = entry.get("mean_rho_beta"), entry.get("mean_rho_alpha")
+            print(f"[protein-rna]   {compartment}/{name}: mean rho beta {b:+.3f} / "
+                  f"alpha {a:+.3f}   "
+                  + ", ".join(f"{g} {v['spearman_rho']:+.3f}"
+                              for g, v in entry["genes"].items()
                               if v["subtype_hint"] in ("beta", "alpha")), flush=True)
         del lab
         rec["compartments"][compartment] = comp
