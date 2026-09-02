@@ -16,16 +16,21 @@ DAPI the registration was fitted on -- so a cell's protein and a cell's RNA are 
 by construction, and no annotation, no islet call and no third party's polygon enters the path.
 A disc also straddles neighbours at 9 um spacing; a polygon does not.
 
-**Nothing here is told which genes are endocrine.** The headline is, for every gene on the
-panel, the AUROC with which the IF channel ranks the cells that express it above the cells that
-do not -- a Mann-Whitney statistic, so there is no threshold on the protein side (it is a rank)
-and none on the RNA side (detected or not). If the registration and the channel assignment are
-both right, the beta genes must come out at the top for insulin and the alpha genes for
-glucagon, *without having been named*. That makes this a test the data can fail.
+**Scored against the subpanel, not the whole panel.** ``core/panels``' 18-gene pancreas
+endocrine identity core is the authority, and most of the 5,101-gene panel is not expressed in
+pancreas at all. An earlier version ranked every gene and reported the top 25; that list was
+mostly noise, and reading a cell type off the top of it is what produced a wrong conclusion.
 
-It is also, incidentally, what settles which antibody a channel holds -- ``channel_check.py``
-showed that 6436's only live hormone channel is the one recorded GCG, and a ranked gene list is
-evidence about that recording which a mean intensity is not.
+The statistic is the AUROC with which the IF channel ranks cells expressing a gene above cells
+that do not -- Mann-Whitney over ranks, so no threshold on the protein side and none on the RNA
+side.
+
+**A whole-section AUROC is the wrong instrument for a focal signal, and this file cannot fix
+that on its own.** Donor 6436 is T1D: insulin survives in a minority of lobules and is absent
+from the rest, which is what the disease is. Averaged over the section its INS channel looks
+inert -- and it is not, it is bright and cellular in the islets that still have beta cells. Any
+number in this file that is computed over all cells inherits that, so read it beside
+``protein_rna_figures.py --window INS``, which shows one islet at a time.
 """
 from __future__ import annotations
 
@@ -54,9 +59,10 @@ from run_register import GEOJSON_DIR                             # noqa: E402
 #: happens and the box-mean origin rule stays exact.
 PROTEIN_UM_PER_PX = 0.5
 
-#: How many top-ranked genes to report per channel. Enough to see whether a coherent cell type
-#: comes out rather than one lucky gene.
-TOP_N = 25
+#: The subpanel this lane scores against: ``core/panels``' pancreas endocrine identity core,
+#: read through the regenerable snapshot. Not the whole 5,101-gene panel -- most of it is not
+#: expressed in pancreas, and ranking all of it produced a list that invited over-reading.
+SUBPANEL = "identity_core/pancreas/01_pancreas_endocrine.csv"
 
 
 class ProteinRnaError(RuntimeError):
@@ -174,18 +180,30 @@ def rank_contrast(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return out
 
 
-def score_against_genes(values: np.ndarray, dd, top_n: int) -> dict:
-    """One per-cell vector -> the genes it ranks highest and lowest, and how many cells it had."""
+def score_against_genes(values: np.ndarray, dd, by_hint: dict) -> dict:
+    """One per-cell vector against the SUBPANEL's endocrine genes, grouped by subtype hint.
+
+    Restricted to ``core/panels``' 18-gene pancreas endocrine identity core, which is the
+    panel taxonomy's one authority. Ranking all 5,101 genes was a mistake and is gone: most of
+    the panel is not expressed in pancreas at all, so a ranked list of everything is mostly
+    noise dressed as a result, and reading a cell type off the top of it invites exactly the
+    over-reading it produced.
+    """
     auroc, n_pos = gene_auroc(dd.counts, values)
-    order = np.argsort(np.where(np.isfinite(auroc), auroc, -np.inf))[::-1]
-    def rows(ix):
-        return [{"gene": dd.genes[i], "auroc": float(auroc[i]),
-                 "n_cells_expressing": int(n_pos[i])} for i in ix]
-    finite = np.isfinite(auroc)
-    return {"n_cells_measured": int(np.isfinite(values).sum()),
-            "n_genes_scored": int(finite.sum()),
-            "top_genes": rows(order[:top_n]),
-            "bottom_genes": rows([i for i in order[::-1] if finite[i]][:top_n])}
+    gi = {g: i for i, g in enumerate(dd.genes)}
+    out = {"n_cells_measured": int(np.isfinite(values).sum()), "genes": {}}
+    for hint, genes in by_hint.items():
+        for g in genes:
+            if g not in gi:
+                continue
+            i = gi[g]
+            out["genes"][g] = {"subtype_hint": hint or "pan",
+                               "auroc": float(auroc[i]),
+                               "n_cells_expressing": int(n_pos[i])}
+    for hint in ("beta", "alpha"):
+        vals = [v["auroc"] for v in out["genes"].values() if v["subtype_hint"] == hint]
+        out[f"mean_auroc_{hint}"] = float(np.mean(vals)) if vals else None
+    return out
 
 
 def polygons_per_cell(bundle: Path, compartment: str, cell_ids) -> list:
@@ -247,16 +265,18 @@ def polygons_per_cell(bundle: Path, compartment: str, cell_ids) -> list:
 
 
 def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
-                out_dir: Path = OUT, um_per_px: float = PROTEIN_UM_PER_PX,
-                top_n: int = TOP_N) -> dict:
+                out_dir: Path = OUT, um_per_px: float = PROTEIN_UM_PER_PX) -> dict:
     import tifffile
     import zarr
 
     from phenocycler.integration.boundaries import load_xenium_polygons
     from phenocycler.integration.rasterize import GridSpec
     from rasterize_labels import rasterize_labels
+    import validate as VAL
     from run_align import _refined_transform
+    from run_register import SUBPANELS
 
+    _core, by_hint = VAL.endocrine_core(SUBPANELS)
     donor = donor_of(serial, XENIUM_PATHS)
     row = sections[sections.xenium_serial == serial].iloc[0]
     qptiff = IMAGES / row.image_file
@@ -284,7 +304,7 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
            "transform_source": "refined", "protein_um_per_px": um_per_px,
            "pyramid_level": lvl, "pyramid_factor": factor,
            "n_cells": int(len(dd.cell_id)), "n_genes": int(len(dd.genes)),
-           "uses_qupath_annotations": False,
+           "uses_qupath_annotations": False, "subpanel": SUBPANEL,
            "note": ("no QuPath annotation of any class is read here; every object is Xenium's "
                     "own segmentation, per the maintainer's instruction of 2026-09-01"),
            "compartments": {}}
@@ -329,7 +349,7 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
             vp = out_dir / "protein_rna" / f"{donor}_{serial}_{compartment}_{name}.npy"
             vp.parent.mkdir(parents=True, exist_ok=True)
             np.save(vp, vals)
-            entry = score_against_genes(vals, dd, top_n)
+            entry = score_against_genes(vals, dd, by_hint)
             entry["values_npy"] = str(vp)
             if name in channels:
                 entry.update({"qptiff_channel": channels[name][1],
@@ -342,13 +362,11 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
                                        "within one cell; removes what the two channels share "
                                        "(islet membership) and keeps what differs (subtype)")
             comp["markers"][name] = entry
-            top = entry["top_genes"]
+            b, a = entry.get("mean_auroc_beta"), entry.get("mean_auroc_alpha")
             print(f"[protein-rna]   {compartment}/{name}: "
-                  + ", ".join(f"{t['gene']} {t['auroc']:.3f}" for t in top[:6]), flush=True)
-            if name == "INS_minus_GCG":
-                print("[protein-rna]                      lowest: "
-                      + ", ".join(f"{t['gene']} {t['auroc']:.3f}"
-                                  for t in entry["bottom_genes"][:6]), flush=True)
+                  f"mean AUROC beta {b:.3f} / alpha {a:.3f}   "
+                  + ", ".join(f"{g} {v['auroc']:.3f}" for g, v in entry["genes"].items()
+                              if v["subtype_hint"] in ("beta", "alpha")), flush=True)
         del lab
         rec["compartments"][compartment] = comp
 
@@ -365,7 +383,6 @@ def main(argv=None) -> int:
                          "annotation inside these files is read")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--um-per-px", type=float, default=PROTEIN_UM_PER_PX)
-    ap.add_argument("--top-n", type=int, default=TOP_N)
     args = ap.parse_args(argv)
 
     sections = HZ.load_section_map(SECTIONS)
@@ -376,7 +393,7 @@ def main(argv=None) -> int:
         if args.donors and donor not in args.donors:
             continue
         recs.append(measure_one(serial, sections, roi=args.roi, out_dir=args.out,
-                                um_per_px=args.um_per_px, top_n=args.top_n))
+                                um_per_px=args.um_per_px))
     if not recs:
         print("no donor matched", file=sys.stderr)
         return 1

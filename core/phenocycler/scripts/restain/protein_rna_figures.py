@@ -68,7 +68,7 @@ def committed(dd, by_hint) -> tuple[np.ndarray, np.ndarray]:
 
 
 def figure_one(serial: str, sections, *, roi="panc", out_dir: Path = OUT,
-               half_um: float = HALF_UM) -> dict:
+               half_um: float = HALF_UM, window: str = "INS") -> dict:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -88,22 +88,43 @@ def figure_one(serial: str, sections, *, roi="panc", out_dir: Path = OUT,
     _core, by_hint = VAL.endocrine_core(SUBPANELS)
     beta, alpha = committed(dd, by_hint)
 
-    # --- where to look: chosen by RNA alone ---------------------------------------------- #
-    from scipy.spatial import cKDTree
-    endo = beta | alpha
-    tree = cKDTree(dd.xy[endo])
-    n_near = tree.query_ball_point(dd.xy[endo], r=half_um * 0.6, return_length=True)
-    centre = dd.xy[endo][int(np.argmax(n_near))]
-
-    sel = (np.abs(dd.xy - centre) < half_um).all(axis=1)
-    ids = dd.cell_id[sel]
-    print(f"[fig] {donor}: window at ({centre[0]:.0f}, {centre[1]:.0f}) um, "
-          f"{sel.sum():,} cells, {int((beta & sel).sum())} beta- / "
-          f"{int((alpha & sel).sum())} alpha-committed", flush=True)
-
     lvl, factor = PR.pyramid_level_for(qptiff, PR.PROTEIN_UM_PER_PX, base_um)
     s = PR.PROTEIN_UM_PER_PX
     bundle = xenio._bundle_dir(donor, XENIUM_PATHS, roi)
+
+    # --- where to look ------------------------------------------------------------------- #
+    # `window="ins"` is the default and the correction that matters. Choosing by endocrine RNA
+    # density picks the biggest islet -- which on a T1D donor is an INSULIN-DEFICIENT one,
+    # because that is what T1D is. Donor 6436 is T1D and 6442 is ND, so a density-chosen window
+    # showed 6436's insulin channel as empty and the section as unstained. It is not: the
+    # insulin is focal, in the lobules that still have beta cells, exactly as the disease
+    # predicts. Choosing by the channel under discussion is what makes the sheet able to show
+    # a focal signal instead of averaging it away.
+    from scipy.spatial import cKDTree
+
+    per_cell = {m: np.load(out_dir / "protein_rna" / f"{donor}_{serial}_cell_{m}.npy")
+                for m in ("INS", "GCG")}
+    tree = cKDTree(dd.xy)
+    if window in ("INS", "GCG"):
+        v = per_cell[window]
+        # A neighbourhood mean, not the brightest single cell: one saturated cell can be a
+        # fold, a bubble or a speck of dust, and a real islet cannot.
+        nb = tree.query_ball_point(dd.xy, r=30.0)
+        loc = np.array([np.nanmean(v[i]) if len(i) else np.nan for i in nb])
+        centre = dd.xy[int(np.nanargmax(loc))]
+        how = f"the brightest 30 um neighbourhood of IF {window}"
+    else:
+        endo = beta | alpha
+        sub = cKDTree(dd.xy[endo])
+        n_near = sub.query_ball_point(dd.xy[endo], r=half_um * 0.6, return_length=True)
+        centre = dd.xy[endo][int(np.argmax(n_near))]
+        how = "the densest neighbourhood of endocrine-committed Xenium RNA"
+
+    sel = (np.abs(dd.xy - centre) < half_um).all(axis=1)
+    ids = dd.cell_id[sel]
+    print(f"[fig] {donor}: window at ({centre[0]:.0f}, {centre[1]:.0f}) um by {how}; "
+          f"{sel.sum():,} cells, {int((beta & sel).sum())} beta- / "
+          f"{int((alpha & sel).sum())} alpha-committed", flush=True)
 
     polys = {}
     for comp in ("cell", "nucleus"):
@@ -140,11 +161,27 @@ def figure_one(serial: str, sections, *, roi="panc", out_dir: Path = OUT,
     # Not this window: a range taken from what is drawn rescales each panel to its own contents
     # and makes a dead channel look exactly like a live one. vmin stays 0 in every panel, and 0
     # is where the scanner clamps, never a percentile black point.
-    vals_all, vmaxes = {}, {}
-    for m in ("INS", "GCG"):
-        vals_all[m] = np.load(out_dir / "protein_rna" / f"{donor}_{serial}_cell_{m}.npy")
-        vmaxes[m] = float(np.nanpercentile(vals_all[m], VALUE_PERCENTILE))
+    vals_all = per_cell
     vals = {m: vals_all[m][sel] for m in ("INS", "GCG")}
+    # The top of the scale comes from the cells IN THIS WINDOW, and the section-wide value is
+    # printed beside it. Both halves of that are the correction.
+    #
+    # A section-wide percentile is the wrong top for a focal signal, and 6436 is why. It is a
+    # T1D donor: insulin survives in a minority of lobules and is absent from the rest, so
+    # 99.5% of its cells carry no insulin and the section-wide p99.5 of the INS channel is 4
+    # counts. Scaled to that, the one islet that HAS insulin saturates to a featureless white
+    # blob -- the channel looks broken precisely where it is working. Scaling to the window
+    # shows the cells.
+    #
+    # Selection-dependence is the known cost, so it is not hidden: both numbers are on every
+    # panel, and the gap between them IS the focality. It is not a licence to compare donors
+    # by eye across sheets.
+    vmaxes, section_vmax = {}, {}
+    for m in ("INS", "GCG"):
+        section_vmax[m] = float(np.nanpercentile(vals_all[m], VALUE_PERCENTILE))
+        w = vals[m][np.isfinite(vals[m])]
+        vmaxes[m] = float(np.percentile(w, 99)) if w.size else section_vmax[m]
+        vmaxes[m] = max(vmaxes[m], 1.0)
 
     crops = {}
     with tifffile.TiffFile(str(qptiff)) as tif:
@@ -174,10 +211,12 @@ def figure_one(serial: str, sections, *, roi="panc", out_dir: Path = OUT,
                                   "(the registration, at 0.5 µm/px)", nuc_rings, "#f76707")
     img_panel(axes[0, 1], "INS", f"IF {names[pages['INS']]} — recorded INS\n"
                                  f"vmin 0, vmax {vmaxes['INS']:.0f}"
-                                 f" (p{VALUE_PERCENTILE} of all cells in the section)")
+                                 f" (p99 of cells HERE; section-wide "
+                                 f"p{VALUE_PERCENTILE} is {section_vmax['INS']:.0f})")
     img_panel(axes[0, 2], "GCG", f"IF {names[pages['GCG']]} — recorded GCG\n"
                                  f"vmin 0, vmax {vmaxes['GCG']:.0f}"
-                                 f" (p{VALUE_PERCENTILE} of all cells in the section)")
+                                 f" (p99 of cells HERE; section-wide "
+                                 f"p{VALUE_PERCENTILE} is {section_vmax['GCG']:.0f})")
 
     def filled(ax, v, title, vmax):
         keep = [i for i, r in enumerate(cell_rings) if r is not None and np.isfinite(v[i])]
@@ -214,15 +253,16 @@ def figure_one(serial: str, sections, *, roi="panc", out_dir: Path = OUT,
     fig.suptitle(
         f"Donor {donor} · Xenium {serial} · protein and RNA on the same cell, by cell_id\n"
         f"Xenium segmentation warped onto the post-Xenium IF. No QuPath annotation is used; "
-        f"the window was chosen by Xenium RNA alone.", fontsize=12)
+        f"window chosen by {how}.", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
-    p = out_dir / "protein_rna" / f"protein_rna_{donor}_{serial}.png"
+    p = out_dir / "protein_rna" / f"protein_rna_{donor}_{serial}_{window.lower()}.png"
     fig.savefig(p, dpi=145)
     plt.close(fig)
     print(f"[fig] {p}", flush=True)
-    return {"donor_id": donor, "serial": serial, "figure": str(p),
+    return {"donor_id": donor, "serial": serial, "figure": str(p), "window_chosen_by": how,
             "window_centre_um": [float(centre[0]), float(centre[1])],
             "n_cells_drawn": int(sel.sum()),
+            "vmax_window": vmaxes, "vmax_section": section_vmax,
             "n_beta_committed": int((beta & sel).sum()),
             "n_alpha_committed": int((alpha & sel).sum())}
 
@@ -234,6 +274,10 @@ def main(argv=None) -> int:
     ap.add_argument("--roi", default="panc")
     ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--window", default="INS", choices=["INS", "GCG", "rna"],
+                    help="what picks the drawn window. Default INS: on a T1D donor the "
+                         "insulin is focal, and a window chosen by endocrine density lands on "
+                         "an insulin-deficient islet and shows the channel as empty.")
     args = ap.parse_args(argv)
 
     sections = HZ.load_section_map(SECTIONS)
@@ -242,11 +286,13 @@ def main(argv=None) -> int:
         donor = donor_of(serial, XENIUM_PATHS)
         if args.donors and donor not in args.donors:
             continue
-        recs.append(figure_one(serial, sections, roi=args.roi, out_dir=args.out))
+        recs.append(figure_one(serial, sections, roi=args.roi, out_dir=args.out,
+                               window=args.window))
     if not recs:
         print("no donor matched", file=sys.stderr)
         return 1
-    (args.out / "protein_rna" / "figures.json").write_text(json.dumps(recs, indent=2))
+    (args.out / "protein_rna" / f"figures_{args.window.lower()}.json").write_text(
+        json.dumps(recs, indent=2))
     return 0
 
 
