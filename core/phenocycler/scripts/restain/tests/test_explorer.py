@@ -7,6 +7,7 @@ planted here and checked against the value it must produce, with no export, bund
 on the machine.
 """
 import csv
+import json
 import pathlib
 import sys
 
@@ -147,6 +148,48 @@ def test_alignment_csv_refuses_a_matrix_that_is_not_an_alignment(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# The annotations
+# --------------------------------------------------------------------------- #
+
+def _square(x0, y0, side):
+    import shapely
+    return shapely.geometry.box(x0, y0, x0 + side, y0 + side)
+
+
+def test_annotations_are_warped_backwards_into_the_xenium_frame():
+    """Drawn on the IF, so they need the INVERSE transform. Forward lands 2x away."""
+    t = Transform(affine=_affine(tx=700.0, ty=280.0))
+    out = EX.warp_geoms_to_xenium([_square(1000.0, 1000.0, 50.0)], t)
+    assert out[0].bounds == pytest.approx((300.0, 720.0, 350.0, 770.0))
+
+
+def test_multipolygon_tissue_becomes_one_feature_per_part(tmp_path):
+    import shapely
+    multi = shapely.geometry.MultiPolygon([_square(0, 0, 10), _square(100, 100, 10)])
+    rec = EX.annotations_geojson({"Tissue": [multi]}, tmp_path / "a.geojson")
+    assert rec["n_features"] == 2 and rec["per_class"] == {"Tissue": 2}
+    doc = json.loads((tmp_path / "a.geojson").read_text())
+    assert {f["properties"]["classification"]["name"] for f in doc["features"]} == {"Tissue"}
+    assert all(f["geometry"]["type"] == "Polygon" for f in doc["features"])
+
+
+def test_geojson_keeps_holes_and_the_csv_says_it_dropped_them(tmp_path):
+    import shapely
+    ring = shapely.geometry.Polygon(
+        [(0, 0), (100, 0), (100, 100), (0, 100)],
+        holes=[[(40, 40), (60, 40), (60, 60), (40, 60)]])
+    gj = EX.annotations_geojson({"Islet": [ring]}, tmp_path / "a.geojson")
+    doc = json.loads((tmp_path / "a.geojson").read_text())
+    assert len(doc["features"][0]["geometry"]["coordinates"]) == 2, "hole lost from GeoJSON"
+    assert gj["n_features"] == 1
+
+    csv_rec = EX.annotations_csv({"Islet": [ring]}, tmp_path / "a.csv")
+    assert csv_rec["n_holes_dropped"] == 1
+    header = next(csv.reader((tmp_path / "a.csv").open()))
+    assert header == ["Selection", "X", "Y"]
+
+
+# --------------------------------------------------------------------------- #
 # The cell groups
 # --------------------------------------------------------------------------- #
 
@@ -167,6 +210,56 @@ def test_cell_groups_refuse_a_group_with_no_colour(tmp_path):
 def test_cell_groups_refuse_a_length_mismatch(tmp_path):
     with pytest.raises(EX.ExplorerExportError, match="against"):
         EX.write_cell_groups(tmp_path / "g.csv", ["a-1", "b-1"], ["hi"], {"hi": "#ff0055"})
+
+
+# --------------------------------------------------------------------------- #
+# The threshold, and the fact that it is never asked for a frequency
+# --------------------------------------------------------------------------- #
+
+def test_two_component_threshold_lands_between_two_planted_modes():
+    rng = np.random.default_rng(0)
+    lo = rng.normal(2.0, 0.30, 8_000)
+    hi = rng.normal(5.0, 0.30, 2_000)
+    v = np.expm1(np.concatenate([lo, hi]))
+    fit = EX.two_component_threshold(v)
+    assert 2.0 < fit["threshold_log1p"] < 5.0
+    assert fit["means_log1p"][0] == pytest.approx(2.0, abs=0.1)
+    assert fit["means_log1p"][1] == pytest.approx(5.0, abs=0.1)
+    # The weight is ESTIMATED and reported. It is not an input, and this asserts it landed
+    # near the planted 0.2 -- which is a property of the data, not a target it was given.
+    assert fit["weights"][1] == pytest.approx(0.2, abs=0.03)
+
+
+def test_two_component_threshold_is_recovered_whatever_the_mixing_weight():
+    """The same two modes at three different abundances give the same cut.
+
+    This is the property the repository's no-frequency rule actually needs: the fit is not
+    steered by how many cells are positive, so it cannot be used to reach a chosen fraction.
+    """
+    rng = np.random.default_rng(1)
+    cuts = []
+    for w in (0.05, 0.25, 0.50):
+        n = 20_000
+        k = int(n * w)
+        v = np.expm1(np.concatenate([rng.normal(2.0, 0.3, n - k), rng.normal(5.0, 0.3, k)]))
+        cuts.append(EX.two_component_threshold(v)["threshold_log1p"])
+    assert max(cuts) - min(cuts) < 0.5
+
+
+def test_two_component_threshold_refuses_too_few_values():
+    with pytest.raises(EX.ExplorerExportError, match="refusing to fit"):
+        EX.two_component_threshold(np.arange(10.0))
+
+
+def test_decile_bands_are_ten_bands_and_nan_is_unavailable():
+    v = np.arange(1000.0)
+    v[:7] = np.nan
+    labels, meta = EX.decile_bands(v)
+    assert meta["n_available"] == 993
+    assert list(labels[:7]) == ["Unavailable"] * 7
+    assert set(np.unique(labels[7:])) == {f"d{i:02d}" for i in range(1, 11)}
+    counts = {b: int((labels == b).sum()) for b in np.unique(labels[7:])}
+    assert all(90 <= c <= 110 for c in counts.values()), counts
 
 
 # --------------------------------------------------------------------------- #
