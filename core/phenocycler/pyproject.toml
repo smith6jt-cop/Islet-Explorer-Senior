@@ -111,6 +111,7 @@ phenocycler = [
     "fundamental_pair_diagnostics.json",
     "marker_registry.json",
 ]
+"phenocycler.integration" = ["data/*.json"]
 
 [tool.setuptools_scm]
 # Version comes from the nearest git tag. A tagged commit gives a clean release version

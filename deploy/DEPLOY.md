@@ -187,20 +187,24 @@ up new fork commits, re-run `deploy/build_tissuumaps_image.sh` and
 
 ---
 
-## Local workstation: two apps served side by side (2026-08-16)
+## Local workstation: two apps intended to be served side by side (2026-08-16)
 
 > **Status 2026-09-02.** The publication build moved to `/data/panc_CODEX/Islet-Explorer`, so the
 > `islet-explorer` symlink below and the nginx `local_images` alias both dangle, and the
 > `islet-explorer-merged` entry was never created: shiny-server currently serves no Islet Explorer.
 > Repointing is a root action and a maintainer decision; nothing in this repo does it.
 
-This workstation serves **two** builds through shiny-server, deliberately, and they must not be
-conflated.
+This workstation is intended to serve **two** builds through shiny-server, deliberately, and they
+must not be conflated.
 
-| Path | Points at | Purpose |
-|---|---|---|
-| `/srv/shiny-server/islet-explorer` | `~/panc_CODEX/Islet-Explorer/app/shiny_app` | **Publication-linked build. Do not repoint or retire it.** |
-| `/srv/shiny-server/islet-explorer-merged` | `~/IO60panc2nd/Islet-Explorer-Senior/apps/islet` | The merged monorepo app (this repo) |
+| Path | Points at | Purpose | State |
+|---|---|---|---|
+| `/srv/shiny-server/islet-explorer` | `~/panc_CODEX/Islet-Explorer/app/shiny_app` | **Publication-linked build. Do not repoint or retire it.** | dangling after the source moved to `/data/panc_CODEX/Islet-Explorer` |
+| `/srv/shiny-server/islet-explorer-merged` | `~/IO60panc2nd/Islet-Explorer-Senior/apps/islet` | The merged monorepo app (this repo) | **not created yet** |
+
+**Checked 2026-08-20:** `/srv/shiny-server/` contained only `index.html`, `islet-explorer` and
+`sample-apps`. The second entry had not been made. The 2026-09-02 status above supersedes the
+earlier claim that the first entry was live.
 
 The two have **separate data roots** and neither reads the other's: the publication build reads
 `~/panc_CODEX/Islet-Explorer/data/`, the merged build reads

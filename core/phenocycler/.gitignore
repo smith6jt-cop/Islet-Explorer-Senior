@@ -212,7 +212,7 @@ __marimo__/
 #
 # Descend-then-negate rather than a blanket `/data/`: git does not look inside an
 # excluded directory, so a bare `/data/` makes every `!` below unreachable and would
-# silently drop the three tracked integration inputs. Those are the reproducibility
+# silently drop the tracked integration inputs. Those are the reproducibility
 # record of which donors were paired and how the two label vocabularies were
 # reconciled, so they stay in version control.
 /data/*
@@ -220,6 +220,8 @@ __marimo__/
 /data/integration/*
 !/data/integration/xenium_paths.csv
 !/data/integration/donor_overrides.csv
+!/data/integration/section_overrides.csv
+!/data/integration/restain_registration_inputs.csv
 !/data/integration/vocab_crosswalk.csv
 # Hand-recorded by the maintainer and recorded nowhere else: the qptiff carries channel
 # names but no <Biomarker> tag, and a serial carries both a Panc and a pLN bundle.

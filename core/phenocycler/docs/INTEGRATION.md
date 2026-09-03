@@ -1,19 +1,20 @@
 # PhenoCycler ↔ Xenium integration
 
-> **The PhenoCycler side of this is stale and fails closed.** There are no
-> verified production target/reference pairs, so the current content-addressed
-> workflow stops after expression and produces neither `marker_evidence/` nor
-> `assignments/`. The historical exporter used to read the retired flat
-> `data/phenotype/broad/` and `restore_gated_redsea/{marker}_norm` layouts. Those
-> historical outputs are not valid current inputs. `export_pheno` therefore
-> raises before reading a legacy artifact by default, and the normal integration
-> orchestrator exposes no override. A PhenoCycler rewire must wait for a newly
-> verified calling/typing workflow; the Xenium half is unaffected.
+> **Current boundary (verified 2026-09-03).** Geometry is live; identity is
+> release-gated. `export_pheno` reads coordinates, areas, QuPath annotation
+> context, and identity-safe intensities from immutable core run
+> `30f6689e4d27d295f890`. It exported all 20 pancreas sections (25,150,537 cells)
+> without inventing a cell type. `import_xenium` likewise ignores embedded
+> label-shaped columns unless an independently declared Xenium identity release
+> supplies an exact `cell_id` call set. Registration, geometry QC, and geometry
+> figures run without identity. Composition, structures, matching, and other
+> identity consumers fail before reading caches until the required releases pass
+> `phenospace.py`.
 >
-> **2026-09-02.** The rewire route is now specified: a declared identity release
-> produced by the development lanes (`docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`,
-> Tracks A.4 and C.1), consumed through a geometry/identity split of this package.
-> Current stage status: `docs/WORKFLOW_2026-09-02_MAP.md` § 4.
+> The upstream PhenoCycler workflow still stops after expression. Historical
+> `phenotype/broad`, `restore_gated_redsea`, and `runs/*/assignments` artifacts
+> remain retired and have no compatibility opt-in. Current stage evidence lives
+> in `docs/WORKFLOW_2026-09-02_MAP.md` § 4.
 
 Picks up where `python -m phenocycler.pipeline` stops and integrates that with 10x Xenium spatial
 transcriptomics processed by the `analysis/xenium` lane (absorbed from `Xenium_Analysis` on
@@ -23,21 +24,30 @@ transcriptomics processed by the `analysis/xenium` lane (absorbed from `Xenium_A
 # On the workstation the repo .venv is the environment (environment-integration.yml is the HPG recipe).
 ../../.venv/bin/pip install -e '.[integration]'
 
-python -m phenocycler.integration.manifest --report      # what pairs with what
-python -m phenocycler.integration.pipeline --status      # stage table
-# A normal full run fails in preflight; no current PhenoCycler identities exist.
-python -m phenocycler.integration.pipeline
+python -m phenocycler.integration.manifest --build --report
+python -m phenocycler.integration.pipeline --status
+
+# Geometry-only execution is explicit while identity releases are blank.
+python -m phenocycler.integration.pipeline --only export_pheno --force
+python -m phenocycler.integration.pipeline --only import_xenium --force
+python -m phenocycler.integration.pipeline --only register --donor 6436 --donor 6442 --force
+python -m phenocycler.integration.pipeline --only qc --force
 ```
 
-The retired exporter has no CLI or API compatibility opt-in. Reproducing an
-old analysis requires checking out the historical implementation in a separate
-environment; current code never reads that layout.
+A full unscoped invocation includes identity stages and therefore fails in
+preflight while the release paths in `config.ini` are blank. This is deliberate:
+selecting a downstream stage or leaving an old output directory in place cannot
+bypass provenance validation.
 
 ---
 
 ## Tissue
 
-The cohort is **20 donors × {PhenoCycler, Xenium} × {pancreas, pancreatic lymph node}**.
+The current immutable PhenoCycler run contains **20 pancreas sections**. All 20
+pair with Xenium pancreas sections. The Xenium source catalog also contains
+pancreatic-lymph-node sections, but this run contains no PhenoCycler pLN section,
+so those manifest rows remain `xenium_only`; configured tissue support is not
+evidence that a section was measured.
 
 Tissue is a property of the *dataset*, fixed when it is imported, not a mode of the analysis.
 It is derived from the ROI (`panc` → pancreas, `pln_1..3` → pancreatic lymph node), written
@@ -51,15 +61,13 @@ python -m phenocycler.integration.pipeline --tissue pancreatic_lymph_node # one 
 python -m phenocycler.integration.pipeline --roi pln_2                    # one section
 ```
 
-`--roi` beats `--tissue`; with neither, the scope is every ROI of every tissue in
-`[integration] tissues`. Stage runners take that scope and iterate the manifest themselves —
-they are *not* called once per ROI, because their output paths are stage-level
-(`niche_profiles.csv`, `islets.parquet`) and a per-ROI call would have each ROI overwrite the
-last. The commands above document that intended scoping, but current execution preflights
-and blocks every Pheno-dependent stage before consulting cached outputs. Only explicitly
-selected source-independent operations, such as manifest reporting and Xenium import,
-remain runnable until a verified PhenoCycler identity workflow exists and integration is
-redesigned for it.
+`--roi` beats `--tissue`; with neither, the scope is every ROI of every configured tissue.
+Stage runners take that scope and iterate observed manifest rows themselves — they are *not*
+called once per ROI, because several output paths are stage-level. Geometry stages run for
+sections that exist in the manifest. The PhenoCycler geometry exporter currently refuses any
+ROI other than `panc` because the immutable run has no other section to export. Identity
+stages preflight the modality-specific release or releases they consume before consulting
+cached outputs.
 
 The two tissues diverge in exactly two places, both biological. Everything else — export,
 import, vocab, registration, niches, the grid, donor composition, pseudo-cell linking — is
@@ -98,14 +106,14 @@ concordance with a free correct answer.
 
 ### Section keys on the PhenoCycler side
 
-Both of a donor's images are named for the same donor:
+When both tissues have been acquired, both images are named for the same donor:
 
 ```
 6539_Scan1.er.qptiff        pancreas
 6539pLN_Scan1.er.qptiff     pancreatic lymph node
 ```
 
-The core pipeline used to key partitions on `regexp_extract("Image", '[0-9]+')` — the first
+The historical pipeline keyed partitions on `regexp_extract("Image", '[0-9]+')` — the first
 digit-run — so both landed in `data/cells/donor_id=6539`. Two sections in one partition is
 not a labelling nuisance. Every core stage treats a partition as one image: `redsea.py` reads
 `image.iloc[0]` and masks *every* cell in the partition with that one section's GeoJSON,
@@ -129,14 +137,12 @@ rule, checked against each other in the test suite. An unrecognised token like `
 refused rather than folded into the pancreas, and `redsea.donor_image` asserts its partition
 holds exactly one image as a backstop.
 
-A bare `pLN` resolves to `pln_1`. That is an **inference, not a measurement**: `pln_1` is the
-region every row of the vendored `xenium_paths.csv` carries (26 of the 26 donors listed there;
-three have a second, one a third). But that CSV is the upstream manifest, not the run cohort —
-the analysis cohort is the 20 donors of `cohort-spec.json` (settled 2026-08-14, see
-`docs/PLAN_2026-08-14_XENIUM_INTEGRATION_UNBLOCK.md`), so the statistic is drawn from a superset. The mapping is wrong for any donor whose single PhenoCycler
-lymph-node section corresponds to that donor's `pln_2` or `pln_3`. It would surface as a
-registration that will not align, not as silently wrong output; the fix is a per-donor override
-in `sections.REGION_TO_ROI`.
+A bare `pLN` filename token parses as `pln_1`; numbered tokens preserve their number.
+Filename parsing is only a candidate. Export resolves the expression table's exact image id
+through `qupath_manifest.json`, then applies exact, reviewable exceptions from the tracked
+`data/integration/section_overrides.csv`. That file currently records the HDL115 prefix and
+the 6534 `pacn` typo. It may clarify an existing image id, but it cannot add an unmeasured
+section or re-key a cell by fuzzy matching.
 
 ### The post-Xenium re-stain — protein and RNA on the same cells
 
@@ -188,9 +194,10 @@ PhenoCycler stain. Only identity travels (`CARRY_COLUMNS`), never raw marker val
 excluded on the same grounds — a lower-abundance surface marker does not survive that
 chemistry, which is what the reported unreliability predicts.
 
-If your re-stains use a filename token other than `xen` / `xpanc` / `xenpln` / `xpln`, `parse`
-**refuses** it and names the file; add one line to `sections.REGION_TO_ROI`. That is
-deliberately louder than defaulting, which would merge two sections.
+If a source image uses a one-off noncanonical name, add its exact image id and provenance to
+`section_overrides.csv`. A genuinely new naming convention requires a reviewed addition to
+`sections.REGION_TO_ROI`; `parse` refuses unknown tokens rather than defaulting and merging
+two physical sections.
 
 This also makes pairing exact rather than assumed. The manifest now knows *which* PhenoCycler
 sections exist, so a donor whose lymph node was never scanned is `xenium_only` for that ROI
@@ -198,10 +205,10 @@ instead of being reported as a pairing that does not exist.
 
 Two consequences worth knowing:
 
-- The core pipeline's `donor_id=*` partitions are **sections**, so a 20-donor two-tissue
-  cohort has ~40 of them. `cfg.discover_sections()` is the work-unit iterator every core
-  stage uses; `cfg.discover_donors()` returns the 20 unique donors, which is what the manifest
-  and the donor workbook join want. Conflating the two makes `6539pln` a phantom donor.
+- The core pipeline's `donor_id=*` partitions are **sections**. The current run has 20
+  pancreas partitions; a future run containing pLN would add section-keyed partitions rather
+  than merge them into those 20. `cfg.discover_sections()` is the work-unit iterator;
+  `cfg.discover_donors()` returns unique biological donors.
 - `[integration] pheno_tissue_dirs` survives only as an override for a tissue processed
   through a *separate* core-pipeline run. The normal case needs one run and no config.
 
@@ -273,24 +280,28 @@ warning is too easy to scroll past.
 
 ```
 manifest      S0   donor ↔ Xenium-run pairing; stamps donor_id/roi into the data
-export_pheno  S1a  RETIRED inputs; fail-closed pending verified identity workflow
-import_xenium S1b  h5ad | SpatialData zarr | raw bundle     →  cells_xen/
-vocab         S2   harmonised lineage vocabulary + protein↔gene crosswalk
-structures    S3   tissue / islets / ducts / vessels, same algorithm both sides [pancreas]
-register      S4   coarse rigid → affine → non-rigid; image + point-set tracks
-transform     S5   warp coordinates and masks into the fixed frame
-match         S6   islet ↔ islet assignment          [sequential, pancreas]
-grid          S7   joint niches (no registration) + registered hex grid
-donor         S8   donor-level concordance                     [no registration]
-crossmodal    S9   pseudo-cell linking                         [sequential, INFERENCE]
-sameslide     S11  cell ↔ cell pairing                         [same_slide]
-qc            S10  gates, nulls, report
-figures       S10  overlays and concordance plots
+export_pheno  S1a  immutable-run geometry → cells_pheno/; optional exact release attachment
+import_xenium S1b  h5ad | SpatialData zarr | raw bundle → cells_xen/; labels release-only
+postxen       S1c  post-Xenium re-stain pairing                       [Xenium identity]
+vocab         S2   release-declared lineage vocabulary + marker/gene crosswalk
+structures    S3   islets / ducts / vessels                           [identity, pancreas]
+register      S4   coarse rigid → affine → optional non-rigid         [geometry]
+match         S6   islet ↔ islet assignment                           [identity, sequential]
+cellmatch     S6b  endocrine cells within matched islets              [identity, sequential]
+sameslide     S11  cell ↔ cell assignment                             [identity, same_slide]
+grid          S7   identity-composition niches + registered hex grid  [identity]
+donor         S8   donor-level composition concordance                [identity]
+crossmodal    S9   pseudo-cell linking                                [identity, inference]
+qc            S10  registration gates; omit identity sections when unavailable
+figures       S10  geometry overlays; add composition only with releases
 ```
 
-Everything after S1 speaks one modality-agnostic parquet schema (`contract.py`), which is
-what lets registration, matching and QC be written once for both modalities and both modes —
-and tested on synthetic frames with no imaging data at all.
+Everything after S1 speaks one modality-agnostic parquet schema (`contract.py`). Parquet
+metadata stamps schema version 1, the `geometry` or `identity` profile, and the identity
+release id (blank for geometry). Nullable identity columns in a geometry table mean
+unavailable; they are never coerced to negative evidence. An identity table is produced only
+by exact native-key attachment (`object_id` UUID for PhenoCycler, `cell_id` for Xenium), with
+equal, duplicate-free cell sets and a release-declared label space.
 
 ---
 
@@ -331,47 +342,39 @@ verbatim, with the same columns and the same nPOD donors (26 appear in the vendo
 `xenium_paths.csv` as text, PhenoCycler derives it by regex. Left alone, `6539` and `6539.0`
 are different keys and the merge yields zero pairs.
 
-### Two eight-class vocabularies that are not the same partition
+### Identity vocabularies are release declarations
 
 ```
-PhenoCycler   Epithelial  Fibroblast  Muscle  Immune              Endocrine  Endothelial  Neural  Neutrophil
-Xenium        Exocrine    Stromal ──────────  Immune_T/B/Myeloid  Endocrine  Vascular     Neural  (in Myeloid)
+PhenoCycler release   producer labels ── declared label_space.json ──▶ common lineage
+Xenium release        producer labels ── declared label_space.json ──▶ common lineage
 ```
 
-- **Immune.** In the explicitly opted-in historical exporter, PhenoCycler collapses
-  T/B/myeloid into one class, but `CD3e_pos`, `CD20_pos` and `CD163_pos` survive in
-  `restore_gated_redsea/`, so the old implementation recovers the split as
-  `immune_subclass`. This describes reproduction of the retired analysis, not a current
-  input path.
-- **Fibroblast vs Muscle.** Xenium cannot split them: `ACTA2` is absent from the 5K
-  reference (it arrives only via the custom-100 add-on) and `12_pericyte_smooth_muscle`
-  contributes exactly one SMC-hinted gene. The common vocabulary keeps `Stromal`.
-- **Neutrophil.** PhenoCycler has an MPO gate; Xenium folds granulocytes into `Myeloid`.
-  Reachable on the Xenium side only as a fine label or via the granulocyte identity core.
-- **Epithelial.** Xenium deliberately has no epithelial mask — `16_epithelial_general` is
-  `embedding_extra`, because KRT/EPCAM are shared by ductal, acinar and endocrine cells.
+There is no module-global PhenoCycler phenotype roster. Each release declares every producer
+label, whether it maps at the common resolution, inherits from a declared parent, or is
+explicitly `Ambiguous`/`Unavailable`. Undeclared labels are errors. The former broad mapping
+exists only in `integration/data/legacy_broad_space.json` for explicit audit tests; loading it
+does not make it a current identity source.
 
-The mapping is *derived* from the `core/panels` subtree (XeniumPanelExplorer @ `076d1192`,
+The Xenium panel/gene half of the crosswalk is *derived* from the `core/panels` subtree
+(XeniumPanelExplorer @ `076d1192`,
 verified byte-identical 2026-08-28), which ships `panel_roles.csv` and
 `identity_core/*.csv` specifically as a machine-readable contract for Python consumers. A
 drift guard fails loudly if an upstream lineage stops being covered.
 
 ### The `evidence_positive` correction
 
-PhenoCycler's `Epithelial` is a **default sink**: `lineage.py` assigns it to every cell that
-fails all the positive gates, flagged `epi_default`. Xenium has no sink — `broad_lowsignal`
-cells still land in their best-scoring lineage.
-
-Comparing raw fractions therefore measures a methodological difference, not biology. Every
-composition figure reports `frac_all`, `frac_evidence_positive` and `frac_fallback`, and the
-headline concordance uses the evidence-positive number on both sides.
+`evidence_positive` is nullable in geometry tables and required to be fully observed before
+composition or concordance is computed. An identity release may mark producer fallbacks as
+false, but unavailable evidence is not a negative call. Every composition figure reports
+`frac_all`, `frac_evidence_positive`, and `frac_fallback`; none is emitted without declared
+identity provenance.
 
 ### Off-panel markers
 
-46 of 55 PhenoCycler markers have a gene on the deployed 5,081-gene panel. But **INS, GCG,
-SST and Vimentin are off-panel** — precisely the markers that define PhenoCycler's Endocrine
-and Fibroblast classes. Those comparisons route through Xenium's curated surrogate identity
-panels (PDX1, ISL1, NEUROD1, ABCC8 … for endocrine) instead of 1:1 pairs.
+The deployed 5,081-gene panel omits **INS, GCG, SST and Vimentin** — markers historically
+used for PhenoCycler endocrine and fibroblast calls. Any declared identity comparison must
+therefore record Xenium's curated surrogate identity panels (PDX1, ISL1, NEUROD1, ABCC8 …
+for endocrine) rather than pretending those are 1:1 measurements.
 
 That is orthogonal evidence rather than circular confirmation — scientifically a feature —
 but it thins the anchor set available for pseudo-cell linking, so `crossmodal.py` refuses to
@@ -381,13 +384,16 @@ run below `crossmodal_min_anchors` rather than producing links from three genes.
 
 ## Registration
 
-Two tracks, both run, best-by-QC wins, choice recorded.
+Two candidate tracks are available; every track with the required inputs runs and the
+best-by-QC choice is recorded.
 
-**Track A — point set.** RANSAC over candidate islet correspondences (gated on size and area
-ratio before geometry) → ICP over mutual nearest neighbours. Needs no images.
+**Track A — point set.** RANSAC over declared structure correspondences → ICP over mutual
+nearest neighbours. It needs identity-derived structures, so it is unavailable for the
+current geometry-only cohort even though it needs no images.
 
-**Track B — image.** Coarse orientation search → opencv ECC (Euclidean then affine) →
-SimpleITK B-spline. Uses DAPI↔DAPI where available, otherwise cell-density rasters.
+**Track B — raster/image.** Coarse orientation search → opencv ECC (Euclidean then affine) →
+optional SimpleITK B-spline. Uses DAPI↔DAPI where available and an all-cell density raster
+otherwise; it is the current geometry-only path.
 
 Three things that matter:
 
@@ -414,14 +420,13 @@ the original bundle, at a pyramid level near the target resolution.
 
 | verdict | condition | permits |
 |---|---|---|
-| PASS | tissue Dice ≥ 0.80 **and** islet RMSE ≤ 150 µm | everything |
+| PASS | tissue Dice ≥ 0.80 and, when identity structures exist, islet RMSE ≤ 150 µm | everything allowed by available profiles |
 | WARN | one gate met | all but pseudo-cell linking |
 | FAIL | neither | donor-level and niche only |
 
-In a tissue with no structural unit the islet-RMSE gate does not exist, so the verdict is
-PASS on Dice alone and FAIL otherwise — there is no WARN band, because there is no second
-gate to half-meet. The dropped gate is stated in the `reasons` column rather than being
-silently absent.
+When the tissue has no structural unit, or when identity is not attached and therefore no
+valid structure can be called, the islet-RMSE gate does not exist. The verdict is PASS on
+Dice alone and FAIL otherwise. The dropped gate and reason are written explicitly.
 
 Verdicts are per **(donor, ROI)**, not per donor: a donor's pancreas can register cleanly
 while its lymph node does not, and `crossmodal` gates on the section it is about to link.
@@ -440,7 +445,8 @@ data/integration/
 ├── vocab_crosswalk_<tissue>.csv     per-tissue crosswalk (cores differ)  [tracked]
 ├── xenium_paths.csv                 vendored donor → run map           [tracked]
 ├── donor_overrides.csv              donor ids not recorded upstream    [tracked]
-├── cells_pheno/donor_id=*/roi=*/    contract cell tables
+├── section_overrides.csv            exact PhenoCycler image exceptions [tracked]
+├── cells_pheno/donor_id=*/roi=*/    schema/profile-stamped contract tables
 ├── cells_xen/donor_id=*/roi=*/
 ├── structures/{phenocycler,xenium}/donor_id=*/roi=*/{islets,ducts,vessels}.parquet
 ├── registration/donor_id=*/roi=*/   transform.json, displacement.npz, qc.json
@@ -466,20 +472,27 @@ longer align with `cells.parquet`.
 pip install -e '.[integration,test]'
 pytest -q tests/integration                          # explicit optional lane
 python -m phenocycler.integration.pipeline --status
-python -m phenocycler.integration.pipeline --status --tissue pancreatic_lymph_node
-python -m phenocycler.integration.manifest --report
+python -m phenocycler.integration.manifest --build --report
 
 # Do this FIRST on any machine that actually mounts the Xenium tree. Everything
 # downstream is worthless if the manifest points at paths that do not resolve.
-python -m phenocycler.integration.manifest --verify-paths           # exit 1 on any failure
-python -m phenocycler.integration.manifest --verify-paths --donor 6539
-# Expected to halt at the retired PhenoCycler export; no current identities exist:
-python -m phenocycler.integration.pipeline --donor 6539 --mode sequential
+python -m phenocycler.integration.manifest --verify-paths
+python -m phenocycler.integration.manifest --verify-paths --donor 6436 --donor 6442
+python -m phenocycler.integration.pipeline --only export_pheno --donor 6436 --donor 6442 --force
+python -m phenocycler.integration.pipeline --only import_xenium --donor 6436 --donor 6442 --force
+python -m phenocycler.integration.pipeline --only register --donor 6436 --donor 6442 --force
+python -m phenocycler.integration.pipeline --only qc --force
+
+# Expected to halt before reading caches until both identity releases are configured:
+python -m phenocycler.integration.pipeline --only structures --donor 6436
 ```
 
 The test suite asserts recovery of *known* transforms — a synthetic warp is applied and the
 registration must recover it, including the mirrored case and the non-rigid displacement
-sign (which fails silently by doubling the misalignment rather than removing it).
+sign. Real affine results retained for 6436 and 6442 have tissue Dice 0.586 and 0.768,
+respectively, and both correctly fail the fixed 0.80 gate. A 2-million-pixel, 200-iteration
+real B-spline probe on 6436 was stopped after extended non-completion; it is performance
+evidence, not a completed registration result.
 
 **Scientific acceptance**, in order of how much they demand:
 

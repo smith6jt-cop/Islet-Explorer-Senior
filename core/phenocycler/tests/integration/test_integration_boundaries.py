@@ -74,7 +74,10 @@ def _cell_table(cfg, base, centres_um, ids, modality, image="img"):
         "lineage_common": ["Endocrine"] * len(ids),
         "image": [image] * len(ids),
     })
-    out = coerce_cell_table(df, modality=modality, donor_id="6539", roi="panc")
+    out = coerce_cell_table(
+        df, modality=modality, donor_id="6539", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     out["image"] = image
     write_cell_table(out, partition_path(base, "6539", "panc"))
     return out

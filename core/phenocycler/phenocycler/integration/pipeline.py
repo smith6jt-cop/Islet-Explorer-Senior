@@ -35,13 +35,15 @@ whether registration succeeded. That is the point of ordering them after ``regis
 gating them on it: a cohort where half the donors fail to align still produces a complete
 donor-level and niche-level result for all of them.
 
-Tissue is a scope, not a mode. The cohort is 20 donors x {PhenoCycler, Xenium} x {pancreas,
-pancreatic lymph node}, so a bare invocation runs *both* tissues — every ROI of every tissue
-in ``[integration] tissues`` — and ``--tissue pancreas`` narrows it to one. The two tissues
-differ in exactly one stage: ``structures`` (and therefore ``match``) needs a structural unit,
-and a lymph node has none, so those stages announce the skip and move on rather than failing.
-Everything else — export, import, vocab, register, grid, donor, crossmodal, qc — applies to
-both. See ``phenocycler.integration.tissues``.
+``export_pheno`` is retained as the public stage name for compatibility, but its runnable
+half is now strictly a geometry export from an immutable core run. It never calls the retired
+identity exporter and never invents ``lineage_native``.
+
+Tissue is a scope, not a mode. A bare invocation selects every configured tissue, while each
+stage still runs only on manifest rows that actually exist. The current immutable
+PhenoCycler run contains 20 pancreas sections and no pLN sections; Xenium-only pLN rows do
+not imply missing PhenoCycler measurements can be manufactured. See
+``phenocycler.integration.tissues``.
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ import glob
 from typing import Optional
 
 from ..config import PipelineConfig, load_config
-from .export_pheno import require_current_pheno
+from .export_pheno import require_current_identity
 from .tissues import DISPLAY_NAME, has_structures
 
 #: (stage, output glob under data_dir, human label)
@@ -94,32 +96,80 @@ NEEDS_STRUCTURES = {"structures", "match", "cellmatch"}
 #: Stages that run once for the whole selection rather than once per ROI.
 COHORT_WIDE = {"manifest", "vocab", "structures", "donor", "qc"}
 
-# These stages either create, directly read, or scientifically depend on the main
-# PhenoCycler cell contract. Historical ``integration/cells_pheno`` files are not a
-# cache for the current workflow and must never make one of these stages runnable.
-PHENO_DEPENDENT_STAGES = frozenset(
+# Split along what a stage READS, not which workflow produced it.
+#
+# The single flat gate this replaces blocked thirteen stages because one of them needed a
+# marker call. Registration, transforms and islet matching need coordinates and rasters; they
+# do not need to know what any cell IS. Conflating the two meant the identity-independent
+# core — the expensive, risky part, and the part that stays useful when a verified pair
+# roster eventually lands — was unreachable for a reason that did not apply to it.
+
+#: Stages that consume a cell IDENTITY: a lineage label, not a coordinate. Blocked while no
+#: target/reference pair is verified. Historical ``integration/cells_pheno`` files are not a
+#: cache for the current workflow and must never make one of these runnable.
+PHENO_IDENTITY_STAGES = frozenset(
     {
-        "export_pheno",
         "postxen",
         "vocab",
         "structures",
-        "register",
         "match",
         "cellmatch",
         "sameslide",
         "grid",
         "donor",
         "crossmodal",
+    }
+)
+
+#: Stages that need only geometry — coordinates, areas, rasters, ``islet_num``/``cell_region``.
+#: Runnable against ``runs/<id>/expression`` with ``lineage_native`` absent.
+GEOMETRY_STAGES = frozenset(
+    {
+        "manifest",
+        "export_pheno",
+        "import_xenium",
+        "register",
         "qc",
         "figures",
     }
 )
 
+#: Retained so a stale import fails loudly rather than silently gating nothing.
+PHENO_DEPENDENT_STAGES = PHENO_IDENTITY_STAGES
 
-def _assert_current_pheno_available(stages: list[str]) -> None:
-    blocked = sorted(PHENO_DEPENDENT_STAGES.intersection(stages))
+# Current public name. The old symbol remains an alias for compatibility with stale imports.
+IDENTITY_STAGES = PHENO_IDENTITY_STAGES
+
+# Release dependencies are stage-specific. Vocabulary review needs only the PhenoCycler
+# declaration; post-Xenium scoring consumes Xenium calls beside protein measurements; the
+# paired identity stages consume both.
+IDENTITY_MODALITIES = {
+    stage: (("phenocycler",) if stage == "vocab"
+            else ("xenium",) if stage == "postxen"
+            else ("phenocycler", "xenium"))
+    for stage in PHENO_IDENTITY_STAGES
+}
+
+#: Stages whose existing outputs never count as "already done".
+#:
+#: ``integration/cells_pheno`` may still hold tables written by the retired typing lane. While
+#: ``export_pheno`` was blocked outright, a cached directory could not be reached; now that the
+#: geometry half is runnable, an untouched historical directory would otherwise make the stage
+#: skip and hand retired identity data to everything downstream. Re-deriving is cheap next to
+#: that, so this stage is always re-run and its cache is never trusted.
+NEVER_CACHED_STAGES = frozenset({"export_pheno"})
+
+
+def _assert_current_pheno_available(cfg: PipelineConfig, stages: list[str]) -> None:
+    blocked = sorted(PHENO_IDENTITY_STAGES.intersection(stages))
     if blocked:
-        require_current_pheno(f"integration stage(s): {', '.join(blocked)}")
+        modalities = tuple(sorted({
+            modality for stage in blocked for modality in IDENTITY_MODALITIES[stage]
+        }))
+        require_current_identity(
+            f"integration stage(s): {', '.join(blocked)}", cfg=cfg,
+            modalities=modalities,
+        )
 
 
 def order_for(mode: str) -> list[str]:
@@ -153,11 +203,14 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
         n = _has_outputs(cfg, pattern)
         mark = "ok " if n else "   "
         scope = ""
+        if name in NEVER_CACHED_STAGES and n:
+            mark = "   "
+            scope = "  [outputs present but never trusted as a cache; always re-derived]"
         if name not in order:
             mark = "n/a"
-        elif name in PHENO_DEPENDENT_STAGES:
+        elif name in PHENO_IDENTITY_STAGES:
             mark = "BLOCKED"
-            scope = "  [no verified PhenoCycler phenotype input; cached files ignored]"
+            scope = "  [needs a cell identity; no verified pair roster. cached files ignored]"
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:
@@ -201,7 +254,7 @@ def run_pipeline(
     # Preflight before resolving ROIs or consulting any output cache. In particular,
     # ``--only donor`` and an existing retired cells_pheno directory cannot evade the
     # fail-closed exporter by omitting or skipping export_pheno.
-    _assert_current_pheno_available(order)
+    _assert_current_pheno_available(cfg, order)
 
     selected = list(tissues) if tissues else cfg.tissue_list
     rois = cfg.resolve_rois(roi, tissues)
@@ -223,7 +276,7 @@ def run_pipeline(
         ``islets.parquet``, ``crossmodal_qc.csv``), so calling a stage once per ROI would have
         each ROI's write silently clobber the previous one's.
         """
-        if not force and _has_outputs(cfg, patterns[name]):
+        if not force and name not in NEVER_CACHED_STAGES and _has_outputs(cfg, patterns[name]):
             print(f"[SKIP] {name}: outputs already present at "
                   f"{cfg.data_dir / patterns[name]}", flush=True)
             return
@@ -244,8 +297,19 @@ def run_pipeline(
             from .manifest import run_manifest
             _run(name, lambda: run_manifest(cfg))
         elif name == "export_pheno":
-            from .export_pheno import run_export_pheno
-            _run(name, lambda: run_export_pheno(cfg, donors, roi=roi, tissues=runs_on))
+            from .export_pheno import run_export_geometry
+            # The current immutable core run contains the cohort's pancreas sections. ROI
+            # resolution for additional PhenoCycler sections is a separate, manifest-backed
+            # operation; silently stamping a pLN request onto pancreas cells would be worse
+            # than refusing it.
+            export_roi = roi or "panc"
+            if export_roi != "panc":
+                raise SystemExit(
+                    f"PhenoCycler geometry export currently resolves only roi 'panc'; got "
+                    f"{export_roi!r}. Add the section to the core run and section manifest "
+                    "before exporting it."
+                )
+            _run(name, lambda: run_export_geometry(cfg, donors, roi=export_roi))
         elif name == "import_xenium":
             from .import_xenium import run_import_xenium
             _run(name, lambda: run_import_xenium(cfg, donors=donors, roi=roi,

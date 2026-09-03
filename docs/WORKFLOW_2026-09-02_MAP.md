@@ -82,6 +82,7 @@ compositions; KODAMA's M-parallelism does not scale; `--max-cells` double-subsam
 | step | what | on disk | status |
 |---|---|---|---|
 | `export_dapi.py` → `valis_register.py` (**VALIS 1.2.0**, `~/.venvs/valis`) → `nuclei.py` → `run_refine.py` (`register.icp` affine on the two nucleus fields) → `run_align.py` gate | nucleus-by-nucleus registration | 6436, 6442 | runs: **0.546 / 0.630 µm** median per cell, PASS on 243/243 and 365/365 windows, spatial hold-out within 0.07 µm |
+| `restain_registration_inputs.csv`, `registration_inputs.py` | registration-only qptiff ↔ Xenium provenance; qptiff XML supplies calibration and literal DAPI page; no antibody interpretation | 20 recorded / 18 eligible | all 20 local qptiffs reconcile to `xenium_paths.csv`; 6457/6579 are filtered centrally; 6436/6442 pass required-file preflight; 155 synthetic re-stain tests pass |
 | `channel_check.py` | islet enrichment per Opal channel in the IF frame, no registration | 5 recorded sections | runs: 6436 Opal 520 (GCG) 66× vs Opal 690 (INS) 2.2×; 6442 401× / 17.1×; Opal 570 is FAILED on the three nPOD sections but not on 115 / 6591 |
 | `run_hormone.py --transform refined` (`9e88272`) | AUROC of IF intensity vs the within-cell RNA surrogate contrast, bar 0.75 | `hormone_panc_refined.json` | 6436 INS 0.514 / GCG 0.522; 6442 INS 0.657 / GCG 0.728 — **bar not met**; extraction is still an 8 µm disc; `main` returns 0, no exit codes |
 | `protein_rna.py`, `protein_rna_figures.py` (`2dade20`, `1a23105`) | **label-free** rank association (Spearman ρ of IF intensity vs transcript count) against the 18-gene pancreas endocrine identity core from `core/panels`; the AUROC against an invented positive class was removed | both donors | runs; "defining a positive is the maintainer's call" — nothing here labels a cell. 6436 is T1D with focal insulin, so any section-wide statistic on its INS channel says little |
@@ -98,10 +99,10 @@ conda `scvi-env` (scvi-tools 1.4.0.post1, torch 2.9.0+cu128; verified 2026-09-01
 
 | step | status |
 |---|---|
-| `core/phenocycler/scripts/xenium_celltype/build_phenotyped_base.py --donors …` → `/data/xenium/processed/<serial>/<roi>/<serial>_phenotyped.h5ad` | runs; done for 6539 only |
+| `core/phenocycler/scripts/xenium_celltype/build_phenotyped_base.py --donors …` → `/data/xenium/processed/<serial>/<roi>/<serial>_phenotyped.h5ad` | runs; 6436 (`0059907`: 641,487 retained) and 6442 (`0059947`: 906,211 retained) rebuilt 2026-09-03; the older 6539 development run also exists |
 | `scripts/finalize_panel.py --paths …` — stamps `identity_panel` (478 genes) from the `core/panels` snapshot | runs; snapshot fresh (`SOURCE.txt` tree `0348d149…` = `HEAD:core/panels/data`) |
-| `scripts/hierarchical_phenotype.py` — two-tier identity-core → **scANVI** (`--dl-workers 0`) | **blocked at the seam**: `main()` has no `--paths` (its docstring and the README say it does), resolves the flat `processed/{s}/{s}_phenotyped.h5ad`, and **silently skips** a missing input with exit 0 |
-| `scripts/insulitis_analysis.py` | same flat-path defect; legacy sample defaults |
+| `scripts/hierarchical_phenotype.py` — two-tier identity-core → **scANVI** (`--dl-workers 0`) | runs with explicit nested `--paths` and complete-set preflight. Slim sidecars written for 6436 (416,962 anchors / 224,525 propagated; 1,695 low-signal; 25.47% confidence <0.50) and 6442 (755,067 / 151,144; 1,435; 22.08%). IDs align exactly and required fields have no nulls; this is development evidence, not a declared integration release |
+| `scripts/insulitis_analysis.py` | nested `--paths` seam fixed; resolves each immune sidecar beside its base file and fails preflight while those immune inputs are absent |
 | `scripts/fetch_subpanels.py` | runs; regenerates the gitignored snapshot from `core/panels` |
 | `scripts/benchmark/` (BANKSY / UTAG / KODAMA / MISTy), `hpc/`, the thymus lane | dormant by design; `bench_py` and the HPG R library do not exist here |
 | `core/panels` Shiny app (Seurat 5.5) | loads under R 4.5.1; renv deactivated (`renv.lock.r46-backup`); 50 testthat blocks unrun |
@@ -112,12 +113,13 @@ Authority: `core/phenocycler/docs/INTEGRATION.md` (its preamble and paths are co
 
 | stage | status |
 |---|---|
-| `manifest` S0 (`--report`, `--verify-paths`) | runs. `--verify-paths`: 56 rows, **20 ok** (the run cohort's pancreas bundles under `/data/xenium`), 35 missing (29 pancreatic-lymph-node rows, 6 non-cohort pancreas rows), 1 `no_path` (6591 `pln_1`). `--report`: 0 paired, 0 pheno_only, 55 xenium_only, 2 `donor_unknown` — the PhenoCycler side is empty because `_discover_pheno_sections` globs `data/cells/donor_id=*`, which does not exist (cells live under `data/runs/<id>/`) |
-| `import_xenium` S1b | unblocked, never run; `spatialdata-io` absent from `.venv` |
-| `export_pheno` S1a | fails closed by design (`require_current_pheno`) |
-| `vocab structures register transform match cellmatch grid donor crossmodal sameslide postxen qc figures` | **blocked** by one flat `PHENO_DEPENDENT_STAGES` (`pipeline.py:100-116`); `contract.py:96` requires `lineage_native`; the geometry/identity split proposed on 2026-08-14 and 2026-08-25 does not exist |
+| `manifest` S0 (`--report`, `--verify-paths`) | runs. Rebuilt 2026-09-03: 57 rows, **20 paired** pancreas donors, 35 Xenium-only sections and 2 `donor_unknown`; all 20 current-run PhenoCycler qptiff/GeoJSON pairs resolve exactly through `qupath_manifest.json` plus the tracked two-row override file. The missing 6591 pLN source and two unknown Xenium runs remain explicit warnings |
+| `export_pheno` S1a | geometry half runs from immutable run `30f6689e4d27d295f890`: **20 `roi=panc` partitions / 25,150,537 analysis-eligible cells**, schema v1 geometry profile, 57 identity-safe features, zero 6457/6579. INS/GCG/SST are withheld; `islet_num` is carried only as `qupath_islet_num`; identity export still requires a validated release |
+| `import_xenium` S1b | geometry half runs from per-section bundles. Verified on 6436 (695,113 cells) and 6442 (958,744): zero duplicate cell IDs, blank identity and nullable evidence. Embedded label-shaped columns are ignored; a configured Xenium release must provide an exact cell-ID call set |
+| `register`, `qc`, `figures` | geometry stages, no longer identity-blocked. Real DAPI/geometry runs on 6436 and 6442 produced affine Dice 0.586 and 0.768, both honestly `FAIL` at the fixed 0.80 gate. QC explicitly says identity/composition are omitted. The SimpleITK unit arm runs; its 2-million-pixel/200-iteration real 6436 probe was stopped after extended non-completion and is not claimed as a result |
+| `vocab structures match cellmatch grid donor crossmodal sameslide postxen` | identity stages; blocked unless the required PhenoCycler and/or Xenium releases pass `phenospace.py`. Existing cached structure files are ignored. `hormone_seed_mask` rejects a geometry table, so QuPath context and raw hormone intensities cannot become identity by accident |
 | `boundaries`, `rasterize`, `contract`, `tissues`, `sections` | libraries, live (`boundaries.py` and `rasterize.py` extended 2026-09-01 for the restain lane) |
-| `crossmodal` S9 | structurally dead as shipped (`import_xenium` writes only `feat__score_*`, which `resolve_anchors` strips) |
+| `crossmodal` S9 | identity-gated and structurally input-starved as shipped (`import_xenium` writes only `feat__score_*`, which `resolve_anchors` excludes as direct gene anchors); no inferred links were produced |
 
 ## 5. Application lane — `apps/islet/`, `scripts/senior/`, `deploy/`
 
@@ -151,7 +153,7 @@ Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets r
 
 | environment | runs | note |
 |---|---|---|
-| repo `.venv` (py 3.12.3, numpy 2.5.1, torch 2.13.0+cu130, CUDA ok) | the pipeline; celltype; kintsugi 0/3/4; dct; xenium_celltype (python); restain except VALIS; both pytest suites | **Globus Connect Personal's daemon runs under this interpreter** — do not recreate it. SimpleITK and spatialdata-io are absent (two integration tests skip; the non-rigid arm and `import_xenium`'s bundle path are inert) |
+| repo `.venv` (py 3.12.3, numpy 2.5.1, torch 2.13.0+cu130, CUDA ok) | the pipeline; integration; celltype; kintsugi 0/3/4; dct; xenium_celltype (python); restain except VALIS; both pytest suites | **Globus Connect Personal's daemon runs under this interpreter** — do not recreate it. SimpleITK 2.5.6 and spatialdata-io 0.7.1 were added without changing numpy/torch on 2026-09-03; `pip check` and the formerly skipped SimpleITK test pass |
 | `~/.venvs/valis` (valis-wsi 1.2.0, SimpleITK 2.5.6) | `valis_register.py` | its pins are incompatible with `.venv` |
 | `external/.venv-som` (numpy 1.26.4, pyFlowSOM 0.1.16) | kintsugi Step 2 | exists because `external/KINTSUGI/envs/env-linux.yml` failed to solve (2026-08-27) |
 | conda `scvi-env` (py 3.13.9) | the Xenium typer | the only lane environment recorded in a tracked file |
@@ -160,13 +162,14 @@ Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets r
 | conda `astir-env`, `CODApivot`, `Kintegrate`, `samapi`, `vesselvio`, `XeniumPC_Analysis`, `image2image`, `KINTSUGI` (dangling editable install), `scimap` | — | no operational reference in the repo |
 | HiPerGator | `analysis/xenium/hpc/`, `xenium_celltype/hpg/`, `scripts/slurm/` | ssh denied from this workstation; Globus is the only route |
 
-## 8. Read-only checks behind this map (2026-09-01/02)
+## 8. Read-only checks behind this map (2026-09-01 through 2026-09-03)
 
 ```bash
 cd core/phenocycler
 ../../.venv/bin/python -m phenocycler.pipeline status --config config.ini        # run_id 67aec2f7…, 4× MISSING, 3× BLOCKED
 ../../.venv/bin/python -m phenocycler.integration.pipeline --status
-../../.venv/bin/python -m phenocycler.integration.manifest --verify-paths        # rows 56 / ok 20 / missing 35 / no_path 1
+../../.venv/bin/python -m phenocycler.integration.manifest --verify-paths        # 20/20 current-run Pheno qptiff/GeoJSON pairs exact; source catalog gaps remain explicit
+../../.venv/bin/python -m pytest -q tests/current tests/research tests/integration # 635 passed / 0 skipped after optional deps, 2026-09-03
 git -C ../../external/UniFORM rev-parse HEAD    # 7c33396d12e5a19dc0b36e46a94c3293de0cd814
 git -C ../../external/utag rev-parse HEAD       # 056cb87ee90aa850450b806b075033bc8c50703a
 git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04d2d9ea508e

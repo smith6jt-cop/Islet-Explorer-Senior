@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import PipelineConfig, load_config
-from .contract import CellTable, discover_partitions, read_cell_table
+from .contract import CellTable, ContractError, discover_partitions, has_identity, read_cell_table
 from .tissues import has_structures
 from .tissues import structure_kinds as tissue_structure_kinds
 
@@ -119,6 +119,13 @@ def hormone_seed_mask(table: CellTable, *, hormone_min_norm: float = 5.0) -> np.
     hormone-surrogate gene to be detected — so it is the same "specific hormone evidence"
     criterion the Xenium islet code applies directly to the counts matrix.
     """
+    if not has_identity(table.df):
+        raise ContractError(
+            f"{table.modality}/{table.donor_id}: hormone_seed_mask cannot consume a "
+            "geometry-only table. PhenoCycler uses declared QuPath islet geometry until a "
+            "verified identity release exists; Xenium hormone seeding requires its typer."
+        )
+
     df = table.df
     if table.modality == "phenocycler":
         cols = [c for c in (f"feat__{m}" for m in ("INS", "GCG", "SST")) if c in df.columns]
@@ -318,15 +325,17 @@ def validate_against_qupath(table: CellTable, islets: pd.DataFrame,
                             islet_id: pd.Series) -> Optional[dict]:
     """Compare the DBSCAN islet call against PhenoCycler's QuPath annotations.
 
-    PhenoCycler carries hand-drawn islet annotations in ``structure_id`` (from
-    ``islet_num``). We do not use them for the call — symmetry with Xenium matters more —
+    PhenoCycler carries hand-drawn islet annotations in ``qupath_islet_num``. We do not use
+    them for the call — symmetry with Xenium matters more —
     but they are an independent check that the DBSCAN parameters are sane on this modality,
     and a silent disagreement would be worth knowing about.
     """
     if table.modality != "phenocycler":
         return None
     df = table.df
-    qp = df["structure_id"].astype(str)
+    if "qupath_islet_num" not in df.columns:
+        return None
+    qp = df["qupath_islet_num"].astype(str)
     annotated = qp.ne("") & qp.ne("nan")
     if not annotated.any():
         return None
@@ -368,6 +377,13 @@ def extract_donor(
     out: dict[str, pd.DataFrame] = {}
 
     islet_id = pd.Series([""] * len(table.df), index=table.df.index, dtype="object")
+    if not has_identity(table.df):
+        raise ContractError(
+            f"{table.modality}/{table.donor_id}: structure calling requires a declared "
+            "identity profile. qupath_islet_num remains audit/registration context and is "
+            "never promoted to structure_id."
+        )
+
     if "islet" in kinds:
         islets, islet_id = call_islets(table, params,
                                        hormone_min_norm=cfg.hormone_min_norm,
@@ -404,9 +420,9 @@ def run_structures(
     tissues: Optional[Iterable[str]] = None,
 ) -> pd.DataFrame:
     """Stage entry point: extract structures for every exported section that supports them."""
-    from .export_pheno import require_current_pheno
+    from .export_pheno import require_current_identity
 
-    require_current_pheno("integration structures")
+    require_current_identity("integration structure calling", cfg=cfg)
     roots = {"phenocycler": cfg.cells_pheno_dir, "xenium": cfg.cells_xen_dir}
     summary = []
 

@@ -8,14 +8,15 @@
 
 from __future__ import annotations
 
+import json
 import pandas as pd
 import pytest
 
 from phenocycler import load_config
 from phenocycler.integration.manifest import (
     DONOR_UNKNOWN, PAIRED, PHENO_ONLY, XENIUM_ONLY, ManifestError, build_manifest,
-    normalize_roi, parse_bundle_path, paired_rows, read_xenium_paths, render_path_verification,
-    sample_key, verify_bundle_paths,
+    ManifestSummary, _discover_pheno_sections, normalize_roi, parse_bundle_path, paired_rows,
+    read_xenium_paths, render_path_verification, sample_key, verify_bundle_paths,
 )
 
 #: Recorded the way `xenium_paths.csv` records them: relative to the Xenium tree, so no
@@ -297,6 +298,40 @@ def test_empty_inputs_warn_rather_than_crash(tmp_path):
     df, summary = build_manifest(cfg, pheno_donors=[])
     assert len(df) == 0
     assert any("no Xenium runs" in w for w in summary.warnings)
+
+
+def test_default_pheno_discovery_reads_current_run_and_manifest(tmp_path):
+    data = tmp_path / "data"
+    run_id = "immutable-run"
+    expression = data / "runs" / run_id / "expression"
+    for donor, image in (
+        ("6436", "6436_Scan1.er.qptiff - resolution #1"),
+        ("6450", "6450panc_Scan1.er.qptiff - resolution #1"),
+    ):
+        part = expression / f"donor_id={donor}"
+        part.mkdir(parents=True)
+        pd.DataFrame({"image": [image, image], "object_id": ["a", "b"]}).to_parquet(
+            part / "data.parquet", index=False
+        )
+    (data / "runs" / "LATEST").write_text(run_id)
+
+    qmanifest = data / "qupath_manifest.json"
+    qmanifest.write_text(json.dumps({"images": [
+        {"donor_id": "6436", "image_id": "6436_Scan1.er.qptiff - resolution #1"},
+        {"donor_id": "6450", "image_id": "6450panc_Scan1.er.qptiff - resolution #1"},
+    ]}))
+    section_overrides = data / "integration" / "section_overrides.csv"
+    section_overrides.parent.mkdir(parents=True)
+    section_overrides.write_text("image_id,donor_id,roi,slide,reason\n")
+
+    cfg = load_config(
+        data_dir=data,
+        qupath_manifest=qmanifest,
+        section_overrides_csv=section_overrides,
+    )
+    summary = ManifestSummary()
+    assert _discover_pheno_sections(cfg, summary) == {("6436", "panc"), ("6450", "panc")}
+    assert summary.warnings == []
 
 
 # --- Path verification -------------------------------------------------------------------

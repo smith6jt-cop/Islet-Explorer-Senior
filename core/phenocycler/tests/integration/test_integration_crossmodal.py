@@ -50,7 +50,10 @@ def _paired_tables(n=400, n_markers=10, seed=0, extent=2000.0):
             name = m if modality == "phenocycler" else PROTEIN_TO_GENE[m]
             df[f"feat__{name}"] = np.where(lin == LINEAGE_OF[m],
                                            6.0 + sd.random(n), 0.3 + sd.random(n) * 0.3)
-        df = coerce_cell_table(df, modality=modality, donor_id="T", roi="panc")
+        df = coerce_cell_table(
+            df, modality=modality, donor_id="T", roi="panc",
+            profile="identity", identity_release_id="synthetic-test-release",
+        )
         return CellTable(df=df, modality=modality, donor_id="T", roi="panc")
 
     return build("phenocycler", np.random.default_rng(seed + 1)), \

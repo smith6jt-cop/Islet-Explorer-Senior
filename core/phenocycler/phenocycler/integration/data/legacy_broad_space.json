@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "space_id": "legacy-broad-audit-v1",
+  "producer_lane": "legacy-broad-audit-only",
+  "labels": [
+    {"label": "Epithelial", "common_lineage": "Exocrine", "reason": "historical default sink"},
+    {"label": "Fibroblast", "common_lineage": "Stromal"},
+    {"label": "Muscle", "common_lineage": "Stromal"},
+    {"label": "Endocrine", "common_lineage": "Endocrine"},
+    {"label": "Endothelial", "common_lineage": "Vascular"},
+    {"label": "Neural", "common_lineage": "Neural"},
+    {"label": "Immune", "common_lineage": "Myeloid", "reason": "historical empty-subclass fallback"},
+    {"label": "Immune/T", "common_lineage": "T_NK"},
+    {"label": "Immune/B", "common_lineage": "B_Plasma"},
+    {"label": "Immune/Myeloid", "common_lineage": "Myeloid"},
+    {"label": "Immune/Mixed", "common_lineage": "Myeloid", "reason": "least-specific historical bucket"},
+    {"label": "Ambiguous", "common_resolution": "ambiguous", "reason": "producer did not resolve a unique label"},
+    {"label": "Unavailable", "common_resolution": "unavailable", "reason": "identity measurement unavailable"}
+  ]
+}

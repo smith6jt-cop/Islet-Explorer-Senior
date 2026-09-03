@@ -11,6 +11,16 @@ export are not current outputs. The run/stage manifest architecture is retained
 for ingest, geometry, REDSEA, expression, and an explicit pair-independent
 `states` stage.
 
+**Adoption audit, 2026-09-02.** A dry run of
+`phenocycler adopt plan --from-run 30f6689e4d27d295f890` proposed zero adoptable
+stages: ingest, geometry, REDSEA, expression, and states require recomputation;
+controls, calibrate, and type remain blocked by `no_verified_typing`. No
+`adopt apply` was run. Lanes pin immutable inputs by run/content hash (the
+source expression content ID is
+`35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0`), so
+`pipeline status` is informational until an output exists under the current
+code; a historical directory is not evidence that a current stage completed.
+
 For the scientific rationale and stage algorithms, see
 [the workflow guide](docs/WORKFLOW.md). For installation and commands, see
 [the project README](README.md).

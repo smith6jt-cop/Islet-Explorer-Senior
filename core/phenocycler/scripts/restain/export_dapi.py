@@ -10,9 +10,10 @@ writes exactly the two planes we mean, with the pixel size recorded in the OME-X
 reconcile the two resolutions itself (IF 0.25 um/px, Xenium 0.2125 um/px at full res, and
 different pyramid levels chosen for each).
 
-The pixel size written here is the RECORDED one, not the one the qptiff's resolution tag
-implies -- ``geo.PIXEL_UM`` converts the IF annotations to microns with 0.25, and if the image
-were declared at the tag's 0.2504699 then geometry and pixels would stop being inverses.
+The pixel size written here comes from the qptiff's exact XML ``PixelSizeMicrons`` value,
+not its approximate TIFF resolution rational and not a cohort-wide constant. The strict
+registration inventory records image/serial/ROI provenance only; raw channel names,
+calibration, DAPI page, dtype, and pyramid geometry are read and validated from each image.
 
 **Each side also records where its pixel (0, 0) actually sits in microns**, because the two
 pyramids are built differently and the naive ``micron = pixel * um_per_px`` is wrong for both,
@@ -41,12 +42,9 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "xenium_celltype"))
 
-import geo                                                        # noqa: E402
-import hormone as HZ                                              # noqa: E402
+import registration_inputs as RI                                  # noqa: E402
 import tiles as TL                                                # noqa: E402
-import xenio                                                      # noqa: E402
-from run_hormone import IMAGES, SECTIONS                          # noqa: E402
-from run_register import GEOJSON_DIR, OUT, XENIUM_PATHS, discover, donor_of   # noqa: E402
+from run_register import OUT                                      # noqa: E402
 
 #: Work near 1 um/px. Nuclei are ~6 um so they stay several pixels across, and a whole section
 #: is then a few hundred megapixels rather than several billion.
@@ -64,9 +62,12 @@ def pyramid_factor(shapes, lvl: int) -> int:
     The factor is an integer by construction; anything else is a pyramid this code has not
     seen and must not guess at.
     """
-    f = int(round(shapes[0][0] / shapes[lvl][0]))
-    if f < 1:
-        raise ValueError(f"level {lvl} is larger than level 0: {shapes[0]} -> {shapes[lvl]}")
+    if not 0 <= lvl < len(shapes):
+        raise ValueError(f"pyramid level {lvl} is outside 0..{len(shapes) - 1}")
+    # These pyramids are built by repeated two-fold reduction.  Inferring the factor from a
+    # rounded dimension ratio is subtly wrong at deep levels when level 0 has an odd length
+    # (for example 82080/320 == 256.5).  The level index is the exact source of truth.
+    f = 2 ** lvl
     for axis in (0, 1):
         # floor-halving: level `lvl` may be up to 1 px short of shapes[0]/f, never more.
         expect = shapes[0][axis] // f
@@ -125,21 +126,11 @@ def check_xenium_origin(bundle: Path, level0_shape, base_um: float = XENIUM_BASE
             "brackets_cell_table": bool(ok)}
 
 
-def export_one(serial: str, gj: Path, sections, *, roi: str = "panc",
-               out_root: Path = OUT / "valis") -> dict:
+def export_one(record: RI.RegistrationInput, *, out_root: Path = OUT / "valis") -> dict:
     import tifffile
 
-    donor = donor_of(serial, XENIUM_PATHS)
-    row = sections[sections.xenium_serial == serial]
-    if row.empty:
-        raise HZ.HormoneError(f"serial {serial} is not recorded in {SECTIONS}")
-    row = row.iloc[0]
-    qptiff = IMAGES / row.image_file
-    pixel_um = float(row.pixel_size_um)
-    if pixel_um != geo.PIXEL_UM:
-        raise HZ.HormoneError(
-            f"{row.image_file} records pixel_size_um={pixel_um} but annotations use "
-            f"geo.PIXEL_UM={geo.PIXEL_UM}; these must be the same number.")
+    donor, serial, roi = record.donor_id, record.serial, record.roi
+    qptiff, pixel_um = record.qptiff, record.pixel_um
 
     dst = out_root / f"donor_id={donor}"
     slides = dst / "slides"
@@ -154,7 +145,7 @@ def export_one(serial: str, gj: Path, sections, *, roi: str = "panc",
         f_if = pyramid_factor(shapes, lvl)
         if_um = pixel_um * f_if
         if_origin = origin_um(pixel_um, f_if, averaged=True)      # measured: box mean, r=0.99992
-        page = levels[lvl].pages[HZ.channel_index(qptiff, "NUCLEUS", row)]
+        page = levels[lvl].pages[record.dapi_page]
         if_img = page.asarray()
     rec["if"] = {"qptiff": str(qptiff), "level": int(lvl), "um_per_px": if_um,
                  "factor": int(f_if), "origin_um": if_origin, "pyramid": "box_mean",
@@ -163,7 +154,7 @@ def export_one(serial: str, gj: Path, sections, *, roi: str = "panc",
     del if_img
 
     # --- Xenium DAPI: morphology_focus channel 0 -----------------------------------------
-    bundle = xenio._bundle_dir(donor, XENIUM_PATHS, roi)
+    bundle = record.bundle
     focus = bundle / "morphology_focus" / "morphology_focus_0000.ome.tif"
     if not focus.exists():
         raise FileNotFoundError(f"{focus} is absent -- transfer it before exporting")
@@ -201,7 +192,15 @@ def export_one(serial: str, gj: Path, sections, *, roi: str = "panc",
         {"donor_id": donor, "serial": serial, "roi": roi,
          "xenium_um_per_px": xen_um, "if_um_per_px": if_um,
          "xenium_origin_um": xen_origin, "if_origin_um": if_origin,
-         "xenium_bundle": str(bundle), "qptiff": str(qptiff)}, indent=2))
+         "xenium_bundle": str(bundle), "qptiff": str(qptiff),
+         "if_pixel_um": pixel_um, "if_dapi_page": record.dapi_page,
+         "if_channel_names": list(record.channel_names),
+         "if_pyramid_shapes": [list(shape) for shape in record.pyramid_shapes],
+         "pixel_size_source": "qptiff XML PixelSizeMicrons",
+         "provenance_source": record.provenance_source,
+         "geojson": None if record.geojson is None else str(record.geojson),
+         "if": rec["if"], "xenium": rec["xenium"],
+         "xenium_origin_check": rec["xenium_origin_check"]}, indent=2))
     return rec
 
 
@@ -210,17 +209,23 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--roi", default="panc")
-    ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
+    ap.add_argument("--inventory", type=Path, default=RI.REGISTRATION_INPUTS)
+    ap.add_argument("--images-dir", type=Path, default=RI.IMAGES)
+    ap.add_argument("--geojson-dir", type=Path, default=RI.GEOJSON_DIR)
+    ap.add_argument("--xenium-paths", type=Path, default=RI.XENIUM_PATHS)
+    ap.add_argument("--xenium-root", type=Path, default=RI.XENIUM_ROOT)
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args(argv)
 
-    sections = HZ.load_section_map(SECTIONS)
+    records = RI.load_registration_inputs(
+        args.inventory, args.xenium_paths, args.images_dir, args.geojson_dir,
+        args.xenium_root, roi=args.roi)
     rows = []
-    for serial, gj in sorted(discover(args.geojson_dir).items()):
-        donor = donor_of(serial, XENIUM_PATHS)
-        if args.donors and donor not in set(args.donors):
-            continue
-        rec = export_one(serial, gj, sections, roi=args.roi, out_root=args.out / "valis")
+    for record in RI.select_registration_inputs(records, args.donors,
+                                                context="export_dapi"):
+        RI.require_registration_files(record)
+        donor = record.donor_id
+        rec = export_one(record, out_root=args.out / "valis")
         c = rec["xenium_origin_check"]
         print(f"[{donor}] xenium origin check: image {np.round(c['image_extent_um'],0).tolist()} um "
               f"vs cells {np.round(c['cell_extent_um'],0).tolist()} um -> "

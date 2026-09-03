@@ -354,12 +354,13 @@ environment:
 Design and data caveats: **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
 Running the whole thing on HiPerGator: **[docs/HIPERGATOR.md](docs/HIPERGATOR.md)**.
 
-**Current status.** The integration layer's Xenium-only import and manifest reporting remain
-available. Every Pheno-dependent orchestrator and public stage entry point fails before
-reading cached historical `phenotype/broad/`, `restore_gated_redsea/`, or `cells_pheno`
-outputs; the retired vocabulary crosswalk is blocked too. Treat the PhenoCycler side as
-pending a newly verified pair/typing workflow and an explicit rewire. Nothing in the current
-upstream pipeline reads legacy phenotype output.
+**Current status (verified 2026-09-03).** Both modalities can be exported as geometry-profile
+cell tables. The PhenoCycler exporter reads immutable run `expression` plus same-run cell
+area; the Xenium importer ignores embedded label-shaped columns. Manifest, geometry export,
+Xenium import, raster/image registration, geometry QC, and geometry figures are live.
+Identity-dependent stages accept only exact native-key calls from configured, validated
+release directories; with those paths blank they fail before reading caches. Nothing in the
+current upstream or integration workflow reads legacy phenotype output.
 
 ## Historical pair-calling note
 

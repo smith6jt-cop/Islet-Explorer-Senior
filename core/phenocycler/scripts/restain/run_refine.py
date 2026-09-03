@@ -31,7 +31,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
 
 import refine as RF                                               # noqa: E402
-from run_register import OUT, XENIUM_PATHS, GEOJSON_DIR, discover, donor_of   # noqa: E402
+import registration_inputs as RI                                  # noqa: E402
+from run_register import OUT                                      # noqa: E402
 
 from phenocycler.integration.rasterize import GridSpec            # noqa: E402
 from phenocycler.integration.transform import Transform           # noqa: E402
@@ -243,7 +244,7 @@ def refine_one(donor_dir: Path, *, with_image: bool = True) -> dict:
     winner.transform.meta.update({"candidate": winner.name, "stages": winner.stages})
     winner.transform.save(donor_dir, stem="refined")
 
-    return {
+    report = {
         "donor_id": meta["donor_id"], "serial": meta["serial"], "roi": meta["roi"],
         "n_xenium_nuclei": int(len(data["xen"])), "n_if_nuclei": int(len(data["ifn"])),
         # A Xenium nucleus can only be matched if the IF detector found one there, so the
@@ -262,6 +263,14 @@ def refine_one(donor_dir: Path, *, with_image: bool = True) -> dict:
                       "LOCAL_FIELD_PIXEL_UM": LOCAL_FIELD_PIXEL_UM,
                       "WINNER_TOLERANCE_UM": WINNER_TOLERANCE_UM},
     }
+    # The cohort summary is convenient, but a subset or resumed run necessarily replaces it.
+    # Keep the complete candidate/hold-out record beside the transform that downstream stages
+    # consume so parallel batches cannot erase one another's provenance.
+    report_path = donor_dir / "refinement.json"
+    tmp = report_path.with_name(f".{report_path.name}.tmp")
+    tmp.write_text(json.dumps(report, indent=2))
+    tmp.replace(report_path)
+    return report
 
 
 def main(argv=None) -> int:
@@ -269,18 +278,26 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--roi", default="panc")
-    ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
+    ap.add_argument("--inventory", type=Path, default=RI.REGISTRATION_INPUTS)
+    ap.add_argument("--images-dir", type=Path, default=RI.IMAGES)
+    ap.add_argument("--geojson-dir", type=Path, default=RI.GEOJSON_DIR)
+    ap.add_argument("--xenium-paths", type=Path, default=RI.XENIUM_PATHS)
+    ap.add_argument("--xenium-root", type=Path, default=RI.XENIUM_ROOT)
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--no-image", action="store_true",
                     help="skip the intensity candidate (it reads the whole IF plane)")
     args = ap.parse_args(argv)
 
+    records = RI.load_registration_inputs(
+        args.inventory, args.xenium_paths, args.images_dir, args.geojson_dir,
+        args.xenium_root, roi=args.roi)
+    selected = RI.select_registration_inputs(records, args.donors, context="run_refine")
+    for record in selected:
+        RI.require_registration_files(record)
+
     rows = []
-    for serial, _gj in sorted(discover(args.geojson_dir).items()):
-        donor = donor_of(serial, XENIUM_PATHS)
-        if args.donors and donor not in set(args.donors):
-            continue
-        rows.append(refine_one(args.out / "valis" / f"donor_id={donor}",
+    for record in selected:
+        rows.append(refine_one(args.out / "valis" / f"donor_id={record.donor_id}",
                                with_image=not args.no_image))
     if not rows:
         print("no donor matched", file=sys.stderr)

@@ -6,6 +6,14 @@ against `31b7380`. Companion documents: `WORKFLOW_2026-09-02_MAP.md` (what runs 
 `EXTERNAL_PACKAGES.md` (the package index), `CONSOLIDATION.md` § 2026-09-02 (consolidation status).
 **Decision owner:** maintainer (smith6jt).
 
+**Execution checkpoint — 2026-09-03.** R.1 is complete and R.2's merged tree is under final
+validation. Track 0's adoption dry run and additive environment work are complete. C.1 is
+implemented and exercised on the full 20-donor PhenoCycler geometry cohort and on Xenium donors
+6436/6442; 635 current, research, and integration tests pass with no skips. B.1 is complete on the
+same two donors and all 85 Xenium tests pass. No identity release was invented: those slim typing
+sidecars are development evidence, while identity-dependent integration remains intentionally gated
+on a declared A.4/B.2 release.
+
 This plan positions every auxiliary package identified across sessions, commits, history and memory
 inside the consolidation plan's remaining phases (3b, 4, 5, 1-rewritten, 6), ordered by the
 maintainer's stated priorities of 2026-08-25: **crossed-batch de-confounding** and **protein + RNA
@@ -34,6 +42,7 @@ true positive is the maintainer's call (`1a23105`). The two Shiny apps stay sepa
    zero adoptable stages — and record in `core/phenocycler/DATA_README.md` that the lanes pin runs by
    content hash and `status` is informational until a run exists under current code. **No `adopt apply`
    and no pipeline run until the last `phenocycler/**` edit of Track C.1 has landed** (Track C.6).
+   *(Done 2026-09-03: zero adoptable stages; no apply.)*
 3. Land the three documents, the `CONSOLIDATION.md` section, the root `CLAUDE.md` authority-list entry,
    the `WORKFLOW.md` link, the `.gitignore` pointer, and the corrections listed in `CONSOLIDATION.md`
    § 2026-09-02 "Stale statements corrected". *(Done in this change.)*
@@ -42,6 +51,8 @@ true positive is the maintainer's call (`1a23105`). The two Shiny apps stay sepa
    **additively** — `pip install --dry-run` first, no `--upgrade`, refuse any resolution that touches
    numpy or torch, during a Globus-idle window — which removes two integration test skips and makes the
    non-rigid registration arm and `import_xenium`'s bundle path live.
+   *(Done 2026-09-03: dry-run resolution did not touch NumPy/Torch; SimpleITK 2.5.6 and
+   spatialdata-io 0.7.1 installed; `pip check` clean.)*
 
 ## Track R — Reconcile repository history to one persistent branch
 
@@ -53,7 +64,7 @@ identity integration-gate split that Track C.1 still calls planned.
 
 | step | what | exit |
 |---|---|---|
-| **R.1** protect and ledger | Verify the existing seven-repository bundles, create a current bundle of this monorepo outside its working tree, and record local branches, remote branches, tags, tips, merge bases, `git cherry` results and dirty state. Create a disposition ledger with one row for every commit unique to a non-`main` branch: ported, already present under another commit, deliberately superseded with evidence, or still blocked | every unique commit has an owner and a disposition before history changes |
+| **R.1 — done 2026-09-03** protect and ledger | Verify the existing seven-repository bundles, create a current bundle of this monorepo outside its working tree, and record local branches, remote branches, tags, tips, merge bases, `git cherry` results and dirty state. Create a disposition ledger with one row for every commit unique to a non-`main` branch: ported, already present under another commit, deliberately superseded with evidence, or still blocked | every unique commit has an owner and a disposition before history changes |
 | **R.2** reconcile the sibling branch | Merge the sibling branch's history into the active line without rewriting it, resolving its three changes deliberately: apply `11d80c3` after confirming no live import depends on `scripts/gold_standard`; carry forward only the still-true facts from `be9406c`; adapt `b9be3bb` to current integration code and tests instead of accepting stale conflict sides wholesale. The geometry/identity split must satisfy Track C.1's current contract, including geometry-only tables with unavailable identity rather than invented labels | `git merge-base --is-ancestor chore/remove-gold-standard-lane feat/dct-step0-pinning` succeeds; the ledger records every conflict resolution; current, research and integration tests pass |
 | **R.3** converge on `main` | Push the reconciled feature tip, review the complete `main...feature` diff, and land it on `main` without squashing away the scientific history. No force-push. Run all repository CI plus the explicit lane tests added by Track E | local and remote `main` contain the reconciled feature history and the documentation commit |
 | **R.4** remove redundant branches | Before deletion, prove `git cherry main <branch>` is empty and `git merge-base --is-ancestor <branch> main` succeeds for both the feature and chore branches. Then delete their local and `origin` refs. `main` is the sole persistent monorepo branch; any later short-lived review branch is deleted immediately after merge | local branches = `main`; branches under `origin` = `main` (apart from the symbolic `origin/HEAD`) |
@@ -95,20 +106,39 @@ would enter only as a pre-registered pilot with a `gates.py` verdict, as DeepCel
 
 | step | what | packages |
 |---|---|---|
-| **B.1** | Add `--paths` to `hierarchical_phenotype.py` (mirror `finalize_panel.py:197`), make a missing input an error instead of a silent skip, fix `insulitis_analysis.py`'s flat path. Then run `build_phenotyped_base.py --donors 6436 6442` → `finalize_panel.py --paths` → typer (`scvi-env`, `--dl-workers 0`). This **is** the approved re-stain plan's Phase B and validates the fix | scvi-tools / scANVI, scanpy, core/panels |
+| **B.1 — done 2026-09-03** | Added one strict path resolver shared by `finalize_panel.py`, `hierarchical_phenotype.py`, and `insulitis_analysis.py`: explicit nested `--paths`, complete-set preflight before mutation/GPU setup, duplicate-serial refusal, and immune sidecars beside their base ROI. Ran builder → 478-gene panel finalizer → per-donor scANVI typer on 6436 (`0059907`: 641,487 retained; 416,962 anchors / 224,525 propagated; 1,695 low-signal; 25.47% confidence <0.50) and 6442 (`0059947`: 906,211 retained; 755,067 anchors / 151,144 propagated; 1,435 low-signal; 22.08% confidence <0.50). Sidecars have unique, exactly aligned IDs and no null required fields. All 85 Xenium tests pass. These are development sidecars, not an integration release | scvi-tools / scANVI, scanpy, core/panels |
 | **B.2** | Extend to the other 18 donors, per-donor, the mixed ND/non-ND Xenium instrument runs first — MM035 (115, 6591), MM041 (6461, 6566), MM042 (6493, 6521), MM043 (6482, 6551), MM044 (6436, 6539), MM045 (6442, 6593) — then MM039, MM046, MM047, MM038, MM040. Report `broad_lowsignal` and `broad_n_identity_genes` so anchored vs propagated calls are visible. Assumption Q1 | same |
 | **B.3** | Add a dated standing note beside decisions #16/#17 recording the 6539 null-gate measurement (5 of 8 lineages inside a detection-matched null) and the 2026-08-25 KODAMA decision beside the 2026-08-28 typer route. The `04_immune_B_plasma` core split (XBP1 = 39 % of the core mean) is a **flagged maintainer decision, one line**: accepting it moves the `076d1192` pin and the `0348d149` snapshot stamp on every Xenium output; the typer's runtime specificity filter already drops pan-ER genes, so it does not block B.2 | core/panels |
 | **B.4** | KODAMA + nullgate is **parked** (assumption Q1). If reaffirmed it re-enters as a pre-registered comparison: k chosen by seed stability, never by agreement with the typer; the nullgate's ~30 % family-wise false-positive rate on noise treated as a gate; `--max-cells` fixed; M-parallelism measured on an idle machine first; HiPerGator needs a key | KODAMA, Rnanoflann |
+
+### B.1 execution evidence — 2026-09-03
+
+The immutable build summary is `/data/xenium/processed/build_summary_panc.json`
+(`sha256 abd8caddaf9b5dc097e8805f79d798ecea64346def51539ffaf4e2e954cae383`).
+The retained base/sidecar pairs are:
+
+| donor / serial | base SHA-256 | hierarchical sidecar SHA-256 | clean-anchor / propagated | low-signal | confidence < 0.50 |
+|---|---|---|---:|---:|---:|
+| 6436 / `0059907` | `98f4f7dfe828f16ea955f42a7197ed212505780ebd43ff6c3cd041458cbb7518` | `cb91ee3e29bcfa9baea18df6e0a01e62e39b15af5df60c555566b942f7fda033` | 416,962 / 224,525 | 1,695 | 163,361 (25.47%) |
+| 6442 / `0059947` | `3bae4bf95992181bf208fe9e64764b42669705ad0d2d4e1624e1bace1ba6239b` | `5686863aa1e6caf86e1127b777bcde817c948816b802f450c797d6e574ee54b7` | 755,067 / 151,144 | 1,435 | 200,116 (22.08%) |
+
+Both bases contain 5,101 genes and the `counts`/`lognorm` layers; `finalize_panel.py` found all
+478 identity genes. Each slim sidecar has zero variables by design, retains `spatial` and
+`X_scvi_broad`, has unique observation IDs in exact base-file order, and has no nulls in
+`celltype`, `celltype_broad`, `broad_confidence`, `broad_lowsignal`,
+`broad_n_identity_genes`, or `cycling`. The missing immune sidecars remain an explicit
+insulitis preflight error. These checks ran in `scvi-env` with scvi-tools 1.4.0.post1,
+torch 2.9.0+cu128, and `--dl-workers 0`.
 
 ## Track C — Cross-modality: the two prioritised gains
 
 | step | what | packages |
 |---|---|---|
 | **C.3a** crossed-batch figure, Xenium-only — **now** | Panel C: the PhenoCycler-batch × Xenium-run occupancy matrix with donor counts and status composition, from `core/phenocycler/data/integration/xenium_paths.csv` (run = third segment of `source_path`) × `data/donor_acquisition_batch.csv`. Panels A/B: the Xenium lines plus a 1,000-draw status-permutation null once B.2 lands. On the figure: Aab+ n = 3 (6450, 6505, 6521); one ND vs one non-ND donor per mixed run. Implementation: `donor.comparable(cfg)` replacing the module-level `COMPARABLE` (`donor.py:47`); new `figures.crossed_batch_trend_figure`. Needs no registration, no matching; survives QC FAIL | — |
-| **C.4** re-stain lane — the remaining approved phases | The lane already has: registration at 0.55 µm; `channel_check.py` (registration-free per-channel islet enrichment, i.e. Phase A); the AUROC re-run at the refined transform (bar 0.75 not met); a label-free rank association against the 18-gene endocrine core (`1a23105`); Explorer bundles. Remaining: polygon-exact zonal extraction on the Xenium cell outlines with a cytoplasm-only arm and ≥ 50 % area-overlap islet membership (NaN, never 0, for empty cells); regenerate `validate.py`; retire the void artifacts; figures A (islets at 0.25 µm/px with warped outlines), B (cells filled by value), C (the association). The typer's `celltype_fine` is **reported beside** the association as audit context, not used as a positive class — a classification statistic and any protein call wait for a maintainer-supplied definition of a true positive (assumption Q4). Repoint `INTEGRATION.md` § re-stain and `postxen.py` at this lane. Extension beyond 6436/6442 needs, from the maintainer: QuPath Tissue/Islet GeoJSON exports (2 of 20 exist), `restain_sections.csv` rows for the 15 qptiffs transferred 2026-08-31, and `morphology_focus` transfers only if the image registration track is ever needed | VALIS, geopandas, shapely, tiff_window (from the dct lane, see E.3) |
+| **C.4** re-stain lane — the remaining approved phases | The lane already has: registration at 0.55 µm; `channel_check.py` (registration-free per-channel islet enrichment, i.e. Phase A); the AUROC re-run at the refined transform (bar 0.75 not met); a label-free rank association against the 18-gene endocrine core (`1a23105`); Explorer bundles. A strict registration-only inventory now accounts for all 20 transferred qptiffs without assigning biomarker roles; 18 eligible rows survive the central exclusions, while the existing 6436/6442 inputs pass file preflight. Remaining: polygon-exact zonal extraction on the Xenium cell outlines with a cytoplasm-only arm and ≥ 50 % area-overlap islet membership (NaN, never 0, for empty cells); regenerate `validate.py`; retire the void artifacts; figures A (islets at 0.25 µm/px with warped outlines), B (cells filled by value), C (the association). The typer's `celltype_fine` is **reported beside** the association as audit context, not used as a positive class — a classification statistic and any protein call wait for a maintainer-supplied definition of a true positive (assumption Q4). Repoint `INTEGRATION.md` § re-stain and `postxen.py` at this lane. Biomarker extension beyond the five declared rows still needs maintainer-supplied `restain_sections.csv` antibody roles; geometry-dependent arms need the missing QuPath GeoJSON/morphology inputs rather than guesses | VALIS, geopandas, shapely, tiff_window (from the dct lane, see E.3) |
 | **C.3b** crossed-batch figure, PhenoCycler line | from the A.4a development-stamped release with its caveats printed on the figure (assumption Q2), replaced by A.4b when it exists | — |
-| **C.1** integration geometry split | conftest factory; contract profiles (`geometry` / `identity`), nullable `evidence_positive`, schema version in parquet metadata; `sections.resolve` from `qupath_manifest.json` with a tracked `section_overrides.csv`; repoint `_discover_pheno_sections` and the new `export_geometry` at `runs/<id>/`; `phenospace.py`; `GEOMETRY_STAGES` / `IDENTITY_STAGES`. Exit: 20 `cells_pheno/donor_id=*/roi=panc` partitions; `register` and `qc` no longer BLOCKED; `hormone_seed_mask` never reaches a geometry-only table | spatialdata, geopandas, shapely, opencv |
-| **C.2** registration on all 20 donors — after C.3/C.4 | point-set track first (QuPath islet geometry as registration geometry only; bundles present); the DAPI ↔ DAPI image track only if the point-set gate fails (2 of 20 bundles have `morphology_focus`; do not request 18 transfers up front). The Xenium islet producer is `structures.hormone_seed_mask` reading the typer's `celltype_fine` (its `Endocrine` fallback over-merges), so C.2 depends on B.2 and must state which branch ran | SimpleITK (optional), opencv, scikit-image |
+| **C.1 — done 2026-09-03** integration geometry split | conftest factory; contract profiles (`geometry` / `identity`), nullable `evidence_positive`, schema version in parquet metadata; `sections.resolve` from `qupath_manifest.json` with a tracked `section_overrides.csv`; immutable-run geometry export; exact release attachment in `phenospace.py`; stage-specific geometry/identity gates. Exit evidence: 20 `cells_pheno/donor_id=*/roi=panc` partitions / 25,150,537 cells; 6436 and 6442 Xenium geometry imports; geometry registration/QC live; hormone features withheld and `hormone_seed_mask` rejects geometry | spatialdata, geopandas, shapely, opencv |
+| **C.2** registration on all 20 donors — after C.3/C.4 | Point-set registration waits for identity-derived structures from B.2. The geometry raster/image track was probed early on 6436/6442: affine Dice 0.586/0.768, both FAIL at the fixed 0.80 gate. A real 6436 B-spline probe at the current 2-million-pixel/200-iteration settings was stopped after extended non-completion, so those settings require a performance decision before a cohort run. Do not request the other 18 morphology transfers up front | SimpleITK (optional), opencv, scikit-image |
 | **C.6** re-key once | after the last `phenocycler/**` edit: run the pipeline (CPU, `phenocycler/**` frozen; `--through states` if the PCNA declaration chose "state") or `adopt apply`; repoint `RUN_ID`, `EXPRESSION_CONTENT_SHA256` and every `data/development` output together (a completed run rewrites `LATEST`, which the celltype tests assert against) | — |
 | **C.5** `xencontext` | the aggregate-only Xenium → PhenoCycler artifact (boundary-relative annuli; permuted-pairing, pairing-swap and rotation nulls) after C.2 and C.3. `crossmodal` S9 stays off with its reason recorded | — |
 

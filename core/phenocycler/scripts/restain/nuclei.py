@@ -38,8 +38,9 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
 
 import geo                                                        # noqa: E402
+import registration_inputs as RI                                  # noqa: E402
 import tiles as TL                                                # noqa: E402
-from run_register import GEOJSON_DIR, OUT, XENIUM_PATHS, discover, donor_of   # noqa: E402
+from run_register import OUT                                      # noqa: E402
 
 #: A pancreatic nucleus is ~6 um across. The band-pass keeps that scale and rejects both the
 #: pixel noise below it and the tissue-level brightness gradient above it.
@@ -193,26 +194,38 @@ def if_plane(meta: dict, target_um: float | None):
     import tifffile
 
     import export_dapi as ED
-    import hormone as HZ
-    from run_hormone import IMAGES, SECTIONS
 
+    required = ("qptiff", "if_pixel_um", "if_dapi_page")
+    missing = [key for key in required if key not in meta]
+    if missing:
+        raise NucleiError(
+            f"export.json is missing {missing} -- re-run export_dapi.py with the "
+            "registration input inventory")
     qptiff = Path(meta["qptiff"])
-    row = HZ.load_section_map(SECTIONS)
-    row = row[row.image_file == qptiff.name].iloc[0]
-    pixel_um = float(row.pixel_size_um)
+    pixel_um = float(meta["if_pixel_um"])
+    dapi_page = int(meta["if_dapi_page"])
+    if not qptiff.is_file():
+        raise NucleiError(f"qptiff recorded by export.json is absent: {qptiff}")
+    if not np.isfinite(pixel_um) or pixel_um <= 0:
+        raise NucleiError(f"export.json records invalid if_pixel_um={pixel_um}")
     with tifffile.TiffFile(str(qptiff)) as tif:
         series = tif.series[0]
         levels = list(getattr(series, "levels", [series]))
         shapes = [(lv.shape[-2], lv.shape[-1]) for lv in levels]
         lvl = TL.level_for(shapes, pixel_um, target_um)
         f = ED.pyramid_factor(shapes, lvl)
-        img = levels[lvl].pages[HZ.channel_index(qptiff, "NUCLEUS", row)].asarray()
+        if not 0 <= dapi_page < len(levels[lvl].pages):
+            raise NucleiError(
+                f"export.json records if_dapi_page={dapi_page}, but qptiff level {lvl} has "
+                f"{len(levels[lvl].pages)} pages")
+        img = levels[lvl].pages[dapi_page].asarray()
     return img, pixel_um * f, ED.origin_um(pixel_um, f, averaged=True), int(lvl)
 
 
 def detect_one(donor_dir: Path, *, gj: Path | None = None,
                min_response_z: float = MIN_RESPONSE_Z,
-               if_target_um: float | None = None) -> dict:
+               if_target_um: float | None = None,
+               whole_slide_reason: str = "whole_slide_no_geojson") -> dict:
     import tifffile
 
     donor_dir = Path(donor_dir)
@@ -236,7 +249,10 @@ def detect_one(donor_dir: Path, *, gj: Path | None = None,
            "if": {"um_per_px": if_um, "origin_um": if_origin, "level": lvl,
                   "n_detected": int(len(xy_if)),
                   "min_response_z": float(min_response_z),
-                  "nucleus_um": NUCLEUS_UM, "min_separation_um": MIN_SEPARATION_UM}}
+                  "nucleus_um": NUCLEUS_UM, "min_separation_um": MIN_SEPARATION_UM,
+                  "spatial_filter": ("tissue_geojson" if gj is not None
+                                     else whole_slide_reason),
+                  "geojson": None if gj is None else str(gj)}}
 
     if gj is not None:
         # Keep only what the maintainer drew as tissue. The IF scans the whole slide, which
@@ -261,6 +277,7 @@ def detect_one(donor_dir: Path, *, gj: Path | None = None,
 
     n_if = rec["if"].get("n_in_tissue", rec["if"]["n_detected"])
     rec["density_ratio_if_over_xenium"] = float(n_if / max(1, len(xy_xen)))
+    (donor_dir / "nuclei.json").write_text(json.dumps(rec, indent=2))
     print(f"[{rec['donor_id']}] IF nuclei {n_if:,} (of {rec['if']['n_detected']:,} detected) "
           f"vs Xenium nuclei {len(xy_xen):,}  ratio {rec['density_ratio_if_over_xenium']:.3f}",
           flush=True)
@@ -272,7 +289,11 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--roi", default="panc")
-    ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR)
+    ap.add_argument("--inventory", type=Path, default=RI.REGISTRATION_INPUTS)
+    ap.add_argument("--images-dir", type=Path, default=RI.IMAGES)
+    ap.add_argument("--geojson-dir", type=Path, default=RI.GEOJSON_DIR)
+    ap.add_argument("--xenium-paths", type=Path, default=RI.XENIUM_PATHS)
+    ap.add_argument("--xenium-root", type=Path, default=RI.XENIUM_ROOT)
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--min-response-z", type=float, default=MIN_RESPONSE_Z)
     ap.add_argument("--if-target-um", type=float, default=None,
@@ -283,18 +304,27 @@ def main(argv=None) -> int:
                     help="do not restrict IF detections to the drawn Tissue polygon")
     args = ap.parse_args(argv)
 
+    records = RI.load_registration_inputs(
+        args.inventory, args.xenium_paths, args.images_dir, args.geojson_dir,
+        args.xenium_root, roi=args.roi)
+    selected = RI.select_registration_inputs(records, args.donors, context="nuclei")
+    for record in selected:
+        RI.require_registration_files(record)
+
     rows = []
-    for serial, gj in sorted(discover(args.geojson_dir).items()):
-        donor = donor_of(serial, XENIUM_PATHS)
-        if args.donors and donor not in set(args.donors):
-            continue
+    for record in selected:
+        donor = record.donor_id
         d = args.out / "valis" / f"donor_id={donor}"
         if not (d / "export.json").exists():
             print(f"[{donor}] no export.json -- run export_dapi.py first", file=sys.stderr)
             continue
-        rows.append(detect_one(d, gj=None if args.whole_slide else gj,
+        gj = None if args.whole_slide else record.geojson
+        whole_slide_reason = ("whole_slide_requested" if args.whole_slide
+                              else "whole_slide_no_geojson")
+        rows.append(detect_one(d, gj=gj,
                                min_response_z=args.min_response_z,
-                               if_target_um=args.if_target_um))
+                               if_target_um=args.if_target_um,
+                               whole_slide_reason=whole_slide_reason))
     if not rows:
         print("no donor matched", file=sys.stderr)
         return 1

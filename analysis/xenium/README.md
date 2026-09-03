@@ -69,11 +69,12 @@ conda run -n scvi-env python analysis/xenium/scripts/hierarchical_phenotype.py \
     --paths /data/xenium/processed/<serial>/panc/<serial>_phenotyped.h5ad
 ```
 
-> **2026-09-02:** `hierarchical_phenotype.py`'s `main()` does **not** yet define `--paths`
-> (only `--samples`, which resolves the flat `processed/{s}/{s}_phenotyped.h5ad`), and a missing
-> input is skipped silently with exit 0. Until the fix lands
-> (`docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`, Track B.1) the second command above cannot reach
-> the nested `<serial>/<roi>/` files the builder writes.
+> **2026-09-03:** Track B.1 closed this seam. `finalize_panel.py`,
+> `hierarchical_phenotype.py`, and `insulitis_analysis.py` accept explicit `--paths`, preserve
+> nested `<serial>/<roi>/` placement for sidecars, and preflight the complete input set before
+> doing any work. A missing base or immune sidecar is now an error rather than a silent skip.
+> The path was exercised end to end on donors 6436 and 6442; the resulting slim typing sidecars
+> remain development evidence, not a declared integration release.
 
 `finalize_panel.py` must run **first** (it stamps `identity_panel`). `--dl-workers 0` is
 mandatory — any value > 0 deadlocks the scANVI finetune at epoch 1 with the GPU idle

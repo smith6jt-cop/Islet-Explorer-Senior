@@ -1,39 +1,169 @@
 # Post-Xenium IF restain lane
 
-Registers the post-Xenium IF to its own Xenium section **nucleus by nucleus**, then checks the
-result against signals the registration never saw.
+## Current registration-only cohort workflow
 
-The post-Xenium IF images the *same physical section* Xenium measured. So the Xenium segmentation
-**is** the segmentation — no QuPath run on the re-stains, no new cell objects — and the two DAPI
-images show the same nuclei twice. That makes this a point-set problem rather than an intensity
-one, which is the easier of the two: it needs no shared intensity model, and its residual is a
-**per-cell distance in microns** rather than a per-window statistic.
+This lane registers each post-Xenium IF qptiff to the matching pancreas Xenium morphology grid and
+publishes an already-warped OME-TIFF for Xenium Explorer's **Yes, skip alignment** route. The
+post-Xenium IF images the same physical section Xenium measured, so Xenium's nucleus polygons and
+the IF DAPI peaks describe the same nuclei. No new cell segmentation, cell typing, positivity
+calling, or biomarker interpretation is part of this workflow.
+
+Inputs and working outputs live outside the content-addressed Phenocycler pipeline. Generated
+state is under `data/development/restain/`; this lane does not write a `StageManifest`, touch
+`data/runs/`, or contribute scripts under `scripts/**` to a `run_id`.
+
+### Input and cohort contract
+
+`data/integration/restain_registration_inputs.csv` is the source inventory for registration. It
+maps every transferred qptiff to an exact donor, pancreas Xenium serial, ROI, and provenance
+source. Before work starts, `registration_inputs.py` checks that:
+
+- the inventory equals the local qptiff set, with one image, donor, and serial per row;
+- the serial resolves to the same donor in `data/integration/xenium_paths.csv`;
+- the qptiff has one literal DAPI page, `uint8` data, a floor-halved pyramid, named raw channels,
+  and one exact XML `PixelSizeMicrons` value; and
+- the matching Xenium bundle has `cells.parquet`, `nucleus_boundaries.parquet`, and the DAPI
+  morphology file.
+
+The inventory deliberately contains acquisition records that are not executable cohort members.
+Donors `6457` and `6579` remain centrally excluded by `phenocycler/cohort.py`: an explicit request
+for either donor fails, and an omitted `--donors` filters them out. Local stale VALIS directories
+cannot bypass that guard.
+
+QuPath GeoJSON is optional for this registration-only route. `nuclei.py` uses the drawn Tissue
+polygon when one exists, records `whole_slide_no_geojson` when it does not, and can be forced to
+ignore annotations with `--whole-slide`. DAPI export, VALIS, nucleus refinement, occupied-window
+gating, and registered OME export do not require antibody roles. The five sections in
+`restain_sections.csv` remain the only sections with maintainer-declared biological channel roles;
+the registration inventory does not extend those declarations.
+
+### DAPI seed and nucleus refinement
+
+Run from `core/phenocycler/`. With `--donors` omitted, each command selects every centrally
+eligible inventory row. For a resumable cohort run, pass the same donor subset to each command;
+the two-donor subset below is only command syntax, not a claim that either result passes.
 
 ```bash
 cd core/phenocycler
-../../.venv/bin/python scripts/restain/export_dapi.py   --donors 6436 6442   # the two DAPI planes
-~/.venvs/valis/bin/python scripts/restain/valis_register.py --donors 6436 6442   # the seed
-../../.venv/bin/python scripts/restain/nuclei.py        --donors 6436 6442   # the two point sets
-../../.venv/bin/python scripts/restain/run_refine.py    --donors 6436 6442   # fit, score, keep
-../../.venv/bin/python scripts/restain/run_align.py --transform refined      # the gate
-../../.venv/bin/python scripts/restain/refine_figures.py --donors 6436 6442
-../../.venv/bin/python scripts/restain/align_figures.py --transform refined
-../../.venv/bin/python -m pytest -q scripts/restain/tests                    # 102 passed
+../../.venv/bin/python scripts/restain/export_dapi.py --donors 115 6374
+~/.venvs/valis/bin/python scripts/restain/valis_register.py --donors 115 6374
+../../.venv/bin/python scripts/restain/nuclei.py --donors 115 6374
+../../.venv/bin/python scripts/restain/run_refine.py --donors 115 6374
 ```
 
-Then, to hand the result to someone who has Xenium Explorer and none of this:
+`export_dapi.py` selects pyramid levels from each image's exact calibration and records the two
+different pixel-origin conventions in `export.json`. VALIS supplies a DAPI-to-DAPI seed in its
+isolated environment; failure of its optional micro pass is recorded while retaining the rigid
+seed for downstream measurement. `nuclei.py` detects IF DAPI peaks and reads Xenium nucleus
+centroids from `nucleus_boundaries.parquet`. `run_refine.py` reports every candidate and spatial
+hold-out, then writes the chosen `refined` transform. A small in-sample nearest-neighbour residual
+is not a release decision.
+
+### All-window gate
+
+Gate every candidate on the annotation-free, origin-anchored 500 µm occupied-window grid. Specify
+`occupied` explicitly so annotated and unannotated donors use the same window contract, and use
+all windows before deciding whether an intensity correction is warranted:
 
 ```bash
-../../.venv/bin/python scripts/restain/run_hormone.py --donors 6436 6442 --transform refined
-../../.venv/bin/python scripts/restain/run_explorer_export.py --donors 6436 6442
-../../.venv/bin/python scripts/restain/explorer_figures.py --donors 6436 6442
+../../.venv/bin/python scripts/restain/run_align.py \
+  --donors 115 6374 --transform refined --windows occupied --window-fold all
 ```
 
-Inputs are the maintainer's QuPath exports under `~/IO60panc2nd/PostXeniumIHC/`, the IF qptiffs,
-and the Xenium bundle. Output goes to `data/development/restain/`. Nothing here writes a
-`StageManifest` or touches `data/runs/`, and nothing under `scripts/**` is hashed into `run_id`.
+The gate rasterises transformed Xenium nucleus polygons and measures their DAPI displacement by
+normalised cross-correlation in every occupied window. It writes a donor-local
+`alignment_refined.json` even for `FAIL` or `INCONCLUSIVE`, including the reason, measured and
+unmeasured windows, bounded residual, contrast checks, transform hashes, and thresholds. Exit
+codes are `0` for `PASS`, `3` for `INCONCLUSIVE`, `4` for `FAIL`, and `1` for an I/O/setup error.
+A donor that does not pass has no releasable registered image.
 
-## Where it got to
+### Optional one-fold intensity refinement
+
+Use this only when the all-window `refined` gate exposes a coherent DAPI offset field. The fitter
+reads one deterministic checkerboard fold, fits one robust affine residual represented on a coarse
+field, and never reads the other fold. The example trains on `even`, so the release gate must use
+the held-out `odd` fold:
+
+```bash
+../../.venv/bin/python scripts/restain/run_intensity_refine.py \
+  --donors 115 --source-stem refined --output-stem intensity_refined --training-fold even
+../../.venv/bin/python scripts/restain/run_align.py \
+  --donors 115 --transform intensity_refined --windows occupied --window-fold odd
+```
+
+The correction is optional, refuses insufficient or implausible training evidence, writes a new
+`intensity_refined` transform rather than overwriting `refined`, and records its training/withheld
+fold contract. Reversing the training fold requires gating `even` instead. The registered exporter
+rejects an intensity-refined transform unless `alignment_intensity_refined.json` is `PASS` on the
+declared held-out fold; a full-window or training-fold PASS is not interchangeable with that test.
+
+### Exact-stem registered OME export
+
+Export donors in separate calls grouped by the transform that passed. `--transform-stem` reads
+exactly `<stem>.json`, its optional `<stem>_displacement.npz`, and
+`alignment_<stem>.json`; it never falls back to another transform or reconstructs a transform from
+the gate. Donor/serial/input identity, direction, calibration, affine, displacement presence, and
+content hashes are checked before the first multi-gigabyte write.
+
+```bash
+# Donors whose all-window nucleus-refined gate passed
+../../.venv/bin/python scripts/restain/run_registered_export.py \
+  --donors 6374 --transform-stem refined
+
+# Donors whose optional correction passed on its withheld fold
+../../.venv/bin/python scripts/restain/run_registered_export.py \
+  --donors 115 --transform-stem intensity_refined
+```
+
+Each successful publication is
+`data/development/restain/explorer_bundle/donor_<id>_<serial>/`, containing:
+
+- `images/<serial>_IF_on_xenium_grid.ome.tif`, with every raw qptiff channel in native page
+  order, resampled through the full selected transform to the exact Xenium morphology dimensions,
+  `0.2125 µm/px` scale, and pyramid level shapes;
+- `manifest.json`, which binds the image to the input, PASS gate, exact transform, channel order,
+  and import route;
+- `qc.json`, which verifies OME metadata, BigTIFF, shape, dtype, scale, tiling, compression, and a
+  decoded tile from every channel at every level; and
+- a donor-local `README.md` with the Xenium Explorer import instruction.
+
+Publication is transactional through a sibling `.partial` directory. Existing bundles are
+refused by default; `--skip-existing` revalidates and keeps one, while `--overwrite` replaces a
+non-protected bundle only after its replacement passes QC. Donors `6436` and `6442` are protected
+completed Explorer exports and are never rewritten by this driver, even with `--overwrite`.
+
+The qptiffs expose technical names such as `DAPI`, `Opal570`, `Opal620`/`Opal690`, `Opal520`, and
+`Sample AF`, but no reliable Biomarker metadata. The registered OME preserves those raw names and
+does **not** infer INS, GCG, or another biological identity. Its manifest explicitly leaves every
+role unassigned and contains no positivity calls or `cell_groups` directory.
+
+### Per-donor audit and failure records
+
+The resumable authority is the donor directory
+`data/development/restain/valis/donor_id=<donor>/`, not a batch summary that a later subset can
+replace.
+
+| file | durable evidence |
+|---|---|
+| `export.json` | exact qptiff/Xenium inputs, DAPI pages, levels, calibration, pixel origins, and image extents |
+| `valis_result.json` | seed provenance, VALIS error summary, optional-micro status, and warped-centroid displacement |
+| `nuclei.json` | IF/Xenium nucleus counts, detector settings, annotation/whole-slide policy, and density ratio |
+| `refinement.json` | every point-set candidate, selected winner, detection ceiling, placement null, and spatial hold-out |
+| `refined.json` plus optional `refined_displacement.npz` | exact nucleus-refined transform serialization |
+| `alignment_<stem>.json` | per-window release gate, exact transform hashes, `PASS`/`INCONCLUSIVE`/`FAIL`, and `verdict_why` |
+| `intensity_refinement_<stem>.json` | optional correction fit, source hashes, training fold, withheld fold, and required gate command |
+
+A fatal missing-input or malformed-file error can stop before a stage has evidence to write; it is
+not converted into a synthetic PASS/FAIL record. Conversely, a measured registration failure stays
+on disk as the donor's gate report and the exporter refuses it. Do not force, relabel, or omit that
+failure to complete a nominal cohort count.
+
+## Historical verified baseline: donors 6436 and 6442
+
+The sections below preserve the biological investigation and the two registrations already
+reviewed in Xenium Explorer. Their numbers establish the historical two-donor baseline; they are
+not a status table for the remaining cohort and do not imply that every acquisition can pass the
+same registration gate.
 
 Per-cell: the distance from a Xenium nucleus to the IF nucleus it lands on, over every nucleus in
 the section.
@@ -289,10 +419,13 @@ together (2.83× / 2.89×) where 6442's did not (6.33× / 25.38×), and `validat
 calls that the signature of a mask landing partly off-target. Those numbers were measured on the
 **tissue-outline** transform and **must not be read as current**.
 
-## Handing it to a colleague — the Xenium Explorer bundle
+## Historical biological Explorer bundle (6436 and 6442)
 
-`run_explorer_export.py` writes, per donor, a directory that needs neither this repository nor
-this environment: `data/development/restain/explorer_bundle/donor_<id>_<serial>/`.
+This section describes the older, antibody-role-dependent `run_explorer_export.py` delivery for
+the two reviewed donors. It is retained as provenance for those protected bundles; it is **not**
+the cohort registration-only export described above. `run_explorer_export.py` writes, per donor, a
+directory that needs neither this repository nor this environment:
+`data/development/restain/explorer_bundle/donor_<id>_<serial>/`.
 
 | file | what it is |
 |---|---|
@@ -404,22 +537,25 @@ what the repository's no-frequency rule actually requires.
 
 | file | role |
 |---|---|
-| `export_dapi.py` | the two DAPI planes, their pyramid factors and their pixel origins |
-| `nuclei.py` | IF nucleus detection; Xenium nucleus centroids from the bundle |
+| `registration_inputs.py` | strict registration inventory loader, qptiff facts, Xenium cross-checks, and central donor eligibility |
+| `export_dapi.py` | exact IF/Xenium DAPI planes, pyramid factors, pixel origins, and input provenance |
+| `nuclei.py` | annotation-optional IF nucleus detection and Xenium nucleus centroids from the bundle |
 | `refine.py` | the candidates, the per-cell score and its placement null |
-| `run_refine.py` | driver, the parsimony rule and the spatial hold-out → `refine_panc.json` |
+| `run_refine.py` | manifest-backed driver, parsimony rule, spatial hold-out, donor-local `refinement.json`, and `refined` transform |
 | `refine_figures.py` | candidate comparison, per-cell distribution, residual quiver |
 | `valis_register.py` | the seed (VALIS venv) → `warped_if_um.npy` |
 | `valis_transform.py` | VALIS's point map as a `Transform`, for the comparison candidate |
-| `align.py` / `run_align.py` | the gate → `alignment_panc_refined.json` |
+| `align.py` / `run_align.py` | all-window or held-out-fold DAPI gate → donor-local `alignment_<stem>.json` |
+| `run_intensity_refine.py` | optional one-fold robust DAPI correction → new exact transform stem and fit report |
 | `align_figures.py` | the gate's own QC sheets |
+| `run_registered_export.py` | PASS-only, exact-stem, transactional export of every raw channel onto the Xenium grid; no biological calls |
 | `geo.py` | the exports in microns, the islet size filter, the scale guard |
 | `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
-| `validate.py` / `hormone.py` / `run_hormone.py` | the downstream checks (not re-run — see above) |
-| `run_register.py` | the tissue-outline registration; also scores a supplied transform |
-| `explorer.py` | the Xenium Explorer file formats: the 3x3 matrix in Explorer's own byte layout, the keypoints and the similarity diagnostic, the morphology grid, the native OME-TIFF, the warp onto the Xenium grid and its writer, the cell groups |
-| `run_explorer_export.py` | driver, one manifest schema, the bundle README with the import ladder -> `explorer_bundle/donor_<id>_<serial>/` |
-| `explorer_figures.py` | `bundle_qc.png` / `bundle_qc.json`, drawn from the shipped files only: three offset sweeps, the footprint, the warp cross-check, the file facts |
-| `tests/` | 102 tests, all on synthetic geometry — no export or bundle needed |
+| `validate.py` / `hormone.py` / `run_hormone.py` | historical biological downstream checks (not part of registration-only cohort export) |
+| `run_register.py` | historical annotation-derived tissue-outline registration; also scores a supplied transform |
+| `explorer.py` | shared morphology-grid, pyramid, OME-TIFF, warp, matrix, keypoint, and legacy cell-group primitives |
+| `run_explorer_export.py` | historical antibody-role-dependent bundle driver for the two protected reviewed donors |
+| `explorer_figures.py` | historical biological bundle QC, drawn from shipped files |
+| `tests/` | synthetic geometry, inventory, fold-isolation, exact-transform, and registered-OME contract tests |
 
 `data/development/restain/valis_baseline/` holds the 2026-08-31 arm this replaced.

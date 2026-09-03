@@ -66,13 +66,8 @@ def test_obs_str_missing_column_returns_default():
 # The second-order bug: a silently dead fallback
 # --------------------------------------------------------------------------- #
 
-def test_celltype_fine_fallback_fires_when_celltype_is_all_null(tmp_path):
-    """`import_sample` falls back to `celltype_fine` when `celltype` is empty.
-
-    With the null bug the column read as all-"nan" rather than all-"", so `.eq("").all()`
-    was False and the fallback never ran — an h5ad carrying `celltype_fine` but a null
-    `celltype` would have lost its fine labels with no error and no warning.
-    """
+def test_embedded_fine_labels_do_not_create_identity_without_a_release(tmp_path):
+    """A label-shaped H5AD column is not release provenance."""
     # Categorical with unset values, which is how AnnData actually stores a null label
     # (h5py cannot serialise an object column containing None at all).
     n = 20
@@ -83,8 +78,8 @@ def test_celltype_fine_fallback_fires_when_celltype_is_all_null(tmp_path):
     }, index=[f"c{i}" for i in range(n)])
 
     df = import_sample(_h5ad(obs, tmp_path), donor_id="6539", roi="panc")
-    assert set(df["celltype_fine"]) == {"Beta", "Alpha"}
-    assert "nan" not in set(df["celltype_fine"])
+    assert (df["celltype_fine"] == "").all()
+    assert (df["lineage_native"] == "").all()
 
 
 def test_null_labels_do_not_leak_the_string_nan(tmp_path):
@@ -98,8 +93,8 @@ def test_null_labels_do_not_leak_the_string_nan(tmp_path):
     df = import_sample(_h5ad(obs, tmp_path), donor_id="6539", roi="panc")
     assert "nan" not in set(df["lineage_native"])
     assert "nan" not in set(df["celltype_fine"])
-    assert (df["lineage_native"] == "").sum() == 4
-    assert (df["lineage_common"] == "Unassigned").sum() == 4
+    assert (df["lineage_native"] == "").all()
+    assert (df["lineage_common"] == "").all()
 
 
 def test_import_sample_stamps_the_join_key(tmp_path):
@@ -113,8 +108,8 @@ def test_import_sample_stamps_the_join_key(tmp_path):
     assert set(df["xenium_sample_key"]) == {"0059865__panc"}
 
 
-def test_broad_lowsignal_becomes_evidence_negative(tmp_path):
-    """Xenium's argmax-fallback cells are the counterpart of PhenoCycler's epi_default."""
+def test_broad_lowsignal_is_not_reinterpreted_without_a_release(tmp_path):
+    """Embedded fallback flags cannot open the identity contract either."""
     n = 10
     obs = pd.DataFrame({
         "celltype_broad": ["Exocrine"] * n,
@@ -122,7 +117,16 @@ def test_broad_lowsignal_becomes_evidence_negative(tmp_path):
         "broad_lowsignal": [True] * 3 + [False] * 7,
     }, index=[f"c{i}" for i in range(n)])
     df = import_sample(_h5ad(obs, tmp_path), donor_id="1", roi="panc")
-    assert int((~df["evidence_positive"]).sum()) == 3
+    assert df["evidence_positive"].isna().all()
+
+
+def test_arbitrary_release_id_string_is_not_an_import_escape_hatch(tmp_path):
+    obs = pd.DataFrame({"celltype_broad": ["Exocrine"]}, index=["c0"])
+    with pytest.raises(TypeError, match="identity_release_id"):
+        import_sample(
+            _h5ad(obs, tmp_path), donor_id="1", roi="panc",
+            identity_release_id="not-a-validated-release",
+        )
 
 
 # --------------------------------------------------------------------------- #

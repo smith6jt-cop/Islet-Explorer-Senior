@@ -1,5 +1,11 @@
 """Per-phenotype dynamic insulitis grading with rotation-null calibration.
 
+Inputs may be supplied as explicit ``--paths`` to ``*_phenotyped.h5ad`` files.
+Each immune sidecar is resolved beside its base as
+``<serial>_immune_phenotyped.h5ad``. This supports the combined repository's
+``processed/<serial>/<roi>/`` layout while retaining the historical flat
+``--samples`` resolution.
+
 Each immune subtype gets:
   - per-islet per-100-endocrine rate
   - rotation-null distribution (1000 global rotations of immune positions)
@@ -17,9 +23,11 @@ Outputs (single writer of these files):
   data/processed/islet_insulitis_regression.csv     per-(sample,subtype) odds ratios
   data/processed/immune_proximity_summary.csv       density enrichment (UNCHANGED logic)
 """
-import shutil
-import time
+import argparse
 import os
+import shutil
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +42,10 @@ ROOT = Path(__file__).resolve().parents[1]                     # analysis/xenium
 REPO = Path(__file__).resolve().parents[3]                     # monorepo root
 DATA_ROOT = Path(os.environ.get("XENIUM_DATA_ROOT", "/data/xenium"))
 SAMPLES = ("0041323", "0041326")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.workflow_paths import resolve_insulitis_jobs
 
 ENDO_LABELS = {
     "Endocrine", "Beta", "Alpha", "Delta", "Endocrine_pan", "Gamma", "Epsilon",
@@ -157,12 +169,13 @@ def rotate_xy(r, theta, dtheta, center):
                        axis=1) + center
 
 
-def process_sample(sample):
+def process_sample(sample, phenotyped_path=None, immune_path=None):
     print(f"\n{'='*72}\n=== {sample}\n{'='*72}")
     rng = np.random.default_rng(RNG_SEED)
 
     # ----- Load endocrine seeds + composition scores -----
-    p = DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad"
+    p = (Path(phenotyped_path) if phenotyped_path is not None else
+         DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad")
     print(f"  loading {p.name} (backed=r)...")
     t = time.time()
     a = sc.read_h5ad(p, backed="r")
@@ -211,7 +224,8 @@ def process_sample(sample):
     islet_meta = pd.concat([islet_meta, comp_df], axis=1)
 
     # ----- Load immune cells -----
-    p_imm = DATA_ROOT / f"processed/{sample}/{sample}_immune_phenotyped.h5ad"
+    p_imm = (Path(immune_path) if immune_path is not None else
+             p.with_name(f"{sample}_immune_phenotyped.h5ad"))
     a_imm = sc.read_h5ad(p_imm)
     if "sample" in a_imm.obs.columns:
         a_imm = a_imm[a_imm.obs["sample"].astype(str) == sample].copy()
@@ -411,10 +425,31 @@ def regression_rows(per, sample):
 # =====================================================================
 # Run all samples and emit outputs
 # =====================================================================
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        description="Per-phenotype insulitis grading with rotation-null calibration "
+                    "(pancreas).")
+    ap.add_argument("--samples", nargs="+", default=list(SAMPLES),
+                    help="pancreas sample IDs to grade (default: %(default)s)")
+    ap.add_argument(
+        "--paths", nargs="+", default=None,
+        help="explicit *_phenotyped.h5ad paths (overrides --samples; the matching "
+             "immune sidecar must be in the same directory)",
+    )
+    args = ap.parse_args(argv)
+    try:
+        jobs = resolve_insulitis_jobs(
+            samples=args.samples, paths=args.paths, data_root=DATA_ROOT
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        ap.error(str(exc))
+    samples = [sample for sample, _, _ in jobs]
+
     all_per, all_enr, all_thr, all_reg = [], [], [], []
-    for s in SAMPLES:
-        per, enr, thr, reg = process_sample(s)
+    for sample, phenotyped, immune in jobs:
+        per, enr, thr, reg = process_sample(
+            sample, phenotyped_path=phenotyped, immune_path=immune
+        )
         all_per.append(per)
         all_enr.append(enr)
         all_thr.append(thr)
@@ -427,7 +462,7 @@ def main():
 
     # ----- Long-format grade summary -----
     grade_rows = []
-    for s in SAMPLES:
+    for s in samples:
         sub = per_df[per_df["sample"] == s]
         for S in IMMUNE_SUBTYPES:
             vc = sub[f"{S}_grade"].value_counts()
@@ -472,10 +507,10 @@ def main():
           f"({len(per_df):,} islets, {per_df.shape[1]} cols)")
     grade_df.to_csv(out / "islet_insulitis_grades.csv", index=False)
     print(f"  wrote islet_insulitis_grades.csv  "
-          f"({len(grade_df)} rows: {len(SAMPLES)}×{len(IMMUNE_SUBTYPES)+1})")
+          f"({len(grade_df)} rows: {len(samples)}×{len(IMMUNE_SUBTYPES)+1})")
     thr_df.to_csv(out / "islet_insulitis_thresholds.csv", index=False)
     print(f"  wrote islet_insulitis_thresholds.csv  "
-          f"({len(thr_df)} rows: {len(SAMPLES)}×{len(SIZE_CLASSES)}×"
+          f"({len(thr_df)} rows: {len(samples)}×{len(SIZE_CLASSES)}×"
           f"{len(IMMUNE_SUBTYPES)})")
     enr_df.to_csv(out / "immune_proximity_summary.csv", index=False)
     print(f"  wrote immune_proximity_summary.csv  ({len(enr_df)} rows)")
@@ -501,11 +536,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import argparse
-    ap = argparse.ArgumentParser(
-        description="Per-phenotype insulitis grading with rotation-null calibration (pancreas).")
-    ap.add_argument("--samples", nargs="+", default=list(SAMPLES),
-                    help="pancreas sample IDs to grade (default: %(default)s)")
-    args = ap.parse_args()
-    SAMPLES = tuple(args.samples)
     main()

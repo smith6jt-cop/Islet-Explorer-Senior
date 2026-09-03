@@ -42,6 +42,13 @@ if os.environ.get("VALIS_USE_GPU", "0") != "1":
 
 import numpy as np
 
+# Keep this isolated environment, but load the repository's one authoritative donor gate.
+# Registration directories are mutable working data, so scanning them without this check could
+# revive a stale directory for a centrally excluded donor.
+PROJECT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT))
+from phenocycler.cohort import ensure_eligible_donors, filter_eligible_donors  # noqa: E402
+
 XENIUM_SLIDE = "01_xenium_dapi"
 IF_SLIDE = "02_if_dapi"
 
@@ -109,9 +116,23 @@ def register_one(donor_dir: Path, *, micro: bool = True, micro_rigid: bool = Tru
         # computed field is discarded, and the only surviving effect is that the OLD field is
         # resampled: measured, non_rigid_D went 20.497 -> 21.331 on donor 6436, i.e. slightly
         # worse. Passing it makes the pass do what its name says.
-        registrar.register_micro(max_non_rigid_registration_dim_px=4096,
-                                 reference_img_f=f"{IF_SLIDE}.ome.tiff",
-                                 align_to_reference=True)
+        # A sparse/blank peripheral tile can make VALIS return no deformation field.  That is
+        # a failed optional micro pass, not a reason to discard the rigid seed: the downstream
+        # nucleus fitter will score and reject an inadequate seed on its own measurements.
+        try:
+            moving = _slide(registrar, XENIUM_SLIDE)
+            if getattr(moving, "bk_dxdy", None) is None:
+                raise RuntimeError("VALIS produced no non-rigid field for the moving slide")
+            registrar.register_micro(max_non_rigid_registration_dim_px=4096,
+                                     reference_img_f=f"{IF_SLIDE}.ome.tiff",
+                                     align_to_reference=True)
+            out["micro_status"] = "completed"
+        except Exception as exc:  # noqa: BLE001 - retain the independently scored rigid seed
+            out["micro_status"] = f"skipped_after_error: {type(exc).__name__}: {exc}"
+            print(f"[{donor_dir.name}] optional micro pass skipped: {exc}", file=sys.stderr,
+                  flush=True)
+    else:
+        out["micro_status"] = "not_requested"
 
     xen, ifs = _slide(registrar, XENIUM_SLIDE), _slide(registrar, IF_SLIDE)
     xy_um = np.load(donor_dir / "xenium_centroids_um.npy")
@@ -156,9 +177,16 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     dirs = sorted(d for d in args.root.glob("donor_id=*") if d.is_dir())
+    by_donor = {d.name.split("=", 1)[1]: d for d in dirs}
     if args.donors:
-        want = {str(x) for x in args.donors}
-        dirs = [d for d in dirs if d.name.split("=", 1)[1] in want]
+        want = set(ensure_eligible_donors(args.donors, context="VALIS registration"))
+        absent = sorted(want - set(by_donor))
+        if absent:
+            raise FileNotFoundError(f"VALIS donor directories are absent: {absent}")
+        dirs = [by_donor[donor] for donor in sorted(want, key=lambda value: int(value))]
+    else:
+        allowed = set(filter_eligible_donors(by_donor))
+        dirs = [by_donor[donor] for donor in sorted(allowed, key=lambda value: int(value))]
     if not dirs:
         print(f"no donor directories under {args.root}", file=sys.stderr)
         return 1

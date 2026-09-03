@@ -3,7 +3,7 @@
 # These are ANCHORED (leading slash) on purpose. A pattern whose only slash is a
 # trailing one matches at every depth, and git does not descend into an excluded
 # directory -- so an unanchored `data/` here would swallow core/phenocycler/data/
-# and make that subtree's own `!/data/integration/` negation unreachable. Its three
+# and make that subtree's own `!/data/integration/` negation unreachable. Its tracked
 # tracked CSVs would stay tracked (ignore rules never untrack), but every future
 # file under it would be silently invisible. Keep the slash.
 /data/

@@ -463,8 +463,8 @@ notebooks/executed/{sample}/      # nbconvert-executed notebook copies (debug)
 > `env_rapids.sh` moved to `hpc/`, the `xenium_analysis` conda env is broken (see README), and
 > `ssh hpg.rc.ufl.edu` currently returns `Permission denied (publickey,keyboard-interactive)`.
 > The two stages that *do* run here are `finalize_panel.py` then `hierarchical_phenotype.py`,
-> driven directly under `conda run -n scvi-env` — see README (2026-09-02: `--paths` exists on
-> `finalize_panel.py` only; the typer's own flag is pending, README § The typer).
+> driven directly under `conda run -n scvi-env` — see README. Since 2026-09-03 both commands
+> accept explicit nested `--paths`, preflight the entire requested set, and refuse missing inputs.
 
 `hpc/run_pipeline.sh` is the SINGLE raw→final driver. STAGES tokens:
 `01` `02` (notebooks) → `phenotype` (finalize_panel → hierarchical_phenotype

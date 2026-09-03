@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from phenocycler import load_config
-from phenocycler.config import LINEAGES
+from phenocycler.integration.phenospace import PhenotypeSpaceError
 from phenocycler.integration.vocab import (
-    COMMON_LINEAGES, GATE_MARKERS, PHENO_TO_COMMON,
+    COMMON_LINEAGES, GATE_MARKERS,
     PROTEIN_GENE_CANDIDATES, RESOLVABLE, SURROGATE_PANEL, XENIUM_TO_COMMON, check_panel_roles_agreement, coverage_report, crosswalk_frame,
-    load_panel_taxonomy, pheno_to_common, protein_gene_pairs, usable_anchors,
+    load_panel_taxonomy, pheno_to_common, protein_gene_pairs, resolvable_for, usable_anchors,
     xenium_to_common,
 )
 
@@ -39,17 +39,12 @@ def tax(cfg):
 # Totality — nothing may fall through silently
 # --------------------------------------------------------------------------- #
 
-def test_every_phenocycler_lineage_maps():
-    """All eight PhenoCycler classes reach the common vocabulary.
-
-    `Immune` is intentionally absent from PHENO_TO_COMMON because it resolves through
-    `immune_subclass`; every other class must map directly.
-    """
-    for lineage in LINEAGES:
-        if lineage == "Immune":
-            continue
-        assert lineage in PHENO_TO_COMMON, lineage
-        assert PHENO_TO_COMMON[lineage] in COMMON_LINEAGES
+def test_every_declared_phenocycler_label_resolves(legacy_space):
+    """The producer declaration, rather than core config, owns mapping totality."""
+    for label in legacy_space.rules:
+        common, resolution = legacy_space.common_for(label)
+        if resolution == "mapped":
+            assert common in COMMON_LINEAGES
 
 
 def test_every_xenium_lineage_maps():
@@ -58,21 +53,22 @@ def test_every_xenium_lineage_maps():
         assert XENIUM_TO_COMMON[lineage] in COMMON_LINEAGES
 
 
-def test_immune_splits_three_ways():
+def test_immune_splits_three_ways(legacy_space):
     """PhenoCycler collapses T/B/myeloid; the split is recovered from the per-marker gates."""
-    assert pheno_to_common("Immune", "T") == "T_NK"
-    assert pheno_to_common("Immune", "B") == "B_Plasma"
-    assert pheno_to_common("Immune", "Myeloid") == "Myeloid"
+    assert pheno_to_common(legacy_space, "Immune", "T") == "T_NK"
+    assert pheno_to_common(legacy_space, "Immune", "B") == "B_Plasma"
+    assert pheno_to_common(legacy_space, "Immune", "Myeloid") == "Myeloid"
     # Multi-gate-positive cells go to the least-specific class rather than being resolved
     # by column order.
-    assert pheno_to_common("Immune", "Mixed") == "Myeloid"
-    assert pheno_to_common("Immune", "") == "Myeloid"
+    assert pheno_to_common(legacy_space, "Immune", "Mixed") == "Myeloid"
+    assert pheno_to_common(legacy_space, "Immune", "") == "Myeloid"
 
 
-def test_fibroblast_and_muscle_collapse_to_stromal():
+def test_fibroblast_and_muscle_collapse_to_stromal(legacy_space):
     """Xenium cannot split them: ACTA2 is not in the 5K reference and 12_pericyte
     contributes one SMC-hinted gene."""
-    assert pheno_to_common("Fibroblast") == pheno_to_common("Muscle") == "Stromal"
+    assert (pheno_to_common(legacy_space, "Fibroblast")
+            == pheno_to_common(legacy_space, "Muscle") == "Stromal")
     assert XENIUM_TO_COMMON["Stromal"] == "Stromal"
 
 
@@ -84,26 +80,24 @@ def test_xenium_reaches_granulocyte_only_through_a_fine_label():
     assert xenium_to_common("Myeloid", "Myeloid") == "Myeloid"
 
 
-def test_phenocycler_granulocyte_route_follows_the_core_lineages():
-    """With a `Neutrophil` class it maps to Granulocyte; folded into `Immune` it does not
-    exist, and MPO-only cells reach Myeloid via the empty immune subclass."""
-    from phenocycler.config import LINEAGES
-
-    if "Neutrophil" in LINEAGES:
-        assert pheno_to_common("Neutrophil") == "Granulocyte"
-    else:
-        assert pheno_to_common("Immune", "") == "Myeloid"
+def test_phenocycler_granulocyte_route_is_release_declared(legacy_space, v4_space):
+    """Neither synthetic release declares a granulocyte call, so none is advertised."""
+    with pytest.raises(PhenotypeSpaceError, match="undeclared"):
+        pheno_to_common(legacy_space, "Neutrophil")
+    assert resolvable_for(space=legacy_space)["Granulocyte"]["phenocycler"] == "no"
+    assert resolvable_for(space=v4_space)["Granulocyte"]["phenocycler"] == "no"
 
 
-def test_epithelial_is_a_default_sink_and_is_flagged():
-    assert pheno_to_common("Epithelial") == "Exocrine"
+def test_epithelial_is_a_default_sink_and_is_flagged(legacy_space):
+    assert pheno_to_common(legacy_space, "Epithelial") == "Exocrine"
     assert RESOLVABLE["Exocrine"]["phenocycler"] == "default_sink"
 
 
-def test_unknown_labels_do_not_crash():
-    assert pheno_to_common("SomethingNew") == "Unassigned"
+def test_unknown_producer_labels_raise_instead_of_falling_through(legacy_space):
+    with pytest.raises(PhenotypeSpaceError, match="undeclared"):
+        pheno_to_common(legacy_space, "SomethingNew")
     assert xenium_to_common("SomethingNew") == "Unassigned"
-    assert pheno_to_common("") == "Unassigned"
+    assert pheno_to_common(legacy_space, "") == "Unassigned"
 
 
 def test_every_common_lineage_has_a_resolvability_entry():
@@ -211,54 +205,45 @@ def test_surrogate_panels_reference_real_cores(tax):
             assert stem in tax.core_genes, f"{marker} -> unknown identity core {stem}"
 
 
-def test_crosswalk_frame_and_report(tax):
+def test_crosswalk_frame_and_report(tax, legacy_space):
     pairs = protein_gene_pairs(["PECAM1", "CD3E", "MS4A1"], tax=tax)
-    df = crosswalk_frame(pairs, tax=tax)
+    df = crosswalk_frame(legacy_space, pairs, tax=tax)
     assert set(df["kind"]) == {"lineage", "marker"}
     assert len(df[df["kind"] == "lineage"]) == len(COMMON_LINEAGES)
-    report = coverage_report(pairs, tax)
+    report = coverage_report(legacy_space, pairs, tax)
     assert "OFF-PANEL LINEAGE GATES" in report
     assert "default_sink" in report
 
 
-def test_granulocyte_resolvability_tracks_the_core_pipeline():
-    """The crosswalk must not advertise a capability the pipeline has stopped having.
-
-    While a dedicated `Neutrophil` lineage exists, PhenoCycler resolves granulocytes at broad
-    level. Fold MPO into `Immune` and it does not — `immune_subclass` gates CD3e/CD20/CD163
-    only, so an MPO-only cell lands in Myeloid. Deriving from `config.LINEAGES` makes the
-    crosswalk follow that instead of drifting behind it.
-    """
-    from phenocycler.config import LINEAGES
-    from phenocycler.integration.vocab import PHENO_TO_COMMON, RESOLVABLE
-
-    has_neutrophil = "Neutrophil" in LINEAGES
-    assert ("Neutrophil" in PHENO_TO_COMMON) == has_neutrophil
-    assert RESOLVABLE["Granulocyte"]["phenocycler"] == ("yes" if has_neutrophil else "fine_only")
-    # Xenium never calls it at broad level, whatever the protein side does.
-    assert RESOLVABLE["Granulocyte"]["xenium"] == "fine_only"
+def test_swapped_space_changes_crosswalk_without_mutating_state(tax, legacy_space, v4_space):
+    pairs = protein_gene_pairs(["PECAM1"], tax=tax)
+    legacy = crosswalk_frame(legacy_space, pairs, tax=tax)
+    v4 = crosswalk_frame(v4_space, pairs, tax=tax)
+    legacy_exocrine = legacy.loc[legacy["common"] == "Exocrine", "phenocycler"].iloc[0]
+    v4_exocrine = v4.loc[v4["common"] == "Exocrine", "phenocycler"].iloc[0]
+    assert legacy_exocrine == "Epithelial"
+    assert v4_exocrine == ""
+    assert pheno_to_common(legacy_space, "Epithelial") == "Exocrine"
 
 
-def test_crosswalk_covers_exactly_the_core_lineages():
-    """The drift guard: a class added to or removed from `LINEAGES` must not leave the
-    crosswalk stale in either direction."""
-    from phenocycler.config import LINEAGES
-    from phenocycler.integration.vocab import PHENO_TO_COMMON
+def test_crosswalk_covers_exactly_the_declared_labels(tax, legacy_space):
+    pairs = protein_gene_pairs([], tax=tax)
+    frame = crosswalk_frame(legacy_space, pairs, tax=tax)
+    listed = set()
+    for value in frame.loc[frame["kind"] == "lineage", "phenocycler"]:
+        listed.update(part for part in str(value).split("|") if part)
+    expected = {
+        label for label in legacy_space.rules
+        if legacy_space.common_for(label)[1] == "mapped"
+    }
+    assert listed == expected
 
-    # `Immune` is deliberately absent — it resolves via immune_subclass, not the broad label.
-    expected = set(LINEAGES) - {"Immune"}
-    assert set(PHENO_TO_COMMON) == expected, (
-        f"crosswalk drifted from phenocycler.config.LINEAGES: "
-        f"missing={expected - set(PHENO_TO_COMMON)}, stale={set(PHENO_TO_COMMON) - expected}")
 
-
-def test_mpo_only_cells_reach_myeloid_when_neutrophil_is_folded_in():
+def test_mpo_only_cells_reach_myeloid_in_legacy_declaration(legacy_space):
     """Broad types only: with MPO inside `Immune`, a neutrophil has no subclass and maps to
     Myeloid — which is exactly where Xenium puts a granulocyte at broad level."""
-    from phenocycler.integration.vocab import pheno_to_common
-
-    assert pheno_to_common("Immune", "") == "Myeloid"
-    assert pheno_to_common("Immune", "Myeloid") == "Myeloid"
+    assert pheno_to_common(legacy_space, "Immune", "") == "Myeloid"
+    assert pheno_to_common(legacy_space, "Immune", "Myeloid") == "Myeloid"
 
 
 def test_granulocyte_never_enters_a_comparable_set():

@@ -195,6 +195,7 @@ workflow exists (root `CLAUDE.md`). Run it from `core/phenocycler/`, which owns
 the only `config.ini`:
 
 ```bash
+python -m pip install -e core/phenocycler
 cd core/phenocycler
 python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
@@ -203,9 +204,14 @@ python -m phenocycler.pipeline status --config config.ini
 What runs today, lane by lane, is mapped in
 [docs/WORKFLOW_2026-09-02_MAP.md](docs/WORKFLOW_2026-09-02_MAP.md).
 
-That workflow writes immutable, content-addressed runs and QuPath-ready cell
-assignments. The application aggregation below consumes the resulting
-single-cell product; it does not define marker thresholds or cell identities.
+That workflow writes immutable, content-addressed runs under
+`core/phenocycler/data/runs/<run_id>/`. It does not currently produce verified
+marker calls or cell identities.
+
+The application aggregation below is a **separate, legacy lane**. It consumes a
+legacy single-cell H5AD and is not a supported bridge from a current
+content-addressed run; the two are not connected today. It does not define
+marker thresholds or cell identities either.
 
 ```
 single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad  (2.6M cells, 31 markers)
@@ -249,7 +255,7 @@ python scripts/build_master_excel.py
 ## Project Structure
 
 ```
-Islet-Explorer/
+Islet-Explorer-Senior/
 ├── apps/islet/                 # Modular R Shiny application
 │   ├── app.R                      # Entrypoint: UI layout, CSS, server wiring
 │   ├── R/
@@ -275,8 +281,8 @@ Islet-Explorer/
 ├── core/phenocycler/              # Subtree: QuPath→expression workflow, development lanes, integration
 ├── core/panels/                   # Subtree: XeniumPanelExplorer (panel taxonomy + its app)
 ├── analysis/xenium/               # Xenium 5K lane (absorbed 2026-08-28)
-├── docs/
-│   └── tissuumaps_evaluation.md   # TissUUmaps viewer evaluation and deployment recipe
+├── deploy/                        # nginx, shiny-server, TissUUmaps container recipes
+├── docs/                          # Consolidation plan, handoffs, TissUUmaps evaluation
 └── CLAUDE.md                      # Developer reference (architecture, conventions)
 ```
 

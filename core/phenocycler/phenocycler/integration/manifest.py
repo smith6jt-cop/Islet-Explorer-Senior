@@ -45,6 +45,7 @@ CLI::
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,9 +55,8 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from ..sections import SectionError
-from ..sections import key_for as section_key_for
-from ..sections import key_from_image
-from ..sections import parse as parse_section
+from ..sections import load_overrides as load_section_overrides
+from ..sections import resolve as resolve_section
 from .contract import normalize_donor_id
 from .tissues import for_roi as tissue_for_roi
 
@@ -85,11 +85,9 @@ PHENO_ONLY = "pheno_only"          # PhenoCycler has it, Xenium does not
 XENIUM_ONLY = "xenium_only"        # Xenium has it, PhenoCycler does not
 DONOR_UNKNOWN = "donor_unknown"    # a Xenium run whose donor is not recorded anywhere
 
-#: Every ROI in the cohort is pairable: the design is 20 donors x {PhenoCycler, Xenium} x
-#: {pancreas, pancreatic lymph node}, so a lymph-node section has a counterpart on both
-#: platforms exactly as a pancreas section does. (An earlier revision treated PhenoCycler as
-#: pancreas-only, which was wrong.) `PAIRABLE_ROI` remains as the default single-ROI value
-#: for callers that want one.
+#: Default ROI for callers that intentionally request a single section. Pairability is
+#: established row by row from observed manifests, never from the configured tissue list.
+#: The current PhenoCycler run is pancreas-only even though the Xenium catalog includes pLN.
 PAIRABLE_ROI = "panc"
 
 #: ``output-XETG00298__0059865__Panc__20250328__202338`` -> serial ``0059865``, label ``Panc``.
@@ -296,52 +294,129 @@ def read_donor_metadata(cfg: PipelineConfig) -> pd.DataFrame:
 
 
 def _pheno_paths(cfg: PipelineConfig, donor_id: str, roi: str = PAIRABLE_ROI) -> tuple[str, str]:
-    """Best-effort ``(qptiff, geojson)`` for one PhenoCycler **section**.
+    """Best-effort ``(qptiff, geojson)`` from the authoritative QuPath manifest.
 
-    Both are looked up rather than constructed: REDSEA rebuilds the GeoJSON tag from the
-    section's ``image`` column and the upstream data README warns not to rename those files,
-    so a glob is safer than a guess. Empty strings when the raw inputs are not mounted —
-    the tabular stages do not need them and must not fail without them.
-
-    Matching is on the *section key* rather than a `{donor}*` prefix. A prefix glob returns
-    both of a donor's images — ``6539_Scan1`` and ``6539pLN_Scan1`` — and taking the first
-    would hand the lymph-node row a pancreas qptiff, which REDSEA would then mask with the
-    wrong polygons.
+    Filename globbing left 8/20 cohort images unresolved and could substitute another
+    section. The manifest already owns donor, source paths and image identity; exact tracked
+    overrides handle its two irregular names. Missing mounted paths remain empty because the
+    tabular stages do not need imaging data.
     """
-    want = section_key_for(donor_id, roi)
 
-    def _match(paths, strip) -> str:
-        for p in sorted(paths):
-            name = p.name[len(strip):] if strip and p.name.startswith(strip) else p.name
-            if key_from_image(name) == want:
-                return str(p)
-        return ""
+    try:
+        payload = json.loads(Path(cfg.qupath_manifest).read_text())
+        overrides = load_section_overrides(cfg.section_overrides_csv)
+    except (OSError, json.JSONDecodeError, SectionError):
+        return "", ""
 
-    images_dir = Path(cfg.images_dir)
-    qptiff = _match(images_dir.glob(f"{donor_id}*.qptiff"), "") if images_dir.exists() else ""
+    matches = []
+    for row in payload.get("images", []):
+        image_id = str(row.get("image_id", "")).strip()
+        try:
+            section = resolve_section(
+                image_id,
+                donor_id=normalize_donor_id(row.get("donor_id")),
+                overrides=overrides,
+            )
+        except SectionError:
+            continue
+        if (section.donor_id, section.roi) == (str(donor_id), str(roi)):
+            matches.append(row)
+    if len(matches) != 1:
+        return "", ""
 
-    gdir = Path(cfg.geojson_dir)
-    geojson = (_match(gdir.glob(f"cells__{donor_id}*.geojson"), "cells__")
-               if gdir.exists() else "")
-    return qptiff, geojson
+    def _path(field: str) -> str:
+        value = matches[0].get(field, "")
+        raw = value.get("path", "") if isinstance(value, dict) else value
+        path = Path(str(raw)) if raw else None
+        return str(path) if path is not None and path.exists() else ""
+
+    return _path("qptiff"), _path("cell_geojson")
 
 
 def _discover_pheno_sections(cfg: PipelineConfig,
                              summary: "ManifestSummary") -> Optional[set[tuple[str, str]]]:
-    """``{(donor_id, roi)}`` from the core pipeline's partitions, or ``None`` if absent.
+    """``{(donor_id, roi)}`` from the current immutable run and QuPath manifest.
 
     ``None`` means "nothing exported yet" and is distinct from an empty set: the manifest
     still builds a Xenium-shaped picture rather than claiming every donor is unpaired.
+
+    The old implementation globbed ``data/cells/donor_id=*``. Current core outputs live at
+    ``data/runs/<run_id>/expression`` and a donor directory alone cannot state which physical
+    section it contains. The image id in that parquet is therefore resolved against
+    ``qupath_manifest.json`` plus exact, tracked section overrides.
     """
-    keys = cfg.discover_sections()
-    if not keys:
+
+    latest = cfg.runs_dir / "LATEST"
+    if not latest.exists():
         return None
+    run_id = latest.read_text().strip()
+    expression = cfg.runs_dir / run_id / "expression"
+    if not expression.is_dir():
+        summary.warnings.append(
+            f"{latest} names run {run_id!r}, but it has no expression directory"
+        )
+        return None
+
+    try:
+        manifest_payload = json.loads(Path(cfg.qupath_manifest).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        summary.warnings.append(f"cannot read QuPath manifest {cfg.qupath_manifest}: {exc}")
+        return None
+    by_image = {
+        str(row.get("image_id", "")).strip(): row
+        for row in manifest_payload.get("images", [])
+        if str(row.get("image_id", "")).strip()
+    }
+    try:
+        overrides = load_section_overrides(cfg.section_overrides_csv)
+    except SectionError as exc:
+        summary.warnings.append(str(exc))
+        return None
+
+    import pyarrow.parquet as pq
+
     out: set[tuple[str, str]] = set()
-    for key in keys:
+    for part in sorted(expression.glob("donor_id=*")):
+        files = sorted(part.rglob("*.parquet"))
+        if not files:
+            continue
         try:
-            sec = parse_section(key)
+            images: set[str] = set()
+            for file in files:
+                parquet = pq.ParquetFile(file)
+                image_index = parquet.schema_arrow.names.index("image")
+                needs_scan = False
+                for group_index in range(parquet.metadata.num_row_groups):
+                    stats = parquet.metadata.row_group(group_index).column(image_index).statistics
+                    if stats is None or not stats.has_min_max:
+                        needs_scan = True
+                        break
+                    images.add(str(stats.min).strip())
+                    images.add(str(stats.max).strip())
+                if needs_scan:
+                    # A full image column can contain millions of repeated strings. Only
+                    # take this slower path for parquet writers that omitted statistics.
+                    column = parquet.read(columns=["image"])["image"]
+                    images.update(str(value.as_py()).strip() for value in column.unique())
+            images.discard("")
+            if len(images) != 1:
+                raise SectionError(
+                    f"run {run_id} partition {part.name!r} carries {len(images)} image ids "
+                    f"({sorted(images)}); one partition must be one physical section"
+                )
+            image_id = next(iter(images))
+            record = by_image.get(image_id)
+            if record is None:
+                raise SectionError(
+                    f"run {run_id} image {image_id!r} is absent from {cfg.qupath_manifest}"
+                )
+            sec = resolve_section(
+                image_id,
+                donor_id=normalize_donor_id(record.get("donor_id")),
+                overrides=overrides,
+            )
         except SectionError as exc:
-            summary.warnings.append(f"PhenoCycler partition {key!r} skipped: {exc}")
+            summary.warnings.append(f"PhenoCycler partition {part.name!r} skipped: {exc}")
             continue
         out.add((sec.donor_id, sec.roi))
     return out

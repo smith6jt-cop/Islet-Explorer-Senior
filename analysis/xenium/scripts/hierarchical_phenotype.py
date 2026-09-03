@@ -96,6 +96,8 @@ DATA_ROOT = Path(os.environ.get("XENIUM_DATA_ROOT", "/data/xenium"))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.workflow_paths import resolve_phenotyping_jobs
+
 DEFAULT_SAMPLES = ("0041323", "0041326")
 DEFAULT_SUBPANEL_DIR = REPO / "data/development/xenium_panels/subpanels"
 
@@ -444,17 +446,17 @@ def train_scanvi(adata, gene_mask_col, seed_label_col, use_gpu, latent_key):
     sub = adata[:, mask].copy()
     sub.obs["_seed"] = adata.obs[seed_label_col].astype(str).to_numpy()
 
-    def _usable(keys):
+    def _usable(keys, obs):
         out = []
         for k in keys:
-            if k not in sub.obs.columns:
+            if k not in obs.columns:
                 continue
-            if sub.obs[k].nunique(dropna=False) > 1:
+            if obs[k].nunique(dropna=False) > 1:
                 out.append(k)
             else:
                 print(f"      [scvi] skipping constant covariate '{k}'", flush=True)
         return out or None
-    cat = _usable(SCVI_CAT_COVARIATES)
+    cat = _usable(SCVI_CAT_COVARIATES, sub.obs)
     n_lab = int((sub.obs["_seed"] != "Unknown").sum())
     print(f"      seed: {n_lab:,}/{sub.n_obs:,} labeled, "
           f"{sub.n_obs - n_lab:,} Unknown; covariates={cat}", flush=True)
@@ -1064,9 +1066,10 @@ _SLIM_OBS = ["celltype", "celltype_fine", "celltype_lineage", "celltype_broad",
 #  write_output's slim branch.)
 
 
-def write_output(adata, sample, mode):
+def write_output(adata, sample, mode, input_path=None):
     import anndata as ad
-    p_pheno = DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad"
+    p_pheno = (Path(input_path) if input_path is not None else
+               DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad")
     if mode == "inplace":
         print(f"\n  writing IN-PLACE to {p_pheno.name} ...", flush=True)
         t = time.time()
@@ -1086,7 +1089,7 @@ def write_output(adata, sample, mode):
     slim.obs_names = adata.obs_names
     for k, v in obsm.items():
         slim.obsm[k] = v
-    out = DATA_ROOT / f"processed/{sample}/{sample}_hierarchical.h5ad"
+    out = p_pheno.with_name(f"{sample}_hierarchical.h5ad")
     print(f"\n  writing SLIM sidecar {out.name} ...", flush=True)
     t = time.time()
     slim.write_h5ad(out)
@@ -1097,12 +1100,13 @@ def write_output(adata, sample, mode):
 # =============================================================================
 # Per-sample driver
 # =============================================================================
-def process_sample(sample, mod, subpanel_dir, use_gpu, rsc, mode, make_fig):
+def process_sample(sample, mod, subpanel_dir, use_gpu, rsc, mode, make_fig,
+                   input_path=None):
     print(f"\n{'='*72}\n=== {sample}\n{'='*72}", flush=True)
-    p = DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad"
+    p = (Path(input_path) if input_path is not None else
+         DATA_ROOT / f"processed/{sample}/{sample}_phenotyped.h5ad")
     if not p.exists():
-        print(f"  {p} NOT FOUND — skipping")
-        return
+        raise FileNotFoundError(f"{sample}: required phenotyped input not found: {p}")
     t0 = time.time()
     adata = sc.read_h5ad(p)
     print(f"  loaded {adata.shape} in {(time.time()-t0):.1f}s", flush=True)
@@ -1158,7 +1162,7 @@ def process_sample(sample, mod, subpanel_dir, use_gpu, rsc, mode, make_fig):
 
     validate(adata, mod)
     # Save results FIRST — a figure failure must never block the write.
-    write_output(adata, sample, mode)
+    write_output(adata, sample, mode, input_path=p)
     if make_fig:
         try:
             render_figure(adata, sample, DATA_ROOT / f"figures/{sample}/02_phenotyping", mod)
@@ -1167,10 +1171,15 @@ def process_sample(sample, mod, subpanel_dir, use_gpu, rsc, mode, make_fig):
     print(f"\n  {sample} done in {(time.time()-t0)/60:.1f} min", flush=True)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--tissue", choices=("pancreas", "thymus"), default="pancreas")
     ap.add_argument("--samples", nargs="+", default=list(DEFAULT_SAMPLES))
+    ap.add_argument(
+        "--paths", nargs="+", default=None,
+        help="explicit *_phenotyped.h5ad paths (overrides --samples; supports "
+             "processed/<serial>/<roi>/ nesting)",
+    )
     ap.add_argument("--subpanel-dir", default=str(DEFAULT_SUBPANEL_DIR))
     ap.add_argument("--output", choices=("slim", "inplace"), default="slim",
                     help="slim sidecar (default, non-destructive) or in-place "
@@ -1182,22 +1191,31 @@ def main():
                          f"0 = single-threaded). Higher feeds the GPU faster.")
     ap.add_argument("--no-sparse-load", action="store_true",
                     help="disable load_sparse_tensor (densify on CPU instead of GPU)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     globals()["DL_WORKERS"] = args.dl_workers
     globals()["LOAD_SPARSE"] = not args.no_sparse_load
 
     mod = importlib.import_module(f"scripts.tissue_markers.{args.tissue}")
     if not hasattr(mod, "SUBPANEL_ALLOWLIST"):
         raise SystemExit(f"tissue '{args.tissue}' has no SUBPANEL_ALLOWLIST yet")
-    print(f"hierarchical_phenotype: tissue={args.tissue} samples={args.samples} "
+    try:
+        jobs = resolve_phenotyping_jobs(
+            samples=args.samples, paths=args.paths, data_root=DATA_ROOT
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        ap.error(str(exc))
+    print(f"hierarchical_phenotype: tissue={args.tissue} "
+          f"inputs={[str(path) for _, path in jobs]} "
           f"output={args.output}")
+    # Input preflight deliberately precedes CUDA/scVI initialization. A typo in
+    # one path must never turn a multi-sample invocation into a partial run.
     use_gpu = (not args.cpu) and setup_torch_tf32()
     rsc = None if args.cpu else try_import_rsc()
 
     t0 = time.time()
-    for s in args.samples:
-        process_sample(s, mod, Path(args.subpanel_dir), use_gpu, rsc,
-                       args.output, not args.no_fig)
+    for sample, path in jobs:
+        process_sample(sample, mod, Path(args.subpanel_dir), use_gpu, rsc,
+                       args.output, not args.no_fig, input_path=path)
     print(f"\n{'='*72}\n=== DONE in {(time.time()-t0)/60:.1f} min\n{'='*72}")
 
 

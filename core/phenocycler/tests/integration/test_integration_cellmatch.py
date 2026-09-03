@@ -42,7 +42,10 @@ def _islet(n=90, centre=(500.0, 500.0), radius=60.0, seed=0):
 
 
 def _table(df, modality, tissue="pancreas"):
-    out = coerce_cell_table(df.copy(), modality=modality, donor_id="T1", roi="panc")
+    out = coerce_cell_table(
+        df.copy(), modality=modality, donor_id="T1", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     out["structure_id"] = df["structure_id"].to_numpy()
     if "endocrine_subtype" in df.columns:
         out["endocrine_subtype"] = df["endocrine_subtype"].to_numpy()

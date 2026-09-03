@@ -688,6 +688,79 @@ def test_non_finite_points_are_dropped_and_counted_not_fitted(tmp_path):
 # --------------------------------------------------------------------------- #
 
 import export_dapi as ED                                          # noqa: E402
+import registration_inputs as RI                                 # noqa: E402
+
+
+def _registration_inventory(tmp_path, *, donor="6436", serial="0059907"):
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / f"{serial}_Scan1.qptiff").touch()
+    inventory = tmp_path / "inventory.csv"
+    inventory.write_text(
+        "image_file,donor_id,roi,xenium_serial,provenance_source\n"
+        f"{serial}_Scan1.qptiff,{donor},panc,{serial},transfer-ledger.csv\n"
+    )
+    xenium = tmp_path / "xenium_paths.csv"
+    source = f"batch/run/output-XETG__{serial}__Panc__20260101__000000"
+    xenium.write_text(
+        "donor_id,roi,source_path\n"
+        f"{donor},panc,{source}\n"
+    )
+    return inventory, xenium, images, source
+
+
+def test_registration_inventory_cross_checks_serial_and_reads_image_facts(tmp_path, monkeypatch):
+    inventory, xenium, images, source = _registration_inventory(tmp_path)
+    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path: {
+        "pixel_um": 0.251,
+        "dapi_page": 2,
+        "channel_names": ("Opal 480", "Opal 520", "DAPI"),
+        "pyramid_shapes": ((100, 80), (50, 40)),
+        "dtype": "uint8",
+    })
+
+    records = RI.load_registration_inputs(
+        inventory, xenium, images, tmp_path / "geojson", tmp_path / "xenium-root"
+    )
+    record = records["6436"]
+    assert record.serial == "0059907"
+    assert record.pixel_um == pytest.approx(0.251)
+    assert record.dapi_page == 2
+    assert record.bundle == tmp_path / "xenium-root" / source
+    assert record.provenance_source == "transfer-ledger.csv"
+
+
+def test_registration_inventory_refuses_donor_disagreement(tmp_path, monkeypatch):
+    inventory, xenium, images, _source = _registration_inventory(tmp_path)
+    xenium.write_text(xenium.read_text().replace("6436,panc", "6442,panc"))
+    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path: {})
+
+    with pytest.raises(RI.RegistrationInputError, match="says donor 6436.*says 6442"):
+        RI.load_registration_inputs(
+            inventory, xenium, images, tmp_path / "geojson", tmp_path / "xenium-root"
+        )
+
+
+def test_registration_selection_enforces_central_exclusions():
+    def record(donor):
+        return RI.RegistrationInput(
+            donor_id=donor,
+            serial=f"00{donor}",
+            roi="panc",
+            qptiff=pathlib.Path(f"{donor}.qptiff"),
+            bundle=pathlib.Path(donor),
+            geojson=None,
+            pixel_um=0.25,
+            dapi_page=0,
+            channel_names=("DAPI",),
+            pyramid_shapes=((100, 100),),
+            provenance_source="test",
+        )
+
+    records = {donor: record(donor) for donor in ("6436", "6457", "6579")}
+    assert [item.donor_id for item in RI.select_registration_inputs(records, None)] == ["6436"]
+    with pytest.raises(ValueError, match="6457"):
+        RI.select_registration_inputs(records, ["6457"])
 
 
 def test_the_pyramid_factor_is_the_integer_not_the_shape_ratio():

@@ -4,7 +4,7 @@ import pytest
 
 from phenocycler import load_config
 from phenocycler.cohort import DONOR_EXCLUSIONS, ensure_eligible_donors
-from phenocycler.config import EXTRA_MARKERS, HORMONE_MARKERS, LINEAGES
+from phenocycler.config import EXTRA_MARKERS, HORMONE_MARKERS
 
 
 def test_defaults_expose_only_the_current_stage_roots():
@@ -142,7 +142,6 @@ def test_integration_surface_survives_for_the_integration_layer():
     ):
         assert hasattr(cfg, attr), f"integration layer needs cfg.{attr}"
     assert cfg.resolve_rois()  # tissue -> ROI expansion works
-    assert set(LINEAGES) >= {"Immune", "Endocrine"}  # vocab.py builds its crosswalk from this
     assert HORMONE_MARKERS and EXTRA_MARKERS
 
 

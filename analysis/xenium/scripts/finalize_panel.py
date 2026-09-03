@@ -48,6 +48,8 @@ REPO = Path(__file__).resolve().parents[3]                     # monorepo root
 DATA_ROOT = Path(os.environ.get("XENIUM_DATA_ROOT", "/data/xenium"))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from scripts.workflow_paths import require_existing_files
 DEFAULT_SAMPLES = ("0041323", "0041326")
 DEFAULT_AUDIT_CSV = ROOT / "panel_audit.csv"
 DEFAULT_SUBPANEL_DIR = REPO / "data/development/xenium_panels/subpanels"
@@ -192,7 +194,7 @@ def process_one(p, audit_df, subpanel_genes=None, tissue=None, mod=None,
     print("    saved")
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--paths", nargs="+", default=None,
                        help="h5ad paths to annotate (default: --samples' "
@@ -216,7 +218,19 @@ def main():
     ap.add_argument("--no-subpanels", action="store_true",
                        help="skip writing the subpanel_* / celltype_panel masks")
     ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
+
+    if args.paths:
+        candidates = [Path(p) for p in args.paths]
+    else:
+        candidates = [DATA_ROOT / f"processed/{s}/{s}_phenotyped.h5ad"
+                      for s in args.samples]
+    try:
+        paths = require_existing_files(
+            candidates, context="Xenium panel finalization"
+        )
+    except FileNotFoundError as exc:
+        ap.error(str(exc))
 
     audit_df = pd.read_csv(args.audit_csv)
     print(f"loaded audit: {len(audit_df):,} genes, "
@@ -255,16 +269,7 @@ def main():
             print(f"[identity_core] vendored snapshot incomplete ({e}); "
                   f"skipping subpanel masks")
 
-    if args.paths:
-        paths = [Path(p) for p in args.paths]
-    else:
-        paths = [DATA_ROOT / f"processed/{s}/{s}_phenotyped.h5ad"
-                 for s in args.samples]
-
     for p in paths:
-        if not p.exists():
-            print(f"\n=== {p.name}: NOT FOUND, skipping")
-            continue
         process_one(p, audit_df, subpanel_genes=subpanel_genes,
                     tissue=args.tissue, mod=mod, dry_run=args.dry_run)
 

@@ -1,8 +1,10 @@
-# Union environment for phenocycler/integration/ — PhenoCycler <-> Xenium.
+# HiPerGator-only union recipe for phenocycler/integration/ — PhenoCycler <-> Xenium.
+# The development workstation uses the repository .venv; do not create or activate this
+# conda environment there.
 #
 # The core `phenocycler_analysis` env (environment.yml) is deliberately lean: it has no
-# scanpy/anndata because steps 1-7 do not need them. The Xenium side, conversely, has no
-# DuckDB/RESTORE. Integration has to read BOTH sides in one process (export_pheno reads
+# scanpy/anndata because the upstream stages do not need them. Integration has to read BOTH
+# sides in one process (export_pheno reads
 # hive parquet, import_xenium reads h5ad/zarr/bundle), so it needs the union.
 #
 #   conda env create -f environment-integration.yml
