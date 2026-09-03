@@ -1,0 +1,137 @@
+{
+  "entries": {
+    "B3TUBB": {
+      "confidence": "settled",
+      "reason": "Gene symbol vs protein name.",
+      "target": "Beta3-tubulin"
+    },
+    "Beta-actin": {
+      "confidence": "arguable",
+      "reason": "Registry has only a generic Actin; beta-actin is one isoform of it.",
+      "target": "Actin"
+    },
+    "CD99": {
+      "confidence": "settled",
+      "reason": "No registry entry.",
+      "target": null
+    },
+    "Caveolin": {
+      "confidence": "settled",
+      "reason": "No registry entry.",
+      "target": null
+    },
+    "Collagen IV": {
+      "confidence": "settled",
+      "reason": "Direct synonym.",
+      "target": "Col4"
+    },
+    "DAPI": {
+      "confidence": "settled",
+      "reason": "Not mapped to dsDNA by default. dsDNA IS in the registry and DAPI is a DNA dye, so this is a panel-membership decision, not a naming one -- it is a named marker-dropout arm.",
+      "target": null
+    },
+    "GCG": {
+      "confidence": "settled",
+      "reason": "Gene symbol vs protein name.",
+      "target": "Glucagon"
+    },
+    "Granzyme B": {
+      "confidence": "settled",
+      "reason": "Protein name vs gene symbol.",
+      "target": "GZMB"
+    },
+    "HLA-A": {
+      "confidence": "settled",
+      "reason": "HLA-A is a class I molecule.",
+      "target": "HLA-Class-1"
+    },
+    "HLA-DR": {
+      "confidence": "settled",
+      "reason": "HLA-DR is the class II molecule the registry names generically.",
+      "target": "HLA-Class-2"
+    },
+    "IAPP": {
+      "confidence": "settled",
+      "reason": "Failed marker throughout this project.",
+      "target": null
+    },
+    "IDO1": {
+      "confidence": "arguable",
+      "reason": "Registry also has a generic IDO. Resolve from the datasheet clone.",
+      "target": "IDO-1"
+    },
+    "INS": {
+      "confidence": "arguable",
+      "reason": "No insulin entry in the 278-marker registry. C-peptide and insulin are cleaved from the same proinsulin and co-packaged 1:1. The marker NAME also conditions the model's text embedding, so this is a language-side substitution too. Measured by the marker-dropout check, three-way, including a trained-but-wrong-name control.",
+      "target": "C-peptide"
+    },
+    "Ker8-18": {
+      "confidence": "arguable",
+      "reason": "Registry has CK8 and CK19 but no CK18; the CK18 half of this antibody is lost. Recorded information loss.",
+      "target": "CK8"
+    },
+    "Keratin 5": {
+      "confidence": "settled",
+      "reason": "Direct synonym.",
+      "target": "CK5"
+    },
+    "M2Gal3": {
+      "confidence": "settled",
+      "reason": "No registry entry.",
+      "target": null
+    },
+    "PCNA": {
+      "confidence": "settled",
+      "reason": "No registry entry.",
+      "target": null
+    },
+    "PD-1": {
+      "confidence": "settled",
+      "reason": "Punctuation only.",
+      "target": "PD1"
+    },
+    "PD-L1": {
+      "confidence": "settled",
+      "reason": "Punctuation only.",
+      "target": "PDL1"
+    },
+    "SST": {
+      "confidence": "settled",
+      "reason": "Gene symbol vs protein name.",
+      "target": "SOMATOSTATIN"
+    },
+    "TCF-1": {
+      "confidence": "arguable",
+      "reason": "Registry also has TCF1_TCF7. Resolve from the Akoya datasheet clone, not by A/B.",
+      "target": "TCF1"
+    },
+    "TOX": {
+      "confidence": "arguable",
+      "reason": "Registry entry covers TOX and TOX2 jointly.",
+      "target": "Tox-Tox2"
+    },
+    "TP63": {
+      "confidence": "settled",
+      "reason": "Gene symbol vs protein name for the same target.",
+      "target": "P63"
+    },
+    "VISTA": {
+      "confidence": "settled",
+      "reason": "No registry entry.",
+      "target": null
+    },
+    "b-Catenin1": {
+      "confidence": "settled",
+      "reason": "Direct synonym.",
+      "target": "Beta-catenin"
+    }
+  },
+  "key_space": "qupath_manifest.json images[].channel_map[].channel_name  (the OME <Biomarker> string)",
+  "method_version": "dct-crosswalk-2026-08-21",
+  "note": "Contains ONLY names the installed package cannot resolve on its own. Anything the package already resolves (verbatim, or via its own alias table) is deliberately absent so this file never silently forks from upstream.",
+  "package": {
+    "commit": "59d74a97711848dabc30fc01e242b6b1e4d3d3dc",
+    "name": "deepcell-types"
+  },
+  "schema_version": 1
+}

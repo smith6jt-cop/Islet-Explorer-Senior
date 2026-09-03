@@ -309,9 +309,9 @@ def run_grid(
     ROI's write overwrite the last, since the output paths are stage-level rather than
     per-section.
     """
-    from .export_pheno import require_current_pheno
+    from .export_pheno import require_current_identity
 
-    require_current_pheno("integration niche/grid comparison")
+    require_current_identity("integration niche/grid comparison", cfg=cfg)
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
     if donors:
         man = man[man["donor_id"].isin({str(d) for d in donors})]

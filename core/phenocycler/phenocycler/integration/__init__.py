@@ -1,9 +1,10 @@
 """
 phenocycler.integration — PhenoCycler (protein) <-> Xenium (RNA) integration.
 
-The Xenium and modality-agnostic integration components remain available, but the retained
-PhenoCycler exporter targets the retired ``phenotype/broad`` + ``restore_gated_redsea``
-layout. It now fails closed unconditionally; there is no historical-comparison opt-in.
+Both modalities first enter a versioned cell-table contract as geometry. PhenoCycler reads
+an immutable core run through ``expression`` and a same-run UUID area join; Xenium ignores
+embedded labels. Identity is attached only from a declared release with an exact native-key
+call set and a strict label space. Retired phenotype layouts have no compatibility opt-in.
 
 Two modes, and the distinction is the whole point:
 
@@ -24,22 +25,23 @@ claim rests on it.
 Stage order (``pipeline.py``)::
 
     manifest      S0   donor <-> Xenium-run pairing, donor_id/roi stamping
-    export_pheno  S1a  retired inputs; fail-closed pending a current-output rewire
-    import_xenium S1b  h5ad | zarr | bundle                     -> cells_xen/
-    vocab         S2   harmonised lineage vocabulary + protein<->gene crosswalk
-    structures    S3   tissue / islets / ducts / vessels, same algorithm both sides
-    register      S4   coarse rigid -> affine -> non-rigid (image + point-set tracks)
-    transform     S5   warp coordinates and masks into the fixed frame
-    match         S6   islet <-> islet assignment            [sequential]
-    grid          S7   kNN-composition niches + registered-frame hex grid
-    donor         S8   registration-free donor-level concordance
-    crossmodal    S9   pseudo-cell linking                    [sequential, inference]
-    sameslide     S11  cell <-> cell assignment               [same_slide]
-    qc            S10  gates, nulls, report
+    export_pheno  S1a  immutable-run geometry; optional declared identity -> cells_pheno/
+    import_xenium S1b  h5ad | zarr | bundle geometry; optional identity   -> cells_xen/
+    postxen       S1c  re-stain pairing                         [Xenium identity]
+    vocab         S2   release-declared vocabulary + protein<->gene crosswalk
+    structures    S3   tissue structures                        [identity, pancreas]
+    register      S4   coarse rigid -> affine -> optional non-rigid       [geometry]
+    match         S6   islet <-> islet assignment               [identity, sequential]
+    cellmatch     S6b  endocrine cell matching                  [identity, sequential]
+    sameslide     S11  cell <-> cell assignment                 [identity, same_slide]
+    grid          S7   composition niches + registered grid     [identity]
+    donor         S8   donor-level concordance                  [identity]
+    crossmodal    S9   pseudo-cell linking                      [identity, inference]
+    qc/figures    S10  geometry always; identity sections only when attached
 
-Everything after S1 speaks the modality-agnostic cell-table contract in ``contract.py``,
-which is what lets registration, matching and QC be written once for both modalities and
-both modes.
+Everything after S1 speaks the modality-agnostic cell-table contract in ``contract.py``.
+Parquet metadata distinguishes ``geometry`` from ``identity`` and stamps the release id, so
+nullable identity columns cannot masquerade as verified calls.
 
 The heavy readers (anndata / spatialdata / SimpleITK / opencv) are optional: install with
 ``pip install -e '.[integration]'`` or use ``environment-integration.yml``. Importing this

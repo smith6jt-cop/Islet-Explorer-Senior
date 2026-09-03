@@ -1,7 +1,12 @@
 # Plan — unblocking PhenoCycler ↔ Xenium integration
 
-**Status:** approved in principle, **not started**. Held pending completion of the
-Phase 2 monorepo consolidation (session `monorepo-retirement-commit`).
+**Status:** approved in principle 2026-08-14. **Superseded 2026-09-02** by
+`PLAN_2026-09-02_AUXILIARY_PACKAGES.md`: Phase 1 (data reachability) landed differently —
+`xenium_root = /data/xenium` (a Globus copy, not `/orange`; commit `1d0c0bc`), and the
+line-90 provisional root is settled; Phases 2–3 (the geometry split, registration on 20 donors)
+are that plan's Tracks C.1–C.2; Phase 4 (the 5-donor legacy-identity lane) is replaced by the
+declared release contract (Track A.4). Run `3bf4fc8e…` named below has been deleted; the only run
+is `30f6689e4d27d295f890`. The measurements and constraints recorded here still stand.
 **Date:** 2026-08-14
 **Decision owner:** maintainer (smith6jt)
 

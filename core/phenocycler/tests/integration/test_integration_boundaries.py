@@ -21,8 +21,8 @@ pytest.importorskip("geopandas")
 pytest.importorskip("shapely")
 
 from phenocycler.integration.boundaries import (  # noqa: E402
-    BoundaryError, fit_pixel_scale, load_pheno_polygons, load_xenium_polygons,
-    read_geojson_polygons, warp_polygons,
+    BoundaryError, fit_pixel_scale, load_pheno_polygons, load_xenium_nucleus_polygons,
+    load_xenium_polygons, read_geojson_polygons, warp_polygons,
 )
 from phenocycler.integration.sameslide import match_by_iou, match_tables_by_iou  # noqa: E402
 from phenocycler.integration.transform import from_rigid  # noqa: E402
@@ -74,7 +74,10 @@ def _cell_table(cfg, base, centres_um, ids, modality, image="img"):
         "lineage_common": ["Endocrine"] * len(ids),
         "image": [image] * len(ids),
     })
-    out = coerce_cell_table(df, modality=modality, donor_id="6539", roi="panc")
+    out = coerce_cell_table(
+        df, modality=modality, donor_id="6539", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     out["image"] = image
     write_cell_table(out, partition_path(base, "6539", "panc"))
     return out
@@ -257,3 +260,91 @@ def test_polygons_without_a_cell_row_are_dropped_not_raised(tmp_path):
     pairs = match_tables_by_iou(mv, fx, _table(["c0"]), _table(["c0"]), min_iou=0.25)
     assert len(pairs) == 1
     assert int(pairs.iloc[0]["moving_idx"]) == 0
+
+
+# --------------------------------------------------------------------------- #
+# The ring key. `label_id` is per-RING, and in the nucleus table that is not per cell.
+# --------------------------------------------------------------------------- #
+
+def _xenium_nuclei(tmp_path, rings, name="nucleus_boundaries.parquet"):
+    """`rings` is a list of (cell_id, label_id, centre_um, half_um)."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for cid, lab, (cx, cy), half in rings:
+        for vx, vy in _square(cx, cy, half)[0][:-1]:
+            rows.append({"cell_id": cid, "vertex_x": vx, "vertex_y": vy, "label_id": lab})
+    p = tmp_path / name
+    pd.DataFrame(rows).to_parquet(p, index=False)
+    return p
+
+
+def test_a_cell_with_two_nuclei_yields_two_polygons_not_one(tmp_path):
+    """Measured on donor 6442: 958,918 nuclei over 907,352 cells, up to 6 on one cell.
+
+    Splitting on `label_id` is exact. Splitting by looking for a vertex that repeats the
+    GROUP's first vertex fuses the 2nd..nth nucleus of every multi-nucleus cell -- 47,120
+    cells on that donor -- and the fusion does not raise, it silently returns one polygon
+    spanning both nuclei.
+    """
+    path = _xenium_nuclei(tmp_path, [("c0", 1, (10.0, 10.0), 2.0),
+                                     ("c0", 2, (30.0, 10.0), 3.0),
+                                     ("c1", 3, (50.0, 50.0), 4.0)])
+    polys, cell_ids = load_xenium_nucleus_polygons(path)
+    assert len(polys) == 3
+    assert list(polys.index) == [1, 2, 3]
+    assert list(cell_ids) == ["c0", "c0", "c1"]
+    assert polys.loc[1].area == pytest.approx(4.0 * 4.0)
+    assert polys.loc[2].area == pytest.approx(6.0 * 6.0)
+    # the two nuclei of c0 stay apart; a fused ring would span from x=8 to x=33
+    assert polys.loc[1].bounds[2] < polys.loc[2].bounds[0]
+
+
+def test_a_cell_with_no_nucleus_is_absent_rather_than_empty(tmp_path):
+    """`nucleus_count == 0` for 5.4% of donor 6442's cells. They have no row at all, so the
+    caller is handed the cell ids rather than being left to infer them from a cell table."""
+    path = _xenium_nuclei(tmp_path, [("c0", 1, (10.0, 10.0), 2.0),
+                                     ("c2", 2, (90.0, 90.0), 2.0)])
+    polys, cell_ids = load_xenium_nucleus_polygons(path)
+    assert set(cell_ids) == {"c0", "c2"}          # c1 never appears
+    assert len(polys) == 2
+
+
+def test_a_boundary_table_not_grouped_by_ring_is_refused(tmp_path):
+    """Runs rather than groupby is only safe because the format is ring-major. A re-sorted
+    file would fragment every ring into pieces, which is not an error anyone would notice."""
+    rows = [{"cell_id": "c0", "vertex_x": 0.0, "vertex_y": 0.0, "label_id": 1},
+            {"cell_id": "c1", "vertex_x": 9.0, "vertex_y": 0.0, "label_id": 2},
+            {"cell_id": "c0", "vertex_x": 1.0, "vertex_y": 0.0, "label_id": 1},
+            {"cell_id": "c0", "vertex_x": 0.0, "vertex_y": 1.0, "label_id": 1},
+            {"cell_id": "c1", "vertex_x": 9.0, "vertex_y": 1.0, "label_id": 2},
+            {"cell_id": "c1", "vertex_x": 8.0, "vertex_y": 1.0, "label_id": 2}]
+    p = tmp_path / "nucleus_boundaries.parquet"
+    pd.DataFrame(rows).to_parquet(p, index=False)
+    with pytest.raises(BoundaryError, match="not grouped by ring"):
+        load_xenium_nucleus_polygons(p)
+
+
+def test_label_ids_select_without_reading_every_ring(tmp_path):
+    path = _xenium_nuclei(tmp_path, [("c0", 1, (10.0, 10.0), 2.0),
+                                     ("c0", 2, (30.0, 10.0), 3.0),
+                                     ("c1", 3, (50.0, 50.0), 4.0)])
+    polys, cell_ids = load_xenium_nucleus_polygons(path, label_ids=[2, 3])
+    assert list(polys.index) == [2, 3]
+    assert list(cell_ids) == ["c0", "c1"]
+
+
+def test_a_ring_with_too_few_vertices_is_dropped_not_built(tmp_path):
+    """Two vertices cannot enclose an area. The old loop dropped these silently with a bare
+    `continue`; they are still dropped, but the count is recoverable by the caller because the
+    returned index says which labels survived."""
+    rows = [{"cell_id": "c0", "vertex_x": 0.0, "vertex_y": 0.0, "label_id": 1},
+            {"cell_id": "c0", "vertex_x": 1.0, "vertex_y": 0.0, "label_id": 1},
+            {"cell_id": "c1", "vertex_x": 5.0, "vertex_y": 5.0, "label_id": 2},
+            {"cell_id": "c1", "vertex_x": 7.0, "vertex_y": 5.0, "label_id": 2},
+            {"cell_id": "c1", "vertex_x": 7.0, "vertex_y": 7.0, "label_id": 2},
+            {"cell_id": "c1", "vertex_x": 5.0, "vertex_y": 7.0, "label_id": 2}]
+    p = tmp_path / "nucleus_boundaries.parquet"
+    pd.DataFrame(rows).to_parquet(p, index=False)
+    polys, cell_ids = load_xenium_nucleus_polygons(p)
+    assert list(polys.index) == [2]
+    assert polys.loc[2].area == pytest.approx(4.0)

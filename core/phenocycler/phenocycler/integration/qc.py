@@ -57,7 +57,8 @@ ALLOWED_BY_VERDICT = {
 
 def verdict_for(tissue_dice: float, islet_rmse_um: float, *,
                 dice_min: float, rmse_max: float,
-                require_structures: bool = True) -> tuple[str, list[str]]:
+                require_structures: bool = True,
+                structure_reason: str = "tissue has no structural unit") -> tuple[str, list[str]]:
     """Grade one registration. Returns ``(verdict, reasons)``.
 
     ``require_structures=False`` for a tissue with no structural unit (lymph node): the
@@ -76,7 +77,7 @@ def verdict_for(tissue_dice: float, islet_rmse_um: float, *,
     if not require_structures:
         # One gate, honestly labelled. Do not report the missing RMSE as a shortcoming of
         # this registration — no landmark exists in this tissue to measure it against.
-        reasons.append("islet RMSE n/a — tissue has no structural unit; graded on Dice alone")
+        reasons.append(f"islet RMSE n/a — {structure_reason}; graded on Dice alone")
         return (PASS if dice_ok else FAIL), reasons
 
     if not np.isfinite(islet_rmse_um):
@@ -101,10 +102,19 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
 
     rows = []
+    identity_attached = bool(
+        cfg.phenocycler_identity_release and cfg.xenium_identity_release
+    )
     for _, r in man.iterrows():
         donor, roi_name = r["donor_id"], r["roi"]
         roi_tissue = r.get("tissue", "") or cfg.tissue_for_roi(roi_name)
-        graded_on_dice = not has_structures(roi_tissue) if roi_tissue else False
+        tissue_has_structures = has_structures(roi_tissue) if roi_tissue else True
+        require_structure_gate = tissue_has_structures and identity_attached
+        structure_reason = (
+            "identity not attached; structure-derived landmarks are unavailable"
+            if tissue_has_structures and not identity_attached
+            else "tissue has no structural unit"
+        )
         path = registration_dir(cfg, donor, roi_name) / "qc.json"
         if not path.exists():
             rows.append({"donor_id": donor, "roi": roi_name, "tissue": roi_tissue,
@@ -115,7 +125,8 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
         v, reasons = verdict_for(
             float(d.get("tissue_dice", np.nan)), float(d.get("rmse_um", np.nan)),
             dice_min=cfg.qc_tissue_dice_min, rmse_max=cfg.qc_islet_rmse_max_um,
-            require_structures=not graded_on_dice)
+            require_structures=require_structure_gate,
+            structure_reason=structure_reason)
         tf = d.get("transform", {})
         rows.append({
             "donor_id": donor, "roi": roi_name, "tissue": roi_tissue, "verdict": v,
@@ -165,7 +176,8 @@ def sanity_flags(qc: pd.DataFrame, cfg: PipelineConfig) -> pd.DataFrame:
         disp = float(r.get("max_disp_um", 0.0) or 0.0)
         if disp >= cfg.reg_max_disp_um * 0.99:
             f.append(f"displacement pinned at the {cfg.reg_max_disp_um:.0f} um cap")
-        if bool(r.get("mirrored", False)):
+        mirrored = r.get("mirrored", False)
+        if pd.notna(mirrored) and bool(mirrored):
             f.append("section mounted mirrored (expected sometimes; noted for the record)")
         flags.append("; ".join(f))
     out["sanity_flags"] = flags
@@ -185,7 +197,7 @@ def summarize(cfg: PipelineConfig, roi: Optional[str] = None,
         f"scope          : {_scope_label(cfg, roi, tissue)}",
         f"gates          : tissue Dice >= {cfg.qc_tissue_dice_min:.2f}, "
         f"islet RMSE <= {cfg.qc_islet_rmse_max_um:.0f} um "
-        f"(RMSE gate applies only where a structural unit exists)",
+        f"(RMSE gate applies only where a structural unit and declared identity exist)",
         "",
     ]
     if qc.empty:
@@ -214,9 +226,10 @@ def summarize(cfg: PipelineConfig, roi: Optional[str] = None,
     if n_fail:
         lines.append("")
         lines.append(f"{n_fail} donor(s) failed registration. They are excluded from islet "
-                     f"matching, grid comparison and pseudo-cell linking, but STILL "
-                     f"contribute donor-level composition and niche comparison — both of "
-                     f"which need no registration.")
+                     f"matching, grid comparison and pseudo-cell linking. Registration "
+                     f"failure does not exclude them from donor-level composition or niche "
+                     f"comparison once declared identity releases are attached; those "
+                     f"levels need no registration.")
     return qc, "\n".join(lines)
 
 
@@ -242,9 +255,17 @@ def gather_results(cfg: PipelineConfig) -> dict[str, pd.DataFrame]:
     return out
 
 
-def concordance_summary(results: dict[str, pd.DataFrame]) -> str:
+def concordance_summary(
+    results: dict[str, pd.DataFrame],
+    *,
+    identity_attached: bool = True,
+) -> str:
     """The scientific bottom line: did the two modalities agree, and above what null?"""
     lines = ["", "Cross-modal concordance", "-" * 68]
+
+    if not identity_attached:
+        lines.append("identity not attached — composition sections omitted")
+        return "\n".join(lines)
 
     d = results.get("donor")
     if d is not None and len(d) and "spearman_composition_ev" in d.columns:
@@ -301,12 +322,18 @@ def concordance_summary(results: dict[str, pd.DataFrame]) -> str:
 def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
            tissue: Optional[str] = None, write: bool = True) -> pd.DataFrame:
     """Stage entry point: grade registrations, write the gate table and the report."""
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration QC")
+    # Geometry only: registration gates are Dice and islet RMSE, not composition.
     qc, report = summarize(cfg, roi, tissue)
     results = gather_results(cfg)
-    full = report + "\n" + concordance_summary(results)
+    identity_attached = bool(
+        cfg.phenocycler_identity_release and cfg.xenium_identity_release
+    )
+    if not identity_attached:
+        # Old integration caches are deliberately not evidence that identity is current.
+        results = {name: value for name, value in results.items() if name == "registration"}
+    full = report + "\n" + concordance_summary(
+        results, identity_attached=identity_attached
+    )
     print(full, flush=True)
 
     if write:

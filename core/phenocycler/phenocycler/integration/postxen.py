@@ -241,9 +241,11 @@ def run_postxen(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
                 roi: Optional[str] = None, tissue: Optional[str] = None,
                 stamp: bool = True) -> pd.DataFrame:
     """Stage entry point: pair every re-stained section against its Xenium transcriptome."""
-    from .export_pheno import require_current_pheno
+    from .export_pheno import require_current_identity
 
-    require_current_pheno("post-Xenium phenotype transfer")
+    require_current_identity(
+        "post-Xenium phenotype transfer", cfg=cfg, modalities=("xenium",)
+    )
     if not cfg.cells_pheno_xif_dir.exists():
         print(f"[postxen] no post-Xenium re-stains under {cfg.cells_pheno_xif_dir} — nothing "
               f"to do. Sections are routed here by their section key carrying a "

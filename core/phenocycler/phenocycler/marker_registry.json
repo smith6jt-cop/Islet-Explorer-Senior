@@ -1,7 +1,7 @@
 {
   "schema_version": 3,
-  "registry_version": "marker-measurement-registry-v3-no-verified-pairs",
-  "method_version": "upstream-marker-selection-v3-no-verified-pairs",
+  "registry_version": "marker-measurement-registry-v3-no-verified-typing",
+  "method_version": "upstream-marker-selection-v3-no-verified-typing",
   "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified.",
   "allowed_compartments": [
     "Nucleus",
@@ -349,7 +349,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -379,7 +378,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -409,7 +407,6 @@
       "reference": null,
       "families": [],
       "compartment": "Cell",
-      "measurement_source": "qupath_norm",
       "spillover_policy": "redsea_corrected",
       "mutually_exclusive": false
     },
@@ -879,5 +876,5 @@
       "mutually_exclusive": false
     }
   ],
-  "production_status": "development_no_verified_pairs"
+  "production_status": "development_no_verified_typing"
 }

@@ -26,7 +26,8 @@ islet-explorer/                  (this repo, reshaped)
   core/phenocycler/      [done] Python package incl. integration/ — the scientific authority
   core/panels/           [done] XeniumPanelExplorer: panel taxonomy data + its app
   core/bridge/           run -> H5AD -> app aggregates     (VOID until a verified run exists)
-  analysis/xenium/       Xenium notebooks on the shared cell-table contract
+  analysis/xenium/       [done] Xenium 5K lane: the two-tier typer, the panel machinery,
+                         the benchmark harness (dormant), and hpc/ (HiPerGator-only)
   analysis/follicle/     SpleenFollicleCounterQP
   apps/R/ieCore/         shared R package: domain config, theme, stats, helpers
   apps/islet/            [done] the unified Shiny app
@@ -36,8 +37,9 @@ islet-explorer/                  (this repo, reshaped)
 
 `core/bridge/` is listed for completeness only. The handoff records Phase 1 as void: three of
 its five inputs no longer exist, and `CLAUDE.md` forbids describing the legacy H5AD rebuild as
-current. A consequence to keep in view — `data/app_data/` does not exist, so **the Shiny app
-cannot currently load data**. That is a known, accepted state, not a regression from Phase 2.
+current. A consequence at the time — `data/app_data/` did not exist, so the Shiny app could not
+load data. *(No longer true: staged 2026-08-16 from the Junior data root as a 1.9 GB copy of real
+files; see § Status 2026-09-02 and `docs/WORKFLOW_2026-09-02_MAP.md` § 5.)*
 
 ## Ground rules
 
@@ -92,7 +94,7 @@ Target:
 | `CLAUDE.md` (root) | project scope, the non-negotiable analysis rules, source-control hygiene, this layout |
 | `core/phenocycler/CLAUDE.md` | the workflow as it stands (ingest → geometry → REDSEA → expression), the retired-methods list |
 | `core/panels/CLAUDE.md` | panel taxonomy contract only |
-| `analysis/xenium/CLAUDE.md` | the two do-not-regress invariants |
+| `analysis/xenium/CLAUDE.md` | decisions #1-#17, carried across **intact** (conflict #4 below beats this row's earlier "two invariants" summary -- other docs cite them by number), plus dated standing notes |
 | `analysis/follicle/CLAUDE.md` | inventory + the per-image statistical framework |
 | `apps/CLAUDE.md` | Junior's 457-line per-tab reference, plus Senior's viewer-backend section |
 
@@ -119,6 +121,37 @@ Set read-only on GitHub after Phase 6, each with a final README commit pointing 
 `Islet-Explorer`, `Phenocycler_Analysis`, `Xenium_Analysis`, `XeniumPanelExplorer`,
 `SpleenFollicleCounterQP`, `LymphVizkit`.
 
+## Phase 3 — status 2026-08-28
+
+**`analysis/xenium/` has landed** (115 files, 3.5 MB). **`analysis/follicle/` has not** and is
+the remaining Phase 3 work, including the donor-ID-from-filename violation that conflict #2
+above names (`analysis/data_utils.py:48,62`, the hardcoded `_ALT_TO_HANDEL` map).
+
+Four things worth recording, because each contradicts an assumption above:
+
+1. **Imported by tree copy, not `git subtree add --squash`.** `Xenium_Analysis/.git` is
+   **889 MB** for a **3.4 MB** tracked tree (figures and `data/output*` committed before they
+   were gitignored). `subtree` fetches all of it before the squash discards the graph, and
+   recovering that needs `gc --prune=now` -- which this repo's own rules call unsafe with
+   157.9 GB of untracked ignored data present. A `git checkout` of the tracked paths into one
+   commit *is* a squash import and satisfies ground rule 2's intent, and it lets the pruning
+   (~20 dropped files) be part of the import instead of a second deletion commit.
+2. **`core/panels` IS the identity-core source, verified.** Everything
+   `fetch_subpanels.py` fetched over HTTP from `XeniumPanelExplorer@076d1192` is present in
+   the subtree -- 4 phases, 129 files, **0 missing** -- and `panel_roles.csv`,
+   `panel_gene_roles.csv` (1,613,132 bytes) and the identity cores are **byte-identical** to
+   the upstream pin. So the script now reads locally: one authority, one regenerable
+   gitignored cache stamped with `git rev-parse HEAD:core/panels/data` (`0348d149...`), and a
+   test that fails when the two drift.
+3. **The `xenium_analysis` conda env is broken here** (`ImportError: cannot import name
+   '_spropack'`). The lane runs in `scvi-env`, which has scvi-tools 1.4.0.post1 and CUDA.
+   `environment.yml` was dropped rather than carried across as a recipe for a broken env.
+4. **Two pre-existing defects surfaced on absorption and were fixed**: `cm.get_cmap` in
+   `utils/xenium_explorer_export.py` was **removed in matplotlib 3.9** and its `ImportError`
+   guard could not catch the resulting `AttributeError`, so the helper crashed rather than
+   degrading on both local environments; and `tests/test_repo_health.py` asserted an
+   `environment.yml`, a `config.ini` and a SLURM conda env that no longer exist.
+
 ## Blockers carried into later phases
 
 - ~~**`Phenocycler_Analysis` has 136 uncommitted files**~~ — **CLEARED 2026-08-14.** The real
@@ -126,9 +159,15 @@ Set read-only on GitHub after Phase 6, each with a final README commit pointing 
   plus 3 directories). Landed as four themed commits on
   `Phenocycler_Analysis` branch `agent/retire-typing-lane` (`8337e3a..f6953cf`), pushed.
   **`git subtree` reads `main`, so this branch must be merged to `main` before Phase 2 step C.**
-- **`Xenium_Analysis` hardcodes `ROOT = /blue/maigan/smith6jt/Xenium_Analysis`** in 12 files.
-  Fixed in Phase 3 using the `Path(__file__).resolve().parents[n]` pattern already used at
-  `thymic_zonation_analysis.py:54`.
+- ~~**`Xenium_Analysis` hardcodes `ROOT = /blue/maigan/smith6jt/Xenium_Analysis`** in 12
+  files.~~ **CLEARED 2026-08-28.** The real count was **39 files** (19 Python `ROOT` /
+  `PROCESSED_ROOT` constants, 2 R, the rest shell/SLURM/notebook). Fixed with
+  `Path(__file__).resolve().parents[n]` as planned, but on **two axes, not one**: `ROOT`
+  (code) and `DATA_ROOT` (h5ads, `XENIUM_DATA_ROOT`, default `/data/xenium`). A single root
+  would have put `data/processed/` under `analysis/xenium/` -- 60+ GB inside the repo, in a
+  directory the anchored `/data/` ignore does **not** cover. `_panel_roles.py` needed one
+  extra fix its module-level `SUBPANEL_DIR` had no override for. Asserted by
+  `analysis/xenium/tests/test_repo_health.py`.
 - **`XeniumPanelExplorer`'s live `renv.lock` and `.Rprofile` are missing** — only
   `.r46-backup` copies remain, so `renv::restore()` fails as documented in its README.
 
@@ -140,8 +179,9 @@ Five statements elsewhere in the consolidation record are wrong. Correct version
    deletions of tracked source** — all of `analysis/` (the H1–H20 notebooks and
    `data_utils.py`), `README.md`, `CLAUDE.md`, and the genotype/measurement spreadsheets — which
    the 08-13 2-entry tarball did not capture. Nothing was lost (HEAD `2040bb1` == `origin/main`);
-   the checkout was **restored from HEAD on 2026-08-14**. It lives at
-   `/home/smith6jt/SpleenFollicleCounterQP`, *not* `/data/SpleenFollicleCounterQP`.
+   the checkout was **restored from HEAD on 2026-08-14**. It lived at
+   `/home/smith6jt/SpleenFollicleCounterQP` then; *as of 2026-09-01 it is at
+   `/data/SpleenFollicleCounterQP`* (@ `2040bb1`, 11 dirty entries, GitHub ahead).
 2. **There is no three-way conflict for `core/panels`.** Phenocycler's gitlink `076d1192` **is**
    `XeniumPanelExplorer`'s `origin/main` (ancestor *and* zero distance). The local
    `/data/XeniumPanelExplorer` @ `0a23564` is simply that same line 11 commits back. Import
@@ -222,3 +262,78 @@ depth-2 R data paths survive the move because `apps/islet` is still exactly 2 le
 > **After the data was restored, `git reset --hard` and `git clean -xfd` are no longer safe in
 > this repository** — 157.9 GB of untracked, ignored data now sits under `core/phenocycler/data/`.
 > Roll back with `git revert`.
+
+## Status 2026-09-02 — the lanes, the packages, and what the target layout omits
+
+Written against HEAD `1a23105` (`feat/dct-step0-pinning`, 56 commits ahead of `main`, none of the
+work since 2026-08-20 on the default branch). The workflow that exists today is mapped in
+`WORKFLOW_2026-09-02_MAP.md`; the plan that positions every auxiliary package is
+`PLAN_2026-09-02_AUXILIARY_PACKAGES.md`; the package index is `EXTERNAL_PACKAGES.md`. This section
+records only what those documents change about the consolidation itself.
+
+### Phase status
+
+| phase | status |
+|---|---|
+| 0 | done |
+| 1 | void (see § Target layout); rewritten as the adapter in `core/bridge/` — plan Track D.3, gated on a declared identity producer |
+| 2 | done (PR #14). Left undone on purpose: the first `phenocycler-v*` tag and deletion of the rollback assets |
+| 3 | half: `analysis/xenium/` landed 2026-08-28; `analysis/follicle/` not (plan Track D.1). The source checkout is now `/data/SpleenFollicleCounterQP` @ `2040bb1` with 11 dirty entries and GitHub ahead of it; `_ALT_TO_HANDEL` is at `analysis/data_utils.py:48`, `extract_sample_id` at `:62` |
+| 4 | **rewritten in writing (below)**; not executed |
+| 5 | partially harvested on 2026-08-16 (`259a1d5` Junior's test suite and `utils_stats.R`; `621e0a4` typography/CSV-provenance/phenotype-order fixes; `60b470a` the Statistics tab; `661fa27` the modernist Inflammation module). `apps/R/ieCore`, `apps/lymph` and LymphVizkit's `00_domain_config.R` are not started |
+| 6 | not started. All six archive-list repos are writable; `/srv/shiny-server/islet-explorer` points at `~/panc_CODEX/…`, which moved to `/data/panc_CODEX/Islet-Explorer` (the publication build is alive there, `f2a5c54`); `islet-explorer-merged` was never created; `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18 "section-keyed cohort") has diverged from the subtree by four commits |
+
+### Phase 4, rewritten
+
+The 08-14 handoff voided the original comparison (production `restore_stage.py` no longer calls
+anything). The duplicated science to resolve is now **inside this repo**: two independent protein
+typing lanes answering against one rule table (`phenotype_workflow.csv`) — the cosine lane
+(`core/phenocycler/scripts/celltype/`) and the KINTSUGI SOM lane (`core/phenocycler/scripts/kintsugi/`).
+Their measured disagreement on donor 6551 (27.6 % label / 62.5 % branch agreement at 25 nodes; the
+largest disagreement is endocrine resolution) is the Phase 4 question. `SpleenFollicleCounterQP`'s
+H16 GMM RESTORE and H20's CD20 thresholds enter as **historical data points** once absorbed, not as a
+live method. Exit stays as written: one calling method per modality, each with the figure that shows
+why — plan Track A.3.
+
+### Conflict #5 — the ownership table and the two-apps rule
+
+The R-lane ownership table above predates the 2026-08-17 rule that the two Shiny apps stay permanently
+separate. Four of its rows were executed the day before the rule (the 2026-08-16 commits listed under
+Phase 5). The remaining Junior/modernist rows are executed under the reading that the rule forbids
+changes *to* Junior, not harvesting *from* it; Phase 6 records serving facts and repoints nothing
+(`deploy/DEPLOY.md` § two apps). This is the plan's assumption Q3 and is the maintainer's to reverse.
+
+### Rule hierarchy — two rows as realised
+
+`core/phenocycler/CLAUDE.md` does not exist; "the workflow as it stands" lives in the root `CLAUDE.md`
+§ Authoritative Phenocycler workflow and in `core/phenocycler/docs/WORKFLOW.md`. `apps/CLAUDE.md` is
+realised as `apps/islet/CLAUDE.md`.
+
+### Target layout — trees on disk that it never mentions
+
+| tree | what it is | position |
+|---|---|---|
+| `external/` (gitignored, 970 MB) | pinned checkouts UniFORM @ `7c33396d`, utag @ `056cb87e`, KINTSUGI @ `716d1eb`, plus `.venv-som` | load-bearing for three lanes; provisioning is plan Track E.1; index in `EXTERNAL_PACKAGES.md` |
+| `literature/external/` | DeepCellTypes figure repo @ `4a06e97`, `redseapy`, `RESTORE` | reference copies; none is an import path except the two files the dct lane reads |
+| `single_cell_analysis/SCVI_CODEX_v2.ipynb` | archival Junior-era scVI notebook, unexecuted | history; superseded by `scripts/senior/train_scvi_senior.py` |
+| `scripts/` (39 entries) | the app-build chain, viewer tools, legacy Junior scripts | Phase 2's split into `core/` and `analysis/` was never done; stays where it is until Phase 5 |
+| `core/phenocycler/scripts/{celltype,kintsugi,dct,xenium_celltype,restain,review,slurm,groovy}` | the development lanes and QuPath scripts | positioned by the plan (Tracks A–C); none writes a stage manifest |
+| `data/development/` (12 lane outputs, 25 GB) | the mutable review workspace named in root `CLAUDE.md` | stays; per-lane retention is each README's business |
+| `phenotype_workflow.csv` (repo root, tracked) | the 59-plex rule table both protein lanes score against | stays at the root; the plan's A.3 producer choice decides its long-term home |
+| `deepcell-data/` (empty), `deepcellToken` (untracked, ignored) | dct lane residue | delete with the dct lane when Track E.3 makes that possible |
+| `All-Download_From_nPOD_*.xlsx` (root, tracked) | nPOD download record | data provenance; leave |
+
+### Stale statements corrected in the same change (2026-09-02)
+
+`README.md` (root) § pipeline; `scripts/CLAUDE.md` § ownership / retired code; `core/phenocycler/README.md`
+(the `Mean (norm)` source; the integration env); `core/phenocycler/DATA_README.md` (`qupath_norm`);
+`core/phenocycler/docs/WORKFLOW.md` (the `Mean (norm)` source); `core/phenocycler/docs/INTEGRATION.md`
+(preamble, links, env, submodule, the re-stain premise, "which 20 donors", the Xenium root count);
+`core/phenocycler/docs/HIPERGATOR.md` and `scripts/review/README.md` (`Phenocycler_Analysis` cwd);
+`core/phenocycler/scripts/celltype/README.md` (the single-donor scope of the `allclose` claim; the 6539
+ring account); `core/phenocycler/scripts/kintsugi/README.md` (6539 "still stale"; test count);
+`docs/PLAN_2026-08-14_XENIUM_INTEGRATION_UNBLOCK.md` (status header); this file's § Target layout
+note on `data/app_data` and § Corrections item 1 (SpleenFollicle path); `docs/HANDOFF_2026-08-14_CONSOLIDATION.md`
+and `docs/HANDOFF_2026-08-26_XENIUM_CELLTYPE.md` (dated status notes only); `analysis/xenium/README.md`
+and `CLAUDE.md` (`--paths`; `HANDOFF.md`); `analysis/xenium/docs/README.md`; `core/panels/README.md`
+(renv); `deploy/DEPLOY.md` (status note).

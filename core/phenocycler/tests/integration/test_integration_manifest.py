@@ -8,17 +8,20 @@
 
 from __future__ import annotations
 
+import json
 import pandas as pd
 import pytest
 
 from phenocycler import load_config
 from phenocycler.integration.manifest import (
     DONOR_UNKNOWN, PAIRED, PHENO_ONLY, XENIUM_ONLY, ManifestError, build_manifest,
-    normalize_roi, parse_bundle_path, paired_rows, read_xenium_paths, render_path_verification,
-    sample_key, verify_bundle_paths,
+    ManifestSummary, _discover_pheno_sections, normalize_roi, parse_bundle_path, paired_rows,
+    read_xenium_paths, render_path_verification, sample_key, verify_bundle_paths,
 )
 
-BUNDLE = ("/orange/brusko/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/"
+#: Recorded the way `xenium_paths.csv` records them: relative to the Xenium tree, so no
+#: site's filesystem layout appears in a tracked file. `xenium_root` supplies the prefix.
+BUNDLE = ("HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/"
           "output-XETG00298__0059865__{label}__20250328__202338")
 
 
@@ -297,6 +300,40 @@ def test_empty_inputs_warn_rather_than_crash(tmp_path):
     assert any("no Xenium runs" in w for w in summary.warnings)
 
 
+def test_default_pheno_discovery_reads_current_run_and_manifest(tmp_path):
+    data = tmp_path / "data"
+    run_id = "immutable-run"
+    expression = data / "runs" / run_id / "expression"
+    for donor, image in (
+        ("6436", "6436_Scan1.er.qptiff - resolution #1"),
+        ("6450", "6450panc_Scan1.er.qptiff - resolution #1"),
+    ):
+        part = expression / f"donor_id={donor}"
+        part.mkdir(parents=True)
+        pd.DataFrame({"image": [image, image], "object_id": ["a", "b"]}).to_parquet(
+            part / "data.parquet", index=False
+        )
+    (data / "runs" / "LATEST").write_text(run_id)
+
+    qmanifest = data / "qupath_manifest.json"
+    qmanifest.write_text(json.dumps({"images": [
+        {"donor_id": "6436", "image_id": "6436_Scan1.er.qptiff - resolution #1"},
+        {"donor_id": "6450", "image_id": "6450panc_Scan1.er.qptiff - resolution #1"},
+    ]}))
+    section_overrides = data / "integration" / "section_overrides.csv"
+    section_overrides.parent.mkdir(parents=True)
+    section_overrides.write_text("image_id,donor_id,roi,slide,reason\n")
+
+    cfg = load_config(
+        data_dir=data,
+        qupath_manifest=qmanifest,
+        section_overrides_csv=section_overrides,
+    )
+    summary = ManifestSummary()
+    assert _discover_pheno_sections(cfg, summary) == {("6436", "panc"), ("6450", "panc")}
+    assert summary.warnings == []
+
+
 # --- Path verification -------------------------------------------------------------------
 # `xenium_paths.csv` is hand-maintained and, upstream, read by nothing — so before this
 # check nothing had ever confirmed a recorded path points at a bundle that exists.
@@ -362,6 +399,75 @@ def test_verify_paths_resolves_a_real_bundle(tmp_path):
     assert [r["status"] for r in verify_bundle_paths(cfg)] == ["not_a_bundle"]
     (bundle / "cells.parquet").touch()
     assert [r["status"] for r in verify_bundle_paths(cfg)] == ["ok"]
+
+
+def test_verify_paths_resolves_a_relative_bundle_under_the_root(tmp_path):
+    """The normal case: the manifest is site-neutral and xenium_root supplies the prefix."""
+    bundle = tmp_path / "xen" / "HuPrime5kPanTissue" / "Y9QRJ6" / "MM044"
+    bundle = bundle / "output-XETG00298__0059865__Panc__20250328__202338"
+    bundle.mkdir(parents=True)
+    (bundle / "cells.parquet").touch()
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": BUNDLE.format(label="Panc").replace(
+                 "MM044_Xenium_nPODBatch10", "MM044")}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = str(tmp_path / "xen")
+    assert [r["status"] for r in verify_bundle_paths(cfg)] == ["ok"]
+
+
+def test_relative_paths_without_a_root_are_a_config_gap_not_a_missing_bundle(tmp_path):
+    """`no_root` exists so the reader is sent to the config, not to the filesystem.
+
+    Reporting this as `missing` would be true but useless: nothing is missing, there is
+    simply no root to resolve a relative path against. Silently resolving against the
+    process's cwd would be worse still.
+    """
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": BUNDLE.format(label="Panc")}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = ""
+    out = verify_bundle_paths(cfg)
+    assert [r["status"] for r in out] == ["no_root"]
+    assert "xenium_root is unset" in render_path_verification(out, cfg)
+
+
+def test_a_reorganised_tree_is_found_by_bundle_name_and_reported_as_stale(tmp_path):
+    """The bundle directory name is the part that cannot change without changing identity.
+
+    A transferred tree may not preserve the `HuPrime5kPanTissue/<batch>/<run>/` levels, so
+    the recorded relative path can miss while the data is present. Finding it is right;
+    calling it `ok` is not — the recorded path is stale and should be repaired.
+    """
+    bundle = (tmp_path / "xen" / "somewhere" / "else"
+              / "output-XETG00298__0059865__Panc__20250328__202338")
+    bundle.mkdir(parents=True)
+    (bundle / "cells.parquet").touch()
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": BUNDLE.format(label="Panc")}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = str(tmp_path / "xen")
+    out = verify_bundle_paths(cfg)
+    assert [r["status"] for r in out] == ["relocated"]
+    assert out[0]["resolved"] == str(bundle)
+    assert "stale" in render_path_verification(out, cfg)
+
+
+def test_an_ambiguous_bundle_name_is_refused_rather_than_guessed(tmp_path):
+    """Two directories with the same bundle name is a refusal, not a coin flip."""
+    for parent in ("a", "b"):
+        d = (tmp_path / "xen" / parent
+             / "output-XETG00298__0059865__Panc__20250328__202338")
+        d.mkdir(parents=True)
+        (d / "cells.parquet").touch()
+    rows = [{"donor_id": "6539", "roi": "panc", "batch": "Y9QRJ6",
+             "source_path": BUNDLE.format(label="Panc")}]
+    cfg = load_config()
+    cfg.xenium_paths_csv = _paths_csv(tmp_path, rows)
+    cfg.xenium_root = str(tmp_path / "xen")
+    assert [r["status"] for r in verify_bundle_paths(cfg)] == ["missing"]
 
 
 def test_verify_paths_scopes_to_requested_donors(tmp_path):

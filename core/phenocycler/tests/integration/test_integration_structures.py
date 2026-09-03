@@ -7,13 +7,13 @@ import pandas as pd
 import pytest
 
 from phenocycler import load_config
-from phenocycler.integration.contract import CellTable, coerce_cell_table
+from phenocycler.integration.contract import CellTable, ContractError, coerce_cell_table
 from phenocycler.integration.rasterize import (GridSpec, grid_for, rasterize_points,
                                                rasterize_structures, tissue_mask)
 from phenocycler.integration.structures import (CT_INSULITIS_THRESH, CT_PERI_THRESH,
                                                 StructureParams, call_islets, call_landmarks,
-                                                hormone_seed_mask, insulitis_grade,
-                                                size_class)
+                                                extract_donor, hormone_seed_mask,
+                                                insulitis_grade, size_class)
 
 
 def _field(modality, n_islets=12, seed=7, islet_sizes=None, insulitic=(),
@@ -46,7 +46,10 @@ def _field(modality, n_islets=12, seed=7, islet_sizes=None, insulitic=(),
                                            df["celltype_fine"], "")
         for m, s in (("INS", "Beta"), ("GCG", "Alpha"), ("SST", "Delta")):
             df[f"feat__{m}"] = np.where(df["celltype_fine"] == s, 12.0, 0.2)
-    df = coerce_cell_table(df, modality=modality, donor_id="T1", roi="panc")
+    df = coerce_cell_table(
+        df, modality=modality, donor_id="T1", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     return CellTable(df=df, modality=modality, donor_id="T1", roi="panc"), centres, sizes
 
 
@@ -97,9 +100,11 @@ def test_hormone_seeding_beats_label_seeding(cfg):
         "celltype_fine": "Endocrine", "endocrine_subtype": "",
         "feat__INS": 0.3, "feat__GCG": 0.3, "feat__SST": 0.3,
     })
-    df = pd.concat([table.df, coerce_cell_table(extra, modality="phenocycler",
-                                                donor_id="T1", roi="panc")],
+    df = pd.concat([table.df, coerce_cell_table(
+        extra, modality="phenocycler", donor_id="T1", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release")],
                    ignore_index=True)
+    df.attrs.update(contract_profile="identity", identity_release_id="synthetic-test-release")
     mixed = CellTable(df=df, modality="phenocycler", donor_id="T1", roi="panc")
 
     params = StructureParams.from_config(cfg)
@@ -124,6 +129,28 @@ def test_hormone_seed_mask_per_modality(cfg):
     # Xenium seeds on the specific fine subtypes, not the generic Endocrine label.
     assert hormone_seed_mask(x).sum() == int(
         x.df["celltype_fine"].isin(["Beta", "Alpha", "Delta"]).sum())
+
+
+def test_geometry_only_table_never_reaches_hormone_or_structure_calling(cfg):
+    raw = pd.DataFrame({
+        "cell_id": [f"g{i}" for i in range(8)],
+        "x_um": np.arange(8, dtype=float),
+        "y_um": np.arange(8, dtype=float),
+        "region": ["core"] * 4 + ["peri"] * 2 + ["tissue"] * 2,
+        "qupath_islet_num": ["7"] * 6 + [""] * 2,
+        # Intensities exist, but no verified identity/threshold does.
+        "feat__INS": [100.0] * 8,
+    })
+    geom = coerce_cell_table(
+        raw, modality="phenocycler", donor_id="6436", roi="panc", profile="geometry"
+    )
+    table = CellTable(geom, "phenocycler", "6436", "panc", "pancreas")
+
+    with pytest.raises(ContractError, match="geometry-only"):
+        hormone_seed_mask(table, hormone_min_norm=5.0)
+
+    with pytest.raises(ContractError, match="never promoted to structure_id"):
+        extract_donor(table, cfg, kinds=["islet", "duct", "vessel"])
 
 
 def test_insulitis_grade_and_size_class():
@@ -156,7 +183,8 @@ def test_empty_and_degenerate_inputs(cfg):
     df = coerce_cell_table(
         pd.DataFrame({"cell_id": ["a"], "x_um": [0.0], "y_um": [0.0],
                       "lineage_native": ["Exocrine"], "lineage_common": ["Exocrine"]}),
-        modality="phenocycler", donor_id="T", roi="panc")
+        modality="phenocycler", donor_id="T", roi="panc", profile="identity",
+        identity_release_id="synthetic-test-release")
     t = CellTable(df=df, modality="phenocycler", donor_id="T", roi="panc")
     islets, ids = call_islets(t, StructureParams.from_config(cfg))
     assert len(islets) == 0

@@ -1,7 +1,8 @@
 name: phenocycler-analysis
-# Reference environment for the manifest-driven QuPath -> REDSEA ->
-# RESTORE donor-marker evidence -> ordered residual typing workflow. Downstream
-# embedding, trajectory and application stacks are intentionally out of scope.
+# HiPerGator-only reference recipe for the manifest-driven QuPath -> geometry ->
+# REDSEA -> expression workflow. It is not the workstation environment; use the
+# repository .venv there. Pair-dependent RESTORE/typing stages are blocked.
+# Downstream embedding, trajectory and application stacks are out of scope.
 channels:
   - conda-forge
 dependencies:

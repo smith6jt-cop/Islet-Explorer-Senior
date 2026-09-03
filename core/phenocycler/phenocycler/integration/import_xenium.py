@@ -42,7 +42,7 @@ import pandas as pd
 from ..config import PipelineConfig, load_config
 from .contract import as_feature, coerce_cell_table, partition_path, write_cell_table
 from .manifest import load_manifest, paired_rows, rows_for_scope
-from .vocab import (COMMON_LINEAGES, PanelTaxonomy, load_panel_taxonomy, map_xenium_series)
+from .vocab import PanelTaxonomy, load_panel_taxonomy
 
 #: obs columns worth carrying when present. Everything else stays in the h5ad.
 OBS_PASSTHROUGH = (
@@ -91,12 +91,6 @@ def _obs_str(obs: pd.DataFrame, col: str, default: str = "") -> pd.Series:
     if isinstance(s.dtype, pd.CategoricalDtype):
         s = s.astype(object)
     return s.where(s.notna(), default).astype(str)
-
-
-def _obs_num(obs: pd.DataFrame, col: str) -> pd.Series:
-    if col not in obs.columns:
-        return pd.Series(np.nan, index=obs.index, dtype="float64")
-    return pd.to_numeric(obs[col], errors="coerce")
 
 
 def identity_core_scores(adata, tax: PanelTaxonomy, layer: str = "lognorm") -> pd.DataFrame:
@@ -240,34 +234,37 @@ def import_sample(
     sample_key: str = "",
     tissue: str = "",
     tax: Optional[PanelTaxonomy] = None,
+    release=None,
 ) -> pd.DataFrame:
     """Build the contract table for one Xenium section.
 
-    ``tissue`` is declared at import; it defaults to the tissue implied by ``roi``.
+    ``tissue`` is declared at import; it defaults to the tissue implied by ``roi``. Embedded
+    label-shaped columns are never sufficient identity provenance. When ``release`` is given,
+    its separately declared calls are attached by exact Xenium ``cell_id`` after geometry is
+    built.
     """
     from .tissues import for_roi, normalize
 
     tissue = normalize(tissue) if tissue else (for_roi(roi) or "pancreas")
     obs, feats = read_xenium(source, tax)
 
-    broad = _obs_str(obs, "celltype_broad")
-    fine = _obs_str(obs, "celltype")
-    if fine.eq("").all():
-        fine = _obs_str(obs, "celltype_fine")
-
-    # Xenium's broad tier falls back to an absolute-score argmax when a cell has no detected
-    # identity-core gene, flagging it `broad_lowsignal`. That is the same kind of weaker call
-    # as PhenoCycler's `epi_default`, so it belongs in the same contract column.
-    if "broad_lowsignal" in obs.columns:
-        lowsignal = obs["broad_lowsignal"].fillna(False).astype(bool).to_numpy()
-    else:
-        lowsignal = np.zeros(len(obs), dtype=bool)
+    embedded_broad = _obs_str(obs, "celltype_broad")
+    embedded_fine = _obs_str(obs, "celltype")
+    if embedded_fine.eq("").all():
+        embedded_fine = _obs_str(obs, "celltype_fine")
 
     area = pd.Series(np.nan, index=obs.index, dtype="float64")
     for col in ("cell_area", "cell_area_um2", "area"):
         if col in obs.columns:
             area = pd.to_numeric(obs[col], errors="coerce")
             break
+
+    if embedded_broad.ne("").any() or embedded_fine.ne("").any():
+        print(
+            f"[import_xenium] {source.name}: embedded label-shaped columns ignored; "
+            "identity is attached only from a declared release with exact cell-id calls.",
+            flush=True,
+        )
 
     out = pd.DataFrame({
         "cell_id": obs["cell_id"].astype(str),
@@ -276,14 +273,14 @@ def import_sample(
         "x_um": pd.to_numeric(obs["x_um"], errors="coerce"),
         "y_um": pd.to_numeric(obs["y_um"], errors="coerce"),
         "area_um2": area,
-        "lineage_native": broad,
-        "celltype_fine": fine,
-        "confidence": _obs_num(obs, "broad_confidence"),
-        "evidence_positive": ~lowsignal,
+        "lineage_native": "",
+        "celltype_fine": "",
+        "confidence": np.nan,
+        "evidence_positive": pd.Series(pd.NA, index=obs.index, dtype="boolean"),
         "region": "",
         "structure_id": "",
     })
-    out["lineage_common"] = map_xenium_series(broad, fine)
+    out["lineage_common"] = ""
 
     # Provenance: the section identity that Xenium artifacts never carry.
     out["xenium_sample_key"] = sample_key
@@ -294,20 +291,20 @@ def import_sample(
     for c in feats.columns:
         out[c] = pd.to_numeric(feats[c], errors="coerce").to_numpy()
 
-    if broad.eq("").all():
-        print(f"[import_xenium] {source.name}: no cell-type labels found — importing "
-              f"coordinates only. Run the Xenium phenotyping stage for a labelled table.",
-              flush=True)
-    else:
-        unmapped = sorted(set(out.loc[out["lineage_common"] == "Unassigned", "lineage_native"])
-                          - {""})
-        if unmapped:
-            print(f"[import_xenium] {source.name}: {unmapped} did not map to the common "
-                  f"vocabulary (known: {[c for c in COMMON_LINEAGES if c != 'Unassigned']})",
-                  flush=True)
+    geometry = coerce_cell_table(
+        out,
+        modality="xenium",
+        donor_id=str(donor_id),
+        roi=roi,
+        tissue=tissue,
+        profile="geometry",
+    )
+    if release is None:
+        return geometry
 
-    return coerce_cell_table(out, modality="xenium", donor_id=str(donor_id), roi=roi,
-                             tissue=tissue)
+    from .phenospace import attach_release_identity
+
+    return attach_release_identity(geometry, release, str(donor_id))
 
 
 def _resolve_source(row: pd.Series) -> Optional[Path]:
@@ -332,6 +329,9 @@ def run_import_xenium(
     Identity-core scores are tissue-specific — a lymph node must not be scored on the
     pancreatic endocrine axis — so the taxonomy is resolved per row's tissue, not once.
     """
+    from .phenospace import load_release_or_none
+
+    release = load_release_or_none(cfg, "xenium")
     man = load_manifest(cfg)
     # `--all` keeps the unpaired rows (donor_unknown / xenium_only) but scopes them the same
     # way, so the ROI/tissue rule has exactly one implementation.
@@ -367,7 +367,8 @@ def run_import_xenium(
             continue
         row_tissue = r.get("tissue", "") or cfg.tissue_for_roi(r["roi"])
         df = import_sample(src, donor_id=r["donor_id"], roi=r["roi"], tissue=row_tissue,
-                           sample_key=r.get("xenium_sample_key", ""), tax=_tax_for(row_tissue))
+                           sample_key=r.get("xenium_sample_key", ""), tax=_tax_for(row_tissue),
+                           release=release)
         path = partition_path(cfg.cells_xen_dir, r["donor_id"], r["roi"])
         write_cell_table(df, path)
         print(f"[import_xenium] {r['donor_id']}/{r['roi']} ({row_tissue}): {len(df):,} "

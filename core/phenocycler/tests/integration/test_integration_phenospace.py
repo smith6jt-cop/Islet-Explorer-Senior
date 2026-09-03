@@ -1,0 +1,203 @@
+"""Declared phenotype spaces/releases: strict mappings and provenance refusal tests."""
+
+from __future__ import annotations
+
+import json
+
+import pandas as pd
+import pytest
+
+from phenocycler.config import PipelineConfig
+from phenocycler.integration.contract import coerce_cell_table, contract_profile, has_identity
+from phenocycler.integration.export_pheno import ExportError, attach_identity
+from phenocycler.integration.phenospace import (
+    PhenotypeSpaceError, attach_release_identity, load_phenotype_space, load_release,
+)
+
+
+def _space(path, *, beta_common="Endocrine"):
+    payload = {
+        "schema_version": 1,
+        "space_id": f"space-{beta_common}",
+        "producer_lane": "synthetic-current-lane",
+        "labels": [
+            {"label": "Endo-vascular", "common_lineage": "Vascular"},
+            {"label": "Endo-beta", "common_lineage": beta_common},
+            {"label": "Endo-beta-cycling", "parent": "Endo-beta", "inherit": True},
+            {"label": "Ambiguous", "common_resolution": "ambiguous", "reason": "tie"},
+            {"label": "Unavailable", "common_resolution": "unavailable", "reason": "absent"},
+            {"label": "AMBIGUOUS-CD11b-pos-epithelial",
+             "common_resolution": "not_mappable", "reason": "winning hybrid call"},
+        ],
+    }
+    path.write_text(json.dumps(payload))
+    return path
+
+
+def _release(
+    tmp_path,
+    *,
+    donors=("6436",),
+    content_id="content-ok",
+    input_path="expression",
+    modality="phenocycler",
+):
+    release_dir = tmp_path / "release"
+    release_dir.mkdir(parents=True, exist_ok=True)
+    _space(release_dir / "label_space.json")
+    payload = {
+        "schema_version": 1,
+        "release_id": "synthetic-release-v1",
+        "modality": modality,
+        "producer": {"lane": "synthetic-current-lane", "commit": "abc123"},
+        "label_space": "label_space.json",
+        "calls_dir": "calls",
+        "cell_key": "object_id" if modality == "phenocycler" else "cell_id",
+        "donors": list(donors),
+        "inputs": [{
+            "kind": "expression",
+            "run_id": "run1",
+            "content_id": content_id,
+            "path": input_path,
+        }],
+        "columns": {"label": "phenotype", "common_lineage": "common_lineage"},
+    }
+    (release_dir / "release.json").write_text(json.dumps(payload))
+    return release_dir
+
+
+def _cfg(tmp_path, release_dir, *, modality="phenocycler"):
+    data = tmp_path / "data"
+    manifest = data / "runs" / "run1" / "manifests" / "expression.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps({"content_id": "content-ok"}))
+    kwargs = {f"{modality}_identity_release": release_dir}
+    return PipelineConfig(data_dir=data, **kwargs)
+
+
+def test_real_prefix_trap_is_resolved_by_parent_declaration(tmp_path):
+    space = load_phenotype_space(_space(tmp_path / "space.json"))
+    assert space.common_for("Endo-vascular") == ("Vascular", "mapped")
+    assert space.common_for("Endo-beta") == ("Endocrine", "mapped")
+    assert space.common_for("Endo-beta-cycling") == ("Endocrine", "mapped")
+
+
+def test_ambiguous_unavailable_and_not_mappable_stay_distinct(tmp_path):
+    space = load_phenotype_space(_space(tmp_path / "space.json"))
+    assert space.common_for("Ambiguous") == ("", "ambiguous")
+    assert space.common_for("Unavailable") == ("", "unavailable")
+    assert space.common_for("AMBIGUOUS-CD11b-pos-epithelial") == ("", "not_mappable")
+
+
+def test_undeclared_label_raises_and_spaces_do_not_mutate_module_state(tmp_path):
+    a = load_phenotype_space(_space(tmp_path / "a.json", beta_common="Endocrine"))
+    b = load_phenotype_space(_space(tmp_path / "b.json", beta_common="Other"))
+    assert a.common_for("Endo-beta")[0] == "Endocrine"
+    assert b.common_for("Endo-beta")[0] == "Other"
+    assert a.common_for("Endo-beta")[0] == "Endocrine"
+    with pytest.raises(PhenotypeSpaceError, match="undeclared"):
+        a.common_for("Endo-by-prefix")
+
+
+def test_release_round_trip_and_expression_content_pin(tmp_path):
+    release_dir = _release(tmp_path)
+    release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
+    assert release.release_id == "synthetic-release-v1"
+    assert release.expression_content_id == "content-ok"
+    assert release.space.common_for("Endo-beta")[0] == "Endocrine"
+
+    bad_dir = _release(tmp_path / "bad", content_id="wrong")
+    with pytest.raises(PhenotypeSpaceError, match="content id"):
+        load_release(_cfg(tmp_path / "bad", bad_dir), "phenocycler")
+
+
+def test_attach_identity_is_exact_uuid_join_and_stamps_release(tmp_path):
+    release_dir = _release(tmp_path)
+    calls_dir = release_dir / "calls" / "donor_id=6436"
+    calls_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "object_id": ["u2", "u1", "u3"],  # deliberately not geometry order
+        "phenotype": ["Endo-vascular", "Endo-beta", "Unavailable"],
+        "common_lineage": ["Vascular", "Endocrine", ""],
+        "evidence_positive": [True, True, pd.NA],
+    }).to_parquet(calls_dir / "data.parquet", index=False)
+    release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
+    geometry = coerce_cell_table(
+        pd.DataFrame({
+            "cell_id": ["u1", "u2", "u3"],
+            "x_um": [1.0, 2.0, 3.0],
+            "y_um": [4.0, 5.0, 6.0],
+        }),
+        modality="phenocycler", donor_id="6436", roi="panc", profile="geometry",
+    )
+
+    attached = attach_identity(geometry, release, "6436")
+    assert list(attached["lineage_native"]) == ["Endo-beta", "Endo-vascular", "Unavailable"]
+    assert contract_profile(attached) == "identity"
+    assert has_identity(attached)
+    assert attached.attrs["identity_release_id"] == release.release_id
+
+    pd.DataFrame({
+        "object_id": ["u1", "u2"],
+        "phenotype": ["Endo-beta", "Endo-vascular"],
+    }).to_parquet(calls_dir / "data.parquet", index=False)
+    with pytest.raises(ExportError, match="UUID mismatch"):
+        attach_identity(geometry, release, "6436")
+
+
+def test_xenium_release_uses_the_same_exact_cell_set_attachment(tmp_path):
+    release_dir = _release(tmp_path, modality="xenium")
+    calls_dir = release_dir / "calls" / "donor_id=6436" / "roi=panc"
+    calls_dir.mkdir(parents=True)
+    pd.DataFrame({
+        "cell_id": ["x2", "x1"],
+        "phenotype": ["Endo-vascular", "Endo-beta"],
+        "common_lineage": ["Vascular", "Endocrine"],
+        "evidence_positive": [True, False],
+    }).to_parquet(calls_dir / "data.parquet", index=False)
+    release = load_release(_cfg(tmp_path, release_dir, modality="xenium"), "xenium")
+    geometry = coerce_cell_table(
+        pd.DataFrame({
+            "cell_id": ["x1", "x2"],
+            "x_um": [1.0, 2.0],
+            "y_um": [3.0, 4.0],
+        }),
+        modality="xenium", donor_id="6436", roi="panc", profile="geometry",
+    )
+
+    attached = attach_release_identity(geometry, release, "6436")
+    assert list(attached["lineage_common"]) == ["Endocrine", "Vascular"]
+    assert list(attached["evidence_positive"]) == [False, True]
+    assert has_identity(attached)
+
+
+def test_roi_partition_never_falls_through_to_sibling_calls(tmp_path):
+    release_dir = _release(tmp_path, modality="xenium")
+    sibling = release_dir / "calls" / "donor_id=6436" / "roi=pln_1"
+    sibling.mkdir(parents=True)
+    pd.DataFrame({
+        "cell_id": ["x1"],
+        "phenotype": ["Endo-beta"],
+    }).to_parquet(sibling / "data.parquet", index=False)
+    release = load_release(_cfg(tmp_path, release_dir, modality="xenium"), "xenium")
+    geometry = coerce_cell_table(
+        pd.DataFrame({"cell_id": ["x1"], "x_um": [1.0], "y_um": [2.0]}),
+        modality="xenium", donor_id="6436", roi="panc", profile="geometry",
+    )
+
+    with pytest.raises(PhenotypeSpaceError, match="no calls for 6436/panc"):
+        attach_release_identity(geometry, release, "6436")
+
+
+@pytest.mark.parametrize(
+    ("donors", "input_path", "message"),
+    [
+        (("6436", "6457"), "expression", "excluded donor"),
+        (("6436",), "runs/run1/assignments/data.parquet", "assignments"),
+        (("6436",), "restore_gated_redsea/calls.parquet", "retired"),
+    ],
+)
+def test_release_refuses_exclusions_and_retired_inputs(tmp_path, donors, input_path, message):
+    release_dir = _release(tmp_path, donors=donors, input_path=input_path)
+    with pytest.raises(PhenotypeSpaceError, match=message):
+        load_release(_cfg(tmp_path, release_dir), "phenocycler")

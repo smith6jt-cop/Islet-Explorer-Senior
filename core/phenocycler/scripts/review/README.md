@@ -8,8 +8,8 @@ measurements. It does not call markers or create cell types.
 > divisor, and NNMF pair-web scripts are superseded and are not current command
 > paths.
 
-Run commands from `Phenocycler_Analysis`. Development outputs live under
-`../data/development`, outside the content-addressed run tree.
+Run commands from `core/phenocycler`. Development outputs live under the
+repo-root `data/development`, outside the content-addressed run tree.
 
 ## Active roster
 

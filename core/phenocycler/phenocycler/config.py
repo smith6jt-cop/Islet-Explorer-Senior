@@ -26,34 +26,6 @@ def _boolean(value: object) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-# --------------------------------------------------------------------------- #
-# Legacy broad-lineage vocabulary — integration layer only.
-#
-# The core typing pipeline on this branch does NOT use these: it types from
-# marker_registry.json + broad_gates.json into its own compartments. They
-# remain because phenocycler/integration/ imports them at module scope
-# (vocab.py derives the PhenoCycler side of the PhenoCycler<->Xenium crosswalk
-# from LINEAGES) and would not import at all without them.
-#
-# They therefore describe the vocabulary the integration crosswalk was BUILT
-# against, not the vocabulary this branch's typing emits. Reconciling the two
-# is the open question tracked in docs/INTEGRATION.md; until that lands, do not
-# read these as a statement of the current taxonomy.
-# --------------------------------------------------------------------------- #
-LINEAGES: dict[str, list[str]] = {
-    "Epithelial": ["Pan_Cytokeratin"],
-    "Fibroblast": ["Vimentin"],
-    "Immune": ["CD3e", "CD20", "CD163", "MPO"],
-    "Endocrine": ["INS", "GCG", "SST", "CD99"],
-    "Endothelial": ["CD31"],
-    "Muscle": ["SMA"],
-    "Neural": ["B3TUBB"],
-}
-LINEAGE_COLORS: dict[str, str] = {
-    "Epithelial": "#4477AA", "Fibroblast": "#EE6677", "Immune": "#228833",
-    "Endocrine": "#CCBB44", "Endothelial": "#66CCEE", "Muscle": "#AA3377",
-    "Neural": "#B5838D",
-}
 STATUS_ORDER: list[str] = ["ND", "AAB", "T1D"]
 HORMONE_MARKERS: list[str] = ["INS", "GCG", "SST"]
 EXTRA_MARKERS: list[str] = ["CD99", "B3TUBB", "MPO"]
@@ -139,6 +111,9 @@ class PipelineConfig:
     integration_mode: str = "sequential"          # sequential | same_slide
     xenium_paths_csv: Path = _REPO_ROOT / "data" / "integration" / "xenium_paths.csv"
     donor_overrides_csv: Path = _REPO_ROOT / "data" / "integration" / "donor_overrides.csv"
+    section_overrides_csv: Path = _REPO_ROOT / "data" / "integration" / "section_overrides.csv"
+    phenocycler_identity_release: Path | None = None
+    xenium_identity_release: Path | None = None
     xenium_root: str = ""                         # optional prefix rewrite for bundle paths
     # The panel taxonomy is a sibling subtree in the monorepo (core/panels), not a submodule
     # under this package. _REPO_ROOT is core/phenocycler, so its parent is core/.
@@ -260,10 +235,9 @@ class PipelineConfig:
 
     # ---------------------------------------------------------------------- #
     # Integration-layer derived paths and tissue/ROI helpers. Same rationale as
-    # the field block above. `broad_dir` / `restore_gated_dir` still name the
-    # legacy layout because integration/export_pheno.py has not yet been
-    # repointed at this branch's assignments/ + marker_evidence/ outputs; see
-    # docs/INTEGRATION.md for the status of that follow-up.
+    # the field block above. `broad_dir` / `restore_gated_dir` name retired paths
+    # for audit and refusal checks only; integration exports immutable-run geometry
+    # and accepts identity solely from declared releases.
     # ---------------------------------------------------------------------- #
     @property
     def phenotype_dir(self) -> Path:
@@ -401,9 +375,9 @@ class PipelineConfig:
         * ``--tissue pancreatic_lymph_node`` -> every ROI of that tissue (a *separate* run);
         * neither -> every ROI of every configured tissue (a *combined* run).
 
-        Defaulting to combined is deliberate. The cohort is 20 donors x 2 platforms x 2
-        tissues, so a bare ``python -m phenocycler.integration.pipeline`` should process the
-        whole dataset rather than silently doing pancreas and leaving the lymph nodes out.
+        Defaulting to the configured union is deliberate, but selection never creates a
+        measurement: each stage still scopes to observed manifest rows. The current
+        PhenoCycler run is pancreas-only while the Xenium catalog also contains pLN.
         """
         if roi:
             return [str(roi)]
@@ -498,6 +472,9 @@ _INI_SCHEMA = {
         "mode": ("integration_mode", str),
         "xenium_paths_csv": ("xenium_paths_csv", Path),
         "donor_overrides_csv": ("donor_overrides_csv", Path),
+        "section_overrides_csv": ("section_overrides_csv", Path),
+        "phenocycler_identity_release": ("phenocycler_identity_release", Path),
+        "xenium_identity_release": ("xenium_identity_release", Path),
         "xenium_root": ("xenium_root", str),
         "panel_explorer": ("panel_explorer", Path),
         "tissue": ("tissue", str),
@@ -599,6 +576,8 @@ def load_config(
     for name in (
         "restore_compartment_sample",
         "restore_expression_reviews",
+        "phenocycler_identity_release",
+        "xenium_identity_release",
     ):
         value = getattr(cfg, name)
         if value is None:
@@ -613,7 +592,7 @@ def load_config(
     # upstream ingest prerequisite.
 
     for name in ("images_dir", "donor_metadata", "xenium_paths_csv",
-                 "donor_overrides_csv", "panel_explorer"):
+                 "donor_overrides_csv", "section_overrides_csv", "panel_explorer"):
         path = Path(getattr(cfg, name)).expanduser()
         if not path.is_absolute():
             path = (base / path).resolve()
@@ -653,6 +632,5 @@ def load_config(
 
 __all__ = [
     "PipelineConfig", "load_config",
-    # integration-layer vocabulary (see the block above)
-    "LINEAGES", "LINEAGE_COLORS", "STATUS_ORDER", "HORMONE_MARKERS", "EXTRA_MARKERS",
+    "STATUS_ORDER", "HORMONE_MARKERS", "EXTRA_MARKERS",
 ]

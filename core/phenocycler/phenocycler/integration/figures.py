@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from ..config import LINEAGE_COLORS, STATUS_ORDER, PipelineConfig, load_config  # noqa: E402
+from ..config import STATUS_ORDER, PipelineConfig, load_config  # noqa: E402
 from .contract import read_cell_table  # noqa: E402
 from .manifest import load_manifest, paired_rows  # noqa: E402
 from .rasterize import grid_for, tissue_mask  # noqa: E402
@@ -31,18 +31,17 @@ from .register import registration_dir  # noqa: E402
 from .transform import Transform  # noqa: E402
 from .vocab import COMMON_LINEAGES  # noqa: E402
 
-#: Colours for the harmonised vocabulary. Reuses the core pipeline's lineage palette where
-#: the names line up so a figure from either half of the project reads the same way.
+#: Colours belong to the stable integration vocabulary, not to a producer's changing labels.
 COMMON_COLORS = {
-    "Endocrine": LINEAGE_COLORS.get("Endocrine", "#CCBB44"),
-    "Exocrine": LINEAGE_COLORS.get("Epithelial", "#4477AA"),
-    "Stromal": LINEAGE_COLORS.get("Fibroblast", "#EE6677"),
-    "Vascular": LINEAGE_COLORS.get("Endothelial", "#66CCEE"),
+    "Endocrine": "#CCBB44",
+    "Exocrine": "#4477AA",
+    "Stromal": "#EE6677",
+    "Vascular": "#66CCEE",
     "T_NK": "#228833",
     "B_Plasma": "#66AA55",
     "Myeloid": "#117733",
-    "Granulocyte": LINEAGE_COLORS.get("Neutrophil", "#E69F00"),
-    "Neural": LINEAGE_COLORS.get("Neural", "#B5838D"),
+    "Granulocyte": "#E69F00",
+    "Neural": "#B5838D",
     "Unassigned": "#BBBBBB",
 }
 
@@ -95,10 +94,40 @@ def registration_overlay(
         ax.set_yticks([])
 
     ax = axes[2]
-    from .structures import structures_path
+    identity_attached = bool(
+        cfg.phenocycler_identity_release and cfg.xenium_identity_release
+    )
+    if not identity_attached:
+        ax.text(0.5, 0.5, "identity not attached\nstructure overlay omitted",
+                ha="center", va="center", transform=ax.transAxes)
+        ax.set_title("structure correspondence unavailable")
+    else:
+        from .structures import structures_path
 
-    p_path = structures_path(cfg, "phenocycler", donor, roi, "islet")
-    x_path = structures_path(cfg, "xenium", donor, roi, "islet")
+        p_path = structures_path(cfg, "phenocycler", donor, roi, "islet")
+        x_path = structures_path(cfg, "xenium", donor, roi, "islet")
+        if p_path.exists() and x_path.exists():
+            _draw_structure_correspondence(ax, cfg, donor, p_path, x_path, tf)
+        else:
+            ax.set_title("identity attached; structures not computed")
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (um)")
+    ax.set_ylabel("y (um)")
+
+    fig.suptitle(f"donor {donor} / {roi} — {cfg.integration_mode} mode "
+                 f"(magenta = PhenoCycler, green = Xenium)")
+    fig.tight_layout()
+
+    out_path = out_path or (cfg.integration_figures_dir / f"registration_{donor}_{roi}.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
+def _draw_structure_correspondence(ax, cfg, donor, p_path, x_path, tf) -> None:
+    """Draw identity-derived structures only after release provenance is configured."""
+
     if p_path.exists() and x_path.exists():
         pi = pd.read_parquet(p_path)
         xi = pd.read_parquet(x_path)
@@ -131,19 +160,6 @@ def registration_overlay(
         else:
             ax.set_title("islets (registered frame)")
         ax.legend(fontsize=8, loc="best")
-    ax.set_aspect("equal")
-    ax.set_xlabel("x (um)")
-    ax.set_ylabel("y (um)")
-
-    fig.suptitle(f"donor {donor} / {roi} — {cfg.integration_mode} mode "
-                 f"(magenta = PhenoCycler, green = Xenium)")
-    fig.tight_layout()
-
-    out_path = out_path or (cfg.integration_figures_dir / f"registration_{donor}_{roi}.png")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return out_path
 
 
 def composition_figure(cfg: PipelineConfig, out_path: Optional[Path] = None) -> Optional[Path]:
@@ -250,9 +266,9 @@ def disease_trend_figure(cfg: PipelineConfig,
                          out_path: Optional[Path] = None) -> Optional[Path]:
     """Lineage fraction by ND/AAB/T1D, per modality.
 
-    The cohort-level acceptance test. Two independent measurement systems reproducing the
-    same ND -> AAB -> T1D gradient is much stronger evidence that the harmonisation is sound
-    than agreement on any single donor.
+    A reporting figure, not an acceptance test -- see :func:`donor.disease_trend`.  Whether a
+    disease gradient exists is what the study is asking; a pipeline that is accepted for
+    producing one cannot then report it as evidence.
     """
     path = cfg.integration_qc_dir / "disease_trend.csv"
     if not path.exists():
@@ -296,9 +312,8 @@ def disease_trend_figure(cfg: PipelineConfig,
 def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
                 *, roi: Optional[str] = None, tissue: Optional[str] = None) -> list[Path]:
     """Stage entry point: render everything that has data behind it."""
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration figures")
+    # Geometry only. The explicit release-path test prevents stale identity-stage files from
+    # being rendered merely because they pre-date the geometry/identity split.
     cfg.integration_figures_dir.mkdir(parents=True, exist_ok=True)
     made: list[Path] = []
 
@@ -311,11 +326,18 @@ def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
             made.append(p)
             print(f"[figures] {p}", flush=True)
 
-    for fn in (composition_figure, islet_concordance_figure, disease_trend_figure):
-        p = fn(cfg)
-        if p:
-            made.append(p)
-            print(f"[figures] {p}", flush=True)
+    identity_attached = bool(
+        cfg.phenocycler_identity_release and cfg.xenium_identity_release
+    )
+    if identity_attached:
+        for fn in (composition_figure, islet_concordance_figure, disease_trend_figure):
+            p = fn(cfg)
+            if p:
+                made.append(p)
+                print(f"[figures] {p}", flush=True)
+    else:
+        print("[figures] identity not attached — composition/structure figures omitted",
+              flush=True)
 
     if not made:
         print("[figures] nothing to draw yet — run the earlier stages first", flush=True)

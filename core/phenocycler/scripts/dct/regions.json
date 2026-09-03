@@ -1,0 +1,731 @@
+{
+  "schema_version": 1,
+  "method_version": "dct-regions-2026-08-24",
+  "core_px": 1024,
+  "min_cells": 500,
+  "max_window": 4096,
+  "rule": "sha256(donor:y0:x0) ascending over 1024-px cores with >= 500 cells and room for a 4096-px concentric window; first 4, then the first 4 of the same order that contain a cell whose QuPath parent is Islet_N. Content-blind and reproducible from the donor id alone.",
+  "centroid_units": "X_centroid/Y_centroid in the expression parquet are MICRONS; divide by pixel_size_um_x for level-0 pixels (verified against the archived mask, 2026-08-24)",
+  "regions": {
+    "6539": [
+      {
+        "donor_id": "6539",
+        "y0": 16384,
+        "x0": 18432,
+        "core_px": 1024,
+        "n_cells": 2683,
+        "n_islet_core_cells": 128,
+        "draw": "blind",
+        "order": 0,
+        "digest": "008c09ec5d0c77228a706e3cf2742d2fcf9ec5e71136f06e6e2dbe5e38556c81"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 6144,
+        "x0": 3072,
+        "core_px": 1024,
+        "n_cells": 1689,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "01f232c4e332c80040ad742998f4f005fc5be58b11d8b29ba6fe4ad88983b008"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 14336,
+        "x0": 10240,
+        "core_px": 1024,
+        "n_cells": 784,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 2,
+        "digest": "027d6f194cf9b5cff225c5b19a9d53d460f918075e1583e158f080c7ad1fe723"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 16384,
+        "x0": 3072,
+        "core_px": 1024,
+        "n_cells": 2562,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "03d8f7046f3b3ab959f63bf6699e6e2bcf6303f5e611a1feb16d5dfb5eb332c5"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 3072,
+        "x0": 9216,
+        "core_px": 1024,
+        "n_cells": 2294,
+        "n_islet_core_cells": 122,
+        "draw": "islet",
+        "order": 5,
+        "digest": "054be533b364525dfe26bb0f260c638db87a6851033ffb35e995330867c16c32"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 9216,
+        "x0": 3072,
+        "core_px": 1024,
+        "n_cells": 2613,
+        "n_islet_core_cells": 116,
+        "draw": "islet",
+        "order": 6,
+        "digest": "06aaa94720f259597c185d455880d60360271d4dbb703925f78ff23a40c7750a"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 8192,
+        "x0": 5120,
+        "core_px": 1024,
+        "n_cells": 1872,
+        "n_islet_core_cells": 54,
+        "draw": "islet",
+        "order": 8,
+        "digest": "0877192a57c5b158528240a225f4e12b178b258e821732ccd8bae65a412d954f"
+      },
+      {
+        "donor_id": "6539",
+        "y0": 2048,
+        "x0": 9216,
+        "core_px": 1024,
+        "n_cells": 2247,
+        "n_islet_core_cells": 61,
+        "draw": "islet",
+        "order": 10,
+        "digest": "09c22575fab5b24cf5e17b5acb030ee9c390b3f1756e3dfba8000ea1d50e4f4a"
+      }
+    ],
+    "115": [
+      {
+        "donor_id": "115",
+        "y0": 10240,
+        "x0": 16384,
+        "core_px": 1024,
+        "n_cells": 2502,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "0037244ca3ee615a02742982f0a9d741c02e7b5225a351104187bfee163966ce"
+      },
+      {
+        "donor_id": "115",
+        "y0": 5120,
+        "x0": 17408,
+        "core_px": 1024,
+        "n_cells": 3191,
+        "n_islet_core_cells": 112,
+        "draw": "blind",
+        "order": 1,
+        "digest": "02ee929926423dbc22a30411f92e6e6fcf291cba6bddc94bd838f01ae741fcf5"
+      },
+      {
+        "donor_id": "115",
+        "y0": 14336,
+        "x0": 11264,
+        "core_px": 1024,
+        "n_cells": 3562,
+        "n_islet_core_cells": 308,
+        "draw": "blind",
+        "order": 2,
+        "digest": "0319ab601352a4b51112ae3914f5f6f742a8774b51c78b37a9d4db3f7dcf2368"
+      },
+      {
+        "donor_id": "115",
+        "y0": 16384,
+        "x0": 18432,
+        "core_px": 1024,
+        "n_cells": 3487,
+        "n_islet_core_cells": 89,
+        "draw": "blind",
+        "order": 3,
+        "digest": "04bacdaf73ba9fa9cf4002d38739875deda2eccfc377cba08b48adb9278b3ae8"
+      },
+      {
+        "donor_id": "115",
+        "y0": 15360,
+        "x0": 21504,
+        "core_px": 1024,
+        "n_cells": 3444,
+        "n_islet_core_cells": 330,
+        "draw": "islet",
+        "order": 4,
+        "digest": "059664dc315caf444bb083976f314d075118f3b70613cbb5519f67142c322ff2"
+      },
+      {
+        "donor_id": "115",
+        "y0": 16384,
+        "x0": 11264,
+        "core_px": 1024,
+        "n_cells": 3176,
+        "n_islet_core_cells": 245,
+        "draw": "islet",
+        "order": 5,
+        "digest": "06e55842c31f040ae0817075ed11e34d0ae86d16695b5ea5531ae11ea58ba98f"
+      },
+      {
+        "donor_id": "115",
+        "y0": 5120,
+        "x0": 8192,
+        "core_px": 1024,
+        "n_cells": 2671,
+        "n_islet_core_cells": 52,
+        "draw": "islet",
+        "order": 6,
+        "digest": "0705dc906aedf4384d7269974728263695878443d0a5ab7a4d9ed5bda7cab751"
+      },
+      {
+        "donor_id": "115",
+        "y0": 10240,
+        "x0": 7168,
+        "core_px": 1024,
+        "n_cells": 3256,
+        "n_islet_core_cells": 123,
+        "draw": "islet",
+        "order": 7,
+        "digest": "0727814d79788d01db0277fe8f57b0ee5f6fef985d0961e8aa2aadfb30fd8ca5"
+      }
+    ],
+    "6521": [
+      {
+        "donor_id": "6521",
+        "y0": 6144,
+        "x0": 11264,
+        "core_px": 1024,
+        "n_cells": 2694,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "003eb9de7fcb7ad3fd81d5502cbca1591d71673436f84cedba915aab7da5996c"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 34816,
+        "x0": 18432,
+        "core_px": 1024,
+        "n_cells": 2735,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "014b2c991b510c3445c9821ca257e04c1759a7db1282a2237d160bc9afda4fa7"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 8192,
+        "x0": 9216,
+        "core_px": 1024,
+        "n_cells": 3096,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 2,
+        "digest": "01baf494eb2164479a3bc56ed1ebd2102dba17b69c9cd6a028ebb918da4b7786"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 23552,
+        "x0": 19456,
+        "core_px": 1024,
+        "n_cells": 1834,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "01f7c171065d06d238c29a86ac0a5e8c1acaa7fc3e5d1f6517cf18cac5ab7073"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 7168,
+        "x0": 12288,
+        "core_px": 1024,
+        "n_cells": 3345,
+        "n_islet_core_cells": 9,
+        "draw": "islet",
+        "order": 4,
+        "digest": "02cfd7434a1ec3f843249c2bbac98daee135c432775977036cb9ccfd433a99b5"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 31744,
+        "x0": 12288,
+        "core_px": 1024,
+        "n_cells": 2642,
+        "n_islet_core_cells": 78,
+        "draw": "islet",
+        "order": 5,
+        "digest": "055005a82c19b754e7bbe3ed2df2a9e7d8c173841129936c2f49bbdeb48a9c46"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 20480,
+        "x0": 15360,
+        "core_px": 1024,
+        "n_cells": 2883,
+        "n_islet_core_cells": 231,
+        "draw": "islet",
+        "order": 6,
+        "digest": "057fb828931569079ef8d6d9bc4c933439329686e98f625384bc744c745fd556"
+      },
+      {
+        "donor_id": "6521",
+        "y0": 33792,
+        "x0": 4096,
+        "core_px": 1024,
+        "n_cells": 2619,
+        "n_islet_core_cells": 277,
+        "draw": "islet",
+        "order": 7,
+        "digest": "05f6a9e8c5eef3f467c1bee3ef5ee182e465ac372856497d9b7cc2630af3f7f7"
+      }
+    ],
+    "6593": [
+      {
+        "donor_id": "6593",
+        "y0": 19456,
+        "x0": 21504,
+        "core_px": 1024,
+        "n_cells": 3886,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "001b2d74be5a5a5a49ef36313bd498b91c8c534f0ae29a26c2273a7db6b2ebb8"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 29696,
+        "x0": 15360,
+        "core_px": 1024,
+        "n_cells": 3372,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "00c2e8c8f69e77b0ec31350c4d40a3b793b0011f23ba8e6a42780038bd12cca1"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 16384,
+        "x0": 14336,
+        "core_px": 1024,
+        "n_cells": 2032,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 2,
+        "digest": "00eaea099327975add42ebd956fac86df76ddc0116ecc2865acfe7c67934a62f"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 12288,
+        "x0": 22528,
+        "core_px": 1024,
+        "n_cells": 2918,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "01457a955aa7a178a5e4480a80aac87ffd100901e7fb7c29ddaade8d73899ed4"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 25600,
+        "x0": 20480,
+        "core_px": 1024,
+        "n_cells": 4441,
+        "n_islet_core_cells": 28,
+        "draw": "islet",
+        "order": 5,
+        "digest": "01986774aa5b7605d24c447355b6c79c70ab2b4e4f79e2118fa304ed76f612d5"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 11264,
+        "x0": 22528,
+        "core_px": 1024,
+        "n_cells": 2529,
+        "n_islet_core_cells": 12,
+        "draw": "islet",
+        "order": 6,
+        "digest": "01a5f18912e8a2b1f71c920755d322f46a9d498d2a412d75e8cbc7d655eb71b4"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 26624,
+        "x0": 23552,
+        "core_px": 1024,
+        "n_cells": 3924,
+        "n_islet_core_cells": 173,
+        "draw": "islet",
+        "order": 7,
+        "digest": "01cc8216dc54e50b9221eb2a000ecbdd060ddaaccd5e7ab2cacac779b708b5dd"
+      },
+      {
+        "donor_id": "6593",
+        "y0": 21504,
+        "x0": 18432,
+        "core_px": 1024,
+        "n_cells": 3655,
+        "n_islet_core_cells": 212,
+        "draw": "islet",
+        "order": 8,
+        "digest": "030542d799c1b3b87cad2e0f45231712962808cd0485706d50d51110dde6f57d"
+      }
+    ],
+    "6450": [
+      {
+        "donor_id": "6450",
+        "y0": 10240,
+        "x0": 16384,
+        "core_px": 1024,
+        "n_cells": 987,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "01af2ac69675b51acd9c48eaf3ad537a3a8e651f959b058c54aeb6163af9811a"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 7168,
+        "x0": 15360,
+        "core_px": 1024,
+        "n_cells": 2437,
+        "n_islet_core_cells": 73,
+        "draw": "blind",
+        "order": 1,
+        "digest": "02e595abba81171cfd419bafed0d464a8a49a3157b1ad9444a7278f86156a8fc"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 14336,
+        "x0": 16384,
+        "core_px": 1024,
+        "n_cells": 2920,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 2,
+        "digest": "04158814f1437c75444b709e70dcbef8c7411e16244c0c8a60fae3734da07c36"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 7168,
+        "x0": 13312,
+        "core_px": 1024,
+        "n_cells": 1879,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "07f4768336600a756d1125b79ed0d15f3ca13ba7820e06c7b6aea22007e108b4"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 19456,
+        "x0": 7168,
+        "core_px": 1024,
+        "n_cells": 3040,
+        "n_islet_core_cells": 21,
+        "draw": "islet",
+        "order": 4,
+        "digest": "07fb80f5140c1f0d351f33a9e6b863d05c39c59b5a02424f1294288d2fe01acc"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 11264,
+        "x0": 11264,
+        "core_px": 1024,
+        "n_cells": 3448,
+        "n_islet_core_cells": 18,
+        "draw": "islet",
+        "order": 9,
+        "digest": "0f8ba21652edf915b8a568be61ceee6bca2652eac6be0949444d9b3935f01d0d"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 10240,
+        "x0": 14336,
+        "core_px": 1024,
+        "n_cells": 2978,
+        "n_islet_core_cells": 247,
+        "draw": "islet",
+        "order": 10,
+        "digest": "1035075d3af890a5a89e35272cb8d48afc861189eb4a42a7d8f7bfa3d7365ecc"
+      },
+      {
+        "donor_id": "6450",
+        "y0": 18432,
+        "x0": 10240,
+        "core_px": 1024,
+        "n_cells": 3374,
+        "n_islet_core_cells": 186,
+        "draw": "islet",
+        "order": 11,
+        "digest": "106b4fa0677343586540ccda708d229dc0093ecc3e762e76879ffaba5ae0da7e"
+      }
+    ],
+    "6534": [
+      {
+        "donor_id": "6534",
+        "y0": 12288,
+        "x0": 17408,
+        "core_px": 1024,
+        "n_cells": 3823,
+        "n_islet_core_cells": 318,
+        "draw": "blind",
+        "order": 0,
+        "digest": "00fe44a0d18230ed6baba36a7a6e77606a3cdbdda297fd52924cfd2d7d388e41"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 26624,
+        "x0": 8192,
+        "core_px": 1024,
+        "n_cells": 1683,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "02c7d23fdd16461263b43b29757865301ba61752ef83f5396f7db09ff746a02a"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 18432,
+        "x0": 5120,
+        "core_px": 1024,
+        "n_cells": 3261,
+        "n_islet_core_cells": 46,
+        "draw": "blind",
+        "order": 2,
+        "digest": "03784f3f2503a225692ccba2c8e500234229e9bd4e4cd9b8e50c2cdc603acefb"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 6144,
+        "x0": 9216,
+        "core_px": 1024,
+        "n_cells": 1012,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "03d2613be8b3b310136a8eae57b60eff61de3b36bbffbc37c5c7605c8a5307c6"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 14336,
+        "x0": 14336,
+        "core_px": 1024,
+        "n_cells": 3163,
+        "n_islet_core_cells": 49,
+        "draw": "islet",
+        "order": 4,
+        "digest": "049815792c1455518ccdf7a27754a63ad0c43f4c43210b8fa9c41f3b0a158025"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 8192,
+        "x0": 10240,
+        "core_px": 1024,
+        "n_cells": 4169,
+        "n_islet_core_cells": 593,
+        "draw": "islet",
+        "order": 7,
+        "digest": "0679b0b6bc45a4f18ac4912c7d341b7eb6302ffd2e001eb331bd5971e8720603"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 27648,
+        "x0": 11264,
+        "core_px": 1024,
+        "n_cells": 3455,
+        "n_islet_core_cells": 319,
+        "draw": "islet",
+        "order": 8,
+        "digest": "07f2fe2892a92b5c750da3d307d0ea9ad35236460d8688a75125ea12385d9c66"
+      },
+      {
+        "donor_id": "6534",
+        "y0": 30720,
+        "x0": 18432,
+        "core_px": 1024,
+        "n_cells": 2607,
+        "n_islet_core_cells": 242,
+        "draw": "islet",
+        "order": 10,
+        "digest": "09c6a0ae51ae2d2afe7da6d61b13d83b79f9cfb4b3aa2384549ee26d83734f8e"
+      }
+    ],
+    "6523": [
+      {
+        "donor_id": "6523",
+        "y0": 4096,
+        "x0": 10240,
+        "core_px": 1024,
+        "n_cells": 3432,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "0003ed50f5befbec028b9677325e46ea56f0533117f7392453d5b0be9f6e8bfa"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 7168,
+        "x0": 8192,
+        "core_px": 1024,
+        "n_cells": 2994,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "0102b9d997986e78b656996197d4990ff5f9d2e9c935be8b0074d83b12665420"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 7168,
+        "x0": 6144,
+        "core_px": 1024,
+        "n_cells": 3154,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 2,
+        "digest": "010b6983edf970881d0dcc3a609194e7b108492a8dbdcdb2967f2d0be3067cdf"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 17408,
+        "x0": 13312,
+        "core_px": 1024,
+        "n_cells": 3371,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "012c24822532b93425b85edb70d09536e96f3c9e11b7b3af6a66d952d873d7de"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 17408,
+        "x0": 20480,
+        "core_px": 1024,
+        "n_cells": 3693,
+        "n_islet_core_cells": 324,
+        "draw": "islet",
+        "order": 5,
+        "digest": "01ce1e37d85546d7a70bb5bd781cb44f68d71d9f4d4c50ddd5f4ceb2b9982ab7"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 25600,
+        "x0": 7168,
+        "core_px": 1024,
+        "n_cells": 1574,
+        "n_islet_core_cells": 25,
+        "draw": "islet",
+        "order": 6,
+        "digest": "0238e107d0fe6a94ca344fcba6a0a3cc9d1f8d13431c39e8d29578ac5726a925"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 20480,
+        "x0": 12288,
+        "core_px": 1024,
+        "n_cells": 3773,
+        "n_islet_core_cells": 946,
+        "draw": "islet",
+        "order": 10,
+        "digest": "0478574da4dffb03fe7f27d9dcb95e267d9f13d0a6b93a88f9cb0ea7dbef54e0"
+      },
+      {
+        "donor_id": "6523",
+        "y0": 5120,
+        "x0": 5120,
+        "core_px": 1024,
+        "n_cells": 1405,
+        "n_islet_core_cells": 81,
+        "draw": "islet",
+        "order": 18,
+        "digest": "08a6c60e3dc9d3942230172c67b3665207ba951e27d85ab6171f5bcb05b68f62"
+      }
+    ],
+    "6591": [
+      {
+        "donor_id": "6591",
+        "y0": 24576,
+        "x0": 14336,
+        "core_px": 1024,
+        "n_cells": 2548,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 0,
+        "digest": "001ab05a7a78508fcee79a48e6f75241e3f1547261b93fa251d3ebe75fc12216"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 5120,
+        "x0": 8192,
+        "core_px": 1024,
+        "n_cells": 3716,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 1,
+        "digest": "003e35efc933b87bc272c5cc4ae5070c87c79bcbdcfd01ed7f3d7a25fbec5e8a"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 7168,
+        "x0": 4096,
+        "core_px": 1024,
+        "n_cells": 3295,
+        "n_islet_core_cells": 128,
+        "draw": "blind",
+        "order": 2,
+        "digest": "0042dcf1b4e027b08443a3c5fb5c0d4a36c0802be258353cb290b873f06e418d"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 18432,
+        "x0": 12288,
+        "core_px": 1024,
+        "n_cells": 3742,
+        "n_islet_core_cells": 0,
+        "draw": "blind",
+        "order": 3,
+        "digest": "0054ef61e9c839fa57a345a01d8c7c170e8d0edfbb57ed5492913f754e40ed76"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 14336,
+        "x0": 16384,
+        "core_px": 1024,
+        "n_cells": 4317,
+        "n_islet_core_cells": 562,
+        "draw": "islet",
+        "order": 5,
+        "digest": "01e3aca958062aa8763f903e23eb252a71425512d724ade6678075807cf0e9e7"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 19456,
+        "x0": 2048,
+        "core_px": 1024,
+        "n_cells": 3874,
+        "n_islet_core_cells": 130,
+        "draw": "islet",
+        "order": 6,
+        "digest": "01f0f0a12bfe52f8c7ed769095112d3ec102be8729b7a9d647168514336d9030"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 14336,
+        "x0": 6144,
+        "core_px": 1024,
+        "n_cells": 4440,
+        "n_islet_core_cells": 248,
+        "draw": "islet",
+        "order": 7,
+        "digest": "02d8a29b458b8f605a75c4651aff8c7bea77e38d828aff50807a4e7db792d2cf"
+      },
+      {
+        "donor_id": "6591",
+        "y0": 25600,
+        "x0": 15360,
+        "core_px": 1024,
+        "n_cells": 2561,
+        "n_islet_core_cells": 40,
+        "draw": "islet",
+        "order": 10,
+        "digest": "03d4a810536937620b381cd4af5b77fb1b9eeda5622d753f0032222cf06ebac8"
+      }
+    ]
+  }
+}

@@ -11,6 +11,16 @@ export are not current outputs. The run/stage manifest architecture is retained
 for ingest, geometry, REDSEA, expression, and an explicit pair-independent
 `states` stage.
 
+**Adoption audit, 2026-09-02.** A dry run of
+`phenocycler adopt plan --from-run 30f6689e4d27d295f890` proposed zero adoptable
+stages: ingest, geometry, REDSEA, expression, and states require recomputation;
+controls, calibrate, and type remain blocked by `no_verified_typing`. No
+`adopt apply` was run. Lanes pin immutable inputs by run/content hash (the
+source expression content ID is
+`35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0`), so
+`pipeline status` is informational until an output exists under the current
+code; a historical directory is not evidence that a current stage completed.
+
 For the scientific rationale and stage algorithms, see
 [the workflow guide](docs/WORKFLOW.md). For installation and commands, see
 [the project README](README.md).
@@ -252,12 +262,17 @@ the only accepted source for each marker:
 - biological kind: identity marker or process-state marker;
 - current availability/development status;
 - whole-cell or nucleus compartment;
-- measurement source: REDSEA, raw QuPath, or exact QuPath `Mean (norm)`;
+- measurement source: REDSEA or raw QuPath (`qupath_norm` is refused since `a30a517`);
 - REDSEA-corrected, REDSEA passthrough, or uncompensated policy;
 - historical interpretation metadata, which does not authorize a production pair.
 
+> **2026-08-27 (`a30a517`):** `qupath_norm` is no longer a permitted
+> `measurement_source` — `validate_registry` refuses it and all 60 markers
+> resolve to `redsea` or `qupath_raw`. The RESTORE-era text that follows is
+> historical.
+
 Measurement source and spillover policy are separate contracts. Iba1, CD68,
-and M2Gal3 have `measurement_source=qupath_norm`; their exact signed QuPath
+and M2Gal3 had `measurement_source=qupath_norm`; their exact signed QuPath
 measurements win even though their spillover policy remains recorded. Missing
 exact measurements fail closed rather than falling back to raw, REDSEA, or a
 historical RESTORE output. None of these markers currently receives a call.

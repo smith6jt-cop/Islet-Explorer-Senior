@@ -77,11 +77,15 @@ def test_declared_acquired_marker_missing_from_its_source_is_fatal():
 
 
 @pytest.mark.parametrize("marker", ["Iba1", "CD68", "M2Gal3"])
-def test_qupath_norm_is_the_exact_signed_pre_restore_source_without_fallback(marker):
+def test_former_qupath_norm_markers_read_redsea_like_every_other_marker(marker):
+    """These three took QuPath's signed ``Mean (norm)`` until the RESTORE-era exception was
+    retired.  They now read ``Cell__<marker>`` exactly as the other 57 do, and a stray
+    ``QuPathNorm__`` column left in an old export must NOT pull them back off that scale --
+    which is the direction the fallback could still go wrong.
+    """
     cells, redsea, qc = _frames()
-    source_column = f"QuPathNorm__Cell__{marker}"
-    cells[source_column] = [-0.25, 0.4, 1.3]
-    # A contradictory REDSEA value proves the source cannot silently fall back.
+    stale_column = f"QuPathNorm__Cell__{marker}"
+    cells[stale_column] = [-0.25, 0.4, 1.3]
     redsea[f"Cell__{marker}"] = [900.0, 800.0, 700.0]
     expression, availability = build_selected_expression(
         cells,
@@ -91,16 +95,18 @@ def test_qupath_norm_is_the_exact_signed_pre_restore_source_without_fallback(mar
         acquired_markers={"CD3e", "E_cadherin", "Ki67", marker},
     )
 
-    assert expression[marker].tolist() == [-0.25, 0.4, 1.3]
+    # redsea rows are c1,c2,c3 and the authoritative cell order is c2,c1,c3.
+    assert expression[marker].tolist() == [800.0, 900.0, 700.0]
     audit = availability.set_index("marker").loc[marker]
-    assert audit["source"] == f"qupath_norm:{source_column}"
-    assert audit["measurement_source"] == "qupath_norm"
+    assert audit["source"] == f"redsea:Cell__{marker}"
+    assert audit["measurement_source"] == "redsea"
     assert audit["spillover_policy"] == "redsea_corrected"
 
-    with pytest.raises(ContractError, match="raw and RESTORE-normalized fallbacks"):
+    # And the REDSEA column is now the one whose absence is fatal.
+    with pytest.raises(ContractError, match="requires REDSEA column"):
         build_selected_expression(
-            cells.drop(columns=source_column),
-            redsea,
+            cells,
+            redsea.drop(columns=f"Cell__{marker}"),
             qc,
             donor_id="D1",
             acquired_markers={marker},

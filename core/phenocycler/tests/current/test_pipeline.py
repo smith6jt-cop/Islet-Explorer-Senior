@@ -26,26 +26,26 @@ def test_stage_selection_is_explicit_and_ordered():
     assert _selected_stages(["type"], None) == ("type",)
 
 
-def test_no_verified_pairs_are_part_of_run_identity_config():
+def test_no_verified_typing_are_part_of_run_identity_config():
     # The upstream workflow must not require a placeholder RESTORE policy while
     # the registry declares that no pair roster has been verified.
     cfg = PipelineConfig()
     identity = _identity_config(cfg)
     assert identity["typing_model"] == {
         "mode": "unavailable",
-        "reason": "NO_VERIFIED_PAIRS",
+        "reason": "NO_VERIFIED_TYPING",
     }
     assert identity["simultaneous_broad_typing"] == {
         "mode": "blocked",
-        "reason": "NO_VERIFIED_PAIRS",
+        "reason": "NO_VERIFIED_TYPING",
     }
     assert identity["reference_controls"] == {
         "mode": "blocked",
-        "reason": "NO_VERIFIED_PAIRS",
+        "reason": "NO_VERIFIED_TYPING",
     }
     assert identity["phenotyping"] == {
         "mode": "blocked",
-        "reason": "NO_VERIFIED_PAIRS",
+        "reason": "NO_VERIFIED_TYPING",
     }
 
 
@@ -55,7 +55,7 @@ def test_production_typing_fails_closed_without_verified_pairs():
     from phenocycler.marker_registry import load_registry
     from phenocycler.production_typing import type_production_cells
 
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         type_production_cells(pd.DataFrame(), marker_registry=load_registry())
 
 
@@ -213,12 +213,12 @@ def test_pipelined_cli_dispatches_dependency_prefix_and_worker_overrides(
 def test_pair_dependent_stages_fail_before_execution():
     context = SimpleNamespace(
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         )
     )
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         _assert_stages_available(context, ("controls",))
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         _assert_stages_available(context, ("type",), operation="QuPath export")
     _assert_stages_available(context, DEFAULT_STAGE_ORDER)
 
@@ -266,7 +266,7 @@ def test_no_pair_default_run_finalizes_at_expression(monkeypatch, tmp_path):
         run_root=tmp_path / "run",
         donors=("D1",),
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs",
+            production_status="development_no_verified_typing",
             fingerprint="registry",
         ),
         broad_gate_policy=None,
@@ -322,7 +322,7 @@ def test_cli_blocks_pair_work_before_resolving_cohort(monkeypatch, argv):
         lambda _config: pytest.fail("pair preflight must precede cohort resolution"),
     )
 
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         pipeline.main(argv)
 
 
@@ -342,7 +342,7 @@ def test_status_reports_donor_receipt_progress(capsys, tmp_path):
         donors=("1", "2"),
         run_id="run",
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         ),
         config=SimpleNamespace(manifests_dir=manifests),
         stage_manifest_path=lambda stage: manifests / f"{stage}.json",
@@ -351,8 +351,8 @@ def test_status_reports_donor_receipt_progress(capsys, tmp_path):
     assert status(context) == 1
     output = capsys.readouterr().out
     assert "geometry    IN PROGRESS   1/2" in output
-    assert "controls    BLOCKED NO_VERIFIED_PAIRS" in output
-    assert "calibrate   BLOCKED NO_VERIFIED_PAIRS" in output
-    assert "type        BLOCKED NO_VERIFIED_PAIRS" in output
+    assert "controls    BLOCKED NO_VERIFIED_TYPING" in output
+    assert "calibrate   BLOCKED NO_VERIFIED_TYPING" in output
+    assert "type        BLOCKED NO_VERIFIED_TYPING" in output
     assert "states      OPTIONAL (explicit-only)" in output
-    assert "qupath      BLOCKED NO_VERIFIED_PAIRS" in output
+    assert "qupath      BLOCKED NO_VERIFIED_TYPING" in output

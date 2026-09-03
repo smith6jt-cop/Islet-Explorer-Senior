@@ -7,9 +7,8 @@ threshold set, one coordinate frame. ``redsea.py`` makes this explicit by readin
 ``image.iloc[0]`` from a partition and using that single image's GeoJSON to mask every cell
 in it, and ``restore.py`` labels its per-image thresholds by the partition name.
 
-That was fine while the cohort was one image per donor. It is not fine now: the cohort is
-20 donors x {pancreas, pancreatic lymph node}, and both images of a donor are named for the
-same donor::
+That was fine while a run held one image per donor. The parser must also remain correct for
+any future run containing several tissues, whose images are named for the same donor::
 
     6539_Scan1.er.qptiff        pancreas
     6539pLN_Scan1.er.qptiff     pancreatic lymph node
@@ -40,7 +39,10 @@ pancreas section and averaged into its statistics.
 
 from __future__ import annotations
 
+import csv
 import re
+from pathlib import Path
+from typing import Mapping
 from typing import NamedTuple
 
 #: The DuckDB expression that derives the partition key from QuPath's ``Image`` column.
@@ -97,6 +99,8 @@ SLIDE_XENIUM = "xenium"    # the Xenium section, re-stained on the PhenoCycler a
 #: your cohort use a token that is not here, the error names the file and adding one line
 #: fixes it — that is deliberately louder than defaulting.
 REGION_TO_ROI: dict[str, tuple[str, str]] = {
+    # Explicit pancreas token present in the real core cohort.
+    "panc": ("panc", SLIDE_PHENO),
     "pln": ("pln_1", SLIDE_PHENO),
     "ln": ("pln_1", SLIDE_PHENO),
     # Post-Xenium re-stain of the Xenium section. `xen` = pancreas, `xenpln` = lymph node.
@@ -158,6 +162,11 @@ def parse(key: str) -> Section:
     region = m.group("region") or ""
     index = m.group("index") or ""
     if not region:
+        if len(donor) >= 7 and donor.startswith("00"):
+            raise SectionError(
+                f"section key {key!r} looks like a Xenium slide serial, not a donor id; "
+                "resolve it through xenium_paths.csv instead"
+            )
         return Section(key=text, donor_id=donor, roi=DEFAULT_ROI, slide=SLIDE_PHENO)
 
     entry = REGION_TO_ROI.get(region)
@@ -171,6 +180,80 @@ def parse(key: str) -> Section:
             f"through to {DEFAULT_ROI}: that would mix two sections in one partition.")
     roi = f"{base.rsplit('_', 1)[0]}_{index}" if index else base
     return Section(key=text, donor_id=donor, roi=roi, slide=entry[1])
+
+
+def load_overrides(path: str | Path) -> dict[str, dict[str, str]]:
+    """Load exact image-id exceptions for :func:`resolve`.
+
+    An override is provenance, not a fuzzy alias. Duplicate image ids, incomplete rows, or
+    unknown slides are refused so two physical sections cannot silently collapse together.
+    """
+
+    source = Path(path)
+    if not source.exists():
+        return {}
+    out: dict[str, dict[str, str]] = {}
+    with source.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            image_id = str(row.get("image_id", "")).strip()
+            if not image_id:
+                continue
+            if image_id in out:
+                raise SectionError(f"duplicate section override for image_id {image_id!r}")
+            donor = str(row.get("donor_id", "")).strip()
+            roi = str(row.get("roi", "")).strip().lower()
+            slide = str(row.get("slide", SLIDE_PHENO)).strip().lower() or SLIDE_PHENO
+            if not donor or not roi:
+                raise SectionError(
+                    f"section override {image_id!r} must declare donor_id and roi"
+                )
+            if slide not in {SLIDE_PHENO, SLIDE_XENIUM}:
+                raise SectionError(
+                    f"section override {image_id!r} has unknown slide {slide!r}"
+                )
+            out[image_id] = {**row, "donor_id": donor, "roi": roi, "slide": slide}
+    return out
+
+
+def resolve(
+    image_id: str,
+    *,
+    donor_id: str = "",
+    overrides: Mapping[str, Mapping[str, str]] | None = None,
+) -> Section:
+    """Resolve one manifest image to a section, using exact overrides before its filename.
+
+    ``donor_id`` comes from ``qupath_manifest.json`` and is an independent cross-check. It
+    never repairs a parseable but disagreeing filename; that mismatch is an error requiring
+    an explicit tracked override.
+    """
+
+    image = str(image_id).strip()
+    hint = str(donor_id).strip()
+    override = (overrides or {}).get(image)
+    if override is not None:
+        donor = str(override.get("donor_id", "")).strip()
+        if hint and donor != hint:
+            raise SectionError(
+                f"section override for {image!r} says donor {donor}, but manifest says {hint}"
+            )
+        roi = str(override.get("roi", "")).strip().lower()
+        slide = str(override.get("slide", SLIDE_PHENO)).strip().lower() or SLIDE_PHENO
+        return Section(key_for(donor, roi, slide), donor, roi, slide)
+
+    key = key_from_image(image)
+    if not key:
+        raise SectionError(
+            f"image_id {image!r} does not begin with a donor id; add an exact row to "
+            "section_overrides.csv"
+        )
+    section = parse(key)
+    if hint and section.donor_id != hint:
+        raise SectionError(
+            f"image_id {image!r} resolves to donor {section.donor_id}, but manifest says "
+            f"{hint}; add an exact override only after adjudicating the source"
+        )
+    return section
 
 
 def key_for(donor_id: str, roi: str = DEFAULT_ROI, slide: str = SLIDE_PHENO) -> str:

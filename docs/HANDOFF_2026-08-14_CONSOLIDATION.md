@@ -159,6 +159,9 @@ fed to the app scripts.
 
 ## 6. State on disk
 
+*2026-09-02: paths have moved since — Junior is at `/data/panc_CODEX/Islet-Explorer`,
+`SpleenFollicleCounterQP` at `/data/SpleenFollicleCounterQP`; see `docs/CONSOLIDATION.md` § Status 2026-09-02.*
+
 | Repo | Branch | Dirty | Note |
 |---|---|---|---|
 | `Islet-Explorer-Senior` | `agent/land-retirement-and-consolidation-docs` | — | branched off `main` @ `e190d42` |

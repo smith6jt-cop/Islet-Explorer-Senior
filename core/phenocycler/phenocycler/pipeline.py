@@ -43,7 +43,7 @@ from .geometry_stage import (
     run_geometry_qc_for_image,
 )
 from .marker_registry import (
-    NO_VERIFIED_PAIRS_STATUS,
+    NO_VERIFIED_TYPING_STATUS,
     MarkerRegistry,
     load_registry,
 )
@@ -89,8 +89,8 @@ STAGE_ORDER = (
     "states",
 )
 DEFAULT_STAGE_ORDER = STAGE_ORDER[: STAGE_ORDER.index("expression") + 1]
-PAIR_DEPENDENT_STAGES = frozenset({"controls", "calibrate", "type"})
-NO_VERIFIED_PAIRS_REASON = "NO_VERIFIED_PAIRS"
+TYPING_DEPENDENT_STAGES = frozenset({"controls", "calibrate", "type"})
+NO_VERIFIED_TYPING_REASON = "NO_VERIFIED_TYPING"
 STAGE_METHODS = {
     "ingest": INGEST_VERSION,
     "geometry": GEOMETRY_VERSION,
@@ -221,7 +221,7 @@ def _identity_config(
         load_registry(cfg.marker_registry) if registry is None else registry
     )
     verified_pairs = (
-        active_registry.production_status != NO_VERIFIED_PAIRS_STATUS
+        active_registry.production_status != NO_VERIFIED_TYPING_STATUS
     )
     gate_policy = broad_gate_policy
     if verified_pairs and gate_policy is None:
@@ -245,7 +245,7 @@ def _identity_config(
             if verified_pairs
             else {
                 "mode": "unavailable",
-                "reason": NO_VERIFIED_PAIRS_REASON,
+                "reason": NO_VERIFIED_TYPING_REASON,
             }
         ),
         "simultaneous_broad_typing": (
@@ -261,7 +261,7 @@ def _identity_config(
             if gate_policy is not None
             else {
                 "mode": "blocked",
-                "reason": NO_VERIFIED_PAIRS_REASON,
+                "reason": NO_VERIFIED_TYPING_REASON,
             }
         ),
         "cells_min_cell_area": cfg.cells_min_cell_area,
@@ -290,7 +290,7 @@ def _identity_config(
         "reference_controls": (
             asdict(ReferenceControlConfig())
             if verified_pairs
-            else {"mode": "blocked", "reason": NO_VERIFIED_PAIRS_REASON}
+            else {"mode": "blocked", "reason": NO_VERIFIED_TYPING_REASON}
         ),
         "phenotyping": (
             {
@@ -300,7 +300,7 @@ def _identity_config(
                 "expression_reviews_content_id": expression_reviews_content_id,
             }
             if verified_pair_config is not None
-            else {"mode": "blocked", "reason": NO_VERIFIED_PAIRS_REASON}
+            else {"mode": "blocked", "reason": NO_VERIFIED_TYPING_REASON}
         ),
     }
 
@@ -323,7 +323,7 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
     registry = load_registry(cfg.marker_registry)
     broad_gate_policy = (
         None
-        if registry.production_status == NO_VERIFIED_PAIRS_STATUS
+        if registry.production_status == NO_VERIFIED_TYPING_STATUS
         else load_broad_gate_policy(
             cfg.broad_gate_rules,
             registry=registry,
@@ -798,7 +798,7 @@ def run_pipeline(
         return None
     # Existence is not completion. Validate every required stage—including
     # stages not selected in this invocation—before writing run.json or
-    # advancing LATEST. In development_no_verified_pairs, the content-addressed
+    # advancing LATEST. In development_no_verified_typing, the content-addressed
     # run product intentionally ends at expression; states remains an optional
     # add-on and blocked pair stages cannot be completion requirements.
     for stage, path in zip(completion_stages, all_paths, strict=True):
@@ -854,7 +854,7 @@ def run_pipeline(
 def _completion_stage_order(context: RunContext) -> tuple[str, ...]:
     """Stages that define a complete content-addressed run in the current workflow."""
 
-    if context.registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+    if context.registry.production_status == NO_VERIFIED_TYPING_STATUS:
         return DEFAULT_STAGE_ORDER
     return STAGE_ORDER
 
@@ -866,10 +866,10 @@ def status(context: RunContext) -> int:
     healthy = True
     for stage in STAGE_ORDER:
         if (
-            stage in PAIR_DEPENDENT_STAGES
-            and context.registry.production_status == NO_VERIFIED_PAIRS_STATUS
+            stage in TYPING_DEPENDENT_STAGES
+            and context.registry.production_status == NO_VERIFIED_TYPING_STATUS
         ):
-            print(f"  {stage:11s} BLOCKED {NO_VERIFIED_PAIRS_REASON}")
+            print(f"  {stage:11s} BLOCKED {NO_VERIFIED_TYPING_REASON}")
             continue
         path = context.stage_manifest_path(stage)
         if not path.exists():
@@ -906,8 +906,8 @@ def status(context: RunContext) -> int:
                 f"{manifest.output.total_rows:>12,} rows "
                 f"{manifest.content_id[:12]}"
             )
-    if context.registry.production_status == NO_VERIFIED_PAIRS_STATUS:
-        print(f"  {'qupath':11s} BLOCKED {NO_VERIFIED_PAIRS_REASON}")
+    if context.registry.production_status == NO_VERIFIED_TYPING_STATUS:
+        print(f"  {'qupath':11s} BLOCKED {NO_VERIFIED_TYPING_REASON}")
     else:
         try:
             export_current = _validate_export(context)
@@ -936,7 +936,7 @@ def _assert_stages_available(
     *,
     operation: str = "pipeline stage selection",
 ) -> None:
-    """Fail before output creation when pair-derived production is unavailable."""
+    """Fail before output creation when verified typing is unavailable."""
 
     _assert_registry_stages_available(
         context.registry,
@@ -953,10 +953,10 @@ def _assert_registry_stages_available(
 ) -> None:
     """Registry-only preflight for CLIs that have not resolved cohort data."""
 
-    requested = sorted(PAIR_DEPENDENT_STAGES.intersection(stages))
-    if requested and registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+    requested = sorted(TYPING_DEPENDENT_STAGES.intersection(stages))
+    if requested and registry.production_status == NO_VERIFIED_TYPING_STATUS:
         raise ContractError(
-            f"{operation} is blocked by {NO_VERIFIED_PAIRS_REASON}: "
+            f"{operation} is blocked by {NO_VERIFIED_TYPING_REASON}: "
             "the marker registry declares no verified production pairs; "
             f"requested={requested}"
         )

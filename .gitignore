@@ -3,7 +3,7 @@
 # These are ANCHORED (leading slash) on purpose. A pattern whose only slash is a
 # trailing one matches at every depth, and git does not descend into an excluded
 # directory -- so an unanchored `data/` here would swallow core/phenocycler/data/
-# and make that subtree's own `!/data/integration/` negation unreachable. Its three
+# and make that subtree's own `!/data/integration/` negation unreachable. Its tracked
 # tracked CSVs would stay tracked (ignore rules never untrack), but every future
 # file under it would be silently invisible. Keep the slash.
 /data/
@@ -70,8 +70,8 @@ __pycache__/
 # Tool downloads (large jars)
 scripts/tools/
 
-# Vendored third-party code (cloned, not committed; see scripts/CLAUDE.md for the
-# clone command + pinned commit, e.g. external/RESTORE @ 38df59b)
+# Vendored third-party code (cloned, not committed; pins and clone commands are indexed in
+# docs/EXTERNAL_PACKAGES.md — e.g. external/UniFORM @ 7c33396d)
 # Anchored so it cannot shadow a subtree's own external/ directory.
 /external/
 
@@ -91,3 +91,7 @@ scripts/scvi_comparison_results/new_latent_single_cell.npy
 # Local Claude Code settings + pipeline run logs
 .claude/settings.local.json
 logs/
+
+# DeepCell portal access token. Untracked AND unignored until 2026-08-24, so the
+# first `git add -A` of the DCT lane would have committed a live credential.
+/deepcellToken

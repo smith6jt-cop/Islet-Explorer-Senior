@@ -1,0 +1,561 @@
+# Post-Xenium IF restain lane
+
+## Current registration-only cohort workflow
+
+This lane registers each post-Xenium IF qptiff to the matching pancreas Xenium morphology grid and
+publishes an already-warped OME-TIFF for Xenium Explorer's **Yes, skip alignment** route. The
+post-Xenium IF images the same physical section Xenium measured, so Xenium's nucleus polygons and
+the IF DAPI peaks describe the same nuclei. No new cell segmentation, cell typing, positivity
+calling, or biomarker interpretation is part of this workflow.
+
+Inputs and working outputs live outside the content-addressed Phenocycler pipeline. Generated
+state is under `data/development/restain/`; this lane does not write a `StageManifest`, touch
+`data/runs/`, or contribute scripts under `scripts/**` to a `run_id`.
+
+### Input and cohort contract
+
+`data/integration/restain_registration_inputs.csv` is the source inventory for registration. It
+maps every transferred qptiff to an exact donor, pancreas Xenium serial, ROI, and provenance
+source. Before work starts, `registration_inputs.py` checks that:
+
+- the inventory equals the local qptiff set, with one image, donor, and serial per row;
+- the serial resolves to the same donor in `data/integration/xenium_paths.csv`;
+- the qptiff has one literal DAPI page, `uint8` data, a floor-halved pyramid, named raw channels,
+  and one exact XML `PixelSizeMicrons` value; and
+- the matching Xenium bundle has `cells.parquet`, `nucleus_boundaries.parquet`, and the DAPI
+  morphology file.
+
+The inventory deliberately contains acquisition records that are not executable cohort members.
+Donors `6457` and `6579` remain centrally excluded by `phenocycler/cohort.py`: an explicit request
+for either donor fails, and an omitted `--donors` filters them out. Local stale VALIS directories
+cannot bypass that guard.
+
+QuPath GeoJSON is optional for this registration-only route. `nuclei.py` uses the drawn Tissue
+polygon when one exists, records `whole_slide_no_geojson` when it does not, and can be forced to
+ignore annotations with `--whole-slide`. DAPI export, VALIS, nucleus refinement, occupied-window
+gating, and registered OME export do not require antibody roles. The five sections in
+`restain_sections.csv` remain the only sections with maintainer-declared biological channel roles;
+the registration inventory does not extend those declarations.
+
+### DAPI seed and nucleus refinement
+
+Run from `core/phenocycler/`. With `--donors` omitted, each command selects every centrally
+eligible inventory row. For a resumable cohort run, pass the same donor subset to each command;
+the two-donor subset below is only command syntax, not a claim that either result passes.
+
+```bash
+cd core/phenocycler
+../../.venv/bin/python scripts/restain/export_dapi.py --donors 115 6374
+~/.venvs/valis/bin/python scripts/restain/valis_register.py --donors 115 6374
+../../.venv/bin/python scripts/restain/nuclei.py --donors 115 6374
+../../.venv/bin/python scripts/restain/run_refine.py --donors 115 6374
+```
+
+`export_dapi.py` selects pyramid levels from each image's exact calibration and records the two
+different pixel-origin conventions in `export.json`. VALIS supplies a DAPI-to-DAPI seed in its
+isolated environment; failure of its optional micro pass is recorded while retaining the rigid
+seed for downstream measurement. `nuclei.py` detects IF DAPI peaks and reads Xenium nucleus
+centroids from `nucleus_boundaries.parquet`. `run_refine.py` reports every candidate and spatial
+hold-out, then writes the chosen `refined` transform. A small in-sample nearest-neighbour residual
+is not a release decision.
+
+### All-window gate
+
+Gate every candidate on the annotation-free, origin-anchored 500 µm occupied-window grid. Specify
+`occupied` explicitly so annotated and unannotated donors use the same window contract, and use
+all windows before deciding whether an intensity correction is warranted:
+
+```bash
+../../.venv/bin/python scripts/restain/run_align.py \
+  --donors 115 6374 --transform refined --windows occupied --window-fold all
+```
+
+The gate rasterises transformed Xenium nucleus polygons and measures their DAPI displacement by
+normalised cross-correlation in every occupied window. It writes a donor-local
+`alignment_refined.json` even for `FAIL` or `INCONCLUSIVE`, including the reason, measured and
+unmeasured windows, bounded residual, contrast checks, transform hashes, and thresholds. Exit
+codes are `0` for `PASS`, `3` for `INCONCLUSIVE`, `4` for `FAIL`, and `1` for an I/O/setup error.
+A donor that does not pass has no releasable registered image.
+
+### Optional one-fold intensity refinement
+
+Use this only when the all-window `refined` gate exposes a coherent DAPI offset field. The fitter
+reads one deterministic checkerboard fold, fits one robust affine residual represented on a coarse
+field, and never reads the other fold. The example trains on `even`, so the release gate must use
+the held-out `odd` fold:
+
+```bash
+../../.venv/bin/python scripts/restain/run_intensity_refine.py \
+  --donors 115 --source-stem refined --output-stem intensity_refined --training-fold even
+../../.venv/bin/python scripts/restain/run_align.py \
+  --donors 115 --transform intensity_refined --windows occupied --window-fold odd
+```
+
+The correction is optional, refuses insufficient or implausible training evidence, writes a new
+`intensity_refined` transform rather than overwriting `refined`, and records its training/withheld
+fold contract. Reversing the training fold requires gating `even` instead. The registered exporter
+rejects an intensity-refined transform unless `alignment_intensity_refined.json` is `PASS` on the
+declared held-out fold; a full-window or training-fold PASS is not interchangeable with that test.
+
+### Exact-stem registered OME export
+
+Export donors in separate calls grouped by the transform that passed. `--transform-stem` reads
+exactly `<stem>.json`, its optional `<stem>_displacement.npz`, and
+`alignment_<stem>.json`; it never falls back to another transform or reconstructs a transform from
+the gate. Donor/serial/input identity, direction, calibration, affine, displacement presence, and
+content hashes are checked before the first multi-gigabyte write.
+
+```bash
+# Donors whose all-window nucleus-refined gate passed
+../../.venv/bin/python scripts/restain/run_registered_export.py \
+  --donors 6374 --transform-stem refined
+
+# Donors whose optional correction passed on its withheld fold
+../../.venv/bin/python scripts/restain/run_registered_export.py \
+  --donors 115 --transform-stem intensity_refined
+```
+
+Each successful publication is
+`data/development/restain/explorer_bundle/donor_<id>_<serial>/`, containing:
+
+- `images/<serial>_IF_on_xenium_grid.ome.tif`, with every raw qptiff channel in native page
+  order, resampled through the full selected transform to the exact Xenium morphology dimensions,
+  `0.2125 µm/px` scale, and pyramid level shapes;
+- `manifest.json`, which binds the image to the input, PASS gate, exact transform, channel order,
+  and import route;
+- `qc.json`, which verifies OME metadata, BigTIFF, shape, dtype, scale, tiling, compression, and a
+  decoded tile from every channel at every level; and
+- a donor-local `README.md` with the Xenium Explorer import instruction.
+
+Publication is transactional through a sibling `.partial` directory. Existing bundles are
+refused by default; `--skip-existing` revalidates and keeps one, while `--overwrite` replaces a
+non-protected bundle only after its replacement passes QC. Donors `6436` and `6442` are protected
+completed Explorer exports and are never rewritten by this driver, even with `--overwrite`.
+
+The qptiffs expose technical names such as `DAPI`, `Opal570`, `Opal620`/`Opal690`, `Opal520`, and
+`Sample AF`, but no reliable Biomarker metadata. The registered OME preserves those raw names and
+does **not** infer INS, GCG, or another biological identity. Its manifest explicitly leaves every
+role unassigned and contains no positivity calls or `cell_groups` directory.
+
+### Per-donor audit and failure records
+
+The resumable authority is the donor directory
+`data/development/restain/valis/donor_id=<donor>/`, not a batch summary that a later subset can
+replace.
+
+| file | durable evidence |
+|---|---|
+| `export.json` | exact qptiff/Xenium inputs, DAPI pages, levels, calibration, pixel origins, and image extents |
+| `valis_result.json` | seed provenance, VALIS error summary, optional-micro status, and warped-centroid displacement |
+| `nuclei.json` | IF/Xenium nucleus counts, detector settings, annotation/whole-slide policy, and density ratio |
+| `refinement.json` | every point-set candidate, selected winner, detection ceiling, placement null, and spatial hold-out |
+| `refined.json` plus optional `refined_displacement.npz` | exact nucleus-refined transform serialization |
+| `alignment_<stem>.json` | per-window release gate, exact transform hashes, `PASS`/`INCONCLUSIVE`/`FAIL`, and `verdict_why` |
+| `intensity_refinement_<stem>.json` | optional correction fit, source hashes, training fold, withheld fold, and required gate command |
+
+A fatal missing-input or malformed-file error can stop before a stage has evidence to write; it is
+not converted into a synthetic PASS/FAIL record. Conversely, a measured registration failure stays
+on disk as the donor's gate report and the exporter refuses it. Do not force, relabel, or omit that
+failure to complete a nominal cohort count.
+
+## Historical verified baseline: donors 6436 and 6442
+
+The sections below preserve the biological investigation and the two registrations already
+reviewed in Xenium Explorer. Their numbers establish the historical two-donor baseline; they are
+not a status table for the remaining cohort and do not imply that every acquisition can pass the
+same registration gate.
+
+Per-cell: the distance from a Xenium nucleus to the IF nucleus it lands on, over every nucleus in
+the section.
+
+| donor | tissue outlines (ECC) | VALIS, as it stood | **nucleus-matched** | p90 | within 2 µm | null |
+|---|---:|---:|---:|---:|---:|---:|
+| 6436 | 42.13 µm¹ | 2.84 µm | **0.546 µm** | 1.571 | 53.1 % | 8.1 % |
+| 6442 | 31.46 µm | 1.36 µm | **0.630 µm** | 1.653 | 57.1 % | 8.0 % |
+
+¹ window residual; only 25 of 243 windows were even measurable at that alignment.
+
+`within 2 µm` is the share of **all** Xenium nuclei with an IF nucleus that close. Its ceiling is
+the IF detector's own recall — 56.7 % and 61.0 % — so 53.1 % and 57.1 % are 94 % of what was
+available to match, and the placement null is 8 %.
+
+The gate (`run_align.py`, below) returns **PASS on both donors**, at a median window residual of
+**0.11 µm (6436)** and **0.13 µm (6442)** with every window measurable, against a bar of 1.80 and
+1.88 µm.
+
+## How, and what was wrong before
+
+**The registration is `register.icp` on the two nucleus fields**, seeded by VALIS. Xenium's side is
+`nucleus_boundaries.parquet` — already a segmentation of Xenium's own DAPI — and the IF side is
+detected by `nuclei.py`: a band-pass at the ~6 µm nucleus scale, local maxima no closer than 4 µm,
+and a parabolic sub-pixel fit. 395,048 and 584,723 IF nuclei inside the drawn tissue. No cell
+objects and no cell types are created; these points exist only to be matched.
+
+The seed only has to land inside half the spacing between nuclei (~4.5 µm) for the mutual
+nearest-neighbour matching to be unambiguous. Three defects had been keeping VALIS outside that.
+The third is pinned by tests; the first two are inside VALIS's own call and cannot be tested from
+the pipeline venv, so what stands for them is VALIS's own reported error, recorded below and in
+`valis_result.json`:
+
+**1. VALIS's rigid transform had never been refined above a thumbnail.** `Valis.register` fits `M`
+on the processed images — 512 px on a 20,880 px slide, about 40 µm/px. The only thing in
+valis-wsi 1.2.0 that re-fits `M` is `MicroRigidRegistrar`, which `Valis.__init__` defaults to
+`None` (registration.py:1790) and which `register()` runs between the rigid and non-rigid stages
+(registration.py:4743-4745). Enabling it: `N low rez matches = 1372, N high rez matches = 31596,
+low rez D = 1.190, high rez D = 0.231`, and VALIS's own error fell
+
+    6436   rigid_D 15.28 -> 3.892 um      non_rigid_D 20.50 -> 3.855 um
+    6442   rigid_D  6.89 -> 3.331 um      non_rigid_D 16.33 -> 3.414 um
+
+Note the second column. The non-rigid stage used to make VALIS's own metric 1.3-2.4x **worse**
+than the rigid fit it started from; it no longer does.
+
+**2. The micro-registration pass was inert.** `register_micro` was called without
+`reference_img_f`, so it forwarded `None` to `serial_non_rigid.register_images`, where
+`warp_tools.get_ref_img_idx` returns index 0 for two images (warp_tools.py:57-59) — the **Xenium**.
+That made the Xenium the fixed image, so it was handed a field of zeros
+(serial_non_rigid.py:778-781) while the field computed for the IF was skipped by the update loop,
+which skips the *Valis object's* own reference — the IF (registration.py:4941-4943). The two
+references disagreed, the computed field was discarded, and the only surviving effect was that the
+**old** field got resampled: measured, `non_rigid_D` went 20.497 → 21.331 on 6436, i.e. slightly
+worse. Passing the argument makes the pass do what its name says. It would not have fixed the
+residual on its own in any case: every path in `register_micro` ends at
+`bk_dxdy = current + new` and none of them writes `M`, so it cannot remove a translation.
+
+**3. Neither pyramid is `micron = pixel * um_per_px`, and they are wrong differently.** Measured on
+donor 6436, three 384-px tiles, level 0 against level 2:
+
+| | box mean | best decimation |
+|---|---:|---:|
+| Xenium `morphology_focus` | 0.9766 | **0.9936** at phase (0,0) |
+| IF qptiff (DAPI page) | **0.99992** | 0.9891 |
+
+So the Xenium pyramid *keeps* level-0 pixel `f·k` and the IF pyramid *averages* `f·k … f·k+f−1`.
+Their pixel centres sit at `(f·k + 0.5)·base` and `(f·k + f/2)·base`, i.e. `origin_um` of 0.10625
+and 0.5. Ignoring both left a fixed **+0.39 µm per axis** in the warped result. Separately,
+`shapes[0][0] / shapes[lvl][0]` is not the downsample factor: on 6436 it is 68119/17029 = 4.000176
+where the factor is exactly 4, a scale error worth 0.61 µm at the far corner. Both are now derived
+from the integer factor with an assertion, and both are recorded in `export.json`.
+
+## Every candidate, scored the same way
+
+All of them start from the same seed and are scored by the same per-cell distance, and the losers
+are reported rather than dropped (`refine_candidates.png`):
+
+| candidate | package | 6436 | 6442 |
+|---|---|---:|---:|
+| `valis_affine` — the seed | valis-wsi 1.2.0 | 1.190 | 1.830 |
+| `valis_field` — affine + its 250 µm binned residual | valis-wsi | 1.486 | 1.889 |
+| `nuclei_translation` — seed + one constant | scipy | 0.801 | 1.809 |
+| `nuclei_icp_similarity` | `register.icp` | 0.791 | 1.805 |
+| **`nuclei_icp_affine`** | `register.icp` | **0.546** | **0.630** |
+| `image_translation` — whole-section NCC | numpy FFT | 0.801 | 1.809 |
+| `phase_translation` — phase correlation, upsample 100 | scikit-image | 2.259 | 1.891 |
+| `nuclei_icp_affine+local` — plus a 250 µm field | scipy | 0.522 | 0.600 |
+
+Four things this table says that a single number would not:
+
+* **The affine matters and is not shear-hunting.** It cuts the residual 1.4x on 6436 and 2.9x on
+  6442 against the similarity fit, and it does so by *reducing* anisotropy — 643 → 280 ppm on
+  6436 and 1338 → 419 ppm on 6442. It is removing a stretch VALIS had, not adding one.
+* **The local field does not earn its place.** It buys 0.02-0.03 µm, inside the declared 0.05 µm
+  tolerance, so `choose()` keeps the simpler transform. More freedom cannot score worse on the
+  data it was fitted to, which is exactly why the tolerance is declared rather than "lowest wins".
+* **`valis_field` is now worse than `valis_affine` on both donors.** A 250 µm median-binned
+  residual field with a third of its bins filled from a neighbour was compensating for a bad
+  affine; against a good one it only adds noise.
+* **Three mechanisms were asked for the same translation.** Nearest-neighbour nuclei and
+  whole-section NCC agree to **0.046 µm (6436)** and **0.092 µm (6442)** — two different
+  mechanisms, one answer. Phase correlation is the outlier, 2.15 and 0.53 µm from the other two,
+  and it is reported rather than hidden: normalising the cross-power spectrum weights every
+  spatial frequency equally, and a sparse point raster against a continuous DAPI image is exactly
+  the case where that hurts.
+
+SimpleITK 2.5.6 (in `~/.venvs/valis`) and itk-elastix 0.19.2 (in `~/miniconda3/envs/image2image`)
+are installed and were **not** run. They would refine the same seed by the same intensity mechanism
+as the two image candidates above, which the point-set fit beats by 1.5x (6436) and 2.9x (6442)
+on the same score.
+That is a judgement, and it is recorded here so it can be reversed.
+
+## Is it a registration, or a fit?
+
+Mutual nearest-neighbour matching can be self-consistently **wrong**: if the seed were out by more
+than half the spacing between nuclei, every point would pair with a stranger and the fit would
+converge confidently onto that, with nothing in the in-sample score showing it. So the section is
+split in two and each fit is scored on the half it never saw:
+
+| donor | fitted on | in-sample | **held out** |
+|---|---|---:|---:|
+| 6436 | left half (348,232 nuclei) | 0.542 | **0.614** |
+| 6436 | right half | 0.545 | **0.585** |
+| 6442 | left half (479,459 nuclei) | 0.657 | **0.605** |
+| 6442 | right half | 0.603 | **0.671** |
+
+Held-out is within 0.07 µm of in-sample, and on 6442 one fold's held-out score is *better* than its
+in-sample one. The two halves' transforms disagree by 0.184 µm (6436) and 0.240 µm (6442) of
+translation and by 19 and 2 ppm of scale. The transform transfers, so it is a property of the
+sections rather than of the points it was fitted to.
+
+## The gate, and what it is now worth
+
+`run_align.py` warps Xenium nucleus **polygons** into the IF frame, rasterises them at 0.5 µm/px and
+finds, per 500 µm tissue window, the shift that best lines that mask up with the IF DAPI by
+normalised cross-correlation. Its thresholds are geometry, not preference: PASS at the displacement
+where a disc of the donor's own median cell still covers 75 % of its own footprint.
+
+| donor | windows | median | p90 | precision | DAPI contrast inside vs gaps | verdict |
+|---|---|---:|---:|---:|---:|---|
+| 6436 | 243/243 | **0.109 µm** | 0.233 | 0.015 | 2.04 → **5.14×** | PASS (bar 1.795) |
+| 6442 | 365/365 | **0.134 µm** | 0.260 | 0.014 | 3.51 → **4.98×** | PASS (bar 1.880) |
+
+**Read this as consistency, not independence.** For the tissue-outline and VALIS transforms the
+gate was genuinely independent — neither had ever seen a nucleus. The nucleus-matched fit and the
+gate now optimise closely related things, so the gate confirming at a tenth of a micron is expected.
+The checks that are *not* circular are the hold-out above and the placement null.
+
+**Which diameter anchors the bar is a decision, and all three are reported.** The gate takes its
+diameter from `cell_area`, but it correlates *nucleus* polygons, and the hormone lane samples an
+8 µm disc:
+
+| | 6436 | 6442 |
+|---|---:|---:|
+| cell (9.08 / 9.51 µm) — the declared bar | 1.795 | 1.880 |
+| nucleus (6.19 / 6.13 µm) — what the gate actually matches | 1.223 | 1.211 |
+| the hormone sampler's 8 µm aperture | 1.581 | 1.581 |
+
+The per-cell median (0.546 / 0.630 µm) is under all three, and so is the per-cell p90 for the cell
+and aperture bars. The declared cell bar is what `run_align.py` reports, because it was declared
+before the run and is not renegotiated in either direction.
+
+**Tissue Dice went slightly down**: 0.8903 → 0.8813 (6436) and 0.9509 → 0.9497 (6442). That is not a
+regression, it is the point. The ECC transform was *fitted to maximise* tissue-outline overlap, so
+it wins on Dice by construction while sitting 42 µm out at cell scale. Dice is not the criterion.
+
+## Where the remaining 0.55 µm is, and where it is not
+
+* **Not a translation.** After the affine the median residual vector is (−0.006, +0.000) µm.
+* **Not spatial structure.** A 250 µm field with full freedom to bend changes the median by 0.02 µm,
+  and the residual quiver has no direction anywhere on the section (`refine_residual.png`).
+* **Not peak localisation.** Detecting the IF nuclei at 0.5 µm/px instead of 1.0 µm/px moves the
+  residual to 0.563 (6436) and 0.650 µm (6442) — very slightly *worse*, not better. Doubling the
+  resolution buys nothing, so the limit is not how precisely a peak can be located.
+
+What is left is the difference between where Xenium's nucleus-polygon centroid sits and where the
+IF DAPI blob centre sits: two definitions of one nucleus, plus whatever genuinely differs between
+two imagings of the same section. No transform of any class removes that.
+
+**0.5 % of Xenium nuclei have no IF nucleus anywhere near them.** They are outside the drawn IF
+`Tissue` polygon — on 6436 the drawn tissue stops 1.3 mm short of where the Xenium cells reach —
+so there is nothing there to register to. Those are recorded as far distances rather than dropped,
+and they are what the tail of `refine_pairs.png` is.
+
+## The `Islet` class needs a size filter, and it is not optional
+
+The classifier emits thousands of sub-cell fragments beside the real islets:
+
+| donor | objects | median area | ≥50 µm across | share of islet area |
+|---|---:|---:|---:|---:|
+| 6436 | 4,671 | 27 µm² (5.9 µm) | **125** | 84.6 % |
+| 6442 | 3,366 | 23 µm² (5.4 µm) | **95** | 81.1 % |
+
+The median object is one cell wide. Filtered, the counts land in the range the PhenoCycler cohort
+shows (67–1,304 islets per donor).
+
+## The hormone check, re-run on this transform — and it still does not reach the bar
+
+`run_hormone.py --transform refined` → `hormone_panc_refined.json`. Same AUROC, same null, same
+pre-registered bar of 0.75; only the registration changed. (The `ecc` numbers on disk carried two
+defects at once — 31–42 µm of misregistration *and* `um_per_px = 1.0018796`, the qptiff resolution
+tag rather than the recorded 0.25 — so they were never a usable "before". The `base_um_per_px`
+guard now in `read_qptiff_channel` closes the second one.)
+
+| | INS ranks beta-like | | GCG ranks alpha-like | |
+|---|---:|---:|---:|---:|
+| | ecc (31–42 µm) | **refined (0.55 µm)** | ecc | **refined** |
+| 6436 | 0.533 | **0.514** | 0.517 | **0.522** |
+| 6442 | 0.574 | **0.657** | 0.562 | **0.728** |
+
+**The bar is not met on either donor and it is not moved.** What the two rows say is not one
+result but two, and the difference is the point:
+
+* **6442 moved a long way and in the right direction** — GCG 0.562 → 0.728, and
+  `agreement_by_scale` at zero radius went **+0.074 → +0.486**. A registration fix producing that
+  is a registration that was previously costing real signal.
+* **6436 did not move at all** (0.533 → 0.514), and its zero-radius agreement is +0.055. Its
+  registration is not the reason: `bundle_qc.png` shows its alignment peaking at zero offset
+  exactly as 6442's does.
+
+**The first reading of that — "6436's staining does not distinguish islets" — was wrong, and
+`channel_check.py` is what corrects it.** 6436 has an excellent islet channel. It is **Opal 520**,
+the one recorded GCG, at **66× inside islets against elsewhere**; and it is **Opal 690**, the one
+recorded INS, that carries no islet signal (2.2×, p99.9 of 15 counts against 98 for Opal 520).
+Measured in the qptiff's own frame against the maintainer's own polygons, with no registration in
+the path at all:
+
+| donor | DAPI | Opal 570 (FAILED) | Opal 690 (INS) | Opal 520 (GCG) |
+|---|---:|---:|---:|---:|
+| 6436 | 1.4× | 1.9× | **2.2×** | **66.0×** |
+| 6442 | 1.1× | 117× | **17.1×** | **401×** |
+
+On 6442 both hormone channels are islet-restricted and visibly complementary *within* one islet,
+which is what INS and GCG should look like. On 6436 exactly one of the two worked, and it is not
+the one the AUROC was reading as INS. Whether that means the recorded mapping is wrong for this
+section or that its INS stain failed is **the maintainer's recorded fact to resolve, not a
+measurement** — `restain_sections.csv` is hand-recorded precisely because it is in no file.
+
+Note also, from the same sweep across all five recorded sections: `Opal 570` is recorded FAILED on
+every row, but on donors 115 (0041117) and 6591 (0041116) — the other acquisition batch — it
+carries a p99.9 of 253 and 156 against 0–1 on the three nPOD-batch sections. The blanket FAILED
+recording is a nPOD-batch fact that may not extend to those two.
+
+`agreement_by_scale` still climbs monotonically to 120 µm on both donors, which remains the
+reason to read this lane as supporting islet-level cross-modality claims and not per-cell ones.
+
+## `validate.py` has NOT been re-run
+
+*IF islets against Xenium endocrine RNA* (`validate.py`, `registration_panc.json`): 6442 17.30×
+inside vs elsewhere, 6436 2.83×, against a placement null of ~0.117. 6436's alpha and beta moved
+together (2.83× / 2.89×) where 6442's did not (6.33× / 25.38×), and `validate.py`'s own docstring
+calls that the signature of a mask landing partly off-target. Those numbers were measured on the
+**tissue-outline** transform and **must not be read as current**.
+
+## Historical biological Explorer bundle (6436 and 6442)
+
+This section describes the older, antibody-role-dependent `run_explorer_export.py` delivery for
+the two reviewed donors. It is retained as provenance for those protected bundles; it is **not**
+the cohort registration-only export described above. `run_explorer_export.py` writes, per donor, a
+directory that needs neither this repository nor this environment:
+`data/development/restain/explorer_bundle/donor_<id>_<serial>/`.
+
+| file | what it is |
+|---|---|
+| `images/<serial>_IF.ome.tif` | DAPI + INS + GCG, pyramidal, tiled 1024, 0.25 µm/px, lossless — 10x's stated requirement for an importable post-Xenium image. 2.1–2.5 GB. Opal 570 (FAILED) and Sample AF are **not in the file**; `manifest.json` records that they exist and why they were dropped |
+| `images/<serial>_IF_imagealignment.csv` | the 3x3 row-major matrix, no header, last row `0,0,1`, mapping **IF image pixels → Xenium morphology pixels**, in the byte layout of Explorer's own export (below). Also valid input to `xeniumranger import-segmentation` and `spatialdata_io.xenium_aligned_image` |
+| `images/<serial>_IF_similarity_imagealignment.csv` | a **diagnostic**: the nearest similarity to the affine, the only shape Explorer's own aligner ever exports; its cost against the affine is in `manifest.json → similarity_diagnostic` |
+| `images/<serial>_IF_keypoints.csv` | `fixedX,fixedY,alignmentX,alignmentY`: 20 Xenium nuclei and their exact pre-images under the matrix — Explorer's other documented input, which it fits its own similarity through |
+| `images/<serial>_IF_on_xenium_grid.ome.tif` | the same IF resampled onto the Xenium morphology grid (same width × height, 0.2125 µm/px, same 9 levels) through the same transform, for **"Yes, skip alignment"** — no CSV involved |
+| `cell_groups/hormone_positivity.csv` | `cell_id,group,color` for all 695,113 (6436) and 958,744 (6442) cells: INS/GCG positivity at the recorded threshold |
+| `README.md`, `manifest.json` | the instructions (which file goes with which Explorer option, in which order, and what to report) and the provenance; `bundle_qc.png` is regenerated beside them by `explorer_figures.py` |
+
+**The direction of the matrix is the one thing here that cannot be recovered by a careful
+reader**, so it is derived rather than assumed. This lane's affine maps Xenium µm → IF µm;
+Explorer wants IF px → Xenium px, so the matrix is `S_xen⁻¹ · A⁻¹ · S_if`. Three sources agree on
+the target: 10x's file format doc (0.2125 µm/px, origin at the image's upper left, "divide by the
+pixel size"), 10x's alignment doc ("row-major", "units are in pixels"), and `spatialdata_io`,
+which reads the CSV `header=None` and applies it as an `Affine` into the frame it puts Xenium
+geometry in by scaling microns by `1/pixel_size`. `S_if` carries the **measured** box-mean pixel
+origin; dropping it is a flat 0.125 µm per axis, and a test plants exactly that.
+
+One convention is genuinely unresolved and is recorded rather than assumed away: no 10x document
+says whether Explorer indexes an imported image by pixel corner or centre. That is ±0.125 µm.
+
+**Why there are four ways in, and what each one is for.** Explorer 4.x refused the first
+version of the matrix file with "Failed to load file." and showed the native image unaligned
+under "Yes, skip alignment". The second is not a defect: 10x documents that option only for an
+image already resampled into the Xenium coordinate system (its reference file for it has
+exactly the morphology image's dimensions at 0.2125 µm/px), and Explorer places such an image
+with the identity in pixel space, ignoring OME PhysicalSize. The first has no documented cause —
+10x publishes no validation rule for the import — so everything in which the file differed from
+Explorer's own export was removed, and the other documented inputs were added:
+
+* **Bytes.** Three 10x-published `_imagealignment.csv` files were hexdumped. Explorer writes
+  CRLF between rows, **no newline after the last row**, the last row literally `0,0,1`, and at
+  most nine significant digits. The old writer (`csv.writer` + `repr`) added a trailing CRLF
+  and wrote `0.0,0.0,1.0` with 17-digit floats. The new writer reproduces the 10x exemplar
+  byte for byte (a test feeds it the exemplar's numbers and demands the same 73 bytes); nine
+  digits move the far corner of the field by under 3e-4 Xenium px.
+* **Structure.** Every Explorer-exported matrix is an *exact* similarity (`a == d`, `b == -c`);
+  Explorer's aligner is documented as similarity-only. Ours is a general affine (anisotropy
+  2.8e-4 / 4.2e-4), and whether the importer minds is unknown. So the bundle also carries the
+  nearest similarity (through the keypoints, canonicalised so the equalities hold bit-exactly)
+  and the keypoints themselves, which let Explorer fit what it accepts and keep the result
+  adjustable. Neither is a re-fit: both are the shipped matrix re-expressed at chosen points,
+  and the manifest records what they cost (`similarity_diagnostic.deviation_from_affine_um`).
+* **The warped image.** `<serial>_IF_on_xenium_grid.ome.tif` is the IF resampled onto the
+  morphology grid: output pixel `(k, l)` samples the native image at `M⁻¹(k + ½, l + ½)`
+  (Xenium pixels are corner-origin; the matrix's IF side is centre-indexed; cv2 treats integer
+  coordinates as centres — all three pinned by tests), bilinear on the stored 8-bit values,
+  zeros outside the IF, and a floor-halved box-mean pyramid with exactly the morphology's level
+  shapes. It is the one delivery whose placement depends on nothing but documented Explorer
+  behaviour. Positivity is still measured on the native raster, never on this one.
+
+Ruled out along the way: CRLF itself and float precision as *definite* causes (Explorer's own
+files use CRLF, and two other 10x files carry 17-digit floats — whose producer is unknown, so
+precision stays matched rather than argued), image size (10x ships Explorer-aligned images
+larger than ours on every metric), missing TIFF resolution tags and 1024-px tiles (10x's own
+skip-alignment file has neither), matrix direction, and pyramid level.
+
+**`bundle_qc.png` checks the bundle the way the colleague will read it** — from the shipped
+files only (native OME-TIFF, matrix CSV, similarity CSV, keypoints CSV, warped OME-TIFF), never
+from the transform that made them, so it is able to disagree with them. Three routes into the
+same overlay, each read as Explorer would read it: the native image through the shipped matrix,
+through the shipped similarity, and the warped image with the identity (`px = µm / 0.2125`,
+floor). Mean DAPI at Xenium nucleus centroids against a planted offset:
+
+| donor | route | at 0 µm | between nuclei | ratio | argmax |
+|---|---|---:|---:|---:|---:|
+| 6436 | native + matrix | 49.52 | 22.38 | 2.21× | **0 µm** |
+| 6436 | native + similarity | 49.45 | 22.37 | 2.21× | **0 µm** |
+| 6436 | warped + identity | 49.49 | 22.38 | 2.21× | **0 µm** |
+| 6442 | native + matrix | 39.76 | 19.08 | 2.08× | **0 µm** |
+| 6442 | native + similarity | 39.71 | 19.09 | 2.08× | **0 µm** |
+| 6442 | warped + identity | 39.72 | 19.08 | 2.08× | **0 µm** |
+
+Both curves fall to the floor by 4 µm and dip *below* it at 6 µm — one nucleus radius out lands in
+the gap between nuclei. A merely-plausible alignment does not produce that shape, and the warped
+image read with the identity reproduces the native curve to the second decimal (peak ratio
+0.999, 0.999).
+Warp cross-check on the shipped files: 6436: p99 |diff| 0.00, max 1 count, 100.0 % within 1 count; 14/14 checks, PASS; 6442: p99 |diff| 0.00, max 1 count, 100.0 % within 1 count; 14/14 checks, PASS.
+
+The warp is pinned a second way: a 512² Xenium-px window of the shipped warped DAPI is
+differenced against the native DAPI resampled with `scipy.ndimage.map_coordinates` at
+`M⁻¹(k + ½, l + ½)` — an implementation sharing no code with the writer. A half-pixel error
+would show as tens of counts at nucleus edges; the writer's 1/32-px fixed point leaves about
+one. `bundle_qc.json` carries every number and a PASS/FAIL per donor.
+
+## What the bundle refuses to claim
+
+*Stale as of 2026-09-02: this section describes the deciles-only bundle of `9e88272`. The current
+driver ships one absolute positivity cut (20 of 255, mean inside the cell's own polygon), recorded
+in the manifest and changeable with `--threshold`; it is left here unrewritten because the choice
+between the two is the maintainer's.*
+
+The maintainer's rule for this export is that a per-cell hormone-positive label ships only if the
+check it rests on clears the bar that check was pre-registered at. Neither marker does, on either
+donor, so **no cell in either bundle is called INS+ or GCG+**. Both channels ship as deciles of
+the measured intensity, per donor, on that donor's own distribution, and the bundle README says in
+its own words that a `d10` cell is a cell where a channel read high and nothing more.
+
+The other branch is implemented and tested, not hypothetical: `_hormone_groups(..., cleared=True)`
+fits a two-component mixture to the donor's own log intensity and emits `INS_positive` /
+`INS_negative`. Which branch runs is read out of `hormone_panc_refined.json`. A test plants the
+same bimodal data at mixing weights of 5 %, 25 % and 50 % and requires the threshold to move by
+less than 0.5 in log space — the fit is not steered by how many cells come out positive, which is
+what the repository's no-frequency rule actually requires.
+
+## Files
+
+| file | role |
+|---|---|
+| `registration_inputs.py` | strict registration inventory loader, qptiff facts, Xenium cross-checks, and central donor eligibility |
+| `export_dapi.py` | exact IF/Xenium DAPI planes, pyramid factors, pixel origins, and input provenance |
+| `nuclei.py` | annotation-optional IF nucleus detection and Xenium nucleus centroids from the bundle |
+| `refine.py` | the candidates, the per-cell score and its placement null |
+| `run_refine.py` | manifest-backed driver, parsimony rule, spatial hold-out, donor-local `refinement.json`, and `refined` transform |
+| `refine_figures.py` | candidate comparison, per-cell distribution, residual quiver |
+| `valis_register.py` | the seed (VALIS venv) → `warped_if_um.npy` |
+| `valis_transform.py` | VALIS's point map as a `Transform`, for the comparison candidate |
+| `align.py` / `run_align.py` | all-window or held-out-fold DAPI gate → donor-local `alignment_<stem>.json` |
+| `run_intensity_refine.py` | optional one-fold robust DAPI correction → new exact transform stem and fit report |
+| `align_figures.py` | the gate's own QC sheets |
+| `run_registered_export.py` | PASS-only, exact-stem, transactional export of every raw channel onto the Xenium grid; no biological calls |
+| `geo.py` | the exports in microns, the islet size filter, the scale guard |
+| `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
+| `validate.py` / `hormone.py` / `run_hormone.py` | historical biological downstream checks (not part of registration-only cohort export) |
+| `run_register.py` | historical annotation-derived tissue-outline registration; also scores a supplied transform |
+| `explorer.py` | shared morphology-grid, pyramid, OME-TIFF, warp, matrix, keypoint, and legacy cell-group primitives |
+| `run_explorer_export.py` | historical antibody-role-dependent bundle driver for the two protected reviewed donors |
+| `explorer_figures.py` | historical biological bundle QC, drawn from shipped files |
+| `tests/` | synthetic geometry, inventory, fold-isolation, exact-transform, and registered-OME contract tests |
+
+`data/development/restain/valis_baseline/` holds the 2026-08-31 arm this replaced.

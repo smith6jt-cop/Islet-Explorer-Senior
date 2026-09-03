@@ -103,27 +103,28 @@ def test_marker_means_maps_only_whole_cell_means():
     }
 
 
-def test_qupath_normalized_means_are_explicit_pre_restore_inputs():
-    observed = cp.qupath_normalized_means(HEADER)
-    assert len(observed) == 12
-    assert observed["Cell: Iba1: Mean (norm)"] == "QuPathNorm__Cell__Iba1"
-    assert observed["Cytoplasm: CD68: Mean (norm)"] == (
-        "QuPathNorm__Cytoplasm__CD68"
-    )
-    assert observed["Nucleus: M2Gal3: Mean (norm)"] == (
-        "QuPathNorm__Nucleus__M2Gal3"
-    )
-    assert "Cell: Iba1: Mean" not in observed
-
-
-def test_qupath_normalized_headers_fail_closed_without_raw_fallback(tmp_path):
-    missing = [
-        column for column in HEADER if column != "Cell: Iba1: Mean (norm)"
+def test_no_marker_requests_a_qupath_normalized_column(tmp_path):
+    """The signed ``Mean (norm)`` columns were a RESTORE-era contract for Iba1, CD68 and
+    M2Gal3.  With that retired no marker selects the source, so nothing is requested -- even
+    from an export that still happens to carry the columns.
+    """
+    assert cp.QUPATH_NORMALIZED_MARKERS == ()
+    stale_header = [
+        *HEADER,
+        "Cell: Iba1: Mean (norm)",
+        "Cytoplasm: CD68: Mean (norm)",
+        "Nucleus: M2Gal3: Mean (norm)",
     ]
-    row = _row("a", 60.0)
-    path = _csv_named(tmp_path, "missing_norm.csv", [row], missing)
-    with pytest.raises(SystemExit, match=r"Cell: Iba1: Mean \(norm\)"):
-        cp.reconcile_qupath_normalized_headers([path])
+    assert cp.qupath_normalized_means(stale_header) == {}
+
+
+def test_an_export_without_norm_columns_ingests(tmp_path):
+    """This is the unblock: while Iba1/CD68/M2Gal3 were contracted to ``qupath_norm``, an
+    export lacking ``Mean (norm)`` columns aborted here -- and no export we hold has them, so
+    no donor could be re-ingested and the upstream was unreproducible.  It must now succeed.
+    """
+    path = _csv_named(tmp_path, "no_norm.csv", [_row("a", 60.0)], list(HEADER))
+    assert cp.reconcile_qupath_normalized_headers([path]) == {}
 
 
 def test_sanitize_matches_the_redsea_column_convention():
@@ -139,10 +140,12 @@ def test_min_cell_area_predicate_is_inclusive_at_the_threshold(tmp_path):
     assert sorted(df.object_id) == ["b", "c", "d"]
 
 
-def test_ingest_preserves_signed_qupath_norm_separately_from_raw(tmp_path):
+def test_ingest_writes_no_qupath_normalized_columns(tmp_path):
+    """Iba1, CD68 and M2Gal3 now take the REDSEA whole-cell mean like the other 57 markers,
+    so no second scale reaches the cell table under any name.
+    """
     df, _ = _run(tmp_path, [_row("a", 60.0)], 20.0)
-    assert df.loc[0, "QuPathNorm__Cell__Iba1"] == pytest.approx(-0.25)
-    assert df.loc[0, "QuPathNorm__Membrane__CD68"] == pytest.approx(0.5)
+    assert [c for c in df.columns if c.startswith("QuPathNorm__")] == []
     assert "Iba1_norm" not in df
 
 
@@ -328,3 +331,101 @@ def test_build_sql_still_accepts_a_single_path(tmp_path):
     )
     assert sql_single == sql_list and mm_single == mm_list
     assert "CD38" in mm_single.values()               # nothing dropped when there is nothing to reconcile
+
+
+def test_annotation_coverage_names_a_donor_whose_ring_was_never_drawn(tmp_path):
+    """The check that would have caught donor 6539.
+
+    `cell_region` comes from QuPath's `Parent`, so a cell lands in `peri` only where an
+    `Islet_N_exp20um` annotation exists. 6539 reached the cohort with 541 islets and 124 peri
+    cells -- the expansion had run on 3 of 539 -- and nothing flagged it, so it read
+    downstream as a low-immune ND donor in the one compartment the study is about.
+    """
+    import duckdb
+    import pandas as pd
+    from phenocycler.cells_parquet import annotation_coverage, report_annotation_coverage
+
+    def _write(donor, rows):
+        d = tmp_path / f"donor_id={donor}"
+        d.mkdir(parents=True)
+        pd.DataFrame(rows).to_parquet(d / "data.parquet", index=False)
+
+    # good donor: every islet with core cells also has ring cells, and a tissue boundary
+    _write("good", {
+        "parent_raw": ["Islet_1", "Islet_1_exp20um", "Islet_2", "Islet_2_exp20um",
+                       "Annotation (Tissue)"],
+        "cell_region": ["core", "peri", "core", "peri", "tissue"],
+        "islet_num": ["1", "1", "2", "2", None],
+    })
+    # broken donor: two islets, one stray ring cell, and no tissue annotation at all
+    _write("broken", {
+        "parent_raw": ["Islet_1", "Islet_2", "Islet_1_exp20um", "Root object (Image)"],
+        "cell_region": ["core", "core", "peri", "tissue"],
+        "islet_num": ["1", "2", "1", None],
+    })
+
+    con = duckdb.connect()
+    cov = annotation_coverage(con, tmp_path)
+
+    assert cov["good"]["ring_coverage"] == 1.0
+    assert cov["good"]["has_tissue_annotation"] is True
+    assert cov["broken"]["ring_coverage"] == 0.5
+    assert cov["broken"]["has_tissue_annotation"] is False
+
+    warnings = report_annotation_coverage(cov)
+    assert len(warnings) == 1
+    assert "donor broken" in warnings[0]
+    assert "1/2 islets" in warnings[0]
+    assert "no Annotation (Tissue)" in warnings[0]
+
+
+def test_an_image_in_two_exports_is_read_from_only_its_contracted_one():
+    """The guard against silently doubling a donor.
+
+    Donor 6539 was re-exported after its QuPath annotation was corrected, but the shared
+    batch-1 `Cellmeasurements.csv` still contains the old rows for that image. A filter
+    applied globally over the union admits both copies -- the corrected and the broken export
+    interleaved, one donor at double size, with nothing raised. The manifest already records
+    which export each image belongs to; the filter now honours it per file.
+    """
+    shared = "/exports/Cellmeasurements.csv"
+    fixed = "/exports/Cellmeasurements_6539parentFixed.csv"
+    image_to_donor = {"6374_Scan1": "6374", "6539_Scan1": "6539"}
+    image_to_csv = {"6374_Scan1": shared, "6539_Scan1": fixed}
+
+    src = cp.contracted_image_source([Path(shared), Path(fixed)], image_to_donor, image_to_csv)
+
+    # Each read_csv carries its own image filter. Inspect the per-file clauses only -- the
+    # trailing global filter still names every contracted image, deliberately, as a second
+    # line of defence.
+    clauses = src.split("read_csv(")[1:]
+    assert len(clauses) == 2
+    shared_clause = next(c for c in clauses if "Cellmeasurements.csv" in c[:60])
+    fixed_clause = next(c for c in clauses if "6539parentFixed" in c[:60])
+    # each clause is truncated at the start of the next one, so the filter it carries is its own
+    assert "'6374_Scan1'" in shared_clause.split("AS all_qupath_exports")[0]
+    assert "'6539_Scan1'" not in shared_clause.split("UNION ALL")[0]
+    assert "'6539_Scan1'" in fixed_clause.split("AS all_qupath_exports")[0]
+
+    # Without the assignment no per-file filter is emitted at all -- exactly the behaviour
+    # that would have admitted 6539 from both exports.
+    legacy = cp.contracted_image_source([Path(shared), Path(fixed)], image_to_donor)
+    first = legacy.split("read_csv(")[1].split("UNION ALL")[0]
+    assert "WHERE" not in first
+
+
+def test_an_incomplete_image_to_csv_assignment_is_refused():
+    """Fail closed: a partial assignment would read some export in full."""
+    image_to_donor = {"a": "1", "b": "2"}
+    with pytest.raises(Exception, match="does not assign an export to every image"):
+        cp.contracted_image_source([Path("/x.csv")], image_to_donor, {"a": "/x.csv"})
+
+    with pytest.raises(Exception, match="absent from image_to_donor"):
+        cp.contracted_image_source(
+            [Path("/x.csv")], image_to_donor,
+            {"a": "/x.csv", "b": "/x.csv", "ghost": "/x.csv"})
+
+    with pytest.raises(Exception, match="no contracted image is assigned to export"):
+        cp.contracted_image_source(
+            [Path("/x.csv"), Path("/unused.csv")], image_to_donor,
+            {"a": "/x.csv", "b": "/x.csv"})

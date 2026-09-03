@@ -129,7 +129,7 @@ def test_geometry_partition_validation_checks_ingest_universe(tmp_path):
 def test_resume_blocks_pair_prefix_before_reusing_outputs(monkeypatch):
     context = SimpleNamespace(
         registry=SimpleNamespace(
-            production_status="development_no_verified_pairs"
+            production_status="development_no_verified_typing"
         )
     )
     monkeypatch.setattr(resume_module, "load_config", lambda *_args, **_kwargs: object())
@@ -140,7 +140,7 @@ def test_resume_blocks_pair_prefix_before_reusing_outputs(monkeypatch):
         lambda *_args: pytest.fail("source reuse must not begin"),
     )
 
-    with pytest.raises(ContractError, match="NO_VERIFIED_PAIRS"):
+    with pytest.raises(ContractError, match="NO_VERIFIED_TYPING"):
         resume_module.resume(
             config_path=None,
             source_run_id="a" * 20,

@@ -45,6 +45,7 @@ CLI::
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,9 +55,8 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from ..sections import SectionError
-from ..sections import key_for as section_key_for
-from ..sections import key_from_image
-from ..sections import parse as parse_section
+from ..sections import load_overrides as load_section_overrides
+from ..sections import resolve as resolve_section
 from .contract import normalize_donor_id
 from .tissues import for_roi as tissue_for_roi
 
@@ -85,11 +85,9 @@ PHENO_ONLY = "pheno_only"          # PhenoCycler has it, Xenium does not
 XENIUM_ONLY = "xenium_only"        # Xenium has it, PhenoCycler does not
 DONOR_UNKNOWN = "donor_unknown"    # a Xenium run whose donor is not recorded anywhere
 
-#: Every ROI in the cohort is pairable: the design is 20 donors x {PhenoCycler, Xenium} x
-#: {pancreas, pancreatic lymph node}, so a lymph-node section has a counterpart on both
-#: platforms exactly as a pancreas section does. (An earlier revision treated PhenoCycler as
-#: pancreas-only, which was wrong.) `PAIRABLE_ROI` remains as the default single-ROI value
-#: for callers that want one.
+#: Default ROI for callers that intentionally request a single section. Pairability is
+#: established row by row from observed manifests, never from the configured tissue list.
+#: The current PhenoCycler run is pancreas-only even though the Xenium catalog includes pLN.
 PAIRABLE_ROI = "panc"
 
 #: ``output-XETG00298__0059865__Panc__20250328__202338`` -> serial ``0059865``, label ``Panc``.
@@ -296,71 +294,187 @@ def read_donor_metadata(cfg: PipelineConfig) -> pd.DataFrame:
 
 
 def _pheno_paths(cfg: PipelineConfig, donor_id: str, roi: str = PAIRABLE_ROI) -> tuple[str, str]:
-    """Best-effort ``(qptiff, geojson)`` for one PhenoCycler **section**.
+    """Best-effort ``(qptiff, geojson)`` from the authoritative QuPath manifest.
 
-    Both are looked up rather than constructed: REDSEA rebuilds the GeoJSON tag from the
-    section's ``image`` column and the upstream data README warns not to rename those files,
-    so a glob is safer than a guess. Empty strings when the raw inputs are not mounted —
-    the tabular stages do not need them and must not fail without them.
-
-    Matching is on the *section key* rather than a `{donor}*` prefix. A prefix glob returns
-    both of a donor's images — ``6539_Scan1`` and ``6539pLN_Scan1`` — and taking the first
-    would hand the lymph-node row a pancreas qptiff, which REDSEA would then mask with the
-    wrong polygons.
+    Filename globbing left 8/20 cohort images unresolved and could substitute another
+    section. The manifest already owns donor, source paths and image identity; exact tracked
+    overrides handle its two irregular names. Missing mounted paths remain empty because the
+    tabular stages do not need imaging data.
     """
-    want = section_key_for(donor_id, roi)
 
-    def _match(paths, strip) -> str:
-        for p in sorted(paths):
-            name = p.name[len(strip):] if strip and p.name.startswith(strip) else p.name
-            if key_from_image(name) == want:
-                return str(p)
-        return ""
+    try:
+        payload = json.loads(Path(cfg.qupath_manifest).read_text())
+        overrides = load_section_overrides(cfg.section_overrides_csv)
+    except (OSError, json.JSONDecodeError, SectionError):
+        return "", ""
 
-    images_dir = Path(cfg.images_dir)
-    qptiff = _match(images_dir.glob(f"{donor_id}*.qptiff"), "") if images_dir.exists() else ""
+    matches = []
+    for row in payload.get("images", []):
+        image_id = str(row.get("image_id", "")).strip()
+        try:
+            section = resolve_section(
+                image_id,
+                donor_id=normalize_donor_id(row.get("donor_id")),
+                overrides=overrides,
+            )
+        except SectionError:
+            continue
+        if (section.donor_id, section.roi) == (str(donor_id), str(roi)):
+            matches.append(row)
+    if len(matches) != 1:
+        return "", ""
 
-    gdir = Path(cfg.geojson_dir)
-    geojson = (_match(gdir.glob(f"cells__{donor_id}*.geojson"), "cells__")
-               if gdir.exists() else "")
-    return qptiff, geojson
+    def _path(field: str) -> str:
+        value = matches[0].get(field, "")
+        raw = value.get("path", "") if isinstance(value, dict) else value
+        path = Path(str(raw)) if raw else None
+        return str(path) if path is not None and path.exists() else ""
+
+    return _path("qptiff"), _path("cell_geojson")
 
 
 def _discover_pheno_sections(cfg: PipelineConfig,
                              summary: "ManifestSummary") -> Optional[set[tuple[str, str]]]:
-    """``{(donor_id, roi)}`` from the core pipeline's partitions, or ``None`` if absent.
+    """``{(donor_id, roi)}`` from the current immutable run and QuPath manifest.
 
     ``None`` means "nothing exported yet" and is distinct from an empty set: the manifest
     still builds a Xenium-shaped picture rather than claiming every donor is unpaired.
+
+    The old implementation globbed ``data/cells/donor_id=*``. Current core outputs live at
+    ``data/runs/<run_id>/expression`` and a donor directory alone cannot state which physical
+    section it contains. The image id in that parquet is therefore resolved against
+    ``qupath_manifest.json`` plus exact, tracked section overrides.
     """
-    keys = cfg.discover_sections()
-    if not keys:
+
+    latest = cfg.runs_dir / "LATEST"
+    if not latest.exists():
         return None
+    run_id = latest.read_text().strip()
+    expression = cfg.runs_dir / run_id / "expression"
+    if not expression.is_dir():
+        summary.warnings.append(
+            f"{latest} names run {run_id!r}, but it has no expression directory"
+        )
+        return None
+
+    try:
+        manifest_payload = json.loads(Path(cfg.qupath_manifest).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        summary.warnings.append(f"cannot read QuPath manifest {cfg.qupath_manifest}: {exc}")
+        return None
+    by_image = {
+        str(row.get("image_id", "")).strip(): row
+        for row in manifest_payload.get("images", [])
+        if str(row.get("image_id", "")).strip()
+    }
+    try:
+        overrides = load_section_overrides(cfg.section_overrides_csv)
+    except SectionError as exc:
+        summary.warnings.append(str(exc))
+        return None
+
+    import pyarrow.parquet as pq
+
     out: set[tuple[str, str]] = set()
-    for key in keys:
+    for part in sorted(expression.glob("donor_id=*")):
+        files = sorted(part.rglob("*.parquet"))
+        if not files:
+            continue
         try:
-            sec = parse_section(key)
+            images: set[str] = set()
+            for file in files:
+                parquet = pq.ParquetFile(file)
+                image_index = parquet.schema_arrow.names.index("image")
+                needs_scan = False
+                for group_index in range(parquet.metadata.num_row_groups):
+                    stats = parquet.metadata.row_group(group_index).column(image_index).statistics
+                    if stats is None or not stats.has_min_max:
+                        needs_scan = True
+                        break
+                    images.add(str(stats.min).strip())
+                    images.add(str(stats.max).strip())
+                if needs_scan:
+                    # A full image column can contain millions of repeated strings. Only
+                    # take this slower path for parquet writers that omitted statistics.
+                    column = parquet.read(columns=["image"])["image"]
+                    images.update(str(value.as_py()).strip() for value in column.unique())
+            images.discard("")
+            if len(images) != 1:
+                raise SectionError(
+                    f"run {run_id} partition {part.name!r} carries {len(images)} image ids "
+                    f"({sorted(images)}); one partition must be one physical section"
+                )
+            image_id = next(iter(images))
+            record = by_image.get(image_id)
+            if record is None:
+                raise SectionError(
+                    f"run {run_id} image {image_id!r} is absent from {cfg.qupath_manifest}"
+                )
+            sec = resolve_section(
+                image_id,
+                donor_id=normalize_donor_id(record.get("donor_id")),
+                overrides=overrides,
+            )
         except SectionError as exc:
-            summary.warnings.append(f"PhenoCycler partition {key!r} skipped: {exc}")
+            summary.warnings.append(f"PhenoCycler partition {part.name!r} skipped: {exc}")
             continue
         out.add((sec.donor_id, sec.roi))
     return out
 
 
 def _rewrite_root(path: str, xenium_root: str) -> str:
-    """Re-root a bundle path recorded on one filesystem onto another.
+    """Resolve a recorded bundle path against ``xenium_root``.
 
-    ``xenium_root`` replaces everything up to and including ``.../xenium/``, so a manifest
-    written against ``/orange/brusko/xenium/...`` works on a machine that mounts the same
-    tree elsewhere without editing the vendored CSV.
+    ``xenium_paths.csv`` records paths **relative** to the Xenium tree::
+
+        HuPrime5kPanTissue/<batch>/<run>/output-XETG00298__0059865__Panc__...
+
+    which is all that identity needs — :func:`parse_bundle_path` reads the serial off the
+    bundle directory name and the prefix contributes nothing. Keeping the vendored manifest
+    site-neutral means no lab's filesystem layout is baked into a tracked file, and the tree
+    can live wherever it was transferred to.
+
+    Absolute paths carrying a ``/xenium/`` segment are still re-rooted, so a manifest that
+    predates the migration to relative paths keeps working. An absolute path without that
+    segment is returned unchanged and reported as ``unrewritten`` by
+    :func:`verify_bundle_paths` — silently resolving it against the recorded root is how a
+    wrong ``xenium_root`` turns into a "missing file" for the wrong reason.
     """
-    if not xenium_root or not path:
+    if not path:
+        return path
+    if not path.startswith("/"):
+        # Relative — the normal case. Without a root there is nothing to resolve against;
+        # returning it unchanged would silently resolve against the process's cwd.
+        return str(Path(xenium_root) / path) if xenium_root else path
+    if not xenium_root:
         return path
     marker = "/xenium/"
     idx = path.find(marker)
     if idx == -1:
         return path
     return str(Path(xenium_root) / path[idx + len(marker):])
+
+
+def _find_bundle(resolved: str, xenium_root: str) -> str:
+    """Locate a bundle by its directory name when the recorded path does not resolve.
+
+    The recorded relative path assumes the ``HuPrime5kPanTissue/<batch>/<run>/`` levels
+    survived whatever copy or transfer put the tree under ``xenium_root``. They may not
+    have. The bundle directory name is the part that cannot change without changing the
+    sample's identity, so searching for it recovers a tree that was reorganised, while
+    still refusing to invent one that is absent.
+
+    Returns ``""`` when there is no unambiguous match — an ambiguous hit is a refusal, not
+    a coin flip.
+    """
+    name = Path(resolved).name
+    if not name or not xenium_root:
+        return ""
+    root = Path(xenium_root)
+    if not root.is_dir():
+        return ""
+    hits = [p for p in root.rglob(name) if p.is_dir()]
+    return str(hits[0]) if len(hits) == 1 else ""
 
 
 #: Files every Xenium output bundle carries. Used to tell "the directory exists" from
@@ -375,10 +489,22 @@ def verify_bundle_paths(cfg: PipelineConfig,
     ``xenium_paths.csv`` is hand-maintained and, upstream, read by nothing — so nothing has
     ever checked that a path in it points at a bundle that exists. This is that check.
 
-    The status that matters most is ``unrewritten``: ``_rewrite_root`` keys on a literal
-    ``/xenium/`` segment and returns the path *unchanged* when it is absent, so setting
-    ``xenium_root`` against a manifest whose paths do not contain that segment silently
-    resolves against the original filesystem and reports "missing" for the wrong reason.
+    Two statuses carry more information than "it is not there":
+
+    ``no_root``
+        the manifest records relative paths (the normal case) and ``xenium_root`` is unset,
+        so there is nothing to resolve against. That is a configuration gap, not a missing
+        bundle, and calling it ``missing`` would send the reader to the wrong problem.
+
+    ``unrewritten``
+        an *absolute* recorded path carries no ``/xenium/`` segment, so ``_rewrite_root``
+        left it pointing at the filesystem it was recorded on. Setting ``xenium_root``
+        against such a manifest silently resolves against the original root and reports
+        "missing" for the wrong reason.
+
+    ``relocated`` is not a failure: the recorded relative path did not resolve, but the
+    bundle directory was found elsewhere under ``xenium_root``. Reported rather than
+    silently accepted, because it means the recorded path is stale.
     """
     xen = read_xenium_paths(cfg.xenium_paths_csv)
     out: list[dict] = []
@@ -388,14 +514,23 @@ def verify_bundle_paths(cfg: PipelineConfig,
             continue
         recorded = r["source_path"]
         resolved = _rewrite_root(recorded, cfg.xenium_root)
-        if cfg.xenium_root and resolved == recorded and "/xenium/" not in recorded:
+        relative = not recorded.startswith("/")
+        relocated = False
+        if not Path(resolved).is_dir():
+            found = _find_bundle(resolved, cfg.xenium_root)
+            if found:
+                resolved, relocated = found, True
+
+        if relative and not cfg.xenium_root:
+            status = "no_root"
+        elif cfg.xenium_root and not relative and resolved == recorded:
             status = "unrewritten"
         elif not Path(resolved).is_dir():
             status = "missing"
         elif not any((Path(resolved) / m).exists() for m in BUNDLE_MARKERS):
             status = "not_a_bundle"
         else:
-            status = "ok"
+            status = "relocated" if relocated else "ok"
         out.append({"donor_id": donor, "roi": r["roi"], "batch": r["batch"],
                     "recorded": recorded, "resolved": resolved, "status": status})
     for gap in xen.attrs.get("dropped_no_path", []):
@@ -408,7 +543,8 @@ def verify_bundle_paths(cfg: PipelineConfig,
 
 def render_path_verification(rows: list[dict], cfg: PipelineConfig) -> str:
     """Human-readable verification report. Every non-``ok`` row is named, not counted."""
-    order = ("ok", "missing", "unrewritten", "not_a_bundle", "no_path")
+    order = ("ok", "relocated", "missing", "no_root", "unrewritten", "not_a_bundle",
+             "no_path")
     counts = {s: sum(1 for r in rows if r["status"] == s) for s in order}
     lines = [
         "Xenium bundle path verification",
@@ -426,10 +562,19 @@ def render_path_verification(rows: list[dict], cfg: PipelineConfig) -> str:
         lines += ["", f"{status.upper()} ({len(bad)}):"]
         lines += [f"  {r['donor_id']:<6} {r['roi']:<7} {r['resolved'] or r['recorded'] or '-'}"
                   for r in bad]
+    if counts["no_root"]:
+        lines += ["", "'no_root' means the manifest records relative paths — which is the "
+                      "normal case — but [integration] xenium_root is unset, so there is "
+                      "nothing to resolve them against. Point it at the local Xenium tree."]
+    if counts["relocated"]:
+        lines += ["", "'relocated' means the bundle was found under xenium_root but NOT at "
+                      "its recorded relative path. The data is fine; the manifest is stale. "
+                      "Update source_path to the path shown above."]
     if counts["unrewritten"]:
-        lines += ["", "'unrewritten' means xenium_root is set but these paths carry no "
-                      "'/xenium/' segment, so they were left pointing at the recorded root. "
-                      "Fix the recorded paths or clear xenium_root — do not ignore this."]
+        lines += ["", "'unrewritten' means xenium_root is set but these ABSOLUTE paths carry "
+                      "no '/xenium/' segment, so they were left pointing at the root they "
+                      "were recorded on. Make them relative to the Xenium tree — do not "
+                      "ignore this."]
     return "\n".join(lines)
 
 

@@ -43,10 +43,10 @@ import numpy as np
 import pandas as pd
 
 from ..config import PipelineConfig, load_config
-from .contract import CellTable, read_cell_table
-from .manifest import load_manifest, paired_rows
+from .contract import CellTable, has_identity, read_cell_table
+from .manifest import _pheno_paths, load_manifest, paired_rows
 from .rasterize import (GridSpec, grid_for, lineage_density, normalize_image,
-                        rasterize_structures, tissue_mask)
+                        rasterize_points, rasterize_structures, tissue_mask)
 from .structures import structures_path
 from .transform import (Transform, affine_from_pixels, affine_to_pixels, fit_affine_lstsq,
                         fit_rigid_umeyama)
@@ -765,8 +765,7 @@ def _registration_rasters(
     trees mounted at the same time, and a density-based registration is a genuinely useful
     result, not a placeholder.
     """
-    from .rasterize import (find_qptiff, image_to_grid, read_qptiff_channel,
-                            read_xenium_morphology)
+    from .rasterize import image_to_grid, read_qptiff_channel, read_xenium_morphology
 
     images: dict[str, Optional[np.ndarray]] = {"phenocycler": None, "xenium": None}
 
@@ -774,7 +773,8 @@ def _registration_rasters(
     # lymph nodes are separate images, and for a lymph node this raster is the only
     # registration track available (the point-set track needs islets to seed on).
     section_roi = getattr(moving_table, "roi", "") or getattr(fixed_table, "roi", "")
-    qptiff = find_qptiff(cfg.images_dir, donor, roi=section_roi)
+    qptiff_path, _ = _pheno_paths(cfg, donor, section_roi)
+    qptiff = Path(qptiff_path) if qptiff_path else None
     if qptiff is not None:
         try:
             img, um = read_qptiff_channel(qptiff, channel=0, target_um=cfg.reg_pixel_um)
@@ -805,8 +805,13 @@ def _registration_rasters(
                   flush=True)
 
     def fallback(table: CellTable) -> np.ndarray:
-        stack = lineage_density(table, grid, DENSITY_LINEAGES)
-        return normalize_image(stack.sum(axis=0))
+        if has_identity(table.df):
+            stack = lineage_density(table, grid, DENSITY_LINEAGES)
+            return normalize_image(stack.sum(axis=0))
+        # True geometry fallback: all-cell density. A geometry profile cannot select
+        # Endocrine/Vascular/Exocrine without inventing identity, but its complete point field
+        # still supplies a tissue-density image for coarse/affine registration.
+        return normalize_image(rasterize_points(table.xy(), grid))
 
     mv = images[moving_mod] if images[moving_mod] is not None else fallback(moving_table)
     fx = images[fixed_mod] if images[fixed_mod] is not None else fallback(fixed_table)
@@ -836,9 +841,7 @@ def run_register(
     One call covers the whole selection. Registration is per (donor, roi) — a donor's
     pancreas and each of its lymph nodes are separate sections with separate transforms.
     """
-    from .export_pheno import require_current_pheno
-
-    require_current_pheno("integration registration")
+    # Geometry only: coordinates and rasters. Registration does not read a lineage label.
     import json
 
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)

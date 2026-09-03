@@ -8,8 +8,8 @@ import pytest
 from phenocycler import marker_taxonomy
 from phenocycler.marker_registry import (
     DEFAULT_REGISTRY_PATH,
-    NO_VERIFIED_PAIRS_STATUS,
-    NoVerifiedPairsError,
+    NO_VERIFIED_TYPING_STATUS,
+    NoVerifiedTypingError,
     load_registry,
     registry_from_dict,
 )
@@ -23,7 +23,7 @@ def _payload() -> dict:
 def test_registry_covers_measurements_without_claiming_verified_pairs():
     registry = load_registry()
 
-    assert registry.production_status == NO_VERIFIED_PAIRS_STATUS
+    assert registry.production_status == NO_VERIFIED_TYPING_STATUS
     assert {marker.name for marker in registry.type_markers} == set(marker_taxonomy.TYPE)
     assert {marker.name for marker in registry.state_markers} == set(marker_taxonomy.PROCESS)
     assert registry.active_markers == ()
@@ -34,24 +34,30 @@ def test_registry_covers_measurements_without_claiming_verified_pairs():
     assert all(not marker.mutually_exclusive for marker in registry.markers)
 
     with pytest.raises(
-        NoVerifiedPairsError, match="no verified production marker pairs"
+        NoVerifiedTypingError, match="no verified production marker pairs"
     ):
         production_pairs(registry)
 
 
-def test_exact_qupath_normalized_sources_remain_upstream_inputs():
+def test_no_marker_selects_the_retired_qupath_normalized_source():
+    """Iba1, CD68 and M2Gal3 were contracted to QuPath's signed ``Mean (norm)`` for RESTORE.
+    RESTORE is retired; the exception outlived it and put three markers on a different scale
+    from the other 57 inside the same comparison, while demanding ``QuPathNorm__`` columns no
+    export we hold actually carries.  Every marker now reads one source.
+    """
     registry = load_registry()
-    expected = {"Iba1", "CD68", "M2Gal3"}
 
     observed = {
         marker.name
         for marker in registry.markers
         if marker.measurement_source == "qupath_norm"
     }
-    assert observed == expected
-    for name in expected:
+    assert observed == set()
+    for name in ("Iba1", "CD68", "M2Gal3"):
         marker = registry.marker(name)
-        assert marker.measurement_column == f"QuPathNorm__Cell__{name}"
+        assert marker.measurement_source == "redsea"
+        assert marker.measurement_column == f"Cell__{name}"
+        # Uniform source, unchanged calibration status: still no verified reference.
         assert marker.reference is None
         assert not marker.active
     with pytest.raises(ValueError, match="no active calibration"):
@@ -85,14 +91,14 @@ def test_registry_rejects_reintroducing_an_active_or_operative_pair():
 def test_registry_rejects_wrong_workflow_status_or_normalized_source_set():
     wrong_status = _payload()
     wrong_status["production_status"] = "production"
-    with pytest.raises(ValueError, match="development_no_verified_pairs"):
+    with pytest.raises(ValueError, match="development_no_verified_typing"):
         registry_from_dict(wrong_status)
 
-    missing_source = copy.deepcopy(_payload())
-    iba1 = next(row for row in missing_source["markers"] if row["name"] == "Iba1")
-    iba1["measurement_source"] = "redsea"
-    with pytest.raises(ValueError, match="must be exactly"):
-        registry_from_dict(missing_source)
+    reintroduced_source = copy.deepcopy(_payload())
+    iba1 = next(row for row in reintroduced_source["markers"] if row["name"] == "Iba1")
+    iba1["measurement_source"] = "qupath_norm"
+    with pytest.raises(ValueError, match="no marker may select qupath_norm"):
+        registry_from_dict(reintroduced_source)
 
 
 def test_cd11b_remains_assay_qc_only():

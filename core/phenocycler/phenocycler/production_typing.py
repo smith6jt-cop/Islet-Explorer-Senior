@@ -11,7 +11,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .artifacts import ContractError
-from .marker_registry import NO_VERIFIED_PAIRS_STATUS, MarkerRegistry, load_registry
+from .marker_registry import NO_VERIFIED_TYPING_STATUS, MarkerRegistry, load_registry
 from .simultaneous_typing import (
     METHOD_VERSION as SIMULTANEOUS_METHOD_VERSION,
     BroadGatePolicy,
@@ -29,9 +29,9 @@ def type_production_cells(
     """Run the sole production typing implementation."""
 
     registry = load_registry() if marker_registry is None else marker_registry
-    if registry.production_status == NO_VERIFIED_PAIRS_STATUS:
+    if registry.production_status == NO_VERIFIED_TYPING_STATUS:
         raise ContractError(
-            "production typing is blocked by NO_VERIFIED_PAIRS: the marker "
+            "production typing is blocked by NO_VERIFIED_TYPING: the marker "
             "registry declares no verified production pairs"
         )
     return type_simultaneous_cells(

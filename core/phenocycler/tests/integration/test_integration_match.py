@@ -156,7 +156,10 @@ def _table(modality, seed=1, n=1500, extent=3000.0):
         "x_um": r.uniform(0, extent, n), "y_um": r.uniform(0, extent, n),
         "lineage_native": lin, "lineage_common": lin, "celltype_fine": lin,
     })
-    df = coerce_cell_table(df, modality=modality, donor_id="T", roi="panc")
+    df = coerce_cell_table(
+        df, modality=modality, donor_id="T", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     return CellTable(df=df, modality=modality, donor_id="T", roi="panc")
 
 
@@ -232,7 +235,10 @@ def _table_with_sink(modality, sink_frac, seed=1, n=2000):
         "lineage_native": lin, "lineage_common": lin, "celltype_fine": lin,
         "evidence_positive": ev,
     })
-    df = coerce_cell_table(df, modality=modality, donor_id="T", roi="panc")
+    df = coerce_cell_table(
+        df, modality=modality, donor_id="T", roi="panc",
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     return CellTable(df=df, modality=modality, donor_id="T", roi="panc")
 
 

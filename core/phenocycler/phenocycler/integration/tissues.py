@@ -1,9 +1,10 @@
 """
 What each tissue supports — the single place that knows pancreas from lymph node.
 
-The cohort is 20 donors × {PhenoCycler, Xenium} × {pancreas, pancreatic lymph node}. The two
-tissues share most of the pipeline and diverge in two specific ways, and both divergences are
-biological rather than technical:
+The package supports pancreas and pancreatic lymph node, but support is not a claim that both
+modalities measured every section. The current PhenoCycler run has 20 pancreas sections and
+no pLN sections; the manifest keeps Xenium-only pLN rows explicit. When both tissues are
+present, they diverge in two specific biological ways:
 
 **Structures.** Islets exist in pancreas. Lymph nodes have no islets, so hormone-seeded DBSCAN
 has nothing to seed on and islet matching (S6) has nothing to match. Rather than invent a

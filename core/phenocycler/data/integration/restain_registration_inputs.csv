@@ -1,0 +1,29 @@
+# Registration-only inventory for the post-Xenium IF images.
+#
+# Unlike restain_sections.csv, this file does not assign biomarker roles.  It records only
+# facts needed to align the native DAPI image to the matching pancreas Xenium bundle.  The
+# five biomarker-declared mappings come from restain_sections.csv; the remaining fifteen come from the
+# 2026-08-31 transfer ledger at data/development/restain/if_transfer_provenance.csv.  Donor
+# identity is checked again against xenium_paths.csv at runtime.  Pixel calibration and raw
+# channel names are read from each qptiff's own XML and are never copied into this table.
+image_file,donor_id,roi,xenium_serial,provenance_source
+HDL115_Scan1.qptiff,115,panc,0041117,restain_sections.csv
+npod6591_Scan1.qptiff,6591,panc,0041116,restain_sections.csv
+0041396_Scan1.qptiff,112,panc,0041396,if_transfer_provenance.csv
+0041393_Scan1.qptiff,6533,panc,0041393,if_transfer_provenance.csv
+0037637_Scan1.qptiff,6457,panc,0037637,if_transfer_provenance.csv
+0037634_Scan1.qptiff,6476,panc,0037634,if_transfer_provenance.csv
+0037502_Scan1.qptiff,6380,panc,0037502,if_transfer_provenance.csv
+0037499_Scan1.qptiff,6523,panc,0037499,if_transfer_provenance.csv
+0041035_Scan1.qptiff,6579,panc,0041035,if_transfer_provenance.csv
+0041032_Scan1.qptiff,6374,panc,0041032,if_transfer_provenance.csv
+0059847_Scan1.qptiff,6461,panc,0059847,if_transfer_provenance.csv
+0059968_Scan1.qptiff,6566,panc,0059968,if_transfer_provenance.csv
+0037191_Scan1.qptiff,6493,panc,0037191,if_transfer_provenance.csv
+0037199_Scan1.qptiff,6521,panc,0037199,if_transfer_provenance.csv
+0037354_Scan1.qptiff,6482,panc,0037354,if_transfer_provenance.csv
+0037376_Scan1.qptiff,6551,panc,0037376,if_transfer_provenance.csv
+0059865_Scan1.qptiff,6539,panc,0059865,restain_sections.csv
+0059907_Scan1.qptiff,6436,panc,0059907,restain_sections.csv
+0059945_Scan1.qptiff,6593,panc,0059945,if_transfer_provenance.csv
+0059947_Scan1.qptiff,6442,panc,0059947,restain_sections.csv

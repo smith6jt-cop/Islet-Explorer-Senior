@@ -85,7 +85,10 @@ def _cells(n, seed, jitter=0.0, offset=(0.0, 0.0), subtypes=None, extent=400.0):
 
 
 def _write(cfg, base, df, modality, donor="6539", roi="panc"):
-    out = coerce_cell_table(df.copy(), modality=modality, donor_id=donor, roi=roi)
+    out = coerce_cell_table(
+        df.copy(), modality=modality, donor_id=donor, roi=roi,
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     for col in ("endocrine_subtype", "celltype_fine"):
         if col in df.columns:
             out[col] = df[col].to_numpy()

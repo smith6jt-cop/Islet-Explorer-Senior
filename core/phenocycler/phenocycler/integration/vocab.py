@@ -33,11 +33,11 @@ reaching ``Granulocyte`` only through a fine label. When MPO is instead folded i
 gates CD3e/CD20/CD163 only, so an MPO-only cell has no subclass and lands in ``Myeloid`` —
 exactly where Xenium puts it. The two sides then agree, at the cost of the distinction.
 
-So ``PHENO_TO_COMMON`` and ``RESOLVABLE`` are *derived* from ``config.LINEAGES`` instead of
-hardcoded. A mapping for a class the pipeline no longer emits is not harmless: it survives as
-a dead entry while the crosswalk CSV keeps advertising a capability that is gone. Either way
-``Granulocyte`` never enters the comparable set, because Xenium cannot call it at broad level
-— a lineage only one side can see is not evidence of a difference between modalities.
+The PhenoCycler half is supplied by a declared :class:`PhenotypeSpace`; it is never imported
+from core-pipeline Python configuration. A producer-label mapping that outlives its producer is
+not harmless: it keeps advertising a capability that no current release has. ``Granulocyte``
+never enters the comparable set because Xenium cannot call it at broad level — a lineage only
+one side can see is not evidence of a difference between modalities.
 
 Restoring the distinction later is additive on both sides: an ``MPO`` entry in
 ``export_pheno.IMMUNE_GATES`` for protein, the granulocyte identity-core score for RNA.
@@ -73,9 +73,9 @@ from typing import Iterable, Optional
 
 import pandas as pd
 
-from ..config import LINEAGES as _CORE_LINEAGES
 from ..config import PipelineConfig
 from ..marker_taxonomy import PROCESS, TYPE
+from .phenospace import PhenotypeSpace, load_phenotype_space
 
 # --------------------------------------------------------------------------- #
 # The common vocabulary
@@ -98,36 +98,15 @@ COMMON_LINEAGES: tuple[str, ...] = (
     "Unassigned",
 )
 
-#: Every PhenoCycler broad class this repo has ever emitted. `PHENO_TO_COMMON` below is this
-#: filtered to the classes the *current* `config.LINEAGES` actually produces, so the crosswalk
-#: tracks the core pipeline instead of drifting from it. `Neutrophil` is the live example:
-#: folding MPO into `Immune` deletes the class, and a hardcoded mapping would have been left
-#: behind pointing at a lineage nothing emits.
-_PHENO_BROAD_TO_COMMON: dict[str, str] = {
-    "Epithelial": "Exocrine",
-    "Fibroblast": "Stromal",
-    "Muscle": "Stromal",
-    "Endocrine": "Endocrine",
-    "Endothelial": "Vascular",
-    "Neural": "Neural",
-    "Neutrophil": "Granulocyte",
-}
+#: The former seven-class mapping is retained only as an explicit audit/test declaration.
+#: Production callers receive the space from their configured identity release.
+LEGACY_SPACE_PATH = Path(__file__).with_name("data") / "legacy_broad_space.json"
 
-#: PhenoCycler broad_lineage -> common. `Immune` is intentionally absent: it is resolved
-#: through `immune_subclass` by :func:`pheno_to_common`, because mapping it to a single
-#: common class would throw away information both modalities have.
-PHENO_TO_COMMON: dict[str, str] = {
-    k: v for k, v in _PHENO_BROAD_TO_COMMON.items() if k in _CORE_LINEAGES
-}
 
-#: PhenoCycler `immune_subclass` (from CD3e/CD20/CD163 `_pos`) -> common.
-PHENO_IMMUNE_TO_COMMON: dict[str, str] = {
-    "T": "T_NK",
-    "B": "B_Plasma",
-    "Myeloid": "Myeloid",
-    "Mixed": "Myeloid",     # multi-gate-positive; myeloid is the least-specific bucket
-    "": "Myeloid",           # includes MPO-only neutrophils — see the module docstring
-}
+def load_legacy_space() -> PhenotypeSpace:
+    """Load the retired broad map explicitly; never install it as mutable module state."""
+
+    return load_phenotype_space(LEGACY_SPACE_PATH)
 
 #: Xenium celltype_broad -> common. Mirrors `panel_roles.csv` `lineage_or_group`, which is
 #: verified at load time by :func:`check_panel_roles_agreement`.
@@ -167,12 +146,9 @@ RESOLVABLE: dict[str, dict[str, str]] = {
     "T_NK":        {"phenocycler": "subclass", "xenium": "yes"},
     "B_Plasma":    {"phenocycler": "subclass", "xenium": "yes"},
     "Myeloid":     {"phenocycler": "subclass", "xenium": "yes"},
-    # Tracks the core pipeline. While a dedicated `Neutrophil` lineage exists, PhenoCycler
-    # resolves granulocytes at broad level; once MPO is folded into `Immune` it does not, and
-    # an MPO-only cell lands in Myeloid — exactly where Xenium puts a granulocyte. Hardcoding
-    # "yes" would publish a capability the pipeline had stopped having.
-    "Granulocyte": {"phenocycler": "yes" if "Neutrophil" in _CORE_LINEAGES else "fine_only",
-                    "xenium": "fine_only"},
+    # The default says no current broad release. ``resolvable_for(space=...)`` upgrades this
+    # only when that release explicitly maps one of its labels to Granulocyte.
+    "Granulocyte": {"phenocycler": "fine_only", "xenium": "fine_only"},
     "Neural":      {"phenocycler": "yes", "xenium": "yes"},
     "Unassigned":  {"phenocycler": "never", "xenium": "no"},
 }
@@ -447,12 +423,40 @@ def check_panel_roles_agreement(tax: PanelTaxonomy) -> list[str]:
     return problems
 
 
-def pheno_to_common(lineage_native: str, immune_subclass: str = "") -> str:
-    """PhenoCycler broad lineage (+ immune subclass) -> common lineage."""
-    lineage_native = (lineage_native or "").strip()
-    if lineage_native == "Immune":
-        return PHENO_IMMUNE_TO_COMMON.get((immune_subclass or "").strip(), "Myeloid")
-    return PHENO_TO_COMMON.get(lineage_native, "Unassigned")
+def _declared_pheno_label(
+    lineage_native: str,
+    immune_subclass: str = "",
+) -> str:
+    """Build the one producer label the declaration must resolve.
+
+    The historical broad lane stored the immune branch in a second column.  Its JSON space
+    declares those combinations as ``Immune/T`` etc.  A non-empty, undeclared subclass is a
+    hard error instead of falling back to the broad label and erasing producer information.
+    """
+
+    native = (lineage_native or "").strip()
+    subclass = (immune_subclass or "").strip()
+    if native == "Immune" and subclass:
+        return f"{native}/{subclass}"
+    return native
+
+
+def pheno_to_common(
+    space: PhenotypeSpace,
+    lineage_native: str,
+    immune_subclass: str = "",
+) -> str:
+    """Declared PhenoCycler producer label -> common lineage.
+
+    ``space`` is positional and has no default deliberately.  An undeclared producer label
+    raises in :meth:`PhenotypeSpace.common_for`; it never becomes a plausible-looking
+    ``Unassigned`` call through a stale module-global dictionary.
+    """
+
+    common, resolution = space.common_for(
+        _declared_pheno_label(lineage_native, immune_subclass)
+    )
+    return common if resolution == "mapped" else "Unassigned"
 
 
 def xenium_to_common(celltype_broad: str, celltype_fine: str = "") -> str:
@@ -463,14 +467,17 @@ def xenium_to_common(celltype_broad: str, celltype_fine: str = "") -> str:
     return XENIUM_TO_COMMON.get((celltype_broad or "").strip(), "Unassigned")
 
 
-def map_pheno_series(lineage_native: pd.Series, immune_subclass: Optional[pd.Series] = None
-                     ) -> pd.Series:
+def map_pheno_series(
+    space: PhenotypeSpace,
+    lineage_native: pd.Series,
+    immune_subclass: Optional[pd.Series] = None,
+) -> pd.Series:
     """Vectorised :func:`pheno_to_common` over a column pair."""
     if immune_subclass is None:
         immune_subclass = pd.Series([""] * len(lineage_native), index=lineage_native.index)
     return pd.Series(
-        [pheno_to_common(a, b) for a, b in zip(lineage_native.fillna(""),
-                                               immune_subclass.fillna(""))],
+        [pheno_to_common(space, a, b) for a, b in zip(lineage_native.fillna(""),
+                                                      immune_subclass.fillna(""))],
         index=lineage_native.index, dtype="object",
     )
 
@@ -544,7 +551,11 @@ def usable_anchors(pairs: Iterable[MarkerPair], *, type_only: bool = False) -> l
     return out
 
 
-def resolvable_for(cfg: Optional[PipelineConfig] = None) -> dict[str, dict[str, str]]:
+def resolvable_for(
+    cfg: Optional[PipelineConfig] = None,
+    *,
+    space: Optional[PhenotypeSpace] = None,
+) -> dict[str, dict[str, str]]:
     """`RESOLVABLE`, adjusted for what this run's Xenium sections actually carry.
 
     Post-Xenium immunofluorescence for INS/GCG turns Xenium's endocrine call from a surrogate
@@ -554,12 +565,26 @@ def resolvable_for(cfg: Optional[PipelineConfig] = None) -> dict[str, dict[str, 
     crosswalk keeps saying `surrogate`, which is the truthful answer for panel-only data.
     """
     out = {k: dict(v) for k, v in RESOLVABLE.items()}
+    if space is not None:
+        mapped = {
+            space.common_for(label)[0]
+            for label in space.rules
+            if space.common_for(label)[1] == "mapped"
+        }
+        for lineage in COMMON_LINEAGES:
+            if lineage == "Unassigned":
+                continue
+            if lineage not in mapped:
+                out[lineage]["phenocycler"] = "no"
+        if "Granulocyte" in mapped:
+            out["Granulocyte"]["phenocycler"] = "yes"
     if cfg is not None and getattr(cfg, "xenium_hormone_if", False):
         out["Endocrine"]["xenium"] = "yes"
     return out
 
 
 def crosswalk_frame(
+    space: PhenotypeSpace,
     pairs: Iterable[MarkerPair],
     tax: Optional[PanelTaxonomy] = None,
 ) -> pd.DataFrame:
@@ -569,15 +594,18 @@ def crosswalk_frame(
     PhenoCycler marker (its gene, or the surrogate panel standing in for it).
     """
     rows: list[dict] = []
+    resolutions = resolvable_for(space=space)
+    pheno_by_common: dict[str, list[str]] = {lineage: [] for lineage in COMMON_LINEAGES}
+    for label in space.rules:
+        common, resolution = space.common_for(label)
+        if resolution == "mapped" and common in pheno_by_common:
+            pheno_by_common[common].append(label)
 
     for lineage in COMMON_LINEAGES:
-        res = RESOLVABLE.get(lineage, {})
+        res = resolutions.get(lineage, {})
         p, x = res.get("phenocycler", "no"), res.get("xenium", "no")
         xen_native = sorted({k for k, v in XENIUM_TO_COMMON.items() if v == lineage})
-        pheno_native = sorted({k for k, v in PHENO_TO_COMMON.items() if v == lineage})
-        if lineage in PHENO_IMMUNE_TO_COMMON.values():
-            pheno_native += [f"Immune/{k}" for k, v in PHENO_IMMUNE_TO_COMMON.items()
-                             if v == lineage and k]
+        pheno_native = sorted(pheno_by_common[lineage])
         rows.append({
             "kind": "lineage",
             "common": lineage,
@@ -611,7 +639,11 @@ def crosswalk_frame(
     return pd.DataFrame(rows)
 
 
-def coverage_report(pairs: Iterable[MarkerPair], tax: Optional[PanelTaxonomy] = None) -> str:
+def coverage_report(
+    space: PhenotypeSpace,
+    pairs: Iterable[MarkerPair],
+    tax: Optional[PanelTaxonomy] = None,
+) -> str:
     """Human-readable summary — printed by the stage and pasted into notebooks."""
     pairs = list(pairs)
     on = [p for p in pairs if p.on_panel]
@@ -619,6 +651,7 @@ def coverage_report(pairs: Iterable[MarkerPair], tax: Optional[PanelTaxonomy] = 
     gates_on = [p for p in on if p.is_gate]
     gates_off = [p for p in off if p.is_gate]
     anchors = usable_anchors(pairs, type_only=True)
+    resolutions = resolvable_for(space=space)
 
     lines = [
         "PhenoCycler <-> Xenium vocabulary crosswalk",
@@ -645,7 +678,7 @@ def coverage_report(pairs: Iterable[MarkerPair], tax: Optional[PanelTaxonomy] = 
     lines.append("lineage resolution by modality:")
     lines.append(f"  {'common':<13} {'phenocycler':<15} {'xenium':<15} note")
     for lin in COMMON_LINEAGES:
-        r = RESOLVABLE.get(lin, {})
+        r = resolutions.get(lin, {})
         p, x = r.get("phenocycler", "no"), r.get("xenium", "no")
         note = ""
         if lin in PHENO_ONLY_SPLITS:
@@ -681,7 +714,8 @@ def run_vocab(cfg: PipelineConfig, panel_genes: Optional[Iterable[str]] = None,
     """
     from .export_pheno import require_current_pheno
 
-    require_current_pheno("integration phenotype vocabulary")
+    release = require_current_pheno("integration phenotype vocabulary", cfg=cfg)
+    space = release.space
     tissue = tissue or cfg.tissue
     tax = load_panel_taxonomy(cfg, tissue)
     if panel_genes is None:
@@ -690,9 +724,9 @@ def run_vocab(cfg: PipelineConfig, panel_genes: Optional[Iterable[str]] = None,
               "the identity-core union only and will understate on-panel markers", flush=True)
 
     pairs = protein_gene_pairs(panel_genes, tax=tax)
-    print(coverage_report(pairs, tax), flush=True)
+    print(coverage_report(space, pairs, tax), flush=True)
 
-    df = crosswalk_frame(pairs, tax=tax)
+    df = crosswalk_frame(space, pairs, tax=tax)
     df.insert(0, "tissue", tissue)
     if write:
         out = cfg.vocab_crosswalk_csv

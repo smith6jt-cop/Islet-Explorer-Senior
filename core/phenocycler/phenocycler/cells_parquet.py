@@ -249,22 +249,65 @@ def donor_case_expression(image_to_donor: Mapping[str, str]) -> str:
 
 
 def contracted_image_source(
-    csv_paths: Sequence[Path], image_to_donor: Mapping[str, str]
+    csv_paths: Sequence[Path],
+    image_to_donor: Mapping[str, str],
+    image_to_csv: Mapping[str, str] | None = None,
 ) -> str:
-    """Read shared exports but expose only exact manifest-contracted images."""
+    """Read shared exports but expose only exact manifest-contracted images.
+
+    With ``image_to_csv`` the filter is applied **per file**: each export contributes only the
+    images the manifest assigns to it. Without it the filter is global over the union, which
+    is correct only while no image appears in two exports.
+
+    That stopped being true when donor 6539 was re-exported. The manifest maps 13 batch-1
+    images to a shared ``Cellmeasurements.csv`` that still contains 6539's rows, so adding
+    ``Cellmeasurements_6539parentFixed.csv`` puts that image in two files and a global filter
+    admits both -- silently doubling one donor, with the corrected and the broken export
+    interleaved. Filtering per file makes the manifest's per-image ``measurement_csv``
+    assignment mean what it already says, and refuses the class of error rather than this
+    instance of it.
+    """
 
     contracted_images = sorted(map(str, image_to_donor))
     if not contracted_images:
         raise ContractError("image_to_donor cannot be empty")
+
+    if image_to_csv is not None:
+        unknown = sorted(set(image_to_csv) - set(contracted_images))
+        if unknown:
+            raise ContractError(
+                f"image_to_csv names images absent from image_to_donor: {unknown}"
+            )
+        missing = sorted(set(contracted_images) - set(image_to_csv))
+        if missing:
+            raise ContractError(
+                f"image_to_csv does not assign an export to every image: {missing}"
+            )
+
     raw_parts = []
     for index, path in enumerate(csv_paths):
         escaped = str(path).replace("'", "''")
-        raw_parts.append(
-            f"SELECT * FROM read_csv('{escaped}', header=true, all_varchar=true, "
+        read = (
+            f"read_csv('{escaped}', header=true, all_varchar=true, "
             f"ignore_errors=true, store_rejects=true, "
             f"rejects_table='phenocycler_ingest_rejects_{index}', "
             f"rejects_scan='phenocycler_ingest_reject_scans_{index}', rejects_limit=0)"
         )
+        if image_to_csv is None:
+            raw_parts.append(f"SELECT * FROM {read}")
+            continue
+        mine = sorted(
+            image for image, csv in image_to_csv.items() if Path(csv) == Path(path)
+        )
+        if not mine:
+            raise ContractError(
+                f"no contracted image is assigned to export {path}; it would be read in full"
+            )
+        allowed_here = ", ".join(_sql_string(image) for image in mine)
+        raw_parts.append(
+            f'SELECT * FROM {read} WHERE "Image" IN ({allowed_here})'
+        )
+
     combined = "(" + " UNION ALL BY NAME ".join(raw_parts) + ")"
     allowed = ", ".join(_sql_string(image) for image in contracted_images)
     return (
@@ -280,6 +323,7 @@ def build_sql(
     min_cell_area: float,
     *,
     image_to_donor: Mapping[str, str],
+    image_to_csv: Mapping[str, str] | None = None,
 ) -> tuple[str, dict]:
     csv_paths = [Path(p) for p in ([csv_paths] if isinstance(csv_paths, (str, Path)) else csv_paths)]
     mm, _report = reconcile_headers(csv_paths)
@@ -314,7 +358,7 @@ def build_sql(
     # image allow-list. A shared QuPath export may contain deliberately excluded
     # or otherwise out-of-cohort images; those rows must not reach donor mapping.
     # The CSV reader still scans the batched files because CSV has no image index.
-    src = contracted_image_source(csv_paths, image_to_donor)
+    src = contracted_image_source(csv_paths, image_to_donor, image_to_csv)
     inner = f"SELECT\n  {sel}\nFROM {src}"
     if min_cell_area and min_cell_area > 0:
         # Drop degenerate sub-cell segmentation objects (QuPath emits NaN
@@ -343,6 +387,11 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     contracted_csvs = {image.measurement_csv.path for image in cohort.images}
     csv_paths = tuple(Path(path) for path in sorted(contracted_csvs))
     donor_mapping = image_id_to_donor_id(cohort)
+    # The manifest already records which export each image came from; honour it, so an image
+    # present in two exports is read from exactly the one it is contracted to.
+    image_to_csv = {
+        image.image_id: str(image.measurement_csv.path) for image in cohort.images
+    }
     mm, report = reconcile_headers(csv_paths)
     qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     for path, n in report["files"].items():
@@ -373,6 +422,7 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
         limit,
         cfg.cells_min_cell_area,
         image_to_donor=donor_mapping,
+        image_to_csv=image_to_csv,
     )
     print(f"[info] files={len(csv_paths)} markers={len(mm)} out={cfg.cells_dir} limit={limit} "
           f"min_cell_area={cfg.cells_min_cell_area} threads={cfg.duckdb_threads}")
@@ -393,6 +443,9 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     ]
     rejects = pd.concat(reject_frames, ignore_index=True) if reject_frames else pd.DataFrame()
     rejects.to_parquet(cfg.data_dir / "ingest_rejects.parquet", index=False)
+    report["annotation_coverage"] = annotation_coverage(con, cfg.cells_dir)
+    for line in report_annotation_coverage(report["annotation_coverage"]):
+        print(line)
     (cfg.data_dir / "panel_availability.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n"
     )
@@ -403,6 +456,69 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
         )
     print("[done] wrote", cfg.cells_dir)
     return cfg.cells_dir
+
+
+def annotation_coverage(con, cells_dir: Path) -> dict:
+    """Per donor: is the islet ring drawn, and is there a tissue boundary at all?
+
+    ``cell_region`` is read straight off QuPath's ``Parent``, so a cell only lands in ``peri``
+    where an ``Islet_N_exp20um`` annotation was actually drawn, and only in ``tissue`` where
+    ``Annotation (Tissue)`` was. Neither is a property of the tissue -- every islet has a 20 um
+    ring, and every section has a boundary -- so a donor missing them is missing an *export*,
+    not a structure.
+
+    That failed silently once. Donor 6539 reached the cohort with 541 islets and 124 peri
+    cells: the expansion had been run on 3 of 539 islets, and it carried no tissue annotation
+    at all, so its "tissue" was the raw image. Nothing flagged either, and it read downstream
+    as a low-immune ND donor in the one compartment this study is about.
+
+    Recorded rather than raised, deliberately. Aborting the cohort on one donor's annotation
+    would block nineteen good ones, and the honest place to refuse is where the number is used
+    -- so this reports coverage, names anything below the measured cohort floor, and leaves
+    the decision to the consumer.
+    """
+    rows = con.execute(
+        f"""
+        SELECT donor_id,
+               COUNT(DISTINCT CASE WHEN cell_region = 'core' THEN islet_num END) AS islets_core,
+               COUNT(DISTINCT CASE WHEN cell_region = 'peri' THEN islet_num END) AS islets_ring,
+               COUNT(*) FILTER (WHERE parent_raw = 'Annotation (Tissue)')        AS tissue_rows
+        FROM read_parquet('{cells_dir}/**/*.parquet', hive_partitioning = 1)
+        GROUP BY donor_id ORDER BY donor_id
+        """
+    ).fetchdf()
+    out = {}
+    for r in rows.itertuples(index=False):
+        core = int(r.islets_core)
+        out[str(r.donor_id)] = {
+            "islets_with_core_cells": core,
+            "islets_with_ring_cells": int(r.islets_ring),
+            "ring_coverage": (round(int(r.islets_ring) / core, 4) if core else None),
+            "has_tissue_annotation": bool(r.tissue_rows),
+        }
+    return out
+
+
+#: Cohort floor measured 2026-08-27: 19 of 20 donors sit at 0.988-1.000 ring coverage and
+#: carry a tissue annotation. Only donor 6539 falls outside, at 0.004 with none.
+MIN_RING_COVERAGE = 0.95
+
+
+def report_annotation_coverage(coverage: dict) -> list[str]:
+    """Name every donor whose QuPath annotation is incomplete. Returns the warnings."""
+    warnings = []
+    for donor, c in sorted(coverage.items()):
+        why = []
+        if c["ring_coverage"] is not None and c["ring_coverage"] < MIN_RING_COVERAGE:
+            why.append(
+                f"islet ring drawn on {c['islets_with_ring_cells']}/"
+                f"{c['islets_with_core_cells']} islets ({c['ring_coverage']:.1%})"
+            )
+        if not c["has_tissue_annotation"]:
+            why.append("no Annotation (Tissue): 'tissue' is the whole image")
+        if why:
+            warnings.append(f"[warn] donor {donor} annotation incomplete: " + "; ".join(why))
+    return warnings
 
 
 def main(argv=None) -> int:

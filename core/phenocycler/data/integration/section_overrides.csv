@@ -1,0 +1,3 @@
+image_id,donor_id,roi,slide,reason
+HDL115pancLN_Scan1.er.qptiff - resolution #1,115,panc,pheno,Core 20-donor pancreas cohort; the HDL prefix prevents donor/ROI parsing from the filename
+6534pacn_Scan1.er.qptiff - resolution #1,6534,panc,pheno,Source filename transposes the final two letters of panc

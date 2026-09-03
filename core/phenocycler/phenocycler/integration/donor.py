@@ -35,7 +35,13 @@ import numpy as np
 import pandas as pd
 
 from ..config import STATUS_ORDER, PipelineConfig, load_config
-from .contract import CellTable, discover_partitions, read_cell_table
+from .contract import (
+    CellTable,
+    ContractError,
+    discover_partitions,
+    has_identity,
+    read_cell_table,
+)
 from .manifest import load_manifest
 from .tissues import TissueError
 from .tissues import comparable_lineages as tissue_comparable_lineages
@@ -50,6 +56,30 @@ COMPARABLE = tuple(
     and RESOLVABLE.get(lin, {}).get("phenocycler") in ("yes", "subclass")
     and RESOLVABLE.get(lin, {}).get("xenium") in ("yes", "surrogate")
 )
+
+
+def _evidence_mask(table: CellTable) -> np.ndarray:
+    """Return a complete evidence mask; never reinterpret unavailable as negative.
+
+    Composition is identity-dependent, and its evidence-positive denominator changes if a
+    nullable value is filled with ``False``.  A producer must therefore either declare the
+    evidence for every exported identity call or withhold the donor-level comparison.
+    """
+
+    if not has_identity(table.df):
+        raise ContractError(
+            f"{table.modality}/{table.donor_id}/{table.roi}: donor composition requires an "
+            "identity-profile table with release provenance"
+        )
+    evidence = table.df["evidence_positive"]
+    missing = int(evidence.isna().sum())
+    if missing:
+        raise ContractError(
+            f"{table.modality}/{table.donor_id}/{table.roi}: evidence_positive is unavailable "
+            f"for {missing} of {len(evidence)} identity calls; refusing to count unavailable "
+            "evidence as a negative call"
+        )
+    return evidence.to_numpy(dtype=bool)
 
 
 def comparable_for(tissue: str) -> tuple[str, ...]:
@@ -81,7 +111,7 @@ def composition(table: CellTable,
     """
     df = table.df
     total = len(df)
-    ev = df["evidence_positive"].to_numpy(bool)
+    ev = _evidence_mask(table)
     total_ev = int(ev.sum())
 
     rows = []
@@ -119,6 +149,8 @@ def marker_gene_concordance(
     PhenoCycler calls Vascular, PECAM1 expression should be high in the lineage Xenium calls
     Vascular. That is a real cross-modal check and needs no spatial correspondence at all.
     """
+    _evidence_mask(pheno)
+    _evidence_mask(xen)
     rows = []
     p_feats = {c[len("feat__"):]: c for c in pheno.df.columns if c.startswith("feat__")}
     x_feats = {c[len("feat__"):]: c for c in xen.df.columns if c.startswith("feat__")}
@@ -160,6 +192,8 @@ def _xenium_lineage_for(common: str) -> str:
 
 def compare_donor(pheno: CellTable, xen: CellTable) -> tuple[pd.DataFrame, dict]:
     """Composition comparison for one donor+ROI. Returns ``(long table, summary stats)``."""
+    p_ev = _evidence_mask(pheno)
+    x_ev = _evidence_mask(xen)
     tissue = pheno.tissue or xen.tissue
     p = composition(pheno)
     x = composition(xen)
@@ -180,8 +214,8 @@ def compare_donor(pheno: CellTable, xen: CellTable) -> tuple[pd.DataFrame, dict]
         "tissue": tissue,
         "n_cells_pheno": len(pheno.df),
         "n_cells_xen": len(xen.df),
-        "frac_fallback_pheno": float(1 - pheno.df["evidence_positive"].mean()),
-        "frac_fallback_xen": float(1 - xen.df["evidence_positive"].mean()),
+        "frac_fallback_pheno": float(1 - p_ev.mean()),
+        "frac_fallback_xen": float(1 - x_ev.mean()),
         "n_comparable_lineages": int(len(sub)),
     }
     if len(sub) >= 3:
@@ -202,10 +236,17 @@ def compare_donor(pheno: CellTable, xen: CellTable) -> tuple[pd.DataFrame, dict]
 def disease_trend(compositions: pd.DataFrame, status_by_donor: dict) -> pd.DataFrame:
     """Per-lineage composition by disease status, per modality.
 
-    The cross-modal acceptance test at cohort level: the endocrine fraction should fall
-    ND -> AAB -> T1D and the immune fraction rise, *in both modalities independently*. Two
-    measurement systems reproducing the same biological gradient is much stronger evidence
-    that the harmonisation is sound than any single-donor agreement.
+    A REPORTING table, not an acceptance test.  It used to say that the endocrine fraction
+    "should fall ND -> AAB -> T1D and the immune fraction rise", and that reproducing that
+    gradient was evidence the harmonisation was sound.  That is the expected-disease-ordering
+    reasoning ``CLAUDE.md``'s first non-negotiable forbids, and using it as a release gate is
+    circular twice over: it decides the pipeline is correct because it produced the answer we
+    expected, and it then reports that answer as a finding.
+
+    Whether a gradient exists is the study's question, so nothing here may be gated on one.
+    The acceptance tests live elsewhere and are disease-blind by construction: agreement
+    between modalities on donor pairings (against a mismatched-donor null) and agreement on
+    islet geometry.
     """
     df = compositions.copy()
     df["status"] = df["donor_id"].map(status_by_donor).fillna("?")
@@ -239,9 +280,9 @@ def run_donor(
     up to three lymph-node sections, and each is its own comparison: keying by donor alone
     would keep whichever partition was discovered last and silently drop the other tissue.
     """
-    from .export_pheno import require_current_pheno
+    from .export_pheno import require_current_identity
 
-    require_current_pheno("integration donor comparison")
+    require_current_identity("integration donor comparison", cfg=cfg)
     man = load_manifest(cfg)
     status_by_donor = dict(zip(man["donor_id"], man["disease_status"]))
 

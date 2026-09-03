@@ -18,7 +18,6 @@ from phenocycler.integration.contract import (
     CellTable,
     ContractError,
     coerce_cell_table,
-    validate_cell_table,
 )
 from phenocycler.integration.donor import COMPARABLE, comparable_for, composition, disease_trend
 from phenocycler.integration.pipeline import NEEDS_STRUCTURES, applicable_tissues
@@ -70,14 +69,17 @@ def test_cell_table_carries_tissue_from_creation(cfg):
         "x_um": np.linspace(0, 100, 5), "y_um": np.linspace(0, 100, 5),
         "lineage_native": ["T"] * 5,
     })
-    panc = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="panc")
-    pln = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="pln_2")
+    panc = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="panc",
+                             profile="identity", identity_release_id="synthetic-test-release")
+    pln = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="pln_2",
+                            profile="identity", identity_release_id="synthetic-test-release")
     assert (panc["tissue"] == T.PANCREAS).all()
     assert (pln["tissue"] == T.LYMPH_NODE).all()
 
     # An explicit tissue wins over the ROI, for data whose ROI naming does not follow suit.
     forced = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="region_1",
-                               tissue="pLN")
+                               tissue="pLN", profile="identity",
+                               identity_release_id="synthetic-test-release")
     assert (forced["tissue"] == T.LYMPH_NODE).all()
 
 
@@ -86,17 +88,18 @@ def test_untissued_table_is_rejected():
 
     Defaulting is the dangerous option: a mislabelled lymph node would be scored against
     pancreatic endocrine and exocrine identity cores, which is not a degraded answer but a
-    wrong one. `coerce` fills and `validate` rejects — the same split the pixel guard uses —
-    so the failure surfaces before anything is written, since `write_cell_table` validates.
+    wrong one. Coercion validates before returning, so the failure surfaces before anything
+    can be written.
     """
     raw = pd.DataFrame({
         "cell_id": ["a", "b"], "x_um": [0.0, 1.0], "y_um": [0.0, 1.0],
         "lineage_native": ["T", "B"],
     })
-    df = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="region_1")
-    assert (df["tissue"] == "").all(), "an unmappable ROI must not be guessed at"
     with pytest.raises(ContractError, match="no tissue"):
-        validate_cell_table(df)
+        coerce_cell_table(
+            raw, modality="xenium", donor_id="1", roi="region_1",
+            profile="identity", identity_release_id="synthetic-test-release",
+        )
 
 
 def test_an_unknown_explicit_tissue_is_refused():
@@ -106,7 +109,8 @@ def test_an_unknown_explicit_tissue_is_refused():
         "lineage_native": ["T", "B"],
     })
     with pytest.raises(T.TissueError, match="unknown tissue"):
-        coerce_cell_table(raw, modality="xenium", donor_id="1", roi="panc", tissue="thymus")
+        coerce_cell_table(raw, modality="xenium", donor_id="1", roi="panc", tissue="thymus",
+                          profile="identity", identity_release_id="synthetic-test-release")
 
 
 # --------------------------------------------------------------------------- #
@@ -173,7 +177,8 @@ def test_extract_donor_returns_empty_for_a_tissue_without_structures(cfg):
         "x_um": rng.uniform(0, 2000, n), "y_um": rng.uniform(0, 2000, n),
         "lineage_native": ["T_NK"] * n, "lineage_common": ["T_NK"] * n,
     })
-    df = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="pln_1")
+    df = coerce_cell_table(raw, modality="xenium", donor_id="1", roi="pln_1",
+                           profile="identity", identity_release_id="synthetic-test-release")
     table = CellTable(df=df, modality="xenium", donor_id="1", roi="pln_1",
                       tissue=T.LYMPH_NODE)
     frames, labels = extract_donor(table, cfg)
@@ -256,6 +261,19 @@ def test_lymph_node_registration_is_graded_on_dice_alone():
     assert verdict_for(0.91, np.nan, **good)[0] == WARN
 
 
+def test_geometry_only_pancreas_does_not_fail_an_unavailable_identity_gate():
+    good = dict(dice_min=0.80, rmse_max=50.0)
+    verdict, reasons = verdict_for(
+        0.91,
+        np.nan,
+        **good,
+        require_structures=False,
+        structure_reason="identity not attached; structure-derived landmarks are unavailable",
+    )
+    assert verdict == PASS
+    assert any("identity not attached" in reason for reason in reasons)
+
+
 def test_dice_gate_still_binds_for_both_tissues():
     good = dict(dice_min=0.80, rmse_max=50.0)
     assert verdict_for(0.91, 20.0, **good)[0] == PASS
@@ -273,10 +291,21 @@ def _table(roi, modality="xenium", lineage="T_NK", n=50):
         "cell_id": [f"{roi}_{i}" for i in range(n)],
         "x_um": rng.uniform(0, 500, n), "y_um": rng.uniform(0, 500, n),
         "lineage_native": [lineage] * n, "lineage_common": [lineage] * n,
+        "evidence_positive": [True] * n,
     })
-    df = coerce_cell_table(raw, modality=modality, donor_id="6539", roi=roi)
+    df = coerce_cell_table(
+        raw, modality=modality, donor_id="6539", roi=roi,
+        profile="identity", identity_release_id="synthetic-test-release",
+    )
     return CellTable(df=df, modality=modality, donor_id="6539", roi=roi,
                      tissue=T.for_roi(roi))
+
+
+def test_composition_refuses_unavailable_evidence():
+    table = _table("panc")
+    table.df.loc[0, "evidence_positive"] = pd.NA
+    with pytest.raises(ContractError, match="unavailable"):
+        composition(table)
 
 
 def test_composition_is_reported_per_section_with_its_tissue():

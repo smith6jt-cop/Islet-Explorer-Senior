@@ -341,9 +341,9 @@ def run_crossmodal(
     Spans the whole selection in one call and writes once — the output paths are stage-level,
     so a per-ROI call would have each ROI overwrite the last.
     """
-    from .export_pheno import require_current_pheno
+    from .export_pheno import require_current_identity
 
-    require_current_pheno("cross-modal pseudo-cell linking")
+    require_current_identity("cross-modal pseudo-cell linking", cfg=cfg)
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
     if donors:
         man = man[man["donor_id"].isin({str(d) for d in donors})]

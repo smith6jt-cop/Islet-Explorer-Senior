@@ -80,6 +80,36 @@ def test_unknown_region_is_refused_not_folded_into_pancreas():
         S.parse("")
 
 
+@pytest.mark.parametrize("image", [
+    "6450panc_Scan1.er.qptiff - resolution #1",
+])
+def test_real_explicit_pancreas_tokens_resolve(image):
+    assert S.resolve(image).roi == "panc"
+
+
+def test_manifest_resolution_uses_only_exact_tracked_overrides(tmp_path):
+    path = tmp_path / "section_overrides.csv"
+    path.write_text(
+        "image_id,donor_id,roi,slide,reason\n"
+        "HDL115pancLN_Scan1.er.qptiff - resolution #1,115,panc,pheno,non-numeric prefix\n"
+    )
+    overrides = S.load_overrides(path)
+    sec = S.resolve(
+        "HDL115pancLN_Scan1.er.qptiff - resolution #1",
+        donor_id="115",
+        overrides=overrides,
+    )
+    assert (sec.donor_id, sec.roi, sec.slide) == ("115", "panc", S.SLIDE_PHENO)
+
+    with pytest.raises(S.SectionError, match="section_overrides.csv"):
+        S.resolve("HDL9999_Scan1.qptiff", donor_id="9999", overrides=overrides)
+
+
+def test_bare_xenium_serial_is_not_accepted_as_a_donor():
+    with pytest.raises(S.SectionError, match="Xenium slide serial"):
+        S.parse("0059865")
+
+
 def test_group_by_donor_orders_pancreas_first():
     grouped = S.group_by_donor(["6579pln2", "6539", "6579pln", "6539pln", "6414"])
     assert sorted(grouped) == ["6414", "6539", "6579"]

@@ -1,7 +1,7 @@
 # Shiny App Tests & CI
 
 Automated checks for the R Shiny app (`apps/islet/`). Run in CI by
-`.github/workflows/shiny-app-ci.yml` on every push/PR that touches
+`.github/workflows/islet-r.yml` on every push/PR that touches
 `apps/islet/**`.
 
 ## What runs

@@ -2,25 +2,28 @@
 
 ## Ownership boundary
 
-`Phenocycler_Analysis/` owns the raw QuPath-to-cell-identity workflow. Root
-scripts will consume completed assignments after a run-aware H5AD adapter is
-implemented; current app scripts still consume a legacy H5AD. Root scripts
-must not invent marker thresholds, positivity frequencies, or alternate
-cell-typing rules.
+`core/phenocycler/` owns the raw QuPath-to-expression workflow. Root
+scripts will consume a declared identity release after a run-aware H5AD adapter
+is implemented (`docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`, Track D.3); current
+app scripts still consume a legacy H5AD. Root scripts must not invent marker
+thresholds, positivity frequencies, or alternate cell-typing rules.
 
-Current source stages:
+Current source stages (`docs/WORKFLOW_2026-09-02_MAP.md` § 1):
 
 ```text
-manifest -> ingest -> geometry -> redsea -> expression -> controls
-         -> calibrate -> type -> states -> QuPath export
+manifest -> ingest -> geometry -> redsea -> expression
 ```
+
+`controls`, `calibrate`, `type` and the QuPath assignment export are blocked
+(`NO_VERIFIED_TYPING`); `states` is explicit-only. Cell identities exist only in
+the mutable development lanes under `core/phenocycler/scripts/` (map § 2).
 
 Run and inspect them through the package:
 
 ```bash
-conda activate scvi-env
-python -m pip install -e Phenocycler_Analysis
-python -m phenocycler.pipeline run --config config.ini
+python -m pip install -e core/phenocycler        # into the repo .venv
+cd core/phenocycler
+python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
 python -m phenocycler.pipeline status --config config.ini
 ```
 
@@ -30,9 +33,10 @@ different configuration file is intentional.
 
 See:
 
-- `../Phenocycler_Analysis/README.md`
-- `../Phenocycler_Analysis/docs/WORKFLOW.md`
-- `../Phenocycler_Analysis/DATA_README.md`
+- `../core/phenocycler/README.md`
+- `../core/phenocycler/docs/WORKFLOW.md`
+- `../core/phenocycler/DATA_README.md`
+- `../docs/WORKFLOW_2026-09-02_MAP.md`
 
 ## Downstream scripts and current boundary
 
@@ -60,8 +64,8 @@ legacy H5AD maintenance only and must not modify current assignments.
 ## Environment separation
 
 - `scvi-env` is the established downstream Scanpy/scVI/Harmony environment.
-- `Phenocycler_Analysis/environment.yml` is the focused reproducible source
-  workflow environment.
+- The source workflow runs from the repo `.venv` today; `core/phenocycler/environment.yml`
+  is the HiPerGator recipe (the `phenocycler-analysis` env does not exist on this workstation).
 - Do not add embedding, trajectory, Shiny, or app-only dependencies to the
   focused source environment.
 
@@ -77,10 +81,12 @@ legacy H5AD maintenance only and must not modify current assignments.
 
 ## Retired phenotyping code
 
-RESTORE itself is **not** retired: it is the production marker-calling method
-in `Phenocycler_Analysis/phenocycler/restore_stage.py`, and its NNMF separator
-is part of that production path. What is retired is the flat-file apparatus
-that grew around it.
+RESTORE is retired for the source workflow (2026-08-14; root `CLAUDE.md`):
+there are no verified target/reference pairs, `restore_stage.py` is reachable
+only through the blocked `calibrate` stage, and no compatibility fallback may
+revive it. The flat-file apparatus below is retired with it. Note the repo-root
+`data/restore_gated_redsea/` and `data/phenotype/broad/` are still read by the
+Shiny app's Card C — retired for the source workflow, not deleted for the app.
 
 The following approaches are historical and must not be used as live inputs or
 fallbacks:
@@ -93,9 +99,10 @@ fallbacks:
 - Gate 5 dashboards/counterfactuals and anatomy-check release arms;
 - hard-coded QuPath import/export paths and the old broad-lineage importer.
 
-The active QuPath handoff is
-`Phenocycler_Analysis/scripts/groovy/import_cell_assignments.groovy`, which
-uses UUIDs and preserves uncertainty. Historical experiments remain
+The QuPath handoff is
+`core/phenocycler/scripts/groovy/import_cell_assignments.groovy`, which
+uses UUIDs and preserves uncertainty; it has no current input while assignment
+export is blocked. Historical experiments remain
 recoverable from Git history.
 
 After importing, `groovy/view_phenotypes.groovy` can show or hide any exact

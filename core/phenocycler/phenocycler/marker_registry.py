@@ -26,11 +26,23 @@ ALLOWED_KINDS = frozenset({"type", "state", "structural", "excluded"})
 ALLOWED_CALIBRATION_STATUSES = frozenset(
     {"active", "unverified", "deferred", "standalone"}
 )
-NO_VERIFIED_PAIRS_STATUS = "development_no_verified_pairs"
+# The gate is deliberately named for what is MISSING (a verified way to assign an
+# identity), not for the mechanism a future method might use to get one. It was
+# NO_VERIFIED_PAIRS until 2026-08-28, which named RESTORE's target/reference pair
+# web -- a method this workflow retired. That wording made the interlock presuppose
+# its own replacement: a non-pair typing method would have had no "pairs" to verify,
+# yet to run at all would have had to declare a status asserting a RESTORE
+# precondition. What the gate actually enforces is narrower and method-agnostic --
+# no identity call has been verified, so no stage that emits one may run.
+#
+# validate_registry() below REQUIRES this value, so the branches guarded by
+# `production_status != NO_VERIFIED_TYPING_STATUS` are unreachable until that
+# requirement is deliberately lifted alongside an approved roster.
+NO_VERIFIED_TYPING_STATUS = "development_no_verified_typing"
 
 
-class NoVerifiedPairsError(ContractError):
-    """Raised when a caller requests pair-derived production output."""
+class NoVerifiedTypingError(ContractError):
+    """Raised when a caller requests production output that needs a verified call."""
 
 
 ALLOWED_BROAD_COMPARTMENTS = frozenset(
@@ -272,7 +284,7 @@ def registry_from_dict(payload: Mapping[str, Any]) -> MarkerRegistry:
             registry_version=str(payload["registry_version"]),
             method_version=str(payload["method_version"]),
             production_status=str(
-                payload.get("production_status", NO_VERIFIED_PAIRS_STATUS)
+                payload.get("production_status", NO_VERIFIED_TYPING_STATUS)
             ),
             description=str(payload.get("description", "")),
             allowed_compartments=tuple(
@@ -308,9 +320,9 @@ def validate_registry(registry: MarkerRegistry) -> None:
         errors.append("registry_version must be non-empty")
     if not registry.method_version.strip():
         errors.append("method_version must be non-empty")
-    if registry.production_status != NO_VERIFIED_PAIRS_STATUS:
+    if registry.production_status != NO_VERIFIED_TYPING_STATUS:
         errors.append(
-            "production_status must declare development_no_verified_pairs until "
+            "production_status must declare development_no_verified_typing until "
             "a separate verified roster is approved"
         )
     if not registry.allowed_compartments:
@@ -325,16 +337,23 @@ def validate_registry(registry: MarkerRegistry) -> None:
     if duplicated_names:
         errors.append(f"duplicate marker names: {duplicated_names}")
     name_set = set(names)
+    # Every marker reads from one source. Iba1, CD68 and M2Gal3 used to be contracted to
+    # QuPath's signed ``Mean (norm)`` because RESTORE wanted a pre-RESTORE input anchored at
+    # tissue p50/p99. RESTORE is retired, and the exception outlived it: three markers sat on
+    # a different scale from the other 57 while being compared against them in the same
+    # cosine, and the ``QuPathNorm__*`` columns they demanded are absent from every export we
+    # hold -- which made ``expression`` unrunnable and so made the whole upstream
+    # unreproducible. They now take the ``redsea`` default their ``redsea_corrected``
+    # spillover policy already implies.
     qupath_normalized = {
         marker.name
         for marker in registry.markers
         if marker.measurement_source == "qupath_norm"
     }
-    expected_qupath_normalized = {"Iba1", "CD68", "M2Gal3"}
-    if qupath_normalized != expected_qupath_normalized:
+    if qupath_normalized:
         errors.append(
-            "QuPath-normalized pre-RESTORE markers must be exactly "
-            f"{sorted(expected_qupath_normalized)}, got {sorted(qupath_normalized)}"
+            "no marker may select qupath_norm: the signed QuPath scale was a RESTORE-era "
+            f"exception and RESTORE is retired, got {sorted(qupath_normalized)}"
         )
 
     for family in registry.families.values():
@@ -383,15 +402,6 @@ def validate_registry(registry: MarkerRegistry) -> None:
             errors.append(
                 f"{label}: unsupported measurement source "
                 f"{marker.measurement_source!r}"
-            )
-        if marker.measurement_source == "qupath_norm" and marker.name not in {
-            "Iba1",
-            "CD68",
-            "M2Gal3",
-        }:
-            errors.append(
-                f"{label}: QuPath normalization is contracted only for Iba1, CD68, "
-                "and M2Gal3"
             )
         if marker.measurement_source == "qupath_raw" and marker.spillover_policy != (
             "uncompensated"
@@ -473,15 +483,15 @@ def validate_registry(registry: MarkerRegistry) -> None:
 
     if registry.active_markers:
         errors.append(
-            "development_no_verified_pairs registry cannot contain active calibrations"
+            "development_no_verified_typing registry cannot contain active calibrations"
         )
     if registry.families:
         errors.append(
-            "development_no_verified_pairs registry cannot allocate production testing families"
+            "development_no_verified_typing registry cannot allocate production testing families"
         )
     if registry.reference_graph:
         errors.append(
-            "development_no_verified_pairs registry cannot contain operative references"
+            "development_no_verified_typing registry cannot contain operative references"
         )
 
     # CD11b remains assay-QC-only independent of pair development.
@@ -527,8 +537,8 @@ __all__ = [
     "FamilySpec",
     "MarkerRegistry",
     "MarkerSpec",
-    "NO_VERIFIED_PAIRS_STATUS",
-    "NoVerifiedPairsError",
+    "NO_VERIFIED_TYPING_STATUS",
+    "NoVerifiedTypingError",
     "load_registry",
     "registry_from_dict",
     "validate_registry",
