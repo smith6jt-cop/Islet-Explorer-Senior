@@ -38,3 +38,5 @@ for (.file in sort(list.files(.iecore_dir, pattern = "[.]R$", full.names = TRUE)
 
 .islet_domain <- ie_load_domain(.find_repo_file("apps/islet/config/islet_default.yml"))
 ie_set_domain(.islet_domain)
+
+sys.source(.find_source("R/00_audit.R"), envir = globalenv())

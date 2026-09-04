@@ -5,6 +5,7 @@
 # to it. The systemd unit sets WorkingDirectory to apps/islet/, so getwd() there makes
 # the app's relative data paths (file.path("..","..","data","app_data",...)) resolve.
 library(shiny)
+options(shiny.sanitize.errors = TRUE)
 runApp(
   appDir         = getwd(),
   launch.browser = FALSE,

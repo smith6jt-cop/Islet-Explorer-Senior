@@ -115,6 +115,12 @@ drilldown_available <- function() {
 #' @param islet_key Islet key (e.g., "Islet_284")
 #' @return data.frame with columns: X_centroid, Y_centroid, phenotype, cell_region, + markers
 load_islet_cells <- function(imageid, islet_key) {
+  imageid <- as.character(imageid)
+  islet_key <- as.character(islet_key)
+  if (!islet_safe_path_segment(imageid) || !islet_safe_path_segment(islet_key)) {
+    islet_log_validation_failure("islet_key_invalid")
+    return(NULL)
+  }
   combined_id <- paste0(imageid, "_", islet_key)
   cache_key <- combined_id
 
@@ -132,13 +138,12 @@ load_islet_cells <- function(imageid, islet_key) {
     if (nrow(df) == 0) return(NULL)
     df
   }, error = function(e) {
-    message("[DRILLDOWN] Error loading cells for ", combined_id, ": ", e$message)
+    message("event=drilldown_cells_load_failed")
     NULL
   })
 
   if (!is.null(cells)) {
     assign(cache_key, cells, envir = drilldown_cache)
-    message("[DRILLDOWN] Cached cells for ", combined_id, " (", nrow(cells), " cells)")
   }
 
   cells

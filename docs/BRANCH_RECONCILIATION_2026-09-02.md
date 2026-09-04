@@ -7,8 +7,9 @@ provenance, not workflow authority.
 **Status: complete 2026-09-03.** The sibling merge is `0fc21e7`; the final merge on
 `main` is `6cf301d6e8ee48470a50d34a73ce30c257e7d945`. Both retired local/origin refs were
 deleted only after ancestry and empty-cherry proofs. `main`/`origin/main` are the sole
-active monorepo branches; the `panels` and `phenocycler` remotes are source-audit remotes
-retained until Track D.4.
+active monorepo branches. The temporary `panels` and `phenocycler` source-audit remotes were
+retained through Track D.4a, then removed after their URLs, tips, unique commits, and blob
+dispositions were recorded in `SOURCE_RECONCILIATION_2026-09-04.md`.
 
 ## Safety record
 
@@ -89,5 +90,5 @@ The completed reconciliation satisfies all five conditions:
 2. `main` contains both former branch tips;
 3. the reconciled `main` is published successfully;
 4. the obsolete local and remote feature/chore branches are deleted; and
-5. `git branch -a` shows one persistent development branch (`main`), apart from archival
-   tags and read-only source-repository remotes.
+5. `git branch -a` shows one persistent development branch (`main`); after D.4a removes the
+   source-audit remotes, the only remaining remote branch is `origin/main`.

@@ -35,12 +35,23 @@ viewer_server <- function(id, forced_image, current_tab) {
     # The basename currently being viewed (forced image wins, then the user's
     # dropdown choice, then the first available image).
     selected_basename_r <- reactive({
+      available <- available_images_r()
+      valid_choice <- function(value) {
+        if (use_tissuumaps) {
+          valid <- is.character(value) && length(value) == 1L && !is.na(value) &&
+            islet_safe_path_segment(value) && value %in% available
+          if (!valid && !is.null(value)) {
+            islet_log_validation_failure("viewer_image_invalid")
+          }
+          return(valid)
+        }
+        islet_valid_asset_basename(value, available)
+      }
       fi <- forced_image()
-      if (!is.null(fi) && nzchar(fi)) return(fi)
+      if (!is.null(fi) && valid_choice(fi)) return(fi)
       si <- input$selected_image
-      if (!is.null(si) && nzchar(si)) return(si)
-      ai <- available_images_r()
-      if (length(ai) > 0) return(ai[[1]])
+      if (!is.null(si) && valid_choice(si)) return(si)
+      if (length(available) > 0) return(available[[1]])
       NULL
     })
 
@@ -75,10 +86,6 @@ viewer_server <- function(id, forced_image, current_tab) {
         info$iframe_src <- build_tissuumaps_iframe_url(sel_basename)
         info$image_url  <- info$iframe_src
         info$ok         <- !is.null(info$iframe_src)
-        if (VIEWER_DEBUG_ENABLED) {
-          cat("[VIEWER] backend: tissuumaps  project:", sel_basename,
-              " src:", info$iframe_src %||% "NULL", "\n")
-        }
         return(info)
       }
 
@@ -147,9 +154,6 @@ viewer_server <- function(id, forced_image, current_tab) {
       if (VIEWER_DEBUG_ENABLED) {
         info$env <- isolate(detect_environment(session))
         info$asset_diag <- isolate(probe_viewer_asset(session, rel_url))
-        cat("[VIEWER] sel:", sel_basename %||% "NULL",
-            "rel:", rel_url %||% "NULL",
-            "src:", info$iframe_src %||% "NULL", "\n")
       }
       info
     })
@@ -257,6 +261,7 @@ viewer_server <- function(id, forced_image, current_tab) {
         ),
         tags$iframe(
           id = iframe_id, src = src0, `data-relsrc` = src0,
+          title = "Interactive pancreatic tissue image viewer",
           width = "100%", frameBorder = 0, allowfullscreen = NA,
           tabindex = "0", allow = "fullscreen",
           style = "width:100%; height:calc(100vh - 180px); border:0;"

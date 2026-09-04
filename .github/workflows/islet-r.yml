@@ -71,8 +71,9 @@ jobs:
 
       - name: Unit tests (testthat)
         # Inherited from the Junior app lane in the 2026-08-16 merge, along with the
-        # utilities they exercise. The suite now also checks both domain configs,
-        # every tab's wiring, and the synthetic lymph data contract.
+        # utilities they exercise. The 188 assertions now also check both domain
+        # configs, every tab's wiring, the synthetic lymph data contract, and the
+        # production security boundaries reconciled from Junior.
         run: |
           cd apps/islet
           Rscript tests/run_tests.R

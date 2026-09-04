@@ -84,6 +84,17 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       selectInput(ns("donor"), "Donor", choices = choices, selected = donors[1])
     })
 
+    # Accept browser input only when it names a server-discovered donor
+    # partition, before it reaches a path, query, label, or filename.
+    selected_donor <- reactive({
+      donor_id <- input$donor
+      if (is.null(donor_id)) return(NULL)
+      if (!islet_valid_scalar_choice(
+        donor_id, get_available_donors(), "spatial_donor_invalid"
+      )) return(NULL)
+      donor_id
+    })
+
     # ---- Leiden resolution selector ----
     output$leiden_res_selector <- renderUI({
       if (!has_leiden()) return(NULL)
@@ -97,17 +108,19 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
     # ---- Donor cells reactive (load tissue CSV for selected donor) ----
     donor_cells <- reactive({
-      req(input$donor)
-      load_donor_tissue(input$donor)
+      donor_id <- selected_donor()
+      req(donor_id)
+      load_donor_tissue(donor_id)
     })
 
     # ---- Donor status for selected donor ----
     donor_status <- reactive({
-      req(input$donor)
+      donor_id <- selected_donor()
+      req(donor_id)
       pd <- prepared()
       if (!is.null(pd$comp) && "Donor Status" %in% colnames(pd$comp) &&
           "Case ID" %in% colnames(pd$comp)) {
-        ds <- pd$comp$`Donor Status`[pd$comp$`Case ID` == as.integer(input$donor)]
+        ds <- pd$comp$`Donor Status`[pd$comp$`Case ID` == as.integer(donor_id)]
         if (length(ds) > 0) return(ds[1])
       }
       "?"
@@ -121,7 +134,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       req(leiden_col, leiden_col %in% colnames(pd$comp))
 
       # Build islet_key -> cluster mapping for the selected donor
-      donor_id <- input$donor
+      donor_id <- selected_donor()
       req(donor_id)
 
       comp <- pd$comp
@@ -392,8 +405,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           ggplot2::scale_y_reverse()
       }
 
+      donor_id <- selected_donor()
+      req(donor_id)
       p + ggplot2::labs(
-          title = paste0("Donor ", input$donor, " (", ds, ")"),
+          title = paste0("Donor ", donor_id, " (", ds, ")"),
           subtitle = paste0(nrow(fg), " foreground cells | ",
                             nrow(bg), " background cells"),
           x = expression(paste("X centroid (", mu, "m)")),
@@ -408,7 +423,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
     output$tissue_scatter <- shiny::renderPlot({ spatial_tissue_scatter_plot() }, height = 800)
     output$dl_tissue_scatter <- shiny::downloadHandler(
-      filename = function() islet_png_filename(paste0("spatial_tissue_donor_", input$donor %||% "all")),
+      filename = function() {
+        donor_id <- selected_donor()
+        islet_png_filename(paste0("spatial_tissue_donor_", donor_id %||% "all"))
+      },
       content = function(file) {
         p <- spatial_tissue_scatter_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,

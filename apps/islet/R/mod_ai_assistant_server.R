@@ -202,10 +202,8 @@ ai_assistant_server <- function(id) {
 
       if (inherits(response, "error")) {
         err_text <- conditionMessage(response)
-        message("[OPENAI] Assistant request failed: ", err_text)
-        friendly <- paste0("Assistant error: ", err_text)
-        base_val <- tryCatch(LLM_API_BASE, error = function(e) "")
-        norm_base <- if (nzchar(base_val)) sub("/+\\z", "", base_val, perl = TRUE) else ""
+        message("event=ai_request_failed")
+        friendly <- "The assistant couldn't complete this request. Please try again later."
         if (grepl("exceeded your current quota", err_text, ignore.case = TRUE)) {
           friendly <- paste(
             "The assistant can't reply right now because the OpenAI API quota was exceeded.",
@@ -217,18 +215,16 @@ ai_assistant_server <- function(id) {
         } else if (grepl("401", err_text, ignore.case = TRUE) || grepl("invalid api key", err_text, ignore.case = TRUE)) {
           friendly <- paste(
             "The assistant can't authenticate with the LLM provider.",
-            "Double-check the KEY value in your environment (e.g., ~/.Renviron), then reload the app.")
+            "Check the configured credential, then reload the app.")
         } else if (grepl("could not resolve host", err_text, ignore.case = TRUE) ||
                    grepl("name or service not known", err_text, ignore.case = TRUE)) {
-          endpoint <- if (nzchar(norm_base)) norm_base else "the configured endpoint"
           friendly <- paste(
-            sprintf("The assistant could not resolve %s.", endpoint),
-            "Confirm the BASE setting in your environment (e.g., ~/.Renviron) and network/DNS access.")
+            "The assistant could not resolve the configured provider.",
+            "Confirm the provider configuration and network/DNS access.")
         } else if (grepl("timed? out", err_text, ignore.case = TRUE) ||
                    grepl("connection refused", err_text, ignore.case = TRUE)) {
-          endpoint <- if (nzchar(norm_base)) norm_base else "the configured endpoint"
           friendly <- paste(
-            sprintf("The assistant couldn't reach %s.", endpoint),
+            "The assistant couldn't reach the configured provider.",
             "Ensure the service is reachable and not blocking outbound requests.")
         }
 

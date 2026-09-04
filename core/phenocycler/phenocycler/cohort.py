@@ -30,11 +30,14 @@ def donor_of(key: str) -> str:
     Anything that does not parse as a section key is returned unchanged, so a caller
     passing plain donor ids is unaffected.
     """
-    from .sections import parse
+    from .sections import SectionError, parse
 
     try:
         return parse(key).donor_id
-    except Exception:  # noqa: BLE001 - an unparseable key cannot be attributed to a donor
+    except SectionError:
+        # Only "this is not a section key" is tolerable: the caller passed a plain donor
+        # id, which is returned unchanged. Any other exception is a defect, and swallowing
+        # it here would silently readmit a donor the exclusion list is meant to refuse.
         return str(key)
 
 

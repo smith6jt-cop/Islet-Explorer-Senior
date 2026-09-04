@@ -223,13 +223,16 @@ class PipelineConfig:
         identity, so keeping it costs nothing and stops a multi-section donor from being
         counted twice the moment the lymph-node sections land.
         """
-        from .sections import parse
+        from .sections import SectionError, parse
 
         out = set()
         for key in self.discover_sections(from_dir):
             try:
                 out.add(parse(key).donor_id)
-            except Exception:  # noqa: BLE001 - an unparseable key is surfaced by the stage
+            except SectionError:
+                # A partition whose name is not a section key is surfaced by the stage that
+                # reads it; here it stands for itself. Narrow on purpose -- a broad catch
+                # would hide a genuine `parse` defect behind a well-formed donor list.
                 out.add(key)
         return filter_eligible_donors(sorted(out))
 

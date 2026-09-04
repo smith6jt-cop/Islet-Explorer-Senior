@@ -551,7 +551,7 @@ def test_qupath_cohort_requires_exactly_one_unique_image_per_expected_donor(tmp_
     duplicate_donor = _cohort_image(
         tmp_path, donor_id="1", image_id="another-image"
     )
-    with pytest.raises(ContractError, match="duplicate donors"):
+    with pytest.raises(ContractError, match="duplicate donor_id"):
         QuPathCohortManifest.create(
             cohort_name="cohort",
             expected_donors=("1",),

@@ -16,6 +16,14 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
+    validated_pt_mode <- reactive({
+      value <- input$pt_mode %||% "core"
+      if (!islet_valid_scalar_choice(
+        value, c("core", "combined"), "trajectory_mode_invalid"
+      )) return("core")
+      value
+    })
+
     # ---------- H5AD Path Resolution ----------
     resolve_traj_path <- function() {
       cand <- c(
@@ -55,19 +63,18 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       ad <- NULL
-      load_err <- NULL
       norm_path <- tryCatch(normalizePath(cur, mustWork = TRUE), error = function(e) cur)
 
       ad <- tryCatch(
         anndata::read_h5ad(norm_path),
         error = function(e) {
-          load_err <<- conditionMessage(e)
+          message("event=trajectory_data_load_failed")
           NULL
         }
       )
 
       if (is.null(ad)) {
-        traj(list(error = sprintf("Failed to read H5AD: %s", norm_path), error_detail = load_err))
+        traj(list(error = "Trajectory data could not be loaded.", error_detail = NULL))
         return()
       }
 
@@ -161,7 +168,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       # "core" uses dpt_pseudotime (core scVI features).
       # "combined" uses dpt_pseudotime_combined (core + peri-islet scVI features).
       # Falls back to whichever column is available if the requested one isn't.
-      mode <- if (!is.null(input$pt_mode)) input$pt_mode else "core"
+      mode <- validated_pt_mode()
       if (mode == "combined" && "dpt_pseudotime_combined" %in% names(obs)) {
         obs$pseudotime <- obs$dpt_pseudotime_combined
       } else if ("dpt_pseudotime" %in% names(obs)) {
@@ -235,16 +242,12 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     # ---------- Validate selected feature ----------
     traj_validate <- reactive({
       selected_feature <- input$traj_feature
-      if (is.null(selected_feature) || !nzchar(selected_feature)) return(NULL)
-
-      adata_path <- resolve_traj_path()
-      if (is.null(adata_path) || !file.exists(adata_path)) return(NULL)
-
-      adata <- tryCatch(anndata::read_h5ad(adata_path), error = function(e) NULL)
-      if (is.null(adata)) return(NULL)
-
-      var_names <- rownames(adata$var)
-      if (!selected_feature %in% var_names) return(NULL)
+      if (is.null(selected_feature)) return(NULL)
+      tr <- traj()
+      if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
+      if (!islet_valid_scalar_choice(
+        selected_feature, tr$var_names, "trajectory_feature_invalid"
+      )) return(NULL)
 
       list(feature = selected_feature, status = "ready")
     })
@@ -281,7 +284,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         idx <- which(var_names == selected_feature)
         as.numeric(adata$X[, idx])
       }, error = function(e) {
-        message("[traj_data_clean] Error extracting feature: ", e$message)
+        message("event=trajectory_feature_extract_failed")
         rep(NA_real_, nrow(obs_df))
       })
 
@@ -376,8 +379,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         result_df$centroid_x_um <- as.numeric(islet_spatial_lookup$centroid_x_um[mi])
         result_df$centroid_y_um <- as.numeric(islet_spatial_lookup$centroid_y_um[mi])
         result_df$has_spatial   <- !is.na(mi)
-        cat("[traj_data_clean] Added spatial coordinates for",
-            sum(result_df$has_spatial), "islets (vectorized)\n")
       }
 
       # Filter valid rows
@@ -389,7 +390,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       )
 
       if (length(valid_idx) == 0) {
-        message("[traj_data_clean] No valid rows after filtering")
         return(NULL)
       }
 
@@ -409,8 +409,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       result_df$pt_raw <- result_df$pt
       result_df$pt <- rank(result_df$pt, ties.method = "average") / nrow(result_df)
 
-      message("[traj_data_clean] Successfully processed ", nrow(result_df),
-              " observations for ", selected_feature)
       return(result_df)
     })
 
@@ -432,10 +430,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           "AnnData object not available or H5AD failed to load."))
       }
       if (!is.null(tr$error)) {
-        det <- if (!is.null(tr$error_detail) && nzchar(tr$error_detail)) paste0(" Details: ", tr$error_detail) else ""
         install_hint <- if (grepl("anndata", tr$error, ignore.case = TRUE)) " Install with: BiocManager::install('anndata')" else ""
         return(tags$div(style = "color:#b00;",
-          sprintf("Trajectory load error: %s%s%s", tr$error, det, install_hint)))
+          sprintf("Trajectory load error: %s%s", tr$error, install_hint)))
       }
       ms <- traj_validate()
       jn <- traj_data_clean()
@@ -466,7 +463,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       # Note when the user asked for combined mode but the data lacks that column.
       mode_note <- NULL
-      if (identical(input$pt_mode, "combined") &&
+      if (identical(validated_pt_mode(), "combined") &&
           !("dpt_pseudotime_combined" %in% names(tr$obs))) {
         mode_note <- tags$div(style = "color:#CC6633; font-size:12px; margin-top:2px;",
           "Core + Peri pseudotime is not available in this dataset — showing Core only.")
@@ -552,9 +549,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       df_keep    <- df[!df$is_outlier, , drop = FALSE]
       df_ghost   <- df[df$is_outlier, , drop = FALSE]
 
-      cat(sprintf("[TRAJECTORY] %d outliers flagged (%s); %d kept, %d drawn as ghost ×\n",
-                  outlier_summary$n_excluded, outlier_summary$label,
-                  nrow(df_keep), nrow(df_ghost)))
       traj_outlier_summary(outlier_summary)
 
       df <- df_keep
@@ -736,7 +730,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       # Labels
-      selected_feature <- input$traj_feature %||% "Selected feature"
+      selected_feature <- df$feature_name[1] %||% "Selected feature"
       metric_label <- "— normalized expression (mean per islet, 0–1)"
       x_label <- "Pseudotime (rank-normalized)"
 
@@ -793,30 +787,19 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       click_data <- event_data("plotly_click", source = ns("traj_scatter"))
       if (is.null(click_data)) return()
 
-      # Check if segmentation viewer is available
-      if (!SF_AVAILABLE) {
-        showNotification("Segmentation viewer requires the 'sf' package. Install with: install.packages('sf')",
-                         type = "warning", duration = 5)
-        return()
-      }
-
-      if (is.null(islet_spatial_lookup)) {
-        showNotification("Islet spatial lookup data not available", type = "warning", duration = 5)
-        return()
-      }
-
-      cat("[TRAJ CLICK] Received click event\n")
-
       # --- Priority 1: Parse key (format "case_id|islet_key") ---
       case_id   <- NULL
       islet_key <- NULL
       click_key <- click_data$key
       if (!is.null(click_key) && length(click_key) > 0 && !is.na(click_key[1]) && nzchar(click_key[1])) {
         key_parts <- strsplit(as.character(click_key[1]), "\\|")[[1]]
-        if (length(key_parts) >= 2) {
+        if (length(key_parts) == 2L &&
+            islet_safe_path_segment(key_parts[1]) &&
+            islet_safe_path_segment(key_parts[2])) {
           case_id   <- key_parts[1]
           islet_key <- key_parts[2]
-          cat("[TRAJ CLICK] From key:", case_id, islet_key, "\n")
+        } else {
+          islet_log_validation_failure("islet_key_invalid")
         }
       }
 
@@ -826,7 +809,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         if (!is.null(custom) && length(custom) >= 2) {
           case_id   <- custom[[1]]
           islet_key <- custom[[2]]
-          cat("[TRAJ CLICK] From customdata:", case_id, islet_key, "\n")
         }
       }
 
@@ -843,12 +825,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
             idx <- matches[1]
             case_id   <- lookup$case_id[idx]
             islet_key <- lookup$islet_key[idx]
-            cat("[TRAJ CLICK] From coord lookup:", case_id, islet_key, "\n")
           }
         }
       }
 
-      cat("[TRAJ CLICK] resolved key:", paste(case_id, islet_key, sep = "|"), "\n")
       # Centroid lookup + zero-pad fallback + donor join + selected_islet() —
       # shared with the Plot handler and the native-click bridge.
       select_islet_from_key(case_id, islet_key, prepared, selected_islet)
@@ -860,9 +840,13 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     observeEvent(input$traj_native_click, {
       nc <- input$traj_native_click
       if (is.null(nc) || is.null(nc$key) || !nzchar(as.character(nc$key)[1])) return()
-      cat("[TRAJ CLICK] native bridge; key:", as.character(nc$key)[1], "\n")
       parts <- strsplit(as.character(nc$key)[1], "\\|")[[1]]
-      if (length(parts) < 2) return()
+      if (length(parts) != 2L ||
+          !islet_safe_path_segment(parts[1]) ||
+          !islet_safe_path_segment(parts[2])) {
+        islet_log_validation_failure("islet_key_invalid")
+        return()
+      }
       select_islet_from_key(parts[1], parts[2], prepared, selected_islet)
     })
 
@@ -1209,7 +1193,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           theme_void())
       }
 
-      selected_feature <- input$traj_feature %||% "Selected feature"
+      selected_feature <- df$feature_name[1] %||% "Selected feature"
 
       g <- ggplot(df, aes(x = umap_1, y = umap_2, color = value)) +
         geom_point(alpha = 0.6, size = 1.0) +
@@ -1370,8 +1354,11 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (is.null(markers) || length(markers) == 0) return(NULL)
       tr <- traj_with_pseudotime()
       if (is.null(tr) || !is.null(tr$error) || is.null(tr$adata)) return(NULL)
-      valid <- intersect(markers, tr$var_names)
-      if (length(valid) == 0) return(NULL)
+      if (!islet_valid_choice_vector(
+        markers, setdiff(tr$var_names, EXCLUDED_MARKERS),
+        "trajectory_feature_invalid"
+      )) return(NULL)
+      valid <- markers
       idx <- match(valid, tr$var_names)
       expr <- tryCatch(as.matrix(tr$adata$X[, idx, drop = FALSE]), error = function(e) NULL)
       if (is.null(expr)) return(NULL)

@@ -1,3 +1,11 @@
+# Debug modes are a deployment error in production. Keep this check before
+# package loading so a misconfigured worker fails closed.
+DEBUG_CREDS <- islet_flag_enabled(Sys.getenv("DEBUG_CREDENTIALS", "0"))
+VIEWER_DEBUG_ENABLED <- islet_flag_enabled(Sys.getenv("VIEWER_DEBUG", "0"))
+if (islet_is_production() && (DEBUG_CREDS || VIEWER_DEBUG_ENABLED)) {
+  stop("Production does not permit credential or viewer debug modes.", call. = FALSE)
+}
+
 library(shiny)
 library(shinyjs)
 library(readxl)
@@ -13,11 +21,11 @@ library(jsonlite)
 # Toggle these to fall back to the legacy in-memory code paths if something
 # regresses. They are read by data_loading.R, spatial_helpers.R, and the
 # stats/spatial modules.
-USE_DUCKDB <- isTRUE(as.logical(Sys.getenv("ISLET_USE_DUCKDB", "TRUE")))
-USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
+USE_DUCKDB <- islet_flag_enabled(Sys.getenv("ISLET_USE_DUCKDB", "TRUE"))
+USE_MIRAI  <- islet_flag_enabled(Sys.getenv("ISLET_USE_MIRAI", "TRUE"))
 # AI Assistant panel: OFF by default so public deployments don't expose the UF
 # Navigator API key (KEY/BASE). Set ISLET_ENABLE_AI=TRUE (e.g. local dev) to show it.
-AI_ENABLED <- isTRUE(as.logical(Sys.getenv("ISLET_ENABLE_AI", "FALSE")))
+AI_ENABLED <- islet_flag_enabled(Sys.getenv("ISLET_ENABLE_AI", "FALSE"))
 
 # Display geometry and grouping palettes come from the declared DOMAIN file.
 # They are UI configuration, never cell-identity or threshold authorities.
@@ -75,7 +83,7 @@ suppressPackageStartupMessages({
       message("[VITESSCE] Package verified working (version ", pkg_version, ")")
       VITESSCE_AVAILABLE <<- TRUE
     }, error = function(e) {
-      warning("[VITESSCE] Package installed but failed basic test: ", conditionMessage(e))
+      warning("[VITESSCE] Package installed but failed its capability check")
     })
 
     # CRITICAL FIX: Ensure all child routes from MultiImageWrapper are registered
@@ -93,7 +101,7 @@ suppressPackageStartupMessages({
         }, overwrite = TRUE)
         message("[VITESSCE] Applied MultiImageWrapper get_routes fix for segmentation layer routing")
       }, error = function(e) {
-        warning("[VITESSCE] Failed to apply get_routes fix: ", conditionMessage(e))
+        warning("[VITESSCE] Failed to apply the segmentation routing fix")
       })
     }
   }
@@ -110,10 +118,21 @@ suppressPackageStartupMessages({
 APP_VERSION <- "modular-v1"
 try({
   message("[APP LOAD] Version=", APP_VERSION, " time=", Sys.time())
-  message("[APP LOAD] getwd=", tryCatch(getwd(), error = function(e) NA))
-  message("[APP LOAD] list.files(.) contains app.R? ", any(grepl('^app.R$', list.files('.'))))
-  flag_path <- file.path(dirname(sys.frame(1)$ofile %||% 'app.R'), 'APP_LOADED_FLAG')
-  writeLines(paste0('loaded ', Sys.time(), ' version=', APP_VERSION), flag_path)
+  flag_path <- Sys.getenv("ISLET_APP_LOAD_FLAG", unset = "")
+  if (nzchar(flag_path)) {
+    temp_root <- normalizePath(tempdir(), mustWork = TRUE)
+    flag_path <- normalizePath(flag_path, mustWork = FALSE)
+    is_below_temp <- identical(flag_path, temp_root) ||
+      startsWith(flag_path, paste0(temp_root, .Platform$file.sep))
+    if (!is_below_temp) {
+      warning("ISLET_APP_LOAD_FLAG must resolve below tempdir(); flag not written.")
+    } else {
+      if (!dir.exists(dirname(flag_path))) {
+        dir.create(dirname(flag_path), recursive = TRUE, showWarnings = FALSE)
+      }
+      writeLines(paste0("loaded ", Sys.time(), " version=", APP_VERSION), flag_path)
+    }
+  }
 }, silent = TRUE)
 
 # Path constants
@@ -147,7 +166,7 @@ if (isTRUE(USE_DUCKDB)) {
     } else {
       con <- tryCatch(
         DBI::dbConnect(duckdb::duckdb(), read_only = TRUE),
-        error = function(e) { message("[DUCKDB] connect failed: ", conditionMessage(e)); NULL }
+        error = function(e) { message("event=duckdb_connect_failed"); NULL }
       )
       if (is.null(con)) {
         USE_DUCKDB <- FALSE
@@ -188,7 +207,7 @@ if (isTRUE(USE_DUCKDB)) {
               "CREATE OR REPLACE VIEW tissue AS SELECT * FROM parquet_scan('%s', hive_partitioning=1)",
               tissue_glob
             ))
-            message("[DUCKDB] Registered view: tissue -> ", tissue_root)
+            message("[DUCKDB] Registered tissue view")
           }, silent = TRUE)
         }
 
@@ -204,7 +223,7 @@ if (isTRUE(USE_DUCKDB)) {
               "CREATE OR REPLACE VIEW cell_distance AS SELECT * FROM parquet_scan('%s', hive_partitioning=1)",
               normalizePath(file.path(cell_distance_root, "**", "*.parquet"), winslash = "/", mustWork = FALSE)
             ))
-            message("[DUCKDB] Registered view: cell_distance -> ", cell_distance_root)
+            message("[DUCKDB] Registered cell-distance view")
           }, silent = TRUE)
         }
 
@@ -310,15 +329,11 @@ if (!nzchar(Sys.getenv("RETICULATE_PYTHON", ""))) {
 
   if (nzchar(candidate_python)) {
     Sys.setenv(RETICULATE_PYTHON = candidate_python)
-    message("[PYTHON] RETICULATE_PYTHON=", candidate_python)
+    message("[PYTHON] Compatible interpreter configured")
   } else {
     message("[PYTHON] No python executable found. Set RETICULATE_PYTHON to a valid interpreter.")
   }
 }
-
-# Debug flags
-DEBUG_CREDS <- isTRUE(as.logical(Sys.getenv("DEBUG_CREDENTIALS", "0")))
-VIEWER_DEBUG_ENABLED <- identical(Sys.getenv("VIEWER_DEBUG", "0"), "1")
 
 # Feature flags
 #
@@ -329,7 +344,9 @@ VIEWER_DEBUG_ENABLED <- identical(Sys.getenv("VIEWER_DEBUG", "0"), "1")
 # leaving the server running without its UI would be harmless (Shiny reactives
 # are lazy) but would still be dead wiring, so both are gated together.
 #   SHOW_INFLAMMATION_TAB=1 in .Renviron  ->  tab reappears
-SHOW_INFLAMMATION_TAB <- identical(Sys.getenv("SHOW_INFLAMMATION_TAB", "0"), "1")
+SHOW_INFLAMMATION_TAB <- islet_flag_enabled(
+  Sys.getenv("SHOW_INFLAMMATION_TAB", "0")
+)
 
 # Robust click bridge for plotly scatters used by the islet drill-down.
 # On macOS, plotly's own click/drag discrimination can suppress `plotly_click`
@@ -371,14 +388,12 @@ function(el, x){
       if (d && d.points && d.points.length){ var k = keyOf(d.points[0]); if (k != null) lastKey = k; }
     });
     gd.on('plotly_unhover', function(){ lastKey = null; });
-    gd.on('plotly_click', function(){ console.log('[ISLET] plotly_click fired'); });
   }
   (gd || el).addEventListener('mousedown', function(e){ downX = e.clientX; downY = e.clientY; downKey = lastKey || hoverKey(); }, true);
   (gd || el).addEventListener('mouseup', function(e){
     if (Math.abs(e.clientX - downX) > 5 || Math.abs(e.clientY - downY) > 5) return;
     var k = downKey || lastKey || hoverKey();
     if (k == null) return;
-    console.log('[ISLET] native click -> ' + k);
     Shiny.setInputValue('%s', {key: k, nonce: (Date.now() + Math.random())}, {priority: 'event'});
   }, true);
 }", input_id)
@@ -517,7 +532,7 @@ PHENOTYPE_RESIDUALS <- list(
 # Returns NULL if the file is missing — callers should guard.
 .parse_phenotype_rules_csv <- function(path) {
   if (!file.exists(path)) {
-    message("[PHENOTYPE] Rules CSV not found at ", path, " — modal/hints disabled")
+    message("[PHENOTYPE] Rules unavailable; modal and hints disabled")
     return(NULL)
   }
   raw <- utils::read.csv(path, header = FALSE, stringsAsFactors = FALSE,

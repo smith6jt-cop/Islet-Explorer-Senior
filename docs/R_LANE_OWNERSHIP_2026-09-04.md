@@ -22,17 +22,17 @@ modified while resolving it.
 | Modernist shell (`cohort_filter`, `mod_cohort`, rail, bslib shell) | deliberately superseded | Junior merged it at `f827106`, explicitly reverted it at `9cf3d50`, then released the old layout at `f2a5c54`; D.2 does not reverse that decision silently |
 | `app/shiny_redesign` | absent / superseded | no runnable duplicate imported |
 | Lymph app fork | absent / replaced by config + data | `apps/lymph` contains no `app.R` or `R/`; contract test enforces this |
-| Junior review-hardening `e589961` | recorded for D.4 | later deployment/security lane, not silently represented as a Phase-5 UI harvest |
+| Junior review-hardening `e589961` | portable controls reconciled in D.4 | Senior now has fixed-schema validation audit events, browser-input/path allowlists, production-safe AI/error handling, sanitized launch flags, and accessibility fixes. Junior's OCI evidence pipeline is deliberately not copied because it depends on Junior's release backend; see `SOURCE_RECONCILIATION_2026-09-04.md` |
 
 Exit evidence:
 
 - `R CMD build apps/R/ieCore` followed by `R CMD check` on the source tarball
   finishes `Status: OK`.
 - `Rscript apps/islet/tests/parse_check.R` parses the package and app sources.
-- `Rscript apps/islet/tests/run_tests.R` passes 138 assertions, including
+- `Rscript apps/islet/tests/run_tests.R` passes 188 assertions, including
   exact islet/lymph domain checks, the synthetic lymph schema, one-definition
-  checks, and UI/server wiring for Plot, Trajectory, Viewer, Statistics,
-  Spatial, Inflammation, and AI.
-- A full app-source smoke with DuckDB, mirai, and AI disabled loads the islet
+  checks, UI/server wiring for Plot, Trajectory, Viewer, Statistics, Spatial,
+  Inflammation, and AI, and the D.4 production security boundaries.
+- A production-flagged app-source smoke with DuckDB, mirai, and AI disabled loads the islet
   config from `apps/islet/config/islet_default.yml` and returns a server
   function.

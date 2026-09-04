@@ -13,13 +13,10 @@ AI_SYSTEM_PROMPT <- paste(
 )
 
 # ===== Credential Loading =====
-# Set DEBUG_CREDENTIALS=1 to enable verbose logging
+# Set DEBUG_CREDENTIALS=1 in development to emit fixed-code setup diagnostics.
 
 if (DEBUG_CREDS) {
-  cat("\n=== CREDENTIAL LOADING DEBUG ===\n")
-  cat("Current working directory:", getwd(), "\n")
-  cat("Home directory:", Sys.getenv("HOME"), "\n")
-  cat("User:", Sys.getenv("USER"), "\n")
+  message("event=credential_debug_enabled")
 }
 
 # Check if .Renviron exists - prioritize app directory for deployment
@@ -34,64 +31,41 @@ renviron_paths <- c(
 renviron_paths <- unique(path.expand(renviron_paths[nzchar(renviron_paths)]))
 
 if (DEBUG_CREDS) {
-  cat("\nSearching for .Renviron files:\n")
-  for (path in renviron_paths) {
-    exists <- file.exists(path)
-    cat("  ", path, ":", if(exists) "EXISTS" else "NOT FOUND", "\n")
-    if (exists) {
-      cat("    File size:", file.size(path), "bytes\n")
-      cat("    Readable:", file.access(path, 4) == 0, "\n")
-    }
-  }
+  message("event=credential_search_started")
 }
 
 # Credential loader with optional debug output
 load_user_env_credentials <- function() {
-  if (DEBUG_CREDS) cat("\n[CREDENTIAL LOADER] Starting...\n")
+  if (DEBUG_CREDS) message("event=credential_load_started")
 
   for (env_path in renviron_paths) {
     if (!file.exists(env_path)) next
-
-    if (DEBUG_CREDS) cat("[CREDENTIAL LOADER] Attempting to load:", env_path, "\n")
 
     result <- tryCatch({
       readRenviron(env_path)
 
       if (DEBUG_CREDS) {
-        lines <- readLines(env_path, warn = FALSE)
-        key_line <- grep("^KEY\\s*=", lines, value = TRUE)
-        base_line <- grep("^BASE\\s*=", lines, value = TRUE)
-        cat("[CREDENTIAL LOADER] File contains", length(lines), "lines\n")
-        cat("[CREDENTIAL LOADER] KEY line found:", length(key_line) > 0, "\n")
-        cat("[CREDENTIAL LOADER] BASE line found:", length(base_line) > 0, "\n")
-
-        key_after <- Sys.getenv("KEY", unset = "")
-        base_after <- Sys.getenv("BASE", unset = "")
-        cat("[CREDENTIAL LOADER] After loading:\n")
-        cat("  KEY present:", nzchar(key_after), "\n")
-        cat("  KEY length:", nchar(key_after), "\n")
-        cat("  BASE present:", nzchar(base_after), "\n")
-        cat("  BASE value:", base_after, "\n")
+        message("event=credential_file_loaded")
       }
 
       TRUE
     }, error = function(e) {
-      if (DEBUG_CREDS) cat("[CREDENTIAL LOADER] ERROR loading", env_path, ":", conditionMessage(e), "\n")
+      if (DEBUG_CREDS) message("event=credential_file_load_failed")
       FALSE
     })
 
     if (result) {
-      if (DEBUG_CREDS) cat("[CREDENTIAL LOADER] Successfully loaded from:", env_path, "\n")
       return(invisible(TRUE))
     }
   }
 
-  if (DEBUG_CREDS) cat("[CREDENTIAL LOADER] No valid .Renviron file found\n")
+  if (DEBUG_CREDS) message("event=credential_file_unavailable")
   invisible(FALSE)
 }
 
-# Load credentials immediately
-load_user_env_credentials()
+# Production never searches local credential files, even if this helper is
+# accidentally sourced while the AI feature remains disabled.
+if (!islet_is_production()) load_user_env_credentials()
 
 # Simplified credential getters
 get_llm_api_key <- function() {
@@ -100,11 +74,11 @@ get_llm_api_key <- function() {
   key_val <- stringr::str_replace_all(key_val, "\\s+", "")
 
   if (nzchar(key_val)) {
-    if (DEBUG_CREDS) cat("[API KEY] Found key of length", nchar(key_val), "\n")
+    if (DEBUG_CREDS) message("event=credential_key_configured")
     return(key_val)
   }
 
-  if (DEBUG_CREDS) cat("[API KEY] No key found in environment\n")
+  if (DEBUG_CREDS) message("event=credential_key_unavailable")
   return("")
 }
 
@@ -113,7 +87,7 @@ get_llm_api_base <- function() {
   base_val <- stringr::str_trim(base_val)
 
   if (!nzchar(base_val)) {
-    if (DEBUG_CREDS) cat("[API BASE] No BASE found, using default OpenAI endpoint\n")
+    if (DEBUG_CREDS) message("event=credential_endpoint_defaulted")
     return("https://api.openai.com/v1")
   }
 
@@ -125,20 +99,21 @@ get_llm_api_base <- function() {
     base_val <- paste0(base_val, "/v1")
   }
 
-  if (DEBUG_CREDS) cat("[API BASE] Using custom endpoint:", base_val, "\n")
+  if (DEBUG_CREDS) message("event=credential_endpoint_configured")
   Sys.setenv(BASE = base_val)
   return(base_val)
 }
 
 # Initialize and verify
-LLM_API_BASE <- get_llm_api_base()
-test_key <- get_llm_api_key()
+LLM_API_BASE <- if (islet_is_production()) {
+  "https://api.openai.com/v1"
+} else {
+  get_llm_api_base()
+}
+test_key <- if (islet_is_production()) "" else get_llm_api_key()
 
 if (DEBUG_CREDS) {
-  cat("\n=== FINAL CREDENTIAL CHECK ===\n")
-  cat("API Base:", LLM_API_BASE, "\n")
-  cat("API Key configured:", nzchar(test_key), "\n")
-  cat("================================\n\n")
+  message("event=credential_check_complete")
 }
 
 sanitize_openai_content <- function(text, max_chars = 4000) {
@@ -194,6 +169,9 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
                              model = "auto", temperature = 0.3,
                              max_output_tokens = 4096,
                              stream = FALSE, stream_callback = NULL) {
+  if (islet_is_production()) {
+    stop("AI assistant is unavailable in production.", call. = FALSE)
+  }
   api_key <- get_llm_api_key()
   if (!nzchar(api_key)) {
     stop("OpenAI API key not configured.", call. = FALSE)
@@ -252,7 +230,7 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
   }
 
   try_stream_chat <- function(mdl) {
-    message("[OPENAI] Streaming model '", mdl, "' via ", chat_url)
+    message("event=ai_stream_attempt")
     chat_payload <- list(
       model = mdl,
       messages = chat_messages,
@@ -360,7 +338,10 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
       } else {
         paste("HTTP", status_chat)
       }
-      return(stream_error(detail_chat, fallback = status_chat %in% c(401, 404, 405)))
+      return(stream_error(
+        "AI streaming request failed.",
+        fallback = status_chat %in% c(401, 404, 405)
+      ))
     }
 
     if (!nzchar(accumulated)) {
@@ -379,7 +360,7 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
       if (!inherits(stream_result, "error")) {
         return(stream_result)
       }
-      last_error_message <- conditionMessage(stream_result)
+      last_error_message <- "AI streaming request failed."
       if (!isTRUE(attr(stream_result, "fallback_to_nonstream"))) {
         next
       }
@@ -397,7 +378,7 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
         metadata = list(app = "Islet Explorer AI Assistant")
       )
 
-      message("[OPENAI] Attempting model '", mdl, "' via ", responses_url)
+      message("event=ai_responses_attempt")
       req <- httr2::request(responses_url) |>
         httr2::req_headers(
           Authorization = paste("Bearer", api_key),
@@ -416,14 +397,14 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
       resp <- tryCatch(httr2::req_perform(req), error = identity)
 
       if (inherits(resp, "httr2_http")) {
-        last_error_message <- conditionMessage(resp)
+        last_error_message <- "AI provider request failed."
         if (!is.null(resp$resp)) {
           resp <- resp$resp
         } else {
           next
         }
       } else if (inherits(resp, "error")) {
-        last_error_message <- conditionMessage(resp)
+        last_error_message <- "AI provider request failed."
         next
       }
 
@@ -445,15 +426,15 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
           grepl("ResponsesAPIResponse|/responses|no-default-models", detail, ignore.case = TRUE)
 
         if (fallback_due_to_model) {
-          message("[OPENAI] Falling back from model '", mdl, "' after error: ", detail)
-          last_error_message <- detail
+          message("event=ai_model_fallback")
+          last_error_message <- "AI provider request failed."
           next
         }
 
         if (fallback_to_chat) {
           use_chat_api <- TRUE
         } else {
-          stop(detail, call. = FALSE)
+          stop("AI provider request failed.", call. = FALSE)
         }
       } else {
         body <- httr2::resp_body_json(resp, simplifyVector = FALSE)
@@ -503,7 +484,7 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
     } # end if (!use_chat_api)
 
     if (use_chat_api) {
-      message("[OPENAI] Retrying model '", mdl, "' via ", chat_url)
+      message("event=ai_chat_retry")
       chat_payload <- list(
         model = mdl,
         messages = chat_messages,
@@ -529,14 +510,14 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
       resp_chat <- tryCatch(httr2::req_perform(req_chat), error = identity)
 
       if (inherits(resp_chat, "httr2_http")) {
-        last_error_message <- conditionMessage(resp_chat)
+        last_error_message <- "AI provider request failed."
         if (!is.null(resp_chat$resp)) {
           resp_chat <- resp_chat$resp
         } else {
           next
         }
       } else if (inherits(resp_chat, "error")) {
-        last_error_message <- conditionMessage(resp_chat)
+        last_error_message <- "AI provider request failed."
         next
       }
 
@@ -556,12 +537,12 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
           grepl("model", detail_chat, ignore.case = TRUE) && !identical(mdl, fallback_model)
 
         if (fallback_due_to_model_chat) {
-          message("[OPENAI] Falling back from model '", mdl, "' after chat error: ", detail_chat)
-          last_error_message <- detail_chat
+          message("event=ai_model_fallback")
+          last_error_message <- "AI provider request failed."
           next
         }
 
-        stop(detail_chat, call. = FALSE)
+        stop("AI provider request failed.", call. = FALSE)
       }
 
       body_chat <- httr2::resp_body_json(resp_chat, simplifyVector = FALSE)
@@ -598,5 +579,5 @@ call_openai_chat <- function(history, system_prompt = AI_SYSTEM_PROMPT,
     }
   }
 
-  stop(last_error_message %||% "OpenAI request failed after retries.", call. = FALSE)
+  stop("AI request failed after retries.", call. = FALSE)
 }

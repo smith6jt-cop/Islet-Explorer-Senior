@@ -65,8 +65,25 @@ Use absolute cluster paths in the specification when inputs are outside the
 repository. The manifest, not a Slurm array range or filename convention, owns
 the donor and image set.
 
-Donors 6457 and 6579 are centrally excluded and make manifest resolution fail.
-Do not bypass those exclusions in a submission script.
+Each manifest entry represents a **section**, not merely a donor. The stable
+`donor_id` schema field is the partition key and therefore carries the section
+key defined by `phenocycler.sections`:
+
+| image | manifest `donor_id` | biological donor | ROI |
+|---|---|---|---|
+| `6539_Scan1.er.qptiff` | `6539` | 6539 | `panc` |
+| `6539pLN_Scan1.er.qptiff` | `6539pln` | 6539 | `pln_1` |
+| `6539pLN2_Scan1.er.qptiff` | `6539pln2` | 6539 | `pln_2` |
+
+`expected_donors` consequently contains section keys and must match the images
+exactly. `cohort.donors()` returns their unique biological donors for metadata
+and Xenium joins. Repeating a bare donor across sections or using an unknown
+section token is rejected during manifest creation; otherwise two coordinate
+frames could enter one partition and be masked or normalized together.
+
+Donors 6457 and 6579 are centrally excluded and make manifest resolution fail,
+including through section keys such as `6579pln2`. Do not bypass those
+exclusions in a submission script.
 
 ## Configure resources
 

@@ -162,6 +162,8 @@ def create_cohort_manifest(
             )
         )
 
+    _validate_section_keys(images)
+
     expected = payload.get(
         "expected_donors", [image.donor_id for image in images]
     )
@@ -175,13 +177,41 @@ def create_cohort_manifest(
     return cohort
 
 
+def _validate_section_keys(images: list[QuPathImageManifest]) -> None:
+    """Reject a donor_id that does not name a section this cohort understands.
+
+    ``donor_id`` is the partition key, and the partition is a section: one image, one
+    GeoJSON and one coordinate frame. Checking here makes a typo cost a manifest rebuild,
+    instead of surfacing after ingest as an apparently missing donor.
+    """
+    from .sections import SectionError, parse
+
+    problems: list[str] = []
+    for image in images:
+        try:
+            parse(image.donor_id)
+        except SectionError as exc:
+            problems.append(
+                f"  {image.donor_id!r} (image {image.image_id!r}): {exc}"
+            )
+    if problems:
+        raise ValueError(
+            "manifest specification has donor_id values that do not name a section:\n"
+            + "\n".join(problems)
+        )
+
+
 def example_specification() -> dict[str, Any]:
-    """Return a concise, self-documenting specification template."""
+    """Return a template showing one donor's pancreas and first two lymph nodes.
+
+    ``donor_id`` is the section key. Renaming the field would change content identifiers,
+    so the stable schema name remains while the example makes its meaning explicit.
+    """
 
     return {
         "spec_version": SPEC_VERSION,
         "cohort_name": "islet-phenocycler",
-        "expected_donors": ["DONOR_ID"],
+        "expected_donors": ["6539", "6539pln", "6539pln2"],
         "defaults": {
             "measurement_csv": [
                 "/absolute/path/CellMeasurementsBatch1.csv",
@@ -191,17 +221,41 @@ def example_specification() -> dict[str, Any]:
         },
         "images": [
             {
-                "donor_id": "DONOR_ID",
+                "donor_id": "6539",
                 "image_id": "exact QuPath Image column value",
                 "measurement_csv_index": 0,
-                "qptiff": "/absolute/path/image.qptiff",
-                "cell_geojson": "/absolute/path/cells__image.geojson",
+                "qptiff": "/absolute/path/6539_Scan1.er.qptiff",
+                "cell_geojson": "/absolute/path/cells__6539_Scan1.er.qptiff.geojson",
                 "nucleus_geojson": None,
                 "pixel_size_um_x": 0.325,
                 "pixel_size_um_y": 0.325,
                 "panel_id": "panel-v1",
                 "channel_map": None,
-            }
+            },
+            {
+                "donor_id": "6539pln",
+                "image_id": "exact QuPath Image column value",
+                "measurement_csv_index": 0,
+                "qptiff": "/absolute/path/6539pLN_Scan1.er.qptiff",
+                "cell_geojson": "/absolute/path/cells__6539pLN_Scan1.er.qptiff.geojson",
+                "nucleus_geojson": None,
+                "pixel_size_um_x": 0.325,
+                "pixel_size_um_y": 0.325,
+                "panel_id": "panel-v1",
+                "channel_map": None,
+            },
+            {
+                "donor_id": "6539pln2",
+                "image_id": "exact QuPath Image column value",
+                "measurement_csv_index": 0,
+                "qptiff": "/absolute/path/6539pLN2_Scan1.er.qptiff",
+                "cell_geojson": "/absolute/path/cells__6539pLN2_Scan1.er.qptiff.geojson",
+                "nucleus_geojson": None,
+                "pixel_size_um_x": 0.325,
+                "pixel_size_um_y": 0.325,
+                "panel_id": "panel-v1",
+                "channel_map": None,
+            },
         ],
     }
 

@@ -102,6 +102,8 @@ Authoritative documentation:
 - `docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md` — the planned workflow and where every
   auxiliary package sits in it
 - `docs/EXTERNAL_PACKAGES.md` — the pin index for external code
+- `docs/SOURCE_RECONCILIATION_2026-09-04.md` — source-repository tips, unique-change
+  dispositions, and the archive/release gate
 
 The mutable diagnostic roster contains only raw CD3e/Ker8_18 and exact signed
 QuPath Iba1_norm/raw Ker8_18. CD79a is excluded as a pair candidate because its

@@ -1055,8 +1055,14 @@ def _validate_cohort_images(
     )
     if duplicate_donors:
         raise ContractError(
-            "QuPath cohort requires exactly one image per donor; duplicate donors="
-            f"{duplicate_donors}"
+            "QuPath cohort requires exactly one image per donor_id; duplicate donor_id="
+            f"{duplicate_donors}. Note that donor_id is the SECTION key, not the donor: a "
+            "donor contributes a pancreas and 1-4 lymph nodes, and each is its own image, "
+            "its own partition and its own coordinate frame. Key them the way "
+            "phenocycler.sections does -- '6539' (pancreas), '6539pln' (pln_1), '6539pln2' "
+            "(pln_2) -- rather than repeating the bare donor id. Two images sharing a "
+            "partition would be masked with one another's polygons and normalised as one "
+            "image, with nothing raised downstream."
         )
     if duplicate_images:
         raise ContractError(
@@ -1132,6 +1138,39 @@ class QuPathCohortManifest:
     @property
     def image_ids(self) -> tuple[str, ...]:
         return tuple(image.image_id for image in self.images)
+
+    @property
+    def section_keys(self) -> tuple[str, ...]:
+        """The partition keys, under their honest name.
+
+        Identical to :attr:`donor_ids`; both return the ``donor_id`` field verbatim. The
+        field is named for what it held when a cohort was one image per donor, but the
+        value is a *section* key -- one image, one GeoJSON, one coordinate frame. A donor
+        with a pancreas and two lymph nodes contributes ``6539``, ``6539pln``, ``6539pln2``.
+        Renaming the field would change ``content_id`` and therefore every ``run_id``, so
+        the name stays and this alias says what it means.
+        """
+        return self.donor_ids
+
+    def donors(self) -> tuple[str, ...]:
+        """The unique donors behind the sections, in sorted order.
+
+        This is the thing to join metadata and the Xenium pairing manifest on. Sections are
+        the work unit; donors are the cohort. Conflating them is how ``6539pln`` becomes a
+        phantom donor with no disease status and no Xenium counterpart.
+        """
+        from .sections import SectionError, parse
+
+        out = set()
+        for key in self.donor_ids:
+            try:
+                out.add(parse(key).donor_id)
+            except SectionError:
+                # A key that names no section is its own donor. Only that failure is
+                # tolerable here; anything else `parse` raises is a real defect and must
+                # not be turned into a plausible-looking donor id.
+                out.add(key)
+        return tuple(sorted(out))
 
     def image_to_donor(self) -> dict[str, str]:
         """Return a fresh ingest mapping without reading any source file."""

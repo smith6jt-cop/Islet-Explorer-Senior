@@ -336,7 +336,7 @@ load_master_h5ad <- function(path) {
   }
 
   tryCatch({
-    message("[H5AD] Loading enriched H5AD: ", path)
+    message("[H5AD] Loading enriched data")
     ad <- anndata::read_h5ad(path)
 
     # Cache ad$uns as R list once (0.2s) instead of per-key bridge crossings (~14s for 62 keys)
@@ -367,7 +367,7 @@ load_master_h5ad <- function(path) {
         phen$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(phen$base_islet_id))
         phen[, c("Case ID", "islet_key", prop_cols), drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[H5AD] phenotype extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=h5ad_phenotype_extract_failed"); NULL })
 
     # Extract donor demographics (one row per donor)
     donor_demographics <- tryCatch({
@@ -381,7 +381,7 @@ load_master_h5ad <- function(path) {
         )
         demo[!duplicated(demo$`Case ID`), , drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[H5AD] demographics extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=h5ad_demographics_extract_failed"); NULL })
 
     # Extract neighborhood metrics from .obs (added by compute_neighborhood_metrics.py → build_h5ad_for_app.py)
     neighborhood_df <- tryCatch({
@@ -394,7 +394,7 @@ load_master_h5ad <- function(path) {
         nbr$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(nbr$base_islet_id))
         nbr[, c("Case ID", "islet_key", nbr_cols), drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[H5AD] neighborhood extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=h5ad_neighborhood_extract_failed"); NULL })
 
     message("[H5AD] Loaded: targets=", if (!is.null(targets)) nrow(targets) else 0,
             " markers=", if (!is.null(markers)) nrow(markers) else 0,
@@ -408,7 +408,7 @@ load_master_h5ad <- function(path) {
          phenotypes = phenotype_df, donor_demographics = donor_demographics,
          neighborhood = neighborhood_df)
   }, error = function(e) {
-    message("[H5AD] Failed to load: ", conditionMessage(e))
+    message("event=h5ad_load_failed")
     NULL
   })
 }
@@ -485,7 +485,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
     read_view <- function(view) {
       if (!DBI::dbExistsTable(con, view)) return(NULL)
       tryCatch(DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", view)),
-               error = function(e) { message("[DUCKDB] ", view, ": ", conditionMessage(e)); NULL })
+               error = function(e) { message("event=duckdb_view_load_failed"); NULL })
     }
 
     targets <- read_view("uns_targets")
@@ -511,7 +511,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
         phen$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(phen$base_islet_id))
         phen[, c("Case ID", "islet_key", prop_cols), drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[DUCKDB] phenotype extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=duckdb_phenotype_extract_failed"); NULL })
 
     # Donor demographics (one row per donor)
     donor_demographics <- tryCatch({
@@ -524,7 +524,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
         )
         demo[!duplicated(demo$`Case ID`), , drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[DUCKDB] demographics extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=duckdb_demographics_extract_failed"); NULL })
 
     # Neighborhood metrics + Leiden + pseudotime (same regex as load_master_h5ad)
     neighborhood_df <- tryCatch({
@@ -538,7 +538,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
         nbr$islet_key <- gsub("^Islet_Islet_", "Islet_", as.character(nbr$base_islet_id))
         nbr[, c("Case ID", "islet_key", nbr_cols), drop = FALSE]
       } else NULL
-    }, error = function(e) { message("[DUCKDB] neighborhood extraction failed: ", e$message); NULL })
+    }, error = function(e) { message("event=duckdb_neighborhood_extract_failed"); NULL })
 
     message("[DUCKDB] Loaded: targets=", if (!is.null(targets)) nrow(targets) else 0,
             " markers=", if (!is.null(markers)) nrow(markers) else 0,
@@ -552,7 +552,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
          phenotypes = phenotype_df, donor_demographics = donor_demographics,
          neighborhood = neighborhood_df)
   }, error = function(e) {
-    message("[DUCKDB] load_master_duckdb failed: ", conditionMessage(e))
+    message("event=duckdb_master_load_failed")
     NULL
   })
 }
@@ -576,14 +576,14 @@ load_master_auto <- function(h5ad_path = NULL, excel_path = master_path) {
   if (!is.null(h5ad_path) && file.exists(h5ad_path)) {
     result <- load_master_h5ad(h5ad_path)
     if (!is.null(result)) {
-      message("[DATA] Using H5AD source: ", h5ad_path)
+      message("[DATA] Using H5AD source")
       return(result)
     }
   }
 
   # Fall back to Excel
   if (file.exists(excel_path)) {
-    message("[DATA] Using Excel source: ", excel_path)
+    message("[DATA] Using Excel source")
     return(load_master(excel_path))
   }
 

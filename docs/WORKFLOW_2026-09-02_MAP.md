@@ -125,11 +125,14 @@ Authority: `core/phenocycler/docs/INTEGRATION.md` (its preamble and paths are co
 
 Authority: `apps/islet/CLAUDE.md`, `scripts/CLAUDE.md`, `deploy/DEPLOY.md`.
 
-- **Shared R layer (D.2 complete 2026-09-04)**: `apps/R/ieCore` is the one implementation of
+- **Shared R layer (D.2 plus D.4a complete 2026-09-04)**: `apps/R/ieCore` is the one implementation of
   domain loading, typography, safe joins, and statistical helpers. The islet app reads
   `apps/islet/config/islet_default.yml`; `apps/lymph` contains the exact LymphVizkit YAML plus a
-  588 KB synthetic contract fixture, not another app fork. The 138-assertion suite checks both
-  domains, every tab's UI/server wiring, and single helper ownership.
+  588 KB synthetic contract fixture, not another app fork. Portable hardening from Junior
+  `e589961` now validates browser-controlled choices and paths, redacts failures, disables debug/AI
+  credential access in production, sanitizes Shiny errors, and adds keyboard/accessibility fixes.
+  The 188-assertion suite checks both domains, every tab's UI/server wiring, single helper ownership,
+  and these security boundaries.
 - **Runtime**: R 4.5.1 (`/opt/R/current` via `/usr/local/bin/Rscript`) with the `~/R/…/4.5` user library —
   the only library holding duckdb, mirai, rdeck, edgeR; `/usr/bin/Rscript` is R 4.6.1 without them.
   Reticulate python: `~/.local/share/islet-explorer-py`. Both pins live only in the gitignored
@@ -145,15 +148,18 @@ Authority: `apps/islet/CLAUDE.md`, `scripts/CLAUDE.md`, `deploy/DEPLOY.md`.
   `main` is `f2a5c54`; the clean local checkout is on review-hardening commit `e589961`. The
   `islet-explorer-merged` entry was never created.
   `deploy/` still carries `<project>` placeholders.
-- **CI**: `islet-r.yml` (ieCore install + package/app parse + 138 testthat assertions), `phenocycler-ci.yml` (ruff; 311 / 18 / 268 tests),
+- **CI**: `islet-r.yml` (ieCore install + package/app parse + 188 testthat assertions), `phenocycler-ci.yml` (ruff; current/research/integration suites),
   `phenocycler-release.yml` (tag-triggered; no tests).
 
 ## 6. Consolidation status (`docs/CONSOLIDATION.md`, 2026-09-02 section)
 
 Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets retained) · Phase 3 done
 (`analysis/xenium` landed 2026-08-28; `analysis/follicle` absorbed and tested 2026-09-03) · 4 rewritten in writing, not executed ·
-5 complete 2026-09-04 · 6 not started. `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18
-"section-keyed cohort") has diverged from the subtree by four commits.
+5 complete 2026-09-04 · 6 source reconciliation complete, archival gated. Phenocycler
+`33e4da8`/`ffba0a8` and portable Junior `e589961` work are adapted; Panels/Xenium blob audits and all
+six source tips are recorded in `SOURCE_RECONCILIATION_2026-09-04.md`. D.3, repository archival,
+the first package tag, fresh-clone release proof, and any production action still wait on A.4b and
+the maintainer declarations.
 
 ## 7. Environments that actually run things
 
@@ -168,14 +174,17 @@ Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets r
 | conda `astir-env`, `CODApivot`, `Kintegrate`, `samapi`, `vesselvio`, `XeniumPC_Analysis`, `image2image`, `KINTSUGI` (dangling editable install), `scimap` | — | no operational reference in the repo |
 | HiPerGator | `analysis/xenium/hpc/`, `xenium_celltype/hpg/`, `scripts/slurm/` | ssh denied from this workstation; Globus is the only route |
 
-## 8. Read-only checks behind this map (2026-09-01 through 2026-09-03)
+## 8. Read-only checks behind this map (2026-09-01 through 2026-09-04)
 
 ```bash
 cd core/phenocycler
 ../../.venv/bin/python -m phenocycler.pipeline status --config config.ini        # run_id 67aec2f7…, 4× MISSING, 3× BLOCKED
 ../../.venv/bin/python -m phenocycler.integration.pipeline --status
 ../../.venv/bin/python -m phenocycler.integration.manifest --verify-paths        # 20/20 current-run Pheno qptiff/GeoJSON pairs exact; source catalog gaps remain explicit
-../../.venv/bin/python -m pytest -q tests/current tests/research tests/integration # 635 passed / 0 skipped after optional deps, 2026-09-03
+../../.venv/bin/python -m pytest -q                    # 322 current tests
+../../.venv/bin/python -m pytest -q tests/research    # 18 research tests
+../../.venv/bin/python -m pytest -q tests/integration # 303 integration tests
+../../.venv/bin/python -m pytest -q scripts/restain/tests # 155 re-stain tests
 git -C ../../external/UniFORM rev-parse HEAD    # 7c33396d12e5a19dc0b36e46a94c3293de0cd814
 git -C ../../external/utag rev-parse HEAD       # 056cb87ee90aa850450b806b075033bc8c50703a
 git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04d2d9ea508e

@@ -54,7 +54,12 @@ get_available_donors <- function() {
 #' @param imageid Donor image ID (e.g., "6505")
 #' @return data.frame or NULL if the donor is not available
 load_donor_tissue <- function(imageid) {
-  cache_key <- as.character(imageid)
+  imageid <- as.character(imageid)
+  if (!islet_safe_path_segment(imageid)) {
+    islet_log_validation_failure("spatial_donor_invalid")
+    return(NULL)
+  }
+  cache_key <- imageid
 
   if (exists(cache_key, envir = .donor_tissue_cache)) {
     return(get(cache_key, envir = .donor_tissue_cache))
@@ -76,7 +81,7 @@ load_donor_tissue <- function(imageid) {
       )
       if (is.null(d) || nrow(d) == 0) NULL else d
     }, error = function(e) {
-      message("[SPATIAL] DuckDB tissue query failed for ", imageid, ": ", e$message)
+      message("event=spatial_tissue_load_failed")
       NULL
     })
   }
@@ -89,14 +94,13 @@ load_donor_tissue <- function(imageid) {
       d <- read.csv(fpath, stringsAsFactors = FALSE)
       if (nrow(d) == 0) NULL else d
     }, error = function(e) {
-      message("[SPATIAL] Error loading donor tissue for ", imageid, ": ", e$message)
+      message("event=spatial_tissue_load_failed")
       NULL
     })
   }
 
   if (!is.null(df)) {
     assign(cache_key, df, envir = .donor_tissue_cache)
-    message("[SPATIAL] Cached donor tissue for ", imageid, " (", nrow(df), " cells)")
   }
 
   df
@@ -187,7 +191,7 @@ query_cell_distance_hist <- function(mode, group, statuses, n_bins = 100L) {
   if (length(statuses) == 0) return(NULL)
   if (is.null(group) || !nzchar(group)) group <- "__all__"
   q <- function(sql) tryCatch(DBI::dbGetQuery(con, sql),
-                              error = function(e) { message("[CELL_DIST] ", conditionMessage(e)); NULL })
+                              error = function(e) { message("event=spatial_cell_distance_failed"); NULL })
   status_sql <- paste(sprintf("'%s'", .cd_esc(statuses)), collapse = ",")
 
   is_marker <- identical(mode, "marker") && !identical(group, "__all__")
@@ -245,7 +249,7 @@ query_cell_distance_composition <- function(markers, statuses, n_bins = 16L) {
   markers <- markers[markers %in% cell_distance_markers()]
   if (length(statuses) == 0 || length(markers) == 0) return(NULL)
   q <- function(sql) tryCatch(DBI::dbGetQuery(con, sql),
-                              error = function(e) { message("[CELL_DIST] ", conditionMessage(e)); NULL })
+                              error = function(e) { message("event=spatial_cell_distance_failed"); NULL })
   status_sql <- paste(sprintf("'%s'", .cd_esc(statuses)), collapse = ",")
   pos_or <- paste(sprintf('"%s_pos"', markers), collapse = " OR ")
   # X-range = 2–98 pct of distance among cells positive for ANY selected marker,
@@ -299,7 +303,7 @@ query_tissue_bbox <- function(imageid, xmin, xmax, ymin, ymax) {
         params = list(as.character(imageid), xmin, xmax, ymin, ymax)
       )
     }, error = function(e) {
-      message("[SPATIAL] bbox query failed: ", e$message)
+      message("event=spatial_bbox_query_failed")
       NULL
     })
   } else {

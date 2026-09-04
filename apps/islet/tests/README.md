@@ -98,7 +98,7 @@ test packages automatically at the start of every web session:
 The hook runs **synchronously**, so the session waits until R is ready (no race
 where the agent runs tests before the packages exist). The `r-cran-*` debs install
 fast on Ubuntu and bundle their own system dependencies (BLAS/LAPACK, gfortran
-runtime) — no compilation. Verified by running the full suite (138 assertions pass as of
+runtime) — no compilation. Verified by running the full suite (188 assertions pass as of
 2026-09-04; the count drifts as tests are added — re-run rather than trusting this number,
 and note the suite was red from `d403563` to `2026-08-14` because that commit widened
 `cohens_d()`'s return value without updating its test) after

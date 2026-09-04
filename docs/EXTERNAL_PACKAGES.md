@@ -63,10 +63,16 @@ BANKSY (`Banksy_py` fork), MISTy (`mistyR` fork; absent locally), the benchmark'
 |---|---|---|
 | SpleenFollicleCounterQP | Phase 3b absorbed 2026-09-03 at `analysis/follicle`: H&E and DAPI U-Net lanes (root CI), notebooks H1–H20, H16/H20 retained as historical evidence | source clean on integration commit `1ed38d2` over upstream `6ae30ba`; former 15 dirty entries preserved at `f6cbcd4`. Four required files are absent from the live external `Measurements/` path and fail strict preflight |
 | LymphVizkit | Phase 5 domain layer absorbed at `apps/R/ieCore` + `apps/lymph`; no app fork copied | verified bundle source `820bb38`; exact YAML and synthetic-fixture hashes in `apps/R/ieCore/IMPORT_PROVENANCE.md` |
-| Islet-Explorer (Junior) | the publication build; deliberately separate; planned 2026-08-16 harvests accounted for | publication `main` at `f2a5c54`; clean local review-hardening branch at `e589961` is recorded for D.4 |
-| Phenocycler_Analysis | subtree source | origin `main` at `fc06c0f` (PR #18), four commits past the import |
+| Islet-Explorer (Junior) | the publication build; deliberately separate; planned 2026-08-16 harvests accounted for | publication `main` at `f2a5c54`; portable validation, redaction, production-mode, and accessibility work from local `e589961` was adapted in D.4a; its Junior-specific OCI release pipeline waits for D.3/D.7 |
+| Phenocycler_Analysis | subtree source | published `main` `fc06c0f`; its two unique content commits (`33e4da8`, `ffba0a8`) are ported and tested here; the other two commits are merges |
+| Xenium_Analysis | Phase 3 source for `analysis/xenium` | clean published `main` `8062e554`; D.4a accounts for every unchanged, adapted, moved, and deliberately omitted blob |
+| XeniumPanelExplorer | vendored source for `core/panels` | published `main` `076d1192`; 282/285 blobs are identical, two nested workflows are omitted in favor of the root path/taxonomy gate, and the README is the sole adaptation; the R suite remains a listed CI gap and passes locally with two explicit environment skips |
 | isletscope, spatialbarrier, ADIIDAS, Panc_pLN_Analysis, HPCsizer, KINTSUGI-docs, OMICS, Skills_Registry | prior art or tooling | unreferenced by the repo, plans and memory |
 
 About forty further forks under `smith6jt-cop` are unmodified mirrors with no project reference
 (KRONOS is named once in a plan as an evaluation candidate); Celloscope (+4) and samapi (+8) carry
 local commits nobody has described.
+
+The exact D.4a audit, URLs, tips, and dispositions are in
+`SOURCE_RECONCILIATION_2026-09-04.md`. All six archive-list repositories remain unarchived until
+the A.4b identity release makes D.3 and the replacement proof possible.

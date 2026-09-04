@@ -33,8 +33,11 @@ The four planned Junior harvests were already present in Senior history at
 into Junior at `f827106` and explicitly reverted at `9cf3d50`; the later
 publication release stayed on the old layout. D.2 therefore preserves the
 current Senior shell and records the Modernist row as superseded. Junior's
-later deployment-hardening commit remains explicit D.4 source-reconciliation
-work; D.2 does not mutate or claim to replace its publication deployment.
+later deployment-hardening commit was reconciled in D.4a: portable validation,
+redaction, production-mode, and accessibility controls were adapted to Senior,
+while its OCI reviewer pipeline waits for Senior's D.3 release architecture.
+See `docs/SOURCE_RECONCILIATION_2026-09-04.md`. Neither phase mutates or claims
+to replace Junior's publication deployment.
 
 ## Recovery point
 
