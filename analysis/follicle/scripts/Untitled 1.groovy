@@ -1,0 +1,2 @@
+detectionCentroidDistances(false)
+detectionToAnnotationDistancesSigned(false)

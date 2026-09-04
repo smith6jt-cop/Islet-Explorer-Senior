@@ -1,0 +1,40 @@
+# Large data directories
+Images/
+data/
+data_dapi/
+data_cn/
+FromHipergator/
+Measurements/
+analysis/geojson/
+analysis/geojson_regions/
+analysis/regions/
+analysis/figures/*.png
+analysis/masks/
+analysis/tables/
+analysis/*.parquet
+*.h5ad
+
+# QuPath auto-generated backups
+*.qpproj.backup
+
+# LibreOffice lock files
+.~lock.*#
+
+# Claude Code local settings
+.claude/
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+
+# H20 large intermediate cache (regenerated from Cells.csv)
+analysis/.h20_cache/

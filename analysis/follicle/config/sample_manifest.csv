@@ -1,0 +1,140 @@
+alias,sample_id,alias_type,evidence
+1901HBMP004,1901HBMP004,canonical,Groups.xlsx and project.qpproj
+HBMP006,HBMP006,canonical,Groups.xlsx declared ALT mapping
+HBMP007,HBMP007,canonical,Groups.xlsx declared ALT mapping
+HBMP011,HBMP011,canonical,Groups.xlsx HUBMAP and ALT mapping non-project sample
+HDL011,HDL011,canonical,Groups.xlsx
+HDL018,HDL018,canonical,Groups.xlsx
+HDL021,HDL021,canonical,Groups.xlsx
+HDL043,HDL043,canonical,Groups.xlsx
+HDL052,HDL052,canonical,Groups.xlsx
+HDL053,HDL053,canonical,Groups.xlsx
+HDL055,HDL055,canonical,Groups.xlsx
+HDL063,HDL063,canonical,Groups.xlsx
+HDL070,HDL070,canonical,Groups.xlsx
+HDL073,HDL073,canonical,Groups.xlsx
+HDL075,HDL075,canonical,Groups.xlsx
+HDL079,HDL079,canonical,Groups.xlsx
+HDL086,HDL086,canonical,Groups.xlsx
+HDL094,HDL094,canonical,Groups.xlsx
+HDL098,HDL098,canonical,Groups.xlsx
+HDL172,HDL172,canonical,Groups.xlsx
+1901HBMP004_PC29.ome.tiff,1901HBMP004,measurement_image,Measurements inventory
+2006_CC2B,HBMP006,measurement_image_and_region_stem,ForSH2B3.csv and region-layer inventory
+2007_CC1A,HBMP007,measurement_image_and_region_stem,ForSH2B3.csv and region-layer inventory
+2008_CC3A,HDL098,measurement_image_and_region_stem,ForSH2B3.csv Groups.xlsx and region-layer inventory
+20_06_CC2B.tif,HBMP006,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv
+20_06_CC2C.tif,HBMP006,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv excluded section
+20_07_CC1A.tif,HBMP007,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv
+20_07_CC2B.tif,HBMP007,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv excluded section
+20_08_CC2B.tif,HDL098,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv excluded section
+20_08_CC3A.tif,HDL098,measurement_image,Spleen_Upload2_2024Sept17_v2_distances.csv
+HDL011_PC33.ome.tiff,HDL011,measurement_image,Measurements inventory and project.qpproj
+HDL018_PC25.ome.tiff,HDL018,measurement_image,Measurements inventory
+HDL021_PC25.ome.tiff,HDL021,measurement_image,Measurements inventory
+HDL043_PC33.ome.tiff,HDL043,measurement_image,Measurements inventory and project.qpproj
+HDL052SPLN_2025Aug6_Scan1.er.qptiff - resolution #1,HDL052,measurement_image_and_region_stem,Measurements region-layer inventory and project.qpproj
+HDL053_PC33.ome.tif,HDL053,measurement_image,Measurements inventory and project.qpproj
+HDL055_PC33.ome.tiff,HDL055,measurement_image,Measurements inventory and project.qpproj
+HDL063_PC33.ome.tiff,HDL063,measurement_image,Measurements inventory and project.qpproj
+HDL070_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1,HDL070,measurement_image_and_region_stem,Measurements region-layer inventory and project.qpproj
+HDL073_PC29.ome.tiff,HDL073,measurement_image,Measurements inventory and project.qpproj
+HDL079_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1,HDL079,measurement_image_and_region_stem,Measurements region-layer inventory and project.qpproj
+HDL086_PC33.ome.tiff,HDL086,measurement_image,Measurements inventory and project.qpproj
+HDL172_PC33.ome.tiff,HDL172,project_image,project.qpproj excluded sample
+1901HBMP004_PC29,1901HBMP004,region_stem,region-layer inventory
+HDL011_PC33,HDL011,region_stem,region-layer inventory
+HDL018_PC25,HDL018,region_stem,region-layer inventory
+HDL021_PC25,HDL021,region_stem,region-layer inventory
+HDL043_PC33,HDL043,region_stem,region-layer inventory
+HDL053_PC33,HDL053,region_stem,region-layer inventory
+HDL055_PC33,HDL055,region_stem,region-layer inventory
+HDL063_PC33,HDL063,region_stem,region-layer inventory
+HDL073_PC29,HDL073,region_stem,region-layer inventory
+HDL086_PC33,HDL086,region_stem,region-layer inventory
+HDL172_PC33,HDL172,region_stem,region-layer inventory
+19001,1901HBMP004,groups_alt_id,Groups.xlsx plus declared ALT mapping
+19002,HDL073,groups_alt_id,Groups.xlsx
+19003,HDL075,groups_alt_id,Groups.xlsx
+19004,HDL070,groups_alt_id,Groups.xlsx
+20005,HDL094,groups_alt_id,Groups.xlsx
+20006,HBMP006,groups_alt_id,Groups.xlsx plus declared ALT mapping
+20007,HBMP007,groups_alt_id,Groups.xlsx plus declared ALT mapping
+20008,HDL098,groups_alt_id,Groups.xlsx
+21010,HBMP011,groups_alt_id,Groups.xlsx non-project sample
+1901,1901HBMP004,source_alt_id,legacy source manifest
+1902,HDL073,source_alt_id,legacy source manifest
+1903,HDL075,source_alt_id,legacy source manifest
+1904,HDL070,source_alt_id,legacy source manifest
+2005,HDL094,source_alt_id,Groups.xlsx
+2006,HBMP006,source_alt_id,legacy source manifest
+2007,HBMP007,source_alt_id,legacy source manifest
+2008,HDL098,source_alt_id,legacy source manifest and Groups.xlsx
+HDL004_Spleen_HxE_2_95738_normalized.ome.tif - normalized,HDL004,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL005_Spleen_HxE_1_121866_normalized.ome.tif - normalized,HDL005,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL005_Spleen_HxE_2_121865_normalized.ome.tif - normalized,HDL005,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL005_Spleen_HxE_3_121864_normalized.ome.tif - normalized,HDL005,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL009_Spleen_HxE_1_123594_normalized.ome.tif - normalized,HDL009,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL009_Spleen_HxE_2_124094_normalized.ome.tif - normalized,HDL009,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL009_Spleen_HxE_3_124100_normalized.ome.tif - normalized,HDL009,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL013_Spleen_HxE_1_128260_normalized.ome.tif - normalized,HDL013,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL013_Spleen_HxE_2_128261_normalized.ome.tif - normalized,HDL013,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL014_Spleen_HxE_1_128266_normalized.ome.tif - normalized,HDL014,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL014_Spleen_HxE_2_128267_normalized.ome.tif - normalized,HDL014,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL029_Spleen_HxE_1_136852_normalized.ome.tif - normalized,HDL029,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL029_Spleen_HxE_2_136929_normalized.ome.tif - normalized,HDL029,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL031_Spleen_HxE_1_136877_normalized.ome.tif - normalized,HDL031,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL031_Spleen_HxE_2_136876_normalized.ome.tif - normalized,HDL031,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL031_Spleen_HxE_3_136875_normalized.ome.tif - normalized,HDL031,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL036_Spleen_HxE_1_136842_normalized.ome.tif - normalized,HDL036,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL036_Spleen_HxE_2_136843_normalized.ome.tif - normalized,HDL036,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL049_Spleen_HxE_1_162663_normalized.ome.tif - normalized,HDL049,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL049_Spleen_HxE_2_162664_normalized.ome.tif - normalized,HDL049,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL049_Spleen_HxE_3_162659_normalized.ome.tif - normalized,HDL049,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL055_Spleen_HxE_1_141321_normalized.ome.tif - normalized,HDL055,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL055_Spleen_HxE_2_141322_normalized.ome.tif - normalized,HDL055,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL055_Spleen_HxE_3_141323_normalized.ome.tif - normalized,HDL055,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL061_Spleen_HxE_1_142605_normalized.ome.tif - normalized,HDL061,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL061_Spleen_HxE_1_142606_normalized.ome.tif - normalized,HDL061,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL061_Spleen_HxE_1_142607_normalized.ome.tif - normalized,HDL061,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL063_Spleen_HxE_1_162704_normalized.ome.tif - normalized,HDL063,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL063_Spleen_HxE_2_162695_normalized.ome.tif - normalized,HDL063,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL063_Spleen_HxE_3_162696_normalized.ome.tif - normalized,HDL063,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL067_Spleen_HxE_1_162799_normalized.ome.tif - normalized,HDL067,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL067_Spleen_HxE_2_162800_normalized.ome.tif - normalized,HDL067,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL073_Spleen_HxE_1_164551_normalized.ome.tif - normalized,HDL073,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL073_Spleen_HxE_2_164552_normalized.ome.tif - normalized,HDL073,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL077_Spleen_HxE_2_163917_normalized.ome.tif - normalized,HDL077,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL077_Spleen_HxE_3_163916_normalized.ome.tif - normalized,HDL077,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL078_Spleen_HxE_1_163922_normalized.ome.tif - normalized,HDL078,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL078_Spleen_HxE_2_163924_normalized.ome.tif - normalized,HDL078,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL078_Spleen_HxE_3_164837_normalized.ome.tif - normalized,HDL078,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL079_Spleen_HxE_1_164839_normalized.ome.tif - normalized,HDL079,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL079_Spleen_HxE_2_164840_normalized.ome.tif - normalized,HDL079,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL079_Spleen_HxE_3_164841_normalized.ome.tif - normalized,HDL079,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL080_Spleen_HxE_1_164842_normalized.ome.tif - normalized,HDL080,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL080_Spleen_HxE_2_164843_normalized.ome.tif - normalized,HDL080,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL080_Spleen_HxE_3_164844_normalized.ome.tif - normalized,HDL080,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL082_Spleen_HxE_1_164849_normalized.ome.tif - normalized,HDL082,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL082_Spleen_HxE_2_164850_normalized.ome.tif - normalized,HDL082,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL082_Spleen_HxE_3_164851_normalized.ome.tif - normalized,HDL082,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL086_Spleen_HxE_1_164541_normalized.ome.tif - normalized,HDL086,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL100_Spleen_HxE_1_174388_normalized.ome.tif - normalized,HDL100,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL104_Spleen_HxE_1_174942_normalized.ome.tif - normalized,HDL104,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL104_Spleen_HxE_2_174943_normalized.ome.tif - normalized,HDL104,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL104_Spleen_HxE_3_174944_normalized.ome.tif - normalized,HDL104,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL109_Spleen_HxE_1_176161_normalized.ome.tif - normalized,HDL109,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL109_Spleen_HxE_2_176162_normalized.ome.tif - normalized,HDL109,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL109_Spleen_HxE_3_176163_normalized.ome.tif - normalized,HDL109,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL112_Spleen_HxE_1_176396_normalized.ome.tif - normalized,HDL112,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL112_Spleen_HxE_2_176397_normalized.ome.tif - normalized,HDL112,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL112_Spleen_HxE_3_176398_normalized.ome.tif - normalized,HDL112,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL123_Spleen_HxE_1_178629_normalized.ome.tif - normalized,HDL123,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL123_Spleen_HxE_2_178630_normalized.ome.tif - normalized,HDL123,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL133_Spleen_HxE_1_179857_normalized.ome.tif - normalized,HDL133,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL133_Spleen_HxE_2_179858_normalized.ome.tif - normalized,HDL133,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL133_Spleen_HxE_3_179859_normalized.ome.tif - normalized,HDL133,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL133_Spleen_HxE_3_179861_normalized.ome.tif - normalized,HDL133,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL137_Spleen_HxE_1_179933_normalized.ome.tif - normalized,HDL137,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL137_Spleen_HxE_2_179938_normalized.ome.tif - normalized,HDL137,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx
+HDL137_Spleen_HxE_3_179941_normalized.ome.tif - normalized,HDL137,he_measurement_image,27_donor_spleen_measurements1.csv and Spleen_rs3184504_Genotypes.xlsx

@@ -13,6 +13,9 @@ per-file ownership decisions, the archive list, and the reconciled rule hierarch
 > (PR #14, branch `consolidate/phase-2`). The layout below is now real: there are no
 > submodules and no `.gitmodules`. Read § "Corrections from the 2026-08-14 audit" and
 > § "What Phase 2 actually found" at the end of this file before executing Phase 3.
+>
+> **Status 2026-09-03:** Phase 3 is complete. Branch reconciliation also converged the
+> monorepo on `main`; see `BRANCH_RECONCILIATION_2026-09-02.md`. Phase 5/R-lane work is next.
 
 Backups: `/home/smith6jt/repo-backups/2026-08-13/` — seven verified bundles plus working-tree
 snapshots for the two dirty repos. See that directory's `README.md`.
@@ -28,7 +31,7 @@ islet-explorer/                  (this repo, reshaped)
   core/bridge/           run -> H5AD -> app aggregates     (VOID until a verified run exists)
   analysis/xenium/       [done] Xenium 5K lane: the two-tier typer, the panel machinery,
                          the benchmark harness (dormant), and hpc/ (HiPerGator-only)
-  analysis/follicle/     SpleenFollicleCounterQP
+  analysis/follicle/     [done] SpleenFollicleCounterQP
   apps/R/ieCore/         shared R package: domain config, theme, stats, helpers
   apps/islet/            [done] the unified Shiny app
   apps/lymph/            a domain config + data dir, not a fork
@@ -52,8 +55,10 @@ files; see § Status 2026-09-02 and `docs/WORKFLOW_2026-09-02_MAP.md` § 5.)*
 5. Data never enters git. Both multi-GB artifacts (`Islet-Explorer/CellCompartments.tsv`
     11 GB, `SpleenFollicleCounterQP/Measurements/Cells.csv` 12 GB) are **already untracked and
    gitignored**, verified 2026-08-13. They stay where they are — `Cells.csv` is read by
-   `analysis/` notebooks H14/H15/H16/H17/H20 and moving it would break them. `git subtree`
-   imports history, not the working tree, so neither can be swept in.
+   `analysis/` notebooks H14/H15/H16/H17/H20. As observed during the 2026-09-03 import,
+   the live root no longer contains `Measurements/`; the new strict preflight reports this
+   rather than treating missing inputs as zero or silently recovering them. `git subtree`
+   imports history, not the working tree, so neither artifact can be swept in.
 
 ## R lane — per-file ownership
 
@@ -102,10 +107,12 @@ Target:
 
 1. **Junior's `CLAUDE.md` documents methods the root rules retire** (ordered residual lineage,
    the Gate 2–5 apparatus). Junior's app-level doc survives; its method sections do not.
-2. **`SpleenFollicleCounterQP/CLAUDE.md` teaches donor-ID-from-filename** ("image name → sample
+2. ~~**`SpleenFollicleCounterQP/CLAUDE.md` teaches donor-ID-from-filename** ("image name → sample
    ID by HDL prefix", implemented at `analysis/data_utils.py:62` with a hardcoded
    `_ALT_TO_HANDEL` map at `:48`). The root rule forbids exactly this. The guidance is deleted
-   and the code replaced by a manifest lookup in Phase 3.
+   and the code replaced by a manifest lookup in Phase 3.~~ **RESOLVED 2026-09-03:** exact
+   manifest identity is centralized in `analysis/follicle/identity.py`; unknown, duplicate,
+   and conflicting aliases fail closed.
 3. **"There is exactly one `config.ini`, and it is the submodule's"** — **now false**, as of
    Phase 2. There is no submodule. `core/phenocycler/config.ini` is the pipeline authority and
    the root `CLAUDE.md` still needs updating to say so (its "Run it from
@@ -121,11 +128,20 @@ Set read-only on GitHub after Phase 6, each with a final README commit pointing 
 `Islet-Explorer`, `Phenocycler_Analysis`, `Xenium_Analysis`, `XeniumPanelExplorer`,
 `SpleenFollicleCounterQP`, `LymphVizkit`.
 
-## Phase 3 — status 2026-08-28
+## Phase 3 — completed 2026-09-03
 
-**`analysis/xenium/` has landed** (115 files, 3.5 MB). **`analysis/follicle/` has not** and is
-the remaining Phase 3 work, including the donor-ID-from-filename violation that conflict #2
-above names (`analysis/data_utils.py:48,62`, the hardcoded `_ALT_TO_HANDEL` map).
+Both analysis lanes have landed. `analysis/xenium/` arrived on 2026-08-28 (115 files,
+3.5 MB). `analysis/follicle/` arrived on 2026-09-03 from source integration commit
+`1ed38d2` (110 source-tracked files plus monorepo adaptations). Its actual 15 dirty entries
+were first preserved at `f6cbcd4`, on top of fetched upstream `6ae30ba`. The former
+donor-ID regex and `_ALT_TO_HANDEL` table are gone: `config/sample_manifest.csv` contains
+139 reviewed aliases and exact unknown/duplicate/conflict failures.
+
+The absorbed lane has explicit code/data/output roots, a complete-set data preflight, root
+CI, and 119 passing tests. Synthetic H&E, DAPI, pooled, warm-start, parity, prediction, and
+report workflows pass. The real-data preflight correctly fails because the live external
+root has no `Measurements/` directory; four required exports are listed, and none was
+silently recovered from trash.
 
 Four things worth recording, because each contradicts an assumption above:
 
@@ -181,7 +197,9 @@ Five statements elsewhere in the consolidation record are wrong. Correct version
    the 08-13 2-entry tarball did not capture. Nothing was lost (HEAD `2040bb1` == `origin/main`);
    the checkout was **restored from HEAD on 2026-08-14**. It lived at
    `/home/smith6jt/SpleenFollicleCounterQP` then; *as of 2026-09-01 it is at
-   `/data/SpleenFollicleCounterQP`* (@ `2040bb1`, 11 dirty entries, GitHub ahead).
+   `/data/SpleenFollicleCounterQP`*. **Final correction 2026-09-03:** it actually had 15
+   dirty entries and was 36 commits behind fetched `origin/main`. Those entries are preserved
+   at `f6cbcd4`; source integration commit `1ed38d2` applies them on upstream `6ae30ba`.
 2. **There is no three-way conflict for `core/panels`.** Phenocycler's gitlink `076d1192` **is**
    `XeniumPanelExplorer`'s `origin/main` (ancestor *and* zero distance). The local
    `/data/XeniumPanelExplorer` @ `0a23564` is simply that same line 11 commits back. Import
@@ -278,7 +296,7 @@ records only what those documents change about the consolidation itself.
 | 0 | done |
 | 1 | void (see § Target layout); rewritten as the adapter in `core/bridge/` — plan Track D.3, gated on a declared identity producer |
 | 2 | done (PR #14). Left undone on purpose: the first `phenocycler-v*` tag and deletion of the rollback assets |
-| 3 | half: `analysis/xenium/` landed 2026-08-28; `analysis/follicle/` not (plan Track D.1). The source checkout is now `/data/SpleenFollicleCounterQP` @ `2040bb1` with 11 dirty entries and GitHub ahead of it; `_ALT_TO_HANDEL` is at `analysis/data_utils.py:48`, `extract_sample_id` at `:62` |
+| 3 | **done 2026-09-03**: both `analysis/xenium/` and `analysis/follicle/` are absorbed. The follicle source is clean on protected integration commit `1ed38d2`; its 15 former dirty entries survive at `f6cbcd4`. Exact manifest identity replaces filename/ALT parsing; 119 tests and the synthetic CI path pass. Four external measurement exports remain an explicit data preflight blocker, not a repository-combination blocker |
 | 4 | **rewritten in writing (below)**; not executed |
 | 5 | partially harvested on 2026-08-16 (`259a1d5` Junior's test suite and `utils_stats.R`; `621e0a4` typography/CSV-provenance/phenotype-order fixes; `60b470a` the Statistics tab; `661fa27` the modernist Inflammation module). `apps/R/ieCore`, `apps/lymph` and LymphVizkit's `00_domain_config.R` are not started |
 | 6 | not started. All six archive-list repos are writable; `/srv/shiny-server/islet-explorer` points at `~/panc_CODEX/…`, which moved to `/data/panc_CODEX/Islet-Explorer` (the publication build is alive there, `f2a5c54`); `islet-explorer-merged` was never created; `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18 "section-keyed cohort") has diverged from the subtree by four commits |

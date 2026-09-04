@@ -1,0 +1,2485 @@
+{
+  "version": "0.7.0",
+  "createTimestamp": 1771438246012,
+  "modifyTimestamp": 1771438246012,
+  "uri": "file:/home/smith6jt/SpleenFollicleCounterQP/project.qpproj",
+  "lastID": 27,
+  "images": [
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL011.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL011_PC33.ome.tiff",
+          "width": 25309,
+          "height": 30882,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 25309,
+              "height": 30882
+            },
+            {
+              "downsample": 2.0,
+              "width": 12654,
+              "height": 15441
+            },
+            {
+              "downsample": 4.0,
+              "width": 6327,
+              "height": 7720
+            },
+            {
+              "downsample": 8.0,
+              "width": 3163,
+              "height": 3860
+            },
+            {
+              "downsample": 16.0,
+              "width": 1581,
+              "height": 1930
+            },
+            {
+              "downsample": 32.0,
+              "width": 790,
+              "height": 965
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16777088
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -65281
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -16776961
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -256
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -65536
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16776961
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -16776961
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -65281
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -1
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -65536
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 1,
+      "randomizedName": "c1e8f2b4-09ea-460e-9cd6-019dc7fc893e",
+      "imageName": "HDL011_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL043.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL043_PC33.ome.tiff",
+          "width": 19229,
+          "height": 38490,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 19229,
+              "height": 38490
+            },
+            {
+              "downsample": 2.0,
+              "width": 9614,
+              "height": 19245
+            },
+            {
+              "downsample": 4.0,
+              "width": 4807,
+              "height": 9622
+            },
+            {
+              "downsample": 8.0,
+              "width": 2403,
+              "height": 4811
+            },
+            {
+              "downsample": 16.0,
+              "width": 1201,
+              "height": 2405
+            },
+            {
+              "downsample": 32.0,
+              "width": 600,
+              "height": 1202
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 4,
+      "randomizedName": "3019f177-2f6e-4a94-9423-351a5e893551",
+      "imageName": "HDL043_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL063.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL063_PC33.ome.tiff",
+          "width": 26726,
+          "height": 47126,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 26726,
+              "height": 47126
+            },
+            {
+              "downsample": 2.0,
+              "width": 13363,
+              "height": 23563
+            },
+            {
+              "downsample": 4.0,
+              "width": 6681,
+              "height": 11781
+            },
+            {
+              "downsample": 8.0,
+              "width": 3340,
+              "height": 5890
+            },
+            {
+              "downsample": 16.0,
+              "width": 1670,
+              "height": 2945
+            },
+            {
+              "downsample": 32.0,
+              "width": 835,
+              "height": 1472
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -11711155
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -65536
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -256
+            },
+            {
+              "name": "CD11c",
+              "color": -19610
+            },
+            {
+              "name": "CD34",
+              "color": -65536
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -16776961
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -11717735
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -6710887
+            },
+            {
+              "name": "CD3e",
+              "color": -65281
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 5,
+      "randomizedName": "432c12bd-6df9-4da4-b29b-570816769ff8",
+      "imageName": "HDL063_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL086.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL086_PC33.ome.tiff",
+          "width": 28370,
+          "height": 36279,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 28370,
+              "height": 36279
+            },
+            {
+              "downsample": 2.0,
+              "width": 14185,
+              "height": 18139
+            },
+            {
+              "downsample": 4.0,
+              "width": 7092,
+              "height": 9069
+            },
+            {
+              "downsample": 8.0,
+              "width": 3546,
+              "height": 4534
+            },
+            {
+              "downsample": 16.0,
+              "width": 1773,
+              "height": 2267
+            },
+            {
+              "downsample": 32.0,
+              "width": 886,
+              "height": 1133
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 6,
+      "randomizedName": "e663038e-4ae0-4691-969a-b8004a3c1178",
+      "imageName": "HDL086_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL053.ome.tif",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL053_PC33.ome.tif",
+          "width": 26732,
+          "height": 34998,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 26732,
+              "height": 34998
+            },
+            {
+              "downsample": 4.0,
+              "width": 6683,
+              "height": 8749
+            },
+            {
+              "downsample": 16.0,
+              "width": 1670,
+              "height": 2187
+            },
+            {
+              "downsample": 64.0,
+              "width": 417,
+              "height": 546
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -256
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -65536
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 7,
+      "randomizedName": "d976cc98-0afd-4c5f-a782-9a82e4f983a1",
+      "imageName": "HDL053_PC33.ome.tif",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL055.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL055_PC33.ome.tiff",
+          "width": 20386,
+          "height": 35906,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 20386,
+              "height": 35906
+            },
+            {
+              "downsample": 2.0,
+              "width": 10193,
+              "height": 17953
+            },
+            {
+              "downsample": 4.0,
+              "width": 5096,
+              "height": 8976
+            },
+            {
+              "downsample": 8.0,
+              "width": 2548,
+              "height": 4488
+            },
+            {
+              "downsample": 16.0,
+              "width": 1274,
+              "height": 2244
+            },
+            {
+              "downsample": 32.0,
+              "width": 637,
+              "height": 1122
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 8,
+      "randomizedName": "f15c6afb-cba6-43a7-b563-0859a2498db4",
+      "imageName": "HDL055_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL172.ome.tif",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL172_PC33.ome.tiff",
+          "width": 28447,
+          "height": 16789,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 28447,
+              "height": 16789
+            },
+            {
+              "downsample": 4.0,
+              "width": 7111,
+              "height": 4197
+            },
+            {
+              "downsample": 8.0,
+              "width": 3555,
+              "height": 2098
+            },
+            {
+              "downsample": 16.0,
+              "width": 1777,
+              "height": 1049
+            },
+            {
+              "downsample": 32.0,
+              "width": 888,
+              "height": 524
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 9,
+      "randomizedName": "2b6b9237-3e4d-4af6-a00c-75b02a83720d",
+      "imageName": "HDL172_PC33.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL052SPLN_2025Aug6_Scan1.er.qptiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL052SPLN_2025Aug6_Scan1.er.qptiff - resolution #1",
+          "width": 28800,
+          "height": 58320,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 28800,
+              "height": 58320
+            },
+            {
+              "downsample": 2.0,
+              "width": 14400,
+              "height": 29160
+            },
+            {
+              "downsample": 4.0,
+              "width": 7200,
+              "height": 14580
+            },
+            {
+              "downsample": 8.0,
+              "width": 3600,
+              "height": 7290
+            },
+            {
+              "downsample": 16.0,
+              "width": 1800,
+              "height": 3645
+            },
+            {
+              "downsample": 32.0,
+              "width": 900,
+              "height": 1822
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "magnification": 20.0,
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 14,
+      "randomizedName": "2a717663-eec7-4c7e-9136-67ac0caff123",
+      "imageName": "HDL052SPLN_2025Aug6_Scan1.er.qptiff - resolution #1",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/1901HBMP004_PC29.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "1901HBMP004_PC29.ome.tiff",
+          "width": 12662,
+          "height": 7479,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 12662,
+              "height": 7479
+            },
+            {
+              "downsample": 2.0,
+              "width": 6331,
+              "height": 3739
+            },
+            {
+              "downsample": 4.0,
+              "width": 3165,
+              "height": 1869
+            },
+            {
+              "downsample": 8.0,
+              "width": 1582,
+              "height": 934
+            },
+            {
+              "downsample": 16.0,
+              "width": 791,
+              "height": 467
+            },
+            {
+              "downsample": 32.0,
+              "width": 395,
+              "height": 233
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -8355712
+            },
+            {
+              "name": "CD107a",
+              "color": -16711936
+            },
+            {
+              "name": "CD11c",
+              "color": -16776961
+            },
+            {
+              "name": "CD15",
+              "color": -8192
+            },
+            {
+              "name": "CD163",
+              "color": -16719648
+            },
+            {
+              "name": "CD1c",
+              "color": -65312
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD21",
+              "color": -16711698
+            },
+            {
+              "name": "CD31",
+              "color": -256
+            },
+            {
+              "name": "CD34",
+              "color": -65536
+            },
+            {
+              "name": "CD35",
+              "color": -15948046
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "CD4",
+              "color": -9899508
+            },
+            {
+              "name": "CD44",
+              "color": -15971854
+            },
+            {
+              "name": "CD45",
+              "color": -914389
+            },
+            {
+              "name": "CD45RO",
+              "color": -15928820
+            },
+            {
+              "name": "CD5",
+              "color": -13955854
+            },
+            {
+              "name": "CD68",
+              "color": -898804
+            },
+            {
+              "name": "CD8",
+              "color": -15928728
+            },
+            {
+              "name": "CollagenIV",
+              "color": -7926542
+            },
+            {
+              "name": "ECAD",
+              "color": -1662697
+            },
+            {
+              "name": "FoxP3",
+              "color": -15210820
+            },
+            {
+              "name": "HLA-DR",
+              "color": -2615322
+            },
+            {
+              "name": "Ki67",
+              "color": -2562537
+            },
+            {
+              "name": "Lyve1",
+              "color": -15221530
+            },
+            {
+              "name": "PanCK",
+              "color": -16711936
+            },
+            {
+              "name": "Podoplanin",
+              "color": -16711936
+            },
+            {
+              "name": "SMActin",
+              "color": -16776961
+            },
+            {
+              "name": "Vimentin",
+              "color": -1697970
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.374,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.374,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 16,
+      "randomizedName": "a2e5cd98-0dc4-4a86-b664-eabdb46a112a",
+      "imageName": "1901HBMP004_PC29.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL073_PC29.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL073_PC29.ome.tiff",
+          "width": 12681,
+          "height": 7491,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 12681,
+              "height": 7491
+            },
+            {
+              "downsample": 2.0,
+              "width": 6340,
+              "height": 3745
+            },
+            {
+              "downsample": 4.0,
+              "width": 3170,
+              "height": 1872
+            },
+            {
+              "downsample": 8.0,
+              "width": 1585,
+              "height": 936
+            },
+            {
+              "downsample": 16.0,
+              "width": 792,
+              "height": 468
+            },
+            {
+              "downsample": 32.0,
+              "width": 396,
+              "height": 234
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -8355712
+            },
+            {
+              "name": "CD107a",
+              "color": -16711936
+            },
+            {
+              "name": "CD11c",
+              "color": -16776961
+            },
+            {
+              "name": "CD15",
+              "color": -8192
+            },
+            {
+              "name": "CD163",
+              "color": -16719648
+            },
+            {
+              "name": "CD1c",
+              "color": -65312
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD21",
+              "color": -16711698
+            },
+            {
+              "name": "CD31",
+              "color": -256
+            },
+            {
+              "name": "CD34",
+              "color": -65536
+            },
+            {
+              "name": "CD35",
+              "color": -15948046
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "CD4",
+              "color": -9899508
+            },
+            {
+              "name": "CD44",
+              "color": -15971854
+            },
+            {
+              "name": "CD45",
+              "color": -914389
+            },
+            {
+              "name": "CD45RO",
+              "color": -15928820
+            },
+            {
+              "name": "CD5",
+              "color": -13955854
+            },
+            {
+              "name": "CD68",
+              "color": -898804
+            },
+            {
+              "name": "CD8",
+              "color": -15928728
+            },
+            {
+              "name": "CollagenIV",
+              "color": -7926542
+            },
+            {
+              "name": "ECAD",
+              "color": -1662697
+            },
+            {
+              "name": "FoxP3",
+              "color": -15210820
+            },
+            {
+              "name": "HLA-DR",
+              "color": -2615322
+            },
+            {
+              "name": "Ki67",
+              "color": -2562537
+            },
+            {
+              "name": "Lyve1",
+              "color": -15221530
+            },
+            {
+              "name": "PanCK",
+              "color": -16711936
+            },
+            {
+              "name": "Podoplanin",
+              "color": -16711936
+            },
+            {
+              "name": "SMActin",
+              "color": -16776961
+            },
+            {
+              "name": "Vimentin",
+              "color": -1697970
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.374,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.374,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 18,
+      "randomizedName": "03980fb5-648a-4588-9b3a-1fed75db33df",
+      "imageName": "HDL073_PC29.ome.tiff",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL070_SPLN_2025Aug8_Scan1.er.qptiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL070_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1",
+          "width": 24000,
+          "height": 52560,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 24000,
+              "height": 52560
+            },
+            {
+              "downsample": 2.0,
+              "width": 12000,
+              "height": 26280
+            },
+            {
+              "downsample": 4.0,
+              "width": 6000,
+              "height": 13140
+            },
+            {
+              "downsample": 8.0,
+              "width": 3000,
+              "height": 6570
+            },
+            {
+              "downsample": 16.0,
+              "width": 1500,
+              "height": 3285
+            },
+            {
+              "downsample": 32.0,
+              "width": 750,
+              "height": 1642
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "magnification": 20.0,
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 19,
+      "randomizedName": "7dfde13d-c488-4009-abb8-f82b116b8e42",
+      "imageName": "HDL070_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1",
+      "metadata": {},
+      "tags": []
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:///home/smith6jt/SpleenFollicleCounterQP/Images/HDL079_SPLN_2025Aug8_Scan1.er.qptiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "HDL079_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1",
+          "width": 30720,
+          "height": 50400,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 30720,
+              "height": 50400
+            },
+            {
+              "downsample": 2.0,
+              "width": 15360,
+              "height": 25200
+            },
+            {
+              "downsample": 4.0,
+              "width": 7680,
+              "height": 12600
+            },
+            {
+              "downsample": 8.0,
+              "width": 3840,
+              "height": 6300
+            },
+            {
+              "downsample": 16.0,
+              "width": 1920,
+              "height": 3150
+            },
+            {
+              "downsample": 32.0,
+              "width": 960,
+              "height": 1575
+            }
+          ],
+          "channels": [
+            {
+              "name": "DAPI",
+              "color": -16776961
+            },
+            {
+              "name": "CD45RO",
+              "color": -256
+            },
+            {
+              "name": "Ki67",
+              "color": -32768
+            },
+            {
+              "name": "FOXP3",
+              "color": -16711681
+            },
+            {
+              "name": "CD38",
+              "color": -65281
+            },
+            {
+              "name": "CD20",
+              "color": -16711936
+            },
+            {
+              "name": "CD4",
+              "color": -16181
+            },
+            {
+              "name": "CD44",
+              "color": -1
+            },
+            {
+              "name": "CD31",
+              "color": -16711681
+            },
+            {
+              "name": "CD11c",
+              "color": -16711936
+            },
+            {
+              "name": "CD34",
+              "color": -1
+            },
+            {
+              "name": "CD107a",
+              "color": -256
+            },
+            {
+              "name": "PDL1",
+              "color": -32768
+            },
+            {
+              "name": "CD163",
+              "color": -16711681
+            },
+            {
+              "name": "HLA-DR",
+              "color": -65281
+            },
+            {
+              "name": "CD68",
+              "color": -5952982
+            },
+            {
+              "name": "CD8",
+              "color": -65281
+            },
+            {
+              "name": "CD21",
+              "color": -1
+            },
+            {
+              "name": "CD66",
+              "color": -65536
+            },
+            {
+              "name": "CD141",
+              "color": -16711936
+            },
+            {
+              "name": "SMA",
+              "color": -16776961
+            },
+            {
+              "name": "CD57",
+              "color": -256
+            },
+            {
+              "name": "TOX",
+              "color": -32768
+            },
+            {
+              "name": "Vimentin",
+              "color": -16711681
+            },
+            {
+              "name": "CD3e",
+              "color": -65536
+            },
+            {
+              "name": "HLA-A",
+              "color": -5952982
+            },
+            {
+              "name": "PD-1",
+              "color": -16181
+            },
+            {
+              "name": "CD45",
+              "color": -1
+            },
+            {
+              "name": "Collagen IV",
+              "color": -65536
+            },
+            {
+              "name": "E-cadherin",
+              "color": -16711936
+            },
+            {
+              "name": "TCF-1",
+              "color": -16776961
+            },
+            {
+              "name": "Podoplanin",
+              "color": -256
+            },
+            {
+              "name": "ICOS",
+              "color": -32768
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.5077663810243286,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "magnification": 20.0,
+          "preferredTileWidth": 512,
+          "preferredTileHeight": 512
+        }
+      },
+      "entryID": 20,
+      "randomizedName": "12dd096a-9670-458b-9ccc-5a1c1bf52217",
+      "imageName": "HDL079_SPLN_2025Aug8_Scan1.er.qptiff - resolution #1",
+      "metadata": {},
+      "tags": []
+    }
+  ]
+}

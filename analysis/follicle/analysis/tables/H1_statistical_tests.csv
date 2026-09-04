@@ -1,0 +1,6 @@
+Model,Test,p,n_follicles,n_samples,ICC,Coefficient
+LMM Genotype (All),Wald F-test (joint),0.08707591905551446,2169,14,0.2111275090282669,
+LMM Dosage (All),Slope (per T allele),0.1531665089383971,2169,14,,1199.1805486943135
+LMM Platform,Platform effect,0.08869941722790599,2169,14,,
+LMM Genotype (PC-only),Wald F-test (joint),0.3033252565498399,1928,9,0.06667649785168915,
+LMM Dosage (PC-only),Slope (per T allele),0.11058407923885367,1928,9,,-579.1028068743279

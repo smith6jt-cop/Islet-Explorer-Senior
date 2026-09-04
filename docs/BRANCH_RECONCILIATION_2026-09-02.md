@@ -4,6 +4,12 @@ This ledger records the evidence and decisions used to converge the repository o
 persistent branch. It is deliberately separate from the workflow map: branch history is
 provenance, not workflow authority.
 
+**Status: complete 2026-09-03.** The sibling merge is `0fc21e7`; the final merge on
+`main` is `6cf301d6e8ee48470a50d34a73ce30c257e7d945`. Both retired local/origin refs were
+deleted only after ancestry and empty-cherry proofs. `main`/`origin/main` are the sole
+active monorepo branches; the `panels` and `phenocycler` remotes are source-audit remotes
+retained until Track D.4.
+
 ## Safety record
 
 - The seven source-repository bundles under
@@ -75,9 +81,9 @@ chore branch was a sibling containing three commits not present on the feature b
   and low-confidence calls remain visible (25.47% and 22.08% below 0.50). The full 85-test Xenium
   suite passes. No integration release was declared from these development artifacts.
 
-## Exit conditions
+## Exit conditions — met 2026-09-03
 
-Reconciliation is complete only when:
+The completed reconciliation satisfies all five conditions:
 
 1. the merged tree passes the relevant test suites and donor checks for 6436 and 6442;
 2. `main` contains both former branch tips;

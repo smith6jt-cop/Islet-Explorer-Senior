@@ -1,0 +1,326 @@
+{
+  "name": "SpleenRegionsCODEX",
+  "gamma": 1.0,
+  "invertBackground": false,
+  "channels": [
+    {
+      "name": "DAPI (C1)",
+      "minDisplay": 287.58716,
+      "maxDisplay": 16977.41,
+      "color": {
+        "red": 128,
+        "green": 128,
+        "blue": 128
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD107a (C2)",
+      "minDisplay": 22.575129,
+      "maxDisplay": 9823.311,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD11c (C3)",
+      "minDisplay": 11.0258045,
+      "maxDisplay": 2011.089,
+      "color": {
+        "red": 0,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD15 (C4)",
+      "minDisplay": 32.00507,
+      "maxDisplay": 24787.094,
+      "color": {
+        "red": 255,
+        "green": 224,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD163 (C5)",
+      "minDisplay": 6.108582,
+      "maxDisplay": 1501.2692,
+      "color": {
+        "red": 0,
+        "green": 224,
+        "blue": 224
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD1c (C6)",
+      "minDisplay": 1.1425176,
+      "maxDisplay": 751.98285,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 224
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD20 (C7)",
+      "minDisplay": 28.27053,
+      "maxDisplay": 18283.762,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD21 (C8)",
+      "minDisplay": 34.27517,
+      "maxDisplay": 30425.162,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 238
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD31 (C9)",
+      "minDisplay": 1634.9385,
+      "maxDisplay": 25510.373,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD34 (C10)",
+      "minDisplay": 4082.547,
+      "maxDisplay": 12266.927,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 0
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD35 (C11)",
+      "minDisplay": 20.801474,
+      "maxDisplay": 13853.056,
+      "color": {
+        "red": 12,
+        "green": 166,
+        "blue": 242
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD3e (C12)",
+      "minDisplay": 13.1491165,
+      "maxDisplay": 9330.907,
+      "color": {
+        "red": 0,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD4 (C13)",
+      "minDisplay": 22.203955,
+      "maxDisplay": 5564.7876,
+      "color": {
+        "red": 104,
+        "green": 242,
+        "blue": 12
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD44 (C14)",
+      "minDisplay": 4.1834598,
+      "maxDisplay": 2161.0474,
+      "color": {
+        "red": 12,
+        "green": 73,
+        "blue": 242
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD45 (C15)",
+      "minDisplay": 5.380857,
+      "maxDisplay": 3425.3657,
+      "color": {
+        "red": 242,
+        "green": 12,
+        "blue": 43
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD45RO (C16)",
+      "minDisplay": 6.327507,
+      "maxDisplay": 4621.9165,
+      "color": {
+        "red": 12,
+        "green": 242,
+        "blue": 12
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD5 (C17)",
+      "minDisplay": 89.86138,
+      "maxDisplay": 12276.955,
+      "color": {
+        "red": 43,
+        "green": 12,
+        "blue": 242
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD68 (C18)",
+      "minDisplay": 26.065308,
+      "maxDisplay": 17343.363,
+      "color": {
+        "red": 242,
+        "green": 73,
+        "blue": 12
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD8 (C19)",
+      "minDisplay": 12.39026,
+      "maxDisplay": 8372.326,
+      "color": {
+        "red": 12,
+        "green": 242,
+        "blue": 104
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CollagenIV (C20)",
+      "minDisplay": 0.001,
+      "maxDisplay": 0.999,
+      "color": {
+        "red": 135,
+        "green": 12,
+        "blue": 242
+      },
+      "isShowing": false
+    },
+    {
+      "name": "ECAD (C21)",
+      "minDisplay": 7.3226333,
+      "maxDisplay": 4255.3164,
+      "color": {
+        "red": 230,
+        "green": 161,
+        "blue": 23
+      },
+      "isShowing": false
+    },
+    {
+      "name": "FoxP3 (C22)",
+      "minDisplay": 5.9378357,
+      "maxDisplay": 5554.486,
+      "color": {
+        "red": 23,
+        "green": 230,
+        "blue": 188
+      },
+      "isShowing": false
+    },
+    {
+      "name": "HLA-DR (C23)",
+      "minDisplay": 59.853764,
+      "maxDisplay": 10976.023,
+      "color": {
+        "red": 216,
+        "green": 23,
+        "blue": 230
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Ki67 (C24)",
+      "minDisplay": 9.930452,
+      "maxDisplay": 8546.119,
+      "color": {
+        "red": 216,
+        "green": 230,
+        "blue": 23
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Lyve1 (C25)",
+      "minDisplay": 13.699426,
+      "maxDisplay": 7711.5137,
+      "color": {
+        "red": 23,
+        "green": 188,
+        "blue": 230
+      },
+      "isShowing": false
+    },
+    {
+      "name": "PanCK (C26)",
+      "minDisplay": 464.14612,
+      "maxDisplay": 5897.013,
+      "color": {
+        "red": 230,
+        "green": 23,
+        "blue": 161
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Podoplanin (C27)",
+      "minDisplay": 167.36864,
+      "maxDisplay": 7965.401,
+      "color": {
+        "red": 133,
+        "green": 230,
+        "blue": 23
+      },
+      "isShowing": false
+    },
+    {
+      "name": "SMActin (C28)",
+      "minDisplay": 44.57855,
+      "maxDisplay": 28953.992,
+      "color": {
+        "red": 153,
+        "green": 153,
+        "blue": 153
+      },
+      "isShowing": true
+    },
+    {
+      "name": "Vimentin (C29)",
+      "minDisplay": 28.30621,
+      "maxDisplay": 19423.33,
+      "color": {
+        "red": 230,
+        "green": 23,
+        "blue": 78
+      },
+      "isShowing": false
+    }
+  ]
+}

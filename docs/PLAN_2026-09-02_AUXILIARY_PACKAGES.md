@@ -6,13 +6,18 @@ against `31b7380`. Companion documents: `WORKFLOW_2026-09-02_MAP.md` (what runs 
 `EXTERNAL_PACKAGES.md` (the package index), `CONSOLIDATION.md` § 2026-09-02 (consolidation status).
 **Decision owner:** maintainer (smith6jt).
 
-**Execution checkpoint — 2026-09-03.** R.1 is complete and R.2's merged tree is under final
-validation. Track 0's adoption dry run and additive environment work are complete. C.1 is
+**Execution checkpoint — 2026-09-03.** R.1-R.4 are complete: the sibling lane merged at
+`0fc21e7`, the reconciled history landed on `main` at `6cf301d`, both retired refs were proven
+empty/ancestral and deleted, and `origin/main` is the sole origin branch. Track 0's adoption dry
+run and additive environment work are complete. C.1 is
 implemented and exercised on the full 20-donor PhenoCycler geometry cohort and on Xenium donors
 6436/6442; 635 current, research, and integration tests pass with no skips. B.1 is complete on the
 same two donors and all 85 Xenium tests pass. No identity release was invented: those slim typing
 sidecars are development evidence, while identity-dependent integration remains intentionally gated
-on a declared A.4/B.2 release.
+on a declared A.4/B.2 release. D.1 is also complete in the working tree: all 110 tracked source
+files plus 15 preserved local changes were absorbed under `analysis/follicle`, sample identity is
+an exact 139-alias manifest lookup, its 119 tests and synthetic dual-U-Net workflow pass, and the
+real-data preflight honestly stops on the four measurement exports absent from the live data root.
 
 This plan positions every auxiliary package identified across sessions, commits, history and memory
 inside the consolidation plan's remaining phases (3b, 4, 5, 1-rewritten, 6), ordered by the
@@ -56,7 +61,7 @@ true positive is the maintainer's call (`1a23105`). The two Shiny apps stay sepa
 
 ## Track R — Reconcile repository history to one persistent branch
 
-Current evidence: `main` is at `412603d`; `feat/dct-step0-pinning` is 62 commits ahead of it and ten
+Starting evidence (resolved below): `main` was at `412603d`; `feat/dct-step0-pinning` was 62 commits ahead of it and ten
 commits ahead of its remote; `chore/remove-gold-standard-lane` is a sibling of the feature branch with
 three commits absent from it. The latter is not safe to delete by name: `11d80c3` removes the retired
 gold-standard lane, `be9406c` records the 2026-08-16 audit, and `b9be3bb` implements the geometry /
@@ -65,9 +70,9 @@ identity integration-gate split that Track C.1 still calls planned.
 | step | what | exit |
 |---|---|---|
 | **R.1 — done 2026-09-03** protect and ledger | Verify the existing seven-repository bundles, create a current bundle of this monorepo outside its working tree, and record local branches, remote branches, tags, tips, merge bases, `git cherry` results and dirty state. Create a disposition ledger with one row for every commit unique to a non-`main` branch: ported, already present under another commit, deliberately superseded with evidence, or still blocked | every unique commit has an owner and a disposition before history changes |
-| **R.2** reconcile the sibling branch | Merge the sibling branch's history into the active line without rewriting it, resolving its three changes deliberately: apply `11d80c3` after confirming no live import depends on `scripts/gold_standard`; carry forward only the still-true facts from `be9406c`; adapt `b9be3bb` to current integration code and tests instead of accepting stale conflict sides wholesale. The geometry/identity split must satisfy Track C.1's current contract, including geometry-only tables with unavailable identity rather than invented labels | `git merge-base --is-ancestor chore/remove-gold-standard-lane feat/dct-step0-pinning` succeeds; the ledger records every conflict resolution; current, research and integration tests pass |
-| **R.3** converge on `main` | Push the reconciled feature tip, review the complete `main...feature` diff, and land it on `main` without squashing away the scientific history. No force-push. Run all repository CI plus the explicit lane tests added by Track E | local and remote `main` contain the reconciled feature history and the documentation commit |
-| **R.4** remove redundant branches | Before deletion, prove `git cherry main <branch>` is empty and `git merge-base --is-ancestor <branch> main` succeeds for both the feature and chore branches. Then delete their local and `origin` refs. `main` is the sole persistent monorepo branch; any later short-lived review branch is deleted immediately after merge | local branches = `main`; branches under `origin` = `main` (apart from the symbolic `origin/HEAD`) |
+| **R.2 — done 2026-09-03** reconcile the sibling branch | Merged without rewriting at `0fc21e7`; resolved the three changes deliberately and retained the geometry/identity split | ancestry proved; ledger complete; core 635, restain 155, Xenium 85 passed |
+| **R.3 — done 2026-09-03** converge on `main` | Reviewed the 67-commit/323-file feature diff and merged it with history at `6cf301d`; no force-push | local and remote `main` contain both former tips |
+| **R.4 — done 2026-09-03** remove redundant branches | Proved empty `git cherry` and ancestry for both retired lanes, then deleted local and origin refs | local branches = `main`; origin branches = `main` (+ symbolic `origin/HEAD`) |
 | **R.5** keep it converged | Perform all remaining tracks against current `main`; tag or bundle before destructive repository-layout work. A new long-lived topic branch is a regression in consolidation, not a place to park unfinished work | the disposition ledger and branch count are checked at every phase boundary |
 
 The `panels/main` and `phenocycler/main` remote-tracking refs belong to original source repositories,
@@ -151,7 +156,7 @@ have to be resolved before a source repository counts as absorbed.
 
 | step | what |
 |---|---|
-| **D.1** Phase 3b | `SpleenFollicleCounterQP` → `analysis/follicle/`: commit or stash its 11 dirty entries on a branch, fetch (GitHub is ahead, pushed 2026-08-24), then tree-copy as Xenium was — **never `git reset --hard` or `git clean -xfd` there** (a 12 GB ignored `Measurements/Cells.csv`); replace `extract_sample_id` / `_ALT_TO_HANDEL` (`analysis/data_utils.py:62`, `:48`) with a manifest lookup; the H&E / DAPI U-Net lane untouched; H16/H20 labelled historical for A.3; write `analysis/follicle/CLAUDE.md` |
+| **D.1 — done 2026-09-03** Phase 3b | Preserved the actual 15 dirty entries at `f6cbcd4`, fetched upstream `6ae30ba`, and cherry-picked the archive onto that base as source import `1ed38d2`; imported its 110-file tracked tree. Added explicit code/data/output roots, strict complete-set preflight, exact 139-alias manifest identity, monorepo CI, provenance/ownership docs, and retained H16/H20 as historical evidence only. All 119 tests, notebook static checks, H&E/DAPI/pooled/warm-start smoke runs, three-donor byte-exact parity, prediction and concordance reporting pass. Live real-data execution remains correctly blocked because four files under `/data/SpleenFollicleCounterQP/Measurements/` are absent; no file was restored from trash implicitly |
 | **D.2** Phase 5 | Complete the R-lane ownership table rather than copying one app wholesale: extract `apps/R/ieCore` from Senior's shared files, add LymphVizkit's `00_domain_config.R` and `config/lymphoid_default.yml` as `DOMAIN` fields (`PIXEL_SIZE_UM`, phenotype vocabulary), and harvest the selected Junior/modernist fixes under assumption Q3. Create `apps/lymph/` as configuration plus data, not another fork. Exit requires tab-by-tab parity tests and one implementation of every shared helper |
 | **D.3** Phase 1, rewritten | the adapter root `CLAUDE.md` specifies, in `core/bridge/` (outside the hashed package): A.4b release + `expression` + geometry → run-aware H5AD (`uns` carries `run_id` and content ids) → islet / spatial / trajectory aggregates → `data/app_data/`; replaces the input-starved `scripts/senior` chain; `Ambiguous` / `Unavailable` stay first-class. Gated on A.4b plus a written declaration in `CLAUDE.md` § Downstream application boundary |
 | **D.4** reconcile and archive source repos | Diff the imported `core/phenocycler` subtree against `Phenocycler_Analysis` `fc06c0f` / PR #18 commit by commit; port each unique change or record why current monorepo code supersedes it. Verify `core/panels` against `XeniumPanelExplorer@076d1192`, and audit the absorbed Xenium tree against its recorded source. After D.1–D.3 pass, give each of `Islet-Explorer`, `Phenocycler_Analysis`, `Xenium_Analysis`, `XeniumPanelExplorer`, `SpleenFollicleCounterQP` and `LymphVizkit` a final pointer to the monorepo and archive it read-only. Remove the `panels` and `phenocycler` remotes only after recording their final URLs and tips. The production symlink remains untouched unless the maintainer separately authorizes cutover |

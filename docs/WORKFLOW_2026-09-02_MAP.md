@@ -144,8 +144,8 @@ Authority: `apps/islet/CLAUDE.md`, `scripts/CLAUDE.md`, `deploy/DEPLOY.md`.
 
 ## 6. Consolidation status (`docs/CONSOLIDATION.md`, 2026-09-02 section)
 
-Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets retained) · 3 half done
-(`analysis/xenium` landed 2026-08-28; `analysis/follicle` not) · 4 rewritten in writing, not executed ·
+Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets retained) · Phase 3 done
+(`analysis/xenium` landed 2026-08-28; `analysis/follicle` absorbed and tested 2026-09-03) · 4 rewritten in writing, not executed ·
 5 partially harvested · 6 not started. `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18
 "section-keyed cohort") has diverged from the subtree by four commits.
 

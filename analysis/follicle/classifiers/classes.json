@@ -1,0 +1,64 @@
+{
+  "pathClasses": [
+    {
+      "name": "Ignore*",
+      "color": -4934476
+    },
+    {
+      "name": "Follicle",
+      "color": -65536
+    },
+    {
+      "name": "PALS",
+      "color": -1658035
+    },
+    {
+      "name": "Trabeculae",
+      "color": -16711936
+    },
+    {
+      "name": "LargeVessel",
+      "color": -3355444
+    },
+    {
+      "name": "RedPulp",
+      "color": -10359006
+    },
+    {
+      "name": "SmallVessel",
+      "color": -1
+    },
+    {
+      "name": "Tissue",
+      "color": -10053223
+    },
+    {
+      "name": "B-cell",
+      "color": -65536
+    },
+    {
+      "name": "T-cell",
+      "color": -65281
+    },
+    {
+      "name": "Sinusoidal",
+      "color": -16711936
+    },
+    {
+      "name": "Macrophage",
+      "color": -256
+    },
+    {
+      "name": "CD38",
+      "color": -16711681
+    },
+    {
+      "name": "CD20+CD21",
+      "color": -13633367
+    },
+    {
+      "name": "Other",
+      "color": -13421773
+    }
+  ]
+}

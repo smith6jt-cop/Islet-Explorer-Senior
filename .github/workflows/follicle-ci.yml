@@ -1,0 +1,124 @@
+name: Spleen follicle
+
+# Hoisted from the absorbed SpleenFollicleCounterQP repository. GitHub only
+# discovers workflows at the repository root. Real images and measurement
+# exports remain external; CI exercises identity, geometry, and both U-Net
+# pipelines using synthetic donors with explicit sample IDs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'analysis/follicle/**'
+      - '.github/workflows/follicle-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'analysis/follicle/**'
+      - '.github/workflows/follicle-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: analysis/follicle
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: analysis/follicle/scripts/requirements_HE_unet.txt
+
+      - name: Install CPU torch and pipeline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          grep -v -E '^(torch|torchvision|openslide-python)' scripts/requirements_HE_unet.txt > /tmp/follicle-requirements.txt
+          pip install -r /tmp/follicle-requirements.txt
+
+      - name: Syntax and static workflow checks
+        run: |
+          python -m compileall -q analysis identity.py paths.py scripts tests
+          python scripts/verify_analysis_state.py --static-only
+
+      - name: Unit tests
+        run: pytest tests -q
+
+      - name: Generate synthetic data
+        run: |
+          python scripts/make_synthetic_he_data.py \
+            --out-dir "$RUNNER_TEMP/he_synth" --n-donors 3
+          python scripts/make_synthetic_dapi_data.py \
+            --out-dir "$RUNNER_TEMP/dapi_synth" --n-donors 3 --size 384 \
+            --n-follicles 2 --radius 30 --write-ome-tiff
+
+      - name: Smoke-train H&E
+        run: |
+          python scripts/train_HE_unet.py --smoke \
+            --data-dir "$RUNNER_TEMP/he_synth" \
+            --out-dir "$RUNNER_TEMP/he_out" --device cpu
+          test -f "$RUNNER_TEMP/he_out/cv_summary.json"
+
+      - name: Smoke-train DAPI multitask model
+        run: |
+          python scripts/train_DAPI_unet.py --smoke \
+            --data-dir "$RUNNER_TEMP/dapi_synth" \
+            --out-dir "$RUNNER_TEMP/dapi_out" --device cpu
+          test -f "$RUNNER_TEMP/dapi_out/cv_summary.json"
+          test -f "$RUNNER_TEMP/dapi_out/fold_0.pt"
+
+      - name: Smoke-train pooled DAPI and H&E
+        run: |
+          python scripts/train_DAPI_unet.py --smoke \
+            --data-dir "$RUNNER_TEMP/dapi_synth" \
+            --extra-data-dir "$RUNNER_TEMP/he_synth" \
+            --out-dir "$RUNNER_TEMP/pool_out" --device cpu
+          test -f "$RUNNER_TEMP/pool_out/cv_summary.json"
+
+      - name: Warm-start H&E from DAPI
+        run: |
+          python scripts/train_HE_unet.py --smoke \
+            --data-dir "$RUNNER_TEMP/he_synth" \
+            --init-from "$RUNNER_TEMP/dapi_out/fold_0.pt" \
+            --out-dir "$RUNNER_TEMP/he_warm" --device cpu
+          test -f "$RUNNER_TEMP/he_warm/cv_summary.json"
+
+      - name: Export and inference parity
+        run: |
+          python scripts/check_dapi_parity.py --strict \
+            --data-dir "$RUNNER_TEMP/dapi_synth" \
+            --images-dir "$RUNNER_TEMP/dapi_synth/ome"
+
+      - name: Predict synthetic multiplex slides
+        run: |
+          python scripts/predict_DAPI_unet.py \
+            --wsi-dir "$RUNNER_TEMP/dapi_synth/ome" \
+            --models "$RUNNER_TEMP/dapi_out/fold_*.pt" \
+            --csv-out "$RUNNER_TEMP/dapi_pred.csv" \
+            --pred-dir "$RUNNER_TEMP/dapi_preds" --device cpu
+          test -f "$RUNNER_TEMP/dapi_pred.csv"
+
+      - name: Concordance report
+        run: |
+          python scripts/report_DAPI_concordance.py \
+            --models-dir "$RUNNER_TEMP/dapi_out" \
+            --out-csv "$RUNNER_TEMP/concordance.csv" --no-figure
+          test -f "$RUNNER_TEMP/concordance.csv"

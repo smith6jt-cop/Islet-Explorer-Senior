@@ -1,0 +1,2 @@
+# Empty terminal TSV fields are meaningful classifier-training data.
+*.tsv whitespace=-blank-at-eol

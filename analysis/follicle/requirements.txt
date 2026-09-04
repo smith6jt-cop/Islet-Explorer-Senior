@@ -1,0 +1,37 @@
+# Python dependencies for the SpleenFollicleCounterQP analysis stack.
+# Install with:
+#   python -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# For the H&E follicle U-Net pipeline only, see scripts/requirements_HE_unet.txt.
+
+# --- Core analysis ---
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+statsmodels>=0.14
+scikit-learn>=1.3
+openpyxl>=3.1                # reads Groups.xlsx / Spleen_rs3184504_Genotypes.xlsx
+
+# --- Plotting ---
+matplotlib>=3.8
+seaborn>=0.13
+plotly>=5.18
+
+# --- Geometry & image processing ---
+shapely>=2.0
+scikit-image>=0.22
+tifffile>=2024.1
+Pillow>=10.0
+
+# --- Single-cell (H15) ---
+scanpy>=1.10
+anndata>=0.10
+harmonypy>=0.0.9
+leidenalg>=0.10
+python-igraph>=0.11
+umap-learn>=0.5
+
+# --- Jupyter ---
+jupyterlab>=4.0
+nbformat>=5.9                # used by scripts/build_H19_notebook.py

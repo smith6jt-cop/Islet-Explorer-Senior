@@ -61,7 +61,7 @@ BANKSY (`Banksy_py` fork), MISTy (`mistyR` fork; absent locally), the benchmark'
 
 | repo | relevance | state |
 |---|---|---|
-| SpleenFollicleCounterQP | Phase 3b: H&E and DAPI U-Net follicle lanes (with CI), notebooks H1–H20, the H16 GMM RESTORE, H20's CD20 thresholds | `/data/SpleenFollicleCounterQP @ 2040bb1`, 11 dirty entries; GitHub ahead (2026-08-24) |
+| SpleenFollicleCounterQP | Phase 3b absorbed 2026-09-03 at `analysis/follicle`: H&E and DAPI U-Net lanes (root CI), notebooks H1–H20, H16/H20 retained as historical evidence | source clean on integration commit `1ed38d2` over upstream `6ae30ba`; former 15 dirty entries preserved at `f6cbcd4`. Four required files are absent from the live external `Measurements/` path and fail strict preflight |
 | LymphVizkit | Phase 5: `00_domain_config.R`, `config/lymphoid_default.yml` | GitHub only |
 | Islet-Explorer (Junior) | the publication build; deliberately separate | `/data/panc_CODEX/Islet-Explorer @ f2a5c54`, clean |
 | Phenocycler_Analysis | subtree source | origin `main` at `fc06c0f` (PR #18), four commits past the import |

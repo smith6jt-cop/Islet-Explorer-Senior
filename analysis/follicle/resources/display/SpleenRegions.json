@@ -1,0 +1,370 @@
+{
+  "name": "SpleenRegions",
+  "gamma": 1.0,
+  "invertBackground": false,
+  "channels": [
+    {
+      "name": "DAPI (C1)",
+      "minDisplay": 9.195026,
+      "maxDisplay": 1588.089,
+      "color": {
+        "red": 0,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD45RO (C2)",
+      "minDisplay": 8.095151,
+      "maxDisplay": 2648.7126,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Ki67 (C3)",
+      "minDisplay": 2.6757555,
+      "maxDisplay": 1116.9912,
+      "color": {
+        "red": 255,
+        "green": 128,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "FOXP3 (C4)",
+      "minDisplay": 9.711277,
+      "maxDisplay": 868.3767,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD38 (C5)",
+      "minDisplay": 8.669382,
+      "maxDisplay": 1339.4084,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD20 (C6)",
+      "minDisplay": 6.9931436,
+      "maxDisplay": 3193.048,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD4 (C7)",
+      "minDisplay": 10.453053,
+      "maxDisplay": 1983.1378,
+      "color": {
+        "red": 255,
+        "green": 192,
+        "blue": 203
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD44 (C8)",
+      "minDisplay": 6.7601237,
+      "maxDisplay": 303.4066,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD31 (C9)",
+      "minDisplay": 4.451859,
+      "maxDisplay": 1191.2959,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD11c (C10)",
+      "minDisplay": 4.721117,
+      "maxDisplay": 346.09167,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD34 (C11)",
+      "minDisplay": 5.14897,
+      "maxDisplay": 825.29474,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD107a (C12)",
+      "minDisplay": 2.1686242,
+      "maxDisplay": 648.42914,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "PDL1 (C13)",
+      "minDisplay": 7.805399,
+      "maxDisplay": 346.7456,
+      "color": {
+        "red": 255,
+        "green": 128,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD163 (C14)",
+      "minDisplay": 5.1305876,
+      "maxDisplay": 392.89368,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "HLA-DR (C15)",
+      "minDisplay": 2.9779642,
+      "maxDisplay": 1034.1814,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD68 (C16)",
+      "minDisplay": 21.314285,
+      "maxDisplay": 6158.7363,
+      "color": {
+        "red": 165,
+        "green": 42,
+        "blue": 42
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD8 (C17)",
+      "minDisplay": 5.585376,
+      "maxDisplay": 1050.1925,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD21 (C18)",
+      "minDisplay": 10.784314,
+      "maxDisplay": 5665.675,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD66 (C19)",
+      "minDisplay": 10.853025,
+      "maxDisplay": 3741.3323,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD141 (C20)",
+      "minDisplay": 5.6636515,
+      "maxDisplay": 2469.7737,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "SMA (C21)",
+      "minDisplay": 3.8463519,
+      "maxDisplay": 1826.0594,
+      "color": {
+        "red": 0,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": true
+    },
+    {
+      "name": "CD57 (C22)",
+      "minDisplay": 40.81477,
+      "maxDisplay": 13957.272,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "TOX (C23)",
+      "minDisplay": 6.181126,
+      "maxDisplay": 858.0616,
+      "color": {
+        "red": 255,
+        "green": 128,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Vimentin (C24)",
+      "minDisplay": 11.796606,
+      "maxDisplay": 5474.1997,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD3e (C25)",
+      "minDisplay": 8.542274,
+      "maxDisplay": 4824.1562,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 0
+      },
+      "isShowing": true
+    },
+    {
+      "name": "HLA-A (C26)",
+      "minDisplay": 10.010431,
+      "maxDisplay": 3501.0088,
+      "color": {
+        "red": 165,
+        "green": 42,
+        "blue": 42
+      },
+      "isShowing": false
+    },
+    {
+      "name": "PD-1 (C27)",
+      "minDisplay": 2.8491035,
+      "maxDisplay": 519.11975,
+      "color": {
+        "red": 255,
+        "green": 192,
+        "blue": 203
+      },
+      "isShowing": false
+    },
+    {
+      "name": "CD45 (C28)",
+      "minDisplay": 10.620651,
+      "maxDisplay": 3469.0227,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Collagen IV (C29)",
+      "minDisplay": 11.513745,
+      "maxDisplay": 3082.6238,
+      "color": {
+        "red": 255,
+        "green": 0,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "E-cadherin (C30)",
+      "minDisplay": 9.468075,
+      "maxDisplay": 1067.1147,
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "TCF-1 (C31)",
+      "minDisplay": 11.266693,
+      "maxDisplay": 2514.4702,
+      "color": {
+        "red": 0,
+        "green": 0,
+        "blue": 255
+      },
+      "isShowing": false
+    },
+    {
+      "name": "Podoplanin (C32)",
+      "minDisplay": 8.991932,
+      "maxDisplay": 648.18506,
+      "color": {
+        "red": 255,
+        "green": 255,
+        "blue": 0
+      },
+      "isShowing": false
+    },
+    {
+      "name": "ICOS (C33)",
+      "minDisplay": 6.4554353,
+      "maxDisplay": 987.1375,
+      "color": {
+        "red": 255,
+        "green": 128,
+        "blue": 0
+      },
+      "isShowing": false
+    }
+  ]
+}
