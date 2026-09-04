@@ -1,7 +1,7 @@
 name: Islet app (R)
 
-# SCOPE, stated plainly: this is a syntax gate plus ten unit tests. It is NOT R test
-# coverage for the app.
+# SCOPE, stated plainly: this is a syntax gate, an install check for ieCore,
+# and data-independent unit/contract tests. It is not full browser coverage.
 #
 # The app needs shiny, bslib, duckdb, rdeck and reticulate. Installing that stack in CI is a
 # ~20-minute job and rdeck does not install cleanly from CRAN, so nothing here loads the app.
@@ -17,12 +17,16 @@ on:
     branches: [main]
     paths:
       - 'apps/islet/**'
+      - 'apps/R/ieCore/**'
+      - 'apps/lymph/**'
       - 'scripts/**/*.R'
       - '.github/workflows/islet-r.yml'
   pull_request:
     branches: [main]
     paths:
       - 'apps/islet/**'
+      - 'apps/R/ieCore/**'
+      - 'apps/lymph/**'
       - 'scripts/**/*.R'
       - '.github/workflows/islet-r.yml'
   workflow_dispatch:
@@ -53,16 +57,22 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             r-base-core \
             r-cran-testthat r-cran-dplyr r-cran-tidyr \
-            r-cran-tibble r-cran-lme4 r-cran-lmertest
+            r-cran-tibble r-cran-lme4 r-cran-lmertest \
+            r-cran-ggplot2 r-cran-stringr r-cran-yaml r-cran-readxl
 
       - name: Every R source parses
+        run: Rscript apps/islet/tests/parse_check.R
+
+      - name: Shared ieCore package installs
         run: |
-          Rscript -e 'fs <- c("apps/islet/app.R", list.files("apps/islet/R", "[.]R$", full.names = TRUE), list.files("scripts", "[.]R$", full.names = TRUE, recursive = TRUE)); bad <- unlist(lapply(fs, function(f) { m <- tryCatch({ parse(f); NULL }, error = function(e) conditionMessage(e)); if (is.null(m)) NULL else paste(f, m) })); if (length(bad)) { cat(bad, sep = "\n"); quit(status = 1) }; cat("parsed", length(fs), "files OK\n")'
+          mkdir -p /tmp/iecore-library
+          R CMD INSTALL --library=/tmp/iecore-library apps/R/ieCore
+          Rscript -e '.libPaths(c("/tmp/iecore-library", .libPaths())); library(ieCore); d <- ie_load_domain("apps/islet/config/islet_default.yml"); stopifnot(domain_pixel_size(d) == 0.5078)'
 
       - name: Unit tests (testthat)
         # Inherited from the Junior app lane in the 2026-08-16 merge, along with the
-        # utils_stats.R they exercise. 15 test_that blocks, 73 assertions. This is the first
-        # real R test coverage this repo has had.
+        # utilities they exercise. The suite now also checks both domain configs,
+        # every tab's wiring, and the synthetic lymph data contract.
         run: |
           cd apps/islet
           Rscript tests/run_tests.R

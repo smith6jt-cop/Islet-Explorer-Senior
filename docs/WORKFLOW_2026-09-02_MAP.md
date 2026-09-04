@@ -125,6 +125,11 @@ Authority: `core/phenocycler/docs/INTEGRATION.md` (its preamble and paths are co
 
 Authority: `apps/islet/CLAUDE.md`, `scripts/CLAUDE.md`, `deploy/DEPLOY.md`.
 
+- **Shared R layer (D.2 complete 2026-09-04)**: `apps/R/ieCore` is the one implementation of
+  domain loading, typography, safe joins, and statistical helpers. The islet app reads
+  `apps/islet/config/islet_default.yml`; `apps/lymph` contains the exact LymphVizkit YAML plus a
+  588 KB synthetic contract fixture, not another app fork. The 138-assertion suite checks both
+  domains, every tab's UI/server wiring, and single helper ownership.
 - **Runtime**: R 4.5.1 (`/opt/R/current` via `/usr/local/bin/Rscript`) with the `~/R/…/4.5` user library —
   the only library holding duckdb, mirai, rdeck, edgeR; `/usr/bin/Rscript` is R 4.6.1 without them.
   Reticulate python: `~/.local/share/islet-explorer-py`. Both pins live only in the gitignored
@@ -136,17 +141,18 @@ Authority: `apps/islet/CLAUDE.md`, `scripts/CLAUDE.md`, `deploy/DEPLOY.md`.
 - **Viewer**: 15 of 22 OME-TIFFs converted (`/data/islet_ome_tiff`); 1 of 22 `.tmap` projects (6539);
   TissUUmaps verified on synthetic slides only.
 - **Serving**: shiny-server and nginx are running but serve **no** Islet Explorer. `/srv/shiny-server/islet-explorer`
-  and the nginx `local_images` alias point into `~/panc_CODEX`, which moved: Junior lives at
-  `/data/panc_CODEX/Islet-Explorer` (`f2a5c54`, clean). The `islet-explorer-merged` entry was never created.
+  and the nginx `local_images` alias point into `~/panc_CODEX`, which moved: Junior's publication
+  `main` is `f2a5c54`; the clean local checkout is on review-hardening commit `e589961`. The
+  `islet-explorer-merged` entry was never created.
   `deploy/` still carries `<project>` placeholders.
-- **CI**: `islet-r.yml` (parse + 15 testthat blocks), `phenocycler-ci.yml` (ruff; 311 / 18 / 268 tests),
+- **CI**: `islet-r.yml` (ieCore install + package/app parse + 138 testthat assertions), `phenocycler-ci.yml` (ruff; 311 / 18 / 268 tests),
   `phenocycler-release.yml` (tag-triggered; no tests).
 
 ## 6. Consolidation status (`docs/CONSOLIDATION.md`, 2026-09-02 section)
 
 Phase 0 done · 1 void · 2 done (no `phenocycler-v*` tag yet; rollback assets retained) · Phase 3 done
 (`analysis/xenium` landed 2026-08-28; `analysis/follicle` absorbed and tested 2026-09-03) · 4 rewritten in writing, not executed ·
-5 partially harvested · 6 not started. `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18
+5 complete 2026-09-04 · 6 not started. `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18
 "section-keyed cohort") has diverged from the subtree by four commits.
 
 ## 7. Environments that actually run things

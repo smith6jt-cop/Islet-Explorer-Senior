@@ -24,6 +24,8 @@ Podman sidecar** serves them.
 - **AI Assistant: OFF** (`ISLET_ENABLE_AI=FALSE`, the app default) → no UF Navigator API key on the
   public host. The app is safe to leave fully open.
 - **Viewer: ON**, images hosted on PubApps → requires purchased storage + the nginx sidecar.
+- **Shared code: monorepo-local `apps/R/ieCore`** → deploy the full clone, not an isolated
+  copy of `apps/islet`; `r-yaml` loads the validated islet DOMAIN at startup.
 
 ## What's in this directory
 
@@ -69,6 +71,8 @@ mamba env create -p /pubapps/<project>/prod/conda -f deploy/environment.yml
 ```bash
 mkdir -p /pubapps/<project>/prod/logs
 git clone <repo-url> /pubapps/<project>/prod/islet-explorer
+cd /pubapps/<project>/prod/islet-explorer
+R CMD INSTALL apps/R/ieCore   # package/install contract check; the app sources this same tree
 ```
 Stage data (nothing is in git; PubApps can't see /blue, so copy from the source machine, e.g. via a
 HiPerGator hop or Globus):

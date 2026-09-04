@@ -2,6 +2,18 @@
 
 Deep details for the modular Shiny app under `apps/islet/`. The top-level `CLAUDE.md` covers the entrypoint architecture, root-level outputs, shared reactive state, and data loading. This file documents per-tab features and conventions.
 
+## Shared R/domain boundary (2026-09-04)
+
+`apps/R/ieCore` is the sole implementation of domain loading, plot typography,
+safe joins, and statistical helpers. `R/00_00_iecore.R` must remain the first
+auto-sourced app file; it loads `config/islet_default.yml` and fails closed on
+an incomplete contract. `PIXEL_SIZE_UM`, grouping palettes, and the phenotype
+display vocabulary come from that DOMAIN. They are downstream presentation
+metadata only and must never define upstream positivity or cell identity.
+
+`apps/lymph` is a second config plus synthetic schema fixture, not an app fork.
+Any shared helper belongs in ieCore rather than being copied into either domain.
+
 **Per-tab capability status** (what actually works on the current data, verified by launching the dev server + screenshotting every tab, 2026-06-29) lives in [`docs/capability_status.md`](docs/capability_status.md). Headline: all 5 data tabs work; Viewer is empty-but-graceful (no OME-TIFFs); **Trajectory works** but was slow to first render — vectorized 2026-06-29 (see below). All tabs still serve the OLD provisional fine-phenotype labels by design — the new broad-lineage outputs are notebook-only.
 
 ## Spatial Neighborhood Analysis
@@ -32,7 +44,7 @@ Cell centroids (`X_centroid`, `Y_centroid`) are in micrometers. GeoJSON polygons
 
 ### drilldown_helpers.R
 
-- `PHENOTYPE_COLORS` -- 21 phenotypes with distinctive hex palette (endocrine=warm, immune=cool, structural=neutral)
+- `PHENOTYPE_COLORS` -- exact compatibility vocabulary loaded from DOMAIN; alternate palettes fill missing legacy/Senior labels from that authoritative display mapping
 - `drilldown_available()` -- checks if `data/cells/` exists with CSVs
 - `load_islet_cells(imageid, islet_key)` -- CSV loader with `new.env()` caching
 - `render_islet_drilldown_plot(info, cells, color_by, show_peri)` -- cells over `build_segmentation_base_plot()`. Uses `fill` aesthetic (shape 21) for phenotype/marker coloring, `alpha` for core/peri (0.9/0.4). `colour` aesthetic reserved for structure boundaries.

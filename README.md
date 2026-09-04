@@ -57,6 +57,7 @@ R -q -e "shiny::runApp('apps/islet', launch.browser=TRUE)"
 | `dplyr`, `tidyr`, `stringr` | Data wrangling |
 | `ggplot2`, `plotly` | Visualization |
 | `broom`, `jsonlite` | Stats and JSON |
+| `yaml` | Validated islet/lymph DOMAIN configuration |
 | `scales` | Axis formatting |
 | `sf` | GeoJSON segmentation viewer (optional) |
 | `anndata`, `reticulate` | H5AD loading, trajectory (optional) |
@@ -256,13 +257,14 @@ python scripts/build_master_excel.py
 
 ```
 Islet-Explorer-Senior/
+├── apps/R/ieCore/              # Shared domain, theme, stats, and join package
 ├── apps/islet/                 # Modular R Shiny application
 │   ├── app.R                      # Entrypoint: UI layout, CSS, server wiring
+│   ├── config/islet_default.yml   # Downstream display/domain contract
 │   ├── R/
-│   │   ├── 00_globals.R           # Package loads, constants, palettes, paths
+│   │   ├── 00_00_iecore.R         # Loads the one shared helper implementation
+│   │   ├── 00_globals.R           # Package loads and app runtime paths
 │   │   ├── data_loading.R         # load_master_auto(), prep_data(), H5AD loading
-│   │   ├── utils_stats.R          # summary_stats(), cohens_d(), pairwise_wilcox()
-│   │   ├── utils_safe_join.R      # safe_left_join(), add_islet_key()
 │   │   ├── segmentation_helpers.R # GeoJSON cache, segmentation plot builders
 │   │   ├── drilldown_helpers.R    # Single-cell overlay, phenotype colors
 │   │   ├── spatial_helpers.R      # Per-donor tissue CSV loader with caching
@@ -275,6 +277,7 @@ Islet-Explorer-Senior/
 │   │   ├── mod_viewer_*.R         # Viewer tab module
 │   │   └── mod_ai_assistant_*.R   # AI chat panel module
 │   └── www/                       # Static assets (logo, avivator/)
+├── apps/lymph/                 # Lymph config + synthetic schema fixture; no app fork
 ├── data/                          # Data files (see Data section)
 ├── scripts/                       # Pipeline and utility scripts
 ├── islet_analysis/                # Generated islet-level H5ADs (gitignored)
@@ -306,6 +309,9 @@ R -q -e "shiny::runApp('apps/islet', launch.browser=FALSE)"
 ### Testing & Diagnostics
 
 ```bash
+R CMD INSTALL apps/R/ieCore
+Rscript apps/islet/tests/parse_check.R
+Rscript apps/islet/tests/run_tests.R
 Rscript scripts/test_shiny_prep.R            # Test data loading
 Rscript scripts/diagnose_islets.R            # Islet data quality
 Rscript scripts/diagnose_marker_regions.R    # Marker region checks

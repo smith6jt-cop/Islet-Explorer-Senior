@@ -1,18 +1,17 @@
 # Shiny App Tests & CI
 
 Automated checks for the R Shiny app (`apps/islet/`). Run in CI by
-`.github/workflows/islet-r.yml` on every push/PR that touches
-`apps/islet/**`.
+`.github/workflows/islet-r.yml` on every push/PR that touches `apps/islet/**`,
+`apps/R/ieCore/**`, or `apps/lymph/**`.
 
 ## What runs
 
-1. **Parse check** — `tests/parse_check.R` syntax-parses every `R/*.R` file plus
-   `app.R`. Catches syntax errors without loading any package or data.
-2. **Unit tests** — `tests/run_tests.R` runs the `testthat` suite in
-   `tests/testthat/`. Currently covers `R/utils_stats.R` — the pure statistical
-   helpers behind the Statistics tab (donor-level aggregation, mixed-effects test,
-   per-bin ANOVA / Kendall τ / pairwise, Cohen's d, η², normality, outlier
-   flagging). These need no app data and no Python bridge.
+1. **Parse check** — `tests/parse_check.R` syntax-parses the ieCore package,
+   every app `R/*.R` file, and `app.R`.
+2. **Unit and contract tests** — `tests/run_tests.R` covers the shared ieCore
+   statistics/domain helpers, exact islet/lymph configs, the committed synthetic
+   lymph fixture, and UI/server wiring for every tab. These need no scientific
+   app data and no Python bridge.
 
 3. **Statistics audit harness** — `tests/manual/stats_audit.R`. **Manual/local only**
    (not in CI): it drives the *real* `plot_server` → `statistics_server` chain
@@ -54,10 +53,11 @@ audit's own numbers — min-cells sweeping 5382 → 4246 → 689 islets, pairwis
   `eventReactive(ignoreInit = TRUE)` — fire it with `setInputs(run_tests = 1)`.
 
 Dependencies for the tests: `testthat`, `dplyr`, `tidyr`, `tibble`, `lme4`,
-`lmerTest`. Install with:
+`lmerTest`, `yaml`, and `readxl`. Install with:
 
 ```r
-install.packages(c("testthat", "dplyr", "tidyr", "tibble", "lme4", "lmerTest"))
+install.packages(c("testthat", "dplyr", "tidyr", "tibble", "lme4", "lmerTest",
+                   "yaml", "readxl"))
 ```
 
 ## Why CI does not launch the full app
@@ -98,8 +98,8 @@ test packages automatically at the start of every web session:
 The hook runs **synchronously**, so the session waits until R is ready (no race
 where the agent runs tests before the packages exist). The `r-cran-*` debs install
 fast on Ubuntu and bundle their own system dependencies (BLAS/LAPACK, gfortran
-runtime) — no compilation. Verified by running the full suite (73 assertions pass as of
-2026-08-14; the count drifts as tests are added — re-run rather than trusting this number,
+runtime) — no compilation. Verified by running the full suite (138 assertions pass as of
+2026-09-04; the count drifts as tests are added — re-run rather than trusting this number,
 and note the suite was red from `d403563` to `2026-08-14` because that commit widened
 `cohens_d()`'s return value without updating its test) after
 a clean install.

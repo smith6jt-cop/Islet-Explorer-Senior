@@ -15,7 +15,10 @@ This repository contains three related but separate systems:
    do-not-regress decisions #1-#17 are cited by number from other documents and must not
    be renumbered. See `analysis/xenium/README.md` and `analysis/xenium/CLAUDE.md`.
 3. `apps/islet/` serves aggregated islet, spatial, trajectory, and
-   single-cell views.
+   single-cell views. Its shared downstream R code lives once in
+   `apps/R/ieCore`; exact display contracts live in
+   `apps/islet/config/islet_default.yml` and `apps/lymph/config/lymphoid_default.yml`.
+   `apps/lymph` is configuration plus synthetic test data, not another app.
 
 The panel taxonomy has **one** authority: the `core/panels` subtree (= XeniumPanelExplorer
 @`076d1192`, verified byte-identical 2026-08-28). `analysis/xenium/scripts/fetch_subpanels.py`
@@ -27,6 +30,9 @@ The source workflow is authoritative for upstream measurement provenance. The
 app is a downstream consumer, but its current H5AD is not connected to current
 content-addressed source runs. App code and existing H5AD phenotype columns
 must not define thresholds, pairs, or train the source workflow.
+
+DOMAIN values such as pixel size, palettes, and phenotype vocabulary are UI
+metadata. They are not evidence of cell identity or marker positivity.
 
 ## Non-negotiable analysis rules
 

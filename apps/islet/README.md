@@ -1,34 +1,25 @@
-# Shiny App: Islet Area Distributions
+# Islet Explorer application
 
-Interactive Shiny app to explore islet area distributions across donor status (ND → Aab+ → T1D) with:
+This is the monorepo's modular R Shiny consumer for islet, spatial,
+trajectory, viewer, statistics, inflammation, and optional AI views.
 
-- Band-region Islet_Markers: % positive per islet vs. size (mean ± SE)
-- Band-region Islet_Targets: density/count vs. size (mean ± SE)
-- Islet composition vs. size (INS/GCG/SST fractions)
-- One-way ANOVA per size bin across donor groups (BH-adjusted p-values)
+Application-wide display configuration lives in
+`config/islet_default.yml`. Shared domain, typography, safe-join, and
+statistical code lives once in `../R/ieCore`; `R/00_00_iecore.R` loads it before
+the tab modules. These are downstream display contracts and must not be used to
+define upstream marker calls or cell identities.
 
-Data source: `../data/master_results.xlsx` (generated from TSVs in `../data/results` with donor key `CODEX_Pancreas_Donors.xlsx`).
-
-## Run
-
-Prereqs: R >= 4.2 with packages: `shiny`, `readxl`, `dplyr`, `tidyr`, `stringr`, `ggplot2`, `plotly`, `broom`.
-
-```r
-shiny::runApp("shiny")
-```
-
-Or from the shell:
+The app reads external/ignored data through `../../data/app_data`. Run it from
+this directory so that path remains exact:
 
 ```bash
-R -q -e 'shiny::runApp("shiny", launch.browser=TRUE)'
+cd apps/islet
+Rscript tests/parse_check.R
+Rscript tests/run_tests.R
+ISLET_USE_DUCKDB=FALSE ISLET_USE_MIRAI=FALSE ISLET_ENABLE_AI=FALSE \
+  Rscript -e 'shiny::runApp(".", launch.browser = TRUE)'
 ```
 
-## Notes
-
-- Islet diameter is standardized to CORE area: derived from `Islet_Targets` rows where `type == "islet_core"` (core `region_um2`). Diameter = `2 * sqrt(core_area/pi)`.
-- Band-region rows are used for markers (`region_type == "islet_band"`) and targets (`type == "islet_band"`).
-- Binning is by diameter (µm); default bin width = 50 µm. Adjust in the sidebar.
-- Markers use `% positive` (100 × `pos_frac`). Targets use `area_density` by class.
-- Composition uses `*_any / cells_total` for INS/GCG/SST.
-- Stats tab runs one-way ANOVA per bin across groups (ND, Aab+, T1D) and reports BH-adjusted p-values.
-
+Deployment and the deliberately separate publication build are documented in
+`../../deploy/DEPLOY.md`. The lymphoid configuration/fixture is under
+`../lymph`; it is not a second app fork.

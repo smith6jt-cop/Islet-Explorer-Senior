@@ -62,8 +62,8 @@ BANKSY (`Banksy_py` fork), MISTy (`mistyR` fork; absent locally), the benchmark'
 | repo | relevance | state |
 |---|---|---|
 | SpleenFollicleCounterQP | Phase 3b absorbed 2026-09-03 at `analysis/follicle`: H&E and DAPI U-Net lanes (root CI), notebooks H1–H20, H16/H20 retained as historical evidence | source clean on integration commit `1ed38d2` over upstream `6ae30ba`; former 15 dirty entries preserved at `f6cbcd4`. Four required files are absent from the live external `Measurements/` path and fail strict preflight |
-| LymphVizkit | Phase 5: `00_domain_config.R`, `config/lymphoid_default.yml` | GitHub only |
-| Islet-Explorer (Junior) | the publication build; deliberately separate | `/data/panc_CODEX/Islet-Explorer @ f2a5c54`, clean |
+| LymphVizkit | Phase 5 domain layer absorbed at `apps/R/ieCore` + `apps/lymph`; no app fork copied | verified bundle source `820bb38`; exact YAML and synthetic-fixture hashes in `apps/R/ieCore/IMPORT_PROVENANCE.md` |
+| Islet-Explorer (Junior) | the publication build; deliberately separate; planned 2026-08-16 harvests accounted for | publication `main` at `f2a5c54`; clean local review-hardening branch at `e589961` is recorded for D.4 |
 | Phenocycler_Analysis | subtree source | origin `main` at `fc06c0f` (PR #18), four commits past the import |
 | isletscope, spatialbarrier, ADIIDAS, Panc_pLN_Analysis, HPCsizer, KINTSUGI-docs, OMICS, Skills_Registry | prior art or tooling | unreferenced by the repo, plans and memory |
 

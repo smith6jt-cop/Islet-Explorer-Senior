@@ -1,0 +1,28 @@
+Package: ieCore
+Type: Package
+Title: Shared Islet Explorer Application Contracts and Helpers
+Version: 0.1.0
+Authors@R: person("Justin", "Smith", role = c("aut", "cre"),
+    email = "smith6jt@ufl.edu")
+Author: Justin Smith [aut, cre]
+Maintainer: Justin Smith <smith6jt@ufl.edu>
+Description: Shared domain configuration, presentation helpers, safe joins,
+    and statistical utilities for the Islet Explorer application family.
+    Scientific measurement and identity production remain outside this package.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.2)
+Imports:
+    dplyr,
+    ggplot2,
+    stringr,
+    tibble,
+    yaml
+Suggests:
+    broom,
+    car,
+    lme4,
+    lmerTest,
+    plotly,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

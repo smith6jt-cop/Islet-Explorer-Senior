@@ -1,0 +1,97 @@
+# ============================================================================
+# LymphVizkit domain configuration (lymphoid default)
+# ============================================================================
+# This YAML MIRRORS the built-in defaults in app/shiny_app/R/00_domain_config.R.
+# If the `yaml` R package is installed, this file is deep-merged on top of those
+# defaults at app startup, so you can retarget the app (grouping axis, regions,
+# markers, phenotypes) WITHOUT editing R. Delete or edit any section to change it;
+# omitted sections fall back to the R defaults. Physical schema tokens
+# ("Donor Status" column; follicle_core/band/union region canonicals) are join
+# keys — keep them in sync with your data files if you change them.
+# ============================================================================
+
+app:
+  name: LymphVizkit
+  title: "LymphVizkit - Spleen & Lymph Node Follicle Explorer"
+  url_path: lymphvizkit
+
+unit:
+  singular: follicle
+  plural: follicles
+  Title: Follicle
+  key_column: follicle_key
+  id_prefix: Follicle
+  id_regex: "Follicle_\\d+"
+  peri_suffix: _exp20um
+  case_id_pad_width: 4
+  diam_column: follicle_diam_um
+
+pixel_size_um: 0.5078
+
+grouping:
+  physical_column: "Donor Status"
+  display_label: "Follicle state"
+  levels: [Resting, Reactive, Involuted]
+  ordered: true
+  default_palette: Bright
+  palettes:
+    "Paul Tol (default)": {Resting: "#4477AA", Reactive: "#CC6633", Involuted: "#228833"}
+    Bright: {Resting: "#3366CC", Reactive: "#FF6600", Involuted: "#109618"}
+    Okabe-Ito: {Resting: "#0072B2", Reactive: "#D55E00", Involuted: "#009E73"}
+    Diverging: {Resting: "#2166AC", Reactive: "#B2182B", Involuted: "#1B7837"}
+
+regions:
+  items:
+    - {id: core,  canonical: follicle_core,  display: "Germinal center", geojson_class: Follicle, is_core: true}
+    - {id: band,  canonical: follicle_band,  display: "Mantle zone",     geojson_class: ~,        is_core: false}
+    - {id: union, canonical: follicle_union, display: "Whole follicle",  geojson_class: ~,        is_core: false}
+  expansion:
+    display: "Peri-follicle"
+    geojson_class: FollicleExpanded
+    distance_um: 20
+  structures:
+    - {class: Vessel,    display: Vessel,    color: "#CC0000"}
+    - {class: Sinus,     display: Sinus,     color: "#00AA00"}
+    - {class: Lymphatic, display: Lymphatic, color: "#0000CC"}
+  colors: {core: "#0066CC", expansion: "#00CCCC"}
+
+markers:
+  excluded: [DAPI, Empty, Blank]
+  defining:
+    - {marker: CD20, single_col: CD20_single, any_col: CD20_any}
+    - {marker: BCL6, single_col: BCL6_single, any_col: BCL6_any}
+    - {marker: CD21, single_col: CD21_single, any_col: CD21_any}
+  pseudotime_root: BCL6
+  panel: [CD20, CD21, CD23, CD35, BCL6, Ki67, CD3e, CD4, CD8a, FOXP3, PD1, CXCR5,
+          CD68, CD163, CD11c, HLADR, CD138, CD56, MPO, CD31, CD34, PDPN, LYVE1,
+          SMA, Vimentin, DAPI]
+
+phenotypes:
+  display_order: [GC B cell, Mantle B cell, B cell, Plasma cell, FDC, Tfh cell,
+                  CD4 T cell, CD8 T cell, Treg, Macrophage, Tingible-body macrophage,
+                  Dendritic cell, NK cell, Neutrophil, Endothelial, Lymphatic,
+                  Stromal, Smooth muscle, Unknown]
+  colors:
+    "GC B cell": "#E63946"
+    "Mantle B cell": "#F4A261"
+    "B cell": "#48CAE4"
+    "Plasma cell": "#BC4749"
+    "FDC": "#6A994E"
+    "Tfh cell": "#0096C7"
+    "CD4 T cell": "#0077B6"
+    "CD8 T cell": "#023E8A"
+    "Treg": "#06A77D"
+    "Macrophage": "#264653"
+    "Tingible-body macrophage": "#1D3557"
+    "Dendritic cell": "#2A9D8F"
+    "NK cell": "#7209B7"
+    "Neutrophil": "#E76F51"
+    "Endothelial": "#F28482"
+    "Lymphatic": "#84A98C"
+    "Stromal": "#9B9B9B"
+    "Smooth muscle": "#C49792"
+    "Unknown": "#CCCCCC"
+
+# Optional pancreas/T1D-specific UI toggles (no lymphoid analogue; off by default).
+features:
+  autoantibody_filter: false

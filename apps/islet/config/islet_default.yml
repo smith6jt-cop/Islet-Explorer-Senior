@@ -1,0 +1,120 @@
+# Islet Explorer display/domain contract. This config controls UI vocabulary
+# and coordinate conversion only; it does not define upstream cell identities.
+
+app:
+  name: Islet Explorer Senior
+  title: Islet Explorer Senior
+  url_path: islet-explorer-merged
+
+unit:
+  singular: islet
+  plural: islets
+  Title: Islet
+  key_column: islet_key
+  id_prefix: Islet
+  id_regex: "Islet_\\d+"
+  peri_suffix: _exp20um
+  case_id_pad_width: 4
+  diam_column: islet_diam_um
+
+# QuPath resolution-1 geometry: median measured scale over 2,355 islets.
+pixel_size_um: 0.5078
+
+grouping:
+  physical_column: "Donor Status"
+  display_label: Donor status
+  levels: [ND, Aab+, T1D]
+  ordered: true
+  default_palette: Bright
+  palettes:
+    "Paul Tol (default)": {ND: "#4477AA", Aab+: "#CC6633", T1D: "#228833"}
+    Bright: {ND: "#3366CC", Aab+: "#FF6600", T1D: "#109618"}
+    Okabe-Ito: {ND: "#0072B2", Aab+: "#D55E00", T1D: "#009E73"}
+    Diverging: {ND: "#2166AC", Aab+: "#B2182B", T1D: "#1B7837"}
+
+regions:
+  items:
+    - {id: core, canonical: islet_core, display: Islet core, geojson_class: Islet, is_core: true}
+    - {id: band, canonical: islet_band, display: Peri-islet band, geojson_class: ~, is_core: false}
+    - {id: union, canonical: islet_union, display: Core + peri-islet, geojson_class: ~, is_core: false}
+  expansion:
+    display: Peri-islet
+    geojson_class: IsletExpanded
+    distance_um: 20
+  structures:
+    - {class: Nerve, display: Nerve, color: "#CC0000"}
+    - {class: Capillary, display: Capillary, color: "#00AA00"}
+    - {class: Lymphatic, display: Lymphatic, color: "#0000CC"}
+  colors: {core: "#0066CC", expansion: "#00CCCC"}
+
+markers:
+  excluded: [DAPI, Empty, Blank]
+  defining:
+    - {marker: INS, single_col: Ins_single, any_col: Ins_any}
+    - {marker: GCG, single_col: Glu_single, any_col: Glu_any}
+    - {marker: SST, single_col: Stt_single, any_col: Stt_any}
+  pseudotime_root: INS
+  panel: [IAPP, CD107a, CD4, CD31, SMA, CD68, CD44, Vimentin, CD99,
+          E-cadherin, IDO1, CD66, INS, Ker8-18, CD11c, CD38, HLA-DR, CD34,
+          iNOS, M2Gal3, B3TUBB, CD8, PCNA, FOXP3, CD57, Ki67, Granzyme B,
+          HLA-A, CD20, Collagen IV, VISTA, Pan-Cytokeratin, PD-1, LAG3, SST,
+          TCF-1, TOX, Caveolin, ICOS, CD163, EpCAM, PD-L1, CD79a, Keratin 5,
+          CD3e, GCG, Beta-actin, Bcl-2, MPO, CD56, CD39, Iba1, SOX2, CD209,
+          Podoplanin, CD11b, CD206, TP63, DAPI]
+
+# This is the app's display compatibility vocabulary. It includes the earlier
+# 21-label names and the Senior/scimap names still present in current app data.
+phenotypes:
+  display_order: [Beta cell, Alpha cell, Delta cell, Endocrine, Acinar, Ductal,
+                  ECAD+, Structural, SMA+, Blood Vessel, Endothelial, Lymphatic,
+                  Neural, Macrophage, APCs, CD8a Tcell, CD4 Tcell, T cell,
+                  B cell, Immune, Blood vessel, CD8 T cell, CD4 T cell,
+                  Dendritic cell, Epithelial, Fibroblast, Granulocyte,
+                  M2 macrophage, NK cell, Regulatory T cell, Smooth muscle,
+                  Stromal, likely-Regulatory T cell, Unknown]
+  colors:
+    "Beta cell": "#E63946"
+    "Alpha cell": "#F4A261"
+    "Delta cell": "#E9C46A"
+    Endocrine: "#D4A373"
+    Acinar: "#A8DADC"
+    Ductal: "#457B9D"
+    "ECAD+": "#6A994E"
+    Structural: "#9B9B9B"
+    "SMA+": "#C49792"
+    "Blood Vessel": "#BC4749"
+    Endothelial: "#F28482"
+    Lymphatic: "#84A98C"
+    Neural: "#B5838D"
+    Macrophage: "#264653"
+    APCs: "#2A9D8F"
+    "CD8a Tcell": "#023E8A"
+    "CD4 Tcell": "#0077B6"
+    "T cell": "#0096C7"
+    "B cell": "#48CAE4"
+    Immune: "#3A5A8C"
+    "Blood vessel": "#BC4749"
+    "CD8 T cell": "#023E8A"
+    "CD4 T cell": "#0077B6"
+    "Dendritic cell": "#2A9D8F"
+    Epithelial: "#6A994E"
+    Fibroblast: "#B08968"
+    Granulocyte: "#E76F51"
+    "M2 macrophage": "#1D3557"
+    "NK cell": "#7209B7"
+    "Regulatory T cell": "#06A77D"
+    "Smooth muscle": "#C49792"
+    Stromal: "#9B9B9B"
+    "likely-Regulatory T cell": "#90BE6D"
+    Unknown: "#CCCCCC"
+  aliases:
+    "CD8a Tcell": "CD8 T cell"
+    "CD4 Tcell": "CD4 T cell"
+    "Blood Vessel": "Blood vessel"
+    "SMA+": "Smooth Muscle"
+  residuals:
+    - {name: Structural, parent: all, description: "Residual structural display class."}
+    - {name: Unknown, parent: all, description: "No available app display classification."}
+
+features:
+  autoantibody_filter: true

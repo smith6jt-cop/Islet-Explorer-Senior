@@ -18,7 +18,15 @@ root <- if (dir.exists("apps/islet/R")) {
   stop("Cannot locate the Shiny app R/ directory from wd = ", getwd())
 }
 
+iecore <- if (dir.exists("apps/R/ieCore/R")) {
+  "apps/R/ieCore/R"
+} else {
+  file.path("..", "R", "ieCore", "R")
+}
+if (!dir.exists(iecore)) stop("Cannot locate apps/R/ieCore/R from wd = ", getwd())
+
 files <- c(
+  list.files(iecore, pattern = "[.][Rr]$", full.names = TRUE),
   list.files(file.path(root, "R"), pattern = "[.][Rr]$", full.names = TRUE),
   file.path(root, "app.R")
 )

@@ -4,9 +4,9 @@
 #   cd apps/islet && Rscript tests/run_tests.R      # from the app dir
 #   Rscript apps/islet/tests/run_tests.R            # from the repo root
 #
-# The suite covers R/utils_stats.R only — pure statistical helpers that need no
-# app data or Python bridge. Dependencies loaded + code sourced by
-# tests/testthat/helper-setup.R.
+# The suite covers ieCore statistics/domain helpers, the synthetic lymph data
+# contract, and tab-by-tab application wiring without requiring scientific data
+# or a Python bridge. Sources are loaded by tests/testthat/helper-setup.R.
 
 suppressPackageStartupMessages(library(testthat))
 

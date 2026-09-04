@@ -25,6 +25,7 @@ dependencies:
   - r-plotly
   - r-broom
   - r-jsonlite
+  - r-yaml          # apps/R/ieCore DOMAIN loader
   - r-base64enc
   # transitives used directly via pkg:: in the modules (listed explicitly for reproducibility)
   - r-scales

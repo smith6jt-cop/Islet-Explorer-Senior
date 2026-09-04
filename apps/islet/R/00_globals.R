@@ -19,29 +19,14 @@ USE_MIRAI  <- isTRUE(as.logical(Sys.getenv("ISLET_USE_MIRAI",  "TRUE")))
 # Navigator API key (KEY/BASE). Set ISLET_ENABLE_AI=TRUE (e.g. local dev) to show it.
 AI_ENABLED <- isTRUE(as.logical(Sys.getenv("ISLET_ENABLE_AI", "FALSE")))
 
-# Pixel size constant for coordinate conversion (micrometers per pixel)
-# GeoJSON polygons use pixel coordinates, while islet_spatial_lookup.csv uses micrometers
-# The QuPath structure GeoJSONs (results/*__<donor>_..._resolution__1.geojson) are
-# exported at a ~2x-downsampled pyramid level: empirically 0.5078 µm/px (median over
-# 2,355 islets, 3 donors; full-res base is ~0.2539). islet_spatial_lookup.csv is in µm,
-# so this constant maps lookup µm -> GeoJSON pixel space. (Junior CODEX was 0.3774.)
-PIXEL_SIZE_UM <- 0.5078  # micrometers per pixel (IO60panc2nd GeoJSON resolution #1)
-
-# Donor status color palettes
-DONOR_COLORS <- c("ND" = "#4477AA", "Aab+" = "#CC6633", "T1D" = "#228833")
-
-DONOR_COLORS_BRIGHT <- c("ND" = "#3366CC", "Aab+" = "#FF6600", "T1D" = "#109618")
-
-DONOR_COLORS_COLORBLIND <- c("ND" = "#0072B2", "Aab+" = "#D55E00", "T1D" = "#009E73")
-
-DONOR_COLORS_CLASSIC <- c("ND" = "#2166AC", "Aab+" = "#B2182B", "T1D" = "#1B7837")
-
-DONOR_PALETTES <- list(
-  "Paul Tol (default)" = DONOR_COLORS,
-  "Bright"             = DONOR_COLORS_BRIGHT,
-  "Okabe-Ito"          = DONOR_COLORS_COLORBLIND,
-  "Diverging"          = DONOR_COLORS_CLASSIC
-)
+# Display geometry and grouping palettes come from the declared DOMAIN file.
+# They are UI configuration, never cell-identity or threshold authorities.
+PIXEL_SIZE_UM <- domain_pixel_size()
+DONOR_PALETTES <- domain_group_palettes()
+DONOR_COLORS <- domain_group_colors("Paul Tol (default)")
+DONOR_COLORS_BRIGHT <- domain_group_colors("Bright")
+DONOR_COLORS_COLORBLIND <- domain_group_colors("Okabe-Ito")
+DONOR_COLORS_CLASSIC <- domain_group_colors("Diverging")
 
 get_donor_color_palette <- function(name = "Bright") {
   DONOR_PALETTES[[name]] %||% DONOR_COLORS_BRIGHT
@@ -346,88 +331,6 @@ VIEWER_DEBUG_ENABLED <- identical(Sys.getenv("VIEWER_DEBUG", "0"), "1")
 #   SHOW_INFLAMMATION_TAB=1 in .Renviron  ->  tab reappears
 SHOW_INFLAMMATION_TAB <- identical(Sys.getenv("SHOW_INFLAMMATION_TAB", "0"), "1")
 
-# ============================================================================
-# Plot font + theme helpers (May 2026)
-# ============================================================================
-# Centralised font sizing so every plot in the app reads clearly on screen and
-# downloads as a presentation/publication-ready PNG. "Presentation-first"
-# baseline: base 16pt, 18pt titles, 14pt legends, 12pt minimum for dense rows.
-
-ISLET_FONT_SIZES <- list(
-  base         = 18,
-  title        = 18,
-  subtitle     = 15,
-  axis_title   = 16,
-  axis_text    = 16,
-  legend_title = 16,
-  legend_text  = 16,
-  strip        = 16,
-  dense_min    = 14,  # heatmap row labels, in-cell values, dense tick labels
-  hover        = 15,  # plotly tooltips — NOT covered by layout(font=)
-  annotation   = 15   # plotly annotations / ggplotly facet strips
-)
-
-# ggplot's `annotate("text", size = N)` / `geom_text(size = N)` take
-# MILLIMETRES, not points. Passing a point-like number (14, 16) silently
-# produces enormous text; passing 4 or 5 — as this app did — produces 11.4pt /
-# 14.2pt, i.e. BELOW the 18pt base. Convert explicitly.
-ISLET_ANNOTATE_SIZE <- ISLET_FONT_SIZES$base / ggplot2::.pt
-
-# Standard ggplot theme. Use directly: `theme_islet()` or extend with
-# additional `theme(...)` calls for plot-specific overrides.
-theme_islet <- function(base_size = ISLET_FONT_SIZES$base) {
-  ggplot2::theme_minimal(base_size = base_size) +
-    ggplot2::theme(
-      plot.title    = ggplot2::element_text(size = ISLET_FONT_SIZES$title, face = "bold"),
-      plot.subtitle = ggplot2::element_text(size = ISLET_FONT_SIZES$subtitle, color = "#555"),
-      axis.title    = ggplot2::element_text(size = ISLET_FONT_SIZES$axis_title),
-      axis.text     = ggplot2::element_text(size = ISLET_FONT_SIZES$axis_text),
-      legend.title  = ggplot2::element_text(size = ISLET_FONT_SIZES$legend_title, face = "bold"),
-      legend.text   = ggplot2::element_text(size = ISLET_FONT_SIZES$legend_text),
-      strip.text    = ggplot2::element_text(size = ISLET_FONT_SIZES$strip, face = "bold")
-    )
-}
-
-# Named list of plotly `list(size = N)` font specs ready to splice into
-# layout() calls. Keys: global, title, axis_title, axis_tick, legend_title,
-# legend_text, colorbar_title.
-plotly_islet_fonts <- function() {
-  list(
-    global         = list(size = ISLET_FONT_SIZES$base),
-    title          = list(size = ISLET_FONT_SIZES$title),
-    axis_title     = list(size = ISLET_FONT_SIZES$axis_title),
-    axis_tick      = list(size = ISLET_FONT_SIZES$axis_text),
-    legend_title   = list(size = ISLET_FONT_SIZES$legend_title),
-    legend_text    = list(size = ISLET_FONT_SIZES$legend_text),
-    colorbar_title = list(size = ISLET_FONT_SIZES$legend_title)
-  )
-}
-
-# Apply publication-quality PNG download config to a plotly object.
-# Resulting PNG is `width * scale` x `height * scale` px (default 2800x1800).
-# Use as `p %>% plotly_islet_config("filename_root")`.
-plotly_islet_config <- function(p, filename_root = "islet_explorer_plot",
-                                width = 1400, height = 900, scale = 2,
-                                uniform_text_mode = "hide") {
-  # Tooltips and in-cell heatmap text ignore layout(font=), so they have to be
-  # set explicitly or they render at plotly's default and undo the type scale.
-  p <- plotly::layout(p,
-    hoverlabel  = list(font = list(size = ISLET_FONT_SIZES$hover)),
-    uniformtext = list(minsize = ISLET_FONT_SIZES$dense_min,
-                       mode    = uniform_text_mode)
-  )
-  plotly::config(p,
-    toImageButtonOptions = list(
-      format   = "png",
-      filename = filename_root,
-      width    = width,
-      height   = height,
-      scale    = scale
-    ),
-    displaylogo = FALSE
-  )
-}
-
 # Robust click bridge for plotly scatters used by the islet drill-down.
 # On macOS, plotly's own click/drag discrimination can suppress `plotly_click`
 # entirely, so the server-side observer never fires (the symptom: clicking a
@@ -583,12 +486,7 @@ PHENOTYPE_RULES_PATH <- file.path("..", "..", "data", "app_data", "phenotype_rul
 
 # PHENOTYPE_COLORS-form -> CSV-form (and back via reverse lookup). Used to
 # resolve a UI label to its rule row.
-PHENOTYPE_ALIASES <- c(
-  "CD8a Tcell"   = "CD8 T cell",
-  "CD4 Tcell"    = "CD4 T cell",
-  "Blood Vessel" = "Blood vessel",
-  "SMA+"         = "Smooth Muscle"
-)
+PHENOTYPE_ALIASES <- domain_phenotype_aliases()
 
 # Phenotypes with no CSV row — residuals from the upstream pipeline.
 # Each entry: list(parent, pos, neg, anypos_groups, description).

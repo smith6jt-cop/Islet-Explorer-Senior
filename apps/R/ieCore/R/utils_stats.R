@@ -11,7 +11,7 @@
 #   enrichment z-scores).
 #
 # `exclude_zeros = TRUE` removes zero-valued rows from the scoring population
-# entirely — they neither contribute to the centre/scale nor receive a score
+# entirely \u2014 they neither contribute to the centre/scale nor receive a score
 # (their outlier_score stays NA). Use it for genuinely zero-inflated features
 # where a spike at 0 would collapse the MAD; do NOT use it on quantities that
 # merely take negative values (e.g. enrichment z-scores contain no exact zeros,
@@ -195,7 +195,7 @@ summarize_outlier_filter <- function(df) {
   } else if (method == "zscore") {
     sprintf("|z| > %g per donor status", threshold)
   } else {
-    sprintf("Tukey %g×IQR per donor status", threshold)
+    sprintf("Tukey %g\u00d7IQR per donor status", threshold)
   }
   list(n_total = n_total, n_excluded = as.integer(n_excluded),
        n_kept = n_total - as.integer(n_excluded),
@@ -208,7 +208,7 @@ outlier_title_suffix <- function(summary) {
   if (is.null(summary) || !isTRUE(summary$enabled) || summary$n_excluded == 0) {
     return("")
   }
-  sprintf(" — %d outlier%s excluded (%s)",
+  sprintf(" \u2014 %d outlier%s excluded (%s)",
           summary$n_excluded,
           if (summary$n_excluded == 1) "" else "s",
           summary$label)
@@ -219,11 +219,11 @@ GLOBAL_OUTLIER_TOOLTIP <- paste0(
   "For each donor status (ND / Aab+ / T1D), islets whose robust |z| from the ",
   "group's median and MAD (modified z-score) exceeds the slider threshold are ",
   "excluded from trend lines, donor-level means, and statistical tests. ",
-  "Detection is two-sided — both high and low extremes are flagged. When MAD = 0 ",
+  "Detection is two-sided \u2014 both high and low extremes are flagged. When MAD = 0 ",
   "(zero-inflated groups), the rule falls back to classical mean/SD. Excluded ",
-  "points still appear on scatter and box plots as faint grey × markers; counts ",
+  "points still appear on scatter and box plots as faint grey \u00d7 markers; counts ",
   "are shown next to each plot title. Spatial Card A (infiltration) uses Tukey ",
-  "1.5×IQR instead, since enrichment z-scores are already a standardised, ",
+  "1.5\u00d7IQR instead, since enrichment z-scores are already a standardised, ",
   "roughly symmetric quantity; Spatial Card C distance plots apply the z-score ",
   "rule on log(1 + distance)."
 )
@@ -298,16 +298,23 @@ summary_stats <- function(df, group_cols, value_col, stat = c("mean_se","mean_sd
     )
 }
 
-# Map donor_status to ordinal trend code used by Kendall tau.
-# ND -> 0, Aab+ -> 1, T1D -> 2. Other labels return NA.
-# Used by per_bin_kendall() and per_bin_donor_kendall() so the encoding lives
-# in one place. If donor cohort labels ever change, update only here.
-code_donor_status <- function(x) {
-  x <- as.character(x)
-  ifelse(x == "ND", 0,
-    ifelse(x == "Aab+", 1,
-      ifelse(x == "T1D", 2, NA_real_)))
+# Map configured group levels to an ordinal trend code used by Kendall tau.
+# Values outside the declared vocabulary stay unavailable (NA), never zero.
+code_group_status <- function(x, levels = NULL) {
+  if (is.null(levels)) {
+    levels <- if (exists("domain_group_levels", mode = "function")) {
+      domain_group_levels()
+    } else {
+      c("ND", "Aab+", "T1D")
+    }
+  }
+  code <- match(as.character(x), as.character(levels)) - 1L
+  code[is.na(match(as.character(x), as.character(levels)))] <- NA_integer_
+  as.numeric(code)
 }
+
+# Compatibility name retained for the existing module API.
+code_donor_status <- function(x) code_group_status(x)
 
 per_bin_anova <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
   if (nrow(df) == 0) return(tibble(bin = character(), mid = numeric(), p_anova = numeric()))
@@ -438,7 +445,7 @@ lmer_test_donor <- function(rdf) {
 
 #' Islet-size companion models to the primary mixed-effects test.
 #'
-#' The primary model is `value ~ donor_status + (1|donor)` — it conditions on
+#' The primary model is `value ~ donor_status + (1|donor)` \u2014 it conditions on
 #' neither islet diameter nor a group-varying size slope. Both matter on this
 #' cohort:
 #'   * diameter is a strong predictor (main effect p < 2e-16 for most features);
@@ -448,7 +455,7 @@ lmer_test_donor <- function(rdf) {
 #'     (donor_status x diameter p < 2e-16 for prop_Beta cell and Ins_any).
 #'
 #' The third point is the important one. When the interaction is significant the
-#' group difference is not a single number — it depends on islet size — and the
+#' group difference is not a single number \u2014 it depends on islet size \u2014 and the
 #' primary omnibus p is a marginal average over a size mix that is itself
 #' group-dependent. That is an estimand issue, not bias, but it has to be visible
 #' rather than left for the user to infer from the Section 3 per-bin views.
@@ -458,7 +465,7 @@ lmer_test_donor <- function(rdf) {
 #' islet diameter rather than at the unobservable diameter of zero.
 #'
 #' Returns list(p_status_adj, p_diam, p_interaction, mean_diam, error_msg) with
-#' NA fields on failure — never NULL, so callers can render unconditionally.
+#' NA fields on failure \u2014 never NULL, so callers can render unconditionally.
 size_companion_models <- function(rdf, diam_col = "islet_diam_um") {
   out <- list(p_status_adj = NA_real_, p_diam = NA_real_, p_interaction = NA_real_,
               mean_diam = NA_real_, error_msg = NULL)
@@ -523,7 +530,7 @@ size_companion_models <- function(rdf, diam_col = "islet_diam_um") {
 #' Age is read from the H5AD `age` column, NOT from the nPOD metadata join. The
 #' two disagree for exactly one donor (112: H5AD 3.00 vs nPOD 3.72) and the H5AD
 #' value is canonical for modelling so existing results do not shift. Both fall
-#' under 13, so the binning is identical either way — but the rule matters if
+#' under 13, so the binning is identical either way \u2014 but the rule matters if
 #' another donor is ever added.
 #'
 #' Deliberately NOT offered here: HbA1c and C-peptide. Both are downstream
@@ -534,7 +541,7 @@ size_companion_models <- function(rdf, diam_col = "islet_diam_um") {
 #' this model. Age, sex and BMI are the legitimate confounders.
 #'
 #' Returns list(p_status_adj, p_age_group, n_young, n_old, cell_counts,
-#' error_msg) with NA fields on failure — never NULL, so callers can render
+#' error_msg) with NA fields on failure \u2014 never NULL, so callers can render
 #' unconditionally.
 age_group_companion_model <- function(rdf, cut = 13) {
   out <- list(p_status_adj = NA_real_, p_age_group = NA_real_,
@@ -585,7 +592,7 @@ age_group_companion_model <- function(rdf, cut = 13) {
   out
 }
 
-#' Shared per-bin coverage rule — the single definition of "this bin is analysable".
+#' Shared per-bin coverage rule \u2014 the single definition of "this bin is analysable".
 #'
 #' A bin qualifies only if, after aggregating to donor means within the bin, at
 #' least 2 donor_status groups are present AND every group present in the bin has
@@ -594,9 +601,9 @@ age_group_companion_model <- function(rdf, cut = 13) {
 #' This lives in one function because it previously did not. `per_bin_donor_anova`
 #' required every present group to clear 2 donors; `per_bin_donor_kendall` applied
 #' an equivalent rule on the status codes; but `per_bin_donor_pairwise` had no bin
-#' rule at all and only checked the two groups in the contrast. The 275 µm bin
+#' rule at all and only checked the two groups in the contrast. The 275 \u00b5m bin
 #' (ND = 1 donor, Aab+ = 3, T1D = 2) therefore produced an `Aab+ vs T1D` star on
-#' the stratified heatmap with no ANOVA or Kendall row above it — a pairwise
+#' the stratified heatmap with no ANOVA or Kendall row above it \u2014 a pairwise
 #' post-hoc with no omnibus behind it.
 #'
 #' All three now gate on this function, so a bin either supports the whole
@@ -614,7 +621,7 @@ bin_coverage_ok <- function(group_values) {
 
 #' Per-bin ANOVA on donor-level means within each bin
 #
-# Coverage: bin_coverage_ok() — see there. Bins that fail are omitted, so the
+# Coverage: bin_coverage_ok() \u2014 see there. Bins that fail are omitted, so the
 # heatmap (ANOVA + pairwise rows) and the trend plot (Kendall tau) cover exactly
 # the same bins.
 per_bin_donor_anova <- function(df, bin_col, group_col, value_col, mid_col = "diam_mid") {
@@ -745,12 +752,12 @@ normality_tests <- function(ddf) {
 
 # ---------- p-value formatting ----------
 
-#' Format a p-value for display — one rule, used everywhere.
+#' Format a p-value for display \u2014 one rule, used everywhere.
 #'
 #' Scientific notation is only readable when the exponent is large. The
 #' Statistics headline used to call formatC(format = "e") unconditionally, so
-#' p = 0.3476 rendered as "3.48e-01" — one keystroke away from being read as
-#' 0.0348 — while the hypothesis table three lines below printed the same number
+#' p = 0.3476 rendered as "3.48e-01" \u2014 one keystroke away from being read as
+#' 0.0348 \u2014 while the hypothesis table three lines below printed the same number
 #' as "0.3476". Fixed notation down to `sci_below`, scientific under it.
 #'
 #' @param x numeric p-value (NA-safe, vectorised)
@@ -775,10 +782,10 @@ format_p_value <- function(x, digits = 2, sci_below = 1e-4, na = "N/A") {
 #'
 #' Why the extra fields: Cohen's d divides by a POOLED SD, which is only
 #' meaningful when the two groups have comparable spread. On this cohort they
-#' routinely do not — for prop_Beta cell the donor-level SDs are ND 4.06 vs
+#' routinely do not \u2014 for prop_Beta cell the donor-level SDs are ND 4.06 vs
 #' T1D 0.575, a 50:1 variance ratio (a floor effect: T1D beta-cell proportions
 #' sit at ~0). The pooled SD lands at 2.90, giving d = 6.15 with CI [3.18, 9.12]
-#' — but Glass's delta is 4.39 against the ND SD and 31.03 against the T1D SD.
+#' \u2014 but Glass's delta is 4.39 against the ND SD and 31.03 against the T1D SD.
 #' d = 6.15 is an arbitrary point in that range, presented with a CI that implies
 #' precision it does not have. `raw_diff` (17.85 percentage points here) is the
 #' quantity that does not depend on which SD you standardise by.
@@ -802,7 +809,7 @@ cohens_d <- function(x, y) {
   s1 <- sd(x);   s2 <- sd(y)
   raw_diff <- m1 - m2
 
-  # Welch CI on the raw difference — does not assume equal variances.
+  # Welch CI on the raw difference \u2014 does not assume equal variances.
   wc <- tryCatch(t.test(x, y)$conf.int, error = function(e) c(NA_real_, NA_real_))
 
   v1 <- var(x); v2 <- var(y)
@@ -810,7 +817,7 @@ cohens_d <- function(x, y) {
     max(v1, v2) / min(v1, v2)
   } else NA_real_
 
-  # Glass's delta against each group's SD in turn — the two ends of the range
+  # Glass's delta against each group's SD in turn \u2014 the two ends of the range
   # the pooled-SD d silently picks a point inside of.
   glass1 <- if (is.finite(s1) && s1 > 0) raw_diff / s1 else NA_real_
   glass2 <- if (is.finite(s2) && s2 > 0) raw_diff / s2 else NA_real_

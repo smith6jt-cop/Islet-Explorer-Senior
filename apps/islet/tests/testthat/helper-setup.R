@@ -1,6 +1,6 @@
-# testthat helper — sourced automatically by test_dir() before any test-*.R file.
-# Loads the minimal dependencies and the code under test (utils_stats.R only:
-# pure statistical helpers that need no app data, no sf / reticulate / anndata).
+# testthat helper — sourced automatically before any test-*.R file. It loads
+# the shared ieCore sources exactly as the Shiny bootstrap does, without
+# loading the heavy app or scientific data.
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -14,13 +14,14 @@ if (!exists("%||%", mode = "function")) {
   assign("%||%", function(a, b) if (is.null(a)) b else a, envir = globalenv())
 }
 
-# Locate utils_stats.R regardless of the working directory test_dir() runs in
-# (repo root, apps/islet, or tests/testthat).
-.find_source <- function(rel) {
+# Locate a repository file regardless of the working directory test_dir() uses.
+.find_repo_file <- function(rel) {
   cands <- c(rel,
-             file.path("apps/islet", rel),
+             file.path("apps", "islet", rel),
              file.path("..", rel),
-             file.path("../..", rel))
+             file.path("../..", rel),
+             file.path("../../..", rel),
+             file.path("../../../..", rel))
   hit <- cands[file.exists(cands)]
   if (length(hit) == 0) {
     stop(sprintf("Could not locate %s from wd=%s", rel, getwd()))
@@ -28,4 +29,12 @@ if (!exists("%||%", mode = "function")) {
   normalizePath(hit[1])
 }
 
-source(.find_source("R/utils_stats.R"))
+.find_source <- function(rel) .find_repo_file(file.path("apps", "islet", rel))
+
+.iecore_dir <- dirname(.find_repo_file("apps/R/ieCore/R/domain_config.R"))
+for (.file in sort(list.files(.iecore_dir, pattern = "[.]R$", full.names = TRUE))) {
+  sys.source(.file, envir = globalenv())
+}
+
+.islet_domain <- ie_load_domain(.find_repo_file("apps/islet/config/islet_default.yml"))
+ie_set_domain(.islet_domain)

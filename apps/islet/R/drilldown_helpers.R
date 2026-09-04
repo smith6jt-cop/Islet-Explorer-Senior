@@ -3,48 +3,9 @@
 # Loads per-islet CSV files from data/cells/ and renders cell scatter plots
 # over the GeoJSON segmentation base.
 
-# ── Phenotype color palette (21 cell types → distinctive hex) ──────────
-# Endocrine = warm, Immune = cool, Structural = neutral
-PHENOTYPE_COLORS <- c(
-  "Beta cell"     = "#E63946",  # red
-  "Alpha cell"    = "#F4A261",  # orange
-  "Delta cell"    = "#E9C46A",  # gold
-  "Endocrine"     = "#D4A373",  # tan
-  "Acinar"        = "#A8DADC",  # light teal
-  "Ductal"        = "#457B9D",  # steel blue
-  "ECAD+"         = "#6A994E",  # olive green
-  "Structural"    = "#9B9B9B",  # gray
-  "SMA+"          = "#C49792",  # mauve
-  "Blood Vessel"  = "#BC4749",  # brick red
-  "Endothelial"   = "#F28482",  # salmon
-  "Lymphatic"     = "#84A98C",  # sage
-  "Neural"        = "#B5838D",  # dusty rose
-  "Macrophage"    = "#264653",  # dark teal
-  "APCs"          = "#2A9D8F",  # teal
-  "CD8a Tcell"    = "#023E8A",  # navy
-  "CD4 Tcell"     = "#0077B6",  # blue
-  "T cell"        = "#0096C7",  # light blue
-  "B cell"        = "#48CAE4",  # sky blue
-  "Immune"        = "#3A5A8C",  # medium blue
-  # --- Senior scimap phenotype names (IO60panc2nd: 25 phenotypes) ---
-  "Blood vessel"             = "#BC4749",  # brick red
-  "CD8 T cell"               = "#023E8A",  # navy
-  "CD4 T cell"               = "#0077B6",  # blue
-  "Dendritic cell"           = "#2A9D8F",  # teal
-  "Epithelial"               = "#6A994E",  # olive green
-  "Fibroblast"               = "#B08968",  # tan-brown
-  "Granulocyte"              = "#E76F51",  # burnt orange
-  "M2 macrophage"            = "#1D3557",  # dark navy
-  "NK cell"                  = "#7209B7",  # violet
-  "Regulatory T cell"        = "#06A77D",  # emerald
-  "Smooth muscle"            = "#C49792",  # mauve
-  # TODO(Step-5 rebuild): provisional label from the old scheme. New phenotyping uses
-  # "Fibroblast" for the Vimentin+ broad class (see assign_broad_lineage.py); reconcile/remove
-  # this "Stromal" entry when the live app switches to the REDSEA→RESTORE→broad-lineage data.
-  "Stromal"                  = "#9B9B9B",  # gray
-  "likely-Regulatory T cell" = "#90BE6D",  # light green
-  "Unknown"       = "#CCCCCC"   # light gray
-)
+# ── Phenotype display vocabulary ───────────────────────────────────────
+# DOMAIN owns these UI labels/colors. It does not define upstream identities.
+PHENOTYPE_COLORS <- domain_phenotype_colors()
 
 # ── High Contrast palette: immune spread across purple/cyan/magenta/indigo ──
 PHENOTYPE_COLORS_HIGH_CONTRAST <- c(
@@ -122,11 +83,16 @@ PHENOTYPE_COLORS_MAX_DISTINCT <- c(
 )
 
 # ── Palette registry and accessor ────────────────────────────────────────
+complete_phenotype_palette <- function(palette, fallback = PHENOTYPE_COLORS) {
+  missing <- setdiff(names(fallback), names(palette))
+  c(palette, fallback[missing])
+}
+
 PHENOTYPE_PALETTES <- list(
   "Original"             = PHENOTYPE_COLORS,
-  "High Contrast"        = PHENOTYPE_COLORS_HIGH_CONTRAST,
-  "Colorblind Safe"      = PHENOTYPE_COLORS_COLORBLIND,
-  "Maximum Distinction"  = PHENOTYPE_COLORS_MAX_DISTINCT
+  "High Contrast"        = complete_phenotype_palette(PHENOTYPE_COLORS_HIGH_CONTRAST),
+  "Colorblind Safe"      = complete_phenotype_palette(PHENOTYPE_COLORS_COLORBLIND),
+  "Maximum Distinction"  = complete_phenotype_palette(PHENOTYPE_COLORS_MAX_DISTINCT)
 )
 
 get_phenotype_palette <- function(name = "Original") {

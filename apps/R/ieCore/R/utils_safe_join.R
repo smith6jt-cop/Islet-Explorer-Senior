@@ -23,32 +23,42 @@ safe_left_join <- function(x, y, by, context = "join") {
   )
 }
 
-add_islet_key <- function(df) {
+add_unit_key <- function(df, domain = NULL) {
   if (is.null(df) || nrow(df) == 0) return(df)
 
-  if (!"islet_key" %in% names(df)) df$islet_key <- NA_character_
+  key_col <- domain_key_col(domain)
+  key_regex <- domain_id_regex(domain)
+  key_prefix <- domain_id_prefix(domain)
+
+  if (!key_col %in% names(df)) df[[key_col]] <- NA_character_
 
   if ("region" %in% names(df)) {
-    key_from_region <- stringr::str_extract(df$region, "Islet_\\d+")
-    df$islet_key <- dplyr::coalesce(df$islet_key, key_from_region)
+    key_from_region <- stringr::str_extract(df$region, key_regex)
+    df[[key_col]] <- dplyr::coalesce(df[[key_col]], key_from_region)
   }
 
   if ("name" %in% names(df)) {
-    key_from_name <- stringr::str_extract(df$name, "Islet_\\d+")
+    key_from_name <- stringr::str_extract(df$name, key_regex)
     only_digits  <- stringr::str_extract(df$name, "\\d+")
-    fallback_name <- ifelse(!is.na(only_digits), paste0("Islet_", only_digits), NA_character_)
-    df$islet_key <- dplyr::coalesce(df$islet_key, key_from_name, fallback_name)
+    fallback_name <- ifelse(!is.na(only_digits), paste0(key_prefix, "_", only_digits), NA_character_)
+    df[[key_col]] <- dplyr::coalesce(df[[key_col]], key_from_name, fallback_name)
   }
 
-  if ("islet_id" %in% names(df)) {
-    id_str <- suppressWarnings(as.character(df$islet_id))
+  id_candidates <- unique(c(paste0(tolower(domain_unit_singular(domain)), "_id"), "islet_id"))
+  id_col <- id_candidates[id_candidates %in% names(df)][1L]
+  if (!is.na(id_col)) {
+    id_str <- suppressWarnings(as.character(df[[id_col]]))
     id_digits <- stringr::str_extract(id_str, "\\d+")
-    fallback_id <- ifelse(!is.na(id_digits), paste0("Islet_", id_digits), NA_character_)
-    df$islet_key <- dplyr::coalesce(df$islet_key, fallback_id)
+    fallback_id <- ifelse(!is.na(id_digits), paste0(key_prefix, "_", id_digits), NA_character_)
+    df[[key_col]] <- dplyr::coalesce(df[[key_col]], fallback_id)
   }
 
   df
 }
+
+# Compatibility API used by the islet app. Its behavior is now governed by the
+# active DOMAIN rather than a filename constant.
+add_islet_key <- function(df) add_unit_key(df)
 
 compute_diameter_um <- function(area_um2) {
   area_um2 <- suppressWarnings(as.numeric(area_um2))

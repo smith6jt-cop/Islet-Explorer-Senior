@@ -14,8 +14,8 @@ per-file ownership decisions, the archive list, and the reconciled rule hierarch
 > submodules and no `.gitmodules`. Read § "Corrections from the 2026-08-14 audit" and
 > § "What Phase 2 actually found" at the end of this file before executing Phase 3.
 >
-> **Status 2026-09-03:** Phase 3 is complete. Branch reconciliation also converged the
-> monorepo on `main`; see `BRANCH_RECONCILIATION_2026-09-02.md`. Phase 5/R-lane work is next.
+> **Status 2026-09-04:** Phases 3 and 5 are complete. Branch reconciliation converged the
+> monorepo on `main`; the R-lane disposition is in `R_LANE_OWNERSHIP_2026-09-04.md`.
 
 Backups: `/home/smith6jt/repo-backups/2026-08-13/` — seven verified bundles plus working-tree
 snapshots for the two dirty repos. See that directory's `README.md`.
@@ -32,9 +32,9 @@ islet-explorer/                  (this repo, reshaped)
   analysis/xenium/       [done] Xenium 5K lane: the two-tier typer, the panel machinery,
                          the benchmark harness (dormant), and hpc/ (HiPerGator-only)
   analysis/follicle/     [done] SpleenFollicleCounterQP
-  apps/R/ieCore/         shared R package: domain config, theme, stats, helpers
+  apps/R/ieCore/ [done]  shared R package: domain config, theme, stats, helpers
   apps/islet/            [done] the unified Shiny app
-  apps/lymph/            a domain config + data dir, not a fork
+  apps/lymph/    [done]  a domain config + synthetic data dir, not a fork
   deploy/ docs/ data/    [done]
 ```
 
@@ -62,9 +62,10 @@ files; see § Status 2026-09-02 and `docs/WORKFLOW_2026-09-02_MAP.md` § 5.)*
 
 ## R lane — per-file ownership
 
-Senior and Junior share root commit `b78f0fd0` and forked 2026-06-01 at `ef051525`;
-Senior is +73 commits, Junior +34, in both directions. Neither is a superset. Modernist
-(`claude/modernist-redesign`, tip `f4e5b22`) is a strict superset of Junior HEAD.
+Senior and Junior share root commit `b78f0fd0` and forked 2026-06-01 at `ef051525`.
+Neither is a superset. The historical Modernist tip is `f4e5b22`; Junior merged it at
+`f827106`, explicitly reverted it at `9cf3d50`, and released the old shell at `f2a5c54`.
+Final per-row dispositions are recorded in `R_LANE_OWNERSHIP_2026-09-04.md`.
 
 | Family | Owner | Why |
 |---|---|---|
@@ -298,7 +299,7 @@ records only what those documents change about the consolidation itself.
 | 2 | done (PR #14). Left undone on purpose: the first `phenocycler-v*` tag and deletion of the rollback assets |
 | 3 | **done 2026-09-03**: both `analysis/xenium/` and `analysis/follicle/` are absorbed. The follicle source is clean on protected integration commit `1ed38d2`; its 15 former dirty entries survive at `f6cbcd4`. Exact manifest identity replaces filename/ALT parsing; 119 tests and the synthetic CI path pass. Four external measurement exports remain an explicit data preflight blocker, not a repository-combination blocker |
 | 4 | **rewritten in writing (below)**; not executed |
-| 5 | partially harvested on 2026-08-16 (`259a1d5` Junior's test suite and `utils_stats.R`; `621e0a4` typography/CSV-provenance/phenotype-order fixes; `60b470a` the Statistics tab; `661fa27` the modernist Inflammation module). `apps/R/ieCore`, `apps/lymph` and LymphVizkit's `00_domain_config.R` are not started |
+| 5 | **done 2026-09-04**: the four 2026-08-16 Junior harvests remain; shared domain/theme/stats/join code has one implementation in installable `apps/R/ieCore`; exact islet and LymphVizkit domain configs plus the small synthetic lymph contract fixture are present; the app loads from ieCore and 138 assertions cover both domains, every tab, and ownership. The Modernist shell is explicitly superseded by Junior's merge/revert/release evidence rather than silently reintroduced |
 | 6 | not started. All six archive-list repos are writable; `/srv/shiny-server/islet-explorer` points at `~/panc_CODEX/…`, which moved to `/data/panc_CODEX/Islet-Explorer` (the publication build is alive there, `f2a5c54`); `islet-explorer-merged` was never created; `Phenocycler_Analysis` origin `main` (`fc06c0f`, PR #18 "section-keyed cohort") has diverged from the subtree by four commits |
 
 ### Phase 4, rewritten
@@ -315,11 +316,11 @@ why — plan Track A.3.
 
 ### Conflict #5 — the ownership table and the two-apps rule
 
-The R-lane ownership table above predates the 2026-08-17 rule that the two Shiny apps stay permanently
-separate. Four of its rows were executed the day before the rule (the 2026-08-16 commits listed under
-Phase 5). The remaining Junior/modernist rows are executed under the reading that the rule forbids
-changes *to* Junior, not harvesting *from* it; Phase 6 records serving facts and repoints nothing
-(`deploy/DEPLOY.md` § two apps). This is the plan's assumption Q3 and is the maintainer's to reverse.
+The R-lane ownership table predates the 2026-08-17 rule that the two Shiny apps stay permanently
+separate. Four rows were executed on 2026-08-16. D.2 applies Q3 by harvesting shared contracts
+without changing Junior, but it does not reintroduce the Modernist shell: Junior's own later
+`f827106` merge, `9cf3d50` explicit revert, and `f2a5c54` old-layout release supersede that row.
+Phase 6 still records serving facts and repoints nothing (`deploy/DEPLOY.md` § two apps).
 
 ### Rule hierarchy — two rows as realised
 
