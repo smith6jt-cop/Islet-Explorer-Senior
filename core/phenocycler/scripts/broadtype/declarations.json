@@ -1,0 +1,217 @@
+{
+ "method_version": "broadtype-declarations-2026-09-05",
+ "rule": "identity = registry kind=='type'; compartments from the registry; Immune split by the rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* leaves; definitional (pos/allpos) cross-branch claims exclude; OR-membership notes",
+ "labels": {
+  "Endocrine": {
+   "common_lineage": "Endocrine",
+   "markers": [
+    "GCG",
+    "INS",
+    "SST"
+   ],
+   "n_markers": 3,
+   "held_out_gated": false,
+   "negatives": [
+    "CD68",
+    "CD20",
+    "CD3e"
+   ],
+   "reason": "hormones are mutually exclusive subtype markers (panel.DECLARED_CONTROLS); held-out ablation would test the neighbourhood of a removed subtype, so Endocrine is gated by spatial coherence and stability"
+  },
+  "Epithelial_nonendocrine": {
+   "common_lineage": "Exocrine",
+   "markers": [
+    "E_cadherin",
+    "EpCAM",
+    "Ker8_18",
+    "Keratin_5",
+    "Pan_Cytokeratin",
+    "TP63"
+   ],
+   "n_markers": 6,
+   "held_out_gated": true,
+   "negatives": [
+    "CD68",
+    "CD20",
+    "CD3e",
+    "INS",
+    "GCG",
+    "SST"
+   ],
+   "reason": "no acinar- or ductal-specific marker is declared on this panel; mapped to the common lineage Exocrine, which the integration vocabulary already records as PhenoCycler's default sink"
+  },
+  "Vascular": {
+   "common_lineage": "Vascular",
+   "markers": [
+    "CD31",
+    "Caveolin",
+    "Podoplanin"
+   ],
+   "n_markers": 3,
+   "held_out_gated": true,
+   "negatives": [
+    "E_cadherin",
+    "Pan_Cytokeratin",
+    "CD3e"
+   ],
+   "reason": "registry Endothelial compartment; Podoplanin marks lymphatic endothelium and stays declared"
+  },
+  "Stromal": {
+   "common_lineage": "Stromal",
+   "markers": [
+    "SMA",
+    "Vimentin"
+   ],
+   "n_markers": 2,
+   "held_out_gated": true,
+   "negatives": [
+    "CD31",
+    "CD68",
+    "E_cadherin",
+    "Pan_Cytokeratin",
+    "CD3e"
+   ],
+   "reason": "registry Mesenchymal compartment"
+  },
+  "T_NK": {
+   "common_lineage": "T_NK",
+   "markers": [
+    "CD3e",
+    "CD4",
+    "CD8",
+    "FOXP3"
+   ],
+   "n_markers": 4,
+   "held_out_gated": true,
+   "negatives": [
+    "E_cadherin",
+    "Ker8_18",
+    "Pan_Cytokeratin",
+    "EpCAM",
+    "CD20",
+    "CD68"
+   ],
+   "reason": "registry Immune markers whose positive tokens sit in the T-cell / NK branch of the rule table"
+  },
+  "B_Plasma": {
+   "common_lineage": "B_Plasma",
+   "markers": [
+    "CD20",
+    "CD79a"
+   ],
+   "n_markers": 2,
+   "held_out_gated": true,
+   "negatives": [
+    "E_cadherin",
+    "Ker8_18",
+    "Pan_Cytokeratin",
+    "EpCAM",
+    "CD3e",
+    "CD68"
+   ],
+   "reason": "registry Immune markers whose positive tokens sit in the B / plasma branch"
+  },
+  "Myeloid": {
+   "common_lineage": "Myeloid",
+   "markers": [
+    "CD11c",
+    "CD163",
+    "CD206",
+    "CD209",
+    "CD68",
+    "Iba1",
+    "M2Gal3",
+    "MPO"
+   ],
+   "n_markers": 8,
+   "held_out_gated": true,
+   "negatives": [
+    "E_cadherin",
+    "Ker8_18",
+    "Pan_Cytokeratin",
+    "EpCAM",
+    "CD3e",
+    "CD20"
+   ],
+   "reason": "registry Immune markers whose positive tokens sit in the macrophage / dendritic / neutrophil branch; granulocytes folded in as the Xenium typer does"
+  }
+ },
+ "undeclared_labels": {
+  "Neural": "no registry type marker survives the conflict rule for this label; the label is not declared and no arm may emit it"
+ },
+ "identity_markers": [
+  "CD11c",
+  "CD163",
+  "CD20",
+  "CD206",
+  "CD209",
+  "CD31",
+  "CD3e",
+  "CD4",
+  "CD68",
+  "CD79a",
+  "CD8",
+  "Caveolin",
+  "E_cadherin",
+  "EpCAM",
+  "FOXP3",
+  "GCG",
+  "INS",
+  "Iba1",
+  "Ker8_18",
+  "Keratin_5",
+  "M2Gal3",
+  "MPO",
+  "Pan_Cytokeratin",
+  "Podoplanin",
+  "SMA",
+  "SST",
+  "TP63",
+  "Vimentin"
+ ],
+ "state_markers": [
+  "Bcl_2",
+  "Beta_actin",
+  "CD107a",
+  "CD38",
+  "CD39",
+  "CD44",
+  "CD57",
+  "CD99",
+  "Granzyme_B",
+  "HLA_A",
+  "HLA_DR",
+  "ICOS",
+  "IDO1",
+  "Ki67",
+  "LAG3",
+  "PCNA",
+  "PD_1",
+  "PD_L1",
+  "SOX2",
+  "TCF_1",
+  "TOX",
+  "VISTA",
+  "iNOS"
+ ],
+ "structural_markers": [
+  "Collagen_IV",
+  "DAPI"
+ ],
+ "excluded": {
+  "B3TUBB": "registry Neural but the rule table makes a definitional claim for it under ['Endocrine', 'Epithelial_nonendocrine'] (rows ['Neural', 'Endo-hormone-negative'])",
+  "CD11b": "registry kind=excluded",
+  "CD34": "registry Endothelial but the rule table makes a definitional claim for it under ['Stromal'] (rows ['Mes-CD34-fibroblast'])",
+  "CD56": "registry type marker with no broad_compartment; rule-table positive rows ['Epi-endocrine', 'Imm-NK-cell']",
+  "CD66": "registry Epithelial but the rule table makes a definitional claim for it under ['B_Plasma', 'Myeloid', 'T_NK'] (rows ['Imm-neutrophil'])",
+  "IAPP": "registry kind=excluded",
+  "b_Catenin1": "registry type marker with no broad_compartment"
+ },
+ "notes": [],
+ "sources": {
+  "registry": "core/phenocycler/phenocycler/marker_registry.json",
+  "registry_sha256": "ceb0f91ad0e28b11e73b98e9eafc95ce959ff6bcee70fc1d44023a6f5f30bc37",
+  "rules": "phenotype_workflow.csv",
+  "rules_sha256": "b010a3f9c6ca40cb4b76957f65a25c39f12849387ef72c616a201deb885a0956"
+ }
+}

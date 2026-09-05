@@ -1,0 +1,8 @@
+,,CD107a,CD4,CD31,SMA,CD68,CD44,Vimentin,CD99,E-cadherin,IDO1,CD66,INS,Ker8-18,CD11c,CD38,HLA-DR,CD34,iNOS,M2Gal3,B3TUBB,CD8,PCNA,FOXP3,CD57,Ki67,Granzyme B,HLA-A,CD20,VISTA,Pan-Cytokeratin,PD-1,LAG3,SST,TCF-1,TOX,Caveolin,ICOS,CD163,EpCAM,PD-L1,CD79a,Keratin 5,CD3e,GCG,Beta-actin,Bcl-2,MPO,CD56,CD39,Iba1,SOX2,CD209,Podoplanin,CD11b,CD206,TP63
+all,Endocrine,,,,,allneg,,,,,,,anypos,,,,,,,,,,,,,,,,allneg,,,,,anypos,,,,,,,,,,allneg,anypos,,,,,,,,,,,,
+all,Epithelial_nonendocrine,,,,,allneg,,,,anypos,,,allneg,anypos,,,,,,,,,,,,,,,allneg,,anypos,,,allneg,,,,,,anypos,,,anypos,allneg,allneg,,,,,,,,,,,,anypos
+all,Vascular,,,anypos,,,,,,allneg,,,,,,,,,,,,,,,,,,,,,allneg,,,,,,anypos,,,,,,,allneg,,,,,,,,,,anypos,,,
+all,Stromal,,,allneg,anypos,allneg,,anypos,,allneg,,,,,,,,,,,,,,,,,,,,,allneg,,,,,,,,,,,,,allneg,,,,,,,,,,,,,
+all,T_NK,,anypos,,,allneg,,,,allneg,,,,allneg,,,,,,,,anypos,,anypos,,,,,allneg,,allneg,,,,,,,,,allneg,,,,anypos,,,,,,,,,,,,,
+all,B_Plasma,,,,,allneg,,,,allneg,,,,allneg,,,,,,,,,,,,,,,anypos,,allneg,,,,,,,,,allneg,,anypos,,allneg,,,,,,,,,,,,,
+all,Myeloid,,,,,anypos,,,,allneg,,,,allneg,anypos,,,,,anypos,,,,,,,,,allneg,,allneg,,,,,,,,anypos,allneg,,,,allneg,,,,anypos,,,anypos,,anypos,,,anypos,
