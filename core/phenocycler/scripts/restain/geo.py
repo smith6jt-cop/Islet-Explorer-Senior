@@ -4,12 +4,12 @@ The post-Xenium IF images the **same physical section** Xenium measured, so the 
 is exact by construction rather than inferred -- and the Xenium segmentation is already the
 segmentation, which is why nothing here needs the re-stains segmented in QuPath.
 
-What the maintainer exports per section is two annotation classes from two pixel classifiers:
-one ``Tissue`` MultiPolygon and thousands of ``Islet`` polygons.  Both arrive in
-**full-resolution qptiff pixels**, and the qptiff records ``PixelSizeMicrons`` 0.25 (Vectra /
-PhenoImager Fusion 2.2.0, 7 pyramid levels).  Measured against the Xenium side, that scale is
-right to within a few percent -- donor 6442's tissue spans 9,190 x 15,020 um in the IF against
-9,436 x 15,100 um of Xenium cell footprint -- so the conversion is a constant, not a fit.
+The maintainer's older registration exports contain a ``Tissue`` outline plus thousands of
+``Islet`` classifier polygons; newer downstream exports may be islet-only.  Both arrive in
+**full-resolution qptiff pixels**, and this historical loader uses the cohort's recorded
+``PixelSizeMicrons`` 0.25 (Vectra / PhenoImager Fusion 2.2.0, 7 pyramid levels).  The current
+Explorer sidecar path in ``islet_annotations.py`` instead receives each inventory record's exact
+qptiff calibration, so a future acquisition cannot silently inherit this historical constant.
 
 **The ``Islet`` class needs a size filter and it is not optional.**  The classifier emits
 thousands of sub-cell fragments alongside the real islets.  Measured on the two exported
@@ -75,10 +75,19 @@ def load_annotations(path: Path) -> dict[str, list]:
     return out
 
 
+def has_tissue(ann: dict[str, list]) -> bool:
+    """Whether annotations contain at least one ``Tissue`` geometry.
+
+    A GeoJSON file being present is not equivalent to a tissue annotation being present: an
+    islet-only export is valid input for islet windows but cannot define a tissue mask.
+    """
+    return bool(ann.get(TISSUE))
+
+
 def tissue_polygon(ann: dict[str, list]):
     """The one tissue footprint, as a single geometry."""
     from shapely.ops import unary_union
-    if not ann.get(TISSUE):
+    if not has_tissue(ann):
         raise RestainGeoError(f"no {TISSUE!r} annotation; classes present: {sorted(ann)}")
     return unary_union(ann[TISSUE])
 

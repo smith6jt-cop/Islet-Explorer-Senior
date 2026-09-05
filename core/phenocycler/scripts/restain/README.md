@@ -3,10 +3,12 @@
 ## Current registration-only cohort workflow
 
 This lane registers each post-Xenium IF qptiff to the matching pancreas Xenium morphology grid and
-publishes an already-warped OME-TIFF for Xenium Explorer's **Yes, skip alignment** route. The
-post-Xenium IF images the same physical section Xenium measured, so Xenium's nucleus polygons and
-the IF DAPI peaks describe the same nuclei. No new cell segmentation, cell typing, positivity
-calling, or biomarker interpretation is part of this workflow.
+publishes an already-warped OME-TIFF for Xenium Explorer's **Yes, skip alignment** route. When a
+same-section QuPath GeoJSON exists, it also transforms the filtered islet outlines to an
+Explorer-importable annotation sidecar on that exact grid. The post-Xenium IF images the same
+physical section Xenium measured, so Xenium's nucleus polygons and the IF DAPI peaks describe the
+same nuclei. No new cell segmentation, cell typing, positivity calling, or biomarker
+interpretation is part of this workflow.
 
 Inputs and working outputs live outside the content-addressed Phenocycler pipeline. Generated
 state is under `data/development/restain/`; this lane does not write a `StageManifest`, touch
@@ -30,12 +32,20 @@ Donors `6457` and `6579` remain centrally excluded by `phenocycler/cohort.py`: a
 for either donor fails, and an omitted `--donors` filters them out. Local stale VALIS directories
 cannot bypass that guard.
 
-QuPath GeoJSON is optional for this registration-only route. `nuclei.py` uses the drawn Tissue
-polygon when one exists, records `whole_slide_no_geojson` when it does not, and can be forced to
-ignore annotations with `--whole-slide`. DAPI export, VALIS, nucleus refinement, occupied-window
-gating, and registered OME export do not require antibody roles. The five sections in
+QuPath GeoJSON is optional for image registration. `nuclei.py` uses a drawn `Tissue` polygon when
+that class exists, records `whole_slide_no_geojson` when no file exists, and records
+`whole_slide_no_tissue_annotation` for an islet-only file. `run_align.py --windows auto` likewise
+uses tissue windows only when the file actually contains `Tissue`; otherwise it retains the
+annotation-independent occupied-window gate. `--whole-slide` can force nucleus detection to ignore
+annotations. Thus an islet-only export is downstream geometry, not a new registration input, and
+cannot perturb the already-validated DAPI transform. DAPI export, VALIS, nucleus refinement,
+occupied-window gating, and registered OME export do not require antibody roles. The five sections in
 `restain_sections.csv` remain the only sections with maintainer-declared biological channel roles;
 the registration inventory does not extend those declarations.
+
+`registration_inputs.py` pairs a GeoJSON only by the same Xenium serial as the qptiff. Annotation
+vertices are interpreted as qptiff level-0 pixel edges and scaled with that qptiff's exact XML
+`PixelSizeMicrons`; there is no hard-coded annotation scale in the export path.
 
 ### DAPI seed and nucleus refinement
 
@@ -127,10 +137,43 @@ Each successful publication is
   decoded tile from every channel at every level; and
 - a donor-local `README.md` with the Xenium Explorer import instruction.
 
+When the inventory finds a same-serial GeoJSON, the bundle additionally contains
+`annotations/<serial>_islets_on_xenium_grid.geojson`. Source QuPath pixels are converted to IF
+microns, every exterior vertex is mapped through `Transform.inverse_apply()` (the stored transform
+maps Xenium microns to IF microns), and the result is divided by `0.2125 µm/px` to land on the
+Xenium morphology level-0 pixel grid. The full inverse includes a displacement field when the
+selected transform has one.
+
+Only `Islet` polygons at least 50 µm in equivalent diameter are emitted; sub-cell classifier
+fragments, other classes, and unsupported source geometry are counted in the manifest. Before
+publication, the file is reopened and checked against Xenium Explorer 4.1's third-party GeoJSON
+contract: a nonempty `FeatureCollection` of fewer than 10,000 closed, simple, hole-free `Polygon`
+features, fewer than 100,000 vertices each, finite coordinates inside the morphology grid,
+`objectType: annotation`, and an `Islet` classification with RGB color. A malformed sidecar aborts
+the transaction before the image render begins.
+
+In Xenium Explorer 4.1 or newer, open the matching Xenium bundle, import the OME-TIFF with **Yes,
+skip alignment**, then use **Annotations → Import** for the GeoJSON. Associate it with the **Xenium
+In Situ morphology image** and choose **pixels** if asked for units. Never apply an image-alignment
+CSV to either already-transformed product.
+
 Publication is transactional through a sibling `.partial` directory. Existing bundles are
 refused by default; `--skip-existing` revalidates and keeps one, while `--overwrite` replaces a
 non-protected bundle only after its replacement passes QC. Donors `6436` and `6442` are protected
 completed Explorer exports and are never rewritten by this driver, even with `--overwrite`.
+
+To add newly arrived annotations to an existing bundle without regenerating its multi-gigabyte
+OME-TIFF, use the annotation-only publisher:
+
+```bash
+../../.venv/bin/python scripts/restain/run_islet_annotation_export.py --donors 6436 6442
+```
+
+It verifies bundle, qptiff, morphology, and serialized-transform identity; builds and validates a
+sibling partial sidecar; then publishes only the annotation metadata/files. The two historical
+protected bundles are eligible only through this narrow path, and only when their manifest's exact
+transform still equals the donor-local serialized transform. Existing annotation sidecars are
+refused unless `--overwrite-annotations` is given; images and cell groups remain untouched.
 
 The qptiffs expose technical names such as `DAPI`, `Opal570`, `Opal620`/`Opal690`, `Opal520`, and
 `Sample AF`, but no reliable Biomarker metadata. The registered OME preserves those raw names and
@@ -549,6 +592,8 @@ what the repository's no-frequency rule actually requires.
 | `run_intensity_refine.py` | optional one-fold robust DAPI correction → new exact transform stem and fit report |
 | `align_figures.py` | the gate's own QC sheets |
 | `run_registered_export.py` | PASS-only, exact-stem, transactional export of every raw channel onto the Xenium grid; no biological calls |
+| `islet_annotations.py` | strict QuPath-pixel → IF-micron → full inverse transform → Xenium-grid-pixel annotation writer and Explorer validation |
+| `run_islet_annotation_export.py` | annotation-only transactional publisher for an already-rendered Explorer bundle, including protected reviewed images |
 | `geo.py` | the exports in microns, the islet size filter, the scale guard |
 | `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
 | `validate.py` / `hormone.py` / `run_hormone.py` | historical biological downstream checks (not part of registration-only cohort export) |

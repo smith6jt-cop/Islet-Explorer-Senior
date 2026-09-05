@@ -64,12 +64,38 @@ def test_annotation_window_request_without_geojson_is_refused_before_io(tmp_path
         RA.align_one(_record(tmp_path), windows="tissue", transform="refined")
 
 
-def test_refined_alignment_uses_inventory_and_never_calls_geojson_registration(
+def test_tissue_window_request_with_islet_only_geojson_is_refused_before_io(
         tmp_path, monkeypatch):
+    path = tmp_path / "islets.geojson"
+    monkeypatch.setattr(RA.geo, "load_annotations",
+                        lambda _path: {RA.geo.ISLET: [object()]})
+    with pytest.raises(AL.AlignError, match="no 'Tissue' annotation"):
+        RA.align_one(_record(tmp_path, geojson=path), windows="tissue", transform="refined")
+
+
+def test_annotation_derived_ecc_refuses_islet_only_geojson_before_registration(
+        tmp_path, monkeypatch):
+    path = tmp_path / "islets.geojson"
+    monkeypatch.setattr(RA.geo, "load_annotations",
+                        lambda _path: {RA.geo.ISLET: [object()]})
+    monkeypatch.setattr(
+        RA, "register_one",
+        lambda *_args, **_kwargs: pytest.fail("ECC registration started without Tissue"))
+    with pytest.raises(AL.AlignError, match="ECC transform without a 'Tissue' annotation"):
+        RA.align_one(_record(tmp_path, geojson=path), windows="auto", transform="ecc")
+
+
+@pytest.mark.parametrize("islet_only", [False, True], ids=["no-geojson", "islet-only"])
+def test_refined_alignment_uses_inventory_and_never_calls_geojson_registration(
+        tmp_path, monkeypatch, islet_only):
     import shapely
     import tifffile
 
-    record = _record(tmp_path)
+    geojson = tmp_path / "islets.geojson" if islet_only else None
+    record = _record(tmp_path, geojson=geojson)
+    if islet_only:
+        monkeypatch.setattr(RA.geo, "load_annotations",
+                            lambda _path: {RA.geo.ISLET: [SimpleNamespace(area=0.0)]})
     # Eighty nuclei in one occupied 500-um bin, enough for the split-half precision arm.
     geoms = np.asarray([shapely.box(10 + i, 10, 11 + i, 11) for i in range(80)], dtype=object)
     donor_dir = tmp_path / "valis" / "donor_id=6539"
@@ -115,7 +141,7 @@ def test_refined_alignment_uses_inventory_and_never_calls_geojson_registration(
 
     rec = RA.align_one(record, transform="refined", windows="auto", out_dir=tmp_path)
     alignment = rec["alignment"]
-    assert rec["geojson"] is None
+    assert rec["geojson"] == (str(geojson) if islet_only else None)
     assert alignment["window_set"] == "occupied"
     assert alignment["verdict"] == "PASS"
     assert alignment["certifies_mapping"] == {

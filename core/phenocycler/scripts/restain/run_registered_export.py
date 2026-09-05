@@ -2,8 +2,10 @@
 """Export raw post-Xenium IF channels already registered to the Xenium morphology grid.
 
 This is deliberately a registration-only lane.  It reads donor/serial/ROI provenance from
-``restain_registration_inputs.csv`` and raw calibration/channel names from each qptiff.  It
-does not import the antibody-role registry, make positivity calls, or create cell groups.
+``restain_registration_inputs.csv`` and raw calibration/channel names from each qptiff.  When a
+same-section post-Xenium QuPath GeoJSON is present, its >=50 um ``Islet`` polygons are carried
+through the same transform into a Xenium Explorer annotation sidecar.  It does not import the
+antibody-role registry, make positivity calls, or create cell groups.
 
 Only a donor whose per-donor ``alignment_<stem>.json`` gate says ``PASS`` is eligible.  The
 authoritative sibling ``<stem>.json`` (and optional ``<stem>_displacement.npz``) supplies the
@@ -45,6 +47,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
 
 import explorer as EX  # noqa: E402
+import islet_annotations as IA  # noqa: E402
 import registration_inputs as RI  # noqa: E402
 
 from phenocycler.integration.transform import Transform  # noqa: E402
@@ -786,6 +789,7 @@ def _manifest(
     warp_record: Mapping[str, Any],
     validation: Mapping[str, Any],
     image_name: str,
+    annotation_record: Mapping[str, Any],
 ) -> dict[str, Any]:
     channels = [
         {"index": int(index), "name": name, "role": None, "role_status": "unassigned"}
@@ -801,6 +805,7 @@ def _manifest(
         "input": {
             "qptiff": str(record.qptiff),
             "qptiff_bytes": int(record.qptiff.stat().st_size),
+            "qptiff_mtime_ns": int(record.qptiff.stat().st_mtime_ns),
             "pixel_size_um": float(record.pixel_um),
             "pixel_size_source": "qptiff XML PixelSizeMicrons",
             "dtype": "uint8",
@@ -842,7 +847,8 @@ def _manifest(
             "status": "not_generated",
             "path": None,
         },
-        "uses_qupath_annotations": False,
+        "islet_annotations": dict(annotation_record),
+        "uses_qupath_annotations": annotation_record.get("status") == "generated",
         "qc": {
             "status": "PASS",
             "file": "qc.json",
@@ -859,6 +865,28 @@ def _readme(manifest: Mapping[str, Any]) -> str:
     image = manifest["image_on_xenium_grid"]["file"]
     morphology = manifest["morphology"]
     transform = manifest["alignment"]
+    annotations = manifest["islet_annotations"]
+    if annotations["status"] == "generated":
+        annotation_section = f"""
+## Import islet annotations
+
+In Xenium Explorer 4.1 or newer, open the **Annotations** layer, choose **Import**, and select
+`{annotations["file"]}`. Associate it with the **Xenium In Situ morphology image** and select
+**pixels** if Explorer asks for coordinate units. The polygons have already been transformed to
+that image's level-0 pixel grid. Do not apply an image-alignment CSV.
+
+The source contains {annotations["counts"]["islet_source_features"]} Islet features. This export
+keeps {annotations["counts"]["exported_islet_polygons"]} polygons at least
+{annotations["minimum_equivalent_diameter_um"]:g} µm in equivalent diameter; excluded source
+objects and geometry types are itemized in `manifest.json` and `qc.json`.
+"""
+    else:
+        annotation_section = """
+## Islet annotations
+
+No same-section post-Xenium IF GeoJSON was available for this serial when the bundle was built,
+so this bundle has no annotation sidecar.
+"""
     return f"""# Donor {manifest["donor_id"]} — registration-only post-Xenium IF
 
 Generated {manifest["generated_utc"]} for Xenium serial `{manifest["xenium_serial"]}`,
@@ -870,6 +898,7 @@ Open the Xenium bundle `{Path(manifest["xenium_bundle"]).name}`. Add `{image}` a
 **Yes, skip alignment**. The image is already resampled onto the exact Xenium morphology grid:
 {morphology["width"]} × {morphology["height"]} pixels at {OUTPUT_UM_PER_PX} µm/px with
 {morphology["n_levels"]} pyramid levels. Do not apply an alignment CSV to this image.
+{annotation_section}
 
 ## Channels
 
@@ -894,6 +923,43 @@ only after `{Path(transform["gate_file"]).name}` reported `PASS`. The full trans
 pyramid levels, physical scale, tiling, compression, and one decoded tile from every channel at
 every level. `manifest.json` records the exact input, gate, transform, and output contracts.
 """
+
+
+def _export_annotations(
+    record: RI.RegistrationInput,
+    alignment: PassedAlignment,
+    morphology: Mapping[str, Any],
+    root: Path,
+) -> dict[str, Any]:
+    """Export the optional annotation before the expensive image render starts."""
+    if record.geojson is None:
+        return {
+            "status": "not_available",
+            "file": None,
+            "source_file": None,
+            "reason": "no same-serial GeoJSON found in the configured post-Xenium IF directory",
+        }
+
+    relative = Path("annotations") / f"{record.serial}_islets_on_xenium_grid.geojson"
+    try:
+        annotation = IA.export_islet_geojson(
+            record.geojson,
+            Path(root) / relative,
+            alignment.transform,
+            input_um_per_px=float(record.pixel_um),
+            output_um_per_px=OUTPUT_UM_PER_PX,
+            width=int(morphology["width"]),
+            height=int(morphology["height"]),
+        )
+    except IA.IsletAnnotationError as exc:
+        raise RegisteredExportError(
+            f"donor {record.donor_id} ({record.serial}) annotation export failed: {exc}"
+        ) from exc
+    annotation["file"] = str(relative)
+    annotation["alignment_gate_sha256"] = alignment.gate_sha256
+    annotation["transform_sha256"] = alignment.transform_sha256
+    annotation["displacement_sha256"] = alignment.displacement_sha256
+    return annotation
 
 
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:
@@ -948,14 +1014,158 @@ def _validate_existing_bundle(
         raise RegisteredExportError(
             f"{destination}: existing export was not made from the current displacement field"
         )
-    raw = manifest.get("input", {}).get("raw_channels", [])
+    input_record = manifest.get("input")
+    if not isinstance(input_record, Mapping):
+        raise RegisteredExportError(f"{manifest_path}: input object is absent")
+    declared_qptiff = input_record.get("qptiff")
+    if not isinstance(declared_qptiff, str) or not _same_path(
+        Path(declared_qptiff), plan.record.qptiff
+    ):
+        raise RegisteredExportError(
+            f"{destination}: existing export names a different source qptiff"
+        )
+    qptiff_stat = plan.record.qptiff.stat()
+    for key, expected in (
+        ("qptiff_bytes", int(qptiff_stat.st_size)),
+        ("pyramid_shapes", [list(shape) for shape in plan.record.pyramid_shapes]),
+        ("dapi_page", int(plan.record.dapi_page)),
+    ):
+        if input_record.get(key) != expected:
+            raise RegisteredExportError(
+                f"{destination}: existing input.{key}={input_record.get(key)!r}, "
+                f"current qptiff metadata is {expected!r}"
+            )
+    if (
+        "qptiff_mtime_ns" in input_record
+        and input_record["qptiff_mtime_ns"] != int(qptiff_stat.st_mtime_ns)
+    ):
+        raise RegisteredExportError(
+            f"{destination}: existing input.qptiff_mtime_ns is stale"
+        )
+    raw = input_record.get("raw_channels", [])
     names = [entry.get("name") for entry in raw if isinstance(entry, dict)]
     if names != list(plan.record.channel_names):
         raise RegisteredExportError(
             f"{destination}: existing raw channel order {names}, expected {plan.record.channel_names}"
         )
-    if float(manifest.get("input", {}).get("pixel_size_um", float("nan"))) != plan.record.pixel_um:
+    if float(input_record.get("pixel_size_um", float("nan"))) != plan.record.pixel_um:
         raise RegisteredExportError(f"{destination}: existing qptiff calibration is stale")
+    annotation = manifest.get("islet_annotations")
+    if plan.record.geojson is not None:
+        if not isinstance(annotation, dict) or annotation.get("status") != "generated":
+            raise RegisteredExportError(
+                f"{destination}: same-section islet GeoJSON is now available but the existing "
+                "bundle has no generated annotation; run run_islet_annotation_export.py"
+            )
+        annotation_rel = annotation.get("file")
+        if (
+            not isinstance(annotation_rel, str)
+            or Path(annotation_rel).is_absolute()
+            or ".." in Path(annotation_rel).parts
+        ):
+            raise RegisteredExportError(
+                f"{manifest_path}: invalid islet annotation path {annotation_rel!r}"
+            )
+        if annotation.get("source_sha256") != _sha256(plan.record.geojson):
+            raise RegisteredExportError(
+                f"{destination}: existing annotation was not made from the current GeoJSON"
+            )
+        for key, expected in (
+            ("source_um_per_px", float(plan.record.pixel_um)),
+            ("output_um_per_px", OUTPUT_UM_PER_PX),
+            ("morphology_width_px", int(plan.morphology["width"])),
+            ("morphology_height_px", int(plan.morphology["height"])),
+        ):
+            if annotation.get(key) != expected:
+                raise RegisteredExportError(
+                    f"{destination}: existing annotation {key}={annotation.get(key)!r}, "
+                    f"expected {expected!r}"
+                )
+        if annotation.get("alignment_gate_sha256") != plan.alignment.gate_sha256:
+            raise RegisteredExportError(
+                f"{destination}: existing annotation was not made from the current PASS gate"
+            )
+        if annotation.get("transform_sha256") != plan.alignment.transform_sha256:
+            raise RegisteredExportError(
+                f"{destination}: existing annotation was not made from the current transform"
+            )
+        if annotation.get("displacement_sha256") != plan.alignment.displacement_sha256:
+            raise RegisteredExportError(
+                f"{destination}: existing annotation was not made from the current displacement"
+            )
+        try:
+            expected_annotation_features = annotation.get("counts", {}).get(
+                "exported_islet_polygons"
+            )
+            if type(expected_annotation_features) is not int or expected_annotation_features < 1:
+                raise RegisteredExportError(
+                    f"{destination}: existing annotation has no valid exported polygon count"
+                )
+            annotation_validation = IA.validate_islet_geojson(
+                destination / annotation_rel,
+                width=int(plan.morphology["width"]),
+                height=int(plan.morphology["height"]),
+                expected_features=expected_annotation_features,
+            )
+            canonical_document, canonical_provenance = IA.build_islet_geojson(
+                plan.record.geojson,
+                plan.alignment.transform,
+                input_um_per_px=float(plan.record.pixel_um),
+                output_um_per_px=OUTPUT_UM_PER_PX,
+                width=int(plan.morphology["width"]),
+                height=int(plan.morphology["height"]),
+            )
+        except RegisteredExportError:
+            raise
+        except IA.IsletAnnotationError as exc:
+            raise RegisteredExportError(
+                f"{destination}: existing islet annotation failed validation: {exc}"
+            ) from exc
+        if annotation_validation["sha256"] != annotation.get("output_sha256"):
+            raise RegisteredExportError(
+                f"{destination}: existing annotation bytes differ from its manifest hash"
+            )
+        canonical_bytes = (
+            json.dumps(canonical_document, separators=(",", ":"), allow_nan=False) + "\n"
+        ).encode()
+        canonical_sha256 = hashlib.sha256(canonical_bytes).hexdigest()
+        if annotation_validation["sha256"] != canonical_sha256:
+            raise RegisteredExportError(
+                f"{destination}: existing annotation is not the canonical current "
+                f">={IA.MIN_ISLET_DIAMETER_UM:g} um full-transform export"
+            )
+        for key in (
+            "source_coordinate_space",
+            "source_um_per_px",
+            "class",
+            "minimum_equivalent_diameter_um",
+            "output_coordinate_space",
+            "output_um_per_px",
+            "morphology_width_px",
+            "morphology_height_px",
+            "transform_direction_stored",
+            "transform_operation_used",
+            "includes_displacement",
+            "counts",
+        ):
+            if annotation.get(key) != canonical_provenance[key]:
+                raise RegisteredExportError(
+                    f"{destination}: existing annotation provenance field {key!r} is stale"
+                )
+        if manifest.get("uses_qupath_annotations") is not True:
+            raise RegisteredExportError(
+                f"{manifest_path}: generated islet annotations are not declared at top level"
+            )
+    else:
+        if isinstance(annotation, dict) and annotation.get("status") == "generated":
+            raise RegisteredExportError(
+                f"{destination}: annotation source is no longer available for validation"
+            )
+        if (destination / "annotations").exists():
+            raise RegisteredExportError(
+                f"{destination}: annotation files exist without a current same-section source"
+            )
+        annotation_validation = None
     image_rel = manifest.get("image_on_xenium_grid", {}).get("file")
     if (
         not isinstance(image_rel, str)
@@ -977,6 +1187,7 @@ def _validate_existing_bundle(
         "status": "SKIPPED_EXISTING",
         "destination": str(destination),
         "validation": validation,
+        "annotation_validation": annotation_validation,
         "manifest": manifest,
     }
 
@@ -1075,6 +1286,14 @@ def export_one(
     image_path.parent.mkdir()
 
     try:
+        # Geometry is small and strict to validate.  Do it before allocating the registered
+        # raster so a malformed annotation cannot waste a multi-gigabyte image render.
+        annotation_record = _export_annotations(
+            plan.record,
+            plan.alignment,
+            plan.morphology,
+            partial,
+        )
         level0, warp_record = warp_qptiff_to_xenium_level0(
             plan.record,
             plan.alignment.transform,
@@ -1118,6 +1337,7 @@ def export_one(
             warp_record,
             validation,
             image_name,
+            annotation_record,
         )
         qc = {
             "status": "PASS",
@@ -1131,6 +1351,7 @@ def export_one(
                 "verdict": "PASS",
             },
             "output": validation,
+            "islet_annotations": annotation_record,
             "forbidden_products": {
                 "cell_groups_absent": True,
                 "positivity_not_generated": True,

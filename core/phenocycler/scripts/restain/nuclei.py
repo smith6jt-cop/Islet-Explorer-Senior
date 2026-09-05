@@ -56,6 +56,16 @@ class NucleiError(RuntimeError):
     """Nuclei cannot be detected as the geometry the caller claims."""
 
 
+def _tissue_filter(gj: Path | None, whole_slide_reason: str) -> tuple[dict | None, str]:
+    """Resolve an optional GeoJSON to the annotations and label used for tissue filtering."""
+    if gj is None:
+        return None, whole_slide_reason
+    annotations = geo.load_annotations(gj)
+    if not geo.has_tissue(annotations):
+        return None, "whole_slide_no_tissue_annotation"
+    return annotations, "tissue_geojson"
+
+
 def band_pass(image: np.ndarray, um_per_px: float, *, nucleus_um: float = NUCLEUS_UM):
     """Difference of Gaussians centred on the nucleus scale, as float32.
 
@@ -244,22 +254,22 @@ def detect_one(donor_dir: Path, *, gj: Path | None = None,
         if_img, if_um, if_origin, lvl = if_plane(meta, if_target_um)
     xy_if, z = detect(if_img, if_um, if_origin, min_response_z=min_response_z)
     del if_img
+    annotations, spatial_filter = _tissue_filter(gj, whole_slide_reason)
 
     rec = {"donor_id": meta["donor_id"], "serial": meta["serial"], "roi": meta["roi"],
            "if": {"um_per_px": if_um, "origin_um": if_origin, "level": lvl,
                   "n_detected": int(len(xy_if)),
                   "min_response_z": float(min_response_z),
                   "nucleus_um": NUCLEUS_UM, "min_separation_um": MIN_SEPARATION_UM,
-                  "spatial_filter": ("tissue_geojson" if gj is not None
-                                     else whole_slide_reason),
+                  "spatial_filter": spatial_filter,
                   "geojson": None if gj is None else str(gj)}}
 
-    if gj is not None:
+    if annotations is not None:
         # Keep only what the maintainer drew as tissue. The IF scans the whole slide, which
         # carries a pancreatic lymph node with no counterpart in the __Panc__ Xenium bundle
         # (xenium_paths.csv rows 33-34); those nuclei can only ever be unmatched.
         import shapely
-        tissue = geo.tissue_polygon(geo.load_annotations(gj))
+        tissue = geo.tissue_polygon(annotations)
         pts = shapely.points(xy_if[:, 0], xy_if[:, 1])
         shapely.prepare(tissue)                  # prepares in place and returns None
         inside = shapely.contains(tissue, pts)
