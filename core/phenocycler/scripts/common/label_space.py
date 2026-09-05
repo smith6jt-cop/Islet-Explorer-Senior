@@ -36,7 +36,7 @@ import numpy as np
 __all__ = ["LabelSpace", "Restricted", "load_label_space", "AMBIGUOUS"]
 
 HERE = pathlib.Path(__file__).resolve().parent
-CROSSWALK = HERE / "broad_class_crosswalk.json"
+CROSSWALK = HERE.parent / "dct" / "broad_class_crosswalk.json"  # the DCT lane owns this artifact (module moved to scripts/common, Track E.3)
 
 #: Sentinel for a cell the restriction cannot call.  Never "Unassigned": every use
 #: carries an enumerated reason alongside it.

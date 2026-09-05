@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE))
 
 from label_space import AMBIGUOUS, load_label_space  # noqa: E402
 
-CROSSWALK = json.loads((HERE / "broad_class_crosswalk.json").read_text())
+CROSSWALK = json.loads((HERE.parent / "dct" / "broad_class_crosswalk.json").read_text())  # DCT artifact
 CLASSES = tuple(CROSSWALK["entries"])
 
 

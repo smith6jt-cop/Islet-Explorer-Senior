@@ -141,3 +141,11 @@ on purpose.
 DCT's `Langerhans` class is the **Langerhans cell** — an epidermal dendritic cell, lineage
 Myeloid — **not** the islet of Langerhans. In a pancreas project this is a mislabel waiting to
 happen. Islet endocrine classes are `AlphaCell`, `BetaCell` and the generic `Endocrine`.
+
+## 2026-09-05 — Track E.3 executed
+
+`gates.py`, `tiff_window.py`, `window_mask.py` and `label_space.py` (with their tests) now live in
+`scripts/common/`; this lane imports them from there. `broad_class_crosswalk.json` stays here because it
+is this lane's decision record. The review document's "discard `scripts/dct/`" instruction is now
+executable without breaking `scripts/restain/tiles.py` or `scripts/celltype/usability.py` (whose dead
+`require_evidence` import was removed).
