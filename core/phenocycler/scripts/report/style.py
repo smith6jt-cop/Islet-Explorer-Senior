@@ -102,7 +102,9 @@ def footer_text(prov: dict, donor: str | None = None) -> str:
             d_bits.append(f"Xenium base {row.get('serial', '')} sha {row['base_sha256'][:12]}")
     code = prov.get("code", {})
     d_bits.append(f"code {code.get('commit', '')[:10]}{' (dirty)' if code.get('dirty') else ''}")
-    d_bits.append(f"identity release: none (QC figures need none)")
+    rel = prov.get("identity_releases") or {}
+    rel_txt = " / ".join(f"{m} {r}" for m, r in rel.items() if r) or "none (QC figures need none)"
+    d_bits.append(f"identity release: {rel_txt}")
     d_bits.append(prov.get("written_utc", ""))
     return line1 + "\n" + " · ".join(d_bits)
 
@@ -135,8 +137,14 @@ def denominator(ax, text: str, *, loc: str = "upper right") -> None:
             bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#999999", lw=0.5, alpha=0.9))
 
 
-def note(ax, text: str, *, y: float = 0.5, fontsize: int = 8) -> None:
-    ax.text(0.5, y, text, transform=ax.transAxes, ha="center", va="center", fontsize=fontsize, wrap=True)
+def wrap(text: str, width: int = 88) -> str:
+    """Hard-wrap a panel title or note so it never runs past its axes (matplotlib's wrap=True is unreliable)."""
+    import textwrap
+    return "\n".join(textwrap.fill(line, width) for line in str(text).split("\n"))
+
+
+def note(ax, text: str, *, y: float = 0.5, fontsize: int = 8, width: int = 60) -> None:
+    ax.text(0.5, y, wrap(text, width), transform=ax.transAxes, ha="center", va="center", fontsize=fontsize)
 
 
 def unavailable_patch(reason: str, color: str = UNAVAILABLE) -> Patch:
@@ -195,7 +203,8 @@ def hist_from_zero(ax, values, *, hi: float | None = None, bins: int = 120, asin
 
 def axis_label_from_zero(name: str, unit: str, asinh: bool) -> str:
     scale = "asinh" if asinh else "linear"
-    return f"{name} ({unit}; {scale} axis from the measured floor 0)"
+    unit_part = f"{unit}; " if unit else ""
+    return f"{name} ({unit_part}{scale} axis from 0)"
 
 
 def threshold_line(ax, x: float, text: str, *, color: str = THRESHOLD, ls: str = "--") -> None:

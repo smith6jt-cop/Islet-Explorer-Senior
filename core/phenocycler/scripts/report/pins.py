@@ -273,6 +273,20 @@ def base_sha256(donor: str) -> str:
     return _BASE_SHA[key]
 
 
+def _identity_release_ids() -> dict:
+    """release_id per modality from the two development release roots (empty when absent)."""
+    out = {}
+    for mod, root in (("phenocycler", REPO / "data" / "development" / "broadtype" / "release"),
+                      ("xenium", REPO / "data" / "development" / "xenium_typing" / "release")):
+        p = root / "release.json"
+        if p.exists():
+            try:
+                out[mod] = json.loads(p.read_text()).get("release_id", "")
+            except json.JSONDecodeError:
+                out[mod] = "unreadable release.json"
+    return out
+
+
 def provenance(donors=None, *, xenium: bool = True) -> dict:
     """Everything the footer prints: run id, content ids, base sha, code commit, UTC."""
     donors = list(donors or DONORS)
@@ -284,7 +298,7 @@ def provenance(donors=None, *, xenium: bool = True) -> dict:
         "expression_output_sha256": EXPRESSION_OUTPUT_SHA256,
         "stage_content_ids": stage_content_ids(),
         "uniform_commit": json.loads(SHIFTS.read_text()).get("uniform_commit", "") if SHIFTS.exists() else "",
-        "identity_release": None,          # QC figures need none; the latch stays down
+        "identity_releases": _identity_release_ids(),   # {} until a development release exists; the latch stays down
         "code": git_head(),
         "written_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "donors": {},
