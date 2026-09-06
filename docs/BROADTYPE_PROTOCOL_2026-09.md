@@ -108,3 +108,29 @@ modality never chooses an arm, a k, or a threshold.
 ---
 
 # 4. Results (appended below this line, never edited into the bar)
+
+## 4.0 Arms declared after the first records (2026-09-06)
+
+Per Section 1.3, a configuration change after results is a NEW arm name; the original rows stand.
+
+- **`som-kintsugi-aligned`** — the plan's literal arm-B specification (KINTSUGI `features.py` arm-A block:
+  aligned intensities, no rank; StandardScaler inside `som_cluster`; type markers only). Declared after
+  `som-kintsugi` (within-donor-rank features) had been screened on both donors and awarded no lineage
+  cluster on either (its clusters separate by overall brightness). Everything else identical to arm B.
+- **`kronos2-coral`** — KRONOS2 (marker-aware DINOv2 ViT-B/16, Hugging Face `MahmoodLab/KRONOS2`
+  snapshot `e2a54732`) per-cell CLS embeddings obtained THROUGH CORAL (fork `smith6jt-cop/CORAL` @
+  `2aa29e6d`), on the maintainer's instruction of 2026-09-06 that the granted Hugging Face access is for
+  KRONOS2 and that it is to be used through the CORAL GitHub. Arm F `kronos-clusters` (KRONOS v1) stays
+  `Unavailable(huggingface_access_pending)`. Configuration frozen in the module docstring before its first
+  record: CORAL ingest of each frame window (every identity marker on the donor + DAPI), imported frame
+  label masks (global labels preserved), Otsu tissue mask, `PatchConfig(64 px, cell_centered)` (32 um at
+  0.5078 um/px; CORAL's cell-tutorial tile), cell-isolated tiles, fp32 CLS, batch 128; seven panel
+  markers novel to the KRONOS2 vocabulary (Ker8_18, Keratin_5, Caveolin, TP63, GCG, INS, SST) registered
+  through CORAL's `additional_markers.csv` with compartment/family reused from existing KRONOS2
+  categories (recorded assumptions) and (mean, std) computed by CORAL from the donor's own tissue-masked
+  windows; same-antigen renames CD209→DC-SIGN, SMA→A-SMA, M2Gal3→GALECTIN-3, Pan_Cytokeratin→CYTOKERATIN,
+  Iba1→IBA1, CD11c→CD11C, CD79a→CD79A, E_cadherin→E-CADHERIN, EpCAM→EPCAM, Vimentin→VIMENTIN,
+  Podoplanin→PODOPLANIN. Clusters and annotation identical to arm F (kNN k = 15, Leiden at
+  {0.3, 0.5, 1.0} × 5 seeds, null-gated annotation on the marker values, resolution by seed stability);
+  the annotation-only false-award rate on a column-shuffled marker block is recorded per run. External
+  pins counted for the A.3 tie-break: KRONOS2 weights, KRONOS2 marker metadata, CORAL commit.

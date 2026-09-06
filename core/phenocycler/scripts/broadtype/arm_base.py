@@ -162,7 +162,10 @@ def cli(arm: str, run_fn, *, env: str, default_params: dict | None = None) -> in
                        replicate=a.replicate)
     t0 = time.time()
     calls = run_fn(ctx)
-    path = write(ctx, arm, calls, seconds=time.time() - t0, env=env, params=default_params)
+    # an arm that leans on external code/weights declares them under params["external_pins"]; they travel
+    # into the record's ``pinned`` so the verdict's "fewest external pins" tie-break can count them
+    path = write(ctx, arm, calls, seconds=time.time() - t0, env=env, params=default_params,
+                 extra_pins=(default_params or {}).get("external_pins"))
     print(f"{arm} {a.donor} {ctx.config_id}: wrote {path} ({len(ctx.ids):,} cells, {time.time() - t0:.1f}s)")
     return 0
 
