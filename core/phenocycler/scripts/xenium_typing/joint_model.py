@@ -56,6 +56,8 @@ DEFAULT = {
     "batch_size": 4096, "dl_num_workers": 0, "knn_k": 15, "resolutions": [0.3, 0.5, 1.0], "seeds": [0, 1, 2, 3, 4],
     "vote_margin": 0.5, "min_cluster_cells": 50, "fine_tier": "identity-core subtype_hint panels, detection-gated argmax within the broad lineage",
     "cycling_rule": ">= 2 of MKI67/TOP2A/PCNA at raw count >= 1",
+    "leiden": "igraph Graph.community_leiden(objective_function='modularity', resolution=r, n_iterations=2, beta=0.01), seed via igraph RNG; "
+              "replaces leidenalg n_iterations=-1, which had not completed one fit on 1,000,000 nodes after 3.5 h (stopped 2026-09-06 before any result)",
 }
 OUT = pins.OUT / "joint_model"
 
@@ -98,22 +100,34 @@ def train_joint(train, *, seed: int, p: dict, use_gpu: bool):
     return model
 
 
+LEIDEN_ITERATIONS = 2
+
+
 def leiden_fits(Z: np.ndarray, *, k: int, resolutions: list, seeds: list) -> tuple:
+    """kNN graph (pynndescent) + Leiden through igraph's C implementation (the Xenium lane's decision #5
+    flavour).  The first full-size run used ``leidenalg.find_partition(..., n_iterations=-1)`` and had not
+    finished ONE fit after 3.5 h on 1,000,000 nodes; it was stopped before any result existed and this
+    implementation recorded in its place (modularity objective with a resolution parameter is the
+    RBConfiguration partition; ``n_iterations=2`` is scanpy's igraph-flavour default)."""
+    import random
     import igraph as ig
-    import leidenalg
     import pynndescent
+    t0 = time.time()
     index = pynndescent.NNDescent(Z.astype(np.float32), n_neighbors=k + 1, metric="euclidean", random_state=0, n_jobs=8)
     nbr, _ = index.neighbor_graph
     n = Z.shape[0]
     src = np.repeat(np.arange(n), k)
     dst = nbr[:, 1:k + 1].ravel()
-    g = ig.Graph(n=n, edges=list(zip(src.tolist(), dst.tolist())), directed=False).simplify()
+    g = ig.Graph(n=n, edges=np.column_stack([src, dst]).astype(np.int64).tolist(), directed=False).simplify()
+    log(f"kNN graph: {n:,} nodes, {g.ecount():,} edges ({time.time() - t0:.0f}s)")
     fits = {}
     for r in resolutions:
         for s in seeds:
-            part = leidenalg.find_partition(g, leidenalg.RBConfigurationVertexPartition, resolution_parameter=float(r), seed=int(s), n_iterations=-1)
+            t1 = time.time()
+            ig.set_random_number_generator(random.Random(int(s)))
+            part = g.community_leiden(objective_function="modularity", resolution=float(r), n_iterations=LEIDEN_ITERATIONS, beta=0.01)
             fits[(r, s)] = np.asarray(part.membership, dtype=np.int64)
-            log(f"leiden r={r} seed={s}: {len(set(part.membership))} clusters")
+            log(f"leiden r={r} seed={s}: {len(set(part.membership))} clusters ({time.time() - t1:.0f}s)")
     return fits, index
 
 
@@ -168,6 +182,8 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--out-suffix", default="")
+    ap.add_argument("--reuse-model", action="store_true",
+                    help="load <out>/scvi_model (trained earlier on the identical hash-drawn training set) instead of training again")
     a = ap.parse_args(argv)
     p = dict(DEFAULT, n_per_donor=a.n_per_donor, max_epochs=a.max_epochs)
     donors = list(a.donors) if a.donors else list(pins.donors())
@@ -195,12 +211,22 @@ def main(argv=None) -> int:
     train_full.obs_names_make_unique()
     del subs
     ident = train_full.var["identity_panel"].to_numpy(bool)
+    ident_genes = [str(g_) for g_ in np.asarray(train_full.var_names)[ident]]
     train = train_full[:, ident].copy()
     log(f"training set {train.n_obs:,} cells x {train.n_vars} identity genes; runs {sorted(set(train.obs['xenium_run']))}")
 
     # B/C. scVI + latent
-    model = train_joint(train, seed=a.seed, p=p, use_gpu=use_gpu)
-    model.save(str(out / "scvi_model"), overwrite=True)
+    if a.reuse_model and (out / "scvi_model").exists():
+        import scvi
+        scvi.settings.seed = a.seed
+        if use_gpu:
+            torch.set_float32_matmul_precision("high")      # same matmul precision as the training run
+        scvi.model.SCVI.setup_anndata(train, layer="counts", batch_key=p["batch_key"])
+        model = scvi.model.SCVI.load(str(out / "scvi_model"), adata=train, accelerator="gpu" if use_gpu else "cpu")
+        log(f"reused {out / 'scvi_model'} (trained earlier on the same hash-drawn training set; no training this run)")
+    else:
+        model = train_joint(train, seed=a.seed, p=p, use_gpu=use_gpu)
+        model.save(str(out / "scvi_model"), overwrite=True)
     Z = model.get_latent_representation()
     np.save(out / "train_latent.npy", Z)
     train_full.obs[["donor_id", "xenium_run"]].to_parquet(out / "train_obs.parquet")
@@ -229,7 +255,12 @@ def main(argv=None) -> int:
         t0 = time.time()
         base = read_base(d)
         cores_fine = hint_fine_panels("pancreas", mod, reference_dir=pins.SUBPANEL_DIR, live_genes=list(base.var_names))
-        sub_d = base[:, ident].copy()
+        # subset by NAME: donor bases differ by a few genes (5,098 vs 5,101), so a boolean mask from the
+        # inner-joined training var index does not line up with every base
+        missing = [g_ for g_ in ident_genes if g_ not in set(base.var_names)]
+        if missing:
+            raise RuntimeError(f"donor {d}: {len(missing)} training identity genes absent from its base: {missing[:5]}")
+        sub_d = base[:, ident_genes].copy()
         import scvi
         scvi.model.SCVI.setup_anndata(sub_d, layer="counts", batch_key=p["batch_key"])
         Zd = model.get_latent_representation(sub_d)

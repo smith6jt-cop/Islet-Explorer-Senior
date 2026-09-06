@@ -334,7 +334,9 @@ def append_to_protocol(md: str, protocol: pathlib.Path = PROTOCOL, *, stamp: str
 def write_summary(summary: dict, out: pathlib.Path | None = None) -> tuple[pathlib.Path, pathlib.Path]:
     d = verdict_dir(out)
     d.mkdir(parents=True, exist_ok=True)
-    pj, pm = d / "summary.json", d / "summary.md"
+    scope = str(summary.get("scope", "frame"))
+    stem = "summary" if scope == "frame" else f"summary__{scope}"
+    pj, pm = d / f"{stem}.json", d / f"{stem}.md"          # one file pair per scope; scopes never overwrite each other
     pj.write_text(json.dumps(summary, indent=1, default=str) + "\n")
     pm.write_text(render_markdown(summary))
     return pj, pm
