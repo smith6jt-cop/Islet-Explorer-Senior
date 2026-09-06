@@ -42,6 +42,8 @@ def assert_frequency_free(criteria: dict = CRITERIA) -> None:
         if any(tok in low for tok in FORBIDDEN_KEY_TOKENS):
             raise AssertionError(f"criterion key {k!r} looks like an expected-frequency term")
     for k in ("heldout_frac", "survive_frac", "subsample_frac"):
+        if k not in criteria:
+            continue
         v = criteria[k]
         if not (0 < v <= 1):
             raise AssertionError(f"{k} must be a fraction of judged items in (0, 1], got {v}")

@@ -189,25 +189,62 @@ def standardise_within_donor(X: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(Z), Z, 0.0)
 
 
-def null_gated_cluster_annotation(Z: np.ndarray, clusters: np.ndarray, declared: dict, *,
-                                  draws: int = CRITERIA["null_draws"], q: float = CRITERIA["null_quantile"],
-                                  margin_frac: float = 0.25, seed: int = 0,
-                                  min_cells: int = CRITERIA["min_calls"]) -> pd.DataFrame:
-    """Award a broad label to a cluster only where its declared-marker contrast beats a size-matched
-    null AND ranks first by a margin.  ``declared`` maps label -> column indices into ``Z``.
+CLUSTER_NULL_DRAWS = 1000   # marker-subset nulls are arithmetic on a per-marker contrast vector: cheap
+CLUSTER_Z_MIN_SE = 3.0      # an awarded contrast must also exceed 3 standard errors of itself (a noise floor, not a prevalence)
+CLUSTER_CO_LINEAGE_FRAC = 0.5   # a second label at >= half the winner's contrast and above its own SE floor makes a mixture
 
-    contrast_L(c) = mean over M_L of ( mean Z[c, m] - mean Z[~c, m] ).  Null: ``draws`` random
-    cell sets of the cluster's size.  Multiple labels above their null without a clear winner ->
-    Ambiguous(multi_lineage); none -> Unavailable(no_lineage_beats_null); too small ->
-    Unavailable(cluster_below_min_cells).  The false-award rate on synthetic noise is measured by
-    the tests and recorded beside every table that uses this.
+
+def null_gated_cluster_annotation(Z: np.ndarray, clusters: np.ndarray, declared: dict, *,
+                                  draws: int = CLUSTER_NULL_DRAWS, q: float = CRITERIA["null_quantile"],
+                                  margin_frac: float = 0.25, seed: int = 0,
+                                  min_cells: int = CRITERIA["min_calls"], family_wise: bool = True) -> pd.DataFrame:
+    """Award a broad label to a cluster only where its declared-marker contrast beats a null of
+    random MARKER SETS of the same size AND ranks first by a margin.
+
+    ``declared`` maps label -> column indices into ``Z`` (standardised within donor).
+    contrast_L(c) = mean over M_L of ( mean Z[c, m] - mean Z[~c, m] ).
+
+    Why the null is over marker sets, not cell sets: a cluster found by any clustering method on
+    these same features is, by construction, extreme in SOME markers, so a random cell set of the
+    same size is far too easy a null -- on pure noise a SOM's clusters were awarded 64-81 % of the
+    time against it (measured 2026-09-05 in the SOM arm's tests).  The question the gate has to
+    answer is whether the cluster is extreme in the label's DECLARED markers more than in an
+    arbitrary marker set of the same size: the null draws size-matched random sets from ALL
+    identity markers (the declared set itself is one possible draw), which is the null gate the
+    Xenium lane uses (``scripts/xenium_celltype/nullgate.py``, size-matched random cores)
+    transplanted to a 28-marker panel.  Drawing only from the non-declared markers was measured
+    (2026-09-05) to leave a 30-40 % false-award rate on k-means clusters of pure noise, because it
+    removes the extreme markers from the null; drawing from all markers leaves 2-9 %.  A panel with
+    fewer than 4 markers cannot support the null: every label is ``Unavailable(null_pool_too_small)``.
+
+    The null quantile is Bonferroni-corrected for the number of labels offered to the cluster
+    (``family_wise``): every label is tested on the same cluster, so at q = 0.95 with seven labels
+    the family-wise false-award rate would be ~30 % -- exactly the inflation the Xenium null gate
+    records (``nullgate.py``: 6.2 % -> 30.2 % for 1 -> 8 lineages).  With the correction the
+    per-cluster family-wise rate is held near 1 - q.  ``draws`` defaults to 1000 so the corrected
+    quantile is resolvable.
+
+    Award rule.  A label is *above* when its contrast exceeds BOTH its corrected null quantile and
+    ``CLUSTER_Z_MIN_SE`` standard errors of the contrast (SE = sqrt(1/n_in + 1/n_out) / sqrt(m) on
+    the standardised scale) -- the second floor exists because a large unstructured remainder
+    cluster drags every random-set mean negative, so a label at contrast ~0 would otherwise
+    "beat" the null.  A *co-lineage* is any other label above its SE floor whose contrast is at
+    least ``CLUSTER_CO_LINEAGE_FRAC`` of the winner's: a half/half mixture of two lineages shows
+    both at comparable enrichment even when only the rarer one clears the marker-set null (the
+    null of the other is contaminated by the first's markers).  Exactly one label above and no
+    co-lineage -> that label; a co-lineage or two labels above -> Ambiguous(multi_lineage); none
+    above -> Unavailable(no_lineage_beats_null); too small -> Unavailable(cluster_below_min_cells).
+    ``margin_frac`` is accepted for call compatibility and ignored.  The false-award rate on
+    synthetic noise is measured by the tests and recorded beside every table.
     """
     rng = np.random.default_rng(seed)
     clusters = np.asarray(clusters)
-    n = Z.shape[0]
+    n, p = Z.shape
     col_mean = Z.mean(axis=0)
-    rows = []
     labels = list(declared)
+    all_cols = np.arange(p)
+    pools = {L: (all_cols if p >= 4 else None) for L in declared}
+    rows = []
     for c in np.unique(clusters):
         inc = clusters == c
         nc = int(inc.sum())
@@ -216,24 +253,47 @@ def null_gated_cluster_annotation(Z: np.ndarray, clusters: np.ndarray, declared:
             continue
         in_mean = Z[inc].mean(axis=0)
         out_mean = (col_mean * n - in_mean * nc) / max(n - nc, 1)
-        contrast = {L: float(np.mean(in_mean[cols] - out_mean[cols])) for L, cols in declared.items()}
-        null = {L: np.empty(draws) for L in labels}
-        for d in range(draws):
-            pick = rng.choice(n, nc, replace=False)
-            pm = Z[pick].mean(axis=0)
-            om = (col_mean * n - pm * nc) / max(n - nc, 1)
+        delta = in_mean - out_mean                       # per-marker contrast of this cluster
+        contrast = {L: float(np.mean(delta[list(cols)])) for L, cols in declared.items()}
+        p95, above = {L: np.nan for L in labels}, []
+        if not family_wise:
             for L, cols in declared.items():
-                null[L][d] = np.mean(pm[cols] - om[cols])
-        p95 = {L: float(np.quantile(null[L], q)) for L in labels}
-        above = [L for L in labels if contrast[L] > max(p95[L], 0.0)]
-        ranked = sorted(labels, key=lambda L: -contrast[L])
-        top, second = ranked[0], (ranked[1] if len(ranked) > 1 else None)
+                pool = pools[L]
+                if pool is None:
+                    continue
+                m = min(len(cols), len(pool))
+                null = np.array([np.mean(delta[rng.choice(pool, m, replace=False)]) for _ in range(draws)])
+                p95[L] = float(np.quantile(null, q))
+                if contrast[L] > max(p95[L], 0.0):
+                    above.append(L)
+        judgeable = [L for L in labels if pools[L] is not None]
+        se = {L: float(np.sqrt(1.0 / nc + 1.0 / max(n - nc, 1)) / np.sqrt(len(declared[L]))) for L in labels}
+        if family_wise and judgeable:
+            q_eff = 1.0 - (1.0 - q) / len(judgeable)
+            above = []
+            for L in judgeable:
+                pool, cols = pools[L], declared[L]
+                m = min(len(cols), len(pool))
+                null = np.array([np.mean(delta[rng.choice(pool, m, replace=False)]) for _ in range(draws)])
+                p95[L] = float(np.quantile(null, q_eff))
+                if contrast[L] > max(p95[L], CLUSTER_Z_MIN_SE * se[L]):
+                    above.append(L)
         rec = {"cluster": c, "n": nc, **{f"contrast_{L}": contrast[L] for L in labels},
-               **{f"p95_{L}": p95[L] for L in labels}, "n_above_null": len(above)}
-        if not above:
+               **{f"p95_{L}": p95[L] for L in labels}, **{f"se_{L}": se[L] for L in labels},
+               "n_above_null": len(above)}
+        if not judgeable:
+            rec.update(label=UNAVAILABLE, reason="null_pool_too_small")
+        elif not above:
             rec.update(label=UNAVAILABLE, reason="no_lineage_beats_null")
-        elif top in above and (second is None or contrast[top] - contrast[second] >= margin_frac * abs(contrast[top])):
-            rec.update(label=top, reason="")
+        elif len(above) == 1:
+            top = above[0]
+            co = [L for L in judgeable if L != top and contrast[L] > CLUSTER_Z_MIN_SE * se[L]
+                  and contrast[L] >= CLUSTER_CO_LINEAGE_FRAC * contrast[top]]
+            rec["co_lineages"] = co
+            if co:
+                rec.update(label=AMBIGUOUS, reason="multi_lineage")
+            else:
+                rec.update(label=top, reason="")
         else:
             rec.update(label=AMBIGUOUS, reason="multi_lineage")
         rows.append(rec)

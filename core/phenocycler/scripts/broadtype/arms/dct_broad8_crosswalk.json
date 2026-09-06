@@ -1,0 +1,561 @@
+{
+  "schema_version": 1,
+  "method_version": "dct-broad8-crosswalk-2026-09-05",
+  "arm": "dct-ptft-broad8-typeonly",
+  "description": "DeepCellTypes class -> one of the seven broad labels declared in scripts/broadtype/declarations.json, AND the label space for arm G: in_label_space says which of the 51 classes the argmax may reach at all, and broad_class says which declared label a kept class is summed into. Same shape as scripts/dct/broad_class_crosswalk.json so label_space.load_label_space reads it unchanged; the difference is the target vocabulary (seven declared labels instead of five compartments) and the rule below. It is a naming alignment and a pre-registered restriction, not a threshold and not a revival of any retired gate.",
+  "source": {
+    "class_order": "deepcell_types vocab.json cell_type_mapping (51 classes), commit 59d74a97711848dabc30fc01e242b6b1e4d3d3dc; entries are written in that index order",
+    "declared_labels": "scripts/broadtype/declarations.json, method_version broadtype-declarations-2026-09-05 (Endocrine, Epithelial_nonendocrine, Vascular, Stromal, T_NK, B_Plasma, Myeloid; Neural is undeclared)",
+    "frozen_flags": "lineage, expected_in_pancreas, panel_supported and panel_reason are copied verbatim from scripts/dct/broad_class_crosswalk.json (dct-broad-class-2026-08-24; expected_in_pancreas authored 2026-08-21, three days before any inference output existed). Nothing in them was changed here.",
+    "membership": "the kept-class -> label lists are the frozen arm specification of 2026-09-05 (protocol Section 3, README arm table row G), written before this arm produced any output"
+  },
+  "policy": {
+    "authored_before_output": "Written 2026-09-05 before arm G ran on any donor. The arm module reads this file and never writes it. Changing any class's in_label_space or broad_class after a result has been seen makes a NEW arm name (protocol Section 0); this file is then copied, not edited.",
+    "label_space": "in_label_space = expected_in_pancreas AND broad_class is a declared label AND the class is on the frozen membership list. 27 of 51 kept. Restriction is label_space.LabelSpace.restrict: a renormalisation of the returned 51-way softmax over the kept columns, algebraically identical to masking the excluded logits. The arm then SUMS the renormalised probability per broad_class; label = argmax of the seven sums, score = the winning sum. No threshold is added anywhere.",
+    "ambiguity": "Exactly label_space's two rules, unchanged: no_mass_in_label_space (every kept column is zero) and mass_on_impossible_classes (the probability removed exceeds the best surviving single class, both read off the original softmax). Nothing else becomes Ambiguous, and Ambiguous is never a parking bucket: each carries its reason.",
+    "lineage_level_support": "Monocyte, Mast, Basophil and Eosinophil are KEPT here although the 2026-08-24 crosswalk excluded them as class_unsupported_by_panel. That exclusion was a class-level statement (no acquired marker separates a monocyte from a macrophage). This arm never reads the class: it reads the Myeloid sum, and the declared Myeloid identity markers (CD11c, CD163, CD206, CD209, CD68, Iba1, MPO; M2Gal3 resolves to no vocabulary name) evidence the lineage. The class-level flag is copied unchanged so the limitation stays on record.",
+    "excluded_although_present": "Telocyte, Glial and Neuron are expected in a pancreas section and are excluded anyway, each for a stated non-frequency reason: Glial and Neuron because the Neural label is undeclared (declarations.json undeclared_labels -- no registry type marker survives the conflict rule, and B3TUBB is not among this arm's inputs), Telocyte because no identity input evidences the class (CD34 is withheld from identity by the conflict rule; PDGFR-alpha and c-kit are not acquired) and the frozen Stromal membership does not list it. Erythrocyte is present in tissue, unevidenced by the panel (no GlycophorinA) and has no declared label.",
+    "no_frequency_tuning": "No class may be excluded, included, re-weighted or re-ordered because of how often it is called, how uniform it is across donors, or how it orders by disease status. The kept/excluded decision is decidable by someone who has never seen the model's output, and was.",
+    "no_unassigned_bucket": "Every one of the 51 classes carries a broad_class (for an excluded class, the label it WOULD have summed into, for audit) and every excluded class carries an exclusion_reason code plus a written reason. Neural and Other appear only on excluded classes: no kept class maps there, so the arm can never emit them.",
+    "per_donor_tissue_check": "Enterocyte, Goblet, Paneth, Foveolar and ICC are excluded on the premise that the section contains no duodenum or stomach. nPOD pancreas-HEAD blocks can contain duodenum and this cohort has a documented mixed-tissue case (donor 115, pancreas + pLN). Verify per donor against the QuPath Tissue annotation (geometry only) and record the answer before trusting the exclusion on that donor.",
+    "naming_trap": "Langerhans is the LANGERHANS CELL (an epidermal dendritic cell), not the islet of Langerhans. Islet endocrine classes are AlphaCell, BetaCell and Endocrine."
+  },
+  "broad_classes": [
+    "Endocrine",
+    "Epithelial_nonendocrine",
+    "Vascular",
+    "Stromal",
+    "T_NK",
+    "B_Plasma",
+    "Myeloid",
+    "Neural",
+    "Other"
+  ],
+  "excluded_only_broad_classes": [
+    "Neural",
+    "Other"
+  ],
+  "entries": {
+    "AlphaCell": {
+      "broad_class": "Endocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Islet alpha cell. GCG (fed as Glucagon) is a declared Endocrine identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Astrocyte": {
+      "broad_class": "Neural",
+      "lineage": "Nerve",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "CNS macroglia. There is no central nervous system in a pancreas section; pancreatic glia are Schwann cells, which the model calls Glial. Neural is in any case undeclared.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Basophil": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": false,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Granulocyte, kept at lineage level: this arm reads the Myeloid sum, which the declared Myeloid identity markers evidence, even though no acquired marker separates a basophil from the other granulocytes or from a macrophage (policy.lineage_level_support).",
+      "panel_reason": "Vocabulary markers for this class are CD123, FCERG1A and CD294; none is acquired.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Bcell": {
+      "broad_class": "B_Plasma",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD20 and CD79a are the declared B_Plasma identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "BetaCell": {
+      "broad_class": "Endocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Islet beta cell. INS is fed under the vocabulary name C-peptide (scripts/dct/deepcell_types_crosswalk.json), a declared Endocrine identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "BloodVesselEndothelial": {
+      "broad_class": "Vascular",
+      "lineage": "Endothelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD31 is a declared Vascular identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "CD4T": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD3e and CD4 are declared T_NK identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "CD8T": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD3e and CD8 are declared T_NK identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Club": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Airway secretory epithelium (lung). Not a pancreatic epithelium.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "CollectingDuct": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Renal collecting-duct epithelium. Pancreatic ducts are a different epithelium and land on the generic Epithelial class.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Dendritic": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD11c and CD209 are declared Myeloid identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "EVT": {
+      "broad_class": "Other",
+      "lineage": "Other",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Extravillous trophoblast. Placenta only; no declared label.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Endocrine": {
+      "broad_class": "Endocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Generic endocrine parent of AlphaCell/BetaCell in this vocabulary. The vocabulary has no delta-cell class, so a SST (SOMATOSTATIN)-bearing cell can only land here or on a sibling; summing the three classes into Endocrine is what makes the declared label reachable regardless.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Endothelial": {
+      "broad_class": "Vascular",
+      "lineage": "Endothelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Generic endothelial parent; CD31 is a declared Vascular identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Enterocyte": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Small/large intestinal absorptive epithelium. Gut only -- but a pancreas-HEAD block can contain duodenum, so this exclusion is verified per donor against the QuPath Tissue annotation (geometry only), not assumed.",
+      "requires_per_donor_tissue_check": true,
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Eosinophil": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": false,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Granulocyte, kept at lineage level: this arm reads the Myeloid sum, which the declared Myeloid identity markers evidence, even though no acquired marker separates an eosinophil from the other granulocytes or from a macrophage (policy.lineage_level_support).",
+      "panel_reason": "Vocabulary markers for this class are CD294, Galectin9 and MBP; none is acquired.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Epithelial": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "The only pancreas-compatible non-endocrine epithelial class the model can emit; acinar and ductal epithelium both land here. The declared label makes no acinar/ductal claim (protocol Section 1). E_cadherin, EpCAM, Ker8_18 (as CK8), Keratin_5 (as CK5), Pan_Cytokeratin (as PanCK) and TP63 (as P63) are the declared identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Erythrocyte": {
+      "broad_class": "Other",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": false,
+      "in_label_space": false,
+      "exclusion_reason": "class_unsupported_by_panel",
+      "reason": "Upstream files it under Myeloid, but a red cell is erythroid and is NOT an immune cell; summing it into Myeloid would inflate the exact quantity this study measures. No declared label fits it, and the panel carries nothing that evidences one.",
+      "panel_reason": "The vocabulary marker is GlycophorinA; it is not acquired. Red cells are certainly present in the tissue, but the panel carries nothing that evidences one.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Fibroblast": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Vimentin is a declared Stromal identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Foveolar": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Gastric surface mucous epithelium. Stomach only -- same per-donor tissue check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Glial": {
+      "broad_class": "Neural",
+      "lineage": "Nerve",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "label_not_declared",
+      "reason": "Pancreatic Schwann cells exist, but the Neural label is undeclared: no registry type marker survives the declarations conflict rule (B3TUBB is excluded) and no arm may emit it. B3TUBB is therefore not among this arm's inputs either. Excluded for the label space, not for its frequency.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Goblet": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Intestinal and airway mucin-secreting epithelium. Gut/airway only -- same per-donor duodenum check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "HSEC": {
+      "broad_class": "Vascular",
+      "lineage": "Endothelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Hepatic sinusoidal endothelial cell. Liver only.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Hepatocyte": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Liver parenchyma.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "ICC": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Interstitial cell of Cajal, the GI muscularis pacemaker. Gut only -- same per-donor duodenum check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Keratocyte": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "CORNEAL keratocyte -- a stromal fibroblast-like cell of the eye, not the epidermal keratinocyte.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Langerhans": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": false,
+      "panel_supported": false,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "The LANGERHANS CELL -- an epidermal dendritic cell, lineage Myeloid. NOT the islet of Langerhans. Skin only.",
+      "panel_reason": "Vocabulary markers for this class are CD207, CD1b and CD1c; none is acquired. Excluded on tissue grounds first -- this is a second, independent ground.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "LittoralCell": {
+      "broad_class": "Vascular",
+      "lineage": "Endothelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Splenic red-pulp sinus lining cell. Spleen only.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "LymphaticEndothelial": {
+      "broad_class": "Vascular",
+      "lineage": "Endothelial",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Podoplanin (as PDPN) is a declared Vascular identity marker; the declaration keeps lymphatic endothelium under Vascular.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Macrophage": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD68, CD163, CD206 and Iba1 are declared Myeloid identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Mast": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": false,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Kept at lineage level: this arm reads the Myeloid sum, which the declared Myeloid identity markers evidence, even though no acquired marker separates a mast cell from a macrophage (policy.lineage_level_support).",
+      "panel_reason": "Vocabulary markers for this class are Tryptase, Chymase and c-kit; none is acquired.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Melanocyte": {
+      "broad_class": "Other",
+      "lineage": "Other",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Neural-crest pigment cell of skin, uvea and mucosa. Not a pancreatic resident; no declared label.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Mesangial": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Renal glomerular mesangial cell. Kidney only.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Microglial": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "CNS-resident macrophage. A pancreatic macrophage should come back as Macrophage.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Monocyte": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": false,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Kept at lineage level: this arm reads the Myeloid sum, which the declared Myeloid identity markers evidence, even though the panel cannot separate a monocyte from a macrophage (policy.lineage_level_support).",
+      "panel_reason": "Vocabulary markers for this class are CD14, CD16 and CD33; none is acquired. The panel's myeloid markers (CD68, CD163, CD206, Iba1, CD11c) are macrophage/DC markers and cannot separate a monocyte from a macrophage.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "NK": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "The declaration folds NK into T_NK (registry Immune markers in the T-cell / NK branch). CD56 is excluded from identity by the declarations, so an NK call here rests on the shared T_NK markers; it is summed, never reported alone.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "NKT": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD3e is a declared T_NK identity marker; summed into T_NK like NK.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Neuron": {
+      "broad_class": "Neural",
+      "lineage": "Nerve",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "label_not_declared",
+      "reason": "Intrapancreatic ganglia exist, but the Neural label is undeclared (see Glial). Excluded for the label space, not for its frequency.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Neutrophil": {
+      "broad_class": "Myeloid",
+      "lineage": "Myeloid",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "MPO is a declared Myeloid identity marker; the declaration folds granulocytes into Myeloid as the Xenium typer does.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Paneth": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Small-intestinal crypt-base secretory cell. Gut only -- same per-donor duodenum check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Pericyte": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Perivascular mural cell; SMA is a declared Stromal identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Photoreceptor": {
+      "broad_class": "Neural",
+      "lineage": "Nerve",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Retinal sensory neuron. Eye only.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Plasma": {
+      "broad_class": "B_Plasma",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD79a is a declared B_Plasma identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Podocyte": {
+      "broad_class": "Epithelial_nonendocrine",
+      "lineage": "Epithelial",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "Renal glomerular visceral epithelium. Kidney only.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "SmoothMuscle": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "SMA is a declared Stromal identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Stellate": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Pancreatic stellate cell (not hepatic); Vimentin and, when activated, SMA are declared Stromal identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Stromal": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Generic stromal parent; Vimentin is a declared Stromal identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Tcell": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "Generic T-cell parent; CD3e is a declared T_NK identity marker.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Telocyte": {
+      "broad_class": "Stromal",
+      "lineage": "Stromal",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_unsupported_by_identity_inputs",
+      "reason": "Interstitial cell defined by its telopodes and by CD34/PDGFR-alpha. None of this arm's identity inputs evidences the class: CD34 is withheld from identity by the declarations conflict rule (registry Endothelial, rule-table Mes-CD34-fibroblast) and PDGFR-alpha and c-kit are not acquired; the frozen Stromal membership (Fibroblast, SmoothMuscle, Stellate, Stromal, Pericyte) does not list it. The class-level panel_supported flag is copied unchanged from the 2026-08-24 crosswalk, where CD34 was still a candidate input.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Treg": {
+      "broad_class": "T_NK",
+      "lineage": "Lymphocyte",
+      "expected_in_pancreas": true,
+      "panel_supported": true,
+      "in_label_space": true,
+      "exclusion_reason": null,
+      "reason": "CD3e, CD4 and FOXP3 (as FoxP3) are declared T_NK identity markers.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    },
+    "Tumor": {
+      "broad_class": "Other",
+      "lineage": "Tumor",
+      "expected_in_pancreas": false,
+      "panel_supported": true,
+      "in_label_space": false,
+      "exclusion_reason": "class_not_present_in_tissue",
+      "reason": "A Tumor call in a T1D/ND pancreas cohort is a signal that something is wrong, not a finding; no declared label.",
+      "source": "frozen flags from dct-broad-class-2026-08-24; label assigned here"
+    }
+  }
+}
