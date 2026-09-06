@@ -156,6 +156,22 @@ def load_rules(path: pathlib.Path | None = None) -> pd.DataFrame:
     return d
 
 
+class FlatRules(dict):
+    """``phenotype -> {marker: token}`` that also remembers WHICH ROW declared each token.
+
+    Every caller reads it as the plain dict it is.  ``.source`` -- ``phenotype -> {marker:
+    declaring phenotype}`` -- is what :func:`reference_matrix` needs to keep an OR-group
+    declared by ``Immune`` apart from one declared by ``Imm-T-cell`` when both reach the same
+    leaf.  Carrying the provenance on the same object means no caller changes to receive that
+    fix, and a hand-built plain dict still works: it has no ancestry, so every constraint is
+    read as declared by the phenotype itself, which is exactly right for a one-level table.
+    """
+
+    def __init__(self, *args, source: dict | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source = dict(source or {})
+
+
 def flatten(rules: pd.DataFrame, with_source: bool = False) -> dict:
     """phenotype -> {marker: token}, composed with every ancestor.  The child wins.
 
@@ -164,12 +180,15 @@ def flatten(rules: pd.DataFrame, with_source: bool = False) -> dict:
     can carry several such groups from different levels -- "is an immune cell" from Immune and
     "is CD4+ or CD8+" from a T subset.  Merged into one OR they would be satisfied by CD68
     alone, which is the opposite of what the subset rule asks.
+
+    Without ``with_source`` the result is a :class:`FlatRules`: the same plain mapping, with the
+    declaring row of every token kept on ``.source`` so :func:`reference_matrix` can use it.
     """
     mk = [c for c in rules.columns if c not in ("parent", "phenotype")]
     row = {r["phenotype"]: {c: r[c] for c in mk if pd.notna(r[c])}
            for _, r in rules.iterrows()}
     par = dict(zip(rules["phenotype"], rules["parent"]))
-    out = {}
+    out, src = {}, {}
     for ph in rules["phenotype"]:
         chain, cur = [], ph
         while cur and cur != "all":
@@ -180,8 +199,12 @@ def flatten(rules: pd.DataFrame, with_source: bool = False) -> dict:
         ref = {}
         for a in reversed(chain):
             ref.update({m: (t, a) for m, t in row.get(a, {}).items()})
-        out[ph] = ref if with_source else {m: t for m, (t, _) in ref.items()}
-    return out
+        if with_source:
+            out[ph] = ref
+        else:
+            out[ph] = {m: t for m, (t, _) in ref.items()}
+            src[ph] = {m: a for m, (_, a) in ref.items()}
+    return out if with_source else FlatRules(out, source=src)
 
 
 def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
@@ -206,23 +229,40 @@ def reference_matrix(flat: dict, markers: list, encoding: str = "zero",
     Imm-T-cell, Imm-B-cell and Imm-neutrophil sharing one vector.  Sharing the weight keeps
     the group's contribution to the norm the same while letting a child that commits to one
     member out-align it.
+
+    A group is keyed by ``(declaring row, token)``, not by the bare token.  Flattening carries
+    ``Immune``'s "any of CD68|CD20|CD3e|..." and ``Imm-T-cell``'s own ``anypos`` group down to
+    the same leaf under the same token string, and keyed by token alone they merged into one
+    group of n1 + n2 members, so every member weighed 1/(n1 + n2) instead of 1/n1 or 1/n2 -- the
+    leaf's own committed group was diluted by its ancestor's.  The declaring row comes from
+    :class:`FlatRules` (what :func:`flatten` returns) or from ``(token, origin)`` values built
+    with ``with_source=True``; a plain dict without either has no ancestry and is read as
+    one-level.  The count is still over the members that survive in the flattened leaf and in
+    ``markers`` -- a member the child committed to ``allpos``/``allneg`` has left the group.
     """
     if encoding not in ("zero", "signed"):
         raise ValueError(f"unknown encoding {encoding!r}")
+    src = getattr(flat, "source", {})
     M = pd.DataFrame(0.0, index=markers, columns=list(flat))
     dropped: dict = {}
     for ph, ref in flat.items():
-        usable = {m: t for m, t in ref.items() if m in M.index}
-        for m in set(ref) - set(usable):
+        items: dict = {}                        # marker -> (token, declaring row)
+        for m, t in ref.items():
+            if isinstance(t, tuple):
+                items[m] = (str(t[0]), t[1])
+            else:
+                items[m] = (str(t), src.get(ph, {}).get(m, ph))
+        usable = {m: v for m, v in items.items() if m in M.index}
+        for m in set(items) - set(usable):
             dropped.setdefault(m, []).append(ph)
         n_any: dict = {}
-        for t in usable.values():
-            if OR_POS.match(str(t)) or OR_NEG.match(str(t)):
-                n_any[t] = n_any.get(t, 0) + 1
-        for m, tok in usable.items():
+        for tok, origin in usable.values():
+            if OR_POS.match(tok) or OR_NEG.match(tok):
+                n_any[(origin, tok)] = n_any.get((origin, tok), 0) + 1
+        for m, (tok, origin) in usable.items():
             w = 1.0
-            if split_or_groups and n_any.get(tok, 0) > 1:
-                w = 1.0 / n_any[tok]
+            if split_or_groups and n_any.get((origin, tok), 0) > 1:
+                w = 1.0 / n_any[(origin, tok)]
             if is_positive(tok):
                 M.loc[m, ph] = w
             elif is_negative(tok) and encoding == "signed":
@@ -247,8 +287,14 @@ def evaluable_donors(flat: dict) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values(["n_donors", "phenotype"])
 
 
-def requirements(rules: pd.DataFrame) -> dict:
+def requirements(rules: pd.DataFrame, with_negatives: bool = False) -> dict:
     """phenotype -> (all_of, [any_of groups]) -- what the rule says a cell MUST show.
+
+    With ``with_negatives`` the value is ``(all_of, [any_of groups], none_of)``, where
+    ``none_of`` is what the rule says a cell MUST NOT show; :func:`requirements_with_negatives`
+    is the same call by name.  The default stays a 2-tuple so every existing caller keeps
+    unpacking two values; a caller that wants the negatives enforced opts in and hands the
+    3-tuple to ``score.meets_requirements``, which enforces whichever shape it is given.
 
     A cosine is a similarity, not a requirement: ``allpos`` reads as "must be positive" but
     scoring it only adds a direction component, so a cell can win a reference without meeting
@@ -269,6 +315,18 @@ def requirements(rules: pd.DataFrame) -> dict:
     So, per group: satisfied and dropped if the phenotype commits any member to a positive;
     otherwise members it commits to a negative are removed; a group emptied that way is
     dropped rather than made unsatisfiable.
+
+    ``none_of`` is read the way ``all_of`` is: off the flattened composition, where every marker
+    carries the token of the nearest row that declared it.  An ancestor's ``allneg`` is therefore
+    inherited by every leaf -- ``Epithelial`` says CD68/CD20/CD3e/CD11b ``allneg`` and every
+    endocrine leaf must honour it -- unless the child overrides the marker, in which case the
+    child's token wins and the marker leaves ``none_of``.  Before this existed the negatives
+    entered only the signed cosine, as a direction to be pushed away from, and a cell bright in
+    a forbidden marker could still win the reference; the gate now refuses it.  ``neg`` and
+    ``allneg`` are the hard negatives.  ``anyneg`` -- "at least one of these absent" -- is folded
+    into ``none_of`` as well, i.e. read as all-absent: no table in this repository uses it, and
+    the stricter reading is recorded here so a future table that does gets it knowingly rather
+    than silently.
     """
     mk = [c for c in rules.columns if c not in ("parent", "phenotype")]
     row = {r["phenotype"]: {c: r[c] for c in mk if pd.notna(r[c])}
@@ -297,8 +355,17 @@ def requirements(rules: pd.DataFrame) -> dict:
                 members = [m for m in members if not is_negative(str(final.get(m, "")))]
                 if members:
                     groups.append(sorted(members))
-        out[ph] = (all_of, groups)
+        if with_negatives:
+            none_of = sorted(m for m, t in final.items() if is_negative(str(t)))
+            out[ph] = (all_of, groups, none_of)
+        else:
+            out[ph] = (all_of, groups)
     return out
+
+
+def requirements_with_negatives(rules: pd.DataFrame) -> dict:
+    """phenotype -> (all_of, [any_of groups], none_of).  See :func:`requirements`."""
+    return requirements(rules, with_negatives=True)
 
 
 def distinct_references(M: pd.DataFrame) -> dict:
