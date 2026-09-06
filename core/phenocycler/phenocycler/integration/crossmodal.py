@@ -43,6 +43,7 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from .contract import CellTable, feature_name, read_cell_table
+from .import_xenium import is_gene_feature
 from .manifest import load_manifest, paired_rows
 from .vocab import MarkerPair, load_panel_taxonomy, protein_gene_pairs, usable_anchors
 
@@ -83,8 +84,9 @@ def resolve_anchors(
         # union. Several markers that matter here (KRT19, ACTA2, PTPRC) reach the deployed
         # panel only through the custom-100 add-on and are absent from every identity core,
         # so validating against the core union would declare real anchors off-panel and
-        # silently starve the minimum-anchor guard.
-        panel_genes = sorted(g for g in x_feats if not g.startswith("score_"))
+        # silently starve the minimum-anchor guard. Lineage scores and the re-stain's
+        # `if_*` protein intensities are features, not genes, and are excluded here.
+        panel_genes = sorted(g for g in x_feats if is_gene_feature(g))
 
     pairs = usable_anchors(protein_gene_pairs(panel_genes, tax=tax), type_only=False)
 

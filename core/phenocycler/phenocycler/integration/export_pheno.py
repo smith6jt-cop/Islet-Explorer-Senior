@@ -1,16 +1,31 @@
-"""PhenoCycler integration boundary: geometry always, identity only when verified.
+"""PhenoCycler integration boundary: geometry always, identity only when declared.
 
 Two exports behind one stage, split along what the caller actually needs.
 
 :func:`export_geometry` is always available. It reads ``runs/<id>/expression`` — the
 terminal stage of the current workflow — and emits a contract cell table carrying
-coordinates, area, ``cell_region``/``qupath_islet_num`` and identity-safe intensities,
-with **no** ``lineage_native``. Hormone intensities are withheld because their integration
-consumer applies an unverified positivity floor. None of this claims what any cell is.
+coordinates, area, ``cell_region``/``qupath_islet_num``, the ``qc_analysis_eligible`` flag
+as an audit column, and identity-safe intensities, with **no** ``lineage_native``. Hormone
+intensities are withheld because their integration consumer applies an unverified
+positivity floor. None of this claims what any cell is.
 
-Identity export stays fail-closed. There is no verified marker-pair or phenotype
-workflow, and historical ``restore_gated_redsea`` outputs are not accepted even through
-an opt-in. :func:`require_current_pheno` is the refusal, and the identity-dependent
+The **stage** (:func:`run_export_geometry`) exports the COMPLETE cell set of every
+partition, QC-ineligible cells included, and carries the flag beside them. Two reasons.
+A declared identity release covers every cell the arm saw and marks the rest
+``Unavailable(reason)``; attaching it by exact ``object_id`` needs the frame to be the whole
+frame, or the attach refuses on a UUID mismatch. And a downstream consumer that wants only
+eligible cells filters on the flag it can see, rather than inheriting a filter it cannot.
+The library function keeps ``analysis_eligible_only=True`` as its default so a direct caller
+gets the analysis set it asked for.
+
+After export the stage attaches the configured PhenoCycler release for every donor that
+release declares (:func:`~.phenospace.load_release_or_none` then :func:`attach_identity`,
+the same idiom ``import_xenium`` uses for Xenium). Donors the release does not declare, and
+every donor while no release exists, are written geometry only and announced as such.
+
+Identity export by any other route stays fail-closed. There is no verified marker-pair or
+phenotype workflow, and historical ``restore_gated_redsea`` outputs are not accepted even
+through an opt-in. :func:`require_current_pheno` is the refusal, and the identity-dependent
 stages call it directly.
 """
 
@@ -212,6 +227,11 @@ def export_geometry(
     ``lineage_native`` is left absent. ``coerce_cell_table`` fills it with the empty string,
     which is what :func:`~.contract.has_identity` reads as "no labels", so every
     identity-dependent consumer refuses this table on its own evidence rather than on a list.
+
+    ``qc_analysis_eligible`` is carried as a nullable boolean audit column whether or not
+    the table was filtered on it, so the same schema comes out either way and a reader can
+    always tell which cells the run's geometry QC admitted. A null flag stays null: an
+    unrecorded QC decision is unavailable, not a pass and not a fail.
     """
     root = _run_root(cfg, run_id)
     donor = str(donor_id)
@@ -257,6 +277,13 @@ def export_geometry(
     for m in markers:
         out[as_feature(m)] = pd.to_numeric(expr[m], errors="coerce").to_numpy()
 
+    # Audit context, never a filter applied on the reader's behalf: which cells the run's
+    # geometry QC admitted to analysis. Nullable so an unrecorded decision stays unrecorded.
+    if "qc_analysis_eligible" in expr.columns:
+        out["qc_analysis_eligible"] = pd.array(
+            expr["qc_analysis_eligible"].to_numpy(dtype=object), dtype="boolean"
+        )
+
     # Provenance: which immutable run these coordinates came from. Cheap to carry, and the
     # alternative is a table nobody can trace back to a content-addressed source.
     out["phenocycler_run_id"] = root.name
@@ -283,8 +310,19 @@ def run_export_geometry(
     *,
     run_id: Optional[str] = None,
     roi: Optional[str] = None,
+    analysis_eligible_only: bool = False,
 ) -> list[Path]:
-    """Export every requested donor's geometry table into ``cells_pheno_dir``."""
+    """Export every requested donor into ``cells_pheno_dir``, attaching a declared release.
+
+    The stage default is the COMPLETE cell set (``analysis_eligible_only=False``), with the
+    QC flag carried as a column -- see the module docstring for why. A configured PhenoCycler
+    release is attached by exact ``object_id`` for each donor it declares; the attach refuses
+    (``ExportError``) rather than drop or invent a cell, so a release that covers only part
+    of a partition stops the stage instead of silently narrowing the frame. Donors the
+    release does not declare are written geometry only and said so.
+    """
+    from .phenospace import load_release_or_none
+
     root = _run_root(cfg, run_id)
     available = sorted(p.name.split("=", 1)[1]
                        for p in (root / "expression").glob("donor_id=*") if p.is_dir())
@@ -293,13 +331,37 @@ def run_export_geometry(
     if unknown:
         raise ExportError(f"run {root.name} has no expression for donor(s) {unknown}")
 
+    release = load_release_or_none(cfg, "phenocycler")
+    if release is None:
+        print("[export_geometry] no PhenoCycler identity release available; every donor is "
+              "exported geometry only", flush=True)
+
     written: list[Path] = []
     for donor in wanted:
-        df = export_geometry(cfg, donor, run_id=run_id, roi=roi)
+        df = export_geometry(cfg, donor, run_id=run_id, roi=roi,
+                             analysis_eligible_only=analysis_eligible_only)
+        if "qc_analysis_eligible" in df.columns:
+            eligible = df["qc_analysis_eligible"]
+            n_ineligible = int((eligible == False).sum())  # noqa: E712 - nullable boolean
+            n_unknown = int(eligible.isna().sum())
+        else:
+            n_ineligible = n_unknown = 0
+
+        if release is not None and donor in set(release.donors):
+            df = attach_identity(df, release, donor)
+            identity_note = f"identity attached from release {release.release_id}"
+        elif release is not None:
+            identity_note = (f"geometry only: release {release.release_id} does not declare "
+                             f"donor {donor}")
+        else:
+            identity_note = "geometry only"
+
         resolved_roi = str(df["roi"].iloc[0])
         path = write_cell_table(df, partition_path(cfg.cells_pheno_dir, donor, resolved_roi))
         written.append(path)
-        print(f"[export_geometry] {donor}: {len(df):,} cells -> {path}", flush=True)
+        print(f"[export_geometry] {donor}: {len(df):,} cells ({n_ineligible:,} QC-ineligible "
+              f"kept with the flag, {n_unknown:,} unrecorded) -> {path}; {identity_note}",
+              flush=True)
     return written
 
 

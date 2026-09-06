@@ -29,6 +29,14 @@ lymph-node donor at WARN forever and permanently withhold ``crossmodal`` from ha
 cohort — for a reason that is an artefact of the gate design, not of the registration. So
 for those tissues the verdict rests on tissue Dice alone, which is the metric that actually
 exists. See ``phenocycler.integration.tissues``.
+
+The verdict is enforced by the consumers, not only printed in the report. ``match`` and
+``cellmatch`` skip a section whose verdict does not permit ``structure``; ``grid`` computes
+its registered half only where ``grid`` is permitted (its niche half needs no registration
+and always runs); ``crossmodal`` gates on ``crossmodal``. They read the verdicts through
+:func:`section_verdicts` / :func:`permits`, graded live from every stored ``qc.json``, so the
+gate holds before the ``qc`` stage has written ``registration_qc.csv`` and cannot be
+satisfied by a stale one.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from .manifest import load_manifest, paired_rows
+from .phenospace import identity_attached as _identity_attached
 from .register import registration_dir
 from .tissues import DISPLAY_NAME, has_structures
 
@@ -102,9 +111,9 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
 
     rows = []
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
+    # Attached means both releases LOAD, not that both paths are configured: config.ini names
+    # release directories before their producers have written them.
+    identity_attached = _identity_attached(cfg)
     for _, r in man.iterrows():
         donor, roi_name = r["donor_id"], r["roi"]
         roi_tissue = r.get("tissue", "") or cfg.tissue_for_roi(roi_name)
@@ -117,9 +126,12 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
         )
         path = registration_dir(cfg, donor, roi_name) / "qc.json"
         if not path.exists():
+            # No qc.json means no transform was ever fitted, so there is no `mirrored` value
+            # to report — the row says so explicitly rather than carrying a default.
             rows.append({"donor_id": donor, "roi": roi_name, "tissue": roi_tissue,
                          "verdict": FAIL, "reasons": "no registration produced", "track": "",
-                         "tissue_dice": np.nan, "islet_rmse_um": np.nan})
+                         "tissue_dice": np.nan, "islet_rmse_um": np.nan,
+                         "has_transform": False})
             continue
         d = json.loads(path.read_text())
         v, reasons = verdict_for(
@@ -127,7 +139,7 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
             dice_min=cfg.qc_tissue_dice_min, rmse_max=cfg.qc_islet_rmse_max_um,
             require_structures=require_structure_gate,
             structure_reason=structure_reason)
-        tf = d.get("transform", {})
+        tf = d.get("transform", {}) or {}
         rows.append({
             "donor_id": donor, "roi": roi_name, "tissue": roi_tissue, "verdict": v,
             "reasons": "; ".join(reasons),
@@ -136,6 +148,7 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
             "islet_dice": d.get("islet_dice", np.nan),
             "islet_rmse_um": d.get("rmse_um", np.nan),
             "n_inliers": d.get("n_inliers", 0),
+            "has_transform": bool(tf),
             "mirrored": tf.get("mirrored", False),
             "rotation_deg": tf.get("rotation_deg", np.nan),
             "scale": tf.get("scale", np.nan),
@@ -170,18 +183,39 @@ def sanity_flags(qc: pd.DataFrame, cfg: PipelineConfig) -> pd.DataFrame:
     flags = []
     for _, r in out.iterrows():
         f = []
-        scale = float(r.get("scale", np.nan))
+        scale = _finite_or_nan(r.get("scale", np.nan))
         if np.isfinite(scale) and not (0.9 <= scale <= 1.11):
             f.append(f"scale {scale:.3f} far from 1 — check units, not biology")
-        disp = float(r.get("max_disp_um", 0.0) or 0.0)
-        if disp >= cfg.reg_max_disp_um * 0.99:
+        disp = _finite_or_nan(r.get("max_disp_um", np.nan))
+        if np.isfinite(disp) and disp >= cfg.reg_max_disp_um * 0.99:
             f.append(f"displacement pinned at the {cfg.reg_max_disp_um:.0f} um cap")
-        mirrored = r.get("mirrored", False)
-        if pd.notna(mirrored) and bool(mirrored):
+        # Mirroring is a property of a fitted transform. The no-qc.json branch of
+        # collect_registration_qc never fits one, so its row has no `mirrored` value to
+        # assert; frames read back from CSV can carry NaN or a stray object. Assert the flag
+        # only when the row demonstrably has a transform and the value is a genuine True.
+        has_tf = r.get("has_transform", None)
+        if has_tf is None or (isinstance(has_tf, float) and np.isnan(has_tf)):
+            has_tf = np.isfinite(scale)       # a fitted transform always carries a finite scale
+        if bool(has_tf) and _is_true(r.get("mirrored", False)):
             f.append("section mounted mirrored (expected sometimes; noted for the record)")
         flags.append("; ".join(f))
     out["sanity_flags"] = flags
     return out
+
+
+def _finite_or_nan(value) -> float:
+    """``float(value)`` for anything numeric-looking; NaN for None/blank/garbage."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _is_true(value) -> bool:
+    """A genuine boolean True, or its CSV spelling. NaN, None, 0, '' and 'nan' are not."""
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    return str(value).strip().lower() == "true"
 
 
 def summarize(cfg: PipelineConfig, roi: Optional[str] = None,
@@ -325,9 +359,7 @@ def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
     # Geometry only: registration gates are Dice and islet RMSE, not composition.
     qc, report = summarize(cfg, roi, tissue)
     results = gather_results(cfg)
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
+    identity_attached = _identity_attached(cfg)
     if not identity_attached:
         # Old integration caches are deliberately not evidence that identity is current.
         results = {name: value for name, value in results.items() if name == "registration"}
@@ -345,14 +377,70 @@ def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
     return qc
 
 
+def section_verdicts(cfg: PipelineConfig, roi: Optional[str] = None,
+                     tissue: Optional[str] = None) -> dict[tuple[str, str], dict]:
+    """Verdict per ``(donor_id, roi)``, graded live from the stored ``qc.json`` files.
+
+    Computed through :func:`collect_registration_qc` rather than read from
+    ``registration_qc.csv``, so the gate is available before the ``qc`` stage has written
+    anything and cannot be satisfied by a CSV left over from an earlier registration.
+    Each value carries ``verdict``, the graded ``reasons`` and the ``allows`` tuple from
+    :data:`ALLOWED_BY_VERDICT`.
+    """
+    qc = collect_registration_qc(cfg, roi, tissue)
+    out: dict[tuple[str, str], dict] = {}
+    for _, r in qc.iterrows():
+        verdict = str(r["verdict"])
+        out[(str(r["donor_id"]), str(r["roi"]))] = {
+            "verdict": verdict,
+            "reasons": str(r.get("reasons", "") or ""),
+            "allows": tuple(ALLOWED_BY_VERDICT.get(verdict, ())),
+        }
+    return out
+
+
+def permits(verdicts: dict, donor: str, roi: str, level: str) -> tuple[bool, str]:
+    """Whether one section's verdict permits ``level``, and why not when it does not.
+
+    A section absent from ``verdicts`` was never graded — it is not in the paired manifest
+    scope — and is refused with that reason rather than passed by default.
+    """
+    if level not in ALLOWED_BY_VERDICT[PASS]:
+        raise ValueError(f"unknown integration level {level!r}; one of {ALLOWED_BY_VERDICT[PASS]}")
+    v = verdicts.get((str(donor), str(roi)))
+    if v is None:
+        return False, (f"no registration verdict for {donor}/{roi} (section not graded); "
+                       f"'{level}' is not permitted")
+    if level in v["allows"]:
+        return True, ""
+    why = (f"registration verdict {v['verdict']} does not permit '{level}' "
+           f"(permits: {', '.join(v['allows']) or 'nothing'}")
+    if v["reasons"]:
+        why += f"; {v['reasons']}"
+    return False, why + ")"
+
+
+def permitted_donors(cfg: PipelineConfig, level: str, roi: Optional[str] = None,
+                     tissue: Optional[str] = None) -> set[tuple[str, str]]:
+    """The ``(donor_id, roi)`` sections whose registration verdict permits ``level``.
+
+    Keyed by section, not donor: a donor's pancreas can register cleanly while its lymph
+    node does not, and a donor-level answer would let the bad alignment through. Computed
+    from :func:`collect_registration_qc`, so it works before the ``qc`` stage runs.
+    """
+    verdicts = section_verdicts(cfg, roi, tissue)
+    return {key for key in verdicts if permits(verdicts, key[0], key[1], level)[0]}
+
+
 def passing_donors(cfg: PipelineConfig, level: str, roi: Optional[str] = None,
                    tissue: Optional[str] = None) -> list[str]:
-    """Donors whose verdict permits ``level`` ('structure', 'grid', 'crossmodal', ...)."""
-    qc = collect_registration_qc(cfg, roi, tissue)
-    if qc.empty:
-        return []
-    ok = qc["verdict"].map(lambda v: level in ALLOWED_BY_VERDICT.get(v, ()))
-    return sorted(set(qc.loc[ok, "donor_id"].tolist()))
+    """Donor ids with at least one section permitted at ``level``.
+
+    Retained for callers that want a donor list; anything that gates a section should use
+    :func:`permitted_donors` or :func:`permits` so a donor's failed lymph node cannot ride
+    on its passing pancreas.
+    """
+    return sorted({donor for donor, _roi in permitted_donors(cfg, level, roi, tissue)})
 
 
 def main(argv: Optional[list[str]] = None) -> int:

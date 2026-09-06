@@ -36,6 +36,7 @@ import pandas as pd
 from ..config import PipelineConfig, load_config
 from .contract import CellTable, partition_path, read_cell_table, write_cell_table
 from .manifest import load_manifest, paired_rows
+from .qc import permits, section_verdicts
 from .register import registration_dir
 from .transform import Transform
 from .vocab import COMMON_LINEAGES
@@ -308,6 +309,11 @@ def run_grid(
     — and writes its outputs once at the end. Calling it once per ROI instead would have each
     ROI's write overwrite the last, since the output paths are stage-level rather than
     per-section.
+
+    The niche half runs for every section: it needs no registration, which is its point. The
+    registered grid half runs only where the section's registration verdict permits ``grid``
+    (``qc.ALLOWED_BY_VERDICT`` — PASS or WARN, never FAIL); a failed alignment would otherwise
+    be read back as a spatially resolved disagreement between the modalities.
     """
     from .export_pheno import require_current_identity
 
@@ -318,8 +324,10 @@ def run_grid(
     if man.empty:
         print("[grid] no paired donors", flush=True)
         return pd.DataFrame()
+    verdicts = section_verdicts(cfg, roi=roi, tissue=tissue)
 
     cfg.niches_dir.mkdir(parents=True, exist_ok=True)
+    cfg.integration_qc_dir.mkdir(parents=True, exist_ok=True)
     rows, all_profiles, all_bins = [], [], []
 
     for _, r in man.iterrows():
@@ -351,9 +359,17 @@ def run_grid(
                "n_niches": int(max(p_lab.max(), x_lab.max()) + 1),
                "niche_median_cosine": float(agree["cosine"].median()) if len(agree) else np.nan}
 
-        # --- grid view: needs registration ---
+        # --- grid view: needs a registration AND a verdict that permits reading it ---
         reg = registration_dir(cfg, donor, roi)
-        if use_registration and (reg / "transform.json").exists():
+        grid_ok, why = permits(verdicts, donor, roi, "grid")
+        if not use_registration:
+            row["n_bins"] = 0
+            row["grid_note"] = "registration disabled by the caller — niche view only"
+        elif not grid_ok:
+            row["n_bins"] = 0
+            row["grid_note"] = f"{why} — niche view only"
+            print(f"[grid] {donor}/{roi}: registered grid skipped — {why}", flush=True)
+        elif (reg / "transform.json").exists():
             tf = Transform.load(reg)
             xen_reg = xen.df.copy()
             tf.apply_to_frame(xen_reg)

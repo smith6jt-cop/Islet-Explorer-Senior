@@ -26,6 +26,7 @@ import pandas as pd  # noqa: E402
 from ..config import STATUS_ORDER, PipelineConfig, load_config  # noqa: E402
 from .contract import read_cell_table  # noqa: E402
 from .manifest import load_manifest, paired_rows  # noqa: E402
+from .phenospace import identity_attached
 from .rasterize import grid_for, tissue_mask  # noqa: E402
 from .register import registration_dir  # noqa: E402
 from .transform import Transform  # noqa: E402
@@ -94,10 +95,8 @@ def registration_overlay(
         ax.set_yticks([])
 
     ax = axes[2]
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
-    if not identity_attached:
+    attached = identity_attached(cfg)
+    if not attached:
         ax.text(0.5, 0.5, "identity not attached\nstructure overlay omitted",
                 ha="center", va="center", transform=ax.transAxes)
         ax.set_title("structure correspondence unavailable")
@@ -326,10 +325,8 @@ def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
             made.append(p)
             print(f"[figures] {p}", flush=True)
 
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
-    if identity_attached:
+    attached = identity_attached(cfg)
+    if attached:
         for fn in (composition_figure, islet_concordance_figure, disease_trend_figure):
             p = fn(cfg)
             if p:

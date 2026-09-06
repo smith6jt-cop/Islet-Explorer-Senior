@@ -61,8 +61,8 @@ STAGES: list[tuple[str, str, str]] = [
     ("manifest", "integration/manifest.csv", "Donor <-> Xenium pairing manifest"),
     ("export_pheno", "integration/cells_pheno/donor_id=*", "PhenoCycler -> contract"),
     ("import_xenium", "integration/cells_xen/donor_id=*", "Xenium -> contract"),
-    ("postxen", "integration/paired/postxen_cells.parquet",
-     "Post-Xenium re-stain <-> Xenium, same slide [measurement]"),
+    ("postxen", "integration/qc/postxen_qc.csv",
+     "Post-Xenium re-stain IF values -> Xenium cells, same slide [measurement]"),
     ("vocab", "integration/vocab_crosswalk.csv", "Lineage + marker crosswalk"),
     ("structures", "integration/structures/*/donor_id=*", "Islets / ducts / vessels"),
     ("register", "integration/registration/donor_id=*", "Serial-section registration"),
@@ -368,6 +368,7 @@ def _panel_genes(cfg: PipelineConfig, tissue: str) -> Optional[list[str]]:
     genuine per-tissue panel difference rather than surface it.
     """
     from .contract import discover_partitions, feature_name, read_cell_table
+    from .import_xenium import is_gene_feature
 
     wanted = set(cfg.rois_for_tissue(tissue))
     parts = [p for p in discover_partitions(cfg.cells_xen_dir) if not wanted or p[1] in wanted]
@@ -379,7 +380,7 @@ def _panel_genes(cfg: PipelineConfig, tissue: str) -> Optional[list[str]]:
     except FileNotFoundError:
         return None
     genes = [feature_name(c) for c in t.features]
-    return [g for g in genes if not g.startswith("score_")] or None
+    return [g for g in genes if is_gene_feature(g)] or None
 
 
 def main(argv: Optional[list[str]] = None) -> int:

@@ -25,6 +25,15 @@ flagged ``broad_lowsignal``. Those calls are weaker than the classifier's, in th
 PhenoCycler's ``epi_default`` calls are weaker than a positive gate. Both land in the
 contract's ``evidence_positive`` so composition comparisons can be run on like against like.
 
+**Per-gene anchors.** Beside the per-lineage ``feat__score_<lineage>`` means, the h5ad and
+zarr readers export ``feat__<gene>`` for every on-panel gene of a crosswalk TYPE anchor
+(``vocab.protein_gene_pairs`` filtered by ``usable_anchors(type_only=True)``; a multi-gene
+pair such as CD3e -> CD3E|CD3D|CD3G exports each gene the panel carries). Lineage scores are
+not per-gene features -- ``crossmodal.resolve_anchors`` rightly refuses them as anchors, and
+a Xenium table carrying only scores starved pseudo-cell linking of every anchor. State
+(PROCESS) genes are never exported here: the registry's tiering rule keeps them out of any
+identity-shaped feature space, and an anchor set is exactly that.
+
 Optional dependencies (``anndata``, ``spatialdata``, ``h5py``) are imported lazily and only
 in the reader that needs them, so importing this module in the lean core environment works
 and the error names the extra when a reader is actually used.
@@ -42,7 +51,7 @@ import pandas as pd
 from ..config import PipelineConfig, load_config
 from .contract import as_feature, coerce_cell_table, partition_path, write_cell_table
 from .manifest import load_manifest, paired_rows, rows_for_scope
-from .vocab import PanelTaxonomy, load_panel_taxonomy
+from .vocab import PanelTaxonomy, load_panel_taxonomy, protein_gene_pairs, usable_anchors
 
 #: obs columns worth carrying when present. Everything else stays in the h5ad.
 OBS_PASSTHROUGH = (
@@ -50,6 +59,57 @@ OBS_PASSTHROUGH = (
     "broad_confidence", "broad_n_identity_genes", "broad_lowsignal", "cycling",
     "spatial_niche", "donor_sex", "leiden_scvi",
 )
+
+#: Feature-name prefixes on the Xenium table that are NOT gene symbols: per-lineage
+#: identity-core means (``score_``) and the post-Xenium re-stain's protein intensities
+#: (``if_``, written by ``postxen``). Anything else under ``feat__`` is a gene.
+NON_GENE_FEATURE_PREFIXES = ("score_", "if_")
+
+
+def is_gene_feature(name: str) -> bool:
+    """Whether a bare feature name (``feature_name(column)``) is a gene symbol."""
+    return not name.startswith(NON_GENE_FEATURE_PREFIXES)
+
+
+def type_anchor_genes(var_names) -> list[str]:
+    """On-panel genes of every crosswalk TYPE anchor, in crosswalk order, each once.
+
+    ``usable_anchors(type_only=True)`` is the whole rule: the protein must be a registry
+    ``type`` marker and at least one candidate gene must be on this run's panel. Every
+    present gene of a multi-gene pair is kept -- CD3E and CD3G are both direct evidence for
+    CD3e, and choosing one for the anchor would discard the other for no reason. Nothing
+    here consults a state marker; ``PROCESS`` pairs never reach the anchor list.
+    """
+    pairs = usable_anchors(protein_gene_pairs(var_names), type_only=True)
+    genes: list[str] = []
+    for pair in pairs:
+        for gene in pair.genes:
+            if gene not in genes:
+                genes.append(gene)
+    return genes
+
+
+def anchor_gene_values(adata, layer: str = "lognorm") -> pd.DataFrame:
+    """Per-cell values of the TYPE-anchor genes from ``layers[layer]`` (falling back to X).
+
+    ``lognorm`` is the same layer ``identity_core_scores`` reads, so an anchor gene and the
+    lineage score it contributes to are on one scale. Columns are sliced once and densified
+    once: a 5K-gene CSR sliced gene by gene is slow, and the anchor set is a few dozen genes,
+    so the dense block is small.
+    """
+    var_names = [str(v) for v in adata.var_names]
+    genes = type_anchor_genes(var_names)
+    if not genes:
+        return pd.DataFrame(index=pd.RangeIndex(adata.n_obs))
+    index = {}
+    for i, g in enumerate(var_names):
+        index.setdefault(g, i)          # first occurrence wins for a duplicated symbol
+    cols = [index[g] for g in genes]
+    X = adata.layers[layer] if (layer and layer in getattr(adata, "layers", {})) else adata.X
+    block = X[:, cols]
+    dense = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
+    dense = np.asarray(dense, dtype=np.float32).reshape(adata.n_obs, len(genes))
+    return pd.DataFrame(dense, columns=genes, index=pd.RangeIndex(adata.n_obs))
 
 
 class ImportError_(RuntimeError):
@@ -147,7 +207,23 @@ def _from_h5ad(path: Path, tax: Optional[PanelTaxonomy]) -> tuple[pd.DataFrame, 
         except Exception as exc:  # noqa: BLE001 - scores are a bonus, not a requirement
             print(f"[import_xenium] identity-core scores unavailable for {path.name}: {exc}",
                   flush=True)
+    _add_anchor_genes(feats, adata, path, layer="lognorm")
     return obs, feats
+
+
+def _add_anchor_genes(feats: pd.DataFrame, adata, path: Path, *, layer: str) -> None:
+    """Append ``feat__<gene>`` for the TYPE anchors; a failure is announced, never fatal."""
+    try:
+        genes = anchor_gene_values(adata, layer=layer)
+    except Exception as exc:  # noqa: BLE001 - anchors are additive to the geometry table
+        print(f"[import_xenium] per-gene TYPE anchors unavailable for {path.name}: {exc}",
+              flush=True)
+        return
+    for gene in genes.columns:
+        feats[as_feature(gene)] = genes[gene].to_numpy()
+    if len(genes.columns):
+        print(f"[import_xenium] {path.name}: {len(genes.columns)} per-gene TYPE anchors "
+              f"({', '.join(genes.columns)})", flush=True)
 
 
 def _from_zarr(path: Path, tax: Optional[PanelTaxonomy]) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -182,6 +258,8 @@ def _from_zarr(path: Path, tax: Optional[PanelTaxonomy]) -> tuple[pd.DataFrame, 
         except Exception as exc:  # noqa: BLE001
             print(f"[import_xenium] identity-core scores unavailable for {path.name}: {exc}",
                   flush=True)
+    if adata.n_vars:
+        _add_anchor_genes(feats, adata, path, layer="")
     return obs, feats
 
 
@@ -373,6 +451,16 @@ def run_import_xenium(
         write_cell_table(df, path)
         print(f"[import_xenium] {r['donor_id']}/{r['roi']} ({row_tissue}): {len(df):,} "
               f"cells -> {path.parent}", flush=True)
+        # The re-stain lane's per-cell IF INS / GCG values are FEATURES on the same cells (same
+        # section, 0.55-0.63 um registration), so they join the geometry table here as
+        # feat__if_<marker>; no identity and no positivity is implied (plan Q4).
+        from .postxen import stamp_if_values
+        ifres = stamp_if_values(cfg, r["donor_id"], r["roi"])
+        if ifres.get("error"):
+            print(f"[import_xenium] {r['donor_id']}/{r['roi']}: IF values not stamped -- {ifres['error']}", flush=True)
+        elif ifres["markers"]:
+            print(f"[import_xenium] {r['donor_id']}/{r['roi']}: feat__if_{{{','.join(ifres['markers'])}}} "
+                  f"stamped on {ifres['n_stamped']:,} cells (NaN where unmeasured)", flush=True)
         rows.append({"donor_id": r["donor_id"], "roi": r["roi"], "tissue": row_tissue,
                      "n_cells": len(df), "source": str(src)})
 

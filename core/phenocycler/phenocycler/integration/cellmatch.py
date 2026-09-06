@@ -68,6 +68,7 @@ import pandas as pd
 from ..config import PipelineConfig, load_config
 from .contract import CellTable, read_cell_table
 from .manifest import load_manifest, paired_rows
+from .qc import permits, section_verdicts
 from .register import icp, registration_dir
 from .sameslide import match_by_centroid
 from .transform import Transform
@@ -314,7 +315,13 @@ def match_donor_cells(cfg: PipelineConfig, donor: str, roi: str) -> tuple[pd.Dat
 
 def run_cellmatch(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
                   roi: Optional[str] = None, tissue: Optional[str] = None) -> pd.DataFrame:
-    """Stage entry point. Endocrine cells inside matched islets, guarded at every step."""
+    """Stage entry point. Endocrine cells inside matched islets, guarded at every step.
+
+    The first guard is the registration verdict: a section whose verdict does not permit
+    ``structure`` (``qc.ALLOWED_BY_VERDICT``) is skipped with the reason printed. Matched
+    islets from S6 already presuppose that verdict, but S6b re-checks it rather than trusting
+    a ``paired/islets.parquet`` that may predate the registration now on disk.
+    """
     from .export_pheno import require_current_identity
 
     require_current_identity("integration cell matching", cfg=cfg)
@@ -324,6 +331,7 @@ def run_cellmatch(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
     if man.empty:
         print("[cellmatch] no paired sections", flush=True)
         return pd.DataFrame()
+    verdicts = section_verdicts(cfg, roi=roi, tissue=tissue)
 
     print(f"[cellmatch] matching {'/'.join(MATCHABLE_TYPES)} cells inside matched islets; "
           f"cap {cfg.cellmatch_max_dist_um} um, local residual must be "
@@ -335,6 +343,10 @@ def run_cellmatch(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
     frames, rows, per_islet = [], [], []
     for _, r in man.iterrows():
         donor, roi_name = r["donor_id"], r["roi"]
+        ok, why = permits(verdicts, donor, roi_name, "structure")
+        if not ok:
+            print(f"[cellmatch] {donor}/{roi_name}: skipped — {why}", flush=True)
+            continue
         try:
             pairs, stats = match_donor_cells(cfg, donor, roi_name)
         except FileNotFoundError as exc:

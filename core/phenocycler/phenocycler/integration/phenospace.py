@@ -198,6 +198,14 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     configured = _configured_path(cfg, modality)
     if configured is None:
         raise PhenotypeSpaceError(f"no declared {modality} identity release is configured")
+    if not configured.exists():
+        # config.ini may name the release directory a producer lane WILL write (the
+        # broadtype A.4a release, the Xenium typer release) before either exists. For the
+        # strict loader that is still "no release": identity stages must fail closed on it.
+        raise PhenotypeSpaceError(
+            f"{modality} identity release is configured at {configured} but nothing exists "
+            "there yet; the producer lane has not written its release"
+        )
     source = configured / "release.json" if configured.is_dir() else configured
     payload = _read_json(source)
     version = int(payload.get("schema_version", -1))
@@ -312,9 +320,44 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
 
 
 def load_release_or_none(cfg: PipelineConfig, modality: str) -> Optional[PhenotypeRelease]:
-    """Return None only when no path is configured; configured invalid releases still raise."""
+    """Return None when no release is *available*; a configured invalid release still raises.
 
-    return None if _configured_path(cfg, modality) is None else load_release(cfg, modality)
+    Two absences are treated alike: no path configured, and a configured path that does not
+    exist yet. The second is the normal state while a producer lane is still running --
+    ``config.ini`` names the directory it will write so that geometry stages attach identity
+    the moment it lands, without a config edit. A directory that exists but holds an invalid
+    release is different: that is a broken declaration, and it raises.
+    """
+
+    configured = _configured_path(cfg, modality)
+    if configured is None:
+        return None
+    if not configured.exists():
+        print(f"[phenospace] {modality} identity release configured at {configured} does not "
+              "exist yet; continuing geometry only", flush=True)
+        return None
+    return load_release(cfg, modality)
+
+
+def identity_attached(cfg: PipelineConfig) -> bool:
+    """True only when BOTH declared releases actually load.
+
+    ``bool(cfg.phenocycler_identity_release and cfg.xenium_identity_release)`` was the
+    previous test, and it became wrong the moment ``config.ini`` started naming release
+    directories ahead of their producers: a configured path is a promise, not an attached
+    identity. A configured release that fails validation is reported and counted as not
+    attached, so a geometry-only report is never blocked by a broken declaration.
+    """
+
+    for modality in ("phenocycler", "xenium"):
+        try:
+            if load_release_or_none(cfg, modality) is None:
+                return False
+        except PhenotypeSpaceError as exc:
+            print(f"[phenospace] {modality} identity release is configured but invalid; "
+                  f"treating identity as not attached: {exc}", flush=True)
+            return False
+    return True
 
 
 def require_declared_phenotype(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
@@ -448,6 +491,7 @@ __all__ = [
     "PhenotypeSpace",
     "PhenotypeSpaceError",
     "attach_release_identity",
+    "identity_attached",
     "load_phenotype_space",
     "load_release",
     "load_release_or_none",

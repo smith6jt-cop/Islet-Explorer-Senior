@@ -42,6 +42,18 @@ ISL1, NEUROD1, ABCC8). With the re-stain those calls can be *checked against hor
 on the same cell* — and once stamped onto the Xenium table, the serial-section machinery
 (S6b) gets endocrine types derived from protein on both sides, which is what makes
 beta-to-beta matching across the pair meaningful.
+
+**2026-09-05 repoint.** The re-stain qptiff was never run through the core pipeline, so the
+``cells_pheno_xif`` table this stage was written against does not exist.  The measurement it
+was meant to carry exists elsewhere and better: ``scripts/restain/protein_rna.py`` measures INS and
+GCG inside every Xenium cell's OWN polygon (the same DAPI the registration was fitted on; per-cell
+median registration error 0.55-0.63 um), with NaN -- never 0 -- where a cell fell outside the imaged
+area.  :func:`stamp_if_values` writes those per-cell values onto the Xenium cell table as
+``feat__if_INS`` / ``feat__if_GCG`` (called from ``import_xenium`` S1b, where features belong):
+continuous protein evidence on the same cells, no positivity implied.  The hormone-derived
+``endocrine_subtype`` stamp stays behind ``STAMP_ENDOCRINE_SUBTYPE``
+(default OFF): no cell is called INS+ or GCG+ until the maintainer defines a true positive (plan Q4),
+so the pairing arm below runs only when a ``cells_pheno_xif`` table exists AND the flag is on.
 """
 
 from __future__ import annotations
@@ -108,6 +120,67 @@ def _match(cfg, donor, roi, rest, xen, offset, *, method, max_dist_um, min_iou):
                   f"falling back to centroids", flush=True)
 
     return match_by_centroid(rest.xy() + offset, xen.xy(), max_dist_um=max_dist_um), "centroid"
+
+
+#: Q4: no hormone positive is declared, so the endocrine_subtype stamp is off by default.
+STAMP_ENDOCRINE_SUBTYPE = False
+IF_MARKERS = ("INS", "GCG")
+
+
+def restain_if_dir(cfg: PipelineConfig) -> Path:
+    """Where scripts/restain/protein_rna.py wrote the per-cell IF arrays (repo-root data/development)."""
+    return Path(cfg.repo_root) / "data" / "development" / "restain" / "protein_rna" \
+        if hasattr(cfg, "repo_root") else Path(__file__).resolve().parents[4] / "data" / "development" / "restain" / "protein_rna"
+
+
+def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Optional[Path] = None,
+                    bundle_cells: Optional[Path] = None) -> dict:
+    """Write the re-stain lane's per-cell IF INS / GCG values onto the Xenium cell table.
+
+    The arrays are in the bundle's ``cells.parquet`` order (the lane measures Xenium's own cell
+    polygons), so they are joined to the geometry table by ``cell_id`` through that order -- never
+    by position in the geometry table, whose order is the import's.  A length mismatch is refused,
+    not padded.  Values are protein evidence (``feat__if_<marker>``); NaN stays NaN.
+    """
+    if_dir = Path(if_dir) if if_dir is not None else restain_if_dir(cfg)
+    out = {"donor_id": donor, "roi": roi, "n_stamped": 0, "markers": []}
+    try:
+        xen = read_cell_table(cfg.cells_xen_dir, donor, roi, modality="xenium")
+    except FileNotFoundError:
+        out["error"] = "no Xenium geometry table"
+        return out
+    serial = ""
+    if bundle_cells is None:
+        man = paired_rows(load_manifest(cfg), roi=roi)
+        row = man[man["donor_id"].astype(str) == str(donor)]
+        if row.empty or not str(row.iloc[0].get("xenium_bundle", "")):
+            out["error"] = "no Xenium bundle in the manifest"
+            return out
+        bundle_cells = Path(str(row.iloc[0]["xenium_bundle"])) / "cells.parquet"
+        serial = str(row.iloc[0].get("xenium_serial", ""))
+    if not Path(bundle_cells).exists():
+        out["error"] = f"bundle cells.parquet missing: {bundle_cells}"
+        return out
+    order = pd.read_parquet(bundle_cells, columns=["cell_id"])["cell_id"].astype(str).to_numpy()
+    df = xen.df
+    stamped = 0
+    for m in IF_MARKERS:
+        cands = sorted(if_dir.glob(f"{donor}_{serial}_cell_{m}.npy")) if serial else sorted(if_dir.glob(f"{donor}_*_cell_{m}.npy"))
+        col = f"feat__if_{m}"
+        if not cands:
+            df[col] = np.nan
+            continue
+        v = np.load(cands[0]).astype(np.float32)
+        if len(v) != len(order):
+            raise ValueError(f"{cands[0].name}: {len(v)} values for {len(order)} bundle cells -- refusing to align by position")
+        s_ = pd.Series(v, index=order)
+        df[col] = s_.reindex(df["cell_id"].astype(str)).to_numpy(dtype=np.float32)
+        out["markers"].append(m)
+        stamped = int(np.isfinite(df[col].to_numpy(dtype=float)).sum())
+    out["n_stamped"] = stamped
+    if out["markers"]:
+        write_cell_table(df, partition_path(cfg.cells_xen_dir, donor, roi))
+    return out
 
 
 def pair_restain(
@@ -246,9 +319,15 @@ def run_postxen(cfg: PipelineConfig, donors: Optional[list[str]] = None, *,
     require_current_identity(
         "post-Xenium phenotype transfer", cfg=cfg, modalities=("xenium",)
     )
+    # The re-stain lane's per-cell IF values are stamped by import_xenium (S1b) as features;
+    # this stage's cell-pairing arm and its endocrine_subtype stamp wait on the Q4 declaration.
+    if not STAMP_ENDOCRINE_SUBTYPE:
+        print("[postxen] endocrine_subtype stamp is OFF (plan Q4: no hormone positive is declared); "
+              "the pairing arm is not run. IF values reach cells_xen through import_xenium.", flush=True)
+        return pd.DataFrame()
     if not cfg.cells_pheno_xif_dir.exists():
         print(f"[postxen] no post-Xenium re-stains under {cfg.cells_pheno_xif_dir} — nothing "
-              f"to do. Sections are routed here by their section key carrying a "
+              f"to pair. Sections are routed here by their section key carrying a "
               f"{SLIDE_XENIUM!r}-slide token; see phenocycler/sections.py.", flush=True)
         return pd.DataFrame()
 
