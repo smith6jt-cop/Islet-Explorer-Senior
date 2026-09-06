@@ -104,7 +104,7 @@ def x02_drop_reasons(donor: str, prov: dict, X: xen_io.XenTables | None = None) 
 def x03_negative_controls(donors: list, prov: dict, tables: dict | None = None) -> FigureRecord:
     tables = tables or {d: xen_io.load_tables(d) for d in donors}
     types = list(pins.XENIUM_FEATURE_TYPES) if hasattr(pins, "XENIUM_FEATURE_TYPES") else sorted(next(iter(tables.values())).feature_types)
-    fig, axes = style.figure(1, 2, width=6.2)
+    fig, axes = style.figure(1, 2, width=6.2, height=5.6)
     ax = axes[0, 0]
     w = 0.8 / len(donors)
     facts = {}
@@ -114,10 +114,11 @@ def x03_negative_controls(donors: list, prov: dict, tables: dict | None = None) 
         ax.bar(np.arange(len(types)) + i * w, vals, width=w, label=f"{d} ({X.status}, {pins.XENIUM_SERIAL.get(str(d), '')})", color=style.status_color(X.status))
         facts[d] = {"per_type_mean_per_cell": X.per_type_mean_per_cell, "feature_types": X.feature_types, "per_type_total": X.per_type_total}
     ax.set_xticks(np.arange(len(types)) + w * (len(donors) - 1) / 2)
-    ax.set_xticklabels([f"{t}\n(n={tables[donors[0]].feature_types.get(t, '?')})" for t in types], fontsize=7)
-    ax.set_yscale("log"); ax.set_ylabel("mean decoded counts per cell per feature (log)"); ax.legend(fontsize=7)
-    ax.set_title("X03-A  per-feature-type mean counts per cell (all bundle cells)")
-    style.denominator(ax, "denominator: every bundle cell; per feature, so feature-set size does not inflate a type", loc="lower left")
+    ax.set_xticklabels([f"{t}\n(n={tables[donors[0]].feature_types.get(t, '?')})" for t in types], fontsize=7, rotation=25, ha="right")
+    # symlog keeps 0 on the axis (linear below 1e-3, log above); a plain log axis would hide the floor
+    ax.set_yscale("symlog", linthresh=1e-3, linscale=0.5); ax.set_ylim(bottom=0)
+    ax.set_ylabel("mean counts / cell / feature\n(symlog, linear below 1e-3, 0 on the axis)"); ax.legend(fontsize=7)
+    ax.set_title(style.wrap("X03-A  per-feature-type mean counts per cell; denominator: every bundle cell, per feature, so feature-set size does not inflate a type", 80), fontsize=9)
     ax = axes[0, 1]
     rows = []
     for d in donors:
@@ -128,7 +129,7 @@ def x03_negative_controls(donors: list, prov: dict, tables: dict | None = None) 
         cols = [c for c in ms.columns if any(k in c.lower() for k in ("negative", "unassigned", "q20", "median_transcripts", "decod", "cells_detected"))]
         rows.append((d, "\n".join(f"{c}: {ms.iloc[0][c]}" for c in cols[:10])))
     ax.axis("off")
-    ax.text(0.0, 1.0, "\n\n".join(f"donor {d}:\n{txt}" for d, txt in rows), va="top", ha="left", fontsize=7, family="monospace", transform=ax.transAxes)
+    ax.text(0.0, 1.0, "\n\n".join(f"donor {d}:\n{txt}" for d, txt in rows), va="top", ha="left", fontsize=6.5, family="monospace", transform=ax.transAxes)
     ax.set_title("X03-B  instrument metrics_summary (decoding QC) where transferred")
     style.title(fig, "X03 negative controls and decoding QC -- donors " + ", ".join(donors))
     style.footer(fig, prov); style.finish(fig)

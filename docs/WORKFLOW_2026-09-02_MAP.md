@@ -202,6 +202,11 @@ git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04
 - §3: all 20 Xenium bases exist and are finalized (identity_panel 478, zero state-only overlap); the
   integration manifest resolves `xenium_h5ad` for all 20 paired donors.
 - §7: `external/.venv-nimbus`, `external/.venv-kronos` (KRONOS access pending), R CELESTA + spdep installed.
-- Xenium Analyzer outputs (`analysis/`, `metrics_summary.csv`, `experiment.xenium`, `gene_panel.json`) for the
-  16 bundles under `/orange/maigan/Xenium_T1D_PancPLN` were requested by Globus (task `b84a08bc…`); the
-  MM046/MM047 runs (6450, 6505, 6534, 6623) were not found under either HiPerGator root.
+- Xenium Analyzer outputs (`analysis/`, `analysis_summary.html`, `metrics_summary.csv`, `experiment.xenium`) for
+  the 16 bundles under `/orange/maigan/Xenium_T1D_PancPLN` landed 2026-09-06 (Globus task `793c7c34…`, 480 files,
+  5.8 GB, into the matching bundle dirs under `/data/xenium/HuPrime5kPanTissue/`). The first attempt
+  (`b84a08bc…`) had been aimed at endpoint `6ea86da5…` "D6-36_FBMS-J506-W1", which is a *different* workstation, and
+  failed every retry with `500 Path not allowed`; this machine is `f1b69b9e…` "LInux Processing" and its Globus
+  Connect Personal must be started (`~/globusconnectpersonal-3.2.8/globusconnectpersonal -start`) before a
+  transfer. The MM046/MM047 runs (6450, 6505, 6534, 6623) were not found under either HiPerGator root, so
+  arm X3 is `Unavailable(not_transferred)` for those four donors.
