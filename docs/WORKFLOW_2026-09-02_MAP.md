@@ -189,3 +189,19 @@ git -C ../../external/UniFORM rev-parse HEAD    # 7c33396d12e5a19dc0b36e46a94c32
 git -C ../../external/utag rev-parse HEAD       # 056cb87ee90aa850450b806b075033bc8c50703a
 git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04d2d9ea508e
 ```
+
+## 9. 2026-09-05 addendum — what changed since this map was written
+
+- New lanes: `core/phenocycler/scripts/broadtype/` (the broad-typing bake-off; protocol
+  `docs/BROADTYPE_PROTOCOL_2026-09.md`), `scripts/xenium_typing/` (X1/X2/X3 Xenium producer comparison),
+  `scripts/report/` (the two-donor figure set under `data/development/report/`), `scripts/common/` (Track E.3
+  executed: gates/tiff_window/window_mask/label_space moved out of the closed dct lane).
+- §4: `export_pheno` now exports the complete cell set and attaches a declared release; `import_xenium`
+  writes per-gene type anchors and `feat__if_*`; verdict enforcement in match/cellmatch/grid;
+  `config.ini` names both release directories. The stale `structures/phenocycler/*/islets.parquet` were removed.
+- §3: all 20 Xenium bases exist and are finalized (identity_panel 478, zero state-only overlap); the
+  integration manifest resolves `xenium_h5ad` for all 20 paired donors.
+- §7: `external/.venv-nimbus`, `external/.venv-kronos` (KRONOS access pending), R CELESTA + spdep installed.
+- Xenium Analyzer outputs (`analysis/`, `metrics_summary.csv`, `experiment.xenium`, `gene_panel.json`) for the
+  16 bundles under `/orange/maigan/Xenium_T1D_PancPLN` were requested by Globus (task `b84a08bc…`); the
+  MM046/MM047 runs (6450, 6505, 6534, 6623) were not found under either HiPerGator root.

@@ -514,3 +514,21 @@ evidence, not a completed registration result.
   `/blue/maigan` paths cleared onto two roots (`ROOT` for code, `XENIUM_DATA_ROOT` for data).
   This package still reads its *artifacts* rather than importing it; the handful of shared
   constants (DBSCAN parameters, insulitis thresholds) remain vendored with provenance comments.
+
+## 2026-09-05 — releases declared, complete cell set, both transfer directions
+
+- `config.ini [integration]` names the two development release directories
+  (`data/development/broadtype/release`, `data/development/xenium_typing/release`); an absent directory
+  means geometry only (`phenospace.load_release_or_none`).
+- S1a `export_pheno` exports the COMPLETE cell set with `qc_analysis_eligible` as an audit column and
+  attaches a declared PhenoCycler release by exact `object_id`; S1b `import_xenium` exports per-gene
+  `feat__<gene>` for the crosswalk's TYPE anchors (state genes never) and stamps the re-stain lane's
+  per-cell IF INS/GCG values as `feat__if_*` (same section, protein evidence, no positivity).
+- S1c `postxen` keeps its identity gate first; its `endocrine_subtype` stamp is off (`STAMP_ENDOCRINE_SUBTYPE`)
+  until a hormone positive is declared (plan Q4).
+- `match`, `cellmatch` and the registered half of `grid` enforce `qc.ALLOWED_BY_VERDICT`; `qc.sanity_flags`
+  no longer asserts "mirrored" for donors without a transform; `figures` uses `phenospace.identity_attached`.
+- Directions of transfer, stated once: same section (IF ↔ Xenium, PASS at 0.55/0.63 µm) supports per-cell
+  protein evidence onto Xenium cells; the serial section (PhenoCycler ↔ Xenium) supports the registration-free
+  niche comparison always, islet-level transfer where the verdict permits, per-cell matching only for endocrine
+  cells inside matched islets, and `crossmodal` links only at PASS.
