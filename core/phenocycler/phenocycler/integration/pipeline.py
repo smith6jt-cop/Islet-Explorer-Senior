@@ -197,6 +197,11 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
     print(f"tissues          : {', '.join(DISPLAY_NAME.get(t, t) for t in selected)}")
     print(f"rois             : {', '.join(cfg.resolve_rois(None, selected))}")
     print()
+    from .phenospace import identity_attached, load_release_or_none
+    attached = identity_attached(cfg)
+    attached_ids = ", ".join(
+        getattr(load_release_or_none(cfg, m), "release_id", "?") for m in ("phenocycler", "xenium")
+    ) if attached else ""
     print(f"  {'stage':<15} {'done':>5}  {'':<3} description")
     print("  " + "-" * 74)
     for name, pattern, label in STAGES:
@@ -208,9 +213,11 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
             scope = "  [outputs present but never trusted as a cache; always re-derived]"
         if name not in order:
             mark = "n/a"
-        elif name in PHENO_IDENTITY_STAGES:
+        elif name in PHENO_IDENTITY_STAGES and not attached:
             mark = "BLOCKED"
             scope = "  [needs a cell identity; no verified pair roster. cached files ignored]"
+        elif name in PHENO_IDENTITY_STAGES:
+            scope = f"  [identity attached: {attached_ids}; development releases, latch NO_VERIFIED_TYPING down]"
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:

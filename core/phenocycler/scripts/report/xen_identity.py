@@ -135,13 +135,23 @@ def x05_umap(donor: str, prov: dict) -> FigureRecord:
         return _unavailable("X05", donor, prov, "no Xenium release yet")
     arm = io.producer(MOD)
     jm = io.XENIUM_TYPING / "joint_model"
-    if arm != xpins.ARM_JOINT or not (jm / "train_latent.npy").exists():
+    sys.path.insert(0, str(pins.PKG / "scripts" / "xenium_typing")); import gate as xgate  # noqa: E402
+    if arm == xpins.ARM_JOINT and (jm / "train_latent.npy").exists():
+        Z = np.load(jm / "train_latent.npy"); obs = pd.read_parquet(jm / "train_obs.parquet")
+        sel = obs["donor_id"].astype(str).to_numpy() == str(donor)
+        ids = obs.index.astype(str).to_numpy()[sel]
+        ids = np.array([i.rsplit("-", 1)[0] if i.count("-") > 1 else i for i in ids])
+        Zd = Z[sel]; latent_name = "joint scVI latent (batch = run)"; inputs = [jm / "train_latent.npy", jm / "train_obs.parquet"]
+    elif arm == xpins.ARM_SCANVI and xpins.sidecar_path(donor).exists():
+        import h5py
+        from anndata.io import read_elem
+        with h5py.File(xpins.sidecar_path(donor), "r") as f:
+            ids_all = np.asarray(read_elem(f["obs"]).index).astype(str)
+            Z_all = np.asarray(read_elem(f["obsm/X_scvi_broad"]), dtype=np.float32)
+        idx = xgate.hash_subsample(ids_all, 200_000, salt="x05")
+        ids, Zd = ids_all[idx], Z_all[idx]; latent_name = "per-donor scANVI broad latent (X_scvi_broad, hash-sampled 200k)"; inputs = [xpins.sidecar_path(donor)]
+    else:
         return _unavailable("X05", donor, prov, f"producer {arm!r} keeps no per-cell latent on disk for donor {donor}")
-    Z = np.load(jm / "train_latent.npy"); obs = pd.read_parquet(jm / "train_obs.parquet")
-    sel = obs["donor_id"].astype(str).to_numpy() == str(donor)
-    ids = obs.index.astype(str).to_numpy()[sel]
-    ids = np.array([i.rsplit("-", 1)[0] if i.count("-") > 1 else i for i in ids])
-    Zd = Z[sel]
     lab = calls.set_index("cell_id")["lineage_native"].reindex(ids).fillna(io.UNAVAILABLE).to_numpy()
     import umap
     emb = umap.UMAP(n_neighbors=30, min_dist=0.3, random_state=0, n_jobs=1).fit_transform(Zd)
@@ -152,12 +162,12 @@ def x05_umap(donor: str, prov: dict) -> FigureRecord:
         if m.any():
             ax.scatter(emb[m, 0], emb[m, 1], s=1.5, c=io.label_color(L, common, colors), label=f"{L} n={m.sum():,}", linewidths=0, alpha=0.7)
     ax.legend(fontsize=6, markerscale=6); ax.set_xticks([]); ax.set_yticks([])
-    ax.set_title(style.wrap(f"X05  diagnostic UMAP of the {len(Zd):,} joint-model training cells of this donor in the joint scVI latent (batch = run); coloured by released label -- a picture, not evidence"), fontsize=8)
+    ax.set_title(style.wrap(f"X05  diagnostic UMAP of {len(Zd):,} cells of this donor in the producer's latent: {latent_name}; coloured by released label -- a picture, not evidence"), fontsize=8)
     style.title(fig, f"X05 diagnostic UMAP -- donor {donor}, producer {arm}"); style.footer(fig, prov, donor); style.finish(fig)
     out = pins.OUT / str(donor) / SEC; files = style.savefig(fig, out, "X05_umap_diagnostic"); plt.close(fig)
-    facts = {"n_cells": int(len(Zd)), "latent_dim": int(Z.shape[1]), "umap": {"n_neighbors": 30, "min_dist": 0.3, "random_state": 0}}
+    facts = {"n_cells": int(len(Zd)), "latent_dim": int(Zd.shape[1]), "latent": latent_name, "umap": {"n_neighbors": 30, "min_dist": 0.3, "random_state": 0}}
     files.append(_side(out, "X05_umap_diagnostic", facts))
-    return _rec("X05", donor, files, [jm / "train_latent.npy", jm / "train_obs.parquet", *io.release_inputs(MOD)], facts)
+    return _rec("X05", donor, files, [*inputs, *io.release_inputs(MOD)], facts)
 
 
 # ------------------------------------------------------------------ X06 spatial map
