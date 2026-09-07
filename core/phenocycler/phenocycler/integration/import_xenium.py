@@ -304,6 +304,47 @@ def read_xenium(
     raise ImportError_(f"unrecognised Xenium source: {source}")
 
 
+def _widen_to_bundle(obs: pd.DataFrame, feats: pd.DataFrame, bundle: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Re-index a QC-retained source onto the instrument's COMPLETE cell set.
+
+    A phenotyped h5ad carries only the cells its QC kept (641,487 of 695,113 on donor 6436), but the
+    integration frame is the instrument's own cell set -- symmetric with the PhenoCycler export, which
+    now carries every QuPath object including the QC-ineligible ones. Without this the declared release
+    (built on every bundle cell, with the dropped ones ``Unavailable(qc_dropped:...)``) cannot attach:
+    ``attach_release_identity`` refuses a frame change when calls lack geometry. The dropped cells keep
+    their bundle geometry and carry NaN features; nothing is imputed. A bundle that does not contain
+    every source cell is a mismatch, not a tolerance to widen.
+    """
+    cells = Path(bundle) / "cells.parquet"
+    if not cells.exists():
+        return obs, feats
+    b = pd.read_parquet(cells)
+    if "cell_id" not in b.columns:
+        return obs, feats
+    ids = b["cell_id"].astype(str).to_numpy()
+    src_ids = obs["cell_id"].astype(str).to_numpy()
+    missing = np.setdiff1d(src_ids, ids)
+    if len(missing):
+        raise ImportError_(
+            f"{Path(bundle).name}: {len(missing)} source cells are absent from the bundle cell set "
+            f"(e.g. {missing[:3].tolist()}); refusing to widen onto a frame that does not contain them"
+        )
+    if len(ids) == len(src_ids):
+        return obs, feats
+    bb = b.rename(columns={"x_centroid": "x_um", "y_centroid": "y_um"}).set_index(pd.Index(ids))
+    obs2 = obs.set_index(pd.Index(src_ids)).reindex(ids)
+    obs2["cell_id"] = ids
+    for c in ("x_um", "y_um", "cell_area"):
+        if c not in bb.columns:
+            continue
+        col = pd.Series(pd.to_numeric(bb[c], errors="coerce").to_numpy(), index=obs2.index)
+        obs2[c] = pd.to_numeric(obs2[c], errors="coerce").fillna(col) if c in obs2.columns else col
+    feats2 = feats.set_index(pd.Index(src_ids)).reindex(ids)
+    print(f"[import_xenium] widened to the bundle cell set: {len(src_ids):,} source cells -> {len(ids):,} "
+          f"({len(ids) - len(src_ids):,} QC-dropped cells keep bundle geometry, features NaN)", flush=True)
+    return obs2.reset_index(drop=True), feats2.reset_index(drop=True)
+
+
 def import_sample(
     source: Path,
     *,
@@ -313,6 +354,7 @@ def import_sample(
     tissue: str = "",
     tax: Optional[PanelTaxonomy] = None,
     release=None,
+    spine: Optional[Path] = None,
 ) -> pd.DataFrame:
     """Build the contract table for one Xenium section.
 
@@ -325,6 +367,8 @@ def import_sample(
 
     tissue = normalize(tissue) if tissue else (for_roi(roi) or "pancreas")
     obs, feats = read_xenium(source, tax)
+    if spine is not None and Path(spine) != Path(source):
+        obs, feats = _widen_to_bundle(obs, feats, Path(spine))
 
     embedded_broad = _obs_str(obs, "celltype_broad")
     embedded_fine = _obs_str(obs, "celltype")
@@ -444,9 +488,13 @@ def run_import_xenium(
                   f"disk — skipped", flush=True)
             continue
         row_tissue = r.get("tissue", "") or cfg.tissue_for_roi(r["roi"])
+        # The instrument bundle is the frame even when a richer (QC-retained) source supplies the
+        # features, so the imported cell set is complete and a declared release can attach to it.
+        bundle = str(r.get("xenium_bundle", "") or "").strip()
+        spine = Path(bundle) if bundle and Path(bundle).exists() else None
         df = import_sample(src, donor_id=r["donor_id"], roi=r["roi"], tissue=row_tissue,
                            sample_key=r.get("xenium_sample_key", ""), tax=_tax_for(row_tissue),
-                           release=release)
+                           release=release, spine=spine)
         path = partition_path(cfg.cells_xen_dir, r["donor_id"], r["roi"])
         write_cell_table(df, path)
         print(f"[import_xenium] {r['donor_id']}/{r['roi']} ({row_tissue}): {len(df):,} "

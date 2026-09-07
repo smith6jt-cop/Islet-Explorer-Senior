@@ -24,8 +24,7 @@ import pins  # noqa: E402
 import style  # noqa: E402
 from manifest import FigureRecord  # noqa: E402
 
-sys.path.insert(0, str(pins.PKG / "scripts" / "xenium_typing"))
-import pins as xpins  # noqa: E402  (scripts/xenium_typing/pins -- shadows nothing: imported under another name)
+xpins = io.xenium_lane()["pins"]          # scripts/xenium_typing/pins, loaded under its own name (see identity_io)
 
 SEC = "xen"
 MOD = "xenium"
@@ -69,7 +68,7 @@ def x04_cores(donor: str, prov: dict) -> FigureRecord:
     calls = _calls(donor)
     if calls is None:
         return _unavailable("X04", donor, prov, "no Xenium release yet (data/development/xenium_typing/release)")
-    sys.path.insert(0, str(pins.PKG / "scripts" / "xenium_typing")); import gate as xgate  # noqa: E402
+    xgate = io.xenium_lane()["gate"]
     base = xgate.load_base_for_gate(donor)
     cores = xpins.identity_cores()
     ids = base["obs_names"]; X = base["lognorm"]; genes = base["var_names"]
@@ -88,30 +87,50 @@ def x04_cores(donor: str, prov: dict) -> FigureRecord:
         for j, L in enumerate(labs):
             sel = lab == L
             M[i, j] = float(score[sel].mean()); F[i, j] = float(det[sel].mean())
-    fig, axes = style.figure(1, 2, width=6.5, height=5.2)
+    fig, axes = style.figure(1, 2, width=7, height=5.4)
     ax = axes[0, 0]
-    mx = np.nanmax(M) if np.isfinite(M).any() else 1.0
+    # colour: z of each core's mean ACROSS the labels (a core is only interpretable against its own row);
+    # size: the fraction of that core's genes detected in the label's cells.
+    row_mu, row_sd = np.nanmean(M, axis=1, keepdims=True), np.nanstd(M, axis=1, keepdims=True)
+    Z = (M - row_mu) / np.where(row_sd > 0, row_sd, np.nan)
+    vmax = float(np.nanmax(np.abs(Z))) if np.isfinite(Z).any() else 1.0
+    ii, jj = np.meshgrid(np.arange(len(core_names)), np.arange(len(labs)), indexing="ij")
+    ok = np.isfinite(Z)
+    sc = ax.scatter(jj[ok], ii[ok], s=20 + 460 * np.nan_to_num(F[ok]), c=Z[ok], cmap="RdBu_r", vmin=-vmax, vmax=vmax,
+                    edgecolors="#444444", linewidths=0.3)
     for i in range(len(core_names)):
-        for j in range(len(labs)):
-            if np.isfinite(M[i, j]):
-                ax.scatter(j, i, s=20 + 380 * F[i, j], c=[[M[i, j] / mx, 0.2, 1 - M[i, j] / mx]], linewidths=0)
+        j = int(np.nanargmax(Z[i])) if np.isfinite(Z[i]).any() else None
+        if j is not None:
+            ax.scatter([j], [i], s=20 + 460 * np.nan_to_num(F[i, j]), facecolors="none", edgecolors="black", linewidths=1.4)
     ax.set_xticks(range(len(labs))); ax.set_xticklabels([f"{L}\nn={(lab == L).sum():,}" for L in labs], rotation=45, ha="right", fontsize=7)
     ax.set_yticks(range(len(core_names))); ax.set_yticklabels([f"{c} ({len(cores[c])} genes)" for c in core_names], fontsize=7)
-    ax.invert_yaxis(); ax.set_xlim(-0.6, len(labs) - 0.4)
-    ax.set_title(style.wrap("X04-A  identity-core mean lognorm (colour, 0 -> max) and detected fraction (size) per released label; state subpanels are not drawn"), fontsize=8)
+    ax.invert_yaxis(); ax.set_xlim(-0.6, len(labs) - 0.4); ax.set_ylim(len(core_names) - 0.4, -0.6)
+    fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.02, label="core mean, z across labels (row-wise)")
+    for f_, lbl in ((0.1, "10%"), (0.5, "50%"), (0.9, "90%")):
+        ax.scatter([], [], s=20 + 460 * f_, c="#888888", label=f"{lbl} of core genes detected")
+    ax.legend(fontsize=6, loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=3, frameon=False)
+    ax.set_title(style.wrap("X04-A  identity-core signal per released label: colour = z of the core mean across labels, "
+                            "size = detected fraction, black ring = the label where the core is highest. State subpanels are never drawn.", 95), fontsize=7.5)
     ax = axes[0, 1]
     arm = io.producer(MOD); v = io.verdict(MOD, arm, donor) if arm else None
     if v and v.get("nullgate", {}).get("evaluable"):
         per = v.get("lineages", {})
         names = [L for L in xpins.LINEAGES]
-        real = [per.get(L, {}).get("award", {}).get("real", np.nan) for L in names]
-        p95 = [per.get(L, {}).get("award", {}).get("null_p95", np.nan) for L in names]
+        real = [per.get(L, {}).get("award", {}).get("real_own", np.nan) for L in names]
+        p95 = [per.get(L, {}).get("award", {}).get("null_p95_own", np.nan) for L in names]
+        real = [np.nan if v is None else float(v) for v in real]
+        p95 = [np.nan if v is None else float(v) for v in p95]
         x = np.arange(len(names))
-        ax.bar(x - 0.2, real, 0.4, color=[io.label_color(L, common, io.common_colors()) for L in names], label="real (own core on own cells)")
-        ax.bar(x + 0.2, p95, 0.4, color="#BBBBBB", label="matched null p95")
+        ax.bar(x - 0.2, real, 0.4, color=[io.label_color(L, common, io.common_colors()) for L in names], label="real: this lineage's own core on the cells it was given")
+        ax.bar(x + 0.2, p95, 0.4, color="#BBBBBB", label="matched-gene null p95 (200 draws, detection-matched)")
+        top = np.nanmax([v for v in real + p95 if np.isfinite(v)] or [1.0])
         for k, L in enumerate(names):
             a = per.get(L, {}).get("award", {})
-            ax.text(k, max(np.nan_to_num(real[k]), np.nan_to_num(p95[k])), "awarded" if a.get("awarded") else ("unjudgeable" if not a.get("judgeable", True) else "not awarded"), ha="center", va="bottom", fontsize=6, rotation=90)
+            r = per.get(L, {})
+            txt = ("verified" if r.get("verified") else
+                   ("awarded, not verified" if a.get("awarded") else
+                    ("unjudgeable" if not a.get("judgeable", True) else "below null")))
+            ax.text(k, top * 0.02, txt, ha="center", va="bottom", fontsize=5.5, rotation=90)
         ax.set_xticks(x); ax.set_xticklabels(names, rotation=45, ha="right", fontsize=7); ax.set_ylabel("nullgate contrast (standardised core mean)")
         ax.axhline(0, color="black", lw=0.6); ax.legend(fontsize=7, loc="upper left")
         ax.set_title(style.wrap(f"X04-B  null-gated award per lineage label ({v.get('null_draws')} draws; {arm})"), fontsize=8)
@@ -135,7 +154,7 @@ def x05_umap(donor: str, prov: dict) -> FigureRecord:
         return _unavailable("X05", donor, prov, "no Xenium release yet")
     arm = io.producer(MOD)
     jm = io.XENIUM_TYPING / "joint_model"
-    sys.path.insert(0, str(pins.PKG / "scripts" / "xenium_typing")); import gate as xgate  # noqa: E402
+    xgate = io.xenium_lane()["gate"]
     if arm == xpins.ARM_JOINT and (jm / "train_latent.npy").exists():
         Z = np.load(jm / "train_latent.npy"); obs = pd.read_parquet(jm / "train_obs.parquet")
         sel = obs["donor_id"].astype(str).to_numpy() == str(donor)
@@ -229,7 +248,7 @@ def x07_proportions(donors: list, prov: dict) -> FigureRecord:
         vc = c["lineage_native"].value_counts(); A[name] = {L: vc.get(L, 0) / len(c) for L in labs}
         ev = c[c["evidence_positive"].astype(bool)]; B[name] = {L: (ev["lineage_native"] == L).sum() / max(len(ev), 1) for L in common}
         typed = c[c["lineage_native"].isin(list(common))]
-        low = typed["reason"].astype(str).str.contains("low_signal")
+        low = typed["reason"].astype(str).str.replace("_", "", regex=False).str.contains("lowsignal")
         LS[name] = {L: float(low[typed["lineage_native"] == L].mean()) if (typed["lineage_native"] == L).sum() else np.nan for L in common}
         ns[name] = (len(c), len(ev), int(low.sum()))
     A, B, LS = pd.DataFrame(A).T, pd.DataFrame(B).T, pd.DataFrame(LS).T
@@ -243,7 +262,12 @@ def x07_proportions(donors: list, prov: dict) -> FigureRecord:
     for i, (name, row) in enumerate(LS.iterrows()):
         ax.bar(x + i * w, row.reindex(list(common)).to_numpy(float), w, color=style.status_color(pins.donor_status(name.split(" ")[0])), label=name)
     ax.set_xticks(x + w * (len(LS) - 1) / 2); ax.set_xticklabels(list(common), rotation=45, ha="right", fontsize=7); ax.set_ylim(0, 1)
-    ax.set_ylabel("share of typed cells flagged low_signal"); ax.legend(fontsize=7); ax.set_title(style.wrap("X07-C  low-signal share per lineage"), fontsize=8)
+    ax.set_ylabel("share of typed cells flagged low-signal by the typer")
+    hi = float(np.nanmax(LS.to_numpy())) if np.isfinite(LS.to_numpy()).any() else 0.0
+    ax.set_ylim(0, max(hi * 1.3, 1e-3))
+    ax.legend(fontsize=7)
+    ax.set_title(style.wrap(f"X07-C  low-signal share per lineage (no eligible lineage at the floor; the label is the argmax). "
+                            f"Highest here: {hi:.3%} of typed cells.", 78), fontsize=7.5)
     fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=5, fontsize=7)
     style.title(fig, f"X07 Xenium lineage proportions by donor (ND / Aab+ n=0 / T1D) -- producer {io.producer(MOD)}")
     style.footer(fig, prov); style.finish(fig, bottom=0.21)

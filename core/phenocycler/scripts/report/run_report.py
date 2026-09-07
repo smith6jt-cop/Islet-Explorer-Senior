@@ -26,13 +26,13 @@ from manifest import Manifest, verify  # noqa: E402
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--donors", nargs="+", default=list(pins.DONORS))
-    ap.add_argument("--section", nargs="+", default=["pheno", "xen"], choices=["pheno", "xen", "identity", "multi", "bakeoff", "all"])
+    ap.add_argument("--section", nargs="+", default=["pheno", "xen"], choices=["pheno", "xen", "identity", "multi", "bakeoff", "kronos2doc", "all"])
     ap.add_argument("--only", nargs="+", default=None)
     ap.add_argument("--preflight", action="store_true")
     ap.add_argument("--verify", action="store_true")
     a = ap.parse_args(argv)
     if "all" in a.section:
-        a.section = ["pheno", "xen", "identity", "multi", "bakeoff"]
+        a.section = ["pheno", "xen", "identity", "multi", "bakeoff", "kronos2doc"]
     if a.verify:
         ok, rows = verify()
         return 0 if ok else 1
@@ -79,6 +79,9 @@ def main(argv=None) -> int:
     if "multi" in a.section:
         import multi
         _run_section(multi)
+    if "kronos2doc" in a.section:
+        import kronos2_doc_fig
+        _run_section(kronos2_doc_fig)
     if "bakeoff" in a.section:
         import bakeoff
         for rec in bakeoff.run(prov, a.only):

@@ -63,3 +63,37 @@ def test_a_length_mismatch_is_refused_not_padded(cfg, xen_geometry, tmp_path):
 
 def test_endocrine_subtype_stamp_is_off_by_default():
     assert postxen.STAMP_ENDOCRINE_SUBTYPE is False
+
+
+# --------------------------------------------------------------------------- bundle spine (2026-09-07)
+def test_widen_to_bundle_keeps_the_instrument_cell_set(tmp_path):
+    """A QC-retained source is re-indexed onto the bundle's complete cell set: dropped cells keep
+    bundle geometry and carry NaN features, and nothing is imputed."""
+    import numpy as np
+    import pandas as pd
+    from phenocycler.integration.import_xenium import _widen_to_bundle
+
+    bundle = tmp_path / "b"; bundle.mkdir()
+    pd.DataFrame({"cell_id": ["a", "b", "c", "d"], "x_centroid": [1.0, 2.0, 3.0, 4.0],
+                  "y_centroid": [5.0, 6.0, 7.0, 8.0], "cell_area": [10.0, 11.0, 12.0, 13.0]}
+                 ).to_parquet(bundle / "cells.parquet")
+    obs = pd.DataFrame({"cell_id": ["a", "c"], "x_um": [1.0, 3.0], "y_um": [5.0, 7.0]})
+    feats = pd.DataFrame({"feat__score_Endocrine": [0.5, 0.25]}, index=obs.index)
+
+    obs2, feats2 = _widen_to_bundle(obs, feats, bundle)
+    assert list(obs2["cell_id"]) == ["a", "b", "c", "d"]
+    assert list(obs2["x_um"]) == [1.0, 2.0, 3.0, 4.0]          # dropped cells take bundle geometry
+    assert np.isnan(feats2["feat__score_Endocrine"].to_numpy()[[1, 3]]).all()   # never imputed
+    assert feats2["feat__score_Endocrine"].to_numpy()[0] == 0.5
+
+
+def test_widen_to_bundle_refuses_a_bundle_missing_source_cells(tmp_path):
+    import pandas as pd
+    import pytest as _pytest
+    from phenocycler.integration.import_xenium import ImportError_, _widen_to_bundle
+
+    bundle = tmp_path / "b"; bundle.mkdir()
+    pd.DataFrame({"cell_id": ["a"], "x_centroid": [1.0], "y_centroid": [2.0]}).to_parquet(bundle / "cells.parquet")
+    obs = pd.DataFrame({"cell_id": ["a", "zz"], "x_um": [1.0, 9.0], "y_um": [2.0, 9.0]})
+    with _pytest.raises(ImportError_, match="absent from the bundle cell set"):
+        _widen_to_bundle(obs, pd.DataFrame(index=obs.index), bundle)
