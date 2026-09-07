@@ -145,7 +145,9 @@ def embed_job(job: dict) -> dict:
     sel = Selection(include=stored_names(slides[0], list(job["select"])))
     embs, labels, regions = [], [], []
     for w, s in zip(job["windows"], slides):
-        s.encode_features(ext, cfg, channels=sel, suffix=job["variant"], batch_size=int(job["batch_size"]))
+        # num_workers is CORAL's loader parallelism (patch reads overlap the forward pass); it changes wall time only
+        s.encode_features(ext, cfg, channels=sel, suffix=job["variant"], batch_size=int(job["batch_size"]),
+                          num_workers=int(job.get("num_workers", 0)))
         ds = s.features(ext, cfg, channels=sel, suffix=job["variant"])
         feats = np.asarray(ds["features"].values if "features" in ds else ds.to_array().values[0], dtype=np.float32)
         cid = np.asarray(ds["cell_id"].values, dtype=np.int64)

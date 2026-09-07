@@ -127,6 +127,7 @@ DEFAULT_PARAMS: dict = {
     "marker_mapping": "CANONICAL (antigen match to CORAL registry_v1; exact separator-insensitive key inside KRONOS2); novel rows NOVEL_ROWS",
     "embedding": "x_norm_clstoken, 768-d; per-marker/spatial tokens discarded",
     "batch_size": 128,
+    "num_workers": 8,          # CORAL loader subprocesses reading patches ahead of the forward pass (wall time only)
     "knn_k": 15, "knn_metric": "euclidean",
     "knn_graph": "pynndescent k+1 neighbours, self removed, symmetrised union, unweighted",
     "leiden": "leidenalg.RBConfigurationVertexPartition, n_iterations=-1 (to convergence)",
@@ -233,6 +234,7 @@ def embed_frame(ctx: arm_base.ArmContext, assets: dict, exchange: pathlib.Path) 
                "novel_rows": [r_ for r_ in NOVEL_ROWS if r_["marker_name"] in set(full_markers)],
                "select": select, "variant": ctx.config_id.replace(":", "_"), "model_dir": str(KRONOS2_DIR),
                "mpp": float(pins.PIXEL_SIZE_UM), "patch_size": DEFAULT_PARAMS["patch_px"], "batch_size": DEFAULT_PARAMS["batch_size"],
+               "num_workers": DEFAULT_PARAMS["num_workers"],
                "out": str(exchange / "emb.npz"), "result": str(exchange / "embed_result.json")}
         res = run_worker("embed", job, exchange / "embed_job.json")
         info["embedded"] = {k: v for k, v in res.items() if k != "resolution"}

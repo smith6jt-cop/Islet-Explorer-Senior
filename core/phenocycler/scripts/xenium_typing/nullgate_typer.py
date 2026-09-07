@@ -52,7 +52,9 @@ def read_sidecar(donor: str) -> pd.DataFrame:
     return out
 
 
-def run(donor: str) -> pathlib.Path:
+def run(donor: str, replicates: pd.DataFrame | None = None) -> pathlib.Path:
+    """``replicates``: cell_id + one ``seed:<k>`` label column per re-run of the typer at another
+    RANDOM_STATE (``scanvi_replicates.py``); None = the incumbent single run, stability unjudged."""
     t0 = time.time()
     calls = read_sidecar(donor)
     cores = pins.identity_cores()
@@ -64,9 +66,11 @@ def run(donor: str) -> pathlib.Path:
         pinned={"sidecar": str(pins.sidecar_path(donor)), "sidecar_sha256": pins.sha256_file(pins.sidecar_path(donor)),
                 "base": str(pins.base_path(donor)), "panel": pins.panel_snapshot()},
         params={"source": "analysis/xenium/scripts/hierarchical_phenotype.py --output slim (run 2026-09-03)",
-                "replicates": "none: one run at random_state 0; stability is unjudged"},
+                "replicates": ("none: one run at random_state 0; stability is unjudged" if replicates is None else
+                               f"{len(replicates.columns) - 1} re-runs of the same typer at RANDOM_STATE 1.. (scanvi_replicates.py); "
+                               "primary sidecar untouched")},
         notes="incumbent per-donor scANVI typer, read from its sidecar; nothing re-run")
-    return gate.write_calls(calls, rec)
+    return gate.write_calls(calls, rec, replicates=replicates)
 
 
 def main(argv=None) -> int:
