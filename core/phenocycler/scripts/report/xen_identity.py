@@ -234,9 +234,9 @@ def x07_proportions(donors: list, prov: dict) -> FigureRecord:
         ax.bar(x + i * w, row.reindex(list(common)).to_numpy(float), w, color=style.status_color(pins.donor_status(name.split(" ")[0])), label=name)
     ax.set_xticks(x + w * (len(LS) - 1) / 2); ax.set_xticklabels(list(common), rotation=45, ha="right", fontsize=7); ax.set_ylim(0, 1)
     ax.set_ylabel("share of typed cells flagged low_signal"); ax.legend(fontsize=7); ax.set_title(style.wrap("X07-C  low-signal share per lineage"), fontsize=8)
-    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", ncol=5, fontsize=7)
+    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=5, fontsize=7)
     style.title(fig, f"X07 Xenium lineage proportions by donor (ND / Aab+ n=0 / T1D) -- producer {io.producer(MOD)}")
-    style.footer(fig, prov); style.finish(fig, bottom=0.16)
+    style.footer(fig, prov); style.finish(fig, bottom=0.21)
     out = pins.OUT / "_pair" / SEC; files = style.savefig(fig, out, "X07_proportions_by_donor"); plt.close(fig)
     facts = {"all": A.to_dict(), "evidence_positive": B.to_dict(), "low_signal_share": LS.to_dict(), "n": ns}
     files.append(_side(out, "X07_proportions_by_donor", facts))
@@ -265,8 +265,8 @@ def x08_zones(donor: str, prov: dict) -> FigureRecord:
     fig, axes = style.figure(1, 1, width=6, height=5); ax = axes[0, 0]
     io.stacked_bars(ax, Z, labs, common, colors); ax.set_ylabel("fraction of cells in zone")
     ax.set_title(style.wrap("X08  by identity-derived islet zone (S3 Xenium structures; peri = within 20 um of a structure member)"), fontsize=8)
-    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", ncol=5, fontsize=7)
-    style.title(fig, f"X08 Xenium proportions by islet zone -- donor {donor}, producer {io.producer(MOD)}"); style.footer(fig, prov, donor); style.finish(fig, bottom=0.16)
+    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=5, fontsize=7)
+    style.title(fig, f"X08 Xenium proportions by islet zone -- donor {donor}, producer {io.producer(MOD)}"); style.footer(fig, prov, donor); style.finish(fig, bottom=0.21)
     out = pins.OUT / str(donor) / SEC; files = style.savefig(fig, out, "X08_proportions_by_zone"); plt.close(fig)
     facts = {"by_zone": Z.to_dict(), "n_structures": int(m.loc[core, "structure_id"].nunique())}
     files.append(_side(out, "X08_proportions_by_zone", facts))

@@ -182,9 +182,9 @@ def m02_maps(donor: str, prov: dict) -> FigureRecord:
         df = _xy(mod, donor).merge(calls[["cell_id", "common"]], on="cell_id", how="left"); df["common"] = df["common"].fillna(io.UNAVAILABLE)
         _raster(ax, df, order, colors, title=f"M02  {mod} in its OWN frame ({len(df):,} cells, 20 um majority raster of common_lineage)")
         counts[mod] = df["common"].value_counts().to_dict()
-    fig.legend(handles=[matplotlib.patches.Patch(color=(colors.get(L) if L in colors else ("#888888" if L == io.AMBIGUOUS else "#BBBBBB")), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in order if any(L in c for c in counts.values())], loc="lower center", ncol=6, fontsize=7)
+    fig.legend(handles=[matplotlib.patches.Patch(color=(colors.get(L) if L in colors else ("#888888" if L == io.AMBIGUOUS else "#BBBBBB")), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in order if any(L in c for c in counts.values())], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=6, fontsize=7)
     style.title(fig, f"M02 common-lineage maps, each modality in its own frame (serial-section verdict {verdict}: the transform is drawn only in M01) -- donor {donor}")
-    style.footer(fig, prov, donor); style.finish(fig, bottom=0.12)
+    style.footer(fig, prov, donor); style.finish(fig, bottom=0.21)
     out = _out(donor); files = style.savefig(fig, out, "M02_side_by_side_maps"); plt.close(fig)
     facts = {"counts": counts, "verdict": verdict}
     files.append(_side(out, "M02_side_by_side_maps", facts))
@@ -229,8 +229,8 @@ def m03_composition(donors: list, prov: dict) -> FigureRecord:
         ax.set_title(style.wrap(f"M03  {mode.replace('_', ' ')}: Spearman rho {rho:.2f} vs within-donor label-permutation null p95 {p95:.2f} (n={len(t)} points, descriptive)"), fontsize=7.5)
         ax.legend(fontsize=6, loc="lower right")
         facts[mode] = {"rho": float(rho), "null_p95": p95, "points": t.to_dict(orient="records")}
-    fig.legend(handles=[matplotlib.patches.Patch(color=colors.get(L, "#999"), label=L) for L in comp], loc="lower center", ncol=7, fontsize=7)
-    style.title(fig, "M03 composition concordance over donor.comparable_for('pancreas') lineages, both donors"); style.footer(fig, prov); style.finish(fig, bottom=0.14)
+    fig.legend(handles=[matplotlib.patches.Patch(color=colors.get(L, "#999"), label=L) for L in comp], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=7, fontsize=7)
+    style.title(fig, "M03 composition concordance over donor.comparable_for('pancreas') lineages, both donors"); style.footer(fig, prov); style.finish(fig, bottom=0.21)
     out = _out("_pair", "_pair"); files = style.savefig(fig, out, "M03_composition_concordance"); plt.close(fig)
     files.append(_side(out, "M03_composition_concordance", facts))
     return _rec("M03", "_pair", files, io.release_inputs("phenocycler") + io.release_inputs("xenium"), facts, section="_pair")

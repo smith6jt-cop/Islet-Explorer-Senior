@@ -6,7 +6,8 @@
 
 Sections: ``pheno`` (P01-P05, immutable run + Step 2 only), ``xen`` (X01-X03, bundle + base only),
 ``identity`` (P06-P11 from the PhenoCycler release, X04-X09 from the Xenium release), ``multi`` (M01-M06,
-serial-section integration + same-section IF), ``all``.  A figure whose release or stage output does not
+serial-section integration + same-section IF), ``bakeoff`` (B01-B04: every arm beside its nulls, from the
+screen verdicts and the Xenium gate records), ``all``.  A figure whose release or stage output does not
 exist yet renders a stated "not available" panel.  Every figure is recorded in ``figure_manifest.json``
 with the sha256 of every input it read; ``--verify`` re-hashes them.
 """
@@ -25,13 +26,13 @@ from manifest import Manifest, verify  # noqa: E402
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--donors", nargs="+", default=list(pins.DONORS))
-    ap.add_argument("--section", nargs="+", default=["pheno", "xen"], choices=["pheno", "xen", "identity", "multi", "all"])
+    ap.add_argument("--section", nargs="+", default=["pheno", "xen"], choices=["pheno", "xen", "identity", "multi", "bakeoff", "all"])
     ap.add_argument("--only", nargs="+", default=None)
     ap.add_argument("--preflight", action="store_true")
     ap.add_argument("--verify", action="store_true")
     a = ap.parse_args(argv)
     if "all" in a.section:
-        a.section = ["pheno", "xen", "identity", "multi"]
+        a.section = ["pheno", "xen", "identity", "multi", "bakeoff"]
     if a.verify:
         ok, rows = verify()
         return 0 if ok else 1
@@ -78,6 +79,10 @@ def main(argv=None) -> int:
     if "multi" in a.section:
         import multi
         _run_section(multi)
+    if "bakeoff" in a.section:
+        import bakeoff
+        for rec in bakeoff.run(prov, a.only):
+            man.add_figure(rec)
     p = man.write()
     print(f"[report] manifest {p}")
     return 0

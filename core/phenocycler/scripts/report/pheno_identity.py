@@ -222,9 +222,9 @@ def p09_proportions(donors: list, prov: dict) -> FigureRecord:
     ax = axes[0, 1]; io.stacked_bars(ax, B, list(common), common, colors)
     ax.set_ylabel("fraction of evidence-positive cells"); ax.set_title(style.wrap("P09-B  evidence-positive only (a VERIFIED label on that donor)"), fontsize=9)
     style.denominator(ax, "; ".join(f"{k}: n_ev={v[1]:,}" for k, v in ns.items()), loc="upper right")
-    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", ncol=5, fontsize=7)
+    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=5, fontsize=7)
     style.title(fig, f"P09 broad-label proportions by donor (ND / Aab+ n=0 / T1D) -- producer {io.producer(MOD)}")
-    style.footer(fig, prov); style.finish(fig, bottom=0.14)
+    style.footer(fig, prov); style.finish(fig, bottom=0.21)
     out = pins.OUT / "_pair" / SEC; files = style.savefig(fig, out, "P09_proportions_by_donor"); plt.close(fig)
     facts = {"all": A.to_dict(), "evidence_positive": B.to_dict(), "n": ns, "note": "no Aab+ donor in this pair; the axis slot is empty"}
     files.append(_side(out, "P09_proportions_by_donor", facts))
@@ -264,9 +264,9 @@ def p10_regions(donor: str, prov: dict) -> FigureRecord:
         ax.set_title(style.wrap("P10-B  by identity-derived islet zone (integration S3 structures)"), fontsize=9)
     else:
         ax.axis("off"); style.note(ax, "P10-B not available: identity-derived structures (integration S3) not yet on disk for this donor")
-    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", ncol=5, fontsize=7)
+    fig.legend(handles=[matplotlib.patches.Patch(color=io.label_color(L, common, colors), label=L, hatch="///" if L == io.AMBIGUOUS else None) for L in labs], loc="lower center", bbox_to_anchor=(0.5, 0.05), ncol=5, fontsize=7)
     style.title(fig, f"P10 broad-label proportions by islet proximity -- donor {donor}, producer {io.producer(MOD)}")
-    style.footer(fig, prov, donor); style.finish(fig, bottom=0.14)
+    style.footer(fig, prov, donor); style.finish(fig, bottom=0.21)
     out = pins.OUT / str(donor) / SEC; files = style.savefig(fig, out, "P10_proportions_by_region"); plt.close(fig)
     facts = {"by_cell_region": T.to_dict(), "identity_zones_available": bool(zone_ok)}
     files.append(_side(out, "P10_proportions_by_region", facts))
