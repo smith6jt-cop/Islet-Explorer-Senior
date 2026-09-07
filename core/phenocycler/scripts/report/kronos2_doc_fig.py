@@ -95,8 +95,8 @@ def k01_umap(donor: str, prov: dict) -> FigureRecord:
     facts["kronos2_vs_mean_marker"] = D["clusters"]["kronos2_vs_mean_marker"]
     style.title(fig, f"K01 documented Leiden clusters -- donor {donor} ({style.status_display(pins.donor_status(donor))}); "
                      f"KRONOS2 vs the mean-marker baseline agree at ARI {D['clusters']['kronos2_vs_mean_marker']['ari']:.2f}")
-    fig.text(0.5, 0.915, style.wrap(_caption(D), 150), ha="center", fontsize=6.5)
-    style.footer(fig, prov, donor); style.finish(fig, top=0.90)
+    fig.text(0.5, 0.925, style.wrap(_caption(D), 150), ha="center", va="top", fontsize=6.5)
+    style.footer(fig, prov, donor); style.finish(fig, top=0.87)
     out = pins.OUT / str(donor) / SEC; files = style.savefig(fig, out, "K01_umap_clusters"); plt.close(fig)
     files.append(_side(out, "K01_umap_clusters", facts))
     return _rec("K01", donor, files, [D["dir"] / "clusters" / "cluster_record.json"], facts)
@@ -129,8 +129,8 @@ def k02_profiles(donor: str, prov: dict) -> FigureRecord:
         facts[s] = {"markers": markers, "n_cells": n.tolist(),
                     "top_marker_per_cluster": {int(j): markers[int(np.nanargmax(Z[:, j]))] for j in range(Z.shape[1])}}
     style.title(fig, f"K02 what each documented cluster is made of -- donor {donor} ({style.status_display(pins.donor_status(donor))})")
-    fig.text(0.5, 0.925, style.wrap(_caption(D), 150), ha="center", fontsize=6.5)
-    style.footer(fig, prov, donor); style.finish(fig, top=0.91)
+    fig.text(0.5, 0.935, style.wrap(_caption(D), 150), ha="center", va="top", fontsize=6.5)
+    style.footer(fig, prov, donor); style.finish(fig, top=0.89)
     out = pins.OUT / str(donor) / SEC; files = style.savefig(fig, out, "K02_cluster_marker_profile"); plt.close(fig)
     files.append(_side(out, "K02_cluster_marker_profile", facts))
     for s in SPACES:
