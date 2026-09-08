@@ -83,11 +83,18 @@ class Manifest:
                 pass
 
     def add_input(self, path) -> dict:
+        """Fingerprint an input EVERY time it is read.
+
+        The first version of this kept the first fingerprint it saw, which is wrong across a session
+        that re-renders: a figure drawn after its input changed was recorded against the input's old
+        hash, and ``--verify`` then reported drift on a manifest that was merely stale. Re-hashing on
+        every read makes the manifest describe the inputs as they were at the LAST render, which is
+        what ``--verify`` compares against. The cost is one hash per figure per input (sampled for
+        files above ``sampled_above``).
+        """
         p = pathlib.Path(path).resolve()
-        key = str(p)
-        if key not in self.doc["inputs"]:
-            self.doc["inputs"][key] = fingerprint(p, sampled_above=self.sampled_above)
-        return self.doc["inputs"][key]
+        self.doc["inputs"][str(p)] = fingerprint(p, sampled_above=self.sampled_above)
+        return self.doc["inputs"][str(p)]
 
     def add_figure(self, rec: FigureRecord) -> None:
         for p in rec.inputs:
