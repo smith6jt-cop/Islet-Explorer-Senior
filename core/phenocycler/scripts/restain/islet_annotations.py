@@ -336,8 +336,17 @@ def validate_islet_geojson(
     width: int,
     height: int,
     expected_features: int | None = None,
+    class_name: str = ISLET_CLASS,
+    color: tuple[int, int, int] = ISLET_COLOR,
 ) -> dict[str, Any]:
-    """Reopen and enforce the Xenium Explorer 4.1 third-party annotation contract."""
+    """Reopen and enforce the Xenium Explorer 4.1 third-party annotation contract.
+
+    ``class_name`` and ``color`` default to this lane's Islet sidecar, so the post-Xenium IF
+    path is unchanged.  The PhenoCycler serial-section lane reuses the same contract for its
+    other annotation classes rather than carrying a second copy of these checks.
+    """
+    class_name = str(class_name)
+    color = tuple(int(v) for v in color)
     import shapely
     from shapely.geometry import Polygon
 
@@ -406,17 +415,17 @@ def validate_islet_geojson(
         if not isinstance(properties, Mapping) or properties.get("objectType") != "annotation":
             raise IsletAnnotationError(f"{label} properties.objectType must be 'annotation'")
         classification = properties.get("classification")
-        if not isinstance(classification, Mapping) or classification.get("name") != ISLET_CLASS:
-            raise IsletAnnotationError(f"{label} classification.name must be {ISLET_CLASS!r}")
-        color = classification.get("color")
+        if not isinstance(classification, Mapping) or classification.get("name") != class_name:
+            raise IsletAnnotationError(f"{label} classification.name must be {class_name!r}")
+        colour = classification.get("color")
         if (
-            not isinstance(color, list)
-            or len(color) != 3
-            or any(type(value) is not int or not 0 <= value <= 255 for value in color)
-            or tuple(color) != ISLET_COLOR
+            not isinstance(colour, list)
+            or len(colour) != 3
+            or any(type(value) is not int or not 0 <= value <= 255 for value in colour)
+            or tuple(colour) != color
         ):
             raise IsletAnnotationError(
-                f"{label} classification.color must be {list(ISLET_COLOR)}"
+                f"{label} classification.color must be {list(color)}"
             )
         minimum = np.minimum(minimum, xy.min(axis=0))
         maximum = np.maximum(maximum, xy.max(axis=0))
@@ -434,8 +443,8 @@ def validate_islet_geojson(
             "finite_xy_pairs": True,
             "inside_morphology_grid": True,
             "object_type_annotation": True,
-            "classification": ISLET_CLASS,
-            "classification_color_rgb": list(ISLET_COLOR),
+            "classification": class_name,
+            "classification_color_rgb": list(color),
             "feature_count_below_10000": True,
             "vertices_per_polygon_below_100000": True,
         },
