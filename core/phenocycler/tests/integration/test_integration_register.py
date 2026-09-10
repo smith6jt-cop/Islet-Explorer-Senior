@@ -15,9 +15,11 @@ import pytest
 
 from phenocycler.integration.rasterize import (GridSpec, grid_for, normalize_image,
                                                rasterize_points)
+from phenocycler.integration import register  # noqa: F401
 from phenocycler.integration.register import (dice, icp, nearest_neighbour_rmse,
                                               ransac_affine, refine_bspline, refine_ecc,
-                                              register_image, register_point_set)
+                                              register_image, register_point_set,
+                                              scale_is_physical, scale_report)
 from phenocycler.integration.transform import (Transform, affine_from_pixels, affine_to_pixels,
                                                fit_affine_lstsq, fit_rigid_umeyama, from_rigid)
 
@@ -278,3 +280,287 @@ def test_nearest_neighbour_rmse_uses_mutual_pairs():
     dst = np.array([[0.0, 0.0]])
     rmse, n = nearest_neighbour_rmse(src, dst, max_dist_um=50.0)
     assert n == 1 and rmse == pytest.approx(0.0)
+
+
+# --------------------------------------------------------------------------- #
+# Scale plausibility
+#
+# PhenoCycler and Xenium both report calibrated microns, so the transform between two serial
+# sections is rigid up to real tissue stretch. ECC's affine stage has six free parameters and,
+# driven by a partial-overlap silhouette, will trade an unphysical stretch for correlation.
+# Donor 6436 came back holding sx=1.1057 against sy=0.9989 -- an 11% x-only stretch worth
+# 509 um of drift across a 10 mm section, and invisible in a whole-section overlay.
+# --------------------------------------------------------------------------- #
+
+def _linear(sx, sy, shear=0.0, angle_deg=0.0):
+    th = np.radians(angle_deg)
+    rot = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+    lin = rot @ np.array([[sx, shear * sy], [0.0, sy]])
+    return Transform(affine=np.column_stack([lin, np.zeros(2)]))
+
+
+def test_scale_report_separates_the_two_axes_isotropic_scale_hides():
+    """One isotropic number cannot show a single-axis stretch; that is the whole point."""
+    tf = _linear(1.1057, 0.9989)
+    report = scale_report(tf)
+    assert report["scale_x"] == pytest.approx(1.1057, abs=1e-4)
+    assert report["scale_y"] == pytest.approx(0.9989, abs=1e-4)
+    assert report["anisotropy"] == pytest.approx(1.1069, abs=1e-3)
+    # The isotropic figure looks nearly innocuous while the x axis is 11% out.
+    assert report["linear_scale"] == pytest.approx(1.0509, abs=1e-3)
+    assert tf.scale == pytest.approx(1.0509, abs=1e-3)
+
+
+def test_a_single_axis_stretch_is_refused_however_ordinary_its_isotropic_scale_looks():
+    ok, why = scale_is_physical(_linear(1.1057, 0.9989))
+    assert not ok
+    assert "anisotropy" in why
+
+
+def test_a_rigid_transform_at_any_angle_is_accepted():
+    for angle in (-30.0, -9.19, 0.0, 5.11, 120.0):
+        ok, why = scale_is_physical(_linear(1.0, 1.0, angle_deg=angle))
+        assert ok, (angle, why)
+
+
+def test_a_plausible_serial_section_stretch_is_accepted():
+    """6442's real transform: 1.2% anisotropy, 0.4% off unit scale. That is tissue, not error."""
+    ok, why = scale_is_physical(_linear(1.0020, 0.9898))
+    assert ok, why
+
+
+def test_a_large_isotropic_scale_is_refused_even_with_no_anisotropy():
+    ok, why = scale_is_physical(_linear(1.20, 1.20))
+    assert not ok
+    assert "linear scale" in why
+
+
+def test_the_bounds_are_configurable_in_both_directions():
+    tf = _linear(1.05, 1.0)
+    assert not scale_is_physical(tf, max_anisotropy=1.01)[0]
+    assert scale_is_physical(tf, max_anisotropy=1.10)[0]
+
+
+def test_a_degenerate_linear_part_is_refused_rather_than_dividing_by_zero():
+    ok, _why = scale_is_physical(Transform(affine=np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])))
+    assert not ok
+
+
+def test_image_track_keeps_the_rigid_fit_when_the_affine_stage_goes_unphysical():
+    """End to end, on data that genuinely rewards an unphysical fit.
+
+    The moving side really is stretched 15% along one axis, so the affine stage *will* beat
+    the rigid one -- a rigid transform cannot represent that stretch at all. That is exactly
+    the situation the gate exists for: preferring the fit that scores better would bake a
+    stretch the instruments' calibration says cannot be real into every downstream micron.
+    """
+    from scipy import ndimage
+
+    # A smooth, structured raster -- ECC optimises an intensity correlation and needs real
+    # gradients, which a sparse rasterised point cloud does not provide.
+    rng = np.random.default_rng(4)
+    grid = GridSpec(0.0, 0.0, 8.0, 320, 320)
+    field = ndimage.gaussian_filter(rng.random((grid.height, grid.width)).astype(np.float32), 9)
+    fixed = np.zeros_like(field)
+    fixed[30:290, 30:290] = field[30:290, 30:290]
+    fixed = normalize_image(fixed)
+
+    th = np.radians(6.0)
+    rot = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
+    stretched = Transform(affine=np.column_stack([rot @ np.diag([1.15, 1.0]),
+                                                  np.array([90.0, -40.0])]), grid=grid)
+    # moving is the image that, warped by `stretched`, reproduces `fixed`.
+    moving = normalize_image(stretched.invert().warp_mask(fixed, grid))
+
+    loose = register_image(moving, fixed, grid, nonrigid=False,
+                           max_anisotropy=1.30, max_scale_deviation=0.30)
+    assert "ecc_affine" in loose.stages, "the stretch should make the affine stage win"
+    assert scale_report(loose.transform)["anisotropy"] > 1.05
+
+    strict = register_image(moving, fixed, grid, nonrigid=False,
+                            max_anisotropy=1.03, max_scale_deviation=0.05)
+    assert "ecc_affine" not in strict.stages
+    assert any("affine refused" in n for n in strict.notes)
+    # What survives is the rigid fit: scale 1 on both axes by construction.
+    assert scale_is_physical(strict.transform, max_anisotropy=1.001,
+                             max_scale_deviation=0.001)[0]
+
+
+# --------------------------------------------------------------------------- #
+# Coarse candidate selection — the defect that made donor 6436's transform wrong
+# --------------------------------------------------------------------------- #
+
+def _candidate(corr: float) -> Transform:
+    tf = Transform()
+    tf.meta["coarse_corr"] = corr
+    return tf
+
+
+def test_a_plateau_of_coarse_candidates_is_refined_not_a_fixed_rank():
+    """Donor 6436's correct hypothesis ranked 4th of 144 and the cut was 3.
+
+    Its top four scored 0.4433 / 0.4367 / 0.4358 / 0.4352 — a 1.8% spread across hypotheses
+    175 deg apart. When one section is a sub-field of the other the coarse score bunches like
+    this, so the rule has to be "how close to the best", not "how many".
+    """
+    scores = [0.4433, 0.4367, 0.4358, 0.4352, 0.3100, 0.3050]
+    kept = register.select_coarse_candidates(
+        [_candidate(c) for c in scores], keep_frac=0.97, min_candidates=1, max_candidates=24)
+    assert len(kept) == 4, "the 0.4352 hypothesis is inside the plateau and must be refined"
+    assert [c.meta["coarse_corr"] for c in kept] == scores[:4]
+
+
+def test_a_sharp_coarse_winner_still_gets_company():
+    """A floor, so one lucky hypothesis is never refined alone and unchecked."""
+    kept = register.select_coarse_candidates(
+        [_candidate(c) for c in (0.90, 0.20, 0.19, 0.18, 0.17)],
+        keep_frac=0.97, min_candidates=3, max_candidates=24)
+    assert len(kept) == 3
+
+
+def test_a_flat_coarse_landscape_is_capped():
+    """And a ceiling, so a featureless landscape does not run ECC on every hypothesis."""
+    kept = register.select_coarse_candidates(
+        [_candidate(0.5) for _ in range(144)],
+        keep_frac=0.97, min_candidates=8, max_candidates=24)
+    assert len(kept) == 24
+
+
+# --------------------------------------------------------------------------- #
+# Masked ECC
+# --------------------------------------------------------------------------- #
+
+def _partial_overlap_pair(shift_px: int = 4):
+    """A fixed 'section' with a moving 'sub-field' covering part of it, plus its mask.
+
+    Smoothed rather than raw noise: ECC optimises a correlation through image gradients, and
+    white noise has no gradient structure to follow, so it diverges on it for reasons that
+    have nothing to do with what these tests are about.
+    """
+    from scipy import ndimage
+
+    rng = np.random.default_rng(0)
+    fixed = ndimage.gaussian_filter(rng.random((160, 160)).astype(np.float32), 3.0)
+    fixed = (fixed - fixed.min()) / max(float(np.ptp(fixed)), 1e-9)
+    moving = np.zeros_like(fixed)
+    mask = np.zeros(fixed.shape, dtype=bool)
+    moving[20:90, 20:90] = fixed[20 - shift_px:90 - shift_px, 20:90]
+    mask[20:90, 20:90] = True
+    return moving, fixed, mask
+
+
+def test_a_masked_ecc_value_is_not_comparable_to_an_unmasked_one():
+    """Both are correlations, but over different supports.
+
+    Measured at 0.31 against 0.49 for the same transform on donor 6436. register_image
+    compares these values across candidates, so they must be masked uniformly or not at all —
+    this pins the fact so nobody later assumes they interchange.
+    """
+    moving, fixed, mask = _partial_overlap_pair(shift_px=2)
+    grid = GridSpec(0.0, 0.0, 2.0, fixed.shape[0], fixed.shape[1])
+    seed = Transform()
+
+    _tf_u, val_unmasked = register.refine_ecc(moving, fixed, grid, seed, motion="euclidean")
+    _tf_m, val_masked = register.refine_ecc(moving, fixed, grid, seed, motion="euclidean",
+                                            moving_mask=mask)
+    assert np.isfinite(val_unmasked) and np.isfinite(val_masked)
+    assert not np.isclose(val_unmasked, val_masked, atol=1e-3)
+
+
+def test_masking_widens_the_basin_ecc_can_converge_from():
+    """The reason to mask, beyond the score: the empty part of the canvas fights the fit.
+
+    At a 6 px offset the unmasked fit diverges outright — every pixel of fixed-frame tissue
+    with no moving counterpart is pulling on a correlation that is supposed to be about the
+    part that does correspond. Masked, the same pair converges to 0.997.
+    """
+    moving, fixed, mask = _partial_overlap_pair(shift_px=6)
+    grid = GridSpec(0.0, 0.0, 2.0, fixed.shape[0], fixed.shape[1])
+
+    _tf_u, val_unmasked = register.refine_ecc(moving, fixed, grid, Transform(),
+                                              motion="euclidean")
+    _tf_m, val_masked = register.refine_ecc(moving, fixed, grid, Transform(),
+                                            motion="euclidean", moving_mask=mask)
+    assert not np.isfinite(val_unmasked)
+    assert np.isfinite(val_masked) and val_masked > 0.9
+
+
+def test_the_mask_is_resampled_to_whatever_resolution_ecc_actually_ran_at():
+    """ndimage.zoom rounds, and a one-pixel disagreement is a hard cv2.error, not a warning."""
+    moving, fixed, mask = _partial_overlap_pair()
+    grid = GridSpec(0.0, 0.0, 2.0, fixed.shape[0], fixed.shape[1])
+    # Force the internal downsample by capping well below the raster's own size.
+    _tf, val = register.refine_ecc(moving, fixed, grid, Transform(), motion="euclidean",
+                                   moving_mask=mask, max_pixels=4_000)
+    assert np.isfinite(val), "a shape mismatch would have surfaced as nan via cv2.error"
+
+
+# --------------------------------------------------------------------------- #
+# The joint residual search
+# --------------------------------------------------------------------------- #
+
+def test_the_residual_vote_finds_a_joint_rotation_and_translation_offset():
+    """The failure a rotation-only sweep cannot see, by construction.
+
+    Rotating about the warped moving centroid fixes that centroid, so no angle in that sweep
+    carries a translation. Here the answer is both, and the vote has to recover both.
+    """
+    rng = np.random.default_rng(3)
+    fixed = rng.uniform(0, 8000, size=(150, 2))
+    angle, offset = -14.0, np.array([-700.0, 400.0])
+    th = np.radians(-angle)
+    c, s = np.cos(th), np.sin(th)
+    centre = fixed.mean(axis=0)
+    moving = (fixed[:80] - offset - centre) @ np.array([[c, s], [-s, c]]) + centre
+
+    out = register.residual_vote(moving, fixed, angles_deg=np.arange(-30, 30, 2.0))
+    assert out["contrast"] > 3.0
+    assert abs(out["angle_deg"] - angle) <= 2.0
+    assert out["mirror"] is False
+
+    # The recovered residual is expressed about the MOVING set's own centroid, which is not
+    # the centre the offset above was constructed around — so the parameters are checked by
+    # applying them, the way pheno_residual_search.py does, not by comparing them literally.
+    recovered = from_rigid(out["angle_deg"], (out["dx_um"], out["dy_um"]),
+                           center_um=tuple(float(v) for v in moving.mean(axis=0)))
+    placed = recovered.apply(moving)
+    from scipy.spatial import cKDTree
+
+    d, _i = cKDTree(fixed).query(placed)
+    assert np.median(d) < 60.0, "the recovered residual must actually bring them together"
+
+
+def test_two_unrelated_point_sets_produce_no_peak():
+    """The statistic has to be able to say 'these do not correspond', or it says nothing."""
+    rng = np.random.default_rng(5)
+    out = register.residual_vote(rng.uniform(0, 8000, size=(120, 2)),
+                                 rng.uniform(0, 8000, size=(300, 2)),
+                                 angles_deg=np.arange(-30, 30, 2.0))
+    assert out["contrast"] < 3.0
+
+
+# --------------------------------------------------------------------------- #
+# Displacement invertibility
+# --------------------------------------------------------------------------- #
+
+def test_a_folded_displacement_field_is_refused_by_its_jacobian_not_its_magnitude():
+    """max|D| cannot see folding. Donor 6436's first field sat at its cap and still folded."""
+    grid = GridSpec(0.0, 0.0, 10.0, 60, 60)
+    yy, xx = np.mgrid[0:60, 0:60]
+    # A gradient steeper than the grid: x + D(x) stops being monotonic, so it has no inverse.
+    field = np.zeros((2, 60, 60), np.float32)
+    field[0] = (-30.0 * xx).astype(np.float32)
+    folded = Transform(affine=np.array([[1.0, 0, 0], [0, 1.0, 0]]),
+                       displacement=field, grid=grid)
+    ok, why = register.displacement_is_invertible(folded)
+    assert not ok and "folds" in why
+
+    gentle = Transform(affine=np.array([[1.0, 0, 0], [0, 1.0, 0]]),
+                       displacement=np.zeros((2, 60, 60), np.float32), grid=grid)
+    ok, _why = register.displacement_is_invertible(gentle)
+    assert ok
+
+
+def test_an_affine_only_transform_is_invertible_by_definition():
+    ok, why = register.displacement_is_invertible(Transform())
+    assert ok and why == "affine only"

@@ -131,6 +131,19 @@ class PipelineConfig:
     reg_pixel_um: float = 2.0                     # raster resolution for registration
     reg_nonrigid: bool = True
     reg_max_disp_um: float = 200.0                # displacement cap (prevents folding)
+    # Both modalities report calibrated microns, so the transform between them is physically
+    # a rigid one. These bound how far the free-affine refinement may depart from that before
+    # it is refused in favour of the rigid fit.
+    reg_max_anisotropy: float = 1.03              # max ratio between the two axis scales
+    reg_max_scale_deviation: float = 0.05         # max |linear scale - 1|
+    # How many coarse orientation hypotheses reach the fine stage. A fixed rank cut is not
+    # defensible here: when one section is a sub-field of the other the coarse scores bunch
+    # (donor 6436's top four spanned 1.8% across hypotheses 175 deg apart), so the correct
+    # hypothesis can rank below an arbitrary cut while being well inside the plateau. Refine
+    # everything within `keep_frac` of the best score, bounded both ways.
+    reg_coarse_keep_frac: float = 0.97
+    reg_coarse_min_candidates: int = 8
+    reg_coarse_max_candidates: int = 24
     islet_eps_um: float = 50.0                    # = insulitis_analysis.EPS_UM
     islet_min_samples: int = 10                   # = insulitis_analysis.MIN_SAMPLES
     niche_k: int = 50                             # = nb03 K_COMP
@@ -488,6 +501,11 @@ _INI_SCHEMA = {
         "reg_pixel_um": ("reg_pixel_um", float),
         "reg_nonrigid": ("reg_nonrigid", _boolean),
         "reg_max_disp_um": ("reg_max_disp_um", float),
+        "reg_max_anisotropy": ("reg_max_anisotropy", float),
+        "reg_max_scale_deviation": ("reg_max_scale_deviation", float),
+        "reg_coarse_keep_frac": ("reg_coarse_keep_frac", float),
+        "reg_coarse_min_candidates": ("reg_coarse_min_candidates", int),
+        "reg_coarse_max_candidates": ("reg_coarse_max_candidates", int),
         "islet_eps_um": ("islet_eps_um", float),
         "islet_min_samples": ("islet_min_samples", int),
         "niche_k": ("niche_k", int),

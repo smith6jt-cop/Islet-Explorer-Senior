@@ -67,37 +67,101 @@ ALLOWED_BY_VERDICT = {
 def verdict_for(tissue_dice: float, islet_rmse_um: float, *,
                 dice_min: float, rmse_max: float,
                 require_structures: bool = True,
-                structure_reason: str = "tissue has no structural unit") -> tuple[str, list[str]]:
+                structure_reason: str = "tissue has no structural unit",
+                footprint_ncc_z: float = float("nan"),
+                islet_peak_ratio: float = float("nan"),
+                islet_peak_offset_um: float = float("nan"),
+                ncc_z_min: float = 5.0,
+                peak_ratio_min: float = 2.0,
+                peak_offset_max_um: float = 150.0) -> tuple[str, list[str]]:
     """Grade one registration. Returns ``(verdict, reasons)``.
+
+    **Tissue Dice is reported here but no longer decides anything.** It was the primary gate
+    at a 0.80 bar until 2026-09-10, and it was wrong in two independent ways. Structurally,
+    when one section is a sub-field of the other the metric has a hard ceiling below the bar —
+    0.565 and 0.703 on the two donors registered so far — so the gate was unreachable by
+    construction. Empirically it is worse than useless: correcting donor 6436's transform from
+    12.5 deg and 0.8 mm out (islet correspondence 12 of 136, against a chance expectation of
+    5) to right (69 of 136) *lowered* tissue Dice from 0.549 to 0.530. A gate that moves
+    against the truth cannot be relaxed into correctness; it has to be replaced.
+
+    What decides instead is evidence the transform was not fitted against:
+
+    * ``footprint_ncc_z`` — image structure inside the moving footprint, scored against other
+      placements of that same footprint on the same section. A within-donor null, so staining,
+      density and the donor's disease state are held fixed and only placement varies. This is
+      the primary bar. The absolute correlation is deliberately not gated: 6436's correct
+      placement reads *higher* than 6442's correct placement, so any absolute bar set from one
+      donor rejects the other.
+    * ``islet_peak_ratio`` / ``islet_peak_offset_um`` — whether the joint rotation+translation
+      correspondence landscape peaks at this transform rather than somewhere else. Corroborating
+      only, never decisive, because both islet callers are hormone-seeded and the panels weight
+      a T1D donor's islets differently on the two modalities.
 
     ``require_structures=False`` for a tissue with no structural unit (lymph node): the
     landmark residual is undefined there, so it is dropped from the decision entirely rather
     than counted as a failed gate.
     """
     reasons = []
-    dice_ok = np.isfinite(tissue_dice) and tissue_dice >= dice_min
     rmse_ok = np.isfinite(islet_rmse_um) and islet_rmse_um <= rmse_max
+    # Available and failing are different things and must not collapse into one another. A
+    # donor registered without an image pair has no NCC to fail; it falls back to the islet
+    # criterion and is capped at WARN, rather than being graded as though the bar was measured
+    # and missed.
+    ncc_available = bool(np.isfinite(footprint_ncc_z))
+    peak_available = bool(np.isfinite(islet_peak_ratio)
+                          and np.isfinite(islet_peak_offset_um))
+    ncc_ok = ncc_available and footprint_ncc_z >= ncc_z_min
+    peak_ok = (peak_available and islet_peak_ratio >= peak_ratio_min
+               and islet_peak_offset_um <= peak_offset_max_um)
 
-    if not np.isfinite(tissue_dice):
-        reasons.append("tissue Dice not computed")
-    elif not dice_ok:
-        reasons.append(f"tissue Dice {tissue_dice:.3f} < {dice_min:.2f}")
+    if np.isfinite(tissue_dice) and tissue_dice < dice_min:
+        reasons.append(
+            f"tissue Dice {tissue_dice:.3f} < {dice_min:.2f} (reported, not gated — it is "
+            f"capped by the extent ratio and moves against correctness)")
+
+    if ncc_available:
+        reasons.append(
+            f"footprint NCC z={footprint_ncc_z:.1f} vs other placements on this section "
+            f"({'clears' if ncc_ok else 'below'} {ncc_z_min:.0f})")
+    else:
+        reasons.append("footprint NCC unavailable — no image pair was registered")
 
     if not require_structures:
         # One gate, honestly labelled. Do not report the missing RMSE as a shortcoming of
         # this registration — no landmark exists in this tissue to measure it against.
-        reasons.append(f"islet RMSE n/a — {structure_reason}; graded on Dice alone")
-        return (PASS if dice_ok else FAIL), reasons
+        reasons.append(f"islet RMSE n/a — {structure_reason}; graded on the image bar alone")
+        if ncc_ok:
+            return PASS, reasons
+        if not ncc_available:
+            reasons.append("no out-of-sample evidence available; fail-closed, not measured")
+        return FAIL, reasons
 
     if not np.isfinite(islet_rmse_um):
         reasons.append("islet RMSE not computed (too few structures to check)")
     elif not rmse_ok:
         reasons.append(f"islet RMSE {islet_rmse_um:.0f} um > {rmse_max:.0f} um")
 
-    if dice_ok and rmse_ok:
+    if np.isfinite(islet_peak_ratio):
+        reasons.append(
+            f"islet correspondence peaks {islet_peak_offset_um:.0f} um from this transform at "
+            f"{islet_peak_ratio:.1f}x the landscape p95 "
+            f"({'corroborates' if peak_ok else 'does NOT corroborate'})")
+
+    if ncc_ok and peak_ok:
         return PASS, reasons
-    if dice_ok or rmse_ok:
+    if ncc_ok:
+        reasons.append("anatomy-level only; islet correspondence not demonstrated")
         return WARN, reasons
+    if not ncc_available and peak_ok:
+        # No image pair to measure the primary bar against, but the structures corroborate.
+        # Enough for structure- and grid-level work, never enough for the cross-modal claim
+        # that PASS also unlocks.
+        reasons.append("graded on islet correspondence alone; capped at WARN without an "
+                       "image pair to check it against")
+        return WARN, reasons
+    if not ncc_available and not peak_available:
+        reasons.append("no out-of-sample evidence available; fail-closed, not measured")
     return FAIL, reasons
 
 
@@ -138,7 +202,10 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
             float(d.get("tissue_dice", np.nan)), float(d.get("rmse_um", np.nan)),
             dice_min=cfg.qc_tissue_dice_min, rmse_max=cfg.qc_islet_rmse_max_um,
             require_structures=require_structure_gate,
-            structure_reason=structure_reason)
+            structure_reason=structure_reason,
+            footprint_ncc_z=float(d.get("footprint_ncc_z", np.nan)),
+            islet_peak_ratio=float(d.get("islet_peak_ratio", np.nan)),
+            islet_peak_offset_um=float(d.get("islet_peak_offset_um", np.nan)))
         tf = d.get("transform", {}) or {}
         rows.append({
             "donor_id": donor, "roi": roi_name, "tissue": roi_tissue, "verdict": v,
@@ -147,6 +214,11 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
             "tissue_dice": d.get("tissue_dice", np.nan),
             "islet_dice": d.get("islet_dice", np.nan),
             "islet_rmse_um": d.get("rmse_um", np.nan),
+            "footprint_ncc": d.get("footprint_ncc", np.nan),
+            "footprint_ncc_z": d.get("footprint_ncc_z", np.nan),
+            "footprint_containment": d.get("footprint_containment", np.nan),
+            "islet_peak_ratio": d.get("islet_peak_ratio", np.nan),
+            "islet_peak_offset_um": d.get("islet_peak_offset_um", np.nan),
             "n_inliers": d.get("n_inliers", 0),
             "has_transform": bool(tf),
             "mirrored": tf.get("mirrored", False),
