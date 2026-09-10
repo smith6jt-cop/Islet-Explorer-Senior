@@ -201,6 +201,271 @@ not converted into a synthetic PASS/FAIL record. Conversely, a measured registra
 on disk as the donor's gate report and the exporter refuses it. Do not force, relabel, or omit that
 failure to complete a nominal cohort count.
 
+## PhenoCycler annotations on the Xenium grid (serial section)
+
+The sections above are all same-slide: the post-Xenium IF images the section Xenium measured, so
+the correspondence is a measurement. The 55-plex PhenoCycler section is **serial** to Xenium, and
+its drawn anatomy reaches Explorer by a different route — the S4 registration in
+`phenocycler/integration/register.py`, not the nucleus-matched transform above. The output shares
+the Explorer 4.1 annotation contract and nothing else about what it may claim.
+
+```bash
+cd core/phenocycler
+../../.venv/bin/python scripts/restain/run_pheno_annotation_export.py --donors 6436 6442
+```
+
+The driver is annotation-only and additive: it stages, validates every file, then moves them into
+the existing bundle and rolls the whole set back on any failure. It never touches the registered
+OME-TIFF, alignment files, keypoints, cell groups, or the same-slide IF islet sidecar. Published
+files carry `pheno` in the name — `<serial>_pheno_<Class>_on_xenium_grid.geojson` — because a
+reviewer must be able to tell a serial-section outline from a same-section one in Explorer's layer
+list without opening the QC file. `pheno_annotations_qc.json` records every count and the
+registration evidence behind it.
+
+### Three things this lane handles that the same-slide lane does not
+
+**The Xenium section is a portion of the PhenoCycler section.** On the two registered donors the
+Xenium extent is 39.4% (6436) and 54.2% (6442) of the PhenoCycler extent, and lies entirely inside
+it. So annotations outside the Xenium field have nowhere to land. They are dropped and counted,
+never clipped — clipping would invent an anatomical boundary that is not there and would misstate
+the annotation's area.
+
+**The field is the tissue outline, not the image rectangle.** Until 2026-09-10 the only spatial
+test was the morphology image's bounding rectangle. That rectangle is the capture area, and the
+tissue is **72.3%** of it on *both* donors — so more than a quarter of the area an annotation
+could pass the test in is blank background Xenium never imaged, and annotations were reaching
+Explorer sitting on it. `PA.xenium_tissue_outline` builds the region from the Xenium **cell
+centroids** through `rasterize.tissue_mask` — the same function `register.evaluate` scores tissue
+Dice with, so the region annotations are selected against and the region the registration is
+judged on cannot drift apart — polygonises it with `cv2.findContours`, and the exporter keeps only
+polygons lying **entirely** inside it. Note `tissue_mask` fills holes, so an interlobular gap
+inside the section is not treated as a place Xenium failed to look. The outline, its provenance
+and the per-class counts it removed are all recorded in `pheno_annotations_qc.json`, and the
+outline itself is published as its own Explorer layer so a reviewer can see the region every drop
+decision was made against.
+
+The extent fact also reframes `qc.py`'s verdict, though not in the way this file used to claim.
+Whole-section tissue Dice cannot exceed **0.565** and **0.703** for these donors on extent alone,
+so a 0.80 bar was unreachable by construction. But the deeper problem is not the ceiling: the
+metric moves *against* correctness — see "Is a donor merely mis-oriented?" — so raising or
+lowering the bar could not have fixed it. Tissue Dice is now reported and never gated.
+
+**The non-rigid field is not invertible here.** The B-spline stage is off for this lane as of
+2026-09-10 (`reg_nonrigid = false`). Measured on the real annotation vertices under the corrected
+transforms, **15.0%** (6436) and **6.1%** (6442) fail the round trip the exporter requires, which
+costs **90** and **48** publishable islets; affine-only round-trips at 4e-12 µm on the same
+vertices. The earlier fields were worse than non-convergent — they were *folded*: 6436's sat at
+its 200 µm cap on 14.7% of pixels with a minimum Jacobian determinant of −1.657 over 0.85% of the
+field, so `x -> x + D(x)` was not injective there and the fixed-point inverse had no solution to
+find. The per-pixel radial clip in `refine_bspline` is the mechanism, not the safeguard its
+docstring claimed. `displacement_report` now records the Jacobian and the round trip, and
+`displacement_is_invertible` gates on them rather than on `max_displacement_um`, which cannot see
+folding at all.
+
+**One QuPath class exceeds what Explorer will import.** Explorer takes fewer than 10,000 polygons
+per file. After dropping what falls outside the Xenium tissue, `Blood_vessel` still carries 76,159
+(6436) and 88,578 (6442) parts, and no defensible diameter floor brings that under the cap.
+Rather than tune a filter to a display limit, a class over the cap is **split into ordered parts,
+largest object first**, and every polygon is published. `--min-diameter-um` remains available,
+defaults to 0, and is recorded when used.
+
+### Scale is the thing that has to be right
+
+PhenoCycler and Xenium both report **calibrated microns**. So the transform between two serial
+sections of one block is physically rigid, up to whatever real stretch sectioning and mounting
+introduced: scale about 1 on *both* axes, negligible shear. Anything else is a fitting artefact,
+and it is the one error that hides in a whole-section overlay while corrupting every micron
+measurement taken through the transform.
+
+`Transform.scale` reports a single isotropic number — the square root of |det| — which is exactly
+where a single-axis stretch hides. Decomposed per axis:
+
+| | 6436 | 6442 |
+|---|---:|---:|
+| scale x / scale y | **1.1057 / 0.9989** | 1.0020 / 0.9898 |
+| anisotropy (sx/sy) | **1.107** | 1.012 |
+| isotropic `Transform.scale` | 1.0509 | 0.9958 |
+| shear | 0.55° | 0.10° |
+| drift over a 10 mm section | **509 µm** | 42 µm |
+
+6436's isotropic scale of 1.0509 looks unremarkable; it is hiding an **11% x-only stretch**.
+
+The source is `refine_ecc(motion="affine")`. ECC's affine mode has six free parameters, and driven
+by a partial-overlap silhouette it will buy correlation with a stretch. The preceding
+`motion="euclidean"` stage is rotation and translation only, so its scale is exactly 1 by
+construction. `scale_is_physical` therefore gates the affine refinement: it is taken only when it
+both scores better *and* stays inside `reg_max_anisotropy` (1.03) and `reg_max_scale_deviation`
+(0.05); otherwise the rigid fit is kept and the refusal is recorded in the donor's `notes`. Every
+donor's `qc.json` now carries a `scale_report` block with both axis scales, so this is auditable
+per donor rather than something to rediscover.
+
+This matters more than the last few degrees of orientation. A registration that is a little off in
+rotation misplaces an annotation by a bounded amount everywhere; one that is off in scale misplaces
+it by an amount that grows across the section, and no downstream consumer can detect that from the
+output alone.
+
+### Is a donor merely mis-oriented? Ask the islets — but ask about translation too
+
+**This section is a correction.** It previously concluded that donor 6436's two sections did not
+share an islet field, and that conclusion was wrong. 6436's transform was out by 12.5 deg and
+2.6 mm; corrected, its islet correspondence goes from 12 of 136 Xenium islets within 100 um —
+against a chance expectation of 5 — to **69 of 136**, which is the same fraction 6442 achieves.
+The prose that stood here is preserved in Git history; what follows is why it was wrong, because
+the reason generalises.
+
+Rotation is the first thing to suspect when a serial-section registration looks off, and
+`register.py` does search it exhaustively (0-360 deg at 5 deg, plus the mirror). The diagnostic
+built to check it, `pheno_rotation_figures.py`, sweeps a residual rotation on top of the stored
+transform and plots islet Dice and islet RMSE — both from islet centroids, which the image track
+never sees — beside the footprint-coverage curve. For 6442 those curves spike sharply at 0 deg.
+For 6436 they were flat at every angle, and that was read as "no rotation recovers a
+correspondence that is not there".
+
+**A rotation-only sweep cannot support that reading.** It rotates about the warped moving
+centroid, which fixes that centroid by construction, so it traces a one-parameter curve through a
+three-parameter space and no point on it carries a translation. Both metrics on it also saturate:
+islet Dice dilates each side by 75 um and so reads zero past ~100 um of residual, and islet RMSE
+is capped at 300 um on mutual pairs, so under a wrong transform it collects chance pairs and
+converges to the null rather than to a bad value. 176.9 um on 52 pairs *was* the null. A joint
+(rotation, translation) error of the size actually present produces exactly the flat curves that
+were observed — so the curves were consistent with the conclusion drawn, and equally consistent
+with the transform simply being in the wrong place.
+
+`pheno_residual_search.py` asks the question the sweep could not, by making translation free at
+every angle:
+
+```bash
+cd core/phenocycler
+../../.venv/bin/python scripts/restain/pheno_residual_search.py --donors 6436 6442
+```
+
+For each residual angle over the full 360 deg x mirror it bins every moving-to-fixed offset
+vector and takes the peak, so the best translation for that angle is read off rather than
+optimised for. The statistic is `peak / p95` of the donor's own landscape — a within-donor null,
+carrying no expectation about how many islets *should* match.
+
+Measured against the **stored transform of the day**:
+
+| | 6442 | 6436 |
+|---|---|---|
+| peak location | **0 deg, (-25, +25) um** | −14 deg, **(−675, +425) um** |
+| peak contrast | 6.96x the landscape p95 | 5.68x |
+| mirror | none | none |
+| Xenium islets within 100 um | 66 of 143 | **12 of 136** (chance ~5) |
+
+6442 recovering zero residual to within one 50 um bin is what makes 6436's 800 um peak
+trustworthy: the same statistic, on the same code, says "already right" for one donor and "800 um
+that way" for the other. Ducts (1 -> 4 of 28) and vessels (5 -> 15 of 110) move with it, and
+neither is hormone-seeded, so neither is confounded by 6436 being T1D.
+
+**What actually went wrong.** The coarse stage ranked 6436's correct hypothesis **4th of 144**,
+and `register_image` refined `candidates[:n_coarse_candidates]` with `n_coarse_candidates = 3`.
+It was cut by one position. The ranking statistic was not the problem — it put the truth 1st for
+6442 and 4th for 6436 — but its margins are small when one section is a sub-field of the other,
+because most placements overlap a similar amount of tissue whichever way the moving image is
+turned. So the cut is now a plateau rather than a rank (`reg_coarse_keep_frac`, floored at
+`reg_coarse_min_candidates`), and ECC is masked to the Xenium footprint, which both widens the
+margin and widens the basin it can converge from.
+
+The earlier overlap-restricted NCC experiment, recorded here as having "made every independent
+metric worse", drove 6436 to −30.4 deg — which *crosses* the true −19.6 deg. It was judged by
+islet Dice and islet RMSE with no translation re-optimisation, i.e. by metrics structurally
+incapable of registering the improvement. The reason it was rejected was not the reason it was
+wrong. It is still not the fix — the masked coarse statistic fails the 6442 positive control —
+but the record should say why.
+
+**The lesson that generalises: no silhouette metric can grade this.** At 6436's correct transform,
+tissue Dice *falls* from 0.549 to 0.530 and footprint containment falls from 0.910 to 0.890. Two
+serial-section outlines can be brought into agreement by many placements, and the one that agrees
+best is not the one that matches anatomy. `score()` weighted tissue Dice at 0.5 and `qc.py` gated
+on it at 0.80; both therefore preferred the wrong answer, and both have been replaced — see
+"What the gate is now".
+
+### What the gate is now
+
+Two hard preconditions, then one primary bar and one corroborating bar:
+
+* **Scale physicality** (`scale_is_physical`) — unchanged, and it works: it caught 6436's 11%
+  x-only stretch, which was itself a symptom of the wrong basin. With the basin corrected the
+  affine is accepted at anisotropy 1.005.
+* **Displacement invertibility** (`displacement_report`, `displacement_is_invertible`) —
+  `max_displacement_um` cannot see folding, and the per-pixel radial clip in `refine_bspline` is
+  what causes it. 6436's first field sat at its 200 um cap on 14.7% of pixels, folded on 0.85%
+  (min Jacobian det −1.657), and missed its round trip by up to 400 um. Gate on the Jacobian and
+  the round trip, both pure geometry.
+* **Primary: `footprint_ncc_z`** — correlation between the two DAPI images inside the warped
+  Xenium footprint, scored against 120 other placements of that same footprint on that same
+  section. Within-donor, so staining, density and disease state are held fixed and only placement
+  varies. Never gate the absolute value: 6436's correct placement reads 0.303 and 6442's reads
+  lower, so a bar set from either would reject the other. Measured: z=6.9 (6436) and z=6.7
+  (6442), against z=2.3 for 6436's old transform.
+* **Corroborating: `islet_peak_ratio` / `islet_peak_offset_um`** — does the joint landscape peak
+  *here*. Both donors now peak at 35 um and ~6x p95. Corroborating only, never decisive: both
+  islet callers are hormone-seeded and weight a T1D donor's islets differently across the two
+  modalities.
+
+`reg_nonrigid` is off for this lane as of 2026-09-10. Not preference — measurement. On the real
+annotation vertices, 15.0% (6436) and 6.1% (6442) failed the round trip the exporter requires,
+costing 90 and 48 publishable islets; affine-only round-trips at 4e-12 um on the same vertices.
+
+### Where both donors stand now
+
+| | 6436 before | **6436 after** | 6442 before | **6442 after** |
+|---|---:|---:|---:|---:|
+| rotation | −7.13 deg | **−19.60 deg** | +5.11 deg | **+5.09 deg** |
+| scale (sx / sy) | 1.0000 / 1.0000 | **0.9931 / 0.9880** | 1.0020 / 0.9898 | **1.0030 / 0.9902** |
+| islet RMSE | 176.9 um | **89.1 um** | 107.9 um | **92.1 um** |
+| Xenium islets within 100 um | 12 of 136 | **69 of 136** | 66 of 143 | **66 of 143** |
+| ducts within 150 um | 1 of 28 | **4 of 28** | 11 of 27 | **11 of 27** |
+| vessels within 150 um | 5 of 110 | **15 of 110** | — | — |
+| footprint NCC z | 2.3 | **6.9** | — | **6.7** |
+| islet landscape peak | 800 um away | **35 um** | 35 um | **35 um** |
+| tissue Dice | 0.549 | 0.530 | 0.767 | 0.768 |
+| verdict | FAIL | **PASS** | WARN | **PASS** |
+
+6442 barely moves, which is the regression control: the same code change that relocated 6436 by
+2.6 mm left the donor that was already right where it was. Its islet RMSE improving 107.9 -> 92.1
+um comes from the masked ECC and the two coarse-stage corrections.
+
+Note that islet Dice is *not* comparable across this change, because the dilation element was
+fixed in the same commit — scipy's default is the 4-connected cross, which iterates to an L1
+diamond, not the 75 um disc the docstring claimed. Holding the metric fixed, 6436's islet Dice
+goes 0.024 -> 0.178 on the transform alone; the element fix roughly doubles it for any transform.
+
+### What was published
+
+Six classes per donor. `Islets` carries two — the core and its 20 µm expansion, matching `Islet_N`
+/ `Islet_N_exp20um` upstream. Counts are polygons landing wholly inside the Xenium **tissue
+outline**, through the corrected transforms:
+
+| class | 6436 | 6442 |
+|---|---:|---:|
+| `Islet` | 208 | 293 |
+| `IsletExpanded` | 212 | 295 |
+| `Tissue` | 411 | 191 |
+| `Blood_vessel` | 76,159 (8 files) | 88,578 (9 files) |
+| `Lymphatic` | 6,561 | 25,175 (3 files) |
+| `Nerve` | 1,475 | 4,113 |
+| **total** | **85,026** in 13 files | **118,645** in 16 files |
+
+Two changes moved these counts at once, and the QC file separates them per class. The corrected
+transform relocated 6436's field by 2.6 mm, and the tissue-outline test removed what the image
+rectangle had let through: 24,867 further parts on 6436 and 24,434 on 6442, all of them
+annotations that had been landing on blank background. Republishing retires this lane's own
+previous files for the classes being written, so a class that splits into fewer parts than last
+time cannot leave a stale part behind carrying a superseded transform.
+
+**What this is not.** A serial-section registration locates anatomy approximately. These outlines
+are not a cell-level correspondence, they do not transfer any PhenoCycler identity or measurement
+onto a Xenium cell, and they must not be read as one. The islet RMSE behind them is 89 µm (6436)
+and 92 µm (6442).
+
+Perfect alignment is not the bar here and is not achievable between serial sections. Accurate
+*scale* is a bar, because a scale error is the one kind that grows across the section and that a
+downstream consumer cannot detect from the output: 6436 is at 0.9931/0.9880 and 6442 at
+1.0030/0.9902, both inside the anisotropy bound. Being in the right *place* is the other bar, and
+it is the one this lane got wrong for a month while every scale check passed.
+
 ## Historical verified baseline: donors 6436 and 6442
 
 The sections below preserve the biological investigation and the two registrations already
@@ -594,6 +859,10 @@ what the repository's no-frequency rule actually requires.
 | `run_registered_export.py` | PASS-only, exact-stem, transactional export of every raw channel onto the Xenium grid; no biological calls |
 | `islet_annotations.py` | strict QuPath-pixel → IF-micron → full inverse transform → Xenium-grid-pixel annotation writer and Explorer validation |
 | `run_islet_annotation_export.py` | annotation-only transactional publisher for an already-rendered Explorer bundle, including protected reviewed images |
+| `pheno_annotations.py` | serial-section PhenoCycler-pixel → micron → S4 inverse → Xenium-grid-pixel multi-class writer, field clipping, and over-cap splitting |
+| `run_pheno_annotation_export.py` | annotation-only additive publisher for the PhenoCycler classes, transactional against an existing bundle |
+| `pheno_annotation_figures.py` | overlay QC sheet, drawn only from the shipped sidecars and the Xenium cell table |
+| `pheno_rotation_figures.py` | rotation-response diagnostic: out-of-sample islet Dice/RMSE beside footprint coverage |
 | `geo.py` | the exports in microns, the islet size filter, the scale guard |
 | `tiles.py` / `rasterize_labels.py` / `display.py` | windowed reads, rasterisation, honest ranges |
 | `validate.py` / `hormone.py` / `run_hormone.py` | historical biological downstream checks (not part of registration-only cohort export) |
