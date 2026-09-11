@@ -492,9 +492,26 @@ def run_import_xenium(
         # features, so the imported cell set is complete and a declared release can attach to it.
         bundle = str(r.get("xenium_bundle", "") or "").strip()
         spine = Path(bundle) if bundle and Path(bundle).exists() else None
+        # A release that exists but does not declare THIS donor is, for this donor, an absent
+        # release -- the same reading `load_release_or_none` already applies to a release that
+        # has not been written yet. Failing the whole import instead would block the geometry
+        # half for every donor a partial release does not reach, which is most of the cohort
+        # while a producer lane is still running.
+        #
+        # Skipping attachment is safe because the protection is structural, not this branch:
+        # the table stays geometry-profile, and every identity stage downstream refuses a
+        # geometry-profile table. `attach_release_identity` itself stays strict -- asking it
+        # to attach a donor the release does not cover is still an error.
+        donor_covered = release is not None and (
+            not getattr(release, "donors", None)
+            or str(r["donor_id"]) in {str(d) for d in release.donors})
+        if release is not None and not donor_covered:
+            print(f"[import_xenium] {r['donor_id']}/{r['roi']}: identity release "
+                  f"{release.release_id} does not declare this donor; importing geometry only",
+                  flush=True)
         df = import_sample(src, donor_id=r["donor_id"], roi=r["roi"], tissue=row_tissue,
                            sample_key=r.get("xenium_sample_key", ""), tax=_tax_for(row_tissue),
-                           release=release, spine=spine)
+                           release=release if donor_covered else None, spine=spine)
         path = partition_path(cfg.cells_xen_dir, r["donor_id"], r["roi"])
         write_cell_table(df, path)
         print(f"[import_xenium] {r['donor_id']}/{r['roi']} ({row_tissue}): {len(df):,} "
@@ -510,7 +527,8 @@ def run_import_xenium(
             print(f"[import_xenium] {r['donor_id']}/{r['roi']}: feat__if_{{{','.join(ifres['markers'])}}} "
                   f"stamped on {ifres['n_stamped']:,} cells (NaN where unmeasured)", flush=True)
         rows.append({"donor_id": r["donor_id"], "roi": r["roi"], "tissue": row_tissue,
-                     "n_cells": len(df), "source": str(src)})
+                     "n_cells": len(df), "source": str(src),
+                     "identity": "attached" if donor_covered else "geometry only"})
 
     out = pd.DataFrame(rows)
     if len(out):
