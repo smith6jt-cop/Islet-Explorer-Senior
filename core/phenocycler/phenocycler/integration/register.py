@@ -75,6 +75,13 @@ class RegistrationResult:
     footprint_ncc: float = float("nan")
     footprint_ncc_z: float = float("nan")
     footprint_containment: float = float("nan")
+    # The null itself, not just the z derived from it. Across 20 donors the null's spread
+    # varies 14-fold (sd 0.006 to 0.083), so the same z means different things on different
+    # sections and a reader cannot check that without these.
+    footprint_null_mean: float = float("nan")
+    footprint_null_sd: float = float("nan")
+    footprint_null_n: int = 0
+    footprint_null_floor: float = float("nan")
     islet_peak_ratio: float = float("nan")
     islet_peak_offset_um: float = float("nan")
     islet_peak_angle_deg: float = float("nan")
@@ -143,6 +150,10 @@ class RegistrationResult:
             "footprint_ncc": self.footprint_ncc,
             "footprint_ncc_z": self.footprint_ncc_z,
             "footprint_containment": self.footprint_containment,
+            "footprint_null_mean": self.footprint_null_mean,
+            "footprint_null_sd": self.footprint_null_sd,
+            "footprint_null_n": self.footprint_null_n,
+            "footprint_null_floor": self.footprint_null_floor,
             "islet_peak_ratio": self.islet_peak_ratio,
             "islet_peak_offset_um": self.islet_peak_offset_um,
             "islet_peak_angle_deg": self.islet_peak_angle_deg,
@@ -1242,6 +1253,11 @@ def evaluate(
             null, floor = footprint_ncc_null(
                 mv_i, fx_i, mv_mask, fx_mask, grid, result.transform,
                 n=null_placements, min_containment=floor)
+            result.footprint_null_n = int(len(null))
+            result.footprint_null_floor = float(floor)
+            if len(null):
+                result.footprint_null_mean = float(null.mean())
+                result.footprint_null_sd = float(null.std())
             if np.isfinite(r) and len(null) >= 20 and null.std() > 0:
                 result.footprint_ncc_z = float((r - null.mean()) / null.std())
                 result.notes.append(

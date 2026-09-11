@@ -338,18 +338,44 @@ def cohort_registration_figure(cfg: PipelineConfig,
         return None
     qc = qc.copy()
     qc["donor_id"] = qc["donor_id"].astype(str)
-    qc = qc.sort_values("footprint_ncc_z", ascending=False, na_position="last")
+    # Ordered by the OBSERVED correlation, not by the z derived from it. The null mean is ~0
+    # on every donor, so the observation is already the effect size, and ordering by z instead
+    # sorts partly by how tight each donor's null happened to be.
+    qc = qc.sort_values("footprint_ncc", ascending=False, na_position="last")
     donors = qc["donor_id"].tolist()
     x = np.arange(len(donors))
     colours = [{"PASS": "#2ca02c", "WARN": "#ff7f0e", "FAIL": "#d62728"}.get(str(v), "#777777")
                for v in qc.get("verdict", ["" for _ in donors])]
 
     def _num(col):
-        return pd.to_numeric(qc.get(col), errors="coerce").to_numpy(float)
+        # qc.get(col) returns a scalar default when the column is absent, so go through an
+        # explicit Series rather than trusting the getter's return type.
+        series = qc[col] if col in qc.columns else pd.Series([np.nan] * len(qc))
+        return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
 
-    fig, axes = plt.subplots(3, 1, figsize=(max(10, 0.62 * len(donors) + 4), 11), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(max(10, 0.62 * len(donors) + 4), 14), sharex=True)
 
+    # Panel 0 -- the raw evidence, before any statistic is derived from it. This exists
+    # because the z below is NOT comparable across donors: the null's spread varies 14-fold
+    # (sd 0.006 to 0.083), so a tight null turns a trivial correlation into a large z and a
+    # broad null buries a real one. Donor 6461 clears z>=5 on an NCC of 0.031 -- no
+    # correlation at all -- while 6539 reads 0.280, comparable to the verified-correct 6436,
+    # and lands at z=3.1. Plotting the observation against its own null is what shows that.
     ax = axes[0]
+    ncc = _num("footprint_ncc")
+    nm, nsd = _num("footprint_null_mean"), _num("footprint_null_sd")
+    ax.bar(x, ncc, color=colours, edgecolor="white", lw=0.4, label="observed NCC")
+    ax.errorbar(x, nm, yerr=nsd, fmt="_", color="#333333", markersize=10, lw=1.2,
+                capsize=3, label="null: mean ± sd over other placements")
+    ax.set_ylabel("footprint NCC")
+    ax.set_title("The raw evidence.  Chance is ~0 for every donor — so the observed "
+                 "correlation IS the effect size.\n"
+                 "Bar height is what was measured; the black interval is what placement alone "
+                 "achieves on that same section.", fontsize=10)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.25)
+
+    ax = axes[1]
     z = _num("footprint_ncc_z")
     ax.bar(x, np.nan_to_num(z, nan=0.0), color=colours, edgecolor="white", lw=0.4)
     ax.axhline(5.0, color="#333333", linestyle="--", lw=1.2, label="bar: z >= 5")
@@ -358,12 +384,14 @@ def cohort_registration_figure(cfg: PipelineConfig,
             ax.text(i, 0.2, "not\nmeasured", ha="center", va="bottom", fontsize=7,
                     color="#777777")
     ax.set_ylabel("footprint NCC, z against other\nplacements on this same section")
-    ax.set_title("Primary bar — image structure inside the Xenium footprint, against a "
-                 "within-donor null.  Bar colour = verdict.", fontsize=10)
+    ax.set_title("The derived statistic, and why it cannot be the whole gate: z is "
+                 "(observed − null mean) / null sd,\n"
+                 "so it rewards a TIGHT null as much as a strong correlation.  "
+                 "Bar colour = verdict.", fontsize=10)
     ax.legend(fontsize=8, loc="upper right")
     ax.grid(axis="y", alpha=0.25)
 
-    ax = axes[1]
+    ax = axes[2]
     ax.plot(x, _num("tissue_dice"), "o-", color="#1f77b4", lw=1.2, markersize=4,
             label="tissue Dice")
     ax.plot(x, _num("footprint_containment"), "s--", color="#9467bd", lw=1.2, markersize=4,
@@ -376,16 +404,20 @@ def cohort_registration_figure(cfg: PipelineConfig,
     ax.legend(fontsize=8, loc="lower left")
     ax.grid(axis="y", alpha=0.25)
 
-    ax = axes[2]
-    ax.bar(x, _num("rotation_deg"), color="#4c72b0", edgecolor="white", lw=0.4)
+    ax = axes[3]
+    ax.bar(x, _num("rotation_deg"), color="#4c72b0", edgecolor="white", lw=0.4, zorder=1)
     ax.set_ylabel("rotation (deg)", color="#4c72b0")
     ax.tick_params(axis="y", labelcolor="#4c72b0")
     ax.axhline(0.0, color="#333333", lw=0.8)
     ax.grid(axis="y", alpha=0.25)
     twin = ax.twinx()
-    twin.plot(x, _num("anisotropy"), "^", color="#c44e52", markersize=6, label="anisotropy")
-    twin.axhline(cfg.reg_max_anisotropy, color="#c44e52", linestyle="--", lw=1.0,
-                 label=f"bound {cfg.reg_max_anisotropy:.2f}")
+    # Above the bars, or the markers vanish behind them and the series reads as unplotted.
+    twin.set_zorder(ax.get_zorder() + 1)
+    twin.patch.set_visible(False)
+    twin.plot(x, _num("anisotropy"), "^", color="#c44e52", markersize=7, linestyle="none",
+              markeredgecolor="white", markeredgewidth=0.5, label="anisotropy", zorder=5)
+    twin.axhline(cfg.reg_max_anisotropy, color="#c44e52", linestyle="--", lw=1.2,
+                 label=f"bound {cfg.reg_max_anisotropy:.2f}", zorder=4)
     twin.set_ylabel("anisotropy (sx/sy)", color="#c44e52")
     twin.tick_params(axis="y", labelcolor="#c44e52")
     twin.legend(fontsize=8, loc="upper right")
