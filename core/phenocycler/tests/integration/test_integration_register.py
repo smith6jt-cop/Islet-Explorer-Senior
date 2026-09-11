@@ -564,3 +564,76 @@ def test_a_folded_displacement_field_is_refused_by_its_jacobian_not_its_magnitud
 def test_an_affine_only_transform_is_invertible_by_definition():
     ok, why = register.displacement_is_invertible(Transform())
     assert ok and why == "affine only"
+
+
+def _structured(shape=(220, 220), seed=11):
+    """An image with asymmetric large-scale structure.
+
+    Smoothed noise will not do: it is close enough to rotationally self-similar that a coarse
+    orientation search cannot tell 165 deg from 10 deg, which makes it a bad model of a
+    section and a worse test fixture.
+    """
+    from scipy import ndimage
+
+    rng = np.random.default_rng(seed)
+    img = np.zeros(shape, np.float32)
+    for cy, cx, amp in ((60, 70, 1.0), (70, 150, 0.7), (150, 90, 0.85), (170, 160, 0.5),
+                        (110, 115, 0.35)):
+        yy, xx = np.mgrid[0:shape[0], 0:shape[1]]
+        img += amp * np.exp(-(((yy - cy) ** 2 + (xx - cx) ** 2) / (2 * 22.0 ** 2)))
+    img += 0.05 * rng.random(shape)
+    img = ndimage.gaussian_filter(img, 1.5)
+    return ((img - img.min()) / max(float(np.ptp(img)), 1e-9)).astype(np.float32)
+
+
+def test_a_large_rotation_seed_is_refined_as_a_residual_not_as_a_whole_transform():
+    """ECC linearises around its estimate, so a far-from-identity seed diverges.
+
+    Donor 6450's sections differ by ~170 deg and every one of its eight candidates returned
+    "NaN encountered" -- masked and unmasked alike -- until the candidate was applied to the
+    moving image first. 6436 and 6442 only ever worked because their coarse winners happened
+    to land at -20 and +5 deg.
+
+    The seed is built directly rather than taken from the coarse search, so what is under test
+    is the refinement formulation and nothing else.
+    """
+    fixed = _structured()
+    grid = GridSpec(0.0, 0.0, 2.0, fixed.shape[0], fixed.shape[1])
+    centre = (grid.width * grid.pixel_um / 2.0, grid.height * grid.pixel_um / 2.0)
+    truth = from_rigid(165.0, (0.0, 0.0), center_um=centre)
+    moving = truth.invert().warp_mask(fixed, grid)
+
+    _tf_direct, direct = register.refine_ecc(moving, fixed, grid, truth, motion="euclidean")
+    pre = truth.warp_mask(moving.astype(np.float32), grid)
+    residual, val = register.refine_ecc(pre, fixed, grid, Transform(), motion="euclidean")
+
+    assert np.isfinite(val), "the residual formulation must converge on a 165 deg seed"
+    assert abs(residual.compose(truth).rotation_deg - 165.0) < 5.0
+    # The direct call is what fails on real data; if it happens to survive here, the residual
+    # must still be at least as good, which is the property the pipeline relies on.
+    if np.isfinite(direct):
+        assert val >= direct - 1e-6
+
+
+def test_the_mirror_search_survives_the_fine_stage():
+    """MOTION_EUCLIDEAN cannot represent a reflection, so a mirrored seed used to be dropped.
+
+    cv2 rejects the non-proper rotation the SVD orthogonalisation returns, `refine_ecc` caught
+    the cv2.error and returned nan, and every mirrored candidate vanished -- silently, because
+    the mirror hypothesis is advertised at the top of this module. Pre-warping puts the
+    reflection in the image, where cv2 never sees it as a warp.
+    """
+    fixed = _structured(seed=12)
+    grid = GridSpec(0.0, 0.0, 2.0, fixed.shape[0], fixed.shape[1])
+    centre = (grid.width * grid.pixel_um / 2.0, grid.height * grid.pixel_um / 2.0)
+    truth = from_rigid(20.0, (0.0, 0.0), mirror=True, center_um=centre)
+    moving = truth.invert().warp_mask(fixed, grid)
+    assert truth.is_mirrored
+
+    _tf, direct = register.refine_ecc(moving, fixed, grid, truth, motion="euclidean")
+    assert not np.isfinite(direct), "a reflected seed is not a MOTION_EUCLIDEAN warp"
+
+    pre = truth.warp_mask(moving.astype(np.float32), grid)
+    residual, val = register.refine_ecc(pre, fixed, grid, Transform(), motion="euclidean")
+    assert np.isfinite(val), "a mirrored candidate must reach a finite ECC value"
+    assert residual.compose(truth).is_mirrored, "the reflection must survive composition"

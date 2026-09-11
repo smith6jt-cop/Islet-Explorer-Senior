@@ -225,5 +225,15 @@ git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04
   (`b84a08bc…`) had been aimed at endpoint `6ea86da5…` "D6-36_FBMS-J506-W1", which is a *different* workstation, and
   failed every retry with `500 Path not allowed`; this machine is `f1b69b9e…` "LInux Processing" and its Globus
   Connect Personal must be started (`~/globusconnectpersonal-3.2.8/globusconnectpersonal -start`) before a
-  transfer. The MM046/MM047 runs (6450, 6505, 6534, 6623) were not found under either HiPerGator root, so
-  arm X3 is `Unavailable(not_transferred)` for those four donors.
+  transfer. The MM046/MM047 runs (6450, 6505, 6534, 6623) were recorded here as "not found under either
+  HiPerGator root" — they were not missing, they were under a **different project root**:
+  `/orange/brusko/xenium/HuPrime5kPanTissue/Y9QRJ6/MM046_…` and `…/MM047_…`, not `/orange/maigan/…`
+  (maintainer, 2026-09-10). Their DAPI landed 2026-09-10 (Globus task `ef4698c5…`, 4 files, 3.2 GB).
+  Two things differ about those two batches and both matter. They use the **newer Xenium channel
+  naming** — `morphology_focus/ch0000_dapi.ome.tif`, not `morphology_focus_0000.ome.tif`;
+  `rasterize.read_xenium_morphology` already falls back to `*.ome.tif` sorted, so `ch0000_dapi` resolves
+  as channel 0 with no renaming, and renaming it to match the old convention would be a lie about which
+  file it is. And only the DAPI channel was fetched, so `tifffile` warns that three companion channels
+  are missing and zeroes them — the same warning the other 18 donors already produce, and harmless
+  because only channel 0 is read. `experiment.xenium` is still absent for these four; nothing in the
+  registration path reads it.

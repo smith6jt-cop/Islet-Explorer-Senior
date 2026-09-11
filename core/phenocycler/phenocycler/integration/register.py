@@ -947,14 +947,30 @@ def register_image(
     if moving_mask is not None:
         res.stages.append("masked_ecc")
 
+    # Refine a RESIDUAL, never the whole transform. ECC linearises around its current estimate,
+    # so a seed far from identity is not merely slow to converge -- it diverges outright. Donor
+    # 6450's sections differ by ~170 deg and every one of its eight candidates failed with
+    # "NaN encountered", masked and unmasked alike; 6436 and 6442 only ever worked because
+    # their coarse winners happened to sit at -20 and +5 deg.
+    #
+    # So the candidate is applied to the moving image first and ECC is handed a near-identity
+    # problem, then the two are composed back in micron space. This costs one resampling of the
+    # moving raster per candidate and it is also what makes the mirror search real: a reflected
+    # seed cannot be expressed as a MOTION_EUCLIDEAN warp at all -- cv2 rejects the non-proper
+    # rotation the SVD returns -- so before this, every mirrored candidate raised cv2.error and
+    # was silently dropped. Pre-warping puts the reflection in the image, where it costs
+    # nothing. On 6450 all eight candidates converge, mirrored ones included.
     best, best_val = None, -np.inf
     for cand in refine_set:
-        tf, val = refine_ecc(moving, fixed, grid, cand, motion="euclidean",
-                             moving_mask=moving_mask)
+        pre = cand.warp_mask(np.asarray(moving, dtype=np.float32), grid)
+        pre_mask = (cand.warp_mask(np.asarray(moving_mask, dtype=bool), grid)
+                    if moving_mask is not None else None)
+        residual, val = refine_ecc(pre, fixed, grid, Transform(), motion="euclidean",
+                                   moving_mask=pre_mask)
         if not np.isfinite(val):
             continue
         if val > best_val:
-            best, best_val = tf, val
+            best, best_val = residual.compose(cand), val
     if best is None:
         # Every ECC seed diverged; keep the best correlating coarse candidate so the caller
         # still gets a usable starting point rather than the identity.
@@ -968,7 +984,14 @@ def register_image(
     # a partial-overlap silhouette will happily buy correlation with an unphysical stretch. Take
     # it only when it is both better AND a scale two calibrated micron frames could produce;
     # otherwise keep the rigid fit, which has scale exactly 1 by construction.
-    tf, val = refine_ecc(moving, fixed, grid, best, motion="affine", moving_mask=moving_mask)
+    # Same treatment for the affine stage, and for the same reason: it is seeded with `best`,
+    # which after a large-rotation coarse win is itself far from identity.
+    pre_best = best.warp_mask(np.asarray(moving, dtype=np.float32), grid)
+    pre_best_mask = (best.warp_mask(np.asarray(moving_mask, dtype=bool), grid)
+                     if moving_mask is not None else None)
+    residual, val = refine_ecc(pre_best, fixed, grid, Transform(), motion="affine",
+                               moving_mask=pre_best_mask)
+    tf = residual.compose(best)
     if np.isfinite(val) and val >= best_val:
         physical, why = scale_is_physical(
             tf, max_anisotropy=max_anisotropy, max_scale_deviation=max_scale_deviation)
@@ -1051,8 +1074,9 @@ def footprint_ncc_null(
     max_angle_deg: float = 180.0,
     max_shift_um: float = 3000.0,
     min_containment: float = 0.85,
+    min_floor: float = 0.5,
     seed: int = 0,
-) -> np.ndarray:
+) -> tuple[np.ndarray, float]:
     """The same correlation at ``n`` other placements of the same footprint.
 
     A **within-donor, within-section** null: staining, cell density, tissue quality and the
@@ -1065,18 +1089,36 @@ def footprint_ncc_null(
     Placements are constrained to keep at least ``min_containment`` of the footprint on fixed
     tissue, so the null is drawn from placements that are *plausible*, not from ones that hang
     the footprint off the slide and trivially score nothing.
+
+    That floor is **relaxed until enough placements exist**, down to ``min_floor``, and the
+    floor actually reached is returned alongside the samples. A fixed floor is not safe: donor
+    6450's own placement sits at 0.823 containment and almost nothing else on its section
+    reaches even 0.78, so a fixed 0.85 produced an empty null and silently removed the primary
+    bar for that donor. Relaxing is not free and is not the safe direction -- a less contained
+    placement puts more of the footprint over background, where the moving raster has signal
+    and the fixed one has none, which drives the null's correlation *down* and makes the
+    observation easier to beat. So the floor reached is reported and travels with the z.
     """
     rng = np.random.default_rng(seed)
-    centre = tuple(float(v) for v in grid.to_microns(
-        np.array([[grid.width / 2.0, grid.height / 2.0]]))[0])
+    # Rotate about the WARPED FOOTPRINT'S OWN CENTROID, not the grid centre. Rotating a
+    # footprint that does not sit at the centre of the canvas about that centre couples every
+    # rotation to a translation the size of its offset, which throws it off the section --
+    # donor 6450 produced zero usable placements out of 2,400 attempts that way, silently
+    # removing its primary bar. The null is supposed to vary orientation and position while
+    # holding coverage roughly fixed; turning the footprint in place is what does that.
+    rows0, cols0 = np.nonzero(np.asarray(moving_mask, dtype=bool))
+    if len(rows0) == 0:
+        return np.zeros(0)
+    seed_centre = grid.to_microns(
+        np.array([[float(cols0.mean()), float(rows0.mean())]]))[0]
+    warped_centre = tf.apply(seed_centre.reshape(1, 2))[0]
+    centre = (float(warped_centre[0]), float(warped_centre[1]))
 
     # Probe points for the containment test: a subsample of the moving footprint's own pixels,
     # carried forward and looked up in the fixed mask. Warping the whole raster just to reject
     # a placement costs 160 ms and most placements are rejected, so the probe is what makes a
     # null of this size affordable at all.
-    rows, cols = np.nonzero(np.asarray(moving_mask, dtype=bool))
-    if len(rows) == 0:
-        return np.zeros(0)
+    rows, cols = rows0, cols0
     take = rng.choice(len(rows), size=min(4000, len(rows)), replace=False)
     probe_um = grid.to_microns(np.column_stack([cols[take], rows[take]]).astype(np.float64))
 
@@ -1091,16 +1133,33 @@ def footprint_ncc_null(
         hit[ok] = fixed_mask[r[ok], c[ok]]
         return float(hit.mean())
 
-    out: list[float] = []
-    attempts = 0
-    while len(out) < n and attempts < n * 20:
-        attempts += 1
+    # Draw the candidate placements once, then decide how far the floor has to drop to admit
+    # enough of them. Sampling once keeps the relaxation honest: the same placements are being
+    # judged at every floor, so a lower floor only ever adds, never reshuffles.
+    proposals = []
+    for _ in range(n * 20):
         cand = from_rigid(float(rng.uniform(-max_angle_deg, max_angle_deg)),
                           (float(rng.uniform(-max_shift_um, max_shift_um)),
                            float(rng.uniform(-max_shift_um, max_shift_um))),
                           center_um=centre).compose(tf)
-        if _containment(cand) < min_containment:
-            continue
+        proposals.append((_containment(cand), cand))
+    proposals.sort(key=lambda t: -t[0])
+
+    floor = float(min_containment)
+    for trial in (min_containment, 0.9 * min_containment, 0.8 * min_containment,
+                  0.7 * min_containment, min_floor):
+        trial = max(float(trial), float(min_floor))
+        if sum(1 for c, _ in proposals if c >= trial) >= n:
+            floor = trial
+            break
+        floor = trial
+
+    out: list[float] = []
+    for containment, cand in proposals:
+        if len(out) >= n:
+            break
+        if containment < floor:
+            break
         warped = cand.warp_mask(np.asarray(moving_mask, dtype=bool), grid)
         if warped.sum() < 100:
             continue
@@ -1108,7 +1167,7 @@ def footprint_ncc_null(
                               warped_mask=warped)
         if np.isfinite(r):
             out.append(r)
-    return np.asarray(out, dtype=np.float64)
+    return np.asarray(out, dtype=np.float64), floor
 
 
 def evaluate(
@@ -1172,18 +1231,28 @@ def evaluate(
         else:
             r, n_px = footprint_ncc(mv_i, fx_i, mv_mask, grid, result.transform)
             result.footprint_ncc = r
-            null = footprint_ncc_null(mv_i, fx_i, mv_mask, fx_mask, grid, result.transform,
-                                      n=null_placements)
+            # Draw the null from placements at least as well contained as THIS one, not from an
+            # absolute standard the donor may not reach. Donor 6450 sits at 0.822 containment,
+            # below the 0.85 floor, so every sampled placement was rejected and the null came
+            # back empty -- which silently removed the primary bar for that donor. The null's
+            # job is to vary placement while holding coverage roughly fixed; tying the floor to
+            # the observation is what actually does that.
+            floor = min(0.85, 0.95 * result.footprint_containment) \
+                if np.isfinite(result.footprint_containment) else 0.85
+            null, floor = footprint_ncc_null(
+                mv_i, fx_i, mv_mask, fx_mask, grid, result.transform,
+                n=null_placements, min_containment=floor)
             if np.isfinite(r) and len(null) >= 20 and null.std() > 0:
                 result.footprint_ncc_z = float((r - null.mean()) / null.std())
                 result.notes.append(
                     f"footprint NCC {r:.3f} over {n_px:,} px vs null "
                     f"{null.mean():.3f}+/-{null.std():.3f} over {len(null)} other placements "
-                    f"-> z={result.footprint_ncc_z:.1f}")
+                    f"at containment >= {floor:.2f} -> z={result.footprint_ncc_z:.1f}")
             elif np.isfinite(r):
                 result.notes.append(
-                    f"footprint NCC {r:.3f}; null had only {len(null)} usable placements, "
-                    f"so no z is reported")
+                    f"footprint NCC {r:.3f} over {n_px:,} px; the null produced only "
+                    f"{len(null)} usable placements at containment >= {floor:.2f}, so no z is "
+                    f"reported and the primary bar is UNAVAILABLE for this donor")
 
     if moving_structures is not None and fixed_structures is not None \
             and len(moving_structures) and len(fixed_structures):

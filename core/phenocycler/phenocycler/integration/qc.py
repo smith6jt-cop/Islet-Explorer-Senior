@@ -151,7 +151,15 @@ def verdict_for(tissue_dice: float, islet_rmse_um: float, *,
     if ncc_ok and peak_ok:
         return PASS, reasons
     if ncc_ok:
-        reasons.append("anatomy-level only; islet correspondence not demonstrated")
+        # Say which of the two it is. "Not demonstrated" covers a donor whose islets were
+        # checked and disagreed and a donor that has no structures to check at all, and those
+        # are different facts about different problems -- the first is about this transform,
+        # the second is about whether identity has reached this donor yet.
+        reasons.append(
+            "anatomy-level only; islet correspondence tested and did not corroborate"
+            if peak_available else
+            "anatomy-level only; no structures for this donor, so islet correspondence could "
+            "not be tested (identity has not reached it)")
         return WARN, reasons
     if not ncc_available and peak_ok:
         # No image pair to measure the primary bar against, but the structures corroborate.

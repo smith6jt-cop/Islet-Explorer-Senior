@@ -299,3 +299,24 @@ def test_verdict_reasons_are_actionable():
     _v, reasons = verdict_for(0.4, 400.0, dice_min=0.80, rmse_max=150.0)
     assert any("Dice" in r for r in reasons)
     assert any("RMSE" in r for r in reasons)
+
+
+def test_a_warn_says_whether_the_islets_were_tested_or_untestable():
+    """Two different facts about two different problems, and they must not share a sentence.
+
+    A donor whose islets disagree has a transform question. A donor with no structures has an
+    identity question — the corroborating bar was never measured. Both land at WARN; only the
+    reason tells them apart.
+    """
+    tested, _r = verdict_for(0.9, 60.0, dice_min=0.80, rmse_max=150.0,
+                             footprint_ncc_z=9.0, islet_peak_ratio=1.1,
+                             islet_peak_offset_um=900.0)
+    _v, reasons_tested = verdict_for(0.9, 60.0, dice_min=0.80, rmse_max=150.0,
+                                     footprint_ncc_z=9.0, islet_peak_ratio=1.1,
+                                     islet_peak_offset_um=900.0)
+    _v2, reasons_untested = verdict_for(0.9, np.nan, dice_min=0.80, rmse_max=150.0,
+                                        footprint_ncc_z=9.0)
+    assert tested == WARN
+    assert any("did not corroborate" in r for r in reasons_tested)
+    assert any("no structures for this donor" in r for r in reasons_untested)
+    assert not any("did not corroborate" in r for r in reasons_untested)
