@@ -1,0 +1,101 @@
+# Islet Explorer Senior -- PhenoCycler run cohort (20 donors).
+#
+# A SECOND DATASET, not a variant of the CODEX one. The legacy 15-donor CODEX build stays with
+# Junior; this config carries the run cohort typed by the context-specific subpanels. The two
+# share only five donors (6450, 6505, 6521, 6534, 6551) and do not share a vocabulary, so they
+# are never merged -- a cross-donor comparison spanning both would compare methods, not biology.
+#
+# COHORT: the ten donors with zero missed islets under every detection setting tested and zero
+# duplicated islet detections -- 115, 6374, 6436, 6442, 6461, 6476, 6482, 6493, 6539, 6593.
+# They are 8 ND + 2 T1D and contain NO Aab+ donor, because all three Aab+ donors are either in
+# batch 2 or carry an islet deficit. This dataset therefore supports ND vs T1D and no
+# disease-progression comparison. See core/phenocycler/scripts/typing/cohort.py.
+#
+# The class list is deliberately coarse. This panel carries no acinar-specific and no
+# ductal-specific marker, so Exocrine is one label; immune subsets are not resolved, so Immune
+# is one label. Nothing here may be split further without a marker that can split it.
+
+app:
+  name: Islet Explorer Senior — Run Cohort
+  title: Islet Explorer Senior — PhenoCycler run cohort (10 verified donors)
+  url_path: islet-explorer-run20
+
+unit:
+  singular: islet
+  plural: islets
+  Title: Islet
+  key_column: islet_key
+  id_prefix: Islet
+  id_regex: "Islet_\\d+"
+  peri_suffix: _exp20um
+  case_id_pad_width: 4
+  diam_column: islet_diam_um
+
+pixel_size_um: 0.5078
+
+grouping:
+  physical_column: "Donor Status"
+  display_label: Donor status
+  levels: [ND, Aab+, T1D]
+  ordered: true
+  default_palette: Okabe-Ito
+  palettes:
+    "Paul Tol (default)": {ND: "#4477AA", Aab+: "#CC6633", T1D: "#228833"}
+    Bright: {ND: "#3366CC", Aab+: "#FF6600", T1D: "#109618"}
+    Okabe-Ito: {ND: "#0072B2", Aab+: "#D55E00", T1D: "#009E73"}
+    Diverging: {ND: "#2166AC", Aab+: "#B2182B", T1D: "#1B7837"}
+
+regions:
+  items:
+    - {id: core, canonical: islet_core, display: Islet core, geojson_class: Islet, is_core: true}
+    - {id: band, canonical: islet_band, display: Peri-islet expansion, geojson_class: ~, is_core: false}
+    - {id: union, canonical: islet_union, display: Core + peri-islet, geojson_class: ~, is_core: false}
+    # Correction E: the part of an islet and its expansion that is not endocrine cells. Declared
+    # here and not in islet_default.yml, so the CODEX cohort is unchanged. The `_nonendo` suffix
+    # is what build_workbook.py writes into Islet_Targets.region.
+    - {id: nonendo, canonical: islet_non_endocrine, display: Non-endocrine (islet + expansion),
+       geojson_class: IsletNonEndocrine, is_core: false}
+  expansion:
+    display: Peri-islet
+    geojson_class: IsletExpanded
+    distance_um: 20
+  structures:
+    - {class: Nerve, display: Nerve, color: "#B5838D"}
+    - {class: Capillary, display: Blood vessel, color: "#BC4749"}
+    - {class: Lymphatic, display: Lymphatic, color: "#84A98C"}
+  colors: {core: "#0066CC", expansion: "#00CCCC", non_endocrine: "#8C6BB1"}
+  # Read by the Plot tab under every composition measure. Corrections A and G changed what the
+  # denominator counts, so it is stated rather than assumed.
+  denominator_note: >-
+    Denominator: analysis-eligible cells in the region — a detection with no nucleus is not counted
+    anywhere, nor is an exocrine call inside the islet border. An islet with no cells in a region
+    has no proportion there, not a zero.
+
+# The eight classes the subpanels decide, and nothing else.
+phenotypes:
+  # Shown in the Plot tab's measure-group headings. Not scVI: these eight classes come from the
+  # subpanel classification (core/phenocycler/scripts/typing/RECONSTRUCTION.md).
+  classifier_label: subpanel classification
+  display_order: [Beta_cell, Alpha_cell, Delta_cell, Exocrine, Blood_Vessel,
+                  Lymphatic, Neural, Immune]
+  colors:
+    Beta_cell: "#E63946"
+    Alpha_cell: "#F4A261"
+    Delta_cell: "#E9C46A"
+    Exocrine: "#A8DADC"
+    Blood_Vessel: "#BC4749"
+    Lymphatic: "#84A98C"
+    Neural: "#B5838D"
+    Immune: "#3A5A8C"
+
+# Where this dataset's files live. Read by 00_globals.R; a config without this block falls back
+# to the historical data/app_data paths, so islet_default.yml is unaffected.
+data:
+  root: "../../data/development/typing/app"
+  master: "master_results_run10.xlsx"
+  islet_proportions: "islet_celltype_proportions.csv"
+  # No MASTER h5ad: the app reads this dataset through the DuckDB Parquet views (parquet/), which
+  # load_master_duckdb() tries before the H5AD and before Excel. The Trajectory tab's own file is
+  # separate and does exist -- adata_ins_root.h5ad, islet composition ordered by diffusion
+  # pseudotime, resolved by mod_trajectory_server.R from the domain root directly.
+  h5ad: ~

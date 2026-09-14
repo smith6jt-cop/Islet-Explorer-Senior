@@ -43,6 +43,29 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       )
     }
 
+    # Offer only the disease statuses this dataset actually has. Both status filters were
+    # hard-coded c("ND", "Aab+", "T1D"); under the run cohort, which has no Aab+ donor, that
+    # invites the reader to filter on a category whose box can never contain a point. These
+    # update statically-mounted inputs, so they cannot race a renderUI mount.
+    statuses_present <- reactive({
+      pd <- prepared()
+      if (is.null(pd$comp) || !"Donor Status" %in% colnames(pd$comp)) return(domain_group_levels())
+      present <- unique(as.character(pd$comp$`Donor Status`))
+      intersect(domain_group_levels(), present)
+    })
+
+    observe({
+      present <- statuses_present()
+      if (!length(present)) return()
+      for (id in c("groups", "dist_status")) {
+        current <- isolate(input[[id]])
+        updateCheckboxGroupInput(session, id, choices = present,
+                                 selected = if (is.null(current)) present
+                                            else intersect(current, present),
+                                 inline = identical(id, "dist_status"))
+      }
+    })
+
     has_neighborhood <- reactive({
       pd <- prepared()
       if (is.null(pd$comp)) return(FALSE)
@@ -439,8 +462,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     output$leiden_not_available <- renderUI({
       if (!has_leiden()) {
         return(div(style = "color: #888; font-style: italic; margin-bottom: 10px;",
-          "Leiden clustering not available in current H5AD. ",
-          "Rebuild with build_h5ad_for_app.py after running Leiden clustering."))
+          "Islet-level Leiden clustering is not present in this dataset: the islet table carries ",
+          "no ", tags$code("leiden_<resolution>"), " or ", tags$code("leiden_umap_1/2"),
+          " columns. Every other card on this tab is unaffected."))
       }
       NULL
     })
@@ -815,7 +839,21 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
     # ---- Neighborhood cards UI (conditional on data availability) ----
     output$neighborhood_cards <- renderUI({
-      if (!has_neighborhood()) return(NULL)
+      # Cards A-C need the per-region composition columns. Returning NULL made three whole
+      # sections disappear with nothing said, so a dataset that simply lacks the columns looked
+      # identical to a dataset where they failed to load. Say which is missing instead.
+      if (!has_neighborhood()) {
+        return(div(class = "card",
+          style = "padding: 15px; margin: 15px 0; border-left: 4px solid #CC6633;",
+          tags$strong("Neighborhood analysis unavailable for this dataset."),
+          tags$p(style = "margin: 6px 0 0; color: #555;",
+            "Cards A-C read per-region composition columns (", tags$code("peri_prop_*"),
+            ", ", tags$code("enrich_z_*"), ", ", tags$code("min_dist_*"),
+            ") from the islet table, and none is present. They are written by ",
+            tags$code("neighborhood_metrics.csv"), " and merged into ", tags$code("islets.parquet"),
+            "; every other tab is unaffected.")
+        ))
+      }
 
       # section_heading helper (inline — cannot share with UI function directly)
       sec_heading <- function(step, title, subtitle) {
@@ -970,24 +1008,32 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               # This card has its OWN disease-status toggle (input$dist_status),
               # independent of the sidebar Donor Status filter.
               radioButtons(ns("dist_ptype"), "Plot",
-                           choices = c("Density curves" = "density", "Composition bars" = "composition"),
+                           choices = if (cell_distance_has_markers())
+                                       c("Density curves" = "density", "Composition bars" = "composition")
+                                     else c("Density curves" = "density"),
                            selected = "density", inline = TRUE),
               conditionalPanel(
                 condition = "input.dist_ptype == 'density'", ns = ns,
                 fluidRow(
                   column(5, radioButtons(ns("dist_mode"), "Group cells by",
-                                         choices = c("Phenotype" = "phenotype", "Marker" = "marker"),
+                                         choices = if (cell_distance_has_markers())
+                                                     c("Phenotype" = "phenotype", "Marker" = "marker")
+                                                   else c("Phenotype" = "phenotype"),
                                          selected = "phenotype", inline = TRUE)),
                   column(7, selectInput(ns("dist_group"), "Show", choices = NULL, width = "100%"))
                 )
               ),
               conditionalPanel(
                 condition = "input.dist_ptype == 'composition'", ns = ns,
-                checkboxGroupInput(ns("dist_comp_markers"), "Markers (RESTORE-positive)",
-                                   choices = cell_distance_markers(),
-                                   selected = intersect(c("INS", "CD3e", "CD20", "CD163", "CD31"),
-                                                        cell_distance_markers()),
-                                   inline = TRUE)
+                if (cell_distance_has_markers())
+                  checkboxGroupInput(ns("dist_comp_markers"), "Markers (RESTORE-positive)",
+                                     choices = cell_distance_markers(),
+                                     selected = intersect(c("INS", "CD3e", "CD20", "CD163", "CD31"),
+                                                          cell_distance_markers()),
+                                     inline = TRUE)
+                else
+                  tags$small(style = "color: #666;",
+                    "This dataset carries no per-marker positivity call, so composition bars are unavailable. Use the Density view, grouped by phenotype.")
               ),
               checkboxGroupInput(ns("dist_status"), "Disease status",
                                  choices = c("ND", "Aab+", "T1D"),

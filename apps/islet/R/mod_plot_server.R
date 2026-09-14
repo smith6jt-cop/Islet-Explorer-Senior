@@ -39,8 +39,19 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         "Stt_frac" = "Stt_any"
       )
       comp_cols <- colnames(pd$comp)
-      prop_cols <- grep("^prop_", comp_cols, value = TRUE)
-      peri_prop_cols <- grep("^peri_prop_", comp_cols, value = TRUE)
+      # The phenotype measures are the prop_ columns whose stem is one of the domain's declared
+      # phenotypes. Anything else with a prop_ prefix is a different kind of call -- the galectin
+      # and macrophage classes come from a QuPath object classifier, not from the cell typing --
+      # and listing the two together would present them as one vocabulary. They get their own
+      # group instead, named for where they came from.
+      .stem_of <- function(x, prefix) sub(paste0("^", prefix), "", x)
+      phenotypes <- domain_phenotype_order()
+      all_prop <- grep("^prop_", comp_cols, value = TRUE)
+      all_peri <- grep("^peri_prop_", comp_cols, value = TRUE)
+      prop_cols <- all_prop[.stem_of(all_prop, "prop_") %in% phenotypes]
+      peri_prop_cols <- all_peri[.stem_of(all_peri, "peri_prop_") %in% phenotypes]
+      other_prop_cols <- setdiff(all_prop, prop_cols)
+      other_peri_cols <- setdiff(all_peri, peri_prop_cols)
       combined_pairs <- pd$combined_pairs
       combined_values <- if (!is.null(combined_pairs) && nrow(combined_pairs) > 0) {
         setNames(paste0("combined_prop_", combined_pairs$stem), combined_pairs$label)
@@ -51,18 +62,41 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
 
       choices <- list("Core — Hormone Positivity (QuPath threshold)" = base_choices)
       if (length(prop_cols)) {
-        choices[["Core — Phenotype Proportions (scVI)"]] <-
+        choices[[sprintf("Core — Phenotype Proportions (%s)", domain_classifier_label())]] <-
           setNames(prop_cols, gsub("^prop_", "", prop_cols))
       }
       if (length(peri_prop_cols)) {
-        choices[["Peri-Islet — Phenotype Proportions (scVI)"]] <-
+        choices[[sprintf("Peri-Islet — Phenotype Proportions (%s)", domain_classifier_label())]] <-
           setNames(peri_prop_cols, gsub("^peri_prop_", "", peri_prop_cols))
       }
       if (length(combined_values)) {
-        choices[["Core+Peri — Phenotype Proportions (scVI)"]] <- combined_values
+        choices[[sprintf("Core+Peri — Phenotype Proportions (%s)", domain_classifier_label())]] <- combined_values
+      }
+      if (length(other_prop_cols)) {
+        choices[["Core — Galectin & macrophage (QuPath object classifier)"]] <-
+          setNames(other_prop_cols, gsub("_", " ", .stem_of(other_prop_cols, "prop_")))
+      }
+      if (length(other_peri_cols)) {
+        choices[["Peri-Islet — Galectin & macrophage (QuPath object classifier)"]] <-
+          setNames(other_peri_cols, gsub("_", " ", .stem_of(other_peri_cols, "peri_prop_")))
       }
       choices
     }
+
+    # Offer only the disease statuses this dataset actually has. mod_plot_ui.R mounts the filter
+    # with a literal c("ND", "Aab+", "T1D"); under the run cohort, which has no Aab+ donor, that
+    # is a filter for a group the data cannot contain. Updating a statically-mounted input cannot
+    # race a renderUI mount. Same fix as the Spatial tab's two status filters.
+    observe({
+      pd <- prepared()
+      if (is.null(pd$comp) || !"Donor Status" %in% colnames(pd$comp)) return()
+      present <- intersect(domain_group_levels(), unique(as.character(pd$comp$`Donor Status`)))
+      if (!length(present)) return()
+      current <- isolate(input$groups)
+      updateCheckboxGroupInput(session, "groups", choices = present,
+                               selected = if (is.null(current)) present else intersect(current, present),
+                               inline = TRUE)
+    })
 
     selection_values <- function(choices) {
       unname(unlist(choices, use.names = FALSE))
@@ -217,7 +251,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           hint,
           helpText(
             "Core = cells within the islet boundary. Peri-Islet = cells within a 20 µm zone around the islet. ",
-            "Core+Peri = phenotype cells pooled across both zones, with the matching pooled denominator."
+            "Core+Peri = phenotype cells pooled across both zones, with the matching pooled denominator.",
+            if (nzchar(domain_denominator_note())) tags$span(" ", domain_denominator_note())
           )
         )
       }

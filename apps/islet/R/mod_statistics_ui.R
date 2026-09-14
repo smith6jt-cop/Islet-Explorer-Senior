@@ -55,8 +55,11 @@ statistics_ui <- function(id) {
       h4("About this tab",
          style = "margin: 0 0 6px 0; font-size: 16px; color: #2c4760;"),
       p(style = "margin: 0 0 6px 0; font-size: 13px; line-height: 1.5; color: #333;",
+        # No cohort size here: this UI is built once at startup, before any dataset is loaded,
+        # so any number written in would be a claim about whichever cohort happened to be first.
+        # The actual donor and group counts are reported with the results, where they are computed.
         tags$strong("What it does."), " Compares the selected feature across ",
-        tags$strong("ND, Aab+, and T1D"), " donors (N=15 total) with a single, pre-specified ",
+        tags$strong("donor groups"), " with a single, pre-specified ",
         "workflow that avoids pseudoreplication. The primary test is a ",
         tags$strong("linear mixed-effects model"), " with donor as a random intercept. ",
         "A conservative donor-level cross-check is reported as a sensitivity analysis, and its ",
@@ -186,7 +189,7 @@ statistics_ui <- function(id) {
           tags$small(style = "color: #888; display: block; margin-bottom: 8px;",
             "Pairwise difference between donor means, in the feature's own units, with a ",
             "Welch 95% CI. Magnitude and its uncertainty carry more information than a ",
-            "p-value alone, especially with N=5 per group. The unstandardised difference ",
+            "p-value alone, especially at the group sizes in this cohort. The unstandardised difference ",
             "leads because a pooled-SD effect size (Cohen's d) needs the groups to have ",
             "comparable spread, and they often do not here \u2014 d and the Glass's \u0394 range it ",
             "sits inside are in the Sensitivity check table."),

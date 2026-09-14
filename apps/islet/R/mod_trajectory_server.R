@@ -27,7 +27,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     # ---------- H5AD Path Resolution ----------
     resolve_traj_path <- function() {
       cand <- c(
-        file.path("..", "..", "data", "app_data", "adata_ins_root.h5ad"),
+        file.path(domain_data_root(), "adata_ins_root.h5ad"),
+        domain_data_file("adata_ins_root"),
         file.path("..", "..", "scripts", "adata_ins_root.h5ad"),
         if (!is.null(project_root)) file.path(project_root, "data", "app_data", "adata_ins_root.h5ad") else NULL,
         if (!is.null(project_root)) file.path(project_root, "scripts", "adata_ins_root.h5ad") else NULL,
@@ -476,8 +477,22 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         ),
         valid_caption,
         mode_note,
-        tags$div(style = "color:#777; font-size:11px; margin-top:2px; font-style:italic;",
-          "Aab+ is a single donor (6521); its pseudotime reflects one individual and is excluded from the ordering statistic.")
+        local({
+          support <- status_support()
+          single <- if (!is.null(support)) {
+            names(Filter(function(s) s$donors == 1, support))
+          }
+          if (length(single)) tags$div(
+            style = "color:#777; font-size:11px; margin-top:2px; font-style:italic;",
+            sprintf("%s carried by a single donor (%s); %s pseudotime reflects one individual and is excluded from the ordering statistic.",
+                    paste(single, collapse = ", "),
+                    paste(vapply(single, function(st) {
+                      d <- traj_with_pseudotime()$obs
+                      col <- if ("Case ID" %in% names(d)) "Case ID" else "imageid"
+                      unique(as.character(d[[col]][as.character(d$donor_status) == st]))[1]
+                    }, character(1)), collapse = ", "),
+                    if (length(single) > 1) "each" else "its"))
+        })
       )
     })
 
@@ -1043,27 +1058,50 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       )
     })
 
+    # How many donors and islets each disease status actually carries, from the loaded data.
+    # Two captions used to assert "Aab+ is a single donor (6521)" and "Aab+ = 1 donor (n=399
+    # islets)" as literals. Those are facts about the CODEX cohort; under the run cohort they
+    # named a donor that is not in it and a count from a different dataset, which is worse than
+    # saying nothing because it reads like a measurement.
+    status_support <- reactive({
+      tr <- traj_with_pseudotime()
+      obs <- if (!is.null(tr) && is.null(tr$error)) tr$obs else NULL
+      if (is.null(obs) || !"donor_status" %in% names(obs)) return(NULL)
+      donor_col <- if ("Case ID" %in% names(obs)) "Case ID" else "imageid"
+      if (!donor_col %in% names(obs)) return(NULL)
+      split_obs <- split(as.character(obs[[donor_col]]), as.character(obs$donor_status))
+      lapply(split_obs, function(ids) list(donors = length(unique(ids)), islets = length(ids)))
+    })
+
     # ---------- Legend for trajectory scatter ----------
     output$traj_legend <- renderUI({
       color_by <- input$traj_color_by %||% "donor_status"
 
       if (color_by == "donor_status") {
         dc <- donor_colors_reactive()
+        support <- status_support()
+        # Only the statuses this dataset actually has. A swatch for a status with no donor
+        # invites the reader to look for points that cannot exist.
+        present <- if (!is.null(support)) intersect(domain_group_levels(), names(support))
+                   else domain_group_levels()
+        swatches <- lapply(present, function(st) {
+          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;",
+                                dc[[st]] %||% "#999999")),
+            span(st, style = "font-size: 15px;")
+          )
+        })
+        thin <- if (!is.null(support)) {
+          Filter(Negate(is.null), lapply(present, function(st) {
+            s <- support[[st]]
+            if (!is.null(s) && s$donors == 1)
+              sprintf("%s = 1 donor (n=%s islets)", st, format(s$islets, big.mark = ","))
+          }))
+        }
         tagList(
-          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["ND"]])),
-            span("ND", style = "font-size: 15px;")
-          ),
-          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["Aab+"]])),
-            span("Aab+", style = "font-size: 15px;")
-          ),
-          div(style = "display: flex; align-items: center;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["T1D"]])),
-            span("T1D", style = "font-size: 15px;")
-          ),
-          div(style = "font-size: 11px; color: #777; margin-top: 8px; font-style: italic;",
-            "Aab+ = 1 donor (n=399 islets)")
+          swatches,
+          if (length(thin)) div(style = "font-size: 11px; color: #777; margin-top: 8px; font-style: italic;",
+                                paste(unlist(thin), collapse = "; "))
         )
       } else if (color_by == "donor_id") {
         df <- traj_data_clean()
@@ -1165,7 +1203,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         scale_x_continuous(expand = expansion(mult = 0.02)) +
         scale_y_continuous(expand = expansion(mult = 0.02)) +
         coord_fixed() +
-        labs(x = "UMAP 1", y = "UMAP 2", title = "UMAP: Donor Status") +
+        # The card header (mod_trajectory_ui.R) already names this plot; an in-plot title
+        # repeats it and overlaps it in a narrow card.
+        labs(x = "UMAP 1", y = "UMAP 2") +
         guides(color = guide_legend(override.aes = list(size = 3))) +
         theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
@@ -1200,8 +1240,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         scale_x_continuous(expand = expansion(mult = 0.02)) +
         scale_y_continuous(expand = expansion(mult = 0.02)) +
         coord_fixed() +
+        # The card header already says "UMAP: Selected Feature"; only the feature name adds
+        # anything, and the repeated "UMAP:" prefix is what collided with it.
         labs(x = "UMAP 1", y = "UMAP 2",
-             title = paste("UMAP:", selected_feature),
+             title = selected_feature,
              color = "Expression") +
         theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),

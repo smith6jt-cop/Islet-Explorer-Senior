@@ -2100,7 +2100,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
           "The same rule gates the per-bin ANOVA, Kendall \u03c4 AND the pairwise contrasts: a pairwise ",
           "post-hoc is never reported for a bin that has no omnibus test behind it. ",
           "Coverage is group-dependent \u2014 the large-diameter bins can rest on a handful of islets ",
-          "from two donors while the smallest bin carries thousands from all fifteen \u2014 so each ",
+          "from two donors while the smallest bin carries thousands from every donor \u2014 so each ",
           "bin's donor / islet count is on the axis label, the per-group coverage behind each ",
           "individual cell is in its hover, and bins that failed the rule are listed under the ",
           "plot with the reason rather than silently omitted.",
@@ -2137,7 +2137,17 @@ statistics_server <- function(id, raw_df, get_selection_description,
         tags$p(style = "font-size: 90%; color: #666; margin-top: 8px;",
           tags$strong("Interpretation: "),
           "A significant result (p < \u03b1) suggests the feature differs between donor groups. ",
-          "With N = 5 per group, power is limited; non-significant results should not be over-interpreted. ",
+          # The donor counts come from the analysis that just ran, not from a literal: this text
+          # used to say "N = 5 per group", which is a fact about the CODEX cohort and is wrong
+          # for any other dataset the app serves.
+          sprintf("With %s, power is limited; non-significant results should not be over-interpreted. ",
+                  local({
+                    gs <- st$group_summary
+                    if (is.null(gs) || !nrow(gs) || !"n_donors" %in% names(gs)) "these group sizes"
+                    else paste0("n = ", paste(sprintf("%d %s", as.integer(gs$n_donors),
+                                                      as.character(gs$donor_status)),
+                                              collapse = ", "), " donors")
+                  })),
           "Effect sizes (Cohen's d) provide magnitude information independent of sample size."
         )
       )

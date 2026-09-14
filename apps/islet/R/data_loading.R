@@ -124,10 +124,38 @@ prep_data <- function(master) {
       { safe_left_join(., donors_meta, by = c("Case ID","Donor Status"), context = "targets_all:donors_meta") }
   }
 
-  # Markers with fraction positive / mean intensity (include LGALS3 sheet)
-  markers <- master$markers %>% add_islet_key() %>% dplyr::filter(!is.na(islet_key))
+  # Markers with fraction positive / mean intensity (include LGALS3 sheet).
+  # Both sheets are optional: a dataset can carry per-islet composition without per-marker
+  # positivity, which is the case whenever no lane has fitted a level for every marker. The
+  # LGALS3 branch below was already guarded; this one was not, so a workbook missing
+  # Islet_Markers took the whole app down instead of leaving the marker views empty.
+  if (is.null(master$markers) || nrow(master$markers) == 0) {
+    message("[DATA] Islet_Markers absent; marker views will be empty for this dataset")
+    # Take the key columns' types from a sheet that does exist, so the downstream joins
+    # against donor metadata line up -- an empty frame with the wrong type fails the join
+    # just as hard as a NULL fails the filter.
+    donor_key <- NULL
+    for (sheet in c("comp", "targets")) {
+      df <- master[[sheet]]
+      if (!is.null(df) && all(c("Case ID", "Donor Status") %in% names(df))) {
+        donor_key <- df[0, c("Case ID", "Donor Status"), drop = FALSE]
+        break
+      }
+    }
+    if (is.null(donor_key)) {
+      donor_key <- tibble::tibble(`Case ID` = character(), `Donor Status` = character())
+    }
+    markers <- dplyr::bind_cols(
+      tibble::as_tibble(donor_key),
+      tibble::tibble(islet_key = character(), region_type = character(),
+                     marker = character(), n_cells = numeric(),
+                     pos_count = numeric(), pos_frac = numeric())
+    )
+  } else {
+    markers <- master$markers %>% add_islet_key() %>% dplyr::filter(!is.na(islet_key))
+  }
   markers_all <- markers %>%
-    dplyr::select(dplyr::all_of(c("Case ID", "Donor Status")), dplyr::all_of(aab_cols_markers), islet_key, region_type, marker, n_cells, pos_count, pos_frac) %>%
+    dplyr::select(dplyr::all_of(c("Case ID", "Donor Status")), dplyr::any_of(aab_cols_markers), islet_key, region_type, marker, n_cells, pos_count, pos_frac) %>%
     dplyr::mutate(
       region_type = dplyr::case_when(
         tolower(region_type) %in% c("islet_core", "core") ~ "islet_core",
@@ -258,6 +286,58 @@ prep_data <- function(master) {
   # column by trying un-sanitization candidates (mirrors the Spatial tab's
   # phenotype_options() resolver). Consumed by mod_plot_server.R Cell
   # Populations selector and raw_df_base() Combined branch.
+  # A DOMAIN may supply per-islet cell-type proportions as their own file rather than inside an
+  # H5AD. That is the case for any dataset built from cell typing alone: the composition is the
+  # result, and there is no trajectory H5AD to carry it. Declared as `data.islet_proportions`;
+  # silently absent for the CODEX domain, which gets its prop_* columns from the H5AD .obs.
+  #
+  # This must run BEFORE combined_pairs below, which derives the core+peri lookup from
+  # colnames(comp) and would otherwise see none of these columns.
+  # Only when nothing upstream has already supplied them. The DuckDB path merges prop_* from
+  # islets.parquet at :259 above; merging again here would suffix every column .x/.y and leave
+  # the plot selectors pointing at names that no longer exist.
+  already_have_props <- length(grep("^prop_", names(comp))) > 0
+  props_path <- if (already_have_props) NULL else
+    tryCatch(domain_data_file("islet_proportions"), error = function(e) NULL)
+  if (!is.null(props_path) && file.exists(props_path)) {
+    props <- tryCatch(readr::read_csv(props_path, show_col_types = FALSE),
+                      error = function(e) NULL)
+    if (!is.null(props) && nrow(props) > 0) {
+      if ("case_id" %in% names(props)) props <- dplyr::rename(props, `Case ID` = case_id)
+      drop <- intersect(c("combined_islet_id"), names(props))
+      props <- props %>% dplyr::select(-dplyr::any_of(drop))
+      # Match the key types comp carries, or the join silently drops every row.
+      props$`Case ID` <- as(props$`Case ID`, class(comp$`Case ID`)[1])
+      before <- nrow(comp)
+      comp <- safe_left_join(comp, props, by = c("Case ID", "islet_key"),
+                             context = "comp:islet_proportions")
+      matched <- sum(!is.na(comp[[grep("^prop_", names(comp), value = TRUE)[1]]]))
+      message("[DATA] islet proportions merged: ", matched, " of ", before, " islets, ",
+              length(grep("^prop_|^peri_prop_", names(comp))), " proportion columns")
+    }
+  }
+
+  # Demographics reach `comp` only through the H5AD path (the two obs reads above), so a dataset
+  # built from cell typing alone -- which has no trajectory H5AD -- arrives with no age and no
+  # sex, and the Plot tab's filters render empty. Attach them from the domain's own donor table
+  # when it has one. The stored column names stay `age`/`gender`; the UI says "Sex".
+  if (!all(c("age", "gender") %in% names(comp))) {
+    donor_path <- file.path(domain_data_root(), "donor_metadata.csv")
+    if (file.exists(donor_path)) {
+      dm <- tryCatch(readr::read_csv(donor_path, show_col_types = FALSE), error = function(e) NULL)
+      if (!is.null(dm) && all(c("case_id", "age", "sex") %in% names(dm))) {
+        dm <- dm %>%
+          dplyr::transmute(`Case ID` = case_id, age = as.numeric(age),
+                           gender = as.character(sex)) %>%
+          dplyr::distinct()
+        dm$`Case ID` <- as(dm$`Case ID`, class(comp$`Case ID`)[1])
+        comp <- safe_left_join(comp, dm, by = "Case ID", context = "comp:donor_metadata")
+        message("[DATA] demographics attached for ",
+                length(unique(dm$`Case ID`)), " donors")
+      }
+    }
+  }
+
   combined_pairs <- (function() {
     cn <- colnames(comp)
     peri_cols <- grep("^peri_prop_", cn, value = TRUE)
@@ -386,7 +466,7 @@ load_master_h5ad <- function(path) {
     # Extract neighborhood metrics from .obs (added by compute_neighborhood_metrics.py → build_h5ad_for_app.py)
     neighborhood_df <- tryCatch({
       obs <- as.data.frame(ad$obs)
-      nbr_cols <- grep("^peri_prop_|^peri_count_|^immune_|^cd8_|^tcell_|^enrich_z_|^min_dist_|^total_cells_peri|^total_cells_core|^immune_count_|^dpt_pseudotime|^leiden_",
+      nbr_cols <- grep("^peri_prop_|^peri_count_|^immune_|^cd8_|^tcell_|^enrich_z_|^min_dist_|^total_cells_peri|^total_cells_core|^immune_count_|^dpt_pseudotime|^leiden_|^sc_pseudotime|^sc_n_|^crossed_",
                        colnames(obs), value = TRUE)
       if (length(nbr_cols) > 0 && "imageid" %in% colnames(obs) && "base_islet_id" %in% colnames(obs)) {
         nbr <- obs[, c("imageid", "base_islet_id", nbr_cols), drop = FALSE]
@@ -529,7 +609,7 @@ load_master_duckdb <- function(con = get0("con", envir = globalenv())) {
     # Neighborhood metrics + Leiden + pseudotime (same regex as load_master_h5ad)
     neighborhood_df <- tryCatch({
       nbr_cols <- grep(
-        "^peri_prop_|^peri_count_|^immune_|^cd8_|^tcell_|^enrich_z_|^min_dist_|^total_cells_peri|^total_cells_core|^immune_count_|^dpt_pseudotime$|^leiden_",
+        "^peri_prop_|^peri_count_|^immune_|^cd8_|^tcell_|^enrich_z_|^min_dist_|^total_cells_peri|^total_cells_core|^immune_count_|^dpt_pseudotime$|^leiden_|^sc_pseudotime|^sc_n_|^crossed_",
         colnames(obs), value = TRUE
       )
       if (length(nbr_cols) > 0 && "imageid" %in% colnames(obs) && "base_islet_id" %in% colnames(obs)) {
