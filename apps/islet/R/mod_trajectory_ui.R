@@ -2,18 +2,11 @@ trajectory_ui <- function(id) {
   ns <- NS(id)
   tagList(
     # Pill and hint strip moved to the rail's Help entries -- see IE_TAB_TIPS.
-    div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap;",
-      tags$div(
-        title = GLOBAL_OUTLIER_TOOLTIP,
-        checkboxInput("traj_remove_outliers",
-                      "Exclude outliers",
-                      value = FALSE,
-                      width = "200px")
-      ),
-      tags$div(style = "min-width: 240px;",
-        sliderInput("traj_outlier_z", "Outlier z-threshold",
-                    min = 0.5, max = 10, value = 3, step = 0.5, width = "230px")
-      ),
+    # `traj_remove_outliers` and `traj_outlier_z` are gone: they were
+    # non-namespaced MIRRORS of the Plot and Spatial copies, kept in step by
+    # observers in app.R. The cohort panel in the top bar owns the rule for
+    # every tab. The excluded-outlier TABLE is a display choice and stays.
+    div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap",
       checkboxInput(ns("show_outlier_table"), "Show excluded-outlier table", value = FALSE)
     ),
     uiOutput(ns("traj_status")),
@@ -54,17 +47,20 @@ trajectory_ui <- function(id) {
                          min = 0, max = 0.95, value = 0.4, step = 0.05),
               sliderInput(ns("traj_point_size_slider"), "Point size:",
                          min = 0.5, max = 5.0, value = 3.0, step = 0.1),
-              numericInput(ns("min_cells"), "Min cells/islet",
-                           value = 1, min = 1, max = 200, step = 1)
+              # Min cells/islet moved to the cohort panel. It was one of four
+              # unsynced copies, and THIS one bound to `total_cells` -- core
+              # only -- where the others used core+peri, so the same number
+              # meant a different subset on this tab than on any other.
             ),
             column(3,
               div(class = "ie-legend-box",
                 h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-weight: bold; font-size: 15px"),
                 uiOutput(ns("traj_legend"))
-              ),
-              selectInput("traj_donor_palette", "Donor Status Colors",
-                          choices = names(DONOR_PALETTES),
-                          selected = "Bright")
+              )
+              # `traj_donor_palette` moved to the rail footer, which is the only
+              # writer of either palette now. It was the third copy of one
+              # selectInput, kept in step by observers that each had to name the
+              # other two.
             )
           ),
           uiOutput(ns("traj_outlier_badge")),

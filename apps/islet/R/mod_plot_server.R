@@ -13,10 +13,14 @@
 #   selected_islet  -- reactiveVal for cross-module click-to-segmentation
 #   active_tab      -- reactive returning current tab name (e.g. "Plot")
 
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own sidebar inputs, which is what the testthat
+#'   suite and any standalone use of the module get; app.R always passes one.
 plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plot"),
                         donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                         remove_outliers = reactive(FALSE),
-                        outlier_threshold = reactive(3.0)) {
+                        outlier_threshold = reactive(3.0),
+                        cohort = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -83,20 +87,12 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       choices
     }
 
-    # Offer only the disease statuses this dataset actually has. mod_plot_ui.R mounts the filter
-    # with a literal c("ND", "Aab+", "T1D"); under the run cohort, which has no Aab+ donor, that
-    # is a filter for a group the data cannot contain. Updating a statically-mounted input cannot
-    # race a renderUI mount. Same fix as the Spatial tab's two status filters.
-    observe({
-      pd <- prepared()
-      if (is.null(pd$comp) || !"Donor Status" %in% colnames(pd$comp)) return()
-      present <- intersect(domain_group_levels(), unique(as.character(pd$comp$`Donor Status`)))
-      if (!length(present)) return()
-      current <- isolate(input$groups)
-      updateCheckboxGroupInput(session, "groups", choices = present,
-                               selected = if (is.null(current)) present else intersect(current, present),
-                               inline = TRUE)
-    })
+    # The observer that narrowed this tab's donor-status checkboxes to the
+    # statuses actually present is GONE with the checkbox group itself -- the
+    # cohort panel owns donor status now and renders its own choices the same
+    # way, from the loaded data rather than from a literal. Left as a note
+    # because `updateCheckboxGroupInput` on an id that no longer exists is a
+    # silent no-op, so dead sync code here would never announce itself.
 
     selection_values <- function(choices) {
       unname(unlist(choices, use.names = FALSE))
@@ -159,6 +155,8 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     })
 
     validated_groups <- reactive({
+      # The cohort panel owns donor status for every tab when it is mounted.
+      if (!is.null(cohort)) return(cohort$groups())
       allowed <- domain_group_levels()
       value <- input$groups
       if (is.null(value) || !length(value)) return(allowed)
@@ -169,6 +167,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     })
 
     validated_min_cells <- reactive({
+      if (!is.null(cohort)) return(cohort$spec()$min_cells %||% 1)
       value <- input$min_cells %||% 1
       if (!islet_valid_bounded_number(
         value, 1, 200, "plot_min_cells_invalid"
@@ -326,24 +325,11 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
     })
 
     # ---- Age & Gender filter UIs (visible only when demographics available) ----
-    output$age_filter_ui <- renderUI({
-      pd <- prepared()
-      if (is.null(pd$comp) || !("age" %in% colnames(pd$comp))) return(NULL)
-      age_vals <- as.numeric(pd$comp$age)
-      age_vals <- age_vals[is.finite(age_vals)]
-      if (length(age_vals) == 0) return(NULL)
-      sliderInput(ns("age_range"), "Donor Age (years)",
-                  min = floor(min(age_vals)), max = ceiling(max(age_vals)),
-                  value = c(floor(min(age_vals)), ceiling(max(age_vals))), step = 1)
-    })
-
-    output$gender_filter_ui <- renderUI({
-      pd <- prepared()
-      if (is.null(pd$comp) || !("gender" %in% colnames(pd$comp))) return(NULL)
-      genders <- sort(unique(na.omit(as.character(pd$comp$gender))))
-      if (length(genders) == 0) return(NULL)
-      checkboxGroupInput(ns("gender_filter"), "Gender", choices = genders, selected = genders, inline = TRUE)
-    })
+    # `age_filter_ui` and `gender_filter_ui` are GONE, not orphaned: the cohort
+    # panel renders both, from the same data-derived bounds this code used.
+    # tests/manual/mount_audit.R is what caught them still being defined here
+    # after their UI slots moved -- an unmounted renderUI never errors, it just
+    # never renders, which is exactly the failure that audit exists to find.
 
     # ===========================================================================
     # Reactive data chain:  raw_df_base -> raw_df -> plot_df -> summary_df
@@ -486,64 +472,65 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
         dplyr::mutate(donor_status = `Donor Status`) %>%
         dplyr::filter(!is.na(value))
 
-      # Apply min cells/islet filter
-      min_cells <- validated_min_cells()
-      if (min_cells > 1 &&
-          "total_cells_core" %in% colnames(out) &&
-          "total_cells_peri" %in% colnames(out)) {
-        tc_core <- suppressWarnings(as.numeric(out$total_cells_core))
-        tc_peri <- suppressWarnings(as.numeric(out$total_cells_peri))
-        tc_core <- ifelse(is.finite(tc_core), tc_core, 0)
-        tc_peri <- ifelse(is.finite(tc_peri), tc_peri, 0)
-        out <- out[is.finite(tc_core + tc_peri) & (tc_core + tc_peri) >= min_cells, , drop = FALSE]
-      }
-
-      # Apply diameter range filter
-      if (!is.null(input$diam_range) && length(input$diam_range) == 2) {
-        diam_min <- as.numeric(input$diam_range[1])
-        diam_max <- as.numeric(input$diam_range[2])
-        if (is.finite(diam_min) && is.finite(diam_max)) {
-          out <- out %>%
-            dplyr::filter(is.finite(islet_diam_um) &
-                          islet_diam_um >= diam_min &
-                          islet_diam_um <= diam_max)
+      # ONE call where five hand-rolled filters stood: min-cells, diameter, age,
+      # sex and the autoantibody rule. cohort_apply() carries the same semantics
+      # -- including "an unchecked AAb flag EXCLUDES donors carrying it, and no
+      # flags at all excludes every Aab+ donor", which was ported from this very
+      # block -- and it attaches an audit saying which filter bound to which
+      # column, so a filter this frame cannot serve surfaces instead of
+      # silently doing nothing. Donor status is applied upstream, where the two
+      # mode branches each build `df`.
+      if (!is.null(cohort)) {
+        out <- cohort$apply(out, cells_expr = "core_peri")
+      } else {
+        min_cells <- validated_min_cells()
+        if (min_cells > 1 &&
+            "total_cells_core" %in% colnames(out) &&
+            "total_cells_peri" %in% colnames(out)) {
+          tc_core <- suppressWarnings(as.numeric(out$total_cells_core))
+          tc_peri <- suppressWarnings(as.numeric(out$total_cells_peri))
+          tc_core <- ifelse(is.finite(tc_core), tc_core, 0)
+          tc_peri <- ifelse(is.finite(tc_peri), tc_peri, 0)
+          out <- out[is.finite(tc_core + tc_peri) & (tc_core + tc_peri) >= min_cells, , drop = FALSE]
         }
-      }
-
-      # Age filter
-      if (!is.null(input$age_range) && length(input$age_range) == 2 && "age" %in% colnames(out)) {
-        out <- out[is.finite(as.numeric(out$age)) &
-                   as.numeric(out$age) >= input$age_range[1] &
-                   as.numeric(out$age) <= input$age_range[2], , drop = FALSE]
-      }
-      # Gender filter
-      if (!is.null(input$gender_filter) && "gender" %in% colnames(out)) {
-        out <- out[as.character(out$gender) %in% input$gender_filter, , drop = FALSE]
-      }
-
-      # Apply AAb filters (only within Aab+ donor group)
-      flags <- input$aab_flags
-      all_aab_cols <- c("AAb_GADA", "AAb_IA2A", "AAb_ZnT8A", "AAb_IAA", "AAb_mIAA")
-
-      others <- out %>% dplyr::filter(donor_status != "Aab+")
-      aabp   <- out %>% dplyr::filter(donor_status == "Aab+")
-
-      if (nrow(aabp) > 0) {
-        if (is.null(flags) || length(flags) == 0) {
-          aabp <- aabp[0, , drop = FALSE]
-        } else {
-          unchecked <- setdiff(all_aab_cols, flags)
-          unchecked_avail <- intersect(unchecked, colnames(aabp))
-          if (length(unchecked_avail) > 0) {
-            exclude_mat <- as.data.frame(aabp[, unchecked_avail, drop = FALSE])
-            for (cc in colnames(exclude_mat)) exclude_mat[[cc]] <- as.logical(exclude_mat[[cc]])
-            has_unchecked <- rowSums(exclude_mat, na.rm = TRUE) > 0
-            aabp <- aabp[!has_unchecked, , drop = FALSE]
+        if (!is.null(input$diam_range) && length(input$diam_range) == 2) {
+          diam_min <- as.numeric(input$diam_range[1])
+          diam_max <- as.numeric(input$diam_range[2])
+          if (is.finite(diam_min) && is.finite(diam_max)) {
+            out <- out %>%
+              dplyr::filter(is.finite(islet_diam_um) &
+                            islet_diam_um >= diam_min &
+                            islet_diam_um <= diam_max)
           }
         }
+        if (!is.null(input$age_range) && length(input$age_range) == 2 && "age" %in% colnames(out)) {
+          out <- out[is.finite(as.numeric(out$age)) &
+                     as.numeric(out$age) >= input$age_range[1] &
+                     as.numeric(out$age) <= input$age_range[2], , drop = FALSE]
+        }
+        if (!is.null(input$gender_filter) && "gender" %in% colnames(out)) {
+          out <- out[as.character(out$gender) %in% input$gender_filter, , drop = FALSE]
+        }
+        flags <- input$aab_flags
+        all_aab_cols <- COHORT_AAB_COLS
+        others <- out %>% dplyr::filter(donor_status != "Aab+")
+        aabp   <- out %>% dplyr::filter(donor_status == "Aab+")
+        if (nrow(aabp) > 0) {
+          if (is.null(flags) || length(flags) == 0) {
+            aabp <- aabp[0, , drop = FALSE]
+          } else {
+            unchecked <- setdiff(all_aab_cols, flags)
+            unchecked_avail <- intersect(unchecked, colnames(aabp))
+            if (length(unchecked_avail) > 0) {
+              exclude_mat <- as.data.frame(aabp[, unchecked_avail, drop = FALSE])
+              for (cc in colnames(exclude_mat)) exclude_mat[[cc]] <- as.logical(exclude_mat[[cc]])
+              has_unchecked <- rowSums(exclude_mat, na.rm = TRUE) > 0
+              aabp <- aabp[!has_unchecked, , drop = FALSE]
+            }
+          }
+        }
+        out <- dplyr::bind_rows(others, aabp)
       }
-
-      out <- dplyr::bind_rows(others, aabp)
       attr(out, "selection_used") <- w
       attr(out, "mode_used") <- mode
       out
@@ -1387,25 +1374,30 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       desc <- c(desc, paste("Selection:", validated_selection() %||% "Unknown"))
       desc <- c(desc, paste("Metric:", validated_metric()))
 
-      desc <- c(desc, paste("Donor Groups:", paste(validated_groups(), collapse = ", ")))
-
-      if (length(input$aab_flags) > 0) {
-        all_aab <- c("AAb_GADA", "AAb_IA2A", "AAb_ZnT8A", "AAb_IAA", "AAb_mIAA")
-        excluded <- setdiff(all_aab, input$aab_flags)
-        if (length(excluded) > 0) {
-          aab_desc <- paste("AAb Filter: Excluding donors with", paste(excluded, collapse = ", "))
-          desc <- c(desc, aab_desc)
-        } else {
-          desc <- c(desc, "AAb Filter: All Aab+ donors included")
+      # COHORT SCOPE COMES FROM THE PANEL, in one block, generated from the spec
+      # AND the audit. Hand-writing it here is how a header comes to report a
+      # filter that was silently skipped: the old lines below printed the AAb
+      # and diameter selections whether or not the frame had the columns to
+      # apply them. cohort_provenance() marks a requested-but-unapplied filter
+      # "*** NOT APPLIED ***" instead.
+      if (!is.null(cohort)) {
+        desc <- c(desc, cohort$provenance(attr(raw_df_base(), "cohort_audit")))
+      } else {
+        desc <- c(desc, paste("Donor Groups:", paste(validated_groups(), collapse = ", ")))
+        if (length(input$aab_flags) > 0) {
+          excluded <- setdiff(COHORT_AAB_COLS, input$aab_flags)
+          desc <- c(desc, if (length(excluded) > 0)
+            paste("AAb Filter: Excluding donors with", paste(excluded, collapse = ", "))
+            else "AAb Filter: All Aab+ donors included")
+        }
+        if (!is.null(input$diam_range) && length(input$diam_range) == 2) {
+          desc <- c(desc, paste("Diameter Range:",
+                                input$diam_range[1], "-", input$diam_range[2], "\u00b5m"))
         }
       }
 
       desc <- c(desc, paste("Statistic:", input$stat %||% "mean_se"))
       desc <- c(desc, paste("Bin Width:", input$binwidth %||% "50", "\u00b5m"))
-      if (!is.null(input$diam_range) && length(input$diam_range) == 2) {
-        desc <- c(desc, paste("Diameter Range:",
-                              input$diam_range[1], "-", input$diam_range[2], "\u00b5m"))
-      }
 
       return(desc)
     }

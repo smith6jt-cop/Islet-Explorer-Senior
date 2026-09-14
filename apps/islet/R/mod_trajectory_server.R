@@ -9,12 +9,26 @@ traj_min_cells_value <- function(x) {
   if (length(v) == 1 && is.finite(v) && v >= 1) v else 1
 }
 
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own inputs, which is what the testthat suite and
+#'   any standalone use get; app.R always passes one.
 trajectory_server <- function(id, prepared, selected_islet, forced_image, active_tab = reactive("Trajectory"),
                               donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                               remove_outliers = reactive(FALSE),
-                              outlier_threshold = reactive(3.0)) {
+                              outlier_threshold = reactive(3.0),
+                              cohort = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Min cells/islet, from the cohort panel when it is mounted. This tab bound
+    # the same slider to `total_cells`, which is CORE ONLY, where every other
+    # tab used core+peri -- so the identical number meant a different subset
+    # here. The panel takes `cells_expr` for exactly that reason, and this tab
+    # asks for "core".
+    traj_min_cells <- reactive({
+      if (!is.null(cohort)) return(traj_min_cells_value(cohort$spec()$min_cells))
+      traj_min_cells_value(input$min_cells)
+    })
 
     validated_pt_mode <- reactive({
       value <- input$pt_mode %||% "core"
@@ -396,8 +410,28 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       result_df <- result_df[valid_idx, , drop = FALSE]
 
+      # ---- cohort scope -------------------------------------------------
+      # THIS TAB HAD NO DONOR FILTER. It plotted every islet in the H5AD
+      # regardless of what the rest of the app was scoped to, so narrowing the
+      # cohort on Plot left the pseudotime scatter unnarrowed with nothing
+      # saying so -- the same gap Inflammation had.
+      #
+      # By DONOR ID, not by row filter: this frame is AnnData obs joined to the
+      # islet metrics and carries `donor_status` and `case_id` but no age, sex
+      # or AAb columns. cohort_donor_ids() resolves those against the islet
+      # table and returns a membership list, so all four donor-scope filters
+      # land here correctly instead of three of them reporting themselves
+      # "not applied" against a frame that could never carry them.
+      if (!is.null(cohort) && "case_id" %in% colnames(result_df)) {
+        keep <- cohort$donor_ids()
+        if (length(keep)) {
+          result_df <- result_df[as.character(result_df$case_id) %in% keep, , drop = FALSE]
+          if (!nrow(result_df)) return(NULL)
+        }
+      }
+
       # Apply min cells/islet filter
-      min_cells <- traj_min_cells_value(input$min_cells)
+      min_cells <- traj_min_cells()
       if (min_cells > 1 && "total_cells" %in% colnames(result_df)) {
         tc <- suppressWarnings(as.integer(result_df$total_cells))
         result_df <- result_df[is.finite(tc) & tc >= min_cells, , drop = FALSE]
@@ -1415,7 +1449,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       result <- result[is.finite(result$pt), , drop = FALSE]
 
       # Apply min cells/islet filter (matches traj_data_clean)
-      min_cells <- traj_min_cells_value(input$min_cells)
+      min_cells <- traj_min_cells()
       if (min_cells > 1) {
         result <- result[is.finite(result$total_cells) & result$total_cells >= min_cells, , drop = FALSE]
         if (nrow(result) == 0) return(NULL)

@@ -4,39 +4,35 @@
 
 #' Sidebar UI for the Plot tab
 #' Contains data filters, autoantibody filters, statistic selector, and export controls.
+#' Selection block for the shell's frozen control panel.
+#'
+#' WHAT IT KEEPS is what SELECTS the data this tab plots: the data layer, the
+#' feature within it, the metric, the summary statistic, and the outlier table.
+#' WHAT IT LOST went to the shared cohort filter in the top bar, which now owns
+#' the same controls for every tab:
+#'
+#'   groups / age_filter_ui / gender_filter_ui / aab_flags / min_cells
+#'   sidebar_remove_outliers / sidebar_outlier_z
+#'
+#' `sidebar_donor_palette` moved to the rail footer with the phenotype palette.
+#' Three of the four conditionalPanels are gone with the controls they hid on
+#' the Statistics tab -- Statistics shares this block, because it has always
+#' consumed the Plot module's frame.
 plot_sidebar_ui <- function(id) {
   ns <- NS(id)
-  # No `.sidebar` class any more: this block now renders inside the shell's
-  # frozen control panel (`.ie-aside` in app.R), which owns the surface. The
-  # old class carried a dark navy ground of its own and would fight it.
+  # No `.sidebar` class any more: this block renders inside the shell's frozen
+  # control panel (`.ie-aside` in app.R), which owns the surface. The old class
+  # carried a dark navy ground of its own and would fight it.
   div(
-    div(class = "ie-aside-head", "Data & Filters"),
+    div(class = "ie-aside-head", "This tab"),
     selectInput(ns("mode"), "Data Layer",
                 choices = c("Microenvironment", "Cell Populations"),
-                selected = "Cell Populations"),
+                selected = "Cell Populations", width = "100%"),
     uiOutput(ns("dynamic_selector")),
     uiOutput(ns("metric_selector")),
-    hr(),
-    h5("Autoantibody filter (Aab+ donors only)"),
+    # The AAb warning stays: it is about THIS tab's selection being unavailable
+    # for Aab+ donors, not about the filter, which is in the top bar.
     uiOutput(ns("aab_warning")),
-    checkboxGroupInput(ns("aab_flags"), NULL,
-                       choices = c("GADA" = "AAb_GADA",
-                                   "IA2A" = "AAb_IA2A",
-                                   "ZnT8A" = "AAb_ZnT8A",
-                                   "IAA" = "AAb_IAA",
-                                   "mIAA" = "AAb_mIAA"),
-                       selected = c("AAb_GADA", "AAb_IA2A", "AAb_ZnT8A", "AAb_IAA", "AAb_mIAA")),
-    checkboxGroupInput(ns("groups"), "Donor Status",
-                       choices = c("ND", "Aab+", "T1D"),
-                       selected = c("ND", "Aab+", "T1D"),
-                       inline = TRUE),
-    conditionalPanel(
-      condition = "input.tabs != 'Statistics'", ns = NS(NULL),
-      numericInput(ns("min_cells"), "Min cells/islet",
-                   value = 1, min = 1, max = 200, step = 1)
-    ),
-    uiOutput(ns("age_filter_ui")),
-    uiOutput(ns("gender_filter_ui")),
     conditionalPanel(
       condition = "input.tabs != 'Statistics'", ns = NS(NULL),
       radioButtons(ns("stat"), "Statistic",
@@ -44,38 +40,11 @@ plot_sidebar_ui <- function(id) {
                                "Mean\u00b1SD" = "mean_sd",
                                "Median + IQR" = "median_iqr"),
                    selected = "mean_se"),
-      # Global outlier toggle + z-threshold slider (non-namespaced so they
-      # can be synced with the mirrored controls on the Trajectory and Spatial
-      # tabs). Defaults to OFF; the threshold slider value (default 3, range
-      # 0.5–10, step 0.5) feeds the z-score `flag_outliers()` calls across all
-      # three tabs. Title attribute carries the global tooltip.
-      tags$div(
-        title = GLOBAL_OUTLIER_TOOLTIP,
-        checkboxInput("sidebar_remove_outliers",
-                      "Exclude outliers",
-                      value = FALSE),
-        sliderInput("sidebar_outlier_z", "Outlier z-threshold",
-                    min = 0.5, max = 10, value = 3, step = 0.5)
-      ),
       checkboxInput(ns("show_outlier_table"),
                     "Show excluded-outlier table",
                     value = FALSE),
-      uiOutput(ns("plot_outlier_info"))
-    ),
-    conditionalPanel(
-      condition = "input.tabs != 'Statistics'", ns = NS(NULL),
-      hr(),
-      h5("Color Palettes"),
-      # Non-namespaced: global donor palette choice synced via app.R observers
-      selectInput("sidebar_donor_palette", "Donor Status Colors",
-                  choices = names(DONOR_PALETTES),
-                  selected = "Bright")
-    ),
-    conditionalPanel(
-      condition = "input.tabs != 'Statistics'", ns = NS(NULL),
-      hr(),
-      h5("Export"),
-      downloadButton(ns("dl_summary"), "Download summary CSV")
+      uiOutput(ns("plot_outlier_info")),
+      downloadButton(ns("dl_summary"), "Download summary CSV", class = "btn-block")
     )
   )
 }
@@ -105,8 +74,13 @@ plot_main_ui <- function(id, extra_panel = NULL) {
             div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column",
               sliderInput(ns("binwidth"), "Diameter bin width (\u00b5m)",
                           min = 1, max = 75, value = 50, step = 1),
-              sliderInput(ns("diam_range"), "Islet diameter range (\u00b5m)",
-                          min = 0, max = 500, value = c(0, 350), step = 10),
+              # `diam_range` moved to the cohort panel. Leaving it here would
+              # have been worse than a duplicate: with the panel mounted, this
+              # module routes its row filtering through cohort$apply(), so this
+              # slider would have moved nothing at all while still looking like
+              # a filter -- and its fixed 0-500 default clipped at 350, hiding
+              # every islet above that in a cohort whose largest is 457 um.
+              # The panel derives its bounds from the data instead.
               selectInput(ns("plot_color_by"), "Color points by:",
                           choices = c("Donor Status" = "donor_status",
                                       "Donor ID" = "donor_id"),

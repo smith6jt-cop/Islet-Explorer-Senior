@@ -197,6 +197,25 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 
     div(
       class = "ie-main",
+
+      # ---- Frozen TOP bar: what is identical on every tab -------------------
+      # The split between here and the right-hand panel is by SIMILARITY, not by
+      # kind. FILTER is which islets are in scope and is the same question on
+      # every tab, so it earns a fixed horizontal strip the eye stops seeing;
+      # SELECTION is what the tab plots and stays in the right-hand panel, where
+      # attention already is.
+      #
+      # Before this, donor status lived under three different ids, min-cells
+      # under four with no syncing at all, and Trajectory and Inflammation had
+      # no cohort filter whatsoever.
+      #
+      # Hidden on the Viewer, which is a read-only image surface and reads none
+      # of it.
+      conditionalPanel(
+        condition = "input.tabs != 'Viewer'",
+        div(class = "ie-topbar", cohortFilterUI("cohort"))
+      ),
+
       div(
         class = "ie-body",
 
@@ -323,6 +342,13 @@ server <- function(input, output, session) {
 
   # ---- Module servers ----
 
+  # ---- The shared cohort filter ----
+  # One definition of "which islets are in scope", mounted once and consumed by
+  # every tab. `cohort$apply(df)` returns the subset AND attaches an audit of
+  # which filters bound to which column, so a filter this frame cannot apply
+  # surfaces as a banner rather than silently doing nothing.
+  cohort <- cohortFilterServer("cohort", prepared)
+
   # Active tab reactive (used to prevent duplicate non-namespaced output IDs)
   active_tab <- reactive(input$tabs)
 
@@ -349,99 +375,38 @@ server <- function(input, output, session) {
   DONOR_PALETTE_CHOICES <- names(DONOR_PALETTES)
 
   # Sync every donor-palette selector, the rail's included.
-  ie_sync_selects(input, session, donor_palette_name,
-                  c("rail_donor_palette", "sidebar_donor_palette",
-                    "traj_donor_palette"))
+  # ONE writer left for each palette, plus the drill-down panel's own phenotype
+  # selector. The Plot sidebar's, Trajectory's and Spatial's copies all went to
+  # the rail footer. ie_sync_selects() stays because the drill-down copy is real
+  # -- it sits inside a renderUI'd panel and users reach it there.
+  ie_sync_selects(input, session, donor_palette_name, c("rail_donor_palette"))
 
   active_donor_colors <- reactive({
     get_donor_color_palette(donor_palette_name())
   })
 
-  # Global outlier filter (synced across Plot sidebar, Trajectory, Spatial).
-  # Defaults to FALSE so the raw distribution renders out of the box; users
-  # opt in via the checkbox when they want to exclude tails from trends and
-  # tests. The three non-namespaced inputs `sidebar_remove_outliers`,
-  # `traj_remove_outliers`, `spatial_remove_outliers` mirror this reactive;
-  # observers keep them in sync. Modules read `remove_outliers_global()` and
-  # the threshold reactive `outlier_z_global()` directly.
-  remove_outliers_rv <- reactiveVal(FALSE)
-
-  observeEvent(input$sidebar_remove_outliers, {
-    if (!identical(input$sidebar_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$sidebar_remove_outliers))
-      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
-      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$traj_remove_outliers, {
-    if (!identical(input$traj_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$traj_remove_outliers))
-      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$traj_remove_outliers))
-      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$traj_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$spatial_remove_outliers, {
-    if (!identical(input$spatial_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$spatial_remove_outliers))
-      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
-      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  remove_outliers_global <- reactive({
-    isTRUE(remove_outliers_rv())
-  })
-
-  # Global outlier z-threshold slider (synced across Plot / Trajectory /
-  # Spatial). Default 3.0 (legacy behavior). Range 0.5–10, step 0.5. Feeds
-  # `flag_outliers(threshold = …)` for every z-score site. Spatial Card A's
-  # IQR rule (1.5×) is intentionally NOT routed through this — different
-  # scale, kept fixed for zero-inflated phenotype enrichment.
-  outlier_z_rv <- reactiveVal(3.0)
-
-  observeEvent(input$sidebar_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$sidebar_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "traj_outlier_z", value = val)
-      updateSliderInput(session, "spatial_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$traj_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$traj_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "sidebar_outlier_z", value = val)
-      updateSliderInput(session, "spatial_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$spatial_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$spatial_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "sidebar_outlier_z", value = val)
-      updateSliderInput(session, "traj_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  outlier_z_global <- reactive({
-    val <- suppressWarnings(as.numeric(outlier_z_rv()))
-    if (is.finite(val) && val >= 0.5) val else 3.0
-  })
+  # GONE WITH THE COHORT PANEL: two reactiveVals and six observers that mirrored
+  # `sidebar_remove_outliers` / `traj_remove_outliers` / `spatial_remove_outliers`
+  # and the matching z-threshold sliders into each other. Three copies of one
+  # value, each of which had to name the other two -- and Trajectory and
+  # Inflammation still got no cohort filter at all. The panel owns the rule now;
+  # modules read `cohort$outlier_enabled()` and `cohort$outlier_z()`.
+  #
+  # Unchanged by the move: Spatial Card A's IQR rule (1.5x) is still NOT routed
+  # through this. Different scale, deliberately fixed for zero-inflated
+  # phenotype enrichment.
 
   # Plot module: returns list(raw_df, summary_df, get_selection_description)
   plot_returns <- plot_server("plot", prepared, selected_islet, active_tab, active_donor_colors,
-                              remove_outliers = remove_outliers_global,
-                              outlier_threshold = outlier_z_global)
+                              remove_outliers = cohort$outlier_enabled,
+                              outlier_threshold = cohort$outlier_z,
+                              cohort = cohort)
 
   # Trajectory module
   trajectory_server("traj", prepared, selected_islet, forced_image, active_tab, active_donor_colors,
-                    remove_outliers = remove_outliers_global,
-                    outlier_threshold = outlier_z_global)
+                    remove_outliers = cohort$outlier_enabled,
+                    outlier_threshold = cohort$outlier_z,
+                    cohort = cohort)
 
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
@@ -456,17 +421,19 @@ server <- function(input, output, session) {
                     raw_df                  = plot_returns$raw_df_prezero,
                     get_selection_description = plot_returns$get_selection_description,
                     donor_colors             = active_donor_colors,
-                    remove_outliers          = remove_outliers_global)
+                    remove_outliers          = cohort$outlier_enabled,
+                    cohort                   = cohort)
 
   # Spatial Neighborhood module
   spatial_server("spatial", prepared, active_palette, active_donor_colors,
-                 remove_outliers = remove_outliers_global,
-                 outlier_threshold = outlier_z_global)
+                 remove_outliers = cohort$outlier_enabled,
+                 outlier_threshold = cohort$outlier_z,
+                 cohort = cohort)
 
   # Inflammation module. Gated on the same flag as its tabPanel (see
   # 00_globals.R) so the module is not wired up when the tab is hidden.
   if (SHOW_INFLAMMATION_TAB) {
-    inflammation_server("inflam", prepared, active_donor_colors)
+    inflammation_server("inflam", prepared, active_donor_colors, cohort = cohort)
   }
 
   # AI Assistant module (self-contained; gated so public builds omit it — see AI_ENABLED)

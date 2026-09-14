@@ -7,13 +7,24 @@
 #   PHENOTYPE_COLORS — from drilldown_helpers.R
 #   donor_tissue_available(), get_available_donors(), load_donor_tissue() — from spatial_helpers.R
 
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own inputs, which is what the testthat suite and
+#'   any standalone use get; app.R always passes one.
 spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                            donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                            remove_outliers = reactive(FALSE),
-                           outlier_threshold = reactive(3.0)) {
+                           outlier_threshold = reactive(3.0),
+                           cohort = NULL) {
 
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Donor status, from the cohort panel when it is mounted and from this
+    # tab's own checkbox group otherwise. One reader, so the five sites below
+    # cannot drift apart from each other the way the three outlier mirrors did.
+    active_groups <- reactive({
+      if (!is.null(cohort)) cohort$groups() else input$groups
+    })
 
     # ---- Outlier-table reactiveVals (parity with Plot/Trajectory) ----
     # Populated inside the Card A and Card C renderPlotly bodies, consumed by
@@ -484,8 +495,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       # Filter by donor status
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       umap1 <- suppressWarnings(as.numeric(plot_comp$leiden_umap_1))
@@ -546,8 +557,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       req("leiden_umap_1" %in% colnames(comp), "leiden_umap_2" %in% colnames(comp))
 
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       umap1 <- suppressWarnings(as.numeric(plot_comp$leiden_umap_1))
@@ -598,8 +609,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       # Filter by donor status
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       # Get phenotype proportion columns (prop_*), filtered by selected phenotypes
@@ -686,8 +697,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         df <- pd$comp
         if (is.null(df) || nrow(df) == 0) { df <- data.frame() }
         else {
-          if (!is.null(input$groups) && "Donor Status" %in% colnames(df))
-            df <- df[df$`Donor Status` %in% input$groups, , drop = FALSE]
+          if (!is.null(active_groups()) && "Donor Status" %in% colnames(df))
+            df <- df[df$`Donor Status` %in% active_groups(), , drop = FALSE]
           if ("total_cells_peri" %in% colnames(df))
             df <- df[!is.na(df$total_cells_peri) & df$total_cells_peri > 0, , drop = FALSE]
         }
@@ -708,9 +719,16 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       pd <- prepared()
       req(pd$comp)
       comp <- pd$comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(comp))
-        comp <- comp[comp$`Donor Status` %in% input$groups, , drop = FALSE]
-      # Global min cells filter
+      # The panel applies donor status, age, sex, AAb, min-cells and diameter in
+      # one fixed order, and records which of them bound to a column here. The
+      # hand-rolled block this replaces applied groups and min-cells only, so
+      # the neighborhood cards were scoped differently from every other tab on
+      # the same screen -- and its `nbr_min_cells` was a fourth unsynced copy of
+      # a slider that also lived on Plot, Trajectory and Statistics.
+      if (!is.null(cohort)) return(cohort$apply(comp, cells_expr = "core_peri"))
+
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(comp))
+        comp <- comp[comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       min_cells <- input$nbr_min_cells %||% 1
       if (min_cells > 1) {
         tc_core <- if ("total_cells_core" %in% colnames(comp)) comp$total_cells_core else NA
@@ -864,27 +882,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       sec_heading <- ie_section_heading
 
       tagList(
-        # ==== Global filter for neighborhood cards ====
-        # The "Exclude outliers" checkbox is the non-namespaced mirror of the
-        # Plot/Trajectory controls — wired up by app.R synchronisation
-        # observers so all three move together. Cards A (z-score) and C
-        # (z on log1p(distance)) honour it; Card B's "Clip z > 5" is a
-        # display saturation, kept separate.
+        # ==== Display controls for the neighborhood cards ====
+        # THREE CONTROLS LEFT, and the two that went are the point: "Exclude
+        # outliers" and its z-threshold were non-namespaced MIRRORS of the
+        # Plot and Trajectory copies, kept in step by three observers in app.R
+        # that each had to name the other two. The cohort panel owns the rule
+        # now. Min cells/islet went the same way -- it was a fourth unsynced
+        # copy of a filter the panel applies to every tab.
+        #
+        # What is left is display only: point size and transparency change how
+        # this card draws, not which islets it draws. Cards A (z-score) and C
+        # (z on log1p(distance)) honour the panel's outlier rule; Card B's
+        # "Clip z > 5" is display saturation and stays separate.
         fluidRow(column(12,
-          div(class = "card", style = "padding: 12px 15px; margin-bottom: 10px; margin-top: 10px; display: flex; align-items: center; gap: 20px; overflow: visible;",
-            span(style = "font-weight: 600; font-size: 15px; white-space: nowrap;", "Neighborhood Analysis"),
-            numericInput(ns("nbr_min_cells"), "Min cells/islet", value = 1, min = 1, max = 100, step = 1, width = "130px"),
+          div(class = "card", style = "padding: 12px 15px; margin-bottom: 10px; margin-top: 10px; display: flex; align-items: center; gap: 20px; overflow: visible",
+            span(style = "font-weight: 600; font-size: 15px; white-space: nowrap", "Neighborhood analysis"),
             sliderInput(ns("nbr_pt_size"), "Point size", min = 2, max = 12, value = 5, step = 1, width = "150px"),
             sliderInput(ns("nbr_pt_alpha"), "Point transparency", min = 0, max = 0.95, value = 0.6, step = 0.05, width = "150px"),
-            tags$div(title = GLOBAL_OUTLIER_TOOLTIP, style = "min-width: 200px;",
-              checkboxInput("spatial_remove_outliers",
-                            "Exclude outliers",
-                            value = FALSE)
-            ),
-            tags$div(style = "min-width: 230px;",
-              sliderInput("spatial_outlier_z", "Outlier z-threshold",
-                          min = 0.5, max = 10, value = 3, step = 0.5, width = "220px")
-            ),
             uiOutput(ns("nbr_islet_count"))
           )
         )),

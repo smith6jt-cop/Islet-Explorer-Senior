@@ -29,14 +29,10 @@ spatial_selection_ui <- function(id) {
                  selected = "all", inline = FALSE),
     checkboxInput(ns("color_background"), "Color background cells", value = FALSE),
     uiOutput(ns("phenotype_filter")),
-    # DOMAIN, not a literal. This read `choices = c("ND", "Aab+", "T1D")`, which
-    # is a fact about the CODEX cohort printed as a control for whichever dataset
-    # is loaded -- the same class of leak the run-cohort work removed from seven
-    # other sites, and this one survived because it is a checkboxGroup rather
-    # than a sentence.
-    checkboxGroupInput(ns("groups"), "Donor status",
-                       choices = domain_group_levels(),
-                       selected = domain_group_levels(), inline = FALSE),
+    # Donor status is NOT here. It read `choices = c("ND", "Aab+", "T1D")` --
+    # the other cohort's vocabulary printed as a control for whichever dataset
+    # is loaded -- and it was one of three unsynced copies of the same filter.
+    # The cohort panel in the top bar owns it for every tab now.
     downloadButton(ns("download_spatial"), "Download CSV", class = "btn-block")
   )
 }
