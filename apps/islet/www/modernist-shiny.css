@@ -1,0 +1,851 @@
+/* ==========================================================================
+   Modernist x Shiny — adapter layer
+   Load AFTER styles.css. Two jobs:
+     (1) retheme the widgets Shiny ships (ionRangeSlider, selectize, checkboxes)
+     (2) lay out the app shell (rail, cohort bar, panels)
+
+   Ported from design/delivered/shiny/www/modernist-shiny.css. Diff against that
+   file to see what changed; every deviation is commented with its reason, and
+   the substantive ones are:
+
+     * `:has()` REMOVED throughout. It carried the rail active state, the
+       segmented control and the group chips, and it needs Firefox 121+.
+       Firefox ESR 115 shipped on managed university desktops through Sep 2024
+       and does not have it — there, every selection indicator in the app
+       silently disappears while the app still "works". Shiny always emits
+       `<input>` immediately followed by `<span>` (verified against 1.13.0
+       output for checkboxGroupInput / radioButtons / checkboxInput), so
+       `input:checked + span` reaches the same elements with no browser gate.
+
+     * The universal `border-radius: 0 !important` is NARROWED. It was also
+       overriding styles.css's own `.radio .dot { border-radius: 50% }` — the
+       one deliberate circle in the system — rendering the design system's
+       radio button as a square indistinguishable from a checkbox.
+
+     * The gold ramp is COMPLETED. The `:root` override replaced the crimson
+       ramp 100-900 but only -300/-400/-600/-700 of the gold, so
+       `--color-accent-2-100` still resolved to the design system's CORAL
+       #fff2ef. `.ie-badge` reads that token, so the Viewer's
+       "Reference - read-only" badge rendered pink on gold-brown.
+
+     * `!important` mostly REMOVED. htmltools::renderDocument emits
+       `tags$head` links AFTER html-dependencies, so this sheet already beats
+       Bootstrap on source order. The only survivors are marked in place.
+
+   COLOUR DISCIPLINE — the accent is chrome, never data. RE-MEASURED FOR SENIOR
+   (CIEDE2000, sRGB/D65, over the 120 distinct colours this app's data palettes
+   declare). Crimson #b71533 has five collisions inside deltaE 10: 1.2 from
+   #BE0032 (Beta cell, Max Distinction), 2.4 from #B2182B (Aab+, "Diverging"),
+   7.8 from #BC4749 (Blood vessel), 8.9 from #AA4455, 9.2 from #D32F2F. Gold
+   #c8a02e is 9.3 from #CCBB44 — PAL_LEIDEN slot 4, in the file that defines the
+   accent. Below deltaE 10 two colours are not reliably told apart, so keep the
+   accent to lines, borders and underlines: a filled swatch reads as a legend key.
+   scripts/check_ui_style_fences.sh enforces this.
+   ========================================================================== */
+
+/* --- accent shift: crimson primary, gold secondary ---------------------- */
+:root {
+  --color-accent: #b71533;
+  --color-accent-100: #fde8eb; --color-accent-200: #f8c4cd;
+  --color-accent-300: #f0929f; --color-accent-400: #e35771;
+  --color-accent-500: #cf2340; --color-accent-600: #9c1029;
+  --color-accent-700: #800c21; --color-accent-800: #5f0918;
+  --color-accent-900: #400610;
+
+  /* Gold, COMPLETE. The delivered override defined only 300/400/600/700, so
+     100/200/500/800/900 fell through to the design system's coral. */
+  --color-accent-2: #c8a02e;
+  --color-accent-2-100: #fbf3da; --color-accent-2-200: #f4e4b4;
+  --color-accent-2-300: #ecd074; --color-accent-2-400: #dcb641;
+  --color-accent-2-500: #b58c22; --color-accent-2-600: #9e7c1b;
+  --color-accent-2-700: #7c6115; --color-accent-2-800: #5c4710;
+  --color-accent-2-900: #3b2e0b;
+
+  /* Accent-derived alpha tints, re-declared for crimson. styles.css sets these
+     from its own #ec3013; without this block ::selection and the ghost-button
+     hovers would stay orange while everything else went crimson. */
+  --color-accent-a10: rgba(183, 21, 51, 0.10);
+  --color-accent-a18: rgba(183, 21, 51, 0.18);
+  --color-accent-a30: rgba(183, 21, 51, 0.30);
+
+  /* The page ground is a shade below the card ground, so cards read as raised
+     without a shadow. Named rather than hardcoded so a future dark mode is a
+     token swap (the old uiOutput("theme_css") hardcoded #ffffff into the body
+     and silently won against every stylesheet — see app.R history). */
+  --color-ground: #d9d7d4;
+
+  /* Width budget. The rail is new horizontal cost the pre-port layout did not
+     pay, and this app is content-hungry (it was already min-width 1200). So the
+     rail and sidebar are trimmed to the smallest width their content actually
+     needs -- measured, not guessed: the longest rail label is "Inflammation"
+     at 14px plus the numeral and 41px of padding, and the sidebar was 181px
+     content-driven before the port.
+       rail 204 + sidebar 196 + panels padding 48 + content floor 1042 = 1490.
+     The media query at the end of this file collapses the rail to 56px below
+     that, recovering 148px -> 1342px, which covers the common laptop.
+
+     SENIOR: --aside-w raised 240 -> 312. The design's frozen panel carries a
+     four-control SELECTION block; Senior's carries the whole Data & Filters
+     sidebar, including three explanatory paragraphs and a five-checkbox
+     autoantibody group. At 240px the longest of those wrapped to nine lines
+     and "Download summary CSV" broke across two, so the panel read as damaged
+     rather than dense. 312px is what the widest of its controls -- the
+     "Cells per mm² of core area" radio -- needs on one line. The extra 72px
+     comes out of the panels, which is why the floor moves with it. */
+  --shell-min-w: 1562px;
+  --sidebar-w: 196px;
+  --aside-w: 312px;
+
+  --rail-w: 204px;
+  --rail-bg: #241419;
+  --rail-fg: #efe9e9;
+  --rail-muted: #8f857f;
+  /* Raised from the delivered #7d716b, which measured 3.74:1 on --rail-bg and
+     failed WCAG AA for 10px text. This is 4.6:1. */
+  --rail-label: #9a8d86;
+  /* The active-tab indicator. Crimson on --rail-bg measures 2.66:1 and fails
+     WCAG 1.4.11 (3:1 for non-text UI) -- and it is the ONLY cue for which tab
+     is active. Gold on the same ground is 9.09:1. */
+  --rail-active: var(--color-accent-2-400);
+}
+
+/* --- kill Bootstrap's softness ----------------------------------------- */
+/* NARROWED from `*, *::before, *::after`. That form also squared
+   styles.css's `.radio .dot { border-radius: 50% }`. */
+.btn, .form-control, .card, .well, .modal-content, .panel, .alert,
+.selectize-input, .selectize-dropdown, .nav-tabs > li > a, .list-group-item,
+.progress, .progress-bar, .shiny-notification, .label, .badge,
+.input-group-addon, .popover, .tooltip-inner,
+input[type="checkbox"], input[type="radio"], input[type="text"],
+input[type="number"], textarea, select {
+  border-radius: 0;
+}
+.radio .dot { border-radius: 50%; }   /* the one deliberate circle */
+
+.btn, .form-control, .card, .well, .modal-content,
+.selectize-input, .selectize-dropdown, .nav-tabs > li > a {
+  box-shadow: none;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  margin: 0;
+}
+/* The scroll model is taken over ONLY once the shell is actually in the DOM.
+   The delivered sheet set `body { overflow: hidden }` unconditionally, on the
+   assumption that `.ie-panels { overflow: auto }` is the replacement scroller.
+   Load it against the pre-shell layout and there IS no replacement: every tab
+   loses everything below the fold. Gating on :has(.ie-shell) makes this sheet
+   inert until the shell lands, so the CSS commit and the shell commit can be
+   reverted in either order. */
+body:has(.ie-shell) { overflow-x: auto; overflow-y: hidden; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* ==========================================================================
+   Shell
+   ========================================================================== */
+.ie-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  min-width: var(--shell-min-w);
+}
+.ie-main {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+/* Sidebar and panels are SIBLINGS in a flex row, each with its own scroller.
+   Nesting the sidebar inside .ie-panels was measured to break containment: the
+   Plot sidebar is ~1720px of controls, so sharing a scroller made the whole
+   document 1750px tall against a 1000px viewport and the shell stopped
+   containing anything. Two scrollers, matching what .equal-height-panel gave
+   both of them before the port. */
+.ie-body {
+  flex: 1 1 auto;
+  min-height: 0;          /* see below */
+  display: flex; align-items: stretch;
+  overflow: hidden;
+}
+.ie-panels {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* LOAD-BEARING. A flex item defaults to min-height:auto, which refuses to
+     shrink below its content — that turns overflow-y:auto into a no-op and
+     pushes the page past the viewport. */
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 24px 36px;
+}
+/* NOT `.ie-panels > .tab-content` — navset_hidden emits a .tabbable wrapper in
+   between (.ie-panels > .tabbable > .tab-content > .tab-pane), so the delivered
+   child selector never matched anything. */
+.ie-panels .tab-content > .tab-pane { padding: 0; }
+
+/* The Plot sidebar stays OUTSIDE the navset: statistics_server consumes
+   plot_returns$raw_df_prezero, so those inputs must stay mounted and visible on
+   the Statistics tab. Its content measures ~2060px against a ~960px viewport,
+   hence its own scroller. Replaces the invalid col-sm-1.4 column. */
+.ie-sidebar {
+  flex: 0 0 var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  min-height: 0;          /* same flex-item rule as .ie-panels */
+  overflow-y: auto;
+  border-right: 2px solid var(--color-neutral-300);
+  background: var(--color-bg);
+}
+/* The sidebar is wrapped IN a conditionalPanel (see app.R), and under BS5 Shiny
+   gives that wrapper `display: contents` via .shiny-panel-conditional:has(> *).
+   That is exactly what is wanted here: the wrapper becomes layout-transparent
+   so .ie-sidebar is a direct flex item of .ie-body, and when the condition is
+   false Shiny's inline display:none removes the whole subtree from the row
+   rather than leaving a blank gutter. */
+.ie-body > .shiny-panel-conditional { display: contents; }
+
+/* ==========================================================================
+   Left rail
+   ========================================================================== */
+.ie-rail {
+  flex: 0 0 var(--rail-w);
+  background: var(--rail-bg);
+  color: var(--rail-fg);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.ie-rail-brand { padding: 16px 18px 12px; }
+/* STACKED, not side by side. The rail is 204px wide with 18px padding, leaving
+   168px of content: a logo big enough to read plus "Panc Floyd" at 19px does
+   not fit on one line. Stacking gives the mark the full column width and keeps
+   both flush left, which is the system's rule anyway. */
+.ie-brandmark { display: flex; flex-direction: column; align-items: flex-start; }
+/* The logo is a colour mark on a near-black rail, so it sits on a light plate
+   rather than being left to fight the ground. */
+.ie-brandlogo {
+  width: 100%; max-width: 112px; height: auto; flex: none; object-fit: contain;
+  background: #f6f4f2; padding: 8px;
+}
+.ie-brandtext {
+  font-family: var(--font-heading); font-weight: 800; font-size: 21px;
+  line-height: 1.05; letter-spacing: -0.015em; color: #f6f4f2;
+}
+
+/* --- help block ------------------------------------------------------- */
+.ie-rail-help { display: flex; flex-direction: column; }
+.ie-rail-helplink {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 22px 7px 19px;
+  border-left: 3px solid transparent;
+  color: var(--rail-fg); text-decoration: none; font-size: 14px;
+  transition: background 120ms linear;
+}
+.ie-rail-helplink:hover, .ie-rail-helplink:focus {
+  background: rgba(255,255,255,0.05); color: var(--rail-fg);
+  text-decoration: none; border-left-color: var(--rail-active);
+}
+.ie-rail-helplink .ie-nav-num { color: var(--rail-active); opacity: 0.75; }
+.ie-rail-meta {
+  font-size: 11px; color: var(--rail-muted);
+  margin-top: 13px; line-height: 1.55;
+}
+.ie-rail-heading {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--rail-label); padding: 6px 22px 8px;
+}
+.ie-rail-divider {
+  height: 2px; background: rgba(255,255,255,0.10); margin: 18px 22px 0;
+}
+.ie-rail-divider + .ie-rail-heading { padding-top: 16px; }
+
+/* Rail rows. The delivered version put padding + border on `.ie-nav` and used
+   `.ie-nav:has(input:checked)`. Here the visible content lives in a wrapper
+   span so a plain sibling combinator reaches it -- rail_row() emits
+   label.ie-nav > input + span.ie-nav-body. */
+.ie-nav { display: block; margin: 0; cursor: pointer; font-weight: 400; }
+.ie-nav input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.ie-nav-body {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 22px 9px 19px;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+  transition: background 120ms linear;
+}
+.ie-nav:hover .ie-nav-body { background: rgba(255,255,255,0.05); }
+.ie-nav input:checked ~ .ie-nav-body {
+  background: rgba(255,255,255,0.09);
+  border-left-color: var(--rail-active);
+}
+.ie-nav input:focus-visible ~ .ie-nav-body {
+  outline: 2px solid var(--color-accent-400); outline-offset: -2px;
+}
+.ie-nav-num {
+  font-family: var(--font-heading); font-weight: 800; font-size: 11px;
+  color: var(--rail-active); opacity: 0.5;
+  min-width: 15px; letter-spacing: 0.02em;
+}
+.ie-nav input:checked ~ .ie-nav-body .ie-nav-num { opacity: 1; }
+.ie-nav-text { display: flex; flex-direction: column; line-height: 1.25; }
+.ie-nav-sub { font-size: 10.5px; color: var(--rail-muted); font-weight: 400; }
+
+/* NOT margin-top:auto. Pinning the footer to the bottom pushed the two palette
+   dropdowns below the fold on a 1000px viewport, so opening one scrolled the
+   rail. They sit directly under Help now and the rail never needs to scroll. */
+.ie-rail-footer {
+  margin-top: 2px; padding: 12px 22px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  border-top: 2px solid rgba(255,255,255,0.08);
+}
+.ie-rail-footer-label {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--rail-label); margin-bottom: 4px; display: block;
+}
+.ie-rail-footer-value { font-size: 13px; color: #d8cfca; }
+
+/* The palettes are real selectInputs in the footer, not static text -- that is
+   what lets app.R's four sync-observer triads go away. The rail is dark, so
+   Shiny's default white form-control has to be re-skinned here. */
+.ie-rail-footer-field .form-group { margin-bottom: 0; }
+.ie-rail-footer-field .form-control,
+.ie-rail-footer-field select {
+  background: rgba(255,255,255,0.08); color: #f2ede9;
+  border: 1px solid rgba(255,255,255,0.18);
+  font-size: 12.5px; height: 30px; padding: 2px 8px; width: 100%;
+}
+.ie-rail-footer-field option { background: #262220; color: #f2ede9; }
+
+/* ==========================================================================
+   Cohort bar
+   ========================================================================== */
+.ie-cohortbar {
+  display: flex; align-items: flex-end; gap: 20px 24px; flex-wrap: wrap;
+  padding: 15px 30px;
+  border-bottom: 2px solid var(--color-neutral-300);
+  background: var(--color-bg);
+}
+.ie-field { display: flex; flex-direction: column; gap: 6px; }
+.ie-field-label {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-neutral-700);
+}
+/* Scoped with a CHILD combinator and no !important. The delivered rule was
+   `.ie-field .form-group, .ie-field .shiny-input-container { margin: 0 !important }` --
+   a descendant selector, so it also zeroed the margin of every nested
+   .shiny-options-group, and ie_field() is also meant for per-panel control rows
+   inside a card where zeroing all descendants collapses stacked controls. */
+.ie-field > .form-group,
+.ie-field > .shiny-input-container { margin-bottom: 0; }
+.ie-field .control-label { display: none; }   /* .ie-field-label is the label */
+
+.ie-cohort-readout {
+  margin-left: auto; align-self: flex-end;
+  font-family: var(--font-heading); font-weight: 800; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-neutral-700);
+}
+
+/* --- segmented control (hand-rolled radio group) ----------------------- */
+/* ie_segmented() emits label.ie-seg-opt > input + span, so the padding lives on
+   the span and `input:checked + span` does the work -- no :has(). */
+.ie-seg { display: inline-flex; border: 2px solid var(--color-text); }
+.ie-seg-opt { margin: 0; padding: 0; cursor: pointer; font-weight: 600; }
+.ie-seg-opt input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.ie-seg-opt > span {
+  display: block; padding: 6px 13px;
+  font-size: 12px; white-space: nowrap;
+  background: transparent; color: var(--color-text);
+  transition: background 100ms linear;
+}
+.ie-seg-opt + .ie-seg-opt > span { border-left: 2px solid var(--color-text); }
+.ie-seg-opt:hover input:not(:checked) + span { background: var(--color-accent-100); }
+.ie-seg-opt input:checked + span { background: var(--color-text); color: var(--color-bg); }
+.ie-seg-opt input:focus-visible + span {
+  outline: 2px solid var(--color-accent); outline-offset: -2px;
+}
+
+/* --- disease-group chips ------------------------------------------------ */
+/* REAL markup, verified against shiny 1.13.0 output:
+     div.shiny-input-checkboxgroup
+       > label.control-label
+       + div.shiny-options-group
+           > label.checkbox-inline > input + span
+   The delivered sheet flexed .shiny-input-checkboxgroup itself, which flexes
+   the label against the options block and puts ZERO gap between the chips. */
+.ie-cohortbar .shiny-input-checkboxgroup { display: block; }
+.ie-cohortbar .shiny-options-group { display: flex; gap: 7px; flex-wrap: wrap; }
+.ie-cohortbar .checkbox-inline { margin: 0; padding: 0; cursor: pointer; }
+.ie-cohortbar .checkbox-inline input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.ie-cohortbar .checkbox-inline > span {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px 5px 9px;
+  border: 2px solid var(--color-neutral-400);
+  font-size: 12px; font-weight: 600;
+  background: transparent;
+}
+.ie-cohortbar .checkbox-inline > span::before {
+  content: ""; width: 10px; height: 10px; flex: 0 0 10px;
+  background: var(--chip, var(--color-neutral-500)); opacity: 0.3;
+}
+.ie-cohortbar .checkbox-inline input:checked + span {
+  border-color: var(--color-text); background: var(--color-neutral-100);
+}
+.ie-cohortbar .checkbox-inline input:checked + span::before { opacity: 1; }
+
+/* Chip swatches are keyed by the input's VALUE, not by nth-of-type. Order-based
+   selectors break the moment the bar carries another label sibling, and they
+   silently mis-colour if GROUP_LEVELS is reordered. The colours themselves are
+   overridden at runtime from active_donor_colors() -- the app has four
+   selectable donor palettes, and the delivered sheet hardcoded Bright, so a
+   user on Okabe-Ito saw chips that did not match their own points. These are
+   the fallback for a session before that stylesheet renders. */
+.ie-cohortbar .checkbox-inline input[value="ND"]   + span::before { background: #3366CC; }
+.ie-cohortbar .checkbox-inline input[value="Aab+"] + span::before { background: #FF6600; }
+.ie-cohortbar .checkbox-inline input[value="T1D"]  + span::before { background: #109618; }
+
+/* ==========================================================================
+   ionRangeSlider — Shiny's sliderInput ignores the tokens entirely
+   ========================================================================== */
+.irs--shiny { height: 30px; }
+.irs--shiny .irs-line {
+  height: 4px; top: 22px; background: var(--color-neutral-300); border: none;
+}
+.irs--shiny .irs-bar { height: 4px; top: 22px; border: none; background: var(--color-accent); }
+.irs--shiny .irs-handle {
+  width: 12px; height: 16px; top: 16px;
+  background: var(--color-text); border: none; box-shadow: none;
+}
+.irs--shiny .irs-handle:hover,
+.irs--shiny .irs-handle.state_hover { background: var(--color-accent-600); }
+.irs--shiny .irs-handle > i { display: none; }
+.irs--shiny .irs-min, .irs--shiny .irs-max { display: none; }
+.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single {
+  background: transparent; color: var(--color-neutral-700);
+  font-family: var(--font-heading); font-weight: 700; font-size: 11px;
+  padding: 0; top: 0;
+}
+.irs--shiny .irs-from::before, .irs--shiny .irs-to::before,
+.irs--shiny .irs-single::before { display: none; }
+
+/* ==========================================================================
+   Inputs, buttons, tables, panel chrome
+   ========================================================================== */
+.form-control, .selectize-input {
+  border: 2px solid var(--color-text);
+  background: var(--color-bg); color: var(--color-text);
+  font-family: var(--font-body); font-size: 13px;
+  padding: 7px 10px; min-height: 0; height: auto;
+}
+.form-control:focus, .selectize-input.focus {
+  border-color: var(--color-accent);
+  outline: 2px solid var(--color-accent); outline-offset: 1px;
+}
+.selectize-dropdown { border: 2px solid var(--color-text); }
+.selectize-dropdown .active { background: var(--color-accent-100); color: var(--color-accent-800); }
+
+.btn {
+  font-family: var(--font-heading); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  border: 2px solid var(--color-text); padding: 8px 14px;
+  text-align: left;                /* Modernist: labels flush left */
+}
+.btn-default, .btn-secondary { background: transparent; color: var(--color-text); }
+.btn-default:hover, .btn-secondary:hover { background: var(--color-accent-100); }
+.btn-primary {
+  background: var(--color-accent); border-color: var(--color-accent); color: #fff;
+}
+.btn-primary:hover { background: var(--color-accent-600); border-color: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); border-color: var(--color-accent-700); }
+
+.ie-card {
+  background: var(--color-bg);
+  border: 2px solid var(--color-neutral-300);
+  padding: 18px 20px 20px;
+}
+.ie-card-head {
+  display: flex; align-items: baseline; gap: 12px;
+  padding-bottom: 10px; margin-bottom: 16px;
+  border-bottom: 2px solid var(--color-neutral-300);
+}
+.ie-card-title {
+  font-family: var(--font-heading); font-weight: 800; font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.ie-card-meta { font-size: 11px; color: var(--color-neutral-600); }
+
+.table > thead > tr > th {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  border-bottom: 2px solid var(--color-text);
+  color: var(--color-neutral-700);
+}
+.table > tbody > tr > td { border-top: 1px solid var(--color-neutral-300); font-size: 13px; }
+
+/* ==========================================================================
+   Viewer — Avivator is an iframe we do not restyle. Frame it instead.
+   (border-radius does not cross a document boundary, so the squaring rules
+   above touch only the <iframe> element, never Avivator's own UI.)
+   ========================================================================== */
+.ie-viewer-head {
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 10px; margin-bottom: 0;
+  border-bottom: 2px solid var(--color-neutral-300);
+}
+.ie-badge {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 4px 9px; border: 2px solid var(--color-accent-2-600);
+  color: var(--color-accent-2-700); background: var(--color-accent-2-100);
+}
+.ie-viewer-note {
+  margin-left: auto;
+  font-family: var(--font-heading); font-weight: 800; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+.ie-viewer-frame { background: #0b0b0d; padding: 2px; margin-top: 14px; }
+.ie-viewer-frame iframe { display: block; width: 100%; height: 620px; border: 0; }
+
+/* ==========================================================================
+   Rail collapse
+   Below the shell's min width the rail drops to an icon strip: numerals only,
+   no labels, no footer. Recovers 148px, which brings the effective floor to
+   ~1342px and covers the common 1366-wide laptop. Below THAT the body scrolls
+   horizontally, as it did before the port.
+   ========================================================================== */
+@media (max-width: 1562px) {
+  :root { --rail-w: 56px; --shell-min-w: 1414px; }
+  .ie-rail-brand .ie-brandtext,
+  .ie-rail-help .ie-nav-text,
+  .ie-rail-meta,
+  .ie-rail-heading,
+  .ie-rail-footer,
+  .ie-nav-text { display: none; }
+  .ie-rail-brand { padding: 14px 0; display: flex; justify-content: center; }
+  .ie-brandlogo { width: 36px; max-width: 36px; padding: 4px; }
+  .ie-rail-helplink { justify-content: center; padding: 11px 0; gap: 0; }
+  .ie-nav-body { justify-content: center; padding: 13px 0; gap: 0; border-left-width: 3px; }
+  .ie-nav-num { min-width: 0; font-size: 12px; }
+  .ie-rail-divider { margin: 14px 12px 0; }
+}
+
+/* ==========================================================================
+   Frozen control panel (right)
+   One control surface for the whole app, in the same place on every tab.
+   Its own scroller, so it never scrolls away with the content it controls --
+   that is what "frozen" buys: the filter you are adjusting stays put while the
+   plot beneath it redraws.
+   ========================================================================== */
+.ie-aside {
+  flex: 0 0 var(--aside-w);
+  min-width: var(--aside-w);
+  min-height: 0;                    /* same flex-item rule as .ie-panels */
+  overflow-y: auto;
+  border-left: 2px solid var(--color-neutral-300);
+  background: var(--color-bg);
+  padding: 0 0 28px;
+}
+/* The panel is wrapped in a conditionalPanel so it can disappear on the Viewer;
+   display:contents keeps .ie-aside itself the flex item. */
+.ie-body > .shiny-panel-conditional { display: contents; }
+
+.ie-aside-block { padding: 16px 18px; border-bottom: 2px solid var(--color-neutral-300); }
+.ie-aside-block:last-child { border-bottom: 0; }
+.ie-aside-head {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-neutral-700);
+  padding-bottom: 8px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--color-neutral-300);
+}
+/* Controls stack; ie_field supplies the label, so Shiny's own is redundant. */
+.ie-aside .ie-field { margin-bottom: 14px; }
+.ie-aside .ie-field > .form-group,
+.ie-aside .ie-field > .shiny-input-container { margin-bottom: 0; width: 100%; }
+.ie-aside .ie-field .control-label { display: none; }
+.ie-aside .form-group { margin-bottom: 14px; }
+.ie-aside .shiny-input-container { width: 100% !important; }
+.ie-aside .shiny-options-group { display: flex; flex-direction: column; gap: 3px; }
+.ie-aside .shiny-input-container-inline .shiny-options-group {
+  flex-direction: row; flex-wrap: wrap; gap: 4px 12px;
+}
+.ie-aside .btn-block { width: 100%; margin-top: 4px; }
+.ie-aside .irs--shiny { margin-bottom: 2px; }
+.ie-aside hr { display: none; }
+
+.ie-aside-readout {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--color-neutral-300);
+  font-family: var(--font-heading); font-weight: 800; font-size: 11px;
+  letter-spacing: 0.06em; color: var(--color-neutral-700);
+  font-variant-numeric: tabular-nums;
+}
+.ie-aside-warn { color: var(--color-accent-700); display: block; margin-top: 4px; }
+.ie-aside-foot { font-size: 12px; }
+
+/* The panel is the third fixed-width column, so it enters the width budget:
+   rail 204 + panels + aside 260 + padding. Below the shell floor the aside
+   drops to the bottom of the flex row rather than squeezing the content. */
+@media (max-width: 1600px) {
+  /* SENIOR: 264, not the delivered 220 -- same reason as the base width. Below
+     this the radio labels wrap, which is ugly but still legible; below 220 the
+     control column itself starts to clip. */
+  :root { --aside-w: 264px; }
+}
+
+/* --- checkboxes and radios outside the segmented control ------------------
+   Bootstrap 3 lays these out with a hanging indent: the input is
+   position:absolute with margin-left:-20px and the label carries
+   padding-left:20px. bslib's BS5 bundle keeps the .checkbox/.radio compat
+   classes but BS5 itself styles .form-check, so in the narrow aside the inputs
+   were being positioned outside their container and reading as plain text with
+   no control at all. Put them back in flow. */
+.checkbox, .radio { margin: 0 0 4px; }
+.checkbox > label, .radio > label,
+.checkbox-inline, .radio-inline {
+  position: relative; display: inline-flex; align-items: flex-start; gap: 8px;
+  min-height: 0; padding-left: 0; margin-bottom: 0; font-weight: 400;
+  font-family: var(--font-body); font-size: 13px; line-height: 1.35;
+  color: var(--color-text); cursor: pointer;
+}
+/* CLASS COLLISION, and it is a nasty one. styles.css defines a Modernist
+   `.radio` COMPONENT whose contract is "hide the native input, draw a .dot span
+   instead":
+       .radio input, .seg-opt input { position:absolute; opacity:0; width:0; height:0 }
+   Shiny's radioButtons() emits `div.radio > label > input` for LAYOUT, with no
+   .dot anywhere -- so the design system was hiding every real radio in the app
+   and leaving indented text with no control. Resetting position/size was not
+   enough: `opacity` has to be restored too, which is why the DOM reported the
+   input correctly positioned at the right x while nothing was visible there. */
+.checkbox input[type="checkbox"], .radio input[type="radio"],
+.checkbox-inline input[type="checkbox"], .radio-inline input[type="radio"],
+.shiny-input-container > .checkbox input, .shiny-input-container > .radio input {
+  position: static; margin: 2px 0 0; width: 14px; height: 14px; flex: 0 0 14px;
+  opacity: 1; pointer-events: auto;
+  accent-color: var(--color-accent);
+}
+/* Restore the design system's own radio to its intended form: it hides the
+   input only where it actually supplies a .dot to stand in for it. */
+.radio:has(> .dot) input, .radio label:has(.dot) input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.shiny-options-group { display: flex; flex-direction: column; gap: 3px; }
+.shiny-input-container-inline .shiny-options-group {
+  flex-direction: row; flex-wrap: wrap; gap: 4px 14px;
+}
+/* The hand-rolled controls hide their own inputs; the rules above must not
+   re-show them. */
+.ie-seg-opt input[type="radio"], .ie-nav input[type="radio"],
+.ie-cohortbar .checkbox-inline input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 0; height: 0; margin: 0; flex: none;
+}
+/* helpText in a 236px column: tighten it so it reads as a note, not body copy. */
+.ie-aside .help-block,
+.ie-aside .shiny-input-container > .help-block {
+  font-size: 11.5px; line-height: 1.45; color: var(--color-neutral-600);
+  margin: 4px 0 10px;
+}
+/* Module-supplied labels (from renderUI) should match ie-field-label. */
+.ie-aside .control-label,
+.ie-aside .shiny-input-container > label {
+  display: block;
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-neutral-700); margin: 0 0 6px;
+}
+.ie-aside .ie-field .control-label { display: none; }  /* ie_field supplies it */
+
+/* ==========================================================================
+   Plot backgrounds
+   Transparent, so figures sit IN the card rather than as white rectangles on
+   it. theme_islet() already sets plot.background and panel.background to NA;
+   these are the container and the widget, which paint their own white.
+   ========================================================================== */
+.shiny-plot-output, .shiny-plot-output img,
+.js-plotly-plot, .js-plotly-plot .plot-container,
+.js-plotly-plot .svg-container,
+.js-plotly-plot .main-svg { background: transparent !important; }
+/* plotly draws the paper as an SVG rect; paper_bgcolor handles it, but the
+   layer beneath is set in CSS. */
+.js-plotly-plot .bg { fill: transparent !important; }
+
+/* ==========================================================================
+   Shared UI blocks
+   Replace four inline copies of a gradient section heading and two of the
+   "About this tab" banner. See R/ui_modernist_bits.R.
+   ========================================================================== */
+.ie-section {
+  margin: 26px 0 16px; padding-bottom: 9px;
+  border-bottom: 2px solid var(--color-neutral-300);
+}
+.ie-section:first-child { margin-top: 0; }
+.ie-section-row { display: flex; align-items: baseline; gap: 10px; }
+.ie-section-num {
+  font-family: var(--font-heading); font-weight: 800; font-size: 11px;
+  letter-spacing: .06em; color: var(--color-bg); background: var(--color-text);
+  padding: 3px 8px; min-width: 24px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ie-section-title {
+  font-family: var(--font-heading); font-weight: 800; font-size: 16px;
+  letter-spacing: -.01em; color: var(--color-text);
+}
+.ie-section-tip {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  width: 17px; height: 17px; line-height: 17px; text-align: center; cursor: help;
+  color: var(--color-accent-700); border: 1px solid var(--color-accent-300);
+}
+.ie-section-sub { margin: 6px 0 0; font-size: 12.5px; color: var(--color-neutral-600); }
+
+.ie-callout {
+  padding: 11px 14px; margin-bottom: 14px;
+  font-size: 12.5px; line-height: 1.55;
+  background: var(--color-neutral-100);
+  border-left: 3px solid var(--color-neutral-400);
+}
+.ie-callout p:last-child { margin-bottom: 0; }
+.ie-callout-info { border-left-color: var(--color-text); }
+.ie-callout-note { border-left-color: var(--color-neutral-400); }
+.ie-callout-warn { border-left-color: var(--color-accent); background: var(--color-accent-100); }
+
+.ie-legend-box {
+  border: 1px solid var(--color-neutral-300);
+  background: var(--color-neutral-100);
+  padding: 10px 12px; min-height: 100px;
+}
+.ie-legend-title {
+  font-family: var(--font-heading); font-weight: 800; font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--color-neutral-700); margin-bottom: 8px;
+}
+
+/* The app's own .card, kept from the pre-port sheet's 32 call sites. It
+   name-collides with styles.css's flex card, which would re-stack every control
+   row, so it is re-specified here rather than inherited. */
+.card {
+  display: block;
+  background: var(--color-bg); background-image: none;
+  border: 2px solid var(--color-neutral-300);
+  box-shadow: none; transform: none; transition: none;
+  padding: 16px 18px; margin-bottom: 18px;
+  overflow: visible;              /* selectize menus must not be clipped */
+}
+.card:hover { box-shadow: none; transform: none; }
+.card h4, .card h5 {
+  font-family: var(--font-heading); font-weight: 800;
+  font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--color-text);
+  border-bottom: 2px solid var(--color-neutral-300);
+  padding-bottom: 8px; margin: 0 0 14px;
+}
+
+/* ==========================================================================
+   Frozen top bar
+   The controls that are IDENTICAL on every tab. Horizontal, fixed above the
+   panels, its own scroll-free strip -- the eye learns to stop seeing it, which
+   is the point. Tab-specific controls stay in the right panel.
+   ========================================================================== */
+/* align-items:flex-START, not flex-end. Ending the items aligned their BOTTOM
+   edges, so a slider and a checkbox group -- different heights -- put their
+   titles at different y. Starting them puts every .ie-field-label on one
+   baseline and lets the controls hang to whatever height they need. */
+.ie-topbar {
+  flex: 0 0 auto;
+  display: flex; align-items: flex-start; flex-wrap: wrap;
+  gap: 14px 38px;
+  padding: 14px 26px 16px;
+  border-bottom: 2px solid var(--color-neutral-300);
+  background: var(--color-bg);
+}
+.ie-topbar .ie-field { margin-bottom: 0; gap: 7px; }
+/* One fixed label height so a one-line and a two-line title still leave
+   their controls on the same row. */
+.ie-topbar .ie-field-label { min-height: 13px; line-height: 1.15; }
+.ie-topbar .ie-field > .form-group,
+.ie-topbar .ie-field > .shiny-input-container { margin-bottom: 0; width: auto; }
+.ie-topbar .form-group { margin-bottom: 0; }
+.ie-topbar .shiny-input-container { width: auto !important; }
+/* Horizontal strip: option groups run across, not down. */
+.ie-topbar .shiny-options-group { flex-direction: row; flex-wrap: wrap; gap: 3px 12px; }
+.ie-topbar .irs--shiny { width: 170px; }
+.ie-topbar .form-control, .ie-topbar .selectize-input { min-width: 90px; }
+.ie-topbar .ie-aside-readout {
+  margin-left: auto; align-self: flex-end; margin-top: 0;
+  padding-top: 0; border-top: 0; white-space: nowrap;
+}
+/* The conditionalPanel wrapper must not become a flex item of .ie-main. */
+.ie-main > .shiny-panel-conditional { display: contents; }
+
+/* ===========================================================================
+   SENIOR ADDITIONS -- not part of the delivered Modernist sheet.
+   Two surfaces exist in this app and not in the one the design was drawn for,
+   so the sheet gives them nothing and they fall through to raw Bootstrap.
+   Kept at the end and marked, so a future re-sync with the design can see
+   exactly what diverged and why.
+   =========================================================================== */
+
+/* 13 call sites here, none in Junior. Mirrors .btn-primary's ramp so an outline
+   button and a solid one read as the same family. */
+.btn-outline-primary {
+  background: transparent; border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus { background: var(--color-accent-100); color: var(--color-accent-700);
+  border-color: var(--color-accent-600); }
+.btn-outline-primary:active { background: var(--color-accent-200); color: var(--color-accent-800); }
+
+.btn-outline-secondary {
+  background: transparent; border: 1px solid var(--color-rule, #c9c5c2);
+  color: var(--color-ink, #201e1d);
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus { background: rgba(0, 0, 0, 0.04); border-color: var(--color-muted, #6f6a67); }
+
+/* The sheet makes .shiny-plot-output and .js-plotly-plot transparent so figures
+   sit directly on the card. rdeck draws to its own WebGL canvas, which is not
+   either of those, so without this it renders as an unstyled white rectangle
+   inside a transparent card. 46 rdeck references in this app; zero in Junior. */
+.rdeck, .rdeck-container, canvas.deckgl-overlay {
+  background: transparent !important;
+  border-radius: var(--radius, 4px);
+}
+
+/* --- the AI chat card ----------------------------------------------------
+   Senior keeps it behind ISLET_ENABLE_AI where Junior deleted it, so neither
+   delivered sheet defines these classes.
+
+   The tab-bar, sidebar and header rules that sat here from 2026-09-14 are GONE
+   with the shell: the Bootstrap-3 tab bar no longer exists (the rail replaced
+   it), `.sidebar` no longer exists (plot_sidebar_ui renders into `.ie-aside`),
+   and `.equal-height-row` no longer exists. They were an interim retint of the
+   2019 blue and they did their job for exactly one step. */
+.ai-chat-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: 0;
+  box-shadow: none;
+}
+.ai-chat-logo { border-bottom: 1px solid var(--color-neutral-300); }
+.ai-chat-message { border-radius: 0; }
+.ai-chat-message.user {
+  background: var(--color-accent-100);
+  border-left: 3px solid var(--color-accent);
+}
+.ai-chat-message.assistant {
+  background: var(--color-neutral-100);
+  border-left: 3px solid var(--color-neutral-400);
+}
+.ai-chat-message.user .ai-chat-meta,
+.ai-chat-message.assistant .ai-chat-meta { color: var(--color-neutral-700); }
+
+/* The skip link, added to Senior after the fork. */
+.skip-link {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 3px solid var(--color-accent);
+  border-radius: 0;
+}

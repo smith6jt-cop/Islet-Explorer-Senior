@@ -1,10 +1,7 @@
 trajectory_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    phenotype_rules_button("show_phenotype_rules_traj"),
-    div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; color: #004085; font-size: 13px;",
-      "Click any point on the pseudotime scatter plot to view the segmentation map for that islet."
-    ),
+    # Pill and hint strip moved to the rail's Help entries -- see IE_TAB_TIPS.
     div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap;",
       tags$div(
         title = GLOBAL_OUTLIER_TOOLTIP,
@@ -23,7 +20,7 @@ trajectory_ui <- function(id) {
     fluidRow(
       # Left card: Scatterplot and heatmaps (narrowed from col-8)
       column(7,
-        div(class = "card", style = "padding: 15px; margin-bottom: 20px;",
+        div(class = "card", style = "padding: 15px; margin-bottom: 20px",
           fluidRow(
             column(3,
               uiOutput(ns("traj_feature_selector")),
@@ -61,8 +58,8 @@ trajectory_ui <- function(id) {
                            value = 1, min = 1, max = 200, step = 1)
             ),
             column(3,
-              div(style = "border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9; min-height: 100px;",
-                h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-weight: bold; color: #333; font-size: 15px;"),
+              div(class = "ie-legend-box",
+                h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-weight: bold; font-size: 15px"),
                 uiOutput(ns("traj_legend"))
               ),
               selectInput("traj_donor_palette", "Donor Status Colors",
@@ -75,32 +72,32 @@ trajectory_ui <- function(id) {
           br(),
           plotlyOutput(ns("traj_heatmap"), height = 100),
           hr(),
-          h5("Multi-Feature Heatmap", style = "color: #2c5aa0;"),
+          h5("Multi-Feature Heatmap"),
           fluidRow(
             column(8, uiOutput(ns("multi_heatmap_marker_selector"))),
             column(4, sliderInput(ns("multi_heatmap_nbins"), "Number of bins:", min = 10, max = 40, value = 20, step = 5))
           ),
           plotOutput(ns("traj_multi_heatmap"), height = "auto"),
-          div(style = "text-align: right; margin-top: 8px;",
+          div(style = "text-align: right; margin-top: 8px",
             downloadButton(ns("dl_multi_heatmap"), "Download PNG",
                            class = "btn-sm btn-outline-primary"))
         )
       ),
       # Right column: UMAPs stacked + segmentation viewer below
       column(5,
-        div(class = "card", style = "padding: 15px; margin-bottom: 20px;",
+        div(class = "card", style = "padding: 15px; margin-bottom: 20px",
           fluidRow(
             column(6,
-              h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0;"),
+              h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0"),
               plotOutput(ns("traj_umap_donor"), height = 500),
-              div(style = "text-align: right; margin-top: 6px;",
+              div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_donor"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))
             ),
             column(6,
-              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 0;"),
+              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 0"),
               plotOutput(ns("traj_umap_feature"), height = 500),
-              div(style = "text-align: right; margin-top: 6px;",
+              div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_feature"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))
             )

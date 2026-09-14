@@ -6,8 +6,11 @@
 #' Contains data filters, autoantibody filters, statistic selector, and export controls.
 plot_sidebar_ui <- function(id) {
   ns <- NS(id)
-  div(class = "sidebar", style = "height: 100%;",
-    h4("Data & Filters"),
+  # No `.sidebar` class any more: this block now renders inside the shell's
+  # frozen control panel (`.ie-aside` in app.R), which owns the surface. The
+  # old class carried a dark navy ground of its own and would fight it.
+  div(
+    div(class = "ie-aside-head", "Data & Filters"),
     selectInput(ns("mode"), "Data Layer",
                 choices = c("Microenvironment", "Cell Populations"),
                 selected = "Cell Populations"),
@@ -82,33 +85,24 @@ plot_sidebar_ui <- function(id) {
 plot_main_ui <- function(id, extra_panel = NULL) {
   ns <- NS(id)
   tagList(
-    column(10,
-      phenotype_rules_button("show_phenotype_rules_plot"),
-      div(style = "display: flex; gap: 10px; margin-bottom: 15px;",
-        div(style = "flex: 1; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 12px; color: #004085; font-size: 13px;",
-          "Enable \"Show individual points\" then click any point on the ",
-          tags$strong("Islet Size Distribution"), " scatter to view its segmentation map below."
-        ),
-        div(style = "flex: 1; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 12px; color: #004085; font-size: 13px;",
-          "Enable \"Show individual points\" and set \"Color points by\" to Donor ID, then click a donor in the legend to show/hide it."
-        ),
-        div(style = "flex: 1; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 12px; color: #004085; font-size: 13px;",
-          "Use browser zoom (Ctrl +/\u2212) to resize cards. Scroll within cards to reveal hidden controls."
-        )
-      )
-    ),
-    # Left card: Main scatter plot
-    column(6,
+    # The phenotype-rules pill and the three blue hint strips that sat here are
+    # in the rail now -- Help > "Phenotype rules" and Help > "Tips for this tab".
+    # They took a full row above the cards on every visit; the cards start at the
+    # top of the panel instead.
+    # Left card: Main scatter plot. 7/5 rather than 6/6: this one carries two
+    # slider columns and a checkbox column beneath its figure, and at 6/6 the
+    # "Color points by" select wrapped onto three lines.
+    column(7,
       div(class = "card",
-          style = "margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px;",
-        h5("Islet Size Distribution", style = "margin-top: 0; color: #333;"),
-        div(style = "flex: 1; min-height: 0; display: flex;",
+          style = "margin-bottom: 20px; padding: 15px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px",
+        h5("Islet Size Distribution", style = "margin-top: 0"),
+        div(style = "flex: 1; min-height: 0; display: flex",
           plotlyOutput(ns("plt"), height = "100%")
         ),
-        div(style = "flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 35%; border-top: 1px solid #eee; padding-top: 10px;",
-          div(style = "display: flex; gap: 18px; align-items: stretch;",
+        div(style = "flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 35%; padding-top: 10px",
+          div(style = "display: flex; gap: 18px; align-items: stretch",
             # Slider column 1
-            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column;",
+            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column",
               sliderInput(ns("binwidth"), "Diameter bin width (\u00b5m)",
                           min = 1, max = 75, value = 50, step = 1),
               sliderInput(ns("diam_range"), "Islet diameter range (\u00b5m)",
@@ -119,7 +113,7 @@ plot_main_ui <- function(id, extra_panel = NULL) {
                           selected = "donor_status")
             ),
             # Slider column 2
-            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column;",
+            div(style = "flex: 1; min-width: 0; display: flex; flex-direction: column",
               sliderInput(ns("pt_size"), "Point size",
                           min = 0.3, max = 4.0, value = 3.0, step = 0.1),
               sliderInput(ns("pt_alpha"), "Point transparency",
@@ -129,7 +123,7 @@ plot_main_ui <- function(id, extra_panel = NULL) {
                            selected = "None", inline = TRUE)
             ),
             # Checkbox column 3 \u2014 vertical stack spanning the full height of the sliders
-            div(style = "flex: 0 0 auto; min-width: 165px; display: flex; flex-direction: column; justify-content: space-between; border-left: 1px solid #eee; padding-left: 16px;",
+            div(style = "flex: 0 0 auto; min-width: 165px; display: flex; flex-direction: column; justify-content: space-between; padding-left: 16px",
               checkboxInput(ns("exclude_zero_top"), "Exclude zero values", value = FALSE),
               checkboxInput(ns("show_points"), "Show individual points", value = FALSE),
               checkboxInput(ns("log_scale"), "Log scale y-axis", value = FALSE),
@@ -141,14 +135,14 @@ plot_main_ui <- function(id, extra_panel = NULL) {
     ),
     # Right card: Distribution comparison
     # Widen to fill the row when no extra panel (e.g. AI chat) is present.
-    column(if (is.null(extra_panel)) 6 else 4,
+    column(if (is.null(extra_panel)) 5 else 3,
       div(class = "card",
-          style = "margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px;",
-        h5("Distribution Comparison", style = "margin-top: 0; color: #333;"),
-        div(style = "flex: 1; min-height: 0; display: flex;",
+          style = "margin-bottom: 20px; padding: 15px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px",
+        h5("Distribution Comparison", style = "margin-top: 0"),
+        div(style = "flex: 1; min-height: 0; display: flex",
           plotlyOutput(ns("dist"), height = "100%")
         ),
-        div(style = "flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 35%; border-top: 1px solid #eee; padding-top: 10px;",
+        div(style = "flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 35%; padding-top: 10px",
           uiOutput(ns("dist_ui"))
         )
       )

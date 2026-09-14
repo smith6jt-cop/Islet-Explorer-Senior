@@ -418,21 +418,21 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       cur <- traj_path
       if (is.null(cur) || !file.exists(cur)) cur <- resolve_traj_path()
       if (is.null(cur) || !file.exists(cur)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "AnnData not found. Place 'adata_ins_root.h5ad' under data/ or scripts/, or set ADATA_PATH."))
       }
       if (!requireNamespace("anndata", quietly = TRUE)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "R package 'anndata' not installed. Install with BiocManager::install('anndata')."))
       }
       tr <- traj_with_pseudotime()
       if (is.null(tr)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "AnnData object not available or H5AD failed to load."))
       }
       if (!is.null(tr$error)) {
         install_hint <- if (grepl("anndata", tr$error, ignore.case = TRUE)) " Install with: BiocManager::install('anndata')" else ""
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           sprintf("Trajectory load error: %s%s", tr$error, install_hint)))
       }
       ms <- traj_validate()
@@ -453,7 +453,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         badge_col <- if (hard) "#228833" else "#CC6633"
         badge_txt <- if (hard) "validated" else "check gates"
         valid_caption <- tags$div(
-          style = "color:#555; font-size:12px; margin-top:4px;",
+          style = "font-size:12px; margin-top:4px",
           tags$span(style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col), badge_txt),
           sprintf("Pseudotime (θ=%s): INS ρ=%+.2f · T1D>ND p=%.0e · within-status batch η² ND=%.2f/T1D=%.2f",
                   ifelse(is.na(g(tv[["chosen_theta"]])), "?", format(g(tv[["chosen_theta"]]))),
@@ -466,12 +466,12 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       mode_note <- NULL
       if (identical(validated_pt_mode(), "combined") &&
           !("dpt_pseudotime_combined" %in% names(tr$obs))) {
-        mode_note <- tags$div(style = "color:#CC6633; font-size:12px; margin-top:2px;",
+        mode_note <- tags$div(style = "font-size:12px; margin-top:2px",
           "Core + Peri pseudotime is not available in this dataset — showing Core only.")
       }
 
       tagList(
-        tags$div(style = "color:#555;",
+        tags$div(
           sprintf("Loaded AnnData (%d obs). Joined %d rows (%d unique islets) of %d islet metrics. Source: %s",
                   nrow(tr$obs), nj, ndist, nm, basename(src))
         ),
@@ -483,7 +483,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
             names(Filter(function(s) s$donors == 1, support))
           }
           if (length(single)) tags$div(
-            style = "color:#777; font-size:11px; margin-top:2px; font-style:italic;",
+            style = "font-size:11px; margin-top:2px; font-style:italic",
             sprintf("%s carried by a single donor (%s); %s pseudotime reflects one individual and is excluded from the ordering statistic.",
                     paste(single, collapse = ", "),
                     paste(vapply(single, function(st) {
@@ -895,21 +895,21 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (!is.null(info$donor_age) && !is.na(info$donor_age)) title_detail <- paste0(title_detail, ", age ", round(info$donor_age))
       if (!is.null(info$donor_gender) && !is.na(info$donor_gender) && nzchar(info$donor_gender)) title_detail <- paste0(title_detail, ", ", info$donor_gender)
 
-      div(class = "card", style = "padding: 20px; margin-bottom: 20px; border: 2px solid #0066CC;",
+      div(class = "card", style = "padding: 20px; margin-bottom: 20px",
         # Header: title + close button
-        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px",
           h4(paste0(info$islet_key, " (", title_detail, ")"),
-             style = "margin: 0; color: #0066CC; font-size: 20px;"),
+             style = "margin: 0; font-size: 20px"),
           actionButton(ns("clear_segmentation"), "Close", class = "btn btn-sm btn-outline-secondary")
         ),
         # Main content: controls sidebar (left) + plot (right)
         fluidRow(
           # Left sidebar: all controls
           column(2,
-            div(style = "padding: 10px; background-color: #f8f9fa; border-radius: 5px;",
+            div(style = "padding: 10px",
               if (has_cells) {
                 tagList(
-                  h5("Layers", style = "margin-top: 0; font-size: 15px;"),
+                  h5("Layers", style = "margin-top: 0; font-size: 15px"),
                   checkboxInput("drilldown_show_cells", "Single Cells", value = TRUE),
                   checkboxInput("drilldown_show_peri_boundary", "Peri Boundary", value = TRUE),
                   checkboxInput("drilldown_show_structures", "Structures", value = TRUE),
@@ -926,38 +926,38 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                 )
               } else {
                 tagList(
-                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px;"),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px"),
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #0066CC; margin-right: 8px;"),
-                    span("Islet", style = "font-size: 14px;")
+                    span("Islet", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00CCCC; margin-right: 8px;"),
-                    span("+20\u00b5m", style = "font-size: 14px;")
+                    span("+20\u00b5m", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC00CC; margin-right: 8px;"),
-                    span("Nerve", style = "font-size: 14px;")
+                    span("Nerve", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC0000; margin-right: 8px;"),
-                    span("Capillary", style = "font-size: 14px;")
+                    span("Capillary", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00AA00; margin-right: 8px;"),
-                    span("Lymphatic", style = "font-size: 14px;")
+                    span("Lymphatic", style = "font-size: 14px")
                   )
                 )
               },
               hr(style = "margin: 8px 0;"),
               span(paste("Centroid:", round(info$centroid_x, 0), "/", round(info$centroid_y, 0), "\u00b5m"),
-                   style = "color: #666; font-size: 13px;")
+                   style = "font-size: 13px")
             )
           ),
           # Center: plot
           column(6,
             plotOutput("islet_segmentation_view", height = "550px"),
-            div(style = "text-align: right; margin-top: 6px;",
+            div(style = "text-align: right; margin-top: 6px",
               downloadButton("dl_islet_segmentation_view", "Download PNG",
                              class = "btn-sm btn-outline-primary"))
           ),
@@ -966,10 +966,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
             if (has_cells) {
               conditionalPanel(
                 condition = "input.drilldown_show_cells",
-                div(style = "padding: 12px; background-color: #f8f9fa; border-radius: 5px;",
-                  h5("Cell Composition", style = "margin-top: 0; font-size: 16px;"),
+                div(style = "padding: 12px",
+                  h5("Cell Composition", style = "margin-top: 0; font-size: 16px"),
                   plotOutput("islet_drilldown_summary", height = "300px"),
-                  div(style = "text-align: right; margin-top: 6px;",
+                  div(style = "text-align: right; margin-top: 6px",
                     downloadButton("dl_islet_drilldown_summary", "Download PNG",
                                    class = "btn-sm btn-outline-primary")),
                   tableOutput("islet_drilldown_table"),
@@ -998,7 +998,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (!nzchar(suffix)) {
         if (!isTRUE(summary$enabled)) {
           return(tags$div(
-            style = "background: #fdfbe7; border: 1px solid #f0d97a; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #6e6300;",
+            style = "padding: 4px 10px; margin-bottom: 6px; font-size: 12px",
             tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
               "\u24d8 Outlier filter OFF \u2014 all points contribute to trend lines.")
           ))
@@ -1006,7 +1006,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         return(NULL)
       }
       tags$div(
-        style = "background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #5a4400;",
+        style = "padding: 4px 10px; margin-bottom: 6px; font-size: 12px",
         tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
           sprintf("\u26a0 %d outlier%s excluded from trend lines (%s) \u2014 drawn as grey \u00d7 markers.",
                   summary$n_excluded,
@@ -1025,7 +1025,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       if (is.null(outlier_data) || nrow(outlier_data) == 0) {
         return(tagList(
-          div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 8px 12px; margin-top: 10px; color: #004085; font-size: 12px;",
+          div(style = "padding: 8px 12px; margin-top: 10px; font-size: 12px",
             "No outliers detected for the current selection.")
         ))
       }
@@ -1046,10 +1046,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       tagList(
-        div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 10px; margin-top: 10px; color: #000000;",
-          h5(style = "color: #000000; margin-top: 0;", header),
-          p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
-          div(style = "max-height: 200px; overflow-y: auto;",
+        div(style = "padding: 10px; margin-top: 10px",
+          h5(style = "margin-top: 0", header),
+          p(style = "font-size: 12px; margin-bottom: 10px", body_text),
+          div(style = "max-height: 200px; overflow-y: auto",
             renderTable({
               outlier_data
             }, striped = TRUE, hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
@@ -1085,7 +1085,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         present <- if (!is.null(support)) intersect(domain_group_levels(), names(support))
                    else domain_group_levels()
         swatches <- lapply(present, function(st) {
-          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+          div(style = "display: flex; align-items: center; margin-bottom: 8px",
             div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;",
                                 dc[[st]] %||% "#999999")),
             span(st, style = "font-size: 15px;")
@@ -1100,7 +1100,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         }
         tagList(
           swatches,
-          if (length(thin)) div(style = "font-size: 11px; color: #777; margin-top: 8px; font-style: italic;",
+          if (length(thin)) div(style = "font-size: 11px; margin-top: 8px; font-style: italic",
                                 paste(unlist(thin), collapse = "; "))
         )
       } else if (color_by == "donor_id") {
@@ -1122,18 +1122,18 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           col2_ids <- if (n_donors > mid_point) donor_ids[(mid_point + 1):n_donors] else NULL
 
           col1_items <- lapply(seq_along(col1_ids), function(i) {
-            div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+            div(style = "display: flex; align-items: center; margin-bottom: 6px",
               div(style = sprintf("width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;", colors[i])),
-              span(col1_ids[i], style = "font-size: 14px;")
+              span(col1_ids[i], style = "font-size: 14px")
             )
           })
 
           col2_items <- if (!is.null(col2_ids)) {
             lapply(seq_along(col2_ids), function(i) {
               idx <- mid_point + i
-              div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+              div(style = "display: flex; align-items: center; margin-bottom: 6px",
                 div(style = sprintf("width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;", colors[idx])),
-                span(col2_ids[i], style = "font-size: 14px;")
+                span(col2_ids[i], style = "font-size: 14px")
               )
             })
           } else {
@@ -1141,19 +1141,19 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           }
 
           tagList(
-            div(style = "display: flex; gap: 10px;",
-              div(style = "flex: 1;", col1_items),
-              if (!is.null(col2_items)) div(style = "flex: 1;", col2_items)
+            div(style = "display: flex; gap: 10px",
+              div(style = "flex: 1", col1_items),
+              if (!is.null(col2_items)) div(style = "flex: 1", col2_items)
             )
           )
         } else {
-          p("No data available", style = "font-size: 12px; color: #999;")
+          p("No data available", style = "font-size: 12px")
         }
       } else if (startsWith(color_by, "leiden_")) {
         df <- traj_data_clean()
         if (is.null(df) || !(color_by %in% colnames(df))) {
           return(p("Leiden clusters unavailable (rebuild islet_explorer.h5ad).",
-                   style = "font-size: 12px; color: #999;"))
+                   style = "font-size: 12px"))
         }
         lvl_vals <- unique(stats::na.omit(df[[color_by]]))
         num_vals <- suppressWarnings(as.numeric(lvl_vals))
@@ -1168,17 +1168,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         col1_idx <- seq_len(mid_point)
         col2_idx <- if (n_clust > mid_point) (mid_point + 1):n_clust else integer(0)
         make_row <- function(i) {
-          div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+          div(style = "display: flex; align-items: center; margin-bottom: 6px",
             div(style = sprintf(
               "width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;",
               clust_colors[i])),
-            span(paste("Cluster", clust_levels[i]), style = "font-size: 14px;")
+            span(paste("Cluster", clust_levels[i]), style = "font-size: 14px")
           )
         }
         tagList(
-          div(style = "display: flex; gap: 10px;",
-            div(style = "flex: 1;", lapply(col1_idx, make_row)),
-            if (length(col2_idx) > 0) div(style = "flex: 1;", lapply(col2_idx, make_row))
+          div(style = "display: flex; gap: 10px",
+            div(style = "flex: 1", lapply(col1_idx, make_row)),
+            if (length(col2_idx) > 0) div(style = "flex: 1", lapply(col2_idx, make_row))
           )
         )
       }
@@ -1218,7 +1218,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         p <- traj_umap_donor_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
@@ -1263,7 +1264,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         p <- traj_umap_feature_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
@@ -1512,7 +1514,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         h <- max(6, 1 + n * 0.4)
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_HEATMAP_PNG_DIMS$width, height = h,
-                        dpi = ISLET_HEATMAP_PNG_DIMS$dpi, units = ISLET_HEATMAP_PNG_DIMS$units)
+                        dpi = ISLET_HEATMAP_PNG_DIMS$dpi, units = ISLET_HEATMAP_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 

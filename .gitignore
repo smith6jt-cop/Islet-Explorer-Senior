@@ -28,6 +28,7 @@ figures/*
 .RData
 .Rhistory
 apps/islet/.Renviron
+apps/islet/.Rprofile
 .Renviron
 # Filled-in PubApps EnvironmentFile (may hold secrets if AI is re-enabled); template is deploy/env.sh.example
 deploy/env.sh

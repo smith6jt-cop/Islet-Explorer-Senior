@@ -277,7 +277,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                                      "Cells per islet (core+peri)"     = "Counts",
                                      "Cells per mm² of core+peri area" = "Density"),
                          selected = "Percentage", inline = TRUE),
-            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+            helpText(style = "font-size: 12px; margin-top: -4px",
                      "Per islet = phenotype cells in core + 20 µm peri-islet zone. ",
                      "Per mm² of core+peri area = phenotype cells ÷ (core_region_um2 + peri_region_um2), ",
                      "using QuPath-measured annotation areas.")
@@ -289,7 +289,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                                      "Cells per islet (peri)"   = "Counts",
                                      "Cells per mm² of peri area" = "Density"),
                          selected = "Percentage", inline = TRUE),
-            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+            helpText(style = "font-size: 12px; margin-top: -4px",
                      "Per islet = phenotype cells tallied in the 20 µm peri-islet zone. ",
                      "Per mm² of peri area = peri cells ÷ peri_region_um2 (QuPath-measured ",
                      "`_exp20um` annotation area).")
@@ -301,7 +301,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                                      "Cells per islet (core)"     = "Counts",
                                      "Cells per mm² of core area" = "Density"),
                          selected = "Percentage", inline = TRUE),
-            helpText(style = "font-size: 12px; color: #555; margin-top: -4px;",
+            helpText(style = "font-size: 12px; margin-top: -4px",
                      "Per islet = phenotype cells tallied in the islet core. ",
                      "Per mm² of core area = core cells ÷ core_region_um2 ",
                      "(QuPath-measured islet annotation area).")
@@ -315,7 +315,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       if (!is.null(df) && nrow(df) > 0) {
         aabp_donors <- df %>% dplyr::filter(donor_status == "Aab+")
         if (nrow(aabp_donors) == 0 && "Aab+" %in% validated_groups()) {
-          div(style = "color: #d9534f; font-weight: bold; margin-bottom: 10px;",
+          div(style = "font-weight: bold; margin-bottom: 10px",
               "\u26a0 No matching donors.")
         } else {
           NULL
@@ -1166,7 +1166,7 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       if (!show_table) return(NULL)
       if (is.null(outlier_data) || nrow(outlier_data) == 0) {
         return(tags$div(
-          style = "margin-top: 12px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          style = "margin-top: 12px; padding: 8px 10px; font-size: 12px",
           "No outliers detected for the current selection."
         ))
       }
@@ -1184,9 +1184,9 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       }
 
       tags$div(
-        style = "margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
-        tags$h6(style = "margin-top: 0; color: #000000;", header),
-        tags$div(style = "max-height: 200px; overflow-y: auto;",
+        style = "margin-top: 15px; padding: 10px",
+        tags$h6(style = "margin-top: 0", header),
+        tags$div(style = "max-height: 200px; overflow-y: auto",
           renderTable(outlier_data))
       )
     })
@@ -1262,21 +1262,21 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
       if (!is.null(info$donor_age) && !is.na(info$donor_age)) title_detail <- paste0(title_detail, ", age ", round(info$donor_age))
       if (!is.null(info$donor_gender) && !is.na(info$donor_gender) && nzchar(info$donor_gender)) title_detail <- paste0(title_detail, ", ", info$donor_gender)
 
-      div(class = "card", style = "padding: 20px; margin-bottom: 20px; border: 2px solid #0066CC;",
+      div(class = "card", style = "padding: 20px; margin-bottom: 20px",
         # Header: title + close button
-        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px",
           h3(paste0(info$islet_key, " (", title_detail, ")"),
-             style = "margin: 0; color: #0066CC; font-size: 22px;"),
+             style = "margin: 0; font-size: 22px"),
           actionButton(ns("clear_segmentation"), "Close", class = "btn btn-sm btn-outline-secondary")
         ),
         # Main content: controls sidebar (left) + plot (center) + composition (right)
         fluidRow(
           # Left sidebar: all controls
           column(2,
-            div(style = "padding: 10px; background-color: #f8f9fa; border-radius: 5px;",
+            div(style = "padding: 10px",
               if (has_cells) {
                 tagList(
-                  h5("Layers", style = "margin-top: 0; font-size: 15px;"),
+                  h5("Layers", style = "margin-top: 0; font-size: 15px"),
                   checkboxInput("drilldown_show_cells", "Single Cells", value = TRUE),
                   checkboxInput("drilldown_show_peri_boundary", "Peri Boundary", value = TRUE),
                   checkboxInput("drilldown_show_structures", "Structures", value = TRUE),
@@ -1293,38 +1293,38 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
                 )
               } else {
                 tagList(
-                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px;"),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px"),
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #0066CC; margin-right: 8px;"),
-                    span("Islet", style = "font-size: 14px;")
+                    span("Islet", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00CCCC; margin-right: 8px;"),
-                    span("+20\u00b5m", style = "font-size: 14px;")
+                    span("+20\u00b5m", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC00CC; margin-right: 8px;"),
-                    span("Nerve", style = "font-size: 14px;")
+                    span("Nerve", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC0000; margin-right: 8px;"),
-                    span("Capillary", style = "font-size: 14px;")
+                    span("Capillary", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00AA00; margin-right: 8px;"),
-                    span("Lymphatic", style = "font-size: 14px;")
+                    span("Lymphatic", style = "font-size: 14px")
                   )
                 )
               },
               hr(style = "margin: 8px 0;"),
               span(paste("Centroid:", round(info$centroid_x, 0), "/", round(info$centroid_y, 0), "\u00b5m"),
-                   style = "color: #666; font-size: 13px;")
+                   style = "font-size: 13px")
             )
           ),
           # Center: plot
           column(6,
             plotOutput("islet_segmentation_view", height = "650px"),
-            div(style = "text-align: right; margin-top: 6px;",
+            div(style = "text-align: right; margin-top: 6px",
               downloadButton("dl_islet_segmentation_view", "Download PNG",
                              class = "btn-sm btn-outline-primary"))
           ),
@@ -1333,10 +1333,10 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
             if (has_cells) {
               conditionalPanel(
                 condition = "input.drilldown_show_cells",
-                div(style = "padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
-                  h5("Cell Composition", style = "margin-top: 0; font-size: 17px;"),
+                div(style = "padding: 15px",
+                  h5("Cell Composition", style = "margin-top: 0; font-size: 17px"),
                   plotOutput("islet_drilldown_summary", height = "400px"),
-                  div(style = "text-align: right; margin-top: 6px;",
+                  div(style = "text-align: right; margin-top: 6px",
                     downloadButton("dl_islet_drilldown_summary", "Download PNG",
                                    class = "btn-sm btn-outline-primary")),
                   hr(),

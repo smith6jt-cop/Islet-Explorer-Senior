@@ -1,7 +1,8 @@
 viewer_ui <- function(id) {
   ns <- NS(id)
   div(style = "width: 100%;",
-    phenotype_rules_button("show_phenotype_rules_viewer"),
+    # Phenotype-rules pill moved to the rail's Help entry, which reaches it from
+    # every tab rather than from the five that happened to mount a copy.
     # In-place iframe src updater. The server pushes the new Avivator URL here
     # instead of letting renderUI recreate the <iframe>. Recreating the iframe
     # (a WebGL canvas) on every reactive tick causes heavy flicker under

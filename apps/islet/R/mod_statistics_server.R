@@ -808,7 +808,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
             tags$strong("Statistics ran, but produced no result."), tags$br(),
             tags$span(paste0("Reason: ", reason))))
         }
-        return(tags$p(style = "color: #666; margin: 0;",
+        return(tags$p(style = "margin: 0",
                       "Select a feature in the sidebar, then click 'Run Statistics'."))
       }
 
@@ -836,23 +836,23 @@ statistics_server <- function(id, raw_df, get_selection_description,
       inherited <- st$plot_subset_desc
       inherited <- inherited[!grepl("^Bin Width:", inherited)]
       inherited_block <- if (length(inherited)) {
-        tags$details(style = "margin-top: 8px; width: 100%; font-size: 12px;",
-          tags$summary(style = "cursor: pointer; color: #4477AA; font-weight: 600;",
+        tags$details(style = "margin-top: 8px; width: 100%; font-size: 12px",
+          tags$summary(style = "cursor: pointer; font-weight: 600",
             "Data subset inherited from the Plot sidebar ",
-            tags$span(style = "font-weight: 400; color: #999;",
+            tags$span(style = "font-weight: 400",
                       "— applied before this tab's filters")),
-          tags$ul(style = "margin: 6px 0 0 0; padding-left: 20px; color: #666;",
+          tags$ul(style = "margin: 6px 0 0 0; padding-left: 20px",
                   lapply(inherited, tags$li)))
       } else NULL
 
       tags$div(
-        tags$div(style = "display: flex; gap: 15px; align-items: center; flex-wrap: wrap;",
-          tags$span(style = "background: #e3f2fd; padding: 4px 10px; border-radius: 4px; font-weight: 600;",
+        tags$div(style = "display: flex; gap: 15px; align-items: center; flex-wrap: wrap",
+          tags$span(style = "padding: 4px 10px; font-weight: 600",
                     st$feature_name),
-          tags$span(style = "padding: 4px 10px;",
+          tags$span(style = "padding: 4px 10px",
                     paste0(formatC(st$n_islets, format = "d", big.mark = ","),
                            " islets, ", st$n_donors, " donors")),
-          tags$span(style = "color: #888; font-size: 12px;",
+          tags$span(style = "font-size: 12px",
                     "Primary result is shown in Section 2 below."),
           zero_badge,
           min_cells_warn
@@ -868,7 +868,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
     output$primary_headline <- renderUI({
       st <- stats_run()
       if (is.null(st)) {
-        return(tags$p(style = "color: #666; margin: 0;",
+        return(tags$p(style = "margin: 0",
                       "Click 'Run Statistics' to compute the primary test."))
       }
 
@@ -893,18 +893,18 @@ statistics_server <- function(id, raw_df, get_selection_description,
             "exist here — read the raw difference in the forest plot, and treat d as indicative only.")
         } else NULL
         tagList(
-          tags$div(style = "margin-top: 12px; font-size: 12px; color: #555;",
+          tags$div(style = "margin-top: 12px; font-size: 12px",
             tags$strong("Group spread (donor means):"),
-            tags$table(style = "width: 100%; margin-top: 4px; font-size: 12px; border-collapse: collapse;",
-              tags$tr(style = "color: #888; text-align: right;",
-                tags$th(style = "text-align: left; font-weight: 600;", ""),
-                tags$th(style = "font-weight: 600;", "donors"),
-                tags$th(style = "font-weight: 600;", "islets"),
-                tags$th(style = "font-weight: 600;", "mean"),
-                tags$th(style = "font-weight: 600;", "SD")),
+            tags$table(style = "width: 100%; margin-top: 4px; font-size: 12px; border-collapse: collapse",
+              tags$tr(style = "text-align: right",
+                tags$th(style = "text-align: left; font-weight: 600", ""),
+                tags$th(style = "font-weight: 600", "donors"),
+                tags$th(style = "font-weight: 600", "islets"),
+                tags$th(style = "font-weight: 600", "mean"),
+                tags$th(style = "font-weight: 600", "SD")),
               lapply(seq_len(nrow(gs)), function(i) {
-                tags$tr(style = "text-align: right;",
-                  tags$td(style = "text-align: left; font-weight: 600;",
+                tags$tr(style = "text-align: right",
+                  tags$td(style = "text-align: left; font-weight: 600",
                           as.character(gs$donor_status[i])),
                   tags$td(gs$n_donors[i]),
                   tags$td(formatC(gs$n_islets[i], format = "d", big.mark = ",")),
@@ -928,20 +928,20 @@ statistics_server <- function(id, raw_df, get_selection_description,
             "Read the size-stratified analysis in Section 3 alongside it, not as an afterthought.")
         } else NULL
         tagList(
-          tags$div(style = "margin-top: 12px; font-size: 12px; color: #555; line-height: 1.6;",
+          tags$div(style = "margin-top: 12px; font-size: 12px; line-height: 1.6",
             tags$strong("Islet-size companions:"), tags$br(),
-            tags$span(style = "color: #888;", "diameter effect: "),
+            tags$span("diameter effect: "),
             format_p_value(sm$p_diam), tags$br(),
-            tags$span(style = "color: #888;", "donor status adjusted for diameter: "),
+            tags$span("donor status adjusted for diameter: "),
             format_p_value(sm$p_status_adj),
-            tags$span(style = "color: #888;",
+            tags$span(
                       sprintf(" (vs %s unadjusted)", format_p_value(primary_p))), tags$br(),
-            tags$span(style = "color: #888;", "status × diameter interaction: "),
+            tags$span("status × diameter interaction: "),
             tags$strong(style = if (interaction_hit) "color: #d9534f;" else "",
                         format_p_value(sm$p_interaction))),
           warn)
       } else if (!is.null(sm) && !is.null(sm$error_msg)) {
-        tags$div(style = "margin-top: 10px; font-size: 11px; color: #999;",
+        tags$div(style = "margin-top: 10px; font-size: 11px",
                  "Islet-size companion models unavailable: ", sm$error_msg)
       } else NULL
 
@@ -952,16 +952,16 @@ statistics_server <- function(id, raw_df, get_selection_description,
       age_block <- if (!is.null(am) && is.finite(am$p_status_adj)) {
         age_drives <- is.finite(am$p_age_group) && am$p_age_group < st$alpha
         tagList(
-          tags$div(style = "margin-top: 12px; font-size: 12px; color: #555; line-height: 1.6;",
+          tags$div(style = "margin-top: 12px; font-size: 12px; line-height: 1.6",
             tags$strong("Age-group companion:"),
-            tags$span(style = "color: #888;",
+            tags$span(
                       sprintf(" (<%g y: %d donors | \u2265%g y: %d donors)",
                               am$cut, am$n_young, am$cut, am$n_old)), tags$br(),
-            tags$span(style = "color: #888;", "donor status adjusted for age group: "),
+            tags$span("donor status adjusted for age group: "),
             format_p_value(am$p_status_adj),
-            tags$span(style = "color: #888;",
+            tags$span(
                       sprintf(" (vs %s unadjusted)", format_p_value(primary_p))), tags$br(),
-            tags$span(style = "color: #888;", "age group alone: "),
+            tags$span("age group alone: "),
             tags$strong(style = if (age_drives) "color: #d9534f;" else "",
                         format_p_value(am$p_age_group))),
           if (age_drives) {
@@ -973,12 +973,12 @@ statistics_server <- function(id, raw_df, get_selection_description,
               "disease-stage result and treat the unadjusted headline with caution.")
           } else NULL)
       } else if (!is.null(am) && !is.null(am$error_msg)) {
-        tags$div(style = "margin-top: 10px; font-size: 11px; color: #999;",
+        tags$div(style = "margin-top: 10px; font-size: 11px",
                  "Age-group companion unavailable: ", am$error_msg)
       } else NULL
 
       tags$div(
-        tags$div(style = "font-size: 13px; color: #555; margin-bottom: 8px; line-height: 1.4;",
+        tags$div(style = "font-size: 13px; margin-bottom: 8px; line-height: 1.4",
           "Linear mixed-effects model — donor status with a per-donor random intercept ",
           tags$em("(the pre-specified primary test).")),
         tags$div(style = paste0("display: inline-block; background: ", p_col,
@@ -989,14 +989,14 @@ statistics_server <- function(id, raw_df, get_selection_description,
           # rendered as "3.48e-01" — trivially misread as 0.0348 — while the
           # hypothesis table below printed the same value as "0.3476".
           paste0("p = ", format_p_value(primary_p))),
-        tags$span(style = "margin-left: 10px; font-size: 14px; color: #555;",
+        tags$span(style = "margin-left: 10px; font-size: 14px",
           paste0(if (is.na(primary_p)) "—" else if (sig) "Significant" else "Not significant",
                  " at α = ", st$alpha, " (fixed)")),
-        tags$div(style = "margin-top: 12px; font-size: 13px; color: #555;",
+        tags$div(style = "margin-top: 12px; font-size: 13px",
           tags$strong("ICC = "), icc_str,
-          tags$span(style = "color: #888;",
+          tags$span(
                     "  (fraction of variance from donor identity)")),
-        tags$div(style = "margin-top: 6px; font-size: 12px; color: #777; line-height: 1.4;",
+        tags$div(style = "margin-top: 6px; font-size: 12px; line-height: 1.4",
           "Sensitivity test auto-selected from normality: ", tags$strong(st$donor_test),
           " on donor means. Full secondary tests are in the ",
           tags$em("Sensitivity check"), " panel below."),
@@ -1058,13 +1058,13 @@ statistics_server <- function(id, raw_df, get_selection_description,
                " on donor means (", reason, ")."))
 
       tags$div(
-        style = "background: #f5f5f5; padding: 8px 12px; border-radius: 5px; font-size: 12px; line-height: 1.8;",
+        style = "padding: 8px 12px; font-size: 12px; line-height: 1.8",
         tags$strong("Shapiro-Wilk normality (donor means):"),
         tags$br(),
         tagList(items),
         tagList(tags$br(), suggestion),
         tags$br(),
-        tags$span(style = "color: #999; font-size: 11px;",
+        tags$span(style = "font-size: 11px",
                   "Note: with n=5/group, Shapiro-Wilk has limited power to detect departures from normality. ",
                   "The test type is chosen automatically and is not a user setting.")
       )
@@ -1096,7 +1096,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
       lmer_warn <- NULL
       if (!is.null(st$lmer_error)) {
         lmer_warn <- tags$div(
-          style = "background: #fff3cd; padding: 8px 12px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #856404;",
+          style = "padding: 8px 12px; margin-bottom: 8px; font-size: 12px",
           tags$strong("Mixed-effects model issue: "), st$lmer_error,
           " — donor-level results below remain valid."
         )
@@ -1105,7 +1105,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
       tagList(
         lmer_warn,
         tags$div(
-          style = "background: #e8f4fd; padding: 10px 14px; border-radius: 5px; margin-bottom: 12px; font-size: 13px; line-height: 1.5;",
+          style = "padding: 10px 14px; margin-bottom: 12px; font-size: 13px; line-height: 1.5",
           tags$strong("Statistical approach: "),
           paste0("The primary test is a mixed-effects model with donor as a random intercept. ",
                  "This uses all islets while accounting for the fact that islets from the same donor are correlated. ",
@@ -1468,17 +1468,17 @@ statistics_server <- function(id, raw_df, get_selection_description,
                   paste(sprintf("%s %dd/%di", as.character(sub$donor_status),
                                 sub$n_donors, sub$n_islets), collapse = ", "))
         })
-        tags$details(style = "margin-top: 10px; font-size: 11px; color: #666;",
-          tags$summary(style = "cursor: pointer; color: #4477AA; font-weight: 600;",
+        tags$details(style = "margin-top: 10px; font-size: 11px",
+          tags$summary(style = "cursor: pointer; font-weight: 600",
                        "Donors / islets per bin"),
-          tags$ul(style = "margin: 4px 0 0 0; padding-left: 18px; line-height: 1.5;",
+          tags$ul(style = "margin: 4px 0 0 0; padding-left: 18px; line-height: 1.5",
                   per_bin))
       } else NULL
 
       if (is.null(bd) || nrow(bd) == 0) {
         return(tagList(
           cov_strip,
-          tags$p(style = "font-size: 11px; color: #888; margin: 6px 0 0 0;",
+          tags$p(style = "font-size: 11px; margin: 6px 0 0 0",
                  "Every diameter bin present in this subset met the coverage rule ",
                  "(≥ 2 donor-status groups with ≥ 2 donors each).")))
       }
@@ -1488,7 +1488,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
                               " font-size: 11px; color: #666; line-height: 1.5;"),
         tags$strong(sprintf("%d diameter bin%s without an omnibus (ANOVA / Kendall) row:",
                             nrow(bd), if (nrow(bd) == 1) "" else "s")),
-        tags$ul(style = "margin: 4px 0 0 0; padding-left: 18px;",
+        tags$ul(style = "margin: 4px 0 0 0; padding-left: 18px",
           lapply(seq_len(nrow(bd)), function(i) {
             tags$li(
               tags$strong(sprintf("%g µm", bd$mid[i])),
@@ -1497,7 +1497,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
                       bd$detail[i], bd$reason[i]),
               tags$em(bd$status[i]))
           })),
-        tags$p(style = "margin: 6px 0 0 0; font-style: italic;",
+        tags$p(style = "margin: 6px 0 0 0; font-style: italic",
           "The compared size range is therefore capped by whichever group runs out of ",
           "islets first — usually ND at the large end.")))
     })
@@ -1547,17 +1547,17 @@ statistics_server <- function(id, raw_df, get_selection_description,
       if (is.null(st)) {
         rdf <- raw_df()
         if (is.null(rdf) || !("age" %in% colnames(rdf) || "gender" %in% colnames(rdf))) return(NULL)
-        return(div(class = "card", style = "padding: 15px; margin-bottom: 15px;",
+        return(div(class = "card", style = "padding: 15px; margin-bottom: 15px",
                    h5("Demographics Analysis"),
-                   tags$p(style = "color: #666;", "Run statistics to see demographic analysis.")))
+                   tags$p("Run statistics to see demographic analysis.")))
       }
       if (is.null(st$demo_summary)) return(NULL)
 
       # Build AAb section conditionally
       aab_section <- NULL
       if (!is.null(st$aab_summary) && nrow(st$aab_summary) > 0) {
-        aab_section <- div(style = "margin-top: 18px;",
-          h6("Autoantibody Profile (Aab+ only)", style = "color: #555; margin-bottom: 10px;"),
+        aab_section <- div(style = "margin-top: 18px",
+          h6("Autoantibody Profile (Aab+ only)", style = "margin-bottom: 10px"),
           fluidRow(
             column(6,
               tableOutput(ns("aab_donor_table"))
@@ -1569,26 +1569,26 @@ statistics_server <- function(id, raw_df, get_selection_description,
         )
       }
 
-      div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible;",
+      div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible",
         h5("Demographics Analysis"),
-        div(style = "margin-bottom: 18px;",
-          h6("Donor Summary", style = "color: #555; margin-bottom: 10px;"),
+        div(style = "margin-bottom: 18px",
+          h6("Donor Summary", style = "margin-bottom: 10px"),
           tableOutput(ns("demo_summary_table"))
         ),
-        div(style = "margin-bottom: 18px;",
+        div(style = "margin-bottom: 18px",
           fluidRow(
             column(6,
-              h6("Age vs Feature (islet-level)", style = "color: #555; margin-bottom: 10px;"),
+              h6("Age vs Feature (islet-level)", style = "margin-bottom: 10px"),
               plotlyOutput(ns("age_scatter"), height = "420px")
             ),
             column(6,
-              h6("Sex vs Feature", style = "color: #555; margin-bottom: 10px;"),
+              h6("Sex vs Feature", style = "margin-bottom: 10px"),
               plotlyOutput(ns("gender_plot"), height = "420px")
             )
           )
         ),
         aab_section,
-        div(style = "margin-top: 18px;",
+        div(style = "margin-top: 18px",
           uiOutput(ns("covariate_results"))
         )
       )
@@ -1818,23 +1818,23 @@ statistics_server <- function(id, raw_df, get_selection_description,
       # the unadjusted result so the three cases read differently.
       p_unadj <- st$donor_p
       had_effect <- !is.na(p_unadj) && p_unadj < st$alpha
-      tags$div(style = "margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;",
+      tags$div(style = "margin-top: 10px; padding: 10px",
         tags$strong("Covariate-Adjusted Model (donor-level)"),
-        tags$p(style = "margin: 5px 0 0 0;",
+        tags$p(style = "margin: 5px 0 0 0",
           paste0("lm(value ~ donor_status + age + sex, data = donor_means): donor_status p = ",
                  format_p_value(p_cov)),
           tags$br(),
           if (!had_effect) {
-            tags$span(style = "color: #666;",
+            tags$span(
                       paste0("No effect to adjust away — the unadjusted donor-level ",
                              st$donor_test, " was already non-significant (p = ",
                              format_p_value(p_unadj), "). This model neither ",
                              "supports nor refutes a disease-stage effect."))
           } else if (survived) {
-            tags$span(style = "color: #d62728; font-weight: 600;",
+            tags$span(style = "font-weight: 600",
                       "Donor status effect SURVIVES adjustment for age and sex.")
           } else {
-            tags$span(style = "color: #666;",
+            tags$span(
                       paste0("Donor status effect does NOT survive adjustment for age ",
                              "and sex (unadjusted p = ", format_p_value(p_unadj),
                              "), so age/sex may account for it."))
@@ -1918,7 +1918,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
       if (length(nd_auc) > 0 && length(t1d_auc) > 0 && is.finite(nd_auc) && nd_auc != 0) {
         pct <- ((t1d_auc - nd_auc) / nd_auc) * 100
         direction <- if (pct < 0) "decrease" else "increase"
-        tags$p(style = "margin-top: 10px; font-size: 90%; color: #555;",
+        tags$p(style = "margin-top: 10px; font-size: 90%",
           sprintf("The AUC integrates the binned mean feature value across islet diameters (trapezoidal rule). T1D shows a %.1f%% %s relative to ND.",
                   abs(pct), direction))
       } else {
@@ -1933,7 +1933,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
     output$stats_explanation <- renderUI({
       st <- stats_run()
       if (is.null(st)) {
-        return(tags$div(style = "padding: 10px; color: #666;",
+        return(tags$div(style = "padding: 10px",
           tags$p("Click 'Run Statistics' to perform analysis. ",
                  "The sidebar controls which feature and subset of data are analyzed.")))
       }
@@ -2003,7 +2003,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
         )
       }
 
-      tags$div(style = "padding: 10px;",
+      tags$div(style = "padding: 10px",
         tags$p(style = paste0("background: #eef6ee; border-left: 3px solid #2e7d32; ",
                               "padding: 8px 12px; border-radius: 4px;"),
           tags$strong("Design safeguards against p-hacking. "),
@@ -2116,7 +2116,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
           tags$strong("AUC (exploratory): "), paste0("Area under curve computed by trapezoidal integration of the per-status mean feature value across fixed ", STATS_BIN_WIDTH_UM, " \u00b5m islet-diameter bins, on the same filtered subset as every test above. Descriptive summary \u2014 no inferential test.")
         ),
         if (!is.null(st$demo_summary)) {
-          tags$p(style = "margin-top: 8px;",
+          tags$p(style = "margin-top: 8px",
             tags$strong("Demographic covariates: "),
             "Age-feature scatter shows all islets (note: correlated within donors). ",
             "Sex analysis uses box plots by donor status, faceted by sex. ",
@@ -2134,7 +2134,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
             }
           )
         },
-        tags$p(style = "font-size: 90%; color: #666; margin-top: 8px;",
+        tags$p(style = "font-size: 90%; margin-top: 8px",
           tags$strong("Interpretation: "),
           "A significant result (p < \u03b1) suggests the feature differs between donor groups. ",
           # The donor counts come from the analysis that just ran, not from a literal: this text

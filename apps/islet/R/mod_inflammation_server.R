@@ -105,13 +105,13 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
         d$`Case ID`[is.finite(a) & is.finite(b) & abs(a - b) > 0.01]
       } else character(0)
       tagList(
-        tags$p(style = "font-size: 12px; color: #555; margin: 0 0 8px 0; line-height: 1.5;",
+        tags$p(style = "font-size: 12px; margin: 0 0 8px 0; line-height: 1.5",
           tags$strong("Scope. "), dur_txt,
           " This cohort therefore corresponds to the Steenbuck et al. “Onset” group; ",
           "it contains no long-duration T1D donors. Disease duration has too little ",
           "variance to serve as a covariate — it is reported here as a descriptor."),
         if (length(mism)) {
-          tags$p(style = "font-size: 11px; color: #8a6d00; margin: 0 0 8px 0;",
+          tags$p(style = "font-size: 11px; margin: 0 0 8px 0",
             tags$strong("Note: "),
             sprintf("donor %s has a different age in the H5AD (%s) than in the nPOD record (%s). ",
                     paste(mism, collapse = ", "),
@@ -243,7 +243,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
 
     output$edger_note <- renderUI({
       e <- edger_fit()
-      tags$p(style = "font-size: 12px; color: #666; margin: 4px 0 10px 0; line-height: 1.5;",
+      tags$p(style = "font-size: 12px; margin: 4px 0 10px 0; line-height: 1.5",
         tags$strong(e$label), " — ",
         sprintf("%s cells from %d donors; %d cell type%s tested",
                 formatC(e$n_cells, format = "d", big.mark = ","),
@@ -252,7 +252,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
                                      e$n_dropped, paste(e$dropped, collapse = ", ")) else "",
         sprintf(". Common dispersion %.3f (BCV %.2f).", e$dispersion, sqrt(e$dispersion)),
         tags$br(),
-        tags$span(style = "color: #888;",
+        tags$span(
           "logFC is on a log2 scale after library-size normalisation, so it is a change in ",
           "abundance rather than in share of the tissue. FDR is Benjamini-Hochberg across ",
           "the cell types tested in this contrast."))
@@ -543,7 +543,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
         near100   = "cells within 100 µm of an islet",
         "all cells on the section")
       tagList(
-        tags$p(style = "font-size: 11px; color: #666; margin: 8px 0 0 0; line-height: 1.5;",
+        tags$p(style = "font-size: 11px; margin: 8px 0 0 0; line-height: 1.5",
           tags$strong("Testing. "),
           "Kruskal-Wallis across the three stages on donor-level scores. FDR is Benjamini-Hochberg ",
           "within a ", tags$strong("pre-specified family of the ", length(INFLAM_FDR_FAMILY),
@@ -671,7 +671,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
     # =========================================================================
 
     output$inflam_methods <- renderUI({
-      tags$div(style = "padding: 10px; font-size: 13px; line-height: 1.6;",
+      tags$div(style = "padding: 10px; font-size: 13px; line-height: 1.6",
         tags$p(
           tags$strong("Source. "),
           "Both analyses follow Steenbuck N., Damond N., et al., ",

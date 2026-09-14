@@ -352,6 +352,115 @@ SHOW_INFLAMMATION_TAB <- islet_flag_enabled(
   Sys.getenv("SHOW_INFLAMMATION_TAB", "0")
 )
 
+# ============================================================================
+# The rail's destinations (Modernist shell)
+# ============================================================================
+# Each `key` is the VALUE the hidden tabset receives, and Senior's keys are the
+# EXISTING tab labels rather than new lowercase ones. Junior's port renamed them
+# and then had to chase every `active_tab() != "Trajectory"`, every
+# `condition = "input.tabs == 'Plot'"` and viewer_server's own comparison. Here
+# the navset keeps the id `tabs` and the same values, so the rail is a new way
+# to reach the same tabs and nothing downstream of `input$tabs` changes.
+#
+# ORDER IS SENIOR'S OWN. Junior's redesign also reordered the tabs into its
+# reading of the workflow and split Spatial in two. That is information
+# architecture, not the look, and it was not what this port was asked for.
+#
+# The FIRST entry is what opens, and it is also what `navset_hidden` selects by
+# default -- app.R's `nav_panel_hidden` order is kept in step so the two agree
+# rather than one silently correcting the other on the first rail click.
+#
+# No cohort facts in `sub`: these strings are built once at startup, before any
+# dataset is loaded, so a channel count or a donor count written here would be a
+# claim about whichever domain happened to be configured first.
+IE_PIPELINE <- c(
+  list(
+    list(key = "Plot",       num = "01", label = "Plot",
+         sub = "Islet size \u00b7 composition"),
+    list(key = "Trajectory", num = "02", label = "Trajectory",
+         sub = "Pseudotime \u00b7 UMAP"),
+    list(key = "Statistics", num = "03", label = "Statistics",
+         sub = "Mixed-effects tests"),
+    list(key = "Spatial",    num = "04", label = "Spatial",
+         sub = "Tissue map \u00b7 neighbourhoods")
+  ),
+  # Gated exactly like the tabPanel it addresses, so the rail can never offer a
+  # destination the tabset does not mount.
+  if (SHOW_INFLAMMATION_TAB) list(
+    list(key = "Inflammation", num = "05", label = "Inflammation",
+         sub = "Cell types \u00b7 immune localisation")
+  ) else list()
+)
+IE_REFERENCE <- list(
+  list(key = "Viewer", label = "Viewer",
+       sub = "The images at full resolution")
+)
+
+# How to read each tab. These used to be blue strips across the top of Plot and
+# Trajectory, costing the first ~120px of the panel on every visit for text a
+# reader needs once. The rail's Help entry shows the ACTIVE tab's tips on
+# demand, so the cards start at the top of the panel.
+#
+# A tab with no entry gets a plain "nothing specific" note rather than an empty
+# modal, so the Help row never looks broken.
+IE_TAB_TIPS <- list(
+  Plot = list(
+    "Enable \"Show individual points\", then click any point on the Islet Size Distribution scatter to view that islet's segmentation map below.",
+    "Enable \"Show individual points\" and set \"Color points by\" to Donor ID, then click a donor in the legend to show or hide it.",
+    "Use browser zoom (Ctrl +/\u2212) to resize the cards. Scroll within a card to reach controls below the fold."
+  ),
+  Trajectory = list(
+    "Click any point on the pseudotime scatter to view the segmentation map for that islet."
+  ),
+  Spatial = list(
+    "Drag on the tissue scatter to zoom; double-click to reset."
+  )
+)
+
+#' The Help > "Tips for this tab" modal, for whichever tab is active.
+ie_tab_tips_modal <- function(tab) {
+  tips <- IE_TAB_TIPS[[tab %||% ""]]
+  shiny::modalDialog(
+    title = paste0(tab %||% "This tab", " \u2014 how to read it"),
+    easyClose = TRUE, footer = shiny::modalButton("Close"),
+    if (length(tips)) {
+      shiny::tags$ul(lapply(tips, function(t) shiny::tags$li(t)))
+    } else {
+      shiny::tags$p("Nothing specific to this tab. The phenotype rules are in the entry above.")
+    }
+  )
+}
+IE_TAB_KEYS <- c(vapply(IE_PIPELINE,  `[[`, "", "key"),
+                 vapply(IE_REFERENCE, `[[`, "", "key"))
+
+#' Keep N selectInputs and one reactiveVal in step, whichever the user touches.
+#'
+#' Replaces two hand-written observer sets in app.R -- a pair for the phenotype
+#' palette and a triad for the donor palette -- that each restated the whole
+#' fan-out per writer. Adding the rail's copy of each selector would have made
+#' them a triad and a quartet of near-identical blocks, four places to forget
+#' one id. The guard against a feedback loop is the same as before: a writer
+#' that already agrees with the reactiveVal returns without updating anyone.
+#'
+#' @param ids character vector of NON-namespaced input ids. Every one is both a
+#'   writer and a follower.
+ie_sync_selects <- function(input, session, rv, ids) {
+  for (this_id in ids) {
+    local({
+      writer <- this_id
+      shiny::observeEvent(input[[writer]], {
+        value <- input[[writer]]
+        if (is.null(value) || identical(value, rv())) return()
+        rv(value)
+        for (other in setdiff(ids, writer)) {
+          shiny::updateSelectInput(session, other, selected = value)
+        }
+      }, ignoreInit = TRUE)
+    })
+  }
+  invisible(NULL)
+}
+
 # Robust click bridge for plotly scatters used by the islet drill-down.
 # On macOS, plotly's own click/drag discrimination can suppress `plotly_click`
 # entirely, so the server-side observer never fires (the symptom: clicking a
@@ -477,6 +586,9 @@ plotly_islet_strip_fonts <- function(gg,
 }
 
 # Standard PNG download dimensions for ggplot ggsave() in downloadHandlers.
+# Every such call also passes bg = "white" ON PURPOSE. theme_modernist() draws on a
+# transparent background so figures sit directly on the Modernist card; a transparent
+# PNG then inverts on a dark slide, so the saved file deliberately differs from the screen.
 # Default: 10x7 in at 300 dpi -> 3000x2100 px. Heatmaps use wider 12x8.
 ISLET_PNG_DIMS  <- list(width = 10, height = 7, dpi = 300, units = "in")
 ISLET_HEATMAP_PNG_DIMS <- list(width = 12, height = 8, dpi = 300, units = "in")
@@ -774,19 +886,19 @@ phenotype_rules_table_df <- function() {
 phenotype_rules_modal_ui <- function() {
   df <- phenotype_rules_table_df()
   header_row <- shiny::tags$tr(
-    shiny::tags$th("Phenotype",          style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Category",           style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Positive markers",   style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Negative markers",   style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Notes",              style = "text-align:left; padding:6px 10px;")
+    shiny::tags$th("Phenotype",          style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Category",           style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Positive markers",   style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Negative markers",   style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Notes",              style = "text-align:left; padding:6px 10px")
   )
   body_rows <- lapply(seq_len(nrow(df)), function(i) {
     shiny::tags$tr(
-      shiny::tags$td(shiny::tags$strong(df$Phenotype[i]), style = "padding:6px 10px;"),
-      shiny::tags$td(df$Category[i],                       style = "padding:6px 10px; color:#555;"),
-      shiny::tags$td(df$Positive[i],                       style = "padding:6px 10px;"),
-      shiny::tags$td(df$Negative[i],                       style = "padding:6px 10px; color:#666;"),
-      shiny::tags$td(df$Notes[i],                          style = "padding:6px 10px; color:#444; font-size: 13px;")
+      shiny::tags$td(shiny::tags$strong(df$Phenotype[i]), style = "padding:6px 10px"),
+      shiny::tags$td(df$Category[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Positive[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Negative[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Notes[i],                          style = "padding:6px 10px; font-size: 13px")
     )
   })
   shiny::modalDialog(
@@ -803,15 +915,15 @@ phenotype_rules_modal_ui <- function() {
       " Where a phenotype's Notes column is filled, the call is not a flat marker gate and the note",
       " is the rule — read it rather than the marker columns."
     ),
-    shiny::tags$div(style = "max-height: 60vh; overflow-y: auto; border-top: 1px solid #ddd;",
+    shiny::tags$div(style = "max-height: 60vh; overflow-y: auto",
       shiny::tags$table(
         class = "table table-striped",
-        style = "width: 100%; font-size: 14px; margin: 0;",
+        style = "width: 100%; font-size: 14px; margin: 0",
         shiny::tags$thead(header_row),
         shiny::tags$tbody(body_rows)
       )
     ),
-    shiny::tags$p(style = "margin-top: 10px; font-size: 12px; color: #777;",
+    shiny::tags$p(style = "margin-top: 10px; font-size: 12px",
       # The marker list is read from the file that was actually parsed: the two domains carry
       # different panels, and a hard-coded list names the wrong markers for one of them.
       "Rule source: ", shiny::tags$code(PHENOTYPE_RULES_PATH),
@@ -888,12 +1000,12 @@ feature_display_label <- function(col) {
 phenotype_rules_button <- function(input_id,
                                    label = "Phenotype rules — marker definitions") {
   shiny::tags$div(
-    style = "margin-bottom: 12px; padding: 8px 14px; background-color: #eef4fb; border: 1px solid #c8d8e9; border-radius: 6px; display: inline-block;",
+    style = "margin-bottom: 12px; padding: 8px 14px; display: inline-block",
     shiny::actionLink(input_id,
-      shiny::tagList(shiny::icon("dna", style = "color:#4477AA;"),
-                     shiny::tags$span(style = "margin-left:6px; color:#2a4d75; font-weight:600;",
+      shiny::tagList(shiny::icon("dna"),
+                     shiny::tags$span(style = "margin-left:6px; font-weight:600",
                                       label)),
-      style = "text-decoration: none;")
+      style = "text-decoration: none")
   )
 }
 
@@ -907,14 +1019,14 @@ phenotype_hint_ui <- function(name, prefix = "Markers:",
   rule_html <- format_phenotype_rule(name, "html")
   link <- if (!is.null(show_modal_link)) {
     shiny::tagList(
-      shiny::tags$span(style = "color:#888;", " · "),
+      shiny::tags$span(" · "),
       shiny::actionLink(show_modal_link, "see all rules →",
-                        style = "font-size: 12px; color: #4477AA;")
+                        style = "font-size: 12px")
     )
   }
   shiny::tags$div(
-    style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; background-color: #f7f9fc; border-left: 3px solid #4477AA; border-radius: 3px; font-size: 13px; color: #333; line-height: 1.4;",
-    shiny::tags$strong(style = "color:#4477AA;", paste0(prefix, " ")),
+    style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; font-size: 13px; line-height: 1.4",
+    shiny::tags$strong(paste0(prefix, " ")),
     shiny::tags$span(rule_html),
     link
   )
