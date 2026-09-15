@@ -70,13 +70,20 @@ FIELD_MIN_UM = 0.30        #: parsimony: no field unless this much structure sur
 
 
 def load_plane(path: Path, level: int = 0, channel: int = 0) -> np.ndarray:
-    """One channel of one pyramid level, as a 2-D array."""
+    """One channel of one pyramid level, as a 2-D array.
+
+    ``key=channel`` is load-bearing, not tidiness: these are CYX series, so a bare
+    ``asarray()`` materialises EVERY channel before any subsetting -- 70 x 44640 x 19200
+    uint16 is ~120 GB for the qptiff and ~15 GB for the 4-channel Xenium morphology file.
+    Selecting the page first reads 1.7 GB and 3.9 GB respectively.
+    """
     with tifffile.TiffFile(path) as tf:
         lv = tf.series[0].levels[level]
-        arr = lv.asarray()
-    if arr.ndim == 3:
-        arr = arr[channel]
-    return np.asarray(arr)
+        arr = lv.asarray(key=channel)
+    arr = np.squeeze(np.asarray(arr))
+    if arr.ndim != 2:
+        raise ValueError(f"{path}: expected a 2-D plane, got shape {arr.shape}")
+    return arr
 
 
 def highpass(a: np.ndarray, sigma_px: float) -> np.ndarray:
