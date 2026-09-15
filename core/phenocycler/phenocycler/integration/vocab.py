@@ -288,6 +288,31 @@ class MarkerPair:
         """
         return self.on_panel and bool(self.genes)
 
+    def anchor_in(self, mode: str) -> bool:
+        """Whether this pair is a per-cell anchor under a given acquisition ``mode``.
+
+        Protein-or-gene substitution is licensed by the slide, not by convenience. On one
+        physical section the protein was measured on *this very cell*, so a marker with no
+        on-panel gene is still a real per-cell feature — it simply arrives from the protein
+        side. Across serial sections the identical substitution is invalid, because the
+        protein was measured on a different cell; there it stays a lineage-level surrogate.
+
+        This is what lets the same-slide pair carry identity the RNA panel cannot express:
+        INS/GCG/SST are absent from both Xenium panels but are PhenoCycler gates, and
+        GHRL/AMY1A are on the +100 T1D add-on but not the stock Prime 5k.
+        """
+        if self.usable_anchor:
+            return True
+        return mode == "same_slide" and bool(self.protein)
+
+    def anchor_source(self, mode: str) -> str:
+        """Which modality supplies this anchor: 'gene', 'protein', or '' if neither."""
+        if self.usable_anchor:
+            return "gene"
+        if mode == "same_slide" and self.protein:
+            return "protein"
+        return ""
+
 
 @dataclass
 class PanelTaxonomy:
@@ -539,13 +564,19 @@ def protein_gene_pairs(
     return out
 
 
-def usable_anchors(pairs: Iterable[MarkerPair], *, type_only: bool = False) -> list[MarkerPair]:
+def usable_anchors(pairs: Iterable[MarkerPair], *, type_only: bool = False,
+                   mode: str = "sequential") -> list[MarkerPair]:
     """Pairs that can anchor a shared feature space.
 
     ``type_only`` keeps identity markers and drops state/process ones — appropriate when the
     anchors must discriminate cell *type* rather than activation state.
+
+    ``mode`` is the pair's acquisition design (see :mod:`phenocycler.integration.modes`).
+    Under ``same_slide`` a protein-only marker counts as a per-cell anchor; under
+    ``sequential`` it does not. The default stays ``sequential`` so existing callers keep
+    their current, stricter behaviour until they opt in.
     """
-    out = [p for p in pairs if p.usable_anchor]
+    out = [p for p in pairs if p.anchor_in(mode)]
     if type_only:
         out = [p for p in out if p.role == "TYPE"]
     return out

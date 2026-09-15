@@ -56,6 +56,7 @@ import pandas as pd
 from ..config import PipelineConfig, load_config
 from .contract import read_cell_table
 from .manifest import load_manifest, paired_rows, rows_for_scope
+from . import modes
 from .register import registration_dir
 from .transform import Transform
 
@@ -70,12 +71,19 @@ class ModeError(RuntimeError):
     """Called in the wrong integration mode."""
 
 
-def require_same_slide(cfg: PipelineConfig) -> None:
-    """Hard guard. Cell-to-cell pairing is only valid for one physical section."""
-    if cfg.integration_mode != "same_slide":
+def require_same_slide(cfg: PipelineConfig, donor: Optional[str] = None,
+                      roi: str = "panc") -> None:
+    """Hard guard. Cell-to-cell pairing is only valid for one physical section.
+
+    The mode is resolved per (donor, roi) from ``data/integration/section_modes.csv``, so a
+    cohort may hold serial and same-slide pairs at once. With no donor the configured global
+    mode is used, which is what the mode-agnostic callers still want.
+    """
+    effective = modes.mode_for(cfg, donor, roi) if donor else cfg.integration_mode
+    if effective != "same_slide":
         raise ModeError(
-            f"same-slide cell pairing was requested but [integration] mode is "
-            f"{cfg.integration_mode!r}.\n"
+            f"same-slide cell pairing was requested but the effective mode for "
+            f"{donor or '<no donor>'}/{roi} is {effective!r}.\n"
             f"Across serial sections the two modalities measure DIFFERENT cells, so a "
             f"cell-to-cell pairing is not a measurement no matter how good the registration "
             f"is. Use match.py (islet-level), grid.py (niche-level) or crossmodal.py "
@@ -84,12 +92,15 @@ def require_same_slide(cfg: PipelineConfig) -> None:
         )
 
 
-def require_sequential(cfg: PipelineConfig, what: str) -> None:
+def require_sequential(cfg: PipelineConfig, what: str, donor: Optional[str] = None,
+                       roi: str = "panc") -> None:
     """The mirror-image guard, for steps whose semantics assume distinct sections."""
-    if cfg.integration_mode != "sequential":
+    effective = modes.mode_for(cfg, donor, roi) if donor else cfg.integration_mode
+    if effective != "sequential":
         raise ModeError(
-            f"{what} is a sequential-mode step, but [integration] mode is "
-            f"{cfg.integration_mode!r}. In same-slide mode use sameslide.py, which pairs "
+            f"{what} is a sequential-mode step, but the effective mode for "
+            f"{donor or '<no donor>'}/{roi} is {effective!r}. In same-slide mode use "
+            f"sameslide.py, which pairs "
             f"cells directly instead of approximating the pairing."
         )
 
@@ -260,7 +271,7 @@ def pair_donor(
     neighbours do not, which is the distinction centroid distance cannot make reliably in
     packed tissue, where an adjacent nucleus is often nearer than the partner outline.
     """
-    require_same_slide(cfg)
+    require_same_slide(cfg, donor, roi)
 
     pheno = read_cell_table(cfg.cells_pheno_dir, donor, roi, modality="phenocycler")
     xen = read_cell_table(cfg.cells_xen_dir, donor, roi, modality="xenium")
@@ -365,7 +376,6 @@ def run_sameslide(
     from .export_pheno import require_current_identity
 
     require_current_identity("same-slide integration", cfg=cfg)
-    require_same_slide(cfg)
 
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
     if donors:

@@ -397,7 +397,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="run one tissue's ROIs (repeatable); default is every configured "
                          "tissue, i.e. pancreas and pancreatic lymph node together")
     ap.add_argument("--mode", choices=["sequential", "same_slide"], default=None,
-                    help="override [integration] mode")
+                    help="fallback [integration] mode for pairs NOT declared in "
+                         "data/integration/section_modes.csv; declared pairs always win. "
+                         "same_slide additionally requires a declaration, so this flag "
+                         "cannot assert same-slide status for an undeclared pair.")
     ap.add_argument("--no-images", action="store_true",
                     help="registration point-set track only (skip morphology reads)")
     args = ap.parse_args(argv)

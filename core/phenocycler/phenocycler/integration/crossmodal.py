@@ -262,10 +262,12 @@ def link_donor(
     group_by: str = "niche_id_joint",
 ) -> LinkResult:
     """Link one donor's cells, grouped spatially. Raises :class:`AnchorError` if too thin."""
-    if cfg.integration_mode != "sequential":
+    from . import modes
+    _mode = modes.mode_for(cfg, donor, roi)
+    if _mode != "sequential":
         raise RuntimeError(
-            f"crossmodal linking is the sequential-mode approximation to cell pairing; in "
-            f"{cfg.integration_mode!r} mode use sameslide.py, which pairs real cells"
+            f"crossmodal linking is the sequential-mode approximation to cell pairing; "
+            f"donor {donor}/{roi} is {_mode!r}, so use sameslide.py, which pairs real cells"
         )
 
     pheno = read_cell_table(cfg.cells_pheno_dir, donor, roi, modality="phenocycler")

@@ -112,6 +112,7 @@ class PipelineConfig:
     xenium_paths_csv: Path = _REPO_ROOT / "data" / "integration" / "xenium_paths.csv"
     donor_overrides_csv: Path = _REPO_ROOT / "data" / "integration" / "donor_overrides.csv"
     section_overrides_csv: Path = _REPO_ROOT / "data" / "integration" / "section_overrides.csv"
+    section_modes_csv: Path = _REPO_ROOT / "data" / "integration" / "section_modes.csv"
     phenocycler_identity_release: Path | None = None
     xenium_identity_release: Path | None = None
     xenium_root: str = ""                         # optional prefix rewrite for bundle paths
@@ -476,6 +477,7 @@ _INI_SCHEMA = {
         "xenium_paths_csv": ("xenium_paths_csv", Path),
         "donor_overrides_csv": ("donor_overrides_csv", Path),
         "section_overrides_csv": ("section_overrides_csv", Path),
+        "section_modes_csv": ("section_modes_csv", Path),
         "phenocycler_identity_release": ("phenocycler_identity_release", Path),
         "xenium_identity_release": ("xenium_identity_release", Path),
         "xenium_root": ("xenium_root", str),
@@ -595,7 +597,8 @@ def load_config(
     # upstream ingest prerequisite.
 
     for name in ("images_dir", "donor_metadata", "xenium_paths_csv",
-                 "donor_overrides_csv", "section_overrides_csv", "panel_explorer"):
+                 "donor_overrides_csv", "section_overrides_csv", "section_modes_csv",
+                 "panel_explorer"):
         path = Path(getattr(cfg, name)).expanduser()
         if not path.is_absolute():
             path = (base / path).resolve()
