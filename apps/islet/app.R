@@ -244,6 +244,9 @@ a:focus-visible, button:focus-visible, input:focus-visible,
             bslib::nav_panel_hidden("Trajectory", trajectory_ui("traj")),
             bslib::nav_panel_hidden("Statistics", statistics_ui("stats")),
             bslib::nav_panel_hidden("Spatial",    spatial_ui("spatial")),
+            # Same module namespace -- a relocation of the three neighborhood
+            # cards, not a second module.
+            bslib::nav_panel_hidden("Neighborhoods", spatial_neighborhood_ui("spatial")),
             # Hidden unless SHOW_INFLAMMATION_TAB=1 (see 00_globals.R).
             # navset_hidden drops NULL entries, so this mounts nothing when off
             # -- and IE_PIPELINE is gated on the same flag, so the rail can
@@ -282,7 +285,7 @@ a:focus-visible, button:focus-visible, input:focus-visible,
                 plot_sidebar_ui("plot")
               ),
               conditionalPanel(
-                condition = "input.tabs == 'Spatial'",
+                condition = "input.tabs == 'Spatial' || input.tabs == 'Neighborhoods'",
                 spatial_selection_ui("spatial")
               )
             )
@@ -298,7 +301,7 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 # is exactly the failure the active-tab guards exist to prevent.
 stopifnot(setequal(
   IE_TAB_KEYS,
-  c("Plot", "Trajectory", "Statistics", "Spatial", "Viewer",
+  c("Plot", "Trajectory", "Statistics", "Spatial", "Neighborhoods", "Viewer",
     if (SHOW_INFLAMMATION_TAB) "Inflammation")
 ))
 

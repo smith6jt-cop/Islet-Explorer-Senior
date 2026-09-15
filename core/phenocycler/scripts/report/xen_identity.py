@@ -108,7 +108,8 @@ def x04_cores(donor: str, prov: dict) -> FigureRecord:
     fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.02, label="core mean, z across labels (row-wise)")
     for f_, lbl in ((0.1, "10%"), (0.5, "50%"), (0.9, "90%")):
         ax.scatter([], [], s=20 + 460 * f_, c="#888888", label=f"{lbl} of core genes detected")
-    ax.legend(fontsize=6, loc="lower left", bbox_to_anchor=(0.0, 1.02), ncol=3, frameon=False)
+    ax.legend(fontsize=6, loc="upper left", bbox_to_anchor=(1.28, 1.0), frameon=False, labelspacing=1.4,
+              borderpad=1.0, handletextpad=1.4)
     ax.set_title(style.wrap("X04-A  identity-core signal per released label: colour = z of the core mean across labels, "
                             "size = detected fraction, black ring = the label where the core is highest. State subpanels are never drawn.", 95), fontsize=7.5)
     ax = axes[0, 1]

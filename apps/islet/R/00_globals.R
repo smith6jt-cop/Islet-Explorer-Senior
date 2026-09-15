@@ -375,61 +375,25 @@ SHOW_INFLAMMATION_TAB <- islet_flag_enabled(
 # claim about whichever domain happened to be configured first.
 IE_PIPELINE <- c(
   list(
-    list(key = "Plot",       num = "01", label = "Plot",
-         sub = "Islet size \u00b7 composition"),
-    list(key = "Trajectory", num = "02", label = "Trajectory",
-         sub = "Pseudotime \u00b7 UMAP"),
-    list(key = "Statistics", num = "03", label = "Statistics",
-         sub = "Mixed-effects tests"),
-    list(key = "Spatial",    num = "04", label = "Spatial",
-         sub = "Tissue map \u00b7 neighbourhoods")
+    list(key = "Plot",          label = "Plot",          sub = "Islet size \u00b7 composition"),
+    list(key = "Trajectory",    label = "Trajectory",    sub = "Pseudotime \u00b7 UMAP"),
+    list(key = "Statistics",    label = "Statistics",    sub = "Mixed-effects tests"),
+    list(key = "Spatial",       label = "Spatial",       sub = "Tissue map \u00b7 Leiden"),
+    list(key = "Neighborhoods", label = "Neighborhoods", sub = "Enrichment \u00b7 proximity")
   ),
-  # Gated exactly like the tabPanel it addresses, so the rail can never offer a
-  # destination the tabset does not mount.
   if (SHOW_INFLAMMATION_TAB) list(
-    list(key = "Inflammation", num = "05", label = "Inflammation",
+    list(key = "Inflammation", label = "Inflammation",
          sub = "Cell types \u00b7 immune localisation")
   ) else list()
 )
+# KEY STAYS "Viewer"; only the LABEL changes. The key is the value the hidden
+# tabset receives, so it is what `input$tabs` returns and what
+# viewer_server()'s guard, the cohort bar's `input.tabs != 'Viewer'` and the
+# startup stopifnot all compare against. Renaming it would break four things
+# that have nothing to do with what the row says.
 IE_REFERENCE <- list(
-  list(key = "Viewer", label = "Viewer",
-       sub = "The images at full resolution")
+  list(key = "Viewer", label = "Tissuumaps", sub = "The images at full resolution")
 )
-
-# How to read each tab. These used to be blue strips across the top of Plot and
-# Trajectory, costing the first ~120px of the panel on every visit for text a
-# reader needs once. The rail's Help entry shows the ACTIVE tab's tips on
-# demand, so the cards start at the top of the panel.
-#
-# A tab with no entry gets a plain "nothing specific" note rather than an empty
-# modal, so the Help row never looks broken.
-IE_TAB_TIPS <- list(
-  Plot = list(
-    "Enable \"Show individual points\", then click any point on the Islet Size Distribution scatter to view that islet's segmentation map below.",
-    "Enable \"Show individual points\" and set \"Color points by\" to Donor ID, then click a donor in the legend to show or hide it.",
-    "Use browser zoom (Ctrl +/\u2212) to resize the cards. Scroll within a card to reach controls below the fold."
-  ),
-  Trajectory = list(
-    "Click any point on the pseudotime scatter to view the segmentation map for that islet."
-  ),
-  Spatial = list(
-    "Drag on the tissue scatter to zoom; double-click to reset."
-  )
-)
-
-#' The Help > "Tips for this tab" modal, for whichever tab is active.
-ie_tab_tips_modal <- function(tab) {
-  tips <- IE_TAB_TIPS[[tab %||% ""]]
-  shiny::modalDialog(
-    title = paste0(tab %||% "This tab", " \u2014 how to read it"),
-    easyClose = TRUE, footer = shiny::modalButton("Close"),
-    if (length(tips)) {
-      shiny::tags$ul(lapply(tips, function(t) shiny::tags$li(t)))
-    } else {
-      shiny::tags$p("Nothing specific to this tab. The phenotype rules are in the entry above.")
-    }
-  )
-}
 IE_TAB_KEYS <- c(vapply(IE_PIPELINE,  `[[`, "", "key"),
                  vapply(IE_REFERENCE, `[[`, "", "key"))
 

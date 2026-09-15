@@ -703,6 +703,22 @@ def inspect_qupath_geojson(
     )
 
 
+
+def measurement_delimiter(path) -> str:
+    """Field separator for a QuPath measurement export, from its suffix.
+
+    QuPath writes tab-separated when the file is named .tsv and comma-separated for .csv, and
+    the 2026-09 re-exports under data/RevisedQuPathExports are .tsv. `csv.reader` defaults to
+    a comma, so a .tsv header parsed as one 994-character field and the manifest failed with
+    "missing required column 'Image'" -- the column was there, the delimiter was not.
+
+    Suffix, not a sniff: csv.Sniffer on a 994-column header is slow and can pick the wrong
+    separator when field text contains commas, and both export formats are unambiguous by name.
+    The bulk row read in cells_parquet.py goes through DuckDB's read_csv, which auto-detects and
+    already handled both (verified: 994 columns, 'Image' present).
+    """
+    return "\t" if str(path).lower().endswith((".tsv", ".tab")) else ","
+
 @dataclass(frozen=True)
 class QuPathImageManifest:
     """The complete immutable contract for one QuPath image export."""
@@ -780,7 +796,10 @@ class QuPathImageManifest:
             measurement_fp.validate_current(mode="fast")
         with Path(measurement_fp.path).open(newline="", encoding="utf-8-sig") as handle:
             try:
-                measurement_columns = tuple(next(csv.reader(handle)))
+                measurement_columns = tuple(
+                    next(csv.reader(handle,
+                                    delimiter=measurement_delimiter(measurement_fp.path)))
+                )
             except StopIteration as exc:
                 raise ContractError("QuPath measurement CSV is empty") from exc
         for required in ("Image", "Object ID"):

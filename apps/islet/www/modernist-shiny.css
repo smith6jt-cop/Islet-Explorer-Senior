@@ -849,3 +849,42 @@ body:has(.ie-shell) { overflow-x: auto; overflow-y: hidden; }
   border: 3px solid var(--color-accent);
   border-radius: 0;
 }
+
+/* --- rail: help behind a "?", palettes pinned bottom (2026-09-14) ----------
+   The rail lost its two section headings, its numeral column and the Viewer's
+   diamond. What is left is a list of destinations, so the remaining chrome is
+   one "?" and the palette controls. */
+
+/* .ie-rail is already a flex column; `auto` on the footer's top margin pushes
+   it to the bottom whatever sits above, so the palettes stay in the lower left
+   whether Inflammation is mounted or not. */
+.ie-rail-footer { margin-top: auto; }
+
+/* Native <details>: opens and closes with no JS and no state to track. */
+.ie-rail-helpmenu { margin: 10px 0 0 14px; }
+.ie-rail-helpmenu > summary {
+  list-style: none;           /* Firefox draws a triangle without this */
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border: 1px solid var(--rail-label);
+  border-radius: 50%;         /* the ONE round thing in a squared design, so it */
+  color: var(--rail-label);   /* reads as a control rather than a heading */
+  font-family: var(--font-heading); font-weight: 800; font-size: 12px;
+  cursor: pointer; user-select: none;
+}
+.ie-rail-helpmenu > summary::-webkit-details-marker { display: none; }
+.ie-rail-helpmenu > summary:hover,
+.ie-rail-helpmenu[open] > summary {
+  color: var(--rail-active); border-color: var(--rail-active);
+}
+.ie-rail-helpmenu > summary:focus-visible {
+  outline: 2px solid var(--rail-active); outline-offset: 2px;
+}
+/* The links sit under the button rather than in a popover: the rail has the
+   room, and a floating panel inside a 204px column would need clamping and a
+   dismiss handler for no gain. */
+.ie-rail-helpmenu .ie-rail-help { margin: 8px 0 0 -4px; }
+
+/* With the numeral column gone the text no longer needs its left offset. */
+.ie-nav-body { padding-left: 14px; }
+.ie-nav-text { margin-left: 0; }

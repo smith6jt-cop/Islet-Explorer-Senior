@@ -9,7 +9,7 @@ Four regions per islet, not two:
                  drawn at 23.1 um while every other sits at 18.8-19.3, and all of them are named
                  ``_exp20um``, so reading the annotation would silently give that donor ~21% more
                  area than the cells assigned to it by the signed distance.
-  non_endocrine  the part of core + expansion that is not endocrine cells.  Its area is the summed
+  non_endocrine  the part of the islet CORE that is not endocrine cells.  Its area is the summed
                  segmented area of the non-endocrine cells in it -- a measurement, not the region
                  area minus an estimate.
   union          core + expansion
@@ -109,25 +109,40 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> pd.DataFrame:
             "expansion": here[here["cell_region_20um"] == "expansion"],
         }
         region_cells["union"] = pd.concat(region_cells.values())
-        region_cells["non_endocrine"] = region_cells["union"][~region_cells["union"]["is_endocrine"]]
+        # CORE ONLY. The non-endocrine region is the part of the ISLET that is not endocrine --
+        # not the islet plus its expansion.
+        region_cells["non_endocrine"] = region_cells["core"][~region_cells["core"]["is_endocrine"]]
 
-        # Correction E: the non-endocrine region is core + expansion minus what the endocrine
-        # cells actually occupy. With an outline it has a measurable area and its structure areas
-        # come from intersection like every other region's; without one (no endocrine union on
-        # disk for this donor) it stays None and those areas stay Unavailable.
+        # Correction E, corrected 2026-09-14: the non-endocrine region is the ISLET CORE minus
+        # what the endocrine cells occupy.
+        #
+        # IT WAS `union.difference(...)` -- core PLUS the whole 20 um ring. The ring is
+        # peri-islet tissue and holds almost no endocrine cells, so subtracting endocrine left
+        # nearly all of it behind: the region came out 1.26x LARGER than IsletExpanded (max
+        # 2.71x) when it must be a strict subset of the core, and the viewer drew nearly every
+        # cell as non-endocrine. The expansion is already its own region; it does not belong
+        # inside this one.
         non_endocrine = None
         if islet in endocrine:
-            non_endocrine = union.difference(endocrine[islet])
+            non_endocrine = core.difference(endocrine[islet])
             if not non_endocrine.is_valid:
                 non_endocrine = non_endocrine.buffer(0)
         geometry = {"core": core, "expansion": expansion, "union": union,
                     "non_endocrine": non_endocrine}
         for region, subset in region_cells.items():
             shape_here = geometry[region]
-            # Every region's area is now its outline's; the non-endocrine one falls back to what
-            # its cells occupy only where no endocrine union was built for that islet.
+            # NO OUTLINE MEANS UNAVAILABLE, NOT A SUBSTITUTE QUANTITY. This used to fall
+            # back to the summed area of the region's own cells -- which is a different
+            # measurement wearing the same column name, and it showed: 28 islets came out
+            # with a non-endocrine area LARGER than the core it is carved from (max 2.19x),
+            # every one of them a 1-5 cell fragment whose cell outlines spill past the islet
+            # annotation. A `region_um2` that is sometimes an outline area and sometimes a
+            # cell-area sum silently corrupts every density that divides by it.
+            #
+            # Nothing is lost by refusing: `cells_um2` on this same row already carries the
+            # summed cell area under its own name, which is what the fallback was copying.
             region_area = (float(shape_here.area) * area_um2 if shape_here is not None
-                           else float(subset["cell_area"].sum()))
+                           else np.nan)
             row = {"donor_id": donor, "islet_key": islet,
                    "combined_islet_id": f"{donor}_{islet}", "region": region,
                    "region_um2": region_area, "n_cells": int(len(subset)),

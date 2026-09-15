@@ -82,17 +82,26 @@ trajectory_ui <- function(id) {
       # Right column: UMAPs stacked + segmentation viewer below
       column(5,
         div(class = "card", style = "padding: 15px; margin-bottom: 20px",
+          # STACKED, not side by side. These are coord_fixed() plots -- a UMAP has
+          # no meaningful aspect other than 1:1 -- and this card sits in 5 of 12
+          # columns, so two of them abreast got ~190px of width each against
+          # 500px of height. Most of that width went to the legend and the data
+          # collapsed into a dot in the corner with the axis titles overlapping.
+          # One per row gets the full column, and the height comes down to match
+          # so each is about square.
           fluidRow(
-            column(6,
+            column(12,
               h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0"),
-              plotOutput(ns("traj_umap_donor"), height = 500),
+              plotOutput(ns("traj_umap_donor"), height = 320),
               div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_donor"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))
-            ),
-            column(6,
-              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 0"),
-              plotOutput(ns("traj_umap_feature"), height = 500),
+            )
+          ),
+          fluidRow(
+            column(12,
+              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 12px"),
+              plotOutput(ns("traj_umap_feature"), height = 320),
               div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_feature"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))

@@ -41,9 +41,12 @@ rail_row <- function(group, key, selected = FALSE, num = NULL,
       checked = if (selected) "checked"
     ),
     # WRAPPER SPAN, not in the delivered file -- see note 2 in the header.
+    # No numeral and no marker glyph. The rail is a list of destinations, not an
+    # ordered procedure, and the leading column of digits was the loudest thing
+    # in it. `num` and `marker` stay in the signature so a caller passing them
+    # is not an error; they are simply not drawn.
     tags$span(
       class = "ie-nav-body",
-      tags$span(class = "ie-nav-num", num %||% marker),
       tags$span(
         class = "ie-nav-text",
         tags$span(label),
@@ -53,13 +56,12 @@ rail_row <- function(group, key, selected = FALSE, num = NULL,
   )
 }
 
-rail_heading <- function(text) div(class = "ie-rail-heading", text)
+# rail_heading() removed with the two section headings it drew.
 
-#' @param pipeline,reference lists of `list(key, num/marker, label, sub)`.
+#' @param pipeline,reference lists of `list(key, label, sub)`.
 #'   `key` is the value the navset receives, so it must match a
 #'   `nav_panel_hidden()` value exactly.
 railUI <- function(id, pipeline, reference = list(),
-                   reference_heading = "The images themselves",
                    brand = "Islet Explorer", logo = "logo.png",
                    meta = NULL, help = NULL, footer = NULL) {
   ns <- NS(id)
@@ -86,31 +88,32 @@ railUI <- function(id, pipeline, reference = list(),
       id = ns("tab"), class = "shiny-input-radiogroup",
       role = "radiogroup", `aria-label` = "Analysis pipeline",
 
-      rail_heading("Analysis pipeline"),
+      # No section headings. "Analysis pipeline" and "The images themselves"
+      # labelled two groups that the divider already separates.
       lapply(pipeline, function(it) {
         rail_row(ns("tab"), it$key, identical(it$key, first),
-                 num = it$num, label = it$label, sub = it$sub)
+                 label = it$label, sub = it$sub)
       }),
 
       if (length(reference)) tagList(
         div(class = "ie-rail-divider"),
-        rail_heading(reference_heading),
         lapply(reference, function(it) {
-          rail_row(ns("tab"), it$key, FALSE,
-                   marker = "◇", label = it$label, sub = it$sub)
+          rail_row(ns("tab"), it$key, FALSE, label = it$label, sub = it$sub)
         })
       )
     ),
 
-    # Help lives here rather than at the top of each tab. Senior mounts the
-    # phenotype-rules pill on five tabs; one place, always reachable, costs no
-    # vertical space in any panel.
-    if (!is.null(help)) tagList(
-      div(class = "ie-rail-divider"),
-      rail_heading("Help"),
+    # Help behind a single "?" -- a native <details>, so it opens and closes with
+    # no JS and no state to keep. It was a labelled section taking four lines of
+    # rail for something read once.
+    if (!is.null(help)) tags$details(
+      class = "ie-rail-helpmenu",
+      tags$summary(class = "ie-rail-helpbtn", title = "Help", "?"),
       div(class = "ie-rail-help", help)
     ),
 
+    # Pinned to the BOTTOM of the rail by `margin-top: auto` on .ie-rail-footer,
+    # so it sits in the lower left whatever is above it.
     if (!is.null(footer)) div(class = "ie-rail-footer", footer)
   )
 }
@@ -119,7 +122,6 @@ railUI <- function(id, pipeline, reference = list(),
 rail_help_link <- function(inputId, label, sub = NULL) {
   actionLink(inputId, class = "ie-rail-helplink",
     label = tagList(
-      tags$span(class = "ie-nav-num", "?"),
       tags$span(class = "ie-nav-text",
         tags$span(label),
         if (!is.null(sub)) tags$span(class = "ie-nav-sub", sub))

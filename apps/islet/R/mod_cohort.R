@@ -44,7 +44,13 @@ cohortFilterUI <- function(id) {
       ie_field("z-threshold",
         sliderInput(ns("outlier_z"), NULL, min = 0.5, max = 10, value = 3,
                     step = 0.5, ticks = FALSE, width = "100%"))),
-    div(class = "ie-aside-readout", uiOutput(ns("readout")))
+    # NO ISLET/DONOR READOUT. It printed "N islets - M donors" in the corner of
+    # the cohort bar. The counts are reported with the results, on the tabs that
+    # compute them, where they mean something specific; a running total in the
+    # chrome is a number with no question attached to it.
+    #
+    # The low-donor warning it also carried is NOT lost: the Statistics tab
+    # gates its own tests on group coverage and says so there.
   )
 }
 
@@ -154,24 +160,6 @@ cohortFilterServer <- function(id, prepared) {
     # The delivered readout used req(input$groups), so unticking every group made
     # it FREEZE on its last value -- the most confusing possible response to
     # "I have selected nothing".
-    output$readout <- renderUI({
-      s <- spec()
-      if (!length(s$groups)) {
-        return(tags$span(class = "ie-aside-warn",
-                         "No disease groups selected — every panel is empty"))
-      }
-      isl <- cohort_apply(prepared()$comp, s)
-      d   <- cohort_apply(donors(), utils::modifyList(s, list(min_cells = 1, diam = NULL)))
-      n_don <- length(unique(as.character(d$`Case ID`)))
-      tagList(
-        tags$span(sprintf("%s islets · %d donor%s",
-                          format(nrow(isl), big.mark = ","), n_don,
-                          if (n_don == 1) "" else "s")),
-        if (n_don < 3) tags$span(class = "ie-aside-warn",
-          sprintf(" ⚠ %d donor%s — group tests are descriptive only",
-                  n_don, if (n_don == 1) "" else "s"))
-      )
-    })
 
     list(
       spec            = spec,

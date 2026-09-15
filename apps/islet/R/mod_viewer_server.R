@@ -1,4 +1,14 @@
 viewer_server <- function(id, forced_image, current_tab) {
+  # Auto-launch, as asked for 2026-09-14. Returns FALSE and moves on if a server
+  # cannot be reached or started -- the tab then shows its ordinary "no projects"
+  # message rather than the app failing to start. See R/tissuumaps_service.R for
+  # why this holds a lock until the server ANSWERS: shiny-server runs one R
+  # worker per session, and a naive check-then-spawn was measured starting six
+  # servers from six concurrent workers.
+  if (identical(tolower(Sys.getenv("ISLET_VIEWER_BACKEND", "avivator")), "tissuumaps")) {
+    isTRUE(try(ensure_tissuumaps(), silent = TRUE))
+  }
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 

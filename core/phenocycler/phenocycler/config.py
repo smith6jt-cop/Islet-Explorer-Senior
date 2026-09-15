@@ -144,6 +144,10 @@ class PipelineConfig:
     reg_coarse_keep_frac: float = 0.97
     reg_coarse_min_candidates: int = 8
     reg_coarse_max_candidates: int = 24
+    # Bound on the coarse rotation search, in the RAW qptiff frame. Unconstrained by default:
+    # the 45 deg mounting bound is a fact about mounting, not about this frame, because the
+    # PhenoCycler images were rotated in QuPath for presentation. See config.ini.
+    reg_max_rotation_deg: float = 180.0
     islet_eps_um: float = 50.0                    # = insulitis_analysis.EPS_UM
     islet_min_samples: int = 10                   # = insulitis_analysis.MIN_SAMPLES
     niche_k: int = 50                             # = nb03 K_COMP
@@ -506,6 +510,7 @@ _INI_SCHEMA = {
         "reg_coarse_keep_frac": ("reg_coarse_keep_frac", float),
         "reg_coarse_min_candidates": ("reg_coarse_min_candidates", int),
         "reg_coarse_max_candidates": ("reg_coarse_max_candidates", int),
+        "reg_max_rotation_deg": ("reg_max_rotation_deg", float),
         "islet_eps_um": ("islet_eps_um", float),
         "islet_min_samples": ("islet_min_samples", int),
         "niche_k": ("niche_k", int),

@@ -637,3 +637,39 @@ def test_the_mirror_search_survives_the_fine_stage():
     residual, val = register.refine_ecc(pre, fixed, grid, Transform(), motion="euclidean")
     assert np.isfinite(val), "a mirrored candidate must reach a finite ECC value"
     assert residual.compose(truth).is_mirrored, "the reflection must survive composition"
+
+
+def test_hypotheses_beyond_the_recorded_mounting_bound_are_dropped():
+    """No section is mounted past 45 deg from its partner (maintainer, 2026-09-11).
+
+    Without this, widening the candidate set is actively harmful: the coarse score is nearly
+    angle-blind under partial overlap, so a masked ECC gets handed wrong angles and polishes
+    them into locally plausible answers. Measured across the cohort that returned -100, -99,
+    +89, -73 and +58 deg on sections the maintainer's own capture boxes show near-upright.
+    """
+    cands = []
+    for deg in (-170.0, -100.0, -46.0, -44.0, -20.0, 0.0, 12.0, 44.0, 46.0, 89.0):
+        tf = from_rigid(deg, (0.0, 0.0))
+        tf.meta["coarse_corr"] = 0.5
+        cands.append(tf)
+
+    kept = register.select_coarse_candidates(
+        cands, keep_frac=0.0, min_candidates=1, max_candidates=99, max_rotation_deg=45.0)
+    got = sorted(round(c.rotation_deg) for c in kept)
+    assert got == [-44, -20, 0, 12, 44], got
+
+
+def test_the_bound_never_empties_the_candidate_set():
+    """If nothing is within the bound, fall back rather than returning nothing to refine.
+
+    A donor genuinely mounted further round should produce a recorded bad registration, not a
+    crash and not a silent identity transform.
+    """
+    cands = []
+    for deg in (-170.0, 120.0):
+        tf = from_rigid(deg, (0.0, 0.0))
+        tf.meta["coarse_corr"] = 0.5
+        cands.append(tf)
+    kept = register.select_coarse_candidates(
+        cands, keep_frac=0.0, min_candidates=1, max_candidates=99, max_rotation_deg=45.0)
+    assert len(kept) >= 1

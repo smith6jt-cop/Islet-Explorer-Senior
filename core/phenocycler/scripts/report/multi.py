@@ -26,8 +26,7 @@ from manifest import FigureRecord  # noqa: E402
 sys.path.insert(0, str(pins.PKG))
 from phenocycler.config import load_config  # noqa: E402
 
-sys.path.insert(0, str(pins.PKG / "scripts" / "xenium_typing"))
-import pins as xpins  # noqa: E402
+xpins = io.xenium_lane()["pins"]          # scripts/xenium_typing/pins under its own name (see identity_io)
 
 SEC = "multi"
 RESTAIN = pins.REPO / "data" / "development" / "restain"

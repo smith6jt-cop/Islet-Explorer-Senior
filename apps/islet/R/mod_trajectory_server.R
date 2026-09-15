@@ -97,7 +97,14 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       obs  <- tryCatch(ad$obs,  error = function(e) NULL)
       obsm <- tryCatch(ad$obsm, error = function(e) NULL)
       uns  <- tryCatch(ad$uns,  error = function(e) NULL)
-      var_names <- tryCatch(rownames(ad$var), error = function(e) NULL)
+      # `rownames(ad$var)` returns NULL for an anndata-R object -- measured, and it
+      # is why tr$var_names has always been NULL and every category in the
+      # feature selector came up empty. `ad$var_names` is a pandas Index proxy,
+      # so it needs converting before R sees eight strings rather than one
+      # object that prints like a list.
+      var_names <- tryCatch(
+        as.character(reticulate::py_to_r(ad$var_names)),
+        error = function(e) tryCatch(rownames(ad$var), error = function(e2) NULL))
 
       if (is.null(obs)) {
         traj(list(error = "Could not extract obs data from AnnData", error_detail = NULL))
@@ -203,22 +210,23 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                            choices = c("No features available" = ""), selected = ""))
       }
 
-      # Get available features from AnnData
-      available_features <- NULL
-      if (!is.null(tr$var_names)) {
-        available_features <- tr$var_names
-      } else {
-        # Fallback - try to get from the loaded trajectory
-        tryCatch({
-          adata_path <- resolve_traj_path()
-          if (!is.null(adata_path) && file.exists(adata_path)) {
-            adata <- anndata::read_h5ad(adata_path)
-            available_features <- rownames(adata$var)
-          }
-        }, error = function(e) NULL)
+      # TWO KINDS OF FEATURE, and the file genuinely carries both.
+      #
+      # `var_names` is the ISLET COMPOSITION -- the eight cell classes the
+      # trajectory itself was built from. obsm["X_marker_mean"] is the per-islet
+      # MARKER means added by build_islet_marker_means.py. The y-axis here reads
+      # "normalized expression", which is marker language, so markers lead; the
+      # composition stays reachable because it is what the ordering rests on.
+      marker_features <- {
+        nm <- marker_mean_names()
+        if (is.null(nm)) character(0) else {
+          core <- nm[!grepl("^marker_mean_peri_", nm)]
+          stats::setNames(core, sub("^marker_mean_", "", core))
+        }
       }
+      available_features <- tr$var_names %||% character(0)
 
-      if (is.null(available_features) || length(available_features) == 0) {
+      if (!length(available_features) && !length(marker_features)) {
         return(selectInput(ns("traj_feature"), "Select Feature:",
                            choices = c("No features available" = ""), selected = ""))
       }
@@ -246,8 +254,22 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (length(neural_markers)   > 0) choices[["Neural Markers"]]   <- setNames(neural_markers, neural_markers)
       if (length(other_markers)    > 0) choices[["Other Features"]]   <- setNames(other_markers, other_markers)
 
-      # Default selection
-      default_feature <- if ("INS" %in% available_features) "INS" else available_features[1]
+      # Markers first: they are what "expression" on the y-axis means.
+      if (length(marker_features)) {
+        hormone <- marker_features[names(marker_features) %in% c("INS", "GCG", "SST")]
+        rest    <- marker_features[!names(marker_features) %in% c("INS", "GCG", "SST")]
+        rest    <- rest[!names(rest) %in% EXCLUDED_MARKERS]
+        if (length(hormone)) choices[["Hormone markers"]] <- hormone
+        if (length(rest))    choices[["Markers"]]         <- rest
+      }
+      if (length(available_features)) {
+        choices[["Islet composition"]] <- setNames(available_features, available_features)
+      }
+
+      # Default selection: INS if the markers are there, else whatever leads.
+      default_feature <- if ("INS" %in% names(marker_features)) unname(marker_features[["INS"]])
+                         else if (length(marker_features)) unname(marker_features[[1]])
+                         else available_features[1]
 
       selectInput(ns("traj_feature"), "Select Feature:",
                   choices = choices,
@@ -259,9 +281,15 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       selected_feature <- input$traj_feature
       if (is.null(selected_feature)) return(NULL)
       tr <- traj()
-      if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
+      if (is.null(tr) || !is.null(tr$error)) return(NULL)
+      # The selector offers two vocabularies now: a marker mean from
+      # obsm["X_marker_mean"] (value prefixed `marker_mean_`) or one of the
+      # eight composition classes from var_names. Both are legitimate y-axes and
+      # the validator has to accept either, or picking a marker silently
+      # returns NULL and the tab goes blank with no message.
+      allowed <- c(tr$var_names %||% character(0), marker_mean_names() %||% character(0))
       if (!islet_valid_scalar_choice(
-        selected_feature, tr$var_names, "trajectory_feature_invalid"
+        selected_feature, allowed, "trajectory_feature_invalid"
       )) return(NULL)
 
       list(feature = selected_feature, status = "ready")
@@ -288,16 +316,25 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         if (is.null(adata)) return(NULL)
       }
 
-      var_names <- rownames(adata$var)
-      if (!selected_feature %in% var_names) return(NULL)
+      # NOT rownames(adata$var) -- that is NULL for an anndata-R object, which is
+      # the bug that left this selector empty in the first place.
+      var_names <- tr$var_names %||% character(0)
+      marker_names <- marker_mean_names() %||% character(0)
+      is_marker <- selected_feature %in% marker_names
+      if (!is_marker && !(selected_feature %in% var_names)) return(NULL)
 
       obs_df <- tr$obs
       if (is.null(obs_df)) return(NULL)
 
       # Extract expression values from .X (markers only).
       expression_vals <- tryCatch({
-        idx <- which(var_names == selected_feature)
-        as.numeric(adata$X[, idx])
+        if (is_marker) {
+          idx <- which(marker_names == selected_feature)
+          as.numeric(adata$obsm[["X_marker_mean"]][, idx])
+        } else {
+          idx <- which(var_names == selected_feature)
+          as.numeric(adata$X[, idx])
+        }
       }, error = function(e) {
         message("event=trajectory_feature_extract_failed")
         rep(NA_real_, nrow(obs_df))
@@ -779,8 +816,20 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       # Labels
+      #
+      # THE AXIS MUST NOT CLAIM A SCALE THE VALUES DO NOT HAVE. This read
+      # "normalized expression (mean per islet, 0-1)" for everything, which was
+      # true of the composition proportions and false the moment a marker could
+      # be selected: marker means are the REDSEA-corrected, UniFORM-aligned
+      # intensities and run to five figures. A reader trusting that label would
+      # have taken 15,000 for a proportion.
       selected_feature <- df$feature_name[1] %||% "Selected feature"
-      metric_label <- "— normalized expression (mean per islet, 0–1)"
+      is_marker_axis <- grepl("^marker_mean_", selected_feature)
+      if (is_marker_axis) selected_feature <- sub("^marker_mean_", "", selected_feature)
+      metric_label <- if (is_marker_axis)
+        "\u2014 mean aligned intensity per islet (core)"
+      else
+        "\u2014 proportion of islet-core cells (0\u20131)"
       x_label <- "Pseudotime (rank-normalized)"
 
       g <- g + labs(
@@ -1277,9 +1326,12 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         coord_fixed() +
         # The card header already says "UMAP: Selected Feature"; only the feature name adds
         # anything, and the repeated "UMAP:" prefix is what collided with it.
+        # Same rule as the scatter axis: strip the storage prefix, and say which
+        # quantity the colour is rather than the generic "Expression".
         labs(x = "UMAP 1", y = "UMAP 2",
-             title = selected_feature,
-             color = "Expression") +
+             title = sub("^marker_mean_", "", selected_feature),
+             color = if (grepl("^marker_mean_", selected_feature))
+                       "Mean intensity" else "Proportion") +
         theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
               panel.grid = element_blank(), axis.line = element_blank())
@@ -1417,13 +1469,41 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
     # ---------- Multi-Feature Heatmap ----------
 
-    # Marker selector UI
-    output$multi_heatmap_marker_selector <- renderUI({
+    # MARKERS, from obsm, NOT var_names.
+    #
+    # This read `tr$var_names` and therefore listed the eight CELL CLASSES -- and
+    # it was right to: adata_ins_root.h5ad is (islets x 8 cell classes), its `X`
+    # IS the composition the trajectory was built from, and the file carried no
+    # marker anywhere. A heatmap of "how markers move along pseudotime" was
+    # showing cell-type proportions because that is all there was to show.
+    #
+    # obsm["X_marker_mean"] + uns["marker_mean_names"] are per-islet means of the
+    # REDSEA-corrected, UniFORM-aligned values, built by
+    # build_islet_marker_means.py, core and peri kept as separate columns.
+    marker_mean_names <- reactive({
       tr <- traj()
-      if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
-      hm_markers <- setdiff(tr$var_names, EXCLUDED_MARKERS)
+      if (is.null(tr) || !is.null(tr$error)) return(NULL)
+      nm <- tryCatch(as.character(tr$uns[["marker_mean_names"]]), error = function(e) NULL)
+      if (is.null(nm) || !length(nm)) return(NULL)
+      nm
+    })
+
+    output$multi_heatmap_marker_selector <- renderUI({
+      nm <- marker_mean_names()
+      if (is.null(nm)) {
+        return(ie_callout(tone = "note",
+          "This dataset carries no per-islet marker means, so the heatmap has no markers to ",
+          "draw. Build them with scripts/typing/build_islet_marker_means.py."))
+      }
+      # Core by default. The peri columns are the same markers over the 20 um
+      # ring and doubling the list is how a 116-box selector becomes unusable.
+      core <- nm[!grepl("^marker_mean_peri_", nm)]
+      pretty <- sub("^marker_mean_", "", core)
+      choices <- stats::setNames(core, pretty)
+      keep <- setdiff(pretty, EXCLUDED_MARKERS)
       checkboxGroupInput(ns("multi_heatmap_markers"), "Select markers:",
-                         choices = hm_markers, selected = hm_markers, inline = TRUE)
+                         choices = choices,
+                         selected = unname(choices[pretty %in% keep]), inline = TRUE)
     })
 
     # Multi-feature data reactive
@@ -1432,15 +1512,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (is.null(markers) || length(markers) == 0) return(NULL)
       tr <- traj_with_pseudotime()
       if (is.null(tr) || !is.null(tr$error) || is.null(tr$adata)) return(NULL)
-      if (!islet_valid_choice_vector(
-        markers, setdiff(tr$var_names, EXCLUDED_MARKERS),
-        "trajectory_feature_invalid"
-      )) return(NULL)
+      nm <- marker_mean_names()
+      if (is.null(nm)) return(NULL)
+      if (!islet_valid_choice_vector(markers, nm, "trajectory_feature_invalid")) return(NULL)
       valid <- markers
-      idx <- match(valid, tr$var_names)
-      expr <- tryCatch(as.matrix(tr$adata$X[, idx, drop = FALSE]), error = function(e) NULL)
+      idx <- match(valid, nm)
+      expr <- tryCatch(as.matrix(tr$adata$obsm[["X_marker_mean"]][, idx, drop = FALSE]),
+                       error = function(e) NULL)
       if (is.null(expr)) return(NULL)
-      colnames(expr) <- valid
+      # Label with the bare marker name; the obsm column name carries the prefix.
+      colnames(expr) <- sub("^marker_mean_", "", valid)
+      valid <- colnames(expr)
       result <- data.frame(
         pt = as.numeric(tr$obs$pseudotime),
         total_cells = as.integer(tr$obs$total_cells),

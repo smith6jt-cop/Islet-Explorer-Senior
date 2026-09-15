@@ -29,7 +29,9 @@ p99.9) per marker.
 ## Context — reproduced exactly, 100.0000% on 6442, 6436 and 115
 
 Centroid-in-object against `results/Geojson/`, in pixel coordinates via each image's own pixel size.
-Islet membership comes from QuPath's Parent column, not a centroid test.
+Islet membership comes from the islet OUTLINES, by testing each centroid against them (`islet_membership.py`).
+It came from QuPath's `Parent` column until 2026-09-15; that was wrong for 11,556 islet-core cells
+(2.7 %; 35.3 % on 6539), which were never asked the islet question and fell through to Exocrine.
 
 **Precedence, recovered from the calls rather than assumed:**
 
@@ -69,10 +71,32 @@ donor  structure       in object   clears level   called   passed through
    value recovers independently on 6442 (0.8715) and 6436 (0.8716).
 4. else Exocrine.
 
-**Not yet pinned**: which cells the supporting tier is eligible to claim. Applying it to every
-unclaimed cell gives 99.998% on 6442 and 115 but 99.59% on 6436, so there is an eligibility
-condition ("questionable") still to recover. Restricting to cells with no exocrine evidence is too
-narrow - it contains only 4,397 of 6,117 targets on 6442.
+**Recovered 2026-09-15**: the supporting tier is eligible for a cell whose immune evidence
+**clears** 0.8715 and whose exocrine evidence **does not** -- the same level on both sides, so the
+tier never overrules a cell the exocrine markers speak for as loudly as the immune ones do.
+
+All 35,332 cells the original table claims by this tier on 6436 carry exocrine evidence below
+0.8715; none is above it. The two rejected alternatives are both measured: applying the tier to
+every unclaimed cell wrongly claims 5,671 strongly exocrine cells on 6436 (exocrine max p50 0.98),
+and restricting to cells with *no* exocrine evidence keeps only 19,142 of the 35,332.
+
+**Still open, and small**: 1,223 cells on 6436 (0.08 %), 98.4 % of them driven by PD_1 on cells
+whose exocrine evidence sits just under the level -- p50 0.843, against 0.044 for the cells the
+tier should claim. Closing it means choosing a threshold because it fits the answer, which is
+fitting rather than recovery, so it is left open.
+
+## The gate, 2026-09-15
+
+`subpanel.py --gate` rebuilds with `--membership parent` and compares row-for-row against the
+table on disk. Every donor: identical row count, no cell only on one side.
+
+| donor | cell_class | context | cells wrong |
+|---|---|---|---|
+| 6442 | 99.9995 % | 100.0000 % | 7 of 1,419,669 |
+| 115 | 99.9990 % | 100.0000 % | 9 of 860,863 |
+| 6436 | 99.9224 % | 100.0000 % | 1,226 of 1,579,440 |
+
+All four reference levels reproduce to four decimals. The whole residual is the PD_1 set above.
 
 ## Why this matters after the re-export
 

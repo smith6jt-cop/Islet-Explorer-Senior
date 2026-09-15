@@ -179,3 +179,39 @@ def stacked_bars(ax, table: pd.DataFrame, order: list, common: dict, colors: dic
     ax.set_xticks(x); ax.set_xticklabels(list(table.index), fontsize=8)
     ax.set_ylim(0, 1.0)
     return handles
+
+
+# ------------------------------------------------------------------ lane modules under their own names
+# Every lane has a ``pins.py`` (and broadtype/xenium_typing a ``gate.py``); importing one of them while the
+# report's own ``pins`` sits in sys.modules hands the lane the WRONG pins.  These loaders import a lane's
+# modules in isolation and restore the report's namespace afterwards.
+_LANES: dict = {}
+_SHADOWED = ("pins", "gate", "gates", "usability", "nullgate", "nullgate_fast", "criteria", "declarations", "records", "arm_base")
+
+
+def _lane(name: str, modules: tuple) -> dict:
+    import importlib
+    if name in _LANES:
+        return _LANES[name]
+    lane = pins.PKG / "scripts" / name
+    saved = {k: sys.modules.pop(k) for k in _SHADOWED if k in sys.modules}
+    sys.path.insert(0, str(lane))
+    try:
+        out = {m: importlib.import_module(m) for m in modules}
+    finally:
+        sys.path.remove(str(lane))
+        for k in _SHADOWED:
+            sys.modules.pop(k, None)
+        sys.modules.update(saved)
+    _LANES[name] = out
+    return out
+
+
+def xenium_lane() -> dict:
+    """``{'pins': scripts/xenium_typing/pins, 'gate': scripts/xenium_typing/gate}``."""
+    return _lane("xenium_typing", ("pins", "gate"))
+
+
+def broadtype_lane() -> dict:
+    """``{'pins': scripts/broadtype/pins, 'gate': scripts/broadtype/gate}``."""
+    return _lane("broadtype", ("pins", "gate"))

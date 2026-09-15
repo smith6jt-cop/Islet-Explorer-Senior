@@ -173,7 +173,7 @@ def p08_umap(donor: str, prov: dict) -> FigureRecord:
     ident = [m for m in dec["identity_markers"] if m in tab.columns]
     df = tab[["object_id", *ident]].merge(calls[["object_id", "lineage_native"]], on="object_id", how="inner")
     df = df[~df["lineage_native"].eq(io.UNAVAILABLE)]
-    sys.path.insert(0, str(pins.PKG / "scripts" / "broadtype")); import gate  # noqa: E402
+    gate = io.broadtype_lane()["gate"]
     idx = gate.hash_subsample(df["object_id"].to_numpy(), 200_000, salt="p08")
     sub = df.iloc[idx]
     X = np.arcsinh(np.clip(sub[ident].to_numpy(float), 0, None))

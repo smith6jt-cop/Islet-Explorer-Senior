@@ -898,6 +898,7 @@ def select_coarse_candidates(
     keep_frac: float = 0.97,
     min_candidates: int = 8,
     max_candidates: int = 24,
+    max_rotation_deg: float = 45.0,
 ) -> list[Transform]:
     """Which coarse hypotheses are worth refining.
 
@@ -916,6 +917,20 @@ def select_coarse_candidates(
     """
     if not candidates:
         return []
+
+    # Drop hypotheses the sections cannot physically be in. The maintainer records that no
+    # section is mounted past 45 degrees from its partner (2026-09-11), corroborated by their
+    # own capture-box inspection across 17 donors. This bound is what makes widening the
+    # candidate set safe: the coarse score is nearly angle-blind under partial overlap -- a
+    # compact region inside a larger tissue mask overlaps it about equally whichever way it is
+    # turned -- so without it, refining more candidates simply gives a masked ECC more wrong
+    # angles to polish into something locally plausible. Measured across the cohort it did
+    # exactly that, returning -100, -99, +89, -73 and +58 degrees on near-upright sections.
+    if np.isfinite(max_rotation_deg):
+        within = [c for c in candidates
+                  if abs((float(c.rotation_deg) + 180.0) % 360.0 - 180.0) <= max_rotation_deg]
+        if within:
+            candidates = within
     scores = np.array([float(c.meta.get("coarse_corr", 0.0)) for c in candidates])
     best = float(scores[0])
     n = int((scores >= keep_frac * best).sum()) if best > 0 else min_candidates
@@ -934,6 +949,7 @@ def register_image(
     coarse_keep_frac: float = 0.97,
     coarse_min_candidates: int = 8,
     coarse_max_candidates: int = 24,
+    max_rotation_deg: float = 45.0,
     max_anisotropy: float = 1.03,
     max_scale_deviation: float = 0.05,
     moving_mask: Optional[np.ndarray] = None,
@@ -950,7 +966,9 @@ def register_image(
 
     refine_set = select_coarse_candidates(
         candidates, keep_frac=coarse_keep_frac, min_candidates=coarse_min_candidates,
-        max_candidates=coarse_max_candidates)
+        max_candidates=coarse_max_candidates, max_rotation_deg=max_rotation_deg)
+    res.notes.append(f"coarse: rotation constrained to +/-{max_rotation_deg:.0f} deg "
+                     f"(recorded mounting bound)")
     res.notes.append(
         f"coarse: refined {len(refine_set)} of {len(candidates)} hypotheses "
         f"(corr {float(candidates[0].meta.get('coarse_corr', float('nan'))):.4f} .. "
@@ -1361,6 +1379,7 @@ def register_donor(
                              coarse_keep_frac=cfg.reg_coarse_keep_frac,
                              coarse_min_candidates=cfg.reg_coarse_min_candidates,
                              coarse_max_candidates=cfg.reg_coarse_max_candidates,
+                             max_rotation_deg=cfg.reg_max_rotation_deg,
                              moving_mask=mv_mask)
         results.append(evaluate(img, moving_table, fixed_table, grid, mv_struct, fx_struct,
                                 moving_image=mv_img, fixed_image=fx_img))

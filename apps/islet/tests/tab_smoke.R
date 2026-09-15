@@ -22,7 +22,13 @@ out_dir <- commandArgs(trailingOnly = TRUE)[1]
 if (is.na(out_dir)) out_dir <- file.path(tempdir(), "tab_smoke")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-TABS <- c("Plot", "Trajectory", "Spatial", "Statistics", "Viewer")
+# Every destination the rail offers. "Neighborhoods" is its own tab as of
+# 2026-09-14 -- the three analysis cards that used to sit below Spatial's tissue
+# map. It shares spatial_server()'s namespace, so a tab missing from this list is
+# not obviously broken: its outputs still exist, they just never render, which is
+# exactly the failure tests/manual/mount_audit.R exists to catch statically and
+# this file is supposed to catch at runtime.
+TABS <- c("Plot", "Trajectory", "Spatial", "Neighborhoods", "Statistics", "Viewer")
 
 cat("starting the app (data load can take a minute)\n"); flush.console()
 # A tall viewport rather than a full-page capture. `get_screenshot(selector = "html")` sounds

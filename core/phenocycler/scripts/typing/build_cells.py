@@ -32,7 +32,7 @@ import pyarrow.parquet as pq
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import cohort as COHORT
-import context as CX
+import islet_membership as MEMBERSHIP
 import subpanel_io as S
 
 DISTANCE = S.REPO / "data/development/kintsugi/distance"
@@ -56,23 +56,38 @@ def _manifest() -> tuple[dict, dict]:
 
 
 def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame) -> pd.DataFrame:
-    calls = pq.read_table(
-        S.OUT / "subpanel/subpanel_calls.parquet",
-        columns=["donor_id", "object_id", "cell_class", "context", "excluded_reason"],
-        filters=[("donor_id", "=", donor)]).to_pandas()
+    # The corrected typing, written per donor by `subpanel.py`. It carries `object_context`,
+    # `immune_definition`, `resolved_by`, `top_identity_marker` and the `passed_through_*` flags,
+    # all of which the old monolithic table collapsed away or never had.
+    calls = pq.read_table(S.TYPING / f"donor_id={donor}/data.parquet").to_pandas()
 
+    # Cell geometry from whichever export is authoritative for this donor -- the revised rebuild
+    # for the seven re-exported ones. Reading the run unconditionally here took coordinates and
+    # islet numbers from the defective export for exactly those donors.
+    source, which = S.cell_source(donor)
     expression = pq.read_table(
-        S.RUN / f"expression/donor_id={donor}/data.parquet",
-        columns=["object_id", "X_centroid", "Y_centroid", "islet_num",
-                 "cell_region", "qc_analysis_eligible"]).to_pandas()
+        source, columns=["object_id", "X_centroid", "Y_centroid",
+                         "cell_region", "qc_analysis_eligible"]).to_pandas()
 
-    geometry = pq.read_table(
-        S.RUN / f"geometry_qc/donor_id={donor}/data.parquet",
-        columns=["object_id", "analysis_reason"]).to_pandas()
+    if which == "revised":
+        geometry = pq.read_table(source, columns=["object_id", "analysis_reason"]).to_pandas()
+        distance = pq.read_table(source,
+                                 columns=["object_id", "signed_dist_islet_um"]).to_pandas()
+    else:
+        geometry = pq.read_table(
+            S.RUN / f"geometry_qc/donor_id={donor}/data.parquet",
+            columns=["object_id", "analysis_reason"]).to_pandas()
+        distance = pq.read_table(
+            DISTANCE / f"donor_id={donor}/data_0.parquet",
+            columns=["object_id", "signed_dist_islet_um"]).to_pandas()
 
-    distance = pq.read_table(
-        DISTANCE / f"donor_id={donor}/data_0.parquet",
-        columns=["object_id", "signed_dist_islet_um"]).to_pandas()
+    # Islet membership from the OUTLINES, the same call the typing made. Taking `islet_num` from
+    # QuPath's `Parent` here would have re-imported the defect the typing just removed: the cell
+    # would carry a corrected class and the wrong islet.
+    member = MEMBERSHIP.membership(donor, expression["X_centroid"].to_numpy(),
+                                   expression["Y_centroid"].to_numpy(),
+                                   pixel[donor], stem[donor])
+    expression["islet_num"] = member["islet_num"].to_numpy()
 
     # --- correction G, as an accounting not a filter -------------------------------------
     no_nucleus = int((geometry["analysis_reason"] == "missing_nucleus_geometry").sum())
@@ -82,7 +97,8 @@ def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame) -> pd.D
         raise AssertionError(f"{donor}: a typed cell is not analysis-eligible -- correction G "
                              "cannot be satisfied by construction, so it must become a filter")
 
-    frame = calls.merge(expression, on="object_id", how="left", validate="one_to_one")
+    frame = calls.drop(columns=["cell_region"]).merge(
+        expression, on="object_id", how="left", validate="one_to_one")
     frame = frame.merge(distance, on="object_id", how="left", validate="one_to_one")
     if frame["X_centroid"].isna().any():
         raise AssertionError(f"{donor}: {int(frame['X_centroid'].isna().sum())} typed cells have "
@@ -95,11 +111,9 @@ def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame) -> pd.D
     d = frame["signed_dist_islet_um"].to_numpy()
     frame["cell_region_20um"] = np.where(d <= 0, "core", np.where(d <= 20, "expansion", "tissue"))
 
-    # --- correction C: keep the object the call was actually made on ----------------------
-    frame["object_context"] = CX.assign(
-        frame["X_centroid"].to_numpy(), frame["Y_centroid"].to_numpy(),
-        np.zeros(len(frame), dtype=bool),   # ask the object question of every cell, islet included
-        stem[donor], pixel[donor])
+    # --- correction C: the object the call was actually made on ---------------------------
+    # Carried through from the typing rather than recomputed. Recomputing it invited the two
+    # tables to disagree about the same cell, and the classification is the one that used it.
 
     frame["phenotype"] = frame["cell_class"].map(DISPLAY)
     if frame["phenotype"].isna().any():

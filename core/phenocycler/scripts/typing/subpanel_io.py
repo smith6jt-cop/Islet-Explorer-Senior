@@ -33,7 +33,37 @@ ALIGNED = REPO / "data/development/celltype/uniform"
 SCALE_CSV = REPO / "data/development/broadtype/scratch/cosine_scale.parquet"
 OUT = REPO / "data/development/typing"
 GEOJSON = pathlib.Path.home() / "IO60panc2nd/results/Geojson"
-ISLETS = REPO / "data/Islets"
+
+#: Islet outlines, read from the QuPath export where they LAND -- the same place every other
+#: classified object is read from, and no longer a hand-copied folder inside the repo.
+#:
+#: `REPO/data/Islets` was that copy, and it went stale exactly as you would expect: on
+#: 2026-09-15 the re-exported outlines for 6523 and 6566 sat in the export directory for three
+#: hours while the repo held the July versions, and nothing would have said so. Reading the
+#: export directly removes the step that can be forgotten. Stem matching was checked against
+#: every donor in the manifest: 0 collisions, including the two pancreatic-lymph-node files that
+#: share the directory but not the `Islets__` naming.
+ISLETS = GEOJSON / "Islets"
+
+#: The rebuild of the re-exported batch-2 donors. Authoritative for them: the content-addressed
+#: run still holds the defective export whose islet detections were duplicated.
+REVISED = OUT / "revised_cells"
+
+#: Where the corrected typing is written.
+TYPING = OUT / "subpanel_rebuilt"
+
+
+def cell_source(donor: str) -> tuple[pathlib.Path, str]:
+    """(path, which) for a donor's cell geometry -- the revised rebuild if it exists, else the run.
+
+    Every consumer must go through this. `build_cells.py` read the run unconditionally until
+    2026-09-15, which on the seven re-exported donors meant taking coordinates and islet numbers
+    from the very export they were re-exported to replace.
+    """
+    revised = REVISED / f"donor_id={donor}/data.parquet"
+    if revised.exists():
+        return revised, "revised"
+    return RUN / f"expression/donor_id={donor}/data.parquet", "run"
 
 #: context -> the markers that answer that context's question.  Vessel is Caveolin/CD34 and
 #: NOT CD31: the objects were drawn by `Cavdil1200` / `CD34dil1430`, so CD31 was never what

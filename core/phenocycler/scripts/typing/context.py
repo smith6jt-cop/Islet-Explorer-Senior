@@ -53,24 +53,47 @@ def assign(x_um: np.ndarray, y_um: np.ndarray, in_islet: np.ndarray,
            image_stem: str, pixel_size_um: float) -> np.ndarray:
     """Context per cell: islet, one of the object classes, or tissue.
 
-    Islet membership comes from QuPath's own Parent column rather than from a centroid test,
-    because that is what drew the islet in the first place.
+    `in_islet` is supplied by the caller and MUST come from `islet_membership.membership()`,
+    which decides it by testing the centroid against the islet outlines.
+
+    It used to come from QuPath's `Parent` column, on the reasoning that the Parent "is what drew
+    the islet in the first place". That was measured wrong on 2026-09-15: the Parent labels cells
+    `peri` that sit up to 74.6 um inside a core outline, and because a false `in_islet` means the
+    cell is never asked the islet question at all, 11,556 islet-core cells cohort-wide fell
+    through to Exocrine -- 5,250 of them hormone-positive. Do not reinstate it.
     """
+    inside = memberships(x_um, y_um, image_stem, pixel_size_um)
     context = np.where(np.asarray(in_islet), "islet", "tissue").astype(object)
     candidate = ~np.asarray(in_islet)
-    if not candidate.any():
-        return context
-    idx = np.flatnonzero(candidate)
-    pts = points(np.column_stack([x_um[idx] / pixel_size_um, y_um[idx] / pixel_size_um]))
-
     # Weakest first, so a stronger class overwrites it -- one pass, no tie-breaking logic.
     for name in reversed(PRECEDENCE):
-        outlines = load_objects(image_stem, name)
-        if not outlines:
-            continue
-        hit = STRtree(outlines).query(pts, predicate="within")[0]
-        context[idx[np.unique(hit)]] = name
+        context[candidate & inside[name]] = name
     return context
+
+
+def memberships(x_um: np.ndarray, y_um: np.ndarray, image_stem: str,
+                pixel_size_um: float) -> dict:
+    """class -> boolean mask, is each centroid inside an object of that class.
+
+    Kept SEPARATE from :func:`assign`, which collapses these by precedence into one label, because
+    the classification needs both and they are not interchangeable. A cell can sit inside a blood
+    vessel object AND a lymphatic one; `assign` reports "Blood vessel" and the membership in the
+    lymphatic is gone. But the decision rule asks each containing object's OWN markers whether
+    they clear that object's own level, and precedence breaks ties only among the ones that do --
+    so a cell in both, whose Caveolin/CD34 are at background and whose Podoplanin is not, is
+    Lymphatic. Measured on 6442: 1,364 of 6,672 Lymphatic calls and 152 of 1,215 Nerve calls are
+    exactly that case, and reading them off the collapsed label instead loses every one.
+    """
+    pts = points(np.column_stack([np.asarray(x_um) / pixel_size_um,
+                                  np.asarray(y_um) / pixel_size_um]))
+    out = {}
+    for name in PRECEDENCE:
+        mask = np.zeros(len(pts), dtype=bool)
+        outlines = load_objects(image_stem, name)
+        if outlines:
+            mask[np.unique(STRtree(outlines).query(pts, predicate="within")[0])] = True
+        out[name] = mask
+    return out
 
 
 def verify_against_calls(predicted: np.ndarray, recorded: pd.Series) -> pd.DataFrame:

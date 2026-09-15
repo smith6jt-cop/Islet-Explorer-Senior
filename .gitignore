@@ -43,6 +43,9 @@ notebooks/*_executed.ipynb
 notebooks/*.png
 
 # App runtime flags
+# shiny-server reloads the app when this file's mtime changes; it is a local
+# signal, not configuration.
+apps/islet/restart.txt
 apps/islet/APP_LOADED_FLAG
 apps/islet/R/APP_LOADED_FLAG
 
