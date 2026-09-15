@@ -62,27 +62,83 @@ def principal_frame(xy: np.ndarray) -> tuple[np.ndarray, float]:
     return c, float(np.degrees(np.arctan2(major[1], major[0])))
 
 
-def seed_candidates(moving_xy: np.ndarray, fixed_xy: np.ndarray) -> list[Transform]:
-    """Rigid seeds from the two clouds' moments.
+#: Global seed search. Coarse enough to be cheap, fine enough that ICP's widest gate can
+#: close the rest.
+SEED_PIX_UM = 10.0
+SEED_CANVAS = 2048
+SEED_DEG_STEP = 5
 
-    A principal axis is defined only up to sign, so the axis difference and its 180-degree
-    flip are both plausible; a mirror is included so it can be *scored and rejected* rather
-    than assumed away. A same-section pair should not be mirrored, so a mirrored winner is a
-    finding worth surfacing, not a result to use quietly.
+
+def seed_candidates(moving_xy: np.ndarray, fixed_xy: np.ndarray) -> list[Transform]:
+    """Rigid seeds from an exhaustive rotation x mirror search by phase correlation.
+
+    A moment seed was tried first and is NOT sufficient here. A principal axis is only
+    meaningful for an elongated cloud, and a pancreas section is roughly convex, so the axis
+    estimate carried no information: all four moment candidates scored within 0.93-0.96 on
+    'fraction within 25 um' and within 0.73-0.76 on tissue Dice, because at ~10,000 nuclei/mm2
+    a 25 um disc holds ~17 cells and two large blobs overlap heavily at any orientation. ICP
+    then converged on a local optimum ~710 um from the truth, and every downstream statistic
+    sat at its null while looking superficially reasonable (median pair distance 2.7 um, which
+    is simply the nearest-neighbour spacing).
+
+    So the orientation is searched exhaustively instead, on nucleus-density rasters, scoring
+    by FFT cross-correlation over the whole footprint -- the one measure here that is not
+    saturated by density. Both translation sign conventions are emitted because the
+    correlation peak's sign depends on the argument order, and the caller ranks them.
     """
-    cm, am = principal_frame(moving_xy)
-    cf, af = principal_frame(fixed_xy)
-    out = []
+    cm = moving_xy.mean(axis=0)
+    cf = fixed_xy.mean(axis=0)
+    lo = fixed_xy.min(axis=0) - 400.0
+    n = SEED_CANVAS
+
+    def rast(xy):
+        ix = ((xy[:, 0] - lo[0]) / SEED_PIX_UM).astype(int)
+        iy = ((xy[:, 1] - lo[1]) / SEED_PIX_UM).astype(int)
+        ok = (ix >= 0) & (ix < n) & (iy >= 0) & (iy < n)
+        a = np.zeros((n, n), np.float32)
+        np.add.at(a, (ix[ok], iy[ok]), 1.0)
+        return a
+
+    fixed_r = rast(fixed_xy)
+    fz = fixed_r - fixed_r.mean()
+    ffixed = np.conj(np.fft.rfft2(fz))
+    sf = fz.std()
+
+    best = None
     for mirror in (False, True):
-        for extra in (0.0, 180.0):
-            out.append(from_rigid(
-                angle_deg=(af - am) + extra, translation_um=tuple(cf - cm),
-                scale=1.0, mirror=mirror, center_um=tuple(cm)))
+        m = moving_xy.copy()
+        if mirror:
+            m[:, 0] = 2 * cm[0] - m[:, 0]
+        m0 = m - cm
+        for deg in range(0, 360, SEED_DEG_STEP):
+            th = np.radians(deg)
+            c, sn = np.cos(th), np.sin(th)
+            rot = np.column_stack([c * m0[:, 0] - sn * m0[:, 1],
+                                   sn * m0[:, 0] + c * m0[:, 1]])
+            a = rast(rot + cf)
+            az = a - a.mean()
+            sa = az.std()
+            if sa == 0:
+                continue
+            cc = np.fft.irfft2(np.fft.rfft2(az) * ffixed, s=a.shape) / (sa * sf * a.size)
+            k = np.unravel_index(np.argmax(cc), cc.shape)
+            z = (cc[k] - cc.mean()) / cc.std()
+            if best is None or z > best[0]:
+                dx = (k[0] if k[0] < n // 2 else k[0] - n) * SEED_PIX_UM
+                dy = (k[1] if k[1] < n // 2 else k[1] - n) * SEED_PIX_UM
+                best = (float(z), deg, mirror, float(dx), float(dy))
+
+    _z, deg, mirror, dx, dy = best
+    out = []
+    for sign in (-1.0, +1.0):
+        out.append(from_rigid(angle_deg=deg, scale=1.0, mirror=mirror,
+                              center_um=tuple(cm),
+                              translation_um=tuple(cf - cm + sign * np.array([dx, dy]))))
     return out
 
 
 def quick_score(tf: Transform, moving_xy: np.ndarray, fixed_xy: np.ndarray,
-                *, radius_um: float = 25.0, n: int = 20000, seed: int = 0) -> float:
+                *, radius_um: float = 3.0, n: int = 50000, seed: int = 0) -> float:
     """Cheap seed ranking: fraction of a moving subsample landing within ``radius_um``."""
     from scipy.spatial import cKDTree
     rng = np.random.default_rng(seed)
@@ -98,12 +154,13 @@ def fit(moving_xy: np.ndarray, fixed_xy: np.ndarray, *, verbose: bool = True) ->
     best = int(np.argmax(scores))
     tf = cands[best]
     prov = {
-        "seed_scores_within_25um": [round(s, 4) for s in scores],
+        "seed_scores_within_3um": [round(s, 4) for s in scores],
         "seed_chosen": best,
-        "seed_mirrored": bool(best >= 2),
+        "seed_mirrored": bool(cands[best].affine[0, 0] * cands[best].affine[1, 1]
+                               - cands[best].affine[0, 1] * cands[best].affine[1, 0] < 0),
     }
     if verbose:
-        print(f"[register] seed candidates {prov['seed_scores_within_25um']} -> #{best}"
+        print(f"[register] seed candidates {prov['seed_scores_within_3um']} -> #{best}"
               f"{' (MIRRORED)' if prov['seed_mirrored'] else ''}", flush=True)
 
     for gate in ICP_SCHEDULE_UM:
@@ -164,18 +221,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, type=Path, help="directory for transform + report")
     ap.add_argument("--stem", default="sameslide")
     ap.add_argument("--pheno-nuclei", type=Path, default=None,
-                    help="optional cell GeoJSON; when given, PhenoCycler NUCLEUS centroids "
-                         "are used instead of cell centroids")
+                    help="pheno_centroids.parquet from extract_pheno_geometry.py; when given, "
+                         "PhenoCycler NUCLEUS centroids are used instead of cell centroids")
     ap.add_argument("--subsample", type=int, default=0, help="0 = fit on all points")
     args = ap.parse_args(argv)
 
-    pheno = pd.read_parquet(args.pheno, columns=["x_um", "y_um"])
-    fixed_xy = pheno.to_numpy(dtype=float)
+    if args.pheno_nuclei is not None:
+        pc = pd.read_parquet(args.pheno_nuclei, columns=["nuc_x_um", "nuc_y_um"])
+        # Cells with no nucleusGeometry are DROPPED rather than backfilled from their cell
+        # centroid: mixing the two sources reintroduces exactly the offset this path removes.
+        pc = pc.dropna()
+        fixed_xy = pc.to_numpy(dtype=float)
+        nucleus_source = "xenium_nucleus_vs_phenocycler_NUCLEUS_centroid"
+    else:
+        pheno = pd.read_parquet(args.pheno, columns=["x_um", "y_um"])
+        fixed_xy = pheno.to_numpy(dtype=float)
+        nucleus_source = "xenium_nucleus_vs_phenocycler_CELL_centroid"
+
     moving_xy = xenium_nucleus_centroids(args.bundle)
     print(f"[register] moving (Xenium nuclei): {len(moving_xy):,}   "
-          f"fixed (PhenoCycler): {len(fixed_xy):,}")
+          f"fixed (PhenoCycler {'nuclei' if args.pheno_nuclei else 'cells'}): {len(fixed_xy):,}")
 
-    nucleus_source = "xenium_nucleus_vs_phenocycler_CELL_centroid"
     if args.pheno_nuclei is None:
         print("[register] NOTE: PhenoCycler cell centroids are standing in for nucleus "
               "centroids. A nucleus sits off-centre in its cell, so this leaves a systematic "
@@ -214,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     tf.save(args.out, stem=args.stem)
     report = {
         "direction": "xenium_moving -> phenocycler_fixed",
-        "nucleus_source": nucleus_source if args.pheno_nuclei is None else "both_nuclei",
+        "nucleus_source": nucleus_source,
         "gate": "nucleus-pair statistics vs a 25 um placement null; align.py's DAPI-window "
                 "NCC gate does NOT apply because this lane reads no images",
         "provenance": prov,
