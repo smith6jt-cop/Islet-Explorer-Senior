@@ -80,39 +80,169 @@ def test_csv_pixel_size_overrules_the_qptiff(declared_sections, forbid_qptiff):
     assert not forbid_qptiff
 
 
-def test_builder_csv_calibration_and_if_overlay_acceptance(
-    tmp_path, declared_sections, forbid_qptiff
-):
-    """Exercise the builder, including the measured absence of QuPath UUIDs.
-
-    This acceptance case intentionally does not fabricate an object_id column
-    absent from the real source. It cannot pass the brief's UUID-only join rule
-    without a producer crosswalk or a clarified native-Xenium-ID exception.
-    """
+@pytest.fixture
+def builder_inputs(tmp_path, declared_sections):
+    """Geometry order differs from the bundle; one cell has no recorded nucleus."""
     source = tmp_path / "cells_xen"
     source.mkdir()
-    pq.write_table(pa.table({"donor_id": ["06436"] * 2, "roi": ["panc"] * 2,
-                            "cell_id": ["cell-b", "cell-a"],
-                            "feat__if_INS": [20.0, 10.0],
-                            "feat__if_GCG": [40.0, 30.0]}), source / "cells.parquet")
+    pq.write_table(pa.table({"donor_id": ["06436"] * 4, "roi": ["panc"] * 4,
+                            "cell_id": ["cell-b", "cell-d", "cell-a", "cell-c"],
+                            "feat__if_INS": [20.0, 999.0, 0.0, np.nan],
+                            "feat__if_GCG": [40.0, 999.0, 30.0, np.nan]}), source / "cells.parquet")
+    pq.write_table(pa.table({"donor_id": ["0112"], "roi": ["panc"],
+                            "cell_id": ["unpaired"]}), source / "unpaired.parquet")
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    order = np.array(["cell-a", "cell-b", "cell-c", "cell-d"])
+    pq.write_table(pa.table({"cell_id": order}), bundle / "cells.parquet")
     restain = tmp_path / "inputs"
     warp = restain / "valis" / "export-one"
     warp.mkdir(parents=True)
     (warp / "export.json").write_text(json.dumps({
-        "donor_id": "6436", "roi": "panc", "serial": "0059907"
+        "donor_id": "6436", "roi": "panc", "serial": "0059907",
+        "xenium_bundle": str(bundle)
     }))
-    np.save(warp / "warped_if_um.npy", np.array([[101.0, 301.0], [102.0, 302.0]]))
-    np.save(warp / "xenium_cell_ids.npy", np.array(["cell-a", "cell-b"]))
-    np.save(warp / "xenium_nuclei_cell_ids.npy", np.array(["cell-a", "cell-b"]))
+    np.save(warp / "warped_if_um.npy", np.array([[101.0, 301.0], [102.0, 302.0],
+                                               [103.0, 303.0], [104.0, 304.0]]))
+    np.save(warp / "xenium_cell_ids.npy", order.astype(object))
+    np.save(warp / "xenium_nuclei_cell_ids.npy", np.array(["cell-b", "cell-a", "cell-c", "cell-b"]))
+    (restain / "hormone_panc_refined.json").write_text(json.dumps([{
+        "donor_id": "6436", "roi": "panc", "hormone": {
+            "preregistered_auroc_bar": 0.75,
+            "INS": {"auroc": 0.5143, "clears_preregistered_bar": False},
+            "GCG": {"auroc": 0.5220, "clears_preregistered_bar": False}
+        }
+    }]))
     paths = tmp_path / "xenium_paths.csv"
     paths.write_text("donor_id,roi\n6436,panc\n0112,panc\n6457,panc\n6579,panc\n")
-    result = layer.build_restain_layer(cells_xen_root=source, restain_root=restain,
-        sections_csv=declared_sections, xenium_paths_csv=paths, layers_dir=tmp_path / "layers")
-    assert result.loc[result.donor_id.eq("6436"), "pixel_size_um"].item() == 0.2505
+    return dict(cells_xen_root=source, restain_root=restain,
+                sections_csv=declared_sections, xenium_paths_csv=paths,
+                layers_dir=tmp_path / "layers")
+
+
+def test_builder_csv_calibration_and_if_overlay_acceptance(builder_inputs, forbid_qptiff):
+    """The full builder uses CSV calibration and joins bundle order by cell_id."""
+    result = layer.build_restain_layer(**builder_inputs).set_index("donor_id")
+    assert result.loc["6436", "pixel_size_um"] == 0.2505
     assert not forbid_qptiff
-    overlay = pq.ParquetFile(tmp_path / "layers/restain/cells/6436.parquet").read().to_pandas()
+    assert set(result.index) == {"112", "6436", "6442"}
+    assert result.loc["6436", "state"] == "measured"
+    assert result.loc["6436", "n_xenium_cells"] == result.loc["6436", "n_xenium_warped_to_if"] == 4
+    assert result.loc["6436", "n"] == 3
+    assert result.loc["6436", "n_without_nucleus"] == 1
+    assert result.loc["6436", "n_measured_if_INS"] == result.loc["6436", "n_measured_if_GCG"] == 2
+    assert result.loc[["112", "6442"], "state"].eq("unavailable").all()
+    assert result.loc[["112", "6442"], "reason"].eq("no_restain_pairing").all()
+    assert result.loc[["112", "6442"], "n"].isna().all()
+    path = builder_inputs["layers_dir"] / "restain/cells/6436.parquet"
+    overlay = pq.ParquetFile(path).read().to_pandas().set_index("cell_id")
     assert set(overlay.frame) == {"if_um:6436:panc"}
-    assert set(overlay.x_um) == {101.0, 102.0}
+    assert set(overlay.donor_id) == {"6436"}
+    assert set(overlay.index) == {"cell-a", "cell-b", "cell-c"}
+    assert overlay.loc["cell-a", ["x_um", "y_um", "feat__if_INS", "feat__if_GCG"]].tolist() == [101, 301, 0, 30]
+    assert overlay.loc["cell-b", ["x_um", "y_um", "feat__if_INS", "feat__if_GCG"]].tolist() == [102, 302, 20, 40]
+    assert overlay.loc["cell-c", ["x_um", "y_um"]].tolist() == [103, 303]
+    assert overlay.object_id.isna().all()
+    assert overlay.object_id_state.eq("unavailable").all()
+    assert overlay.object_id_reason.eq("no_qupath_object_id").all()
+    for marker in layer.MARKERS:
+        field = f"feat__if_{marker}"
+        assert pd.isna(overlay.loc["cell-c", field])
+        assert overlay.loc["cell-c", f"{field}_state"] == "unavailable"
+        assert overlay.loc["cell-c", f"{field}_reason"] == "no_finite_if_measurement"
+        assert overlay.loc["cell-a", f"{field}_state"] == "measured"
+        assert overlay[f"hormone_positivity_{marker}"].isna().all()
+        assert overlay[f"hormone_positivity_{marker}_state"].eq("withheld").all()
+        assert overlay[f"hormone_positivity_{marker}_reason"].eq("auroc_below_preregistered_bar").all()
+
+
+@pytest.mark.parametrize("defect, message", [
+    ("warp_count", "n_xenium_warped_to_if"),
+    ("bundle_count", "bundle cells"),
+    ("bundle_duplicate", "duplicate bundle cell_id"),
+    ("bundle_null", "missing or duplicate bundle cell_id"),
+    ("geometry_unknown", "geometry cell_id keys disagree"),
+    ("geometry_duplicate", "duplicate Xenium cell_id"),
+    ("warp_order", "warp cell_id order disagrees"),
+    ("nucleus_unknown", "invalid Xenium nucleus cell_id"),
+])
+def test_identifier_mismatches_refuse_every_write(builder_inputs, defect, message):
+    warp = builder_inputs["restain_root"] / "valis/export-one"
+    bundle = Path(json.loads((warp / "export.json").read_text())["xenium_bundle"])
+    if defect == "warp_count":
+        np.save(warp / "warped_if_um.npy", np.ones((3, 2)))
+    elif defect.startswith("bundle_"):
+        ids = ["cell-a", "cell-b", "cell-c", "cell-d"]
+        if defect == "bundle_count":
+            ids.pop()
+        elif defect == "bundle_duplicate":
+            ids[-1] = "cell-a"
+        else:
+            ids[-1] = None
+        pq.write_table(pa.table({"cell_id": ids}), bundle / "cells.parquet")
+    elif defect.startswith("geometry_"):
+        path = builder_inputs["cells_xen_root"] / "cells.parquet"
+        cells = pq.ParquetFile(path).read().to_pandas()
+        cells.loc[0, "cell_id"] = "unknown" if defect == "geometry_unknown" else "cell-a"
+        pq.write_table(pa.Table.from_pandas(cells, preserve_index=False), path)
+    elif defect == "warp_order":
+        np.save(warp / "xenium_cell_ids.npy", np.array(["cell-b", "cell-a", "cell-c", "cell-d"]))
+    else:
+        np.save(warp / "xenium_nuclei_cell_ids.npy", np.array(["unknown"]))
+    with pytest.raises((ValueError, AssertionError), match=message):
+        layer.build_restain_layer(**builder_inputs)
+    assert not builder_inputs["layers_dir"].exists()
+
+
+def test_later_donor_mismatch_prevents_writing_earlier_donor(builder_inputs):
+    restain = builder_inputs["restain_root"]
+    warp = restain / "valis/export-two"
+    shutil.copytree(restain / "valis/export-one", warp)
+    export = json.loads((warp / "export.json").read_text())
+    export.update(donor_id="6442", serial="0059947")
+    (warp / "export.json").write_text(json.dumps(export))
+    source = builder_inputs["cells_xen_root"]
+    cells = pq.ParquetFile(source / "cells.parquet").read().to_pandas()
+    cells["donor_id"] = "6442"
+    pq.write_table(pa.Table.from_pandas(cells, preserve_index=False), source / "second.parquet")
+    np.save(warp / "warped_if_um.npy", np.ones((3, 2)))
+    with pytest.raises(AssertionError, match="6442: n_xenium_warped_to_if"):
+        layer.build_restain_layer(**builder_inputs)
+    assert not builder_inputs["layers_dir"].exists()
+
+
+@pytest.mark.parametrize("missing", ["nuclei", "bundle"])
+def test_missing_input_is_explicitly_unavailable(builder_inputs, missing):
+    warp = builder_inputs["restain_root"] / "valis/export-one"
+    path = warp / "xenium_nuclei_cell_ids.npy"
+    if missing == "bundle":
+        path = Path(json.loads((warp / "export.json").read_text())["xenium_bundle"]) / "cells.parquet"
+    path.unlink()
+    row = layer.build_restain_layer(**builder_inputs).set_index("donor_id").loc["6436"]
+    assert row.state == "unavailable"
+    assert row.reason == f"missing_restain_input:{path.name}"
+    assert pd.isna(row.n)
+    assert not (builder_inputs["layers_dir"] / "restain/cells/6436.parquet").exists()
+
+
+@pytest.mark.parametrize("missing, reason", [
+    ("nuclei", "no_recorded_xenium_nuclei"),
+    ("intensities", "no_finite_if_measurements"),
+])
+def test_absent_measurements_never_produce_a_measured_empty_overlay(builder_inputs, missing, reason):
+    if missing == "nuclei":
+        path = builder_inputs["restain_root"] / "valis/export-one/xenium_nuclei_cell_ids.npy"
+        np.save(path, np.array([], dtype=str))
+    else:
+        path = builder_inputs["cells_xen_root"] / "cells.parquet"
+        cells = pq.ParquetFile(path).read().to_pandas()
+        cells[["feat__if_INS", "feat__if_GCG"]] = np.nan
+        pq.write_table(pa.Table.from_pandas(cells, preserve_index=False), path)
+    row = layer.build_restain_layer(**builder_inputs).set_index("donor_id").loc["6436"]
+    assert row.state == "unavailable"
+    assert row.reason == reason
+    assert pd.isna(row.n)
+    assert not (builder_inputs["layers_dir"] / "restain/cells/6436.parquet").exists()
 
 
 @pytest.mark.parametrize("bad", ["", "NaN", "0", "-0.1", "inf"])
@@ -195,10 +325,6 @@ def test_r_cards_parse_and_missing_artifact_is_a_named_note(tmp_path):
 def test_real_paired_warp_counts_and_nucleus_exclusions():
     root = REPO / "core/phenocycler/data/integration/cells_xen"
     if not root.is_dir():
-        # This worktree keeps tracked CSVs in data/, with the external tree
-        # linked at data/data. Do not modify that shared setup.
-        root = REPO / "core/phenocycler/data/data/integration/cells_xen"
-    if not root.is_dir():
         pytest.skip("external Xenium source data are not mounted")
     sections = layer.read_sections(REPO / "core/phenocycler/data/integration/restain_sections.csv")
     sections = sections.set_index("donor_id")
@@ -209,37 +335,38 @@ def test_real_paired_warp_counts_and_nucleus_exclusions():
         assert len(cells) == len(warped) > 0
         assert sections.loc[donor, "pixel_size_um"] == 0.2505
         assert "object_id" not in cells  # Do not silently fabricate QuPath UUIDs.
-        ids = np.load(warp_dir / "xenium_cell_ids.npy", allow_pickle=True).astype(str)
-        nuclei = np.load(warp_dir / "xenium_nuclei_cell_ids.npy", allow_pickle=False)
+        ids = pd.Index(np.load(warp_dir / "xenium_cell_ids.npy", allow_pickle=True))
+        nuclei = pd.Index(np.load(warp_dir / "xenium_nuclei_cell_ids.npy", allow_pickle=False))
         assert set(ids) == set(cells.cell_id)
+        # Assembly, not just the input counts, must work on the real Xenium IDs.
+        overlay, details = layer.prepare_restain_cells(cells, warped, warp_dir,
+                                                       layer._status(donor, root))
+        actual = overlay.to_pandas().set_index("cell_id")
+        assert details["state"] == "measured"
+        assert len(actual) == nuclei.nunique()
+        assert details["n_without_nucleus"] == len(cells) - len(actual)
+        np.testing.assert_array_equal(actual[["x_um", "y_um"]], warped[ids.get_indexer(actual.index)])
+        expected = cells.set_index("cell_id").loc[actual.index]
+        for marker in layer.MARKERS:
+            np.testing.assert_array_equal(actual[f"feat__if_{marker}"], expected[f"feat__if_{marker}"])
+        assert actual.object_id.isna().all()
+        assert actual.object_id_reason.eq("no_qupath_object_id").all()
         print(f"{donor}: n_xenium_warped_to_if = n_xenium_cells = {len(cells):,}; "
-              f"{np.count_nonzero(~np.isin(ids, nuclei)):,} without recorded nuclei; "
+              f"{len(actual):,} nucleated cells retained; "
+              f"{details['n_without_nucleus']:,} without recorded nuclei; "
               "CSV pixel size = 0.2505 um/px")
 
 
-def test_r_cards_render_artifacts_and_refuse_wrong_frames(tmp_path):
+def test_r_cards_render_artifacts_and_refuse_wrong_frames(builder_inputs):
     rscript = shutil.which("Rscript")
     if rscript is None:
         pytest.skip("Rscript is not installed")
-    root = tmp_path / "restain"
-    (root / "cells").mkdir(parents=True)
-    row = layer._status("6436", tmp_path)
-    row.update(state="measured", reason="", n=2, pixel_size_um=0.2505)
-    for marker in layer.MARKERS:
-        row[f"hormone_positivity_{marker}_state"] = "withheld"
-        row[f"hormone_positivity_{marker}_reason"] = "auroc_below_preregistered_bar"
-        row[f"hormone_positivity_{marker}_auroc"] = 0.5143
-        row[f"hormone_positivity_{marker}_bar"] = 0.75
-    pq.write_table(pa.Table.from_pylist([row], schema=layer._schema()), root / "availability.parquet")
-    pq.write_table(pa.table({"donor_id": ["6436"] * 2, "cell_id": ["a", "b"],
-                            "object_id": ["uuid-a", "uuid-b"], "x_um": [100.0, 200.0],
-                            "y_um": [300.0, 400.0], "frame": ["if_um:6436:panc"] * 2,
-                            "feat__if_INS": [1.0, 2.0], "feat__if_GCG": [3.0, 4.0]}),
-                   root / "cells/6436.parquet")
-    (tmp_path / "availability").mkdir()
+    layer.build_restain_layer(**builder_inputs)
+    layers = builder_inputs["layers_dir"]
+    (layers / "availability").mkdir()
     pq.write_table(pa.table({"donor_id": ["6436"], "capability": ["restain_if"],
-                            "state": ["measured"], "reason": [""], "n": [2]}),
-                   tmp_path / "availability/data.parquet")
+                            "state": ["measured"], "reason": [""], "n": [3]}),
+                   layers / "availability/data.parquet")
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
     source("apps/R/ieCore/R/ie_availability.R")
@@ -253,7 +380,9 @@ def test_r_cards_render_artifacts_and_refuse_wrong_frames(tmp_path):
       stopifnot(ie_is_measured(card$drawing()$availability))
       stopifnot(inherits(card$drawing()$plot, "ggplot"))
       stopifnot(grepl("0.2505", card$drawing()$caption))
+      stopifnot(grepl("2 measured; 1 unavailable", card$drawing()$caption))
       stopifnot(length(ggplot2::ggplot_build(card$drawing()$plot)$data) == 2L)
+      stopifnot(nrow(ggplot2::ggplot_build(card$drawing()$plot)$data[[2]]) == 2L)
       session$setInputs(x2_overlay_donor = "112")
       stopifnot(!ie_is_measured(card$drawing()$availability))
     })
@@ -262,16 +391,21 @@ def test_r_cards_render_artifacts_and_refuse_wrong_frames(tmp_path):
     }, {
       session$setInputs(x3_identity_donor = "6436")
       d <- card$identity()$data
-      stopifnot(all(grepl("Withheld", d$State)), all(d$AUROC == "0.5143"))
+      stopifnot(all(grepl("Withheld", d$State)), identical(d$AUROC, c("0.5143", "0.5220")))
     })
     row <- ie_restain_index()$data
+    row <- row[row$donor_id == "6436", , drop = FALSE]
     file <- file.path(ie_restain_root(), "cells", "6436.parquet")
     d <- as.data.frame(arrow::read_parquet(file))
     d$frame <- "xenium_um:6436:panc"
     arrow::write_parquet(d, file)
     stopifnot(inherits(try(ie_restain_cells(row), silent = TRUE), "try-error"))
+    d$frame <- "if_um:6436:panc"
+    d$feat__if_INS_state[is.na(d$feat__if_INS)] <- "measured"
+    arrow::write_parquet(d, file)
+    stopifnot(inherits(try(ie_restain_cells(row), silent = TRUE), "try-error"))
     '''
     result = subprocess.run([rscript, "--vanilla", "-e", code], cwd=REPO, text=True,
                             capture_output=True,
-                            env={**os.environ, "ISLET_LAYERS_DIR": str(tmp_path)})
+                            env={**os.environ, "ISLET_LAYERS_DIR": str(layers)})
     assert result.returncode == 0, result.stdout + result.stderr

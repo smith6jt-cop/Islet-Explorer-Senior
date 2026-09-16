@@ -6,6 +6,11 @@ not IF points mapped into Xenium. These coordinates are already micrometres:
 they must not be rescaled or transformed again. The declared pixel size is read
 only from ``restain_sections.csv``; this builder never opens a qptiff.
 
+The warp is in the recorded Xenium bundle's ``cells.parquet`` order. Join
+that order to the geometry table by native ``cell_id``, as ``stamp_if_values``
+does for IF intensities measured inside each Xenium cell's own segmentation.
+These cells have no QuPath ``object_id``; its availability is recorded explicitly.
+
 The output lives entirely under ``$ISLET_LAYERS_DIR/restain``. Its small
 ``availability.parquet`` records every donor, counts before/after the nucleus
 filter, the CSV calibration, and the producer's hormone validation. The
@@ -174,8 +179,7 @@ def inspect_donor(paths: list[Path], warp_dir: Path, donor: str, section: pd.Ser
         required = {"donor_id", "roi", "cell_id", *(f"feat__if_{m}" for m in MARKERS)}
         if not required.issubset(names):
             raise ValueError(f"{path}: missing IF source columns {sorted(required - names)}")
-        columns = sorted(required | ({"object_id"} if "object_id" in names else set()))
-        frames.append(read_source(path, columns))
+        frames.append(read_source(path, sorted(required)))
     cells = pd.concat(frames, ignore_index=True)
     cells["donor_id"] = cells.donor_id.map(norm_donor)
     if not cells.donor_id.eq(donor).all() or not cells.roi.eq("panc").all():
@@ -194,25 +198,70 @@ def inspect_donor(paths: list[Path], warp_dir: Path, donor: str, section: pd.Ser
 
 def prepare_restain_cells(cells: pd.DataFrame, warped: np.ndarray,
                           warp_dir: Path, status: dict) -> tuple:
-    """Refuse assembly until the contract's UUID join can actually be performed.
+    """Join bundle-ordered IF coordinates to geometry by Xenium ``cell_id``.
 
-    The measured Xenium inputs have only native cell_id values. Neither a
-    fabricated object_id nor positional attachment is a UUID join. Keep this
-    failure ahead of every output write until the missing crosswalk or an
-    explicit exception to the identifier contract is supplied.
+    Neither the geometry table's row order nor a second segmentation is a join
+    key. Refuse count/key mismatches before filtering out cells without nuclei.
+    IF intensities are already stamped by ``postxen.stamp_if_values`` and stay
+    with their recorded cell IDs, including NaN where no IF value was measured.
     """
     donor = status["donor_id"]
-    if "object_id" not in cells:
-        raise ValueError(
-            f"{donor}: unavailable(no_qupath_object_id): source has cell_id but no "
-            "QuPath object_id; UUID-only assembly cannot join warped_if_um.npy. "
-            "A producer-recorded UUID crosswalk or an explicit native-cell_id "
-            "exception to BRIEF.md is required. No artifacts were written."
-        )
-    raise ValueError(
-        f"{donor}: unavailable(no_uuid_keyed_warp): {warp_dir / 'warped_if_um.npy'} "
-        "has no recorded object_id keys. Refusing positional or centroid matching."
-    )
+    validate_warp_count(warped, len(cells), donor)
+    export = json.loads((warp_dir / "export.json").read_text())
+    bundle = export.get("xenium_bundle")
+    if not bundle:
+        raise ValueError(f"{donor}: warp export has no recorded xenium_bundle")
+    order = read_source(Path(bundle) / "cells.parquet", ["cell_id"]).cell_id
+    if len(order) != len(warped):
+        raise ValueError(f"{donor}: {len(warped)} warp rows for {len(order)} bundle cells; "
+                         "refusing to pad or truncate")
+    if order.isna().any() or order.duplicated().any() or order.eq("").any():
+        raise ValueError(f"{donor}: missing or duplicate bundle cell_id")
+    order = pd.Index(order.astype(str))
+    # export_dapi writes this object-string array directly from the bundle.
+    recorded = np.load(warp_dir / "xenium_cell_ids.npy", allow_pickle=True)
+    if recorded.ndim != 1 or not np.array_equal(recorded, order.to_numpy()):
+        raise ValueError(f"{donor}: warp cell_id order disagrees with bundle cells.parquet")
+    keys = pd.Index(cells.cell_id.astype(str))
+    positions = order.get_indexer(keys)
+    if keys.has_duplicates or np.any(positions < 0):
+        raise ValueError(f"{donor}: geometry cell_id keys disagree with bundle cells.parquet")
+
+    nucleus_ids = np.load(warp_dir / "xenium_nuclei_cell_ids.npy", allow_pickle=False)
+    if nucleus_ids.ndim != 1:
+        raise ValueError(f"{donor}: expected a vector of Xenium nucleus cell_id values")
+    nuclei = pd.Index(nucleus_ids)
+    if (nuclei.hasnans or (nuclei == "").any()
+            or not nuclei.isin(order).all()):
+        raise ValueError(f"{donor}: invalid Xenium nucleus cell_id keys")
+    # Multiple nuclei may belong to one cell; membership keeps that cell once.
+    keep = keys.isin(nuclei)
+    details = {"n_without_nucleus": int((~keep).sum())}
+    if not keep.any():
+        return None, {**details, "state": "unavailable", "reason": "no_recorded_xenium_nuclei"}
+
+    overlay = cells.loc[keep, ["donor_id", "cell_id", *(f"feat__if_{m}" for m in MARKERS)]].copy()
+    overlay["x_um"] = warped[positions[keep], 0]
+    overlay["y_um"] = warped[positions[keep], 1]
+    overlay["frame"] = status["frame"]
+    overlay["object_id"] = pd.array([None] * len(overlay), dtype="string")
+    overlay["object_id_state"] = "unavailable"
+    overlay["object_id_reason"] = "no_qupath_object_id"
+    for marker in MARKERS:
+        field = f"feat__if_{marker}"
+        measured = np.isfinite(overlay[field].to_numpy(dtype=float))
+        overlay[f"{field}_state"] = np.where(measured, "measured", "unavailable")
+        overlay[f"{field}_reason"] = np.where(measured, "", "no_finite_if_measurement")
+        details[f"n_measured_if_{marker}"] = int(measured.sum())
+        # No per-cell hormone calls have been released by the source lane.
+        prefix = f"hormone_positivity_{marker}"
+        overlay[prefix] = pd.array([None] * len(overlay), dtype="boolean")
+        for field in ("state", "reason"):
+            overlay[f"{prefix}_{field}"] = status[f"{prefix}_{field}"]
+    if not any(details[f"n_measured_if_{m}"] for m in MARKERS):
+        return None, {**details, "state": "unavailable", "reason": "no_finite_if_measurements"}
+    details.update(state="measured", reason="", n=len(overlay))
+    return pa.Table.from_pandas(overlay, preserve_index=False), details
 
 
 def build_restain_layer(*, cells_xen_root: Path, restain_root: Path,
@@ -253,18 +302,18 @@ def build_restain_layer(*, cells_xen_root: Path, restain_root: Path,
         section = sections.loc[donor]
         try:
             cells, warped = inspect_donor(paths, warps[donor], donor, section)
+            row.update(n_xenium_cells=len(cells), n_xenium_warped_to_if=len(warped),
+                       source=";".join(str(p) for p in paths))
+            for marker in MARKERS:
+                evidence = hormone_availability(validation.get(donor, {}), marker)
+                for field, value in evidence.items():
+                    row[f"hormone_positivity_{marker}_{field}"] = value
+            # All donor shape/identity assertions precede every artifact write.
+            overlay, details = prepare_restain_cells(cells, warped, warps[donor], row)
         except FileNotFoundError as exc:
-            row.update(reason=f"missing_restain_input:{Path(exc.filename).name}")
+            row.update(reason=f"missing_restain_input:{Path(exc.filename or str(exc)).name}")
             statuses.append(row)
             continue
-        row.update(n_xenium_cells=len(cells), n_xenium_warped_to_if=len(warped),
-                   source=";".join(str(p) for p in paths))
-        for marker in MARKERS:
-            evidence = hormone_availability(validation.get(donor, {}), marker)
-            for field, value in evidence.items():
-                row[f"hormone_positivity_{marker}_{field}"] = value
-        # Assembly is kept separate so all shape/identity assertions precede writes.
-        overlay, details = prepare_restain_cells(cells, warped, warps[donor], row)
         row.update(details)
         if overlay is not None:
             overlays[donor] = overlay
@@ -284,8 +333,6 @@ def build_restain_layer(*, cells_xen_root: Path, restain_root: Path,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     core_data = REPO / "core/phenocycler/data"
-    parser.add_argument("--cells-xen-root", type=Path,
-                        default=core_data / "integration/cells_xen")
     parser.add_argument("--restain-root", type=Path,
                         default=REPO / "data/development/restain")
     parser.add_argument("--sections-csv", type=Path,
@@ -295,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--layers-dir", type=Path,
                         default=Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers")))
     args = parser.parse_args(argv)
-    result = build_restain_layer(**vars(args))
+    result = build_restain_layer(cells_xen_root=core_data / "integration/cells_xen", **vars(args))
     print(result[["donor_id", "state", "reason", "n", "n_xenium_cells",
                   "n_xenium_warped_to_if", "pixel_size_um"]].to_string(index=False))
     return 0

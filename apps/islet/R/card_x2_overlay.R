@@ -79,11 +79,26 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
   d <- as.data.frame(arrow::read_parquet(file.path(root, "cells", paste0(donor, ".parquet"))))
   expected <- ie_frame("if_um", donor, "panc")
   needed <- c("donor_id", "cell_id", "object_id", "x_um", "y_um", "frame",
-              "feat__if_INS", "feat__if_GCG")
+              "object_id_state", "object_id_reason", "feat__if_INS", "feat__if_GCG",
+              "feat__if_INS_state", "feat__if_INS_reason",
+              "feat__if_GCG_state", "feat__if_GCG_reason")
   if (!all(needed %in% names(d)) || !nrow(d) || anyNA(d$frame) ||
-      any(d$frame != expected) || any(d$donor_id != donor) ||
+      any(d$frame != expected) || anyNA(d$donor_id) || any(d$donor_id != donor) ||
+      anyNA(d$cell_id) || any(!nzchar(d$cell_id)) || anyDuplicated(d$cell_id) ||
+      any(!is.na(d$object_id)) || anyNA(d$object_id_state) || anyNA(d$object_id_reason) ||
+      any(d$object_id_state != "unavailable") || any(d$object_id_reason != "no_qupath_object_id") ||
       any(!is.finite(d$x_um)) || any(!is.finite(d$y_um)) || nrow(d) != row$n[[1]]) {
     stop("invalid IF-frame restain cells or count")
+  }
+  for (marker in c("INS", "GCG")) {
+    field <- paste0("feat__if_", marker)
+    state <- d[[paste0(field, "_state")]]
+    reason <- d[[paste0(field, "_reason")]]
+    if (anyNA(state) || any(!state %in% IE_STATES) ||
+        any(state != "measured" & (is.na(reason) | !nzchar(reason))) ||
+        any((state == "measured") != is.finite(d[[field]]))) {
+      stop("invalid IF intensity availability")
+    }
   }
   ie_attach_frame(d, expected)
 }
@@ -144,12 +159,12 @@ card_x2_overlay_server <- function(input, output, session, prepared = NULL, coho
     if (is.null(marker) || !marker %in% c("INS", "GCG")) marker <- "INS"
     all <- loaded$data
     field <- paste0("feat__if_", marker)
-    valid <- is.finite(all[[field]])
+    valid <- all[[paste0(field, "_state")]] == "measured"
     if (!any(valid)) return(ie_restain_failure(paste0("no_finite_IF_", marker)))
     # Deterministic display sampling only; all counts come from the complete artifact.
     take <- unique(round(seq(1, nrow(all), length.out = min(nrow(all), 50000L))))
     background <- all[take, , drop = FALSE]
-    foreground <- background[is.finite(background[[field]]), , drop = FALSE]
+    foreground <- background[background[[paste0(field, "_state")]] == "measured", , drop = FALSE]
     foreground$intensity <- foreground[[field]]
     ie_assert_same_frame(background, foreground, context = "post-Xenium IF overlay")
     caption <- sprintf(
