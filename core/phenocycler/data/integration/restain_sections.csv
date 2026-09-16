@@ -21,9 +21,32 @@
 # That settles what no file could: each of serials 0059865/0059907/0059947 carries BOTH a
 # __Panc__ and a __pLN__ Xenium bundle, so the roi column here is a recorded fact, not an
 # inference from the filename. A pLN export would need its own row.
+#
+# pixel_size_um: the maintainer states 2026-09-16 that ALL post-Xenium IF images are 0.2505
+# um/px, and that is the declared value for every row below. It was 0.25 until today, which
+# was a rounding of the value three of these files carry.
+#
+# THE FILES DISAGREE FOR TWO ROWS, and that is recorded here rather than erased, so nobody
+# "corrects" this back later without seeing it. Measured 2026-09-16 from the qptiff tags and
+# the embedded PerkinElmer XML, all five series 0 "Baseline", ImageType FullResolution,
+# Binning 1:
+#
+#   0059865 / 0059907 / 0059947   Objective 20x   0.25047 um/px   agrees with 0.2505
+#   HDL115  / npod6591            Objective 10x   0.50139 um/px   2.0018x the declared value
+#
+# QuPath read the same thing: PostXeniumIHC/data/{4,5}/server.json record pixelWidth
+# 0.5013891496931643 um for those two, against 0.25046989327540387 for the other three.
+#
+# CONSEQUENCE, stated once so it is not discovered later: any object coordinate QuPath has
+# already written for HDL115 or npod6591 was computed at 0.5014 um/px. Reading those same
+# coordinates as 0.2505 um/px halves every distance. Donor 115 is also the donor whose
+# post-Xenium registration currently FAILS its gate at 7.198 um median offset. If the
+# declared 0.2505 is right, those two images need re-importing at that scale before their
+# coordinates mean anything; if the files are right, this column needs two different values.
+# Either way a builder must not silently assume the two agree.
 image_file,donor_id,roi,xenium_serial,pixel_size_um,channel_dapi,channel_opal520,channel_opal570,channel_opal690,channel_sampleaf,recorded_by,recorded_on
-0059865_Scan1.qptiff,6539,panc,0059865,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
-0059907_Scan1.qptiff,6436,panc,0059907,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
-0059947_Scan1.qptiff,6442,panc,0059947,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
-HDL115_Scan1.qptiff,115,panc,0041117,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
-npod6591_Scan1.qptiff,6591,panc,0041116,0.25,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-08-29
+0059865_Scan1.qptiff,6539,panc,0059865,0.2505,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-09-16
+0059907_Scan1.qptiff,6436,panc,0059907,0.2505,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-09-16
+0059947_Scan1.qptiff,6442,panc,0059947,0.2505,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-09-16
+HDL115_Scan1.qptiff,115,panc,0041117,0.2505,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-09-16
+npod6591_Scan1.qptiff,6591,panc,0041116,0.2505,NUCLEUS,GCG,FAILED,INS,AF,smith6jt,2026-09-16
