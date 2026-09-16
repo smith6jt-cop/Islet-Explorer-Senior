@@ -1,10 +1,11 @@
-# Islet core and the 20 µm peri-islet expansion come from the same small
-# distance artifact. pLN is a separate tissue and remains unavailable until
-# increment 9 exports its measurements. No spatial relation crosses tissues.
+# Islet core, the 20 µm peri-islet expansion, and other pancreas retain all
+# eligible cells from the same small distance artifact. pLN is a separate
+# tissue and remains unavailable until increment 9 exports its measurements.
+# No spatial relation crosses tissues.
 
 card_s3_compartments_ui <- function(ns) {
   shiny::div(class = "ie-card", style = "overflow: visible;",
-             shiny::tags$h3(class = "ie-card-title", "Three-compartment comparison"),
+             shiny::tags$h3(class = "ie-card-title", "Immune cells: pancreas compartments and pLN"),
              shiny::uiOutput(ns("s3_compartments_controls")),
              shiny::fluidRow(
                shiny::column(8, shiny::uiOutput(ns("s3_compartments_body"))),
@@ -43,15 +44,15 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     source <- .ie_distance_framed(value$data)
     reference <- ie_attach_frame(data.frame(), ie_frame("signed_distance_um"))
     ie_assert_same_frame(source, reference, "pancreas compartment comparison")
-    source <- source[source$compartment %in% c("islet_core", "peri_islet"), , drop = FALSE]
-    if (!nrow(source)) return(ie_avail("unavailable", "no_eligible_core_or_peri_islet_cells"))
+    if (!nrow(source)) return(ie_avail("unavailable", "no_eligible_pancreas_cells"))
     # Sum counts, never bin fractions. Each selected subtype/provenance pair
     # repeats the same eligible denominator, so selecting one avoids duplication.
     data <- stats::aggregate(cbind(n_cells, n_immune) ~ donor_id + donor_status + compartment,
                              data = source, FUN = sum)
     data$immune_fraction <- data$n_immune / data$n_cells
-    data$compartment <- factor(data$compartment, levels = c("islet_core", "peri_islet"),
-                                labels = c("Islet core", "Peri-islet expansion"))
+    data$compartment <- factor(data$compartment,
+                                levels = c("islet_core", "peri_islet", "other_pancreas"),
+                                labels = c("Islet core", "Peri-islet expansion", "Other pancreas"))
     ie_attach_frame(data, ie_frame("none"))
   })
   output$s3_compartments_body <- shiny::renderUI({
@@ -59,7 +60,8 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     if (!ie_is_measured(value$value)) return(.ie_distance_note(value$value, "guard_s3_compartments"))
     data <- compartment_data()
     if (inherits(data, "ie_avail")) return(.ie_distance_note(data, "guard_s3_compartments"))
-    missing <- setdiff(c("Islet core", "Peri-islet expansion"), as.character(data$compartment))
+    missing <- setdiff(c("Islet core", "Peri-islet expansion", "Other pancreas"),
+                       as.character(data$compartment))
     notes <- lapply(missing, function(name) {
       .ie_distance_note(ie_avail("unavailable", paste0("no_eligible_cells_in_", name)),
                         "guard_s3_compartment_empty")
@@ -68,6 +70,7 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
       notes, shiny::plotOutput(session$ns("s3_compartments_plot")),
       shiny::tags$p("Core membership follows the exported islet outline. ",
                     "The peri-islet expansion contains non-core cells at 0 < distance ≤ 20 µm. ",
+                    "Other pancreas contains all remaining eligible pancreas cells. ",
                     "Fractions use immune counts divided by all eligible, non-excluded cells; ",
                     "bin fractions are never averaged. Resolved by: ",
                     if (length(value$provenance)) paste(value$provenance, collapse = ", ")
@@ -80,7 +83,7 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     data <- compartment_data()
     shiny::req(is.data.frame(data))
     reference <- ie_attach_frame(data.frame(), ie_frame("none"))
-    ie_assert_same_frame(data, reference, "three-compartment fraction plot")
+    ie_assert_same_frame(data, reference, "pancreas compartment fraction plot")
     data$count_label <- paste0(format(data$n_immune, big.mark = ",", trim = TRUE), " / ",
                                format(data$n_cells, big.mark = ",", trim = TRUE))
     ggplot2::ggplot(data, ggplot2::aes(compartment, immune_fraction)) +
@@ -98,10 +101,11 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
   output$s3_compartments_counts <- shiny::renderTable({
     data <- compartment_data()
     shiny::req(is.data.frame(data))
-    data
-  }, digits = 6)
+    data.frame(Compartment = data$compartment, `Eligible cells` = data$n_cells,
+               `Immune cells` = data$n_immune, check.names = FALSE)
+  }, digits = 0, rownames = FALSE)
   output$s3_compartments_download <- shiny::downloadHandler(
-    filename = function() "three-compartment-immune-fractions.pdf",
+    filename = function() "pancreas-compartment-immune-fractions.pdf",
     content = function(file) ggplot2::ggsave(file, plot = plot(), width = 8, height = 5)
   )
   invisible(list(selected = selected, plot = plot, data = compartment_data))

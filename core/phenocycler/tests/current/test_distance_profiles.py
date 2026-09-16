@@ -220,6 +220,9 @@ source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 source("apps/islet/R/card_s3_compartments.R")
 domain_data_root <- function() Sys.getenv("DISTANCE_TEST_DOMAIN")
+table_text <- function(html) {
+  trimws(gsub("[[:space:]]+", " ", gsub("<[^>]+>", " ", html)))
+}
 layer <- .ie_distance_read()
 stopifnot(ie_is_measured(layer$value))
 stopifnot(ie_is_measured(.ie_distance_select(layer, "112")$value))
@@ -251,14 +254,61 @@ shiny::testServer(function(input, output, session) {
 }, {
   session$setInputs(s3_compartments_donor = "112", s3_compartments_pair = "Immune | all")
   data <- result$data()
-  stopifnot(sum(data$n_cells) == 5, sum(data$n_immune) == 3)
+  stopifnot(sum(data$n_cells) == 7, sum(data$n_immune) == 4)
   stopifnot(data$immune_fraction[data$compartment == "Islet core"] == 2/3)
   stopifnot(data$immune_fraction[data$compartment == "Peri-islet expansion"] == 1/2)
-  stopifnot(inherits(ggplot2::ggplot_build(result$plot()), "ggplot_built"))
+  stopifnot(data$immune_fraction[data$compartment == "Other pancreas"] == 1/2)
+  built <- ggplot2::ggplot_build(result$plot())
+  stopifnot(nrow(built$data[[1]]) == 3)
+  stopifnot(identical(sort(built$data[[2]]$label), c("1 / 2", "1 / 2", "2 / 3")))
+  counts <- table_text(output$s3_compartments_counts)
+  for (text in c("Eligible cells", "Immune cells", "Islet core 3 2",
+                 "Peri-islet expansion 2 1", "Other pancreas 2 1")) {
+    stopifnot(grepl(text, counts, fixed = TRUE))
+  }
   stopifnot(grepl("unavailable(guard_pln_export_absent)",
                  output$s3_compartments_pln$html, fixed = TRUE))
+  # A subtype changes only the numerator, including a measured zero in other pancreas.
+  session$setInputs(s3_compartments_pair = "Imm-B-cell | definition")
+  data <- result$data()
+  stopifnot(sum(data$n_cells) == 7, sum(data$n_immune) == 1)
+  stopifnot(data$immune_fraction[data$compartment == "Other pancreas"] == 0)
+  stopifnot(grepl("Other pancreas 2 0", table_text(output$s3_compartments_counts), fixed = TRUE))
 })
 actual_reader <- .ie_distance_read
+.ie_distance_read <- function() {
+  value <- actual_reader()
+  value$data <- value$data[value$data$compartment == "other_pancreas", , drop = FALSE]
+  value
+}
+shiny::testServer(function(input, output, session) {
+  result <- card_s3_compartments_server(input, output, session, active_tab = shiny::reactive("LymphNode"))
+}, {
+  session$setInputs(s3_compartments_donor = "112", s3_compartments_pair = "Immune | all")
+  data <- result$data()
+  stopifnot(is.data.frame(data), nrow(data) == 1, as.character(data$compartment) == "Other pancreas")
+  stopifnot(data$n_cells == 2, data$n_immune == 1)
+  stopifnot(inherits(ggplot2::ggplot_build(result$plot()), "ggplot_built"))
+  stopifnot(grepl("Other pancreas 2 1", table_text(output$s3_compartments_counts), fixed = TRUE))
+  for (name in c("Islet core", "Peri-islet expansion")) {
+    stopifnot(grepl(paste0("no_eligible_cells_in_", name), output$s3_compartments_body$html, fixed = TRUE))
+  }
+  stopifnot(grepl("guard_s3_compartment_empty", output$s3_compartments_body$html, fixed = TRUE))
+})
+.ie_distance_read <- function() {
+  value <- actual_reader()
+  value$data <- value$data[value$data$compartment != "other_pancreas", , drop = FALSE]
+  value
+}
+shiny::testServer(function(input, output, session) {
+  result <- card_s3_compartments_server(input, output, session, active_tab = shiny::reactive("LymphNode"))
+}, {
+  session$setInputs(s3_compartments_donor = "112", s3_compartments_pair = "Immune | all")
+  stopifnot(sum(result$data()$n_cells) == 5, sum(result$data()$n_immune) == 3)
+  stopifnot(grepl("no_eligible_cells_in_Other pancreas", output$s3_compartments_body$html, fixed = TRUE))
+  stopifnot(grepl("guard_s3_compartment_empty", output$s3_compartments_body$html, fixed = TRUE))
+  stopifnot(!grepl("Other pancreas", table_text(output$s3_compartments_counts), fixed = TRUE))
+})
 .ie_distance_read <- function() {
   bad <- actual_reader()
   bad$data$frame[which(bad$data$resolved_by == "all")[[1]]] <- "phenocycler_um:112:panc"
