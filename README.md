@@ -205,13 +205,19 @@ python -m phenocycler.pipeline status --config config.ini
 What runs today, lane by lane, is mapped in
 [docs/WORKFLOW_2026-09-02_MAP.md](docs/WORKFLOW_2026-09-02_MAP.md).
 
-That workflow writes immutable, content-addressed runs under
-`core/phenocycler/data/runs/<run_id>/`. It does not currently produce verified
-marker calls or cell identities.
+That workflow writes to stable roots under `core/phenocycler/data/{cells,
+geometry_qc,redsea,expression}/`. It does not currently produce verified
+marker calls or cell identities. **The content-addressed run framework that
+formerly wrote these outputs under
+`core/phenocycler/data/runs/<run_id>/` was removed on 2026-09-16**; there is
+no run ID, stage manifest, or fingerprint check any more (see
+[core/phenocycler/README.md](core/phenocycler/README.md#outputs)). Runs made
+before 2026-09-16 remain, untouched, in that historical `data/runs/<run_id>/`
+tree.
 
 The application aggregation below is a **separate, legacy lane**. It consumes a
-legacy single-cell H5AD and is not a supported bridge from a current
-content-addressed run; the two are not connected today. It does not define
+legacy single-cell H5AD and is not a supported bridge from the current
+PhenoCycler workflow's output; the two are not connected today. It does not define
 marker thresholds or cell identities either.
 
 ```

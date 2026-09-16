@@ -9,9 +9,11 @@ ring.
 
 This lane derives no per-marker threshold, needs no target/reference pair, and does not
 depend on the blocked `controls` / `calibrate` / `type` stages. Nothing here writes a
-`StageManifest` or mutates `data/runs/`; `pipeline.py` hashes only `phenocycler/` and
-`pyproject.toml` into `run_id`, so nothing under `scripts/**` can re-key a run. All output
-goes to the mutable repo-root `data/development/celltype/`.
+`StageManifest` (no current stage writes one) or mutates the stable
+`data/{cells,geometry_qc,redsea,expression}` roots or the historical `data/runs/` tree.
+`pipeline.py` computes no `run_id` at all — the content-addressed run framework it fed was
+removed on 2026-09-16 — so nothing under `scripts/**` can re-key a run that no longer exists.
+All output goes to the mutable repo-root `data/development/celltype/`.
 
 ```bash
 cd core/phenocycler
@@ -67,7 +69,9 @@ moved — it is a provenance marker, not a value change.
 
 Provenance: built 2026-08-28 from commit `0f5ea04` with a **dirty** worktree, so its source is
 identified by `source_sha256 0542e887…` rather than by the commit alone. Its manifests record
-a canonical `output.root`, so unlike the two deleted runs it is adoptable.
+a canonical `output.root`, so unlike the two deleted runs it was adoptable while the `adopt`
+command still existed (it was removed with the rest of the content-addressed run framework on
+2026-09-16; nothing here depends on that command running again).
 
 `tests/` pins the content hash (`35fa90fa…`), the row count (31,454,041) and the agreement
 between `panel.RUN_ID` and `LATEST`, so swapping the run or mutating the stage fails a test

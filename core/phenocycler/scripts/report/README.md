@@ -18,7 +18,7 @@ cd core/phenocycler
 
 | section | ids | reads |
 |---|---|---|
-| `pheno` (multiplex proteomics QC) | P01 counts/eligibility, P02 areas + solidity, P03 eligibility reasons, P04 per-marker asinh densities with the Step-2 background mode, P05 REDSEA window (CD3e / Ker8_18) | the immutable run `30f6689e…` and UniFORM Step 2 only |
+| `pheno` (multiplex proteomics QC) | P01 counts/eligibility, P02 areas + solidity, P03 eligibility reasons, P04 per-marker asinh densities with the Step-2 background mode, P05 REDSEA window (CD3e / Ker8_18) | the historical run `30f6689e…` under `data/runs/` (predates the 2026-09-16 run-framework removal) and UniFORM Step 2 only |
 | `identity` PhenoCycler | P06 marker × label heatmap beside a label-permutation null, P07 spatial map, P08 diagnostic UMAP, P09 proportions by donor (pair; raw + evidence-positive), P10 proportions by QuPath `cell_region` (audit) and by identity-derived zone, P11 `ki67_donor_rank` per label (no cut) | `data/development/broadtype/release` |
 | `xen` (spatial transcriptomics QC) | X01 per-cell QC, X02 drop reasons (overlapping sets), X03 negative controls + `metrics_summary` decoding metrics (pair) | bundle + base only |
 | `identity` Xenium | X04 identity-core dotplot beside the nullgate award, X05 diagnostic UMAP (joint latent), X06 spatial map (QC-dropped = Unavailable), X07 proportions by donor (pair; raw, evidence-positive, low-signal share), X08 proportions by identity-derived islet zone (S3 structures; no QuPath annotation on Xenium), X09 cycling per label with the rule printed | `data/development/xenium_typing/release` |

@@ -10,9 +10,11 @@ physical section Xenium measured, so Xenium's nucleus polygons and the IF DAPI p
 same nuclei. No new cell segmentation, cell typing, positivity calling, or biomarker
 interpretation is part of this workflow.
 
-Inputs and working outputs live outside the content-addressed Phenocycler pipeline. Generated
-state is under `data/development/restain/`; this lane does not write a `StageManifest`, touch
-`data/runs/`, or contribute scripts under `scripts/**` to a `run_id`.
+Inputs and working outputs live outside the PhenoCycler upstream workflow's `data/{cells,
+geometry_qc,redsea,expression}` roots. Generated state is under `data/development/restain/`; this
+lane does not write a `StageManifest` (no current stage writes one — the content-addressed run
+framework that used them was removed on 2026-09-16), does not touch the historical `data/runs/`
+tree, and contributes nothing under `scripts/**` to a `run_id` (there is no `run_id` any more).
 
 ### Input and cohort contract
 

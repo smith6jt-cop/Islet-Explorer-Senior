@@ -1,5 +1,11 @@
 # Workflow map — what runs today, where, and against what
 
+> **Superseded note (2026-09-16):** the content-addressed run-framework sections below (`data/runs/<id>/`,
+> run manifests, `adopt`/`resume`/`recover`) describe the workflow as it stood on 2026-09-02 and are no
+> longer current — that framework was removed on 2026-09-16. See
+> `core/phenocycler/docs/INTEGRATION.md` for the current state. The body of this file is left
+> unchanged as a record of what was true when written.
+
 **Status:** written 2026-09-02 against HEAD `1a23105` (branch `feat/dct-step0-pinning`, 56 commits
 ahead of `main`, working tree clean). Every status cites a file, a command output or a commit. This
 map links to the document that owns each step; it does not replace those documents. The planned

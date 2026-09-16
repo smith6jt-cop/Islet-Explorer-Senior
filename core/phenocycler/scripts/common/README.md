@@ -3,7 +3,8 @@
 Moved here from the closed DeepCellTypes lane (`scripts/dct/`) so that a new typing pilot
 can reuse them without importing from a closed lane, and so that the DCT review document's
 "discard `scripts/dct/`" instruction is executable. Nothing under `scripts/**` is hashed into
-`run_id` (`phenocycler/pipeline.py` hashes only `phenocycler/` and `pyproject.toml`).
+anything: `phenocycler/pipeline.py` computes no `run_id` at all any more (the content-addressed
+run framework it used to feed was removed on 2026-09-16).
 
 | module | what | importers |
 |---|---|---|
