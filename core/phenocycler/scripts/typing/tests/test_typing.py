@@ -24,10 +24,34 @@ import compartments as C  # noqa: E402
 import lineages as L  # noqa: E402
 
 
-def registry_markers() -> list[str]:
+def _registry_entries() -> list[dict]:
     reg = json.loads((REPO / "core/phenocycler/phenocycler/marker_registry.json").read_text())
-    markers = reg["markers"] if isinstance(reg, dict) and "markers" in reg else reg
-    return [m["name"] for m in markers]
+    return reg["markers"] if isinstance(reg, dict) and "markers" in reg else reg
+
+
+def registry_markers() -> list[str]:
+    return [m["name"] for m in _registry_entries()]
+
+
+# The metabolic panel carried by the two pLNpanc slides (0080870/6533, 0081366/112), added
+# to the registry on 2026-09-16 so REDSEA could run on them. The maintainer rules the same
+# day that these are deferred: measured, never typed, and so not required to declare a
+# typing compartment.
+#
+# Listed BY NAME on purpose. `calibration_status == "deferred"` does not identify them --
+# 45 of 72 registry markers are deferred and 32 of those are placed. Neither does `uses`:
+# 42 markers are exclusively `deferred_*` and 30 of those are placed. Exempting by either
+# field would quietly drop ~42 markers from the compartment check instead of these 12.
+DEFERRED_METABOLIC_PANEL = frozenset({
+    "ASCT2", "ATP5A", "CD141", "CD21", "CS", "G6PD",
+    "GLUT1", "HK1", "Histone_H3_(p_Ser28)", "IDH2", "LDHA", "SDHA",
+})
+
+
+def typing_markers() -> list[str]:
+    """Registry markers that typing may use, so must be placed in a compartment."""
+    return [m["name"] for m in _registry_entries()
+            if m["name"] not in DEFERRED_METABOLIC_PANEL]
 
 
 # --------------------------------------------------------------------- the panel
@@ -37,11 +61,36 @@ def test_only_iapp_and_dapi_are_held_back():
     assert set(C.NOT_FOR_TYPING) == {"IAPP", "DAPI"}
 
 
-def test_every_registry_marker_has_a_compartment():
-    """A new channel must be placed deliberately, never default to the whole-cell mean."""
-    unplaced = [m for m in registry_markers()
+def test_every_typing_marker_has_a_compartment():
+    """A channel typing can use must be placed deliberately, never default to the cell mean."""
+    unplaced = [m for m in typing_markers()
                 if m not in C.NOT_FOR_TYPING and m not in C._ASSIGNMENT]
     assert unplaced == [], f"markers with no declared compartment: {unplaced}"
+
+
+def test_the_metabolic_exemption_covers_exactly_the_twelve_it_names():
+    """The exemption is a named maintainer ruling, and it may not widen on its own.
+
+    Every exempted marker must still be in the registry, still declare only `deferred_*`
+    uses, and still be the ONLY thing the compartment test lets through unplaced. If a 13th
+    channel arrives without a compartment this fails and someone has to decide about it,
+    which is the behaviour the original test was protecting.
+    """
+    entries = {m["name"]: m for m in _registry_entries()}
+    for name in DEFERRED_METABOLIC_PANEL:
+        assert name in entries, f"{name} is exempted but not in the registry"
+        uses = entries[name]["uses"]
+        assert uses and all(str(u).startswith("deferred_") for u in uses), (
+            f"{name} is exempted from placement but declares a live use: {uses}"
+        )
+
+    unplaced = {m for m in registry_markers()
+                if m not in C.NOT_FOR_TYPING and m not in C._ASSIGNMENT}
+    assert unplaced == set(DEFERRED_METABOLIC_PANEL), (
+        "the set of unplaced markers drifted from the recorded exemption: "
+        f"unexpected={sorted(unplaced - DEFERRED_METABOLIC_PANEL)}, "
+        f"now placed={sorted(DEFERRED_METABOLIC_PANEL - unplaced)}"
+    )
 
 
 def test_no_marker_is_in_two_compartments():
