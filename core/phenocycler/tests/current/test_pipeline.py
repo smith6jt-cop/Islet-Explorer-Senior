@@ -193,7 +193,7 @@ def test_pipelined_cli_dispatches_dependency_prefix_and_worker_overrides(
     monkeypatch.setattr(
         donor_pipeline,
         "run_pipelined_pipeline",
-        lambda passed, *, stages, export: dispatched.update(
+        lambda passed, *, stages, export, force=False: dispatched.update(
             context=passed,
             stages=stages,
             export=export,
@@ -335,3 +335,31 @@ def test_status_reports_partitions_on_disk_and_never_gates(capsys, tmp_path):
     assert "qupath      BLOCKED NO_VERIFIED_TYPING" in output
 
 
+
+
+def test_force_reaches_the_pipelined_path(monkeypatch, tmp_path):
+    """--force was accepted and silently ignored by --pipelined until 2026-09-16.
+
+    CLAUDE.md documents `run --config config.ini --pipelined --through expression` as THE
+    invocation, and run_pipelined_pipeline took no force parameter, so the flag parsed, did
+    nothing, and reported nothing. A flag that is accepted and ignored is worse than one that
+    is rejected.
+    """
+    from phenocycler import donor_pipeline
+
+    context = SimpleNamespace(
+        donors=("1", "2"),
+        registry=SimpleNamespace(production_status="verified"),
+        output_root=lambda stage: tmp_path / stage,
+    )
+    for donor in context.donors:
+        part = tmp_path / "geometry" / f"donor_id={donor}"
+        part.mkdir(parents=True)
+        (part / "data.parquet").write_bytes(b"x")
+
+    # Without force, present partitions are complete and nothing is pending.
+    assert donor_pipeline._initial_task_state(context, ("geometry",)) == {
+        donor_pipeline.DonorTask("geometry", d) for d in context.donors
+    }
+    # With force, every donor is pending again.
+    assert donor_pipeline._initial_task_state(context, ("geometry",), force=True) == set()
