@@ -376,45 +376,6 @@ build_avivator_iframe_url <- function(image_name, channel_config_b64 = NULL) {
   paste0(base, if (grepl("\\?", base)) "&" else "?", query)
 }
 
-#' List available OME-Zarr images.
-#'
-#' Priority order:
-#'   1. `ISLET_ZARR_MANIFEST` env var pointing at a newline-delimited file of
-#'      image stems (one per line) — most reliable for MinIO deployments.
-#'   2. `data/zarr_images/*.zarr` on the local filesystem (dev / prod where
-#'      the scaling conversion has been run).
-#'   3. Legacy `www/local_images/*.ome.tif[f]` (fallback for unconverted
-#'      deployments — the stems are still valid MinIO keys if the operator
-#'      has uploaded them).
-list_available_zarr_images <- function() {
-  manifest <- Sys.getenv("ISLET_ZARR_MANIFEST", "")
-  if (nzchar(manifest) && file.exists(manifest)) {
-    lines <- readLines(manifest, warn = FALSE)
-    lines <- trimws(lines)
-    lines <- lines[nzchar(lines) & !grepl("^#", lines)]
-    if (length(lines) > 0) return(lines)
-  }
-
-  zarr_root <- file.path(domain_data_root(), "zarr_images")
-  if (!is.null(project_root)) {
-    alt <- file.path(project_root, "data", "app_data", "zarr_images")
-    if (dir.exists(alt)) zarr_root <- alt
-  }
-  if (dir.exists(zarr_root)) {
-    dirs <- list.dirs(zarr_root, full.names = FALSE, recursive = FALSE)
-    dirs <- sub("\\.zarr$", "", dirs, ignore.case = TRUE)
-    if (length(dirs) > 0) return(dirs)
-  }
-
-  # Last-resort legacy fallback: expose OME-TIFF stems.
-  legacy_dir <- file.path("www", "local_images")
-  if (dir.exists(legacy_dir)) {
-    files <- list.files(legacy_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
-    return(sub("\\.ome\\.tiff?$", "", files, ignore.case = TRUE))
-  }
-
-  character(0)
-}
 
 # Build a base64-encoded channel configuration understood by embedded Avivator.
 # Expected shape (before base64):

@@ -379,7 +379,9 @@ IE_PIPELINE <- c(
     list(key = "Trajectory",    label = "Trajectory",    sub = "Pseudotime \u00b7 UMAP"),
     list(key = "Statistics",    label = "Statistics",    sub = "Mixed-effects tests"),
     list(key = "Spatial",       label = "Spatial",       sub = "Tissue map \u00b7 Leiden"),
-    list(key = "Neighborhoods", label = "Neighborhoods", sub = "Enrichment \u00b7 proximity")
+    list(key = "Neighborhoods", label = "Neighborhoods", sub = "Enrichment \u00b7 proximity"),
+    list(key = "CrossModal",    label = "Cross-Modal",    sub = "Xenium \u00b7 IF \u00b7 same slide"),
+    list(key = "LymphNode",     label = "Lymph Node",     sub = "Nodes \u00b7 compartments")
   ),
   if (SHOW_INFLAMMATION_TAB) list(
     list(key = "Inflammation", label = "Inflammation",

@@ -247,6 +247,8 @@ a:focus-visible, button:focus-visible, input:focus-visible,
             # Same module namespace -- a relocation of the three neighborhood
             # cards, not a second module.
             bslib::nav_panel_hidden("Neighborhoods", spatial_neighborhood_ui("spatial")),
+            bslib::nav_panel_hidden("CrossModal", crossmodal_ui("crossmodal")),
+            bslib::nav_panel_hidden("LymphNode",  lymphnode_ui("lymphnode")),
             # Hidden unless SHOW_INFLAMMATION_TAB=1 (see 00_globals.R).
             # navset_hidden drops NULL entries, so this mounts nothing when off
             # -- and IE_PIPELINE is gated on the same flag, so the rail can
@@ -413,6 +415,12 @@ server <- function(input, output, session) {
 
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
+
+  # Both tabs are thin registries over card_*.R files; see mod_crossmodal_ui.R.
+  crossmodal_server("crossmodal", prepared, cohort = cohort,
+                    active_tab = reactive(input$tabs))
+  lymphnode_server("lymphnode", prepared, cohort = cohort,
+                   active_tab = reactive(input$tabs))
 
   # Statistics module: wired to Plot module's reactive outputs.
   # It takes `raw_df_prezero`, NOT `raw_df`, so the Plot sidebar's zero-exclusion
