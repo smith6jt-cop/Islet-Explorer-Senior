@@ -223,6 +223,17 @@ def donor_markers(donor: str | None = None) -> dict | list:
     return out[donor] if donor is not None else out
 
 
+def _donor_spellings(donor: str) -> list:
+    """The ways one donor id is written on disk.
+
+    ``112`` and ``0112`` are the same donor: QuPath's export zero-pads, the UniFORM shift
+    table does not. Resolving by trying both beats renaming a partition, which would break
+    whichever consumer used the other spelling.
+    """
+    d = str(donor)
+    return list(dict.fromkeys([d, d.lstrip("0") or d, d.zfill(4)]))
+
+
 def markers_on_disk(donor: str) -> list:
     """What a donor OUTSIDE the acquisition table actually carries, read off its partition.
 
@@ -238,7 +249,9 @@ def markers_on_disk(donor: str) -> list:
     import numpy as np
     import pyarrow.parquet as pq
 
-    path = EXPRESSION / f"donor_id={donor}" / "data.parquet"
+    path = next((c for c in (EXPRESSION / f"donor_id={d}" / "data.parquet"
+                             for d in _donor_spellings(donor)) if c.exists()),
+                EXPRESSION / f"donor_id={donor}" / "data.parquet")
     if not path.exists():
         raise FileNotFoundError(
             f"donor {donor} is not in data/donor_acquisition_batch.csv and has no partition "

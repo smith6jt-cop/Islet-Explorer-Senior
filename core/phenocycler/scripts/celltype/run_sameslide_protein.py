@@ -6,24 +6,25 @@ This is Stage 5 of the streamlined Xenium plan, and under the user-directed orde
 context prior and the protein is the only measurement dense enough to supply one.  70-plex on
 the same physical section, against ~433 sparse transcripts of which ~29% are gDNA background.
 
-**The lane's step order holds.** Step 1 (marker usability, per donor) runs first and its
-verdict gates the markers scored here -- ``run_step1.py`` was made runnable on a donor outside
-the acquisition table rather than substituted for, and it rejects 0 of 58 markers on both.
-Step 3 (cosine behind the requirement gate) is reused unchanged. Step 2 is the one step that
-cannot run, and not for convenience: it is UniFORM alignment ACROSS THE COHORT, and both the
-plan and the maintainer's constraint are that nothing here is cohort-wide.
+**The lane's full step order runs.** Step 1 (marker usability, per donor) gates the markers
+scored here and rejects 0 of 58 on both donors. Step 2 (UniFORM) was re-run with these two
+donors inside the cohort -- ``shifts_22donor.json``, 22 donors, ``uniform_commit
+7c33396d...``, the commit ``uniform_adapter`` pins -- so this module reads the ALIGNED
+partitions and takes the COHORT scale from them, exactly as ``run_step3`` and ``run_islet``
+do. Step 3 (cosine behind the requirement gate) is reused unchanged.
 
-It is the stock :mod:`celltype` lane with the two cohort-wide steps removed, because these
-two donors are not part of the cohort that was aligned:
+An earlier version of this module derived a per-donor scale and carried the caveat that the
+two donors were therefore not comparable to each other. Step 2 removes it, and the alignment
+is visible in the values: median CD99 194.3 against 192.1 and median INS 9.8 against 11.2,
+where the uncorrected intensities differed by up to 10x. Per-marker, the shift table records
+the mode SD falling from 0.368 to 0.028.
 
-* **No UniFORM.**  ``run_step3`` reads ``data/development/celltype/uniform`` -- the Step-2
-  aligned partitions, which exist only for the 22 cohort donors.  These two are not in it.
-* **No cohort scale.**  ``run_step3.build_scale`` pools every donor onto one floor and one
-  top per marker.  Pooling two donors whose INS whole-cell means differ 10x (11.6 against
-  113.0) would put one of them entirely under the other's floor.  A per-donor scale is used
-  instead, and the cost is stated rather than hidden: **6533 and 0112 are not on a common
-  scale, so their scaled values are not comparable cell-for-cell between donors.**  Within a
-  donor they are, which is what a per-donor call needs.
+Neither ``run_step1`` nor ``run_step3`` could reach these donors, for reasons that were about
+plumbing rather than about the donors: both read fixed directories inside this checkout, and
+Step 1 reads the panel variant out of an acquisition table that has no row for a donor
+acquired later. ``CELLTYPE_EXPRESSION_DIR`` and ``CELLTYPE_ALIGNED_DIR`` point them at
+partitions that follow the same contract; a donor outside the acquisition table resolves its
+markers from its own partition. Nothing about what they measure changed.
 
 Everything that decides a cell type is reused unchanged -- ``rules.flatten`` /
 ``reference_matrix`` / ``requirements``, ``score.score_and_gate`` / ``call_from_scores``, and
@@ -78,7 +79,7 @@ DATA_ROOT = pathlib.Path(os.environ.get(
 
 OUT = panel.OUT / "sameslide_protein"
 
-DONORS = ("6533", "0112")
+DONORS = ("6533", "112")
 
 #: PhenoCycler qptiff pixel size, from the image metadata both donors declare.  The islet
 #: GeoJSONs are exported in qptiff PIXEL space while the cell table is already in microns, so
@@ -145,7 +146,7 @@ def step1_unusable(donor: str) -> list:
     import usability as U
 
     d = pd.read_parquet(STEP1)
-    d = d[d["donor_id"].astype(str) == str(donor)]
+    d = d[d["donor_id"].astype(str).isin(panel._donor_spellings(donor))]
     if d.empty:
         raise SystemExit(f"{STEP1} carries no rows for donor {donor}; re-run Step 1 with "
                          f"--donors including it.")
@@ -155,6 +156,12 @@ def step1_unusable(donor: str) -> list:
     return sorted(d.loc[bad, "marker"].tolist())
 
 def expression_path(donor: str) -> pathlib.Path:
+    """The raw expression partition. ``112`` and ``0112`` are the same donor -- see
+    :func:`panel._donor_spellings`."""
+    for d in panel._donor_spellings(donor):
+        p = DATA_ROOT / "expression" / f"donor_id={d}" / "data.parquet"
+        if p.exists():
+            return p
     return DATA_ROOT / "expression" / f"donor_id={donor}" / "data.parquet"
 
 
@@ -171,19 +178,17 @@ def load_expression(donor: str, markers: list) -> tuple:
     -- a marker silently left in place would enter the angle as a zero, which reads as
     "measured and absent" rather than "not measured".
     """
-    path = expression_path(donor)
-    handle = pq.ParquetFile(path)
-    on_disk = {f.name for f in handle.schema_arrow}
     keep = ["object_id", "qc_analysis_eligible", "cell_region", "islet_num",
-            "X_centroid", "Y_centroid", "image"]
-    keep = [c for c in keep if c in on_disk]
-    present = [m for m in markers if m in on_disk]
-    # The file, not the dataset: the partition directory carries donor_id as a dictionary
-    # key while the file carries it as a string, and merging the two schemas fails.
-    df = handle.read(columns=list(dict.fromkeys(present + keep))).to_pandas()
-    measured = [m for m in present
-                if np.isfinite(df[m].to_numpy("float64")).any()]
+            "X_centroid", "Y_centroid"]
+    df, measured, _ = S3._read_donor(donor, markers, keep, ratio=False)
+    measured = [m for m in measured if np.isfinite(df[m].to_numpy("float64")).any()]
     unmeasured = [m for m in markers if m not in measured]
+    # The object layers are keyed by IMAGE and the aligned partition does not carry it, so it
+    # comes from the expression partition -- one value per donor, read once.
+    path = expression_path(donor)
+    if path.exists():
+        df["image"] = str(pq.ParquetFile(path).read(columns=["image"]).to_pandas()
+                          ["image"].iloc[0])
     return df, measured, unmeasured
 
 
@@ -230,30 +235,6 @@ def audit_unmeasured(donor: str, unmeasured: list, Rm: pd.DataFrame, reqs: dict)
         print(f"    DROPPED -- a mandatory constraint or a whole OR-group is unmeasurable: "
               f"{dead}")
     return [p for p in Rm.columns if p not in dead]
-
-
-def donor_scale(df: pd.DataFrame, markers: list) -> pd.DataFrame:
-    """Per-donor floor and robust top, on this donor's analysis-eligible cells only.
-
-    The floor is the mode of ``log1p(value)`` over positive values -- the same estimator
-    ``run_step3.build_scale`` uses, kept identical so the two lanes mean the same thing by
-    "background" -- and the top is the 99.9th percentile rather than the maximum, so one hot
-    pixel cannot set the scale.  What differs from ``build_scale`` is only the pool: this
-    donor, not the cohort.
-    """
-    eligible = df[df["qc_analysis_eligible"]] if "qc_analysis_eligible" in df else df
-    pool, floors = {}, {}
-    for m in markers:
-        v = eligible[m].to_numpy("float64")
-        v = v[np.isfinite(v)]
-        pool[m] = v
-        pos = v[v > 0]
-        if len(pos) < 1000:
-            continue
-        h, e = np.histogram(np.log1p(pos), bins=512)
-        i = min(int(np.argmax(h[1:])) + 1, len(e) - 2)   # right edge of the modal bin
-        floors[m] = float(np.expm1(e[1:][i]))
-    return SC.marker_scale(pool, floors)
 
 
 def _load_islet_polygons(path: pathlib.Path) -> tuple:
@@ -361,7 +342,8 @@ def islet_regions(donor: str, df: pd.DataFrame) -> pd.DataFrame:
     if have_regions:
         return df[["cell_region", "islet_num"]].copy()
 
-    name = ISLET_GEOJSON.get(donor)
+    name = next((ISLET_GEOJSON[d] for d in panel._donor_spellings(donor)
+                 if d in ISLET_GEOJSON), None)
     if name is None:
         print(f"  {donor}: no islet annotation by either route -- no prior, every reference "
               f"competes on every cell")
@@ -437,7 +419,10 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
     rest = ~by_hormone & ~cd99
 
     out = sub.copy()
-    out["reason"] = np.where(by_hormone, "hormone_argmax", "cd99_islet_endocrine")
+    # "pending" is deliberate: step 4 claims every row it is handed, so a surviving "pending"
+    # after the cascade would be a routing bug, not a cell type. The assert below says so.
+    out["reason"] = np.where(by_hormone, "hormone_argmax",
+                             np.where(by_cd99, "cd99_islet_endocrine", "pending"))
     out["n_candidates"] = np.nan
     def _write(rows_in_core: np.ndarray, refs: list, reason: str) -> np.ndarray:
         """Score `rows_in_core` against `refs`; return who was actually called."""
@@ -475,11 +460,14 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
         # epithelial branch is out, because an endocrine cell satisfies those rules by
         # construction and this branch has already established the cell is not endocrine.
         _write(rest & ~placed, intruders, "marker_profile")
+    stranded = int((out["reason"] == "pending").sum())
+    if stranded:
+        raise AssertionError(f"{stranded} core cell(s) left the cascade unrouted")
     out.index = idx
     return out
 
-def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
-               require_min: float) -> tuple:
+def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, scale: pd.DataFrame,
+               intruders: list, require_min: float) -> tuple:
     """One donor's protein call: two regions, two reference sets, one prior.
 
     Identical in structure to ``run_islet.run_donor`` -- inside ``Islet_N`` only intruders may
@@ -505,7 +493,6 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
     if df.empty:
         return pd.DataFrame(), pd.DataFrame()
 
-    scale = donor_scale(df, have)
     unscalable = [m for m in have if not np.isfinite(scale.loc[m, "top"])]
     if unscalable:
         raise SystemExit(f"donor {donor}: no usable scale for {unscalable}")
@@ -519,7 +506,7 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
     if nuc_all.any():
         dfr, _ = SC.nuclear_ratio(df.copy(), have, "DAPI", panel.NUCLEUS_MEASURED)
         Xs_nuc = SC.apply_scale(dfr[have].to_numpy("float32"), have,
-                                donor_scale(dfr, have))
+                                S3._nuclear_scale(scale, [donor], have))
     else:
         Xs_nuc = None
 
@@ -576,15 +563,20 @@ def main() -> int:
           f"{len(intruders)} non-endocrine references")
     print(f"  not in that set, endocrine + epithelial branch ({len(excluded)}): {excluded}")
 
+    # The cohort floor and top, on the ALIGNED values -- the whole point of having run Step 2.
+    scale = S3.build_scale(args.donors, list(Rm.index), ratio=S3.NUCLEAR_RATIO)
+    print(f"  cohort scale over {len(args.donors)} aligned donor(s), "
+          f"{int(scale['top'].notna().sum())} markers")
+
     OUT.mkdir(parents=True, exist_ok=True)
     for d in args.donors:
         t = time.time()
-        calls, scale = call_donor(d, Rm, reqs, intruders, args.require_min)
+        calls, scale_used = call_donor(d, Rm, reqs, scale, intruders, args.require_min)
         if calls.empty:
             print(f"  {d}: no analysis-eligible cells"); continue
         p = OUT / f"donor_id={d}"; p.mkdir(parents=True, exist_ok=True)
         calls.to_parquet(p / "data.parquet", index=False)
-        scale.to_csv(p / "scale.csv")
+        scale_used.to_csv(p / "scale.csv")
         print(f"  {d}: {len(calls):,} cells called in {time.time()-t:.0f}s -> {p}")
         for region in ("core", "peri", "tissue"):
             g = calls[calls.cell_region == region]
