@@ -189,9 +189,14 @@ after expression with `--only states`; it is not part of the ordinary run.
 
 There is no adoption, resume, or recovery command any more —
 `adoption.py`, `resume.py`, and `recovery.py` were deleted on 2026-09-16 along
-with the run framework they served (see [Outputs](#outputs)). Rerunning
-`phenocycler.pipeline run` picks up any donor still missing output; `--force`
-reruns a donor/stage whose output is already present.
+with the run framework they served (see [Outputs](#outputs)). Granularity
+depends on which invocation you rerun: with `--pipelined` (the invocation
+above), each donor-stage is checked separately, so rerunning picks up any
+donor still missing output for that stage without redoing donors already
+written. Without `--pipelined`, the check is whole-stage: `run_stage` skips a
+stage the moment its output root has *any* content, so a partially-written
+stage missing one donor is not topped up automatically — `--force` reruns
+the whole stage (or donor-stage) whose output is already present.
 
 The donor-local dependency graph is fixed:
 
@@ -274,13 +279,22 @@ environment:
 Design and data caveats: **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
 Running the whole thing on HiPerGator: **[docs/HIPERGATOR.md](docs/HIPERGATOR.md)**.
 
-**Current status (verified 2026-09-03; run framework removed 2026-09-16).**
-Both modalities can be exported as geometry-profile cell tables. The
-PhenoCycler exporter reads the `expression` stage output plus same-run cell
-area; the Xenium importer ignores embedded label-shaped columns. Manifest, geometry export,
-Xenium import, raster/image registration, geometry QC, and geometry figures are live.
-Identity-dependent stages accept only exact native-key calls from configured, validated
-release directories; with those paths blank they fail before reading caches. Nothing in the
+**Current status (verified 2026-09-03; run framework removed 2026-09-16; release
+provenance changed to coverage-checked on `a1cd264`).** Both modalities can be
+exported as geometry-profile cell tables. The PhenoCycler exporter reads the
+`expression` stage output plus same-run cell area; the Xenium importer ignores
+embedded label-shaped columns. Manifest, geometry export, Xenium import,
+raster/image registration, geometry QC, and geometry figures are live.
+Identity-dependent stages accept only exact native-key calls from configured
+release directories; with those paths blank they fail before reading caches.
+Releases are **not** identity-pinned any more — the old `run_id` +
+`content_id` check compared against a stage manifest, and stage manifests
+were removed on 2026-09-16. What runs now is a coverage check: does the
+declared expression input resolve, and does it contain every donor the
+release claims. It refuses only a release that claims a donor its own
+declared input lacks; an input that does not resolve at all is recorded as
+`unverifiable:<reason>` on `PhenotypeRelease.provenance` rather than refused,
+and `integration --status` prints that value per modality. Nothing in the
 current upstream or integration workflow reads legacy phenotype output.
 
 ## Historical pair-calling note

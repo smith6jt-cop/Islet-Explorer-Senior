@@ -503,9 +503,14 @@ data/
 ```
 
 A donor's partition under a stage root (e.g. `expression/donor_id=<id>/`) is
-the only signal that stage is done for that donor: a present, non-empty
-partition is skipped on the next `run`, and `--force` reruns it regardless of
-whether the source data, registry, or code changed since. There is no
+the only signal that stage is done for that donor, but only the `--pipelined`
+donor queue checks it per donor: with `--pipelined`, a present, non-empty
+partition is skipped and a missing one is picked up on the next run, and
+`--force` reruns it regardless of whether the source data, registry, or code
+changed since. Without `--pipelined`, `run_stage` checks the whole stage
+output root, not individual donor partitions — any content there at all
+skips the entire stage, so a stage missing one donor's partition is not
+topped up by rerunning; `--force` there reruns the whole stage. There is no
 `run.json`, no per-donor receipt, and no manifest sealing a stage as complete.
 
 Runs made before 2026-09-16 remain, untouched, under `data/runs/<run_id>/` in
