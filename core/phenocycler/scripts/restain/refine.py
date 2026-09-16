@@ -76,8 +76,8 @@ def mutual_pairs(moving_xy: np.ndarray, fixed_xy: np.ndarray, *,
         return np.empty(0, int), np.empty(0, int), np.empty(0)
     tf_tree = cKDTree(fixed_xy)
     mv_tree = cKDTree(moving_xy)
-    d_mf, j = tf_tree.query(moving_xy, k=1)
-    _d_fm, i = mv_tree.query(fixed_xy, k=1)
+    d_mf, j = tf_tree.query(moving_xy, k=1, workers=-1)
+    _d_fm, i = mv_tree.query(fixed_xy, k=1, workers=-1)
     mutual = (i[j] == np.arange(len(moving_xy))) & (d_mf <= max_dist_um)
     idx = np.flatnonzero(mutual)
     return idx, j[idx], d_mf[idx]
@@ -99,8 +99,8 @@ def score_transform(tf: Transform, moving_xy: np.ndarray, fixed_xy: np.ndarray, 
     _i, _j, d = mutual_pairs(warped, fixed_xy, max_dist_um=max_dist_um)
 
     tree = cKDTree(fixed_xy)
-    d_all, _ = tree.query(warped, k=1)
-    d_null, _ = tree.query(warped + np.array([null_offset_um, 0.0]), k=1)
+    d_all, _ = tree.query(warped, k=1, workers=-1)
+    d_null, _ = tree.query(warped + np.array([null_offset_um, 0.0]), k=1, workers=-1)
 
     def q(a):
         return {} if a.size == 0 else {

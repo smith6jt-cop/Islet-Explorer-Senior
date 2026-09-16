@@ -47,6 +47,7 @@ class RegistrationInput:
     channel_names: tuple[str, ...]
     pyramid_shapes: tuple[tuple[int, int], ...]
     provenance_source: str
+    pixel_size_source: str = "qptiff XML PixelSizeMicrons"
 
 
 def _channel_name(description: str) -> str:
@@ -54,7 +55,8 @@ def _channel_name(description: str) -> str:
     return "" if match is None else match.group(1).strip()
 
 
-def qptiff_registration_facts(path: Path) -> dict:
+def qptiff_registration_facts(path: Path, *, allow_dtypes: tuple[str, ...] = ("uint8",),
+                              pixel_um_override: float | None = None) -> dict:
     """Read the image facts registration is allowed to use from qptiff XML.
 
     ``PixelSizeMicrons`` is exact acquisition metadata.  The TIFF resolution rational is only
@@ -78,8 +80,13 @@ def qptiff_registration_facts(path: Path) -> dict:
             pixel_values.extend(float(value) for value in matches)
         dtype = np.dtype(series.dtype)
 
-    if dtype != np.dtype("uint8"):
-        raise RegistrationInputError(f"{path.name}: registration expects uint8, found {dtype}")
+    # uint8 is a property of the post-Xenium IF cohort, not a requirement of registration:
+    # the correlation is computed on mean-subtracted, variance-normalised tiles. A
+    # PhenoCycler Fusion export is uint16. Widen only when a caller declares it, so the
+    # existing cohort keeps its exact guard.
+    if str(dtype) not in allow_dtypes:
+        raise RegistrationInputError(
+            f"{path.name}: registration expects {allow_dtypes}, found {dtype}")
     if not names or any(not name for name in names):
         raise RegistrationInputError(f"{path.name}: every qptiff channel must have an XML name")
     dapi = [i for i, name in enumerate(names) if name.strip().casefold() == "dapi"]
@@ -87,6 +94,19 @@ def qptiff_registration_facts(path: Path) -> dict:
         raise RegistrationInputError(
             f"{path.name}: expected exactly one literal DAPI channel, found {len(dapi)} in {names}")
     unique_px = sorted({float(value) for value in pixel_values})
+    if pixel_um_override is not None:
+        # Some exports carry no PixelSizeMicrons at all. The docstring's warning is about the
+        # TIFF resolution rational being approximate -- it is not an argument against a value
+        # measured from the data. For 6533 the scale is fitted from the cell GeoJSON against
+        # the measurement table's own micron centroids (0.507800 um/px, 24 nm median
+        # residual), which is stronger evidence than the tag would have been.
+        if not np.isfinite(pixel_um_override) or pixel_um_override <= 0:
+            raise RegistrationInputError(f"{path.name}: pixel_um override must be positive")
+        if unique_px and not np.isclose(unique_px[0], pixel_um_override, rtol=1e-3):
+            raise RegistrationInputError(
+                f"{path.name}: declared pixel_um {pixel_um_override} contradicts the XML "
+                f"value {unique_px[0]}")
+        unique_px = [float(pixel_um_override)]
     if len(unique_px) != 1 or not np.isfinite(unique_px[0]) or unique_px[0] <= 0:
         raise RegistrationInputError(
             f"{path.name}: expected one positive PixelSizeMicrons value, found {unique_px}")
@@ -99,6 +119,9 @@ def qptiff_registration_facts(path: Path) -> dict:
                 f"{expected} from level 0")
     return {
         "pixel_um": unique_px[0],
+        "pixel_size_source": ("registration inventory (fitted, cross-checked)"
+                              if pixel_um_override is not None
+                              else "qptiff XML PixelSizeMicrons"),
         "dapi_page": dapi[0],
         "channel_names": names,
         "pyramid_shapes": shapes,
@@ -151,7 +174,14 @@ def load_registration_inputs(
                 f"serial {serial}: registration inventory says donor {donor}, but "
                 f"{xenium_paths_csv.name} says {hit.donor_id}")
         qptiff = images_dir / str(row.image_file)
-        facts = qptiff_registration_facts(qptiff)
+        declared_px = getattr(row, "pixel_um", None)
+        declared_dt = getattr(row, "allow_dtype", None)
+        facts = qptiff_registration_facts(
+            qptiff,
+            allow_dtypes=(("uint8",) if declared_dt in (None, "")
+                          else tuple(str(declared_dt).split("|"))),
+            pixel_um_override=(None if declared_px in (None, "")
+                               else float(declared_px)))
         geojsons = sorted(geojson_dir.glob(f"*{serial}*.geojson*")) if geojson_dir.exists() else []
         if len(geojsons) > 1:
             raise RegistrationInputError(f"serial {serial} has multiple GeoJSON exports: {geojsons}")
@@ -164,6 +194,7 @@ def load_registration_inputs(
             bundle=bundle,
             geojson=geojsons[0] if geojsons else None,
             pixel_um=float(facts["pixel_um"]),
+            pixel_size_source=str(facts["pixel_size_source"]),
             dapi_page=int(facts["dapi_page"]),
             channel_names=tuple(facts["channel_names"]),
             pyramid_shapes=tuple(facts["pyramid_shapes"]),
@@ -200,12 +231,29 @@ def select_registration_inputs(
                   key=lambda record: (int(record.donor_id), record.serial))
 
 
+#: Xenium writes the DAPI morphology plane under two different names depending on the
+#: analysis version: ``morphology_focus_0000.ome.tif`` on the cohort this lane was built for,
+#: and ``ch0000_dapi.ome.tif`` on newer runs (0080870 is one). Channel 0 is DAPI either way,
+#: so resolve by trying both rather than pinning the older spelling.
+MORPHOLOGY_DAPI_NAMES = ("morphology_focus_0000.ome.tif", "ch0000_dapi.ome.tif")
+
+
+def morphology_dapi_path(bundle) -> Path:
+    """The bundle's DAPI morphology file, whichever naming this Xenium version used."""
+    focus = Path(bundle) / "morphology_focus"
+    for name in MORPHOLOGY_DAPI_NAMES:
+        candidate = focus / name
+        if candidate.is_file():
+            return candidate
+    return focus / MORPHOLOGY_DAPI_NAMES[0]
+
+
 def require_registration_files(record: RegistrationInput) -> None:
     """Fail before computation unless the three Xenium inputs are complete."""
     required = (
         record.bundle / "cells.parquet",
         record.bundle / "nucleus_boundaries.parquet",
-        record.bundle / "morphology_focus" / "morphology_focus_0000.ome.tif",
+        morphology_dapi_path(record.bundle),
     )
     missing = [str(path) for path in required if not path.is_file()]
     if missing:

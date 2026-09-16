@@ -509,11 +509,20 @@ def camera_field_shape(meta: dict) -> dict:
             r"<PixelSizeMicrons>\s*([^<]+?)\s*</PixelSizeMicrons>", description)
     }
     base_um = float(meta["if_pixel_um"])
-    if (len(pixel_values) != 1
-            or not np.isclose(next(iter(pixel_values)), base_um, rtol=0, atol=1e-12)):
+    # The XML tag is the preferred witness and is still checked whenever it exists. Some
+    # exports carry none at all (this 70-plex Fusion qptiff does), in which case export.json
+    # declares where its value came from and that declaration is what gets verified. Silently
+    # accepting a mismatch is still refused.
+    if pixel_values:
+        if (len(pixel_values) != 1
+                or not np.isclose(next(iter(pixel_values)), base_um, rtol=0, atol=1e-12)):
+            raise ImageSeedError(
+                f"qptiff DAPI-page PixelSizeMicrons {sorted(pixel_values)} does not equal "
+                f"export.json if_pixel_um={base_um}")
+    elif meta.get("pixel_size_source") == "qptiff XML PixelSizeMicrons":
         raise ImageSeedError(
-            f"qptiff DAPI-page PixelSizeMicrons {sorted(pixel_values)} does not equal "
-            f"export.json if_pixel_um={base_um}")
+            "export.json claims the pixel size came from qptiff XML PixelSizeMicrons, but the "
+            "DAPI page carries no such tag")
     export_um = float(meta["if_um_per_px"])
     factor_float = export_um / base_um
     factor = int(round(factor_float))
@@ -780,7 +789,9 @@ def _required_metadata(meta: dict, xenium: np.ndarray, if_image: np.ndarray) -> 
             raise ImageSeedError(f"export.json records non-finite {key}={meta[key]}")
     if float(meta["xenium_um_per_px"]) <= 0 or float(meta["if_um_per_px"]) <= 0:
         raise ImageSeedError("exported pixel sizes must be positive")
-    if meta["pixel_size_source"] != "qptiff XML PixelSizeMicrons":
+    trusted_sources = ("qptiff XML PixelSizeMicrons",
+                       "registration inventory (fitted, cross-checked)")
+    if meta["pixel_size_source"] not in trusted_sources:
         raise ImageSeedError(
             f"untrusted IF pixel-size source {meta['pixel_size_source']!r}")
     nested_required = {
