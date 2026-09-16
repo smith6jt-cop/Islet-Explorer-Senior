@@ -168,7 +168,7 @@ def test_serial_queue_obeys_dependencies_without_stage_barriers(
     monkeypatch.setattr(
         donor_pipeline,
         "_initial_task_state",
-        lambda *_: set(),
+        lambda *_, **__: set(),
     )
     monkeypatch.setattr(
         donor_pipeline,

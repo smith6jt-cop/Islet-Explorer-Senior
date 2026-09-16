@@ -277,7 +277,7 @@ def _partition_has_content(root: Path, donor_id: str) -> bool:
     return partition.exists() and any(partition.iterdir())
 
 
-def execute_donor_stage(context, stage: str, donor_id: str) -> str:
+def execute_donor_stage(context, stage: str, donor_id: str, *, force: bool = False) -> str:
     """Run one ready donor task. Present output is done; nothing is fingerprinted."""
 
     from .pipeline import _assert_stages_available
@@ -290,8 +290,8 @@ def execute_donor_stage(context, stage: str, donor_id: str) -> str:
 
     donor = str(donor_id)
     output_root = context.output_root(stage)
-    if _partition_has_content(output_root, donor):
-        print(f"[donor-skip] {stage}/{donor}: output present", flush=True)
+    if _partition_has_content(output_root, donor) and not force:
+        print(f"[donor-skip] {stage}/{donor}: output present (--force to rerun)", flush=True)
         return donor
     print(f"[donor-run] {stage}/{donor}", flush=True)
     _run_donor_stage_body(context, stage, donor)
@@ -503,7 +503,12 @@ def _stage_is_complete(context, stage: str) -> bool:
     return all(_partition_has_content(root, donor) for donor in context.donors)
 
 
-def _initial_task_state(context, stages: Sequence[str]) -> set[DonorTask]:
+def _initial_task_state(
+    context,
+    stages: Sequence[str],
+    *,
+    force: bool = False,
+) -> set[DonorTask]:
     """Tasks already done, judged by output on disk rather than by a receipt.
 
     Output present without a receipt used to raise PartialArtifactError and stop the
@@ -511,6 +516,8 @@ def _initial_task_state(context, stages: Sequence[str]) -> set[DonorTask]:
     not done yet -- the queue picks up the rest.
     """
 
+    if force:
+        return set()
     completed: set[DonorTask] = set()
     for stage in stages:
         root = context.output_root(stage)
@@ -651,6 +658,8 @@ def _terminate_executor_workers(
 def run_donor_queue(
     context,
     stages: Sequence[str],
+    *,
+    force: bool = False,
 ) -> None:
     """Execute a donor-stage DAG under explicit CPU/GPU/group limits."""
 
@@ -666,7 +675,7 @@ def run_donor_queue(
         raise ContractError(
             "pipelined donor stages must be a dependency prefix"
         )
-    completed = _initial_task_state(context, selected)
+    completed = _initial_task_state(context, selected, force=force)
     all_tasks = {
         DonorTask(stage, donor)
         for stage in selected
@@ -712,8 +721,14 @@ def run_pipelined_pipeline(
     *,
     stages: Sequence[str],
     export: bool,
+    force: bool = False,
 ):
-    """Run ingest as a barrier, then overlap ready donor stages."""
+    """Run ingest as a barrier, then overlap ready donor stages.
+
+    ``force`` reruns donors whose partition already has content. It was missing here until
+    2026-09-16, so ``--force --pipelined`` -- the invocation CLAUDE.md documents -- accepted
+    the flag and silently ignored it.
+    """
 
     from .pipeline import (
         STAGE_ORDER,
@@ -733,12 +748,12 @@ def run_pipelined_pipeline(
     context.run_root.mkdir(parents=True, exist_ok=True)
     if not selected:
         return run_pipeline(context, stages=(), export=False)
-    run_stage(context, "ingest")
+    run_stage(context, "ingest", force=force)
     donor_stages = tuple(
         stage for stage in selected if stage in DONOR_STAGES
     )
     if donor_stages:
-        run_donor_queue(context, donor_stages)
+        run_donor_queue(context, donor_stages, force=force)
     if export and "type" in selected:
         export_qupath(context)
     return run_pipeline(context, stages=(), export=False)

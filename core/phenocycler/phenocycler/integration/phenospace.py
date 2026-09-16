@@ -95,6 +95,21 @@ class PhenotypeRelease:
     donors: tuple[str, ...]
     space: PhenotypeSpace
     source: Path
+    provenance: str = "unchecked"
+    """Outcome of checking the declared expression input, never a content hash.
+
+    ``verified:<path>``            the declared input exists and covers every donor claimed
+    ``unverifiable:<reason>``      the declared input does not resolve, so nothing was checked
+
+    This exists because the old run_id + content_id pin was checked against a stage manifest,
+    and stage manifests were removed on 2026-09-16. A release naming a wrong content id would
+    otherwise load with no error and no trace -- the failure mode being silent was the problem,
+    not the failure mode being possible. A consumer that needs provenance reads this field;
+    `integration --status` prints it.
+
+    It deliberately cannot fire because package source changed: it reads only the filesystem
+    the release itself names.
+    """
 
     def calls_for(self, donor_id: str, roi: str = "") -> list[Path]:
         donor = str(donor_id)
@@ -280,17 +295,18 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     ).strip()
     # A PhenoCycler release used to pin an expression run_id + content_id, checked against
     # data/runs/<run_id>/manifests/expression.json. Stage manifests were removed on
-    # 2026-09-16, so there is nothing left to compare against.
+    # 2026-09-16, so there is nothing left to compare a content id against.
     #
-    # Measured before dropping it, against the real configuration: the comparison PASSED.
-    # The declared release broadtype-tasp-dev-20260906 pins run 30f6689e4d27d295f890 and a
-    # content_id equal to that run's expression manifest. So this check was not what kept
-    # phenotype export blocked -- it only ever failed when data_dir pointed somewhere the
-    # manifest did not exist. Dropping it changes no real behaviour. The stage-availability
-    # block in pipeline.py and the marker registry's production_status are the guards that
-    # do the scientific work, and both are untouched.
+    # What replaces it is coverage, not identity: does the declared input exist, and does it
+    # actually contain every donor this release claims to call? That catches the realistic
+    # wrong-id release -- one pointing at a tree that is gone, or claiming donors the data
+    # does not have -- without hashing anything, and it cannot fire because code changed.
     #
-    # run_id and content_id stay on the release as a record of provenance.
+    # A release whose input does not resolve is NOT refused. It is recorded as unverifiable,
+    # because refusing on a path that may simply be configured elsewhere is how the old check
+    # ended up failing for reasons unrelated to provenance. Silence was the defect; a hard
+    # gate is not the only cure for it.
+    provenance = _check_declared_input(expression, donors, source)
 
     columns = payload.get("columns", {})
     if not isinstance(columns, dict):
@@ -319,7 +335,61 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
         donors=donors,
         space=space,
         source=source,
+        provenance=provenance,
     )
+
+
+# core/phenocycler/phenocycler/integration/this_file.py -> parents[4] is the repository root.
+# parents[3] is core/, which resolves a repo-relative declared path only when the process
+# happens to be running from the repo root -- so --status reported "unverifiable" for a
+# release that is in fact verifiable.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _check_declared_input(
+    expression: Mapping[str, object],
+    donors: tuple[str, ...],
+    source: Path,
+) -> str:
+    """Check the declared expression input by coverage. Never by content hash.
+
+    Returns a ``verified:`` or ``unverifiable:`` string for
+    :attr:`PhenotypeRelease.provenance`. Raises only when the input resolves AND
+    contradicts the release -- a release that claims donors its own declared input does
+    not contain is wrong in a way no configuration explains.
+    """
+
+    declared = str(expression.get("path", "")).strip()
+    if not declared:
+        return "unverifiable:release declares no expression input path"
+
+    candidates = [Path(declared)]
+    if not Path(declared).is_absolute():
+        candidates.append(_REPO_ROOT / declared)
+    root = next((c for c in candidates if c.is_dir()), None)
+    if root is None:
+        # Expected for a release whose input lives on another machine, and for the
+        # synthetic releases in the test-suite. Recorded, not raised.
+        return f"unverifiable:declared input {declared} does not resolve"
+
+    present = {
+        p.name.split("=", 1)[1]
+        for p in root.glob("donor_id=*")
+        if "=" in p.name
+    }
+    # donor_id is not normalised across trees: 0112 and 112 are one donor.
+    normalised = {d.lstrip("0") or "0" for d in present}
+    missing = [
+        d for d in donors
+        if d not in present and (d.lstrip("0") or "0") not in normalised
+    ]
+    if missing:
+        raise PhenotypeSpaceError(
+            f"{source}: release claims donors its declared expression input does not "
+            f"contain: missing={sorted(missing)} under {root}. Either the release names "
+            "the wrong input or it claims calls it cannot have made."
+        )
+    return f"verified:{root}"
 
 
 def load_release_or_none(cfg: PipelineConfig, modality: str) -> Optional[PhenotypeRelease]:

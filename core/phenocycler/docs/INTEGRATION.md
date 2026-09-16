@@ -1,10 +1,26 @@
 # PhenoCycler ↔ Xenium integration
 
-> **Current boundary (verified 2026-09-03).** Geometry is live; identity is
+> **Current boundary (verified 2026-09-16).** Geometry is live; identity is
 > release-gated. `export_pheno` reads coordinates, areas, QuPath annotation
-> context, and identity-safe intensities from immutable core run
-> `30f6689e4d27d295f890`. It exported all 20 pancreas sections (25,150,537 cells)
-> without inventing a cell type. `import_xenium` likewise ignores embedded
+> context, and identity-safe intensities from the stable stage roots under
+> `core/phenocycler/data/` — `cells/`, `geometry_qc/`, `redsea/`, `expression/`.
+> It exported all 20 pancreas sections (25,150,537 cells) without inventing a
+> cell type.
+>
+> **The content-addressed run framework was removed on 2026-09-16.** There is no
+> `run_id`, no stage manifest and no `data/runs/<run_id>/`; a donor is done when
+> its partition has content. The 20-donor output above still lives only under
+> `data/runs/30f6689e4d27d295f890/`, which is now historical and written by
+> nothing — `_run_root()` reads the flat tree by default and that run by name.
+> Donors 6533 and 112 were added on 2026-09-16 and are in the flat tree only.
+>
+> **One check went away with it, and its absence is silent.** A PhenoCycler
+> identity release used to pin an expression `run_id` + `content_id`, checked
+> against that run's stage manifest. There are no stage manifests, so a release
+> naming a wrong content id now loads without complaint. Measured before removal:
+> against the real configuration the check PASSED, so no declared release changed
+> status — but nothing verifies one any more. `test_release_round_trip_carries_
+> provenance_without_enforcing_it` pins exactly that. `import_xenium` likewise ignores embedded
 > label-shaped columns unless an independently declared Xenium identity release
 > supplies an exact `cell_id` call set. Registration, geometry QC, and geometry
 > figures run without identity. Composition, structures, matching, and other
@@ -43,7 +59,8 @@ bypass provenance validation.
 
 ## Tissue
 
-The current immutable PhenoCycler run contains **20 pancreas sections**. All 20
+The PhenoCycler stage roots contain **20 pancreas sections** from the 2026-08-28 cohort
+run, plus donors 6533 and 112 added 2026-09-16 from the pLNpanc slides. The 20 all
 pair with Xenium pancreas sections. The Xenium source catalog also contains
 pancreatic-lymph-node sections, but this run contains no PhenoCycler pLN section,
 so those manifest rows remain `xenium_only`; configured tissue support is not
@@ -65,7 +82,7 @@ python -m phenocycler.integration.pipeline --roi pln_2                    # one 
 Stage runners take that scope and iterate observed manifest rows themselves — they are *not*
 called once per ROI, because several output paths are stage-level. Geometry stages run for
 sections that exist in the manifest. The PhenoCycler geometry exporter currently refuses any
-ROI other than `panc` because the immutable run has no other section to export. Identity
+ROI other than `panc` because no other PhenoCycler section has been exported. Identity
 stages preflight the modality-specific release or releases they consume before consulting
 cached outputs.
 
@@ -280,7 +297,7 @@ warning is too easy to scroll past.
 
 ```
 manifest      S0   donor ↔ Xenium-run pairing; stamps donor_id/roi into the data
-export_pheno  S1a  immutable-run geometry → cells_pheno/; optional exact release attachment
+export_pheno  S1a  stage-root geometry → cells_pheno/; optional exact release attachment
 import_xenium S1b  h5ad | SpatialData zarr | raw bundle → cells_xen/; labels release-only
 postxen       S1c  post-Xenium re-stain pairing                       [Xenium identity]
 vocab         S2   release-declared lineage vocabulary + marker/gene crosswalk

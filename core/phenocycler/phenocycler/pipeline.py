@@ -796,6 +796,7 @@ def main(argv=None) -> int:
             context,
             stages=stages,
             export=not args.no_export,
+            force=bool(getattr(args, "force", False)),
         )
         return 0
     run_pipeline(

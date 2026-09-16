@@ -202,6 +202,19 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
     attached_ids = ", ".join(
         getattr(load_release_or_none(cfg, m), "release_id", "?") for m in ("phenocycler", "xenium")
     ) if attached else ""
+    # Print whether each release's declared input could actually be checked. The old
+    # run_id + content_id pin was verified against a stage manifest; stage manifests were
+    # removed on 2026-09-16, so a release naming a wrong id now loads without error. Making
+    # that outcome visible here is the point -- an unverifiable release must not look the
+    # same as a verified one.
+    provenance_note = ""
+    if attached:
+        marks = []
+        for modality in ("phenocycler", "xenium"):
+            release = load_release_or_none(cfg, modality)
+            state = getattr(release, "provenance", "unchecked")
+            marks.append(f"{modality}={state.split(':', 1)[0]}")
+        provenance_note = "; provenance " + ", ".join(marks)
     print(f"  {'stage':<15} {'done':>5}  {'':<3} description")
     print("  " + "-" * 74)
     for name, pattern, label in STAGES:
@@ -217,7 +230,8 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
             mark = "BLOCKED"
             scope = "  [needs a cell identity; no verified pair roster. cached files ignored]"
         elif name in PHENO_IDENTITY_STAGES:
-            scope = f"  [identity attached: {attached_ids}; development releases, latch NO_VERIFIED_TYPING down]"
+            scope = (f"  [identity attached: {attached_ids}{provenance_note}; "
+                     "development releases, latch NO_VERIFIED_TYPING down]")
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:
