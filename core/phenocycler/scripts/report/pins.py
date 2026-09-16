@@ -108,8 +108,12 @@ XENIUM_COUNT_COLUMNS = {
 # --------------------------------------------------------------------------- output and text
 OUT = REPO / "data" / "development" / "report"
 PAIR_DIR = "_pair"
-#: The restain Explorer bundle is under a DO_NOT_SEND hold; this lane never reads from it.
-FORBIDDEN_SOURCE = REPO / "data" / "development" / "restain" / "explorer_bundle"
+#: The restain Explorer bundle's DO_NOT_SEND hold was LIFTED by the maintainer on 2026-09-15, and
+#: the FORBIDDEN_SOURCE constant that pinned it was retired with it. This lane still does not read
+#: the bundle -- that is now a scope decision rather than a prohibition. The bundle's own remaining
+#: constraints (the four registration-only donors' biological_channel_roles_unassigned latch, and
+#: the recorded 20-of-255 positivity cut sitting below its preregistered 0.75 AUROC bar) are
+#: unaffected by the lift and are documented in the bundle's DO_NOT_SEND.md.
 ISLET_YAML = REPO / "apps" / "islet" / "config" / "islet_default.yml"
 
 DEV_LINE = ("development evidence — registry latch NO_VERIFIED_TYPING down; "

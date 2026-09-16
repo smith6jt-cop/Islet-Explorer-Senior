@@ -113,9 +113,17 @@ def test_pair_figures_declared_once_per_module():
     assert set(ids) >= {"P06", "P07", "P08", "P09", "P10", "P11", "X04", "X05", "X06", "X07", "X08", "X09", "M01", "M02", "M03", "M04", "M05", "M06"} - {"X10"}
 
 
-def test_no_report_module_reads_the_explorer_bundle():
-    for f in HERE.parent.glob("*.py"):
-        assert "explorer_bundle" not in f.read_text() or f.name == "pins.py", f.name
+def test_explorer_bundle_pin_was_retired_with_the_hold():
+    """The DO_NOT_SEND hold was lifted by the maintainer on 2026-09-15.
+
+    This test used to enforce the prohibition (no report module may name explorer_bundle). That
+    prohibition is gone with the FORBIDDEN_SOURCE pin, so what is asserted now is the inverse: the
+    pin really was retired, and the comment that replaced it still records why. Stays synthetic --
+    it reads pins.py, never the bundle.
+    """
+    src = (HERE.parent / "pins.py").read_text()
+    assert "FORBIDDEN_SOURCE =" not in src, "the pin must go with the hold"
+    assert "lifted by the maintainer on 2026-09-15" in src.lower(), "record why it went"
 
 
 def test_dev_line_is_present_on_every_title():

@@ -35,4 +35,6 @@ cd core/phenocycler
 - Identity tier only: state markers appear in P06 as reported rows below the identity block, never as inputs; Xenium state subpanels are never drawn as identity evidence.
 - The two registrations are never conflated (M01 boxes); the transform is drawn only in M01 while the serial-section verdict is FAIL.
 - Title line 2 on every figure: development evidence, latch `NO_VERIFIED_TYPING` down, this method at this configuration on these donors. The footer prints run/content ids, code commit, and the release ids once they exist.
-- Nothing is copied out of `data/development/restain/explorer_bundle/` (the DO_NOT_SEND hold).
+- Nothing is copied out of `data/development/restain/explorer_bundle/`. This was the DO_NOT_SEND
+  hold; the maintainer lifted it on 2026-09-15 and the `FORBIDDEN_SOURCE` pin was retired with
+  it, so this is now a statement of what the lane does rather than a prohibition.
