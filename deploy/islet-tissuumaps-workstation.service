@@ -1,0 +1,37 @@
+# TissUUmaps tile server for the Islet Explorer Viewer tab -- WORKSTATION ONLY.
+#
+# NOT named islet-tissuumaps.service ON PURPOSE. deploy/islet-tissuumaps.container is a Podman
+# Quadlet unit for the RC PubApps VM, and Quadlet generates `islet-tissuumaps.service` from it.
+# A file of that name in ~/.config/systemd/user/ shadows the generator's output. This workstation
+# has neither podman nor docker, so it needs a native unit -- under a different name.
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now islet-tissuumaps-workstation
+#
+# Lingering is already enabled for smith6jt, so it survives logout.
+
+[Unit]
+Description=TissUUmaps tile server for the Islet Explorer Viewer tab (workstation)
+After=network.target
+
+[Service]
+Type=simple
+# `tissuumaps_server` is tissuumaps.__main__:main and never touches Qt. The `tissuumaps` script
+# is tissuumaps.gui:main and dies on missing PySide6 -- it is the desktop app, not the server.
+#
+# The POSITIONAL slide root is required and must be /data/tissuumaps: .tmap layers reference
+# `channels/<case>/...` and `regions/<case>.geojson` RELATIVELY, resolved against it.
+# tissuumaps.cfg sets SLIDE_DIR=/mnt/data/shared/, the container's mount point, which does not
+# exist here; __main__.py overwrites it from the positional argument. The cfg is still passed
+# because it is what sets READ_ONLY=True -- without it the Flask app serves a WRITABLE file
+# browser over the whole slide root.
+ExecStart=/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/.venv/bin/tissuumaps_server \
+    -l 127.0.0.1 -p 5100 \
+    -c /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/deploy/tissuumaps.cfg \
+    -r \
+    /data/tissuumaps
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -160,6 +160,17 @@ domain_expansion_class <- function(domain = NULL) .domain_path(ie_domain(domain)
 domain_expansion_display <- function(domain = NULL) .domain_path(ie_domain(domain), c("regions", "expansion", "display"), "Peri-unit")
 domain_expansion_um <- function(domain = NULL) as.numeric(.domain_path(ie_domain(domain), c("regions", "expansion", "distance_um"), 20))
 domain_structures <- function(domain = NULL) .domain_path(ie_domain(domain), c("regions", "structures"), list())
+#' What a composition view's denominator is, in one sentence, for the active dataset.
+#' Corrections change what it counts -- a detection with no nucleus is not a cell, and some
+#' classes are ruled out of analysis -- so the view says so rather than leaving the reader to
+#' assume "all cells". Empty for a dataset that declares none, which renders nothing.
+domain_denominator_note <- function(domain = NULL) .domain_path(ie_domain(domain), c("regions", "denominator_note"), "")
+
+#' What named the cells in this dataset, for the Plot tab's measure-group headings. The CODEX
+#' cohort's phenotypes came from scVI and its headings said so; the PhenoCycler run cohort's come
+#' from the subpanel classification, and a heading that still reads "(scVI)" tells the reader the
+#' wrong thing about where every number on the screen came from.
+domain_classifier_label <- function(domain = NULL) .domain_path(ie_domain(domain), c("phenotypes", "classifier_label"), "scVI")
 domain_structure_classes <- function(domain = NULL) vapply(domain_structures(domain), function(item) item$class, character(1))
 
 domain_excluded_markers <- function(domain = NULL) unlist(.domain_path(ie_domain(domain), c("markers", "excluded"), list()), use.names = FALSE)
@@ -175,3 +186,24 @@ domain_phenotype_colors <- function(domain = NULL) unlist(.domain_path(ie_domain
 domain_phenotype_aliases <- function(domain = NULL) unlist(.domain_path(ie_domain(domain), c("phenotypes", "aliases"), list()), use.names = TRUE)
 domain_phenotype_residuals <- function(domain = NULL) .domain_path(ie_domain(domain), c("phenotypes", "residuals"), list())
 domain_feature <- function(name, default = FALSE, domain = NULL) isTRUE(.domain_path(ie_domain(domain), c("features", name), default))
+
+# ---- per-dataset file locations -------------------------------------------
+# A DOMAIN names its own data. Configs written before this block carry no `data:` section, so
+# every accessor falls back to the historical data/app_data paths and their behaviour is
+# unchanged -- which is what keeps the CODEX build and the run cohort separate datasets rather
+# than one contaminated merge.
+
+#' Root directory for this domain's data files, relative to the app working directory.
+domain_data_root <- function(domain = NULL) {
+  .domain_path(ie_domain(domain), c("data", "root"),
+               file.path("..", "..", "data", "app_data"))
+}
+
+#' One named file from this domain's data root, or NULL when the domain does not declare it.
+#' @param key name under `data:` in the DOMAIN config (e.g. "islet_proportions")
+#' @param default file name to use when the config is silent
+domain_data_file <- function(key, default = NULL, domain = NULL) {
+  name <- .domain_path(ie_domain(domain), c("data", key), default)
+  if (is.null(name) || !nzchar(as.character(name))) return(NULL)
+  file.path(domain_data_root(domain), as.character(name))
+}

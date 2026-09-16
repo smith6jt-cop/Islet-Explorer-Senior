@@ -308,6 +308,138 @@ def disease_trend_figure(cfg: PipelineConfig,
     return out_path
 
 
+def cohort_registration_figure(cfg: PipelineConfig,
+                               out_path: Optional[Path] = None) -> Optional[Path]:
+    """Every donor's registration against the evidence the verdict actually rests on.
+
+    Reads the stored ``registration_qc.csv``, so it cannot agree with the registration by
+    construction. Three panels, and their order is the argument:
+
+    * **the primary bar** -- footprint NCC as a z against other placements of that same
+      footprint on that same section. Within-donor, so staining, cell density and disease
+      state are held fixed and only placement varies.
+    * **what the bar replaced** -- tissue Dice and footprint containment, kept because they
+      are measured, not because they decide anything. On donor 6436 both moved *against*
+      correctness.
+    * **what the transform is** -- rotation, and anisotropy against its bound, because a
+      one-axis stretch is the error that grows across a section and that no downstream
+      consumer can detect from the output.
+
+    A donor with no structures has no islet corroboration to show and is marked with a star
+    rather than drawn at zero: that is an absent measurement, not a bad one.
+    """
+    qc_path = cfg.integration_qc_dir / "registration_qc.csv"
+    if not qc_path.exists():
+        return None
+    qc = pd.read_csv(qc_path)
+    if "has_transform" in qc.columns:
+        qc = qc[qc["has_transform"].astype(bool)]
+    if qc.empty or "footprint_ncc_z" not in qc.columns:
+        return None
+    qc = qc.copy()
+    qc["donor_id"] = qc["donor_id"].astype(str)
+    # Ordered by the OBSERVED correlation, not by the z derived from it. The null mean is ~0
+    # on every donor, so the observation is already the effect size, and ordering by z instead
+    # sorts partly by how tight each donor's null happened to be.
+    qc = qc.sort_values("footprint_ncc", ascending=False, na_position="last")
+    donors = qc["donor_id"].tolist()
+    x = np.arange(len(donors))
+    colours = [{"PASS": "#2ca02c", "WARN": "#ff7f0e", "FAIL": "#d62728"}.get(str(v), "#777777")
+               for v in qc.get("verdict", ["" for _ in donors])]
+
+    def _num(col):
+        # qc.get(col) returns a scalar default when the column is absent, so go through an
+        # explicit Series rather than trusting the getter's return type.
+        series = qc[col] if col in qc.columns else pd.Series([np.nan] * len(qc))
+        return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+
+    fig, axes = plt.subplots(4, 1, figsize=(max(10, 0.62 * len(donors) + 4), 14), sharex=True)
+
+    # Panel 0 -- the raw evidence, before any statistic is derived from it. This exists
+    # because the z below is NOT comparable across donors: the null's spread varies 14-fold
+    # (sd 0.006 to 0.083), so a tight null turns a trivial correlation into a large z and a
+    # broad null buries a real one. Donor 6461 clears z>=5 on an NCC of 0.031 -- no
+    # correlation at all -- while 6539 reads 0.280, comparable to the verified-correct 6436,
+    # and lands at z=3.1. Plotting the observation against its own null is what shows that.
+    ax = axes[0]
+    ncc = _num("footprint_ncc")
+    nm, nsd = _num("footprint_null_mean"), _num("footprint_null_sd")
+    ax.bar(x, ncc, color=colours, edgecolor="white", lw=0.4, label="observed NCC")
+    ax.errorbar(x, nm, yerr=nsd, fmt="_", color="#333333", markersize=10, lw=1.2,
+                capsize=3, label="null: mean ± sd over other placements")
+    ax.set_ylabel("footprint NCC")
+    ax.set_title("The raw evidence.  Chance is ~0 for every donor — so the observed "
+                 "correlation IS the effect size.\n"
+                 "Bar height is what was measured; the black interval is what placement alone "
+                 "achieves on that same section.", fontsize=10)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.25)
+
+    ax = axes[1]
+    z = _num("footprint_ncc_z")
+    ax.bar(x, np.nan_to_num(z, nan=0.0), color=colours, edgecolor="white", lw=0.4)
+    ax.axhline(5.0, color="#333333", linestyle="--", lw=1.2, label="bar: z >= 5")
+    for i, v in enumerate(z):
+        if not np.isfinite(v):
+            ax.text(i, 0.2, "not\nmeasured", ha="center", va="bottom", fontsize=7,
+                    color="#777777")
+    ax.set_ylabel("footprint NCC, z against other\nplacements on this same section")
+    ax.set_title("The derived statistic, and why it cannot be the whole gate: z is "
+                 "(observed − null mean) / null sd,\n"
+                 "so it rewards a TIGHT null as much as a strong correlation.  "
+                 "Bar colour = verdict.", fontsize=10)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.25)
+
+    ax = axes[2]
+    ax.plot(x, _num("tissue_dice"), "o-", color="#1f77b4", lw=1.2, markersize=4,
+            label="tissue Dice")
+    ax.plot(x, _num("footprint_containment"), "s--", color="#9467bd", lw=1.2, markersize=4,
+            label="footprint containment")
+    ax.axhline(0.80, color="#d62728", linestyle=":", lw=1.2, label="the retired 0.80 Dice gate")
+    ax.set_ylabel("silhouette agreement")
+    ax.set_title("What the bar replaced — measured, reported, and deliberately not decisive.  "
+                 "Both FELL at 6436's correct transform (0.549→0.530, 0.910→0.890).",
+                 fontsize=10)
+    ax.legend(fontsize=8, loc="lower left")
+    ax.grid(axis="y", alpha=0.25)
+
+    ax = axes[3]
+    ax.bar(x, _num("rotation_deg"), color="#4c72b0", edgecolor="white", lw=0.4, zorder=1)
+    ax.set_ylabel("rotation (deg)", color="#4c72b0")
+    ax.tick_params(axis="y", labelcolor="#4c72b0")
+    ax.axhline(0.0, color="#333333", lw=0.8)
+    ax.grid(axis="y", alpha=0.25)
+    twin = ax.twinx()
+    # Above the bars, or the markers vanish behind them and the series reads as unplotted.
+    twin.set_zorder(ax.get_zorder() + 1)
+    twin.patch.set_visible(False)
+    twin.plot(x, _num("anisotropy"), "^", color="#c44e52", markersize=7, linestyle="none",
+              markeredgecolor="white", markeredgewidth=0.5, label="anisotropy", zorder=5)
+    twin.axhline(cfg.reg_max_anisotropy, color="#c44e52", linestyle="--", lw=1.2,
+                 label=f"bound {cfg.reg_max_anisotropy:.2f}", zorder=4)
+    twin.set_ylabel("anisotropy (sx/sy)", color="#c44e52")
+    twin.tick_params(axis="y", labelcolor="#c44e52")
+    twin.legend(fontsize=8, loc="upper right")
+    ax.set_title("What the transform is.", fontsize=10)
+
+    peak = _num("islet_peak_ratio")
+    axes[-1].set_xticks(x)
+    axes[-1].set_xticklabels([f"{d}{'' if np.isfinite(v) else ' *'}"
+                              for d, v in zip(donors, peak)], rotation=90, fontsize=8)
+    axes[-1].set_xlabel("donor   (* = no structures, so the islet criterion could not be "
+                        "tested — identity has not reached this donor)")
+
+    fig.suptitle("PhenoCycler → Xenium serial-section registration, whole cohort", fontsize=13)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+
+    out_path = out_path or (cfg.integration_figures_dir / "cohort_registration.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
                 *, roi: Optional[str] = None, tissue: Optional[str] = None) -> list[Path]:
     """Stage entry point: render everything that has data behind it."""
@@ -324,6 +456,11 @@ def run_figures(cfg: PipelineConfig, donors: Optional[list[str]] = None,
         if p:
             made.append(p)
             print(f"[figures] {p}", flush=True)
+
+    p = cohort_registration_figure(cfg)
+    if p:
+        made.append(p)
+        print(f"[figures] {p}", flush=True)
 
     attached = identity_attached(cfg)
     if attached:

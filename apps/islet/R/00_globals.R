@@ -135,10 +135,14 @@ try({
   }
 }, silent = TRUE)
 
-# Path constants
-master_path <- file.path("..", "..", "data", "app_data", "master_results.xlsx")
-h5ad_path   <- file.path("..", "..", "data", "app_data", "islet_explorer.h5ad")
-parquet_dir <- file.path("..", "..", "data", "app_data", "parquet")
+# Path constants. A DOMAIN may name its own data (see domain_data_root / domain_data_file in
+# ieCore); a config without a `data:` section falls back to data/app_data, so the CODEX build
+# is unaffected. This is what lets the PhenoCycler run cohort load as a SEPARATE dataset rather
+# than being merged into the CODEX one -- the two share five donors of twenty and do not share
+# a phenotype vocabulary, so a merged view would compare methods rather than biology.
+master_path <- domain_data_file("master", "master_results.xlsx")
+h5ad_path   <- domain_data_file("h5ad", "islet_explorer.h5ad")
+parquet_dir <- file.path(domain_data_root(), "parquet")
 project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE), error = function(e) NULL)
 
 # ---- DuckDB-backed data backend (Phase 1) ---------------------------------
@@ -348,6 +352,79 @@ SHOW_INFLAMMATION_TAB <- islet_flag_enabled(
   Sys.getenv("SHOW_INFLAMMATION_TAB", "0")
 )
 
+# ============================================================================
+# The rail's destinations (Modernist shell)
+# ============================================================================
+# Each `key` is the VALUE the hidden tabset receives, and Senior's keys are the
+# EXISTING tab labels rather than new lowercase ones. Junior's port renamed them
+# and then had to chase every `active_tab() != "Trajectory"`, every
+# `condition = "input.tabs == 'Plot'"` and viewer_server's own comparison. Here
+# the navset keeps the id `tabs` and the same values, so the rail is a new way
+# to reach the same tabs and nothing downstream of `input$tabs` changes.
+#
+# ORDER IS SENIOR'S OWN. Junior's redesign also reordered the tabs into its
+# reading of the workflow and split Spatial in two. That is information
+# architecture, not the look, and it was not what this port was asked for.
+#
+# The FIRST entry is what opens, and it is also what `navset_hidden` selects by
+# default -- app.R's `nav_panel_hidden` order is kept in step so the two agree
+# rather than one silently correcting the other on the first rail click.
+#
+# No cohort facts in `sub`: these strings are built once at startup, before any
+# dataset is loaded, so a channel count or a donor count written here would be a
+# claim about whichever domain happened to be configured first.
+IE_PIPELINE <- c(
+  list(
+    list(key = "Plot",          label = "Plot",          sub = "Islet size \u00b7 composition"),
+    list(key = "Trajectory",    label = "Trajectory",    sub = "Pseudotime \u00b7 UMAP"),
+    list(key = "Statistics",    label = "Statistics",    sub = "Mixed-effects tests"),
+    list(key = "Spatial",       label = "Spatial",       sub = "Tissue map \u00b7 Leiden"),
+    list(key = "Neighborhoods", label = "Neighborhoods", sub = "Enrichment \u00b7 proximity")
+  ),
+  if (SHOW_INFLAMMATION_TAB) list(
+    list(key = "Inflammation", label = "Inflammation",
+         sub = "Cell types \u00b7 immune localisation")
+  ) else list()
+)
+# KEY STAYS "Viewer"; only the LABEL changes. The key is the value the hidden
+# tabset receives, so it is what `input$tabs` returns and what
+# viewer_server()'s guard, the cohort bar's `input.tabs != 'Viewer'` and the
+# startup stopifnot all compare against. Renaming it would break four things
+# that have nothing to do with what the row says.
+IE_REFERENCE <- list(
+  list(key = "Viewer", label = "Tissuumaps", sub = "The images at full resolution")
+)
+IE_TAB_KEYS <- c(vapply(IE_PIPELINE,  `[[`, "", "key"),
+                 vapply(IE_REFERENCE, `[[`, "", "key"))
+
+#' Keep N selectInputs and one reactiveVal in step, whichever the user touches.
+#'
+#' Replaces two hand-written observer sets in app.R -- a pair for the phenotype
+#' palette and a triad for the donor palette -- that each restated the whole
+#' fan-out per writer. Adding the rail's copy of each selector would have made
+#' them a triad and a quartet of near-identical blocks, four places to forget
+#' one id. The guard against a feedback loop is the same as before: a writer
+#' that already agrees with the reactiveVal returns without updating anyone.
+#'
+#' @param ids character vector of NON-namespaced input ids. Every one is both a
+#'   writer and a follower.
+ie_sync_selects <- function(input, session, rv, ids) {
+  for (this_id in ids) {
+    local({
+      writer <- this_id
+      shiny::observeEvent(input[[writer]], {
+        value <- input[[writer]]
+        if (is.null(value) || identical(value, rv())) return()
+        rv(value)
+        for (other in setdiff(ids, writer)) {
+          shiny::updateSelectInput(session, other, selected = value)
+        }
+      }, ignoreInit = TRUE)
+    })
+  }
+  invisible(NULL)
+}
+
 # Robust click bridge for plotly scatters used by the islet drill-down.
 # On macOS, plotly's own click/drag discrimination can suppress `plotly_click`
 # entirely, so the server-side observer never fires (the symptom: clicking a
@@ -473,6 +550,9 @@ plotly_islet_strip_fonts <- function(gg,
 }
 
 # Standard PNG download dimensions for ggplot ggsave() in downloadHandlers.
+# Every such call also passes bg = "white" ON PURPOSE. theme_modernist() draws on a
+# transparent background so figures sit directly on the Modernist card; a transparent
+# PNG then inverts on a dark slide, so the saved file deliberately differs from the screen.
 # Default: 10x7 in at 300 dpi -> 3000x2100 px. Heatmaps use wider 12x8.
 ISLET_PNG_DIMS  <- list(width = 10, height = 7, dpi = 300, units = "in")
 ISLET_HEATMAP_PNG_DIMS <- list(width = 12, height = 8, dpi = 300, units = "in")
@@ -497,7 +577,7 @@ islet_png_filename <- function(stem) {
 # hand-written descriptions in PHENOTYPE_RESIDUALS below. The alias map
 # normalises PHENOTYPE_COLORS keys -> CSV keys for the four known mismatches.
 
-PHENOTYPE_RULES_PATH <- file.path("..", "..", "data", "app_data", "phenotype_rules.csv")
+PHENOTYPE_RULES_PATH <- file.path(domain_data_root(), "phenotype_rules.csv")
 
 # PHENOTYPE_COLORS-form -> CSV-form (and back via reverse lookup). Used to
 # resolve a UI label to its rule row.
@@ -505,7 +585,10 @@ PHENOTYPE_ALIASES <- domain_phenotype_aliases()
 
 # Phenotypes with no CSV row — residuals from the upstream pipeline.
 # Each entry: list(parent, pos, neg, anypos_groups, description).
-PHENOTYPE_RESIDUALS <- list(
+# This is a CATALOGUE, not the active set: .PHENOTYPE_RESIDUAL_CATALOGUE is filtered below to
+# the phenotypes the active domain actually has. Unfiltered, the run cohort's rules modal listed
+# four CODEX phenotypes (ECAD+, APCs, Structural, Unknown) that its typing never produces.
+.PHENOTYPE_RESIDUAL_CATALOGUE <- list(
   `ECAD+` = list(
     parent = "Epithelial", pos = character(), neg = character(),
     anypos_groups = list(),
@@ -528,6 +611,22 @@ PHENOTYPE_RESIDUALS <- list(
   )
 )
 
+# The active set: the catalogue entries this domain's vocabulary contains, plus anything the
+# domain config declares itself. A residual the domain never displays is not a residual here.
+PHENOTYPE_RESIDUALS <- local({
+  vocabulary <- tryCatch(domain_phenotype_order(), error = function(e) character())
+  kept <- .PHENOTYPE_RESIDUAL_CATALOGUE[names(.PHENOTYPE_RESIDUAL_CATALOGUE) %in% vocabulary]
+  declared <- tryCatch(domain_phenotype_residuals(), error = function(e) list())
+  for (entry in declared) {
+    name <- entry[["name"]]
+    if (is.null(name) || name %in% names(kept)) next
+    kept[[name]] <- list(parent = entry[["parent"]] %||% "all", pos = character(),
+                         neg = character(), anypos_groups = list(),
+                         description = entry[["description"]] %||% NA_character_)
+  }
+  kept
+})
+
 # Parse the CSV into a named list of rule records keyed by phenotype name.
 # Returns NULL if the file is missing — callers should guard.
 .parse_phenotype_rules_csv <- function(path) {
@@ -537,9 +636,16 @@ PHENOTYPE_RESIDUALS <- list(
   }
   raw <- utils::read.csv(path, header = FALSE, stringsAsFactors = FALSE,
                          na.strings = c("", "NA"), check.names = FALSE)
-  # Row 1 is the header; columns 3..N are marker names.
-  markers <- as.character(raw[1, 3:ncol(raw)])
-  markers <- markers[!is.na(markers) & nzchar(markers)]
+  # Row 1 is the header; columns 3..N are marker names. An optional trailing column
+  # headed `description` carries the rule in prose — needed where the call is not a flat
+  # marker gate (the run cohort's classification asks a different question per context and
+  # compares against a reference level, which "CD3e+, CD68+" would misstate as a plain OR).
+  header <- as.character(raw[1, ])
+  desc_col <- which(tolower(trimws(header)) %in% c("description", "notes"))
+  desc_col <- if (length(desc_col)) desc_col[[1]] else NA_integer_
+  marker_cols <- setdiff(seq.int(3, ncol(raw)), desc_col)
+  marker_cols <- marker_cols[!is.na(header[marker_cols]) & nzchar(header[marker_cols])]
+  markers <- header[marker_cols]
   data_rows <- raw[-1, , drop = FALSE]
   rules <- list()
   for (i in seq_len(nrow(data_rows))) {
@@ -547,7 +653,10 @@ PHENOTYPE_RESIDUALS <- list(
     if (is.na(pheno) || !nzchar(pheno)) next
     parent <- as.character(data_rows[i, 1])
     parent <- if (is.na(parent) || !nzchar(parent)) "all" else parent
-    vals <- as.character(data_rows[i, 3:(2 + length(markers))])
+    description <- if (is.na(desc_col)) NA_character_
+                   else as.character(data_rows[i, desc_col])
+    if (!is.na(description) && !nzchar(description)) description <- NA_character_
+    vals <- as.character(data_rows[i, marker_cols])
     names(vals) <- markers
     pos <- names(vals)[!is.na(vals) & vals == "pos"]
     neg <- names(vals)[!is.na(vals) & vals == "allneg"]
@@ -559,13 +668,21 @@ PHENOTYPE_RESIDUALS <- list(
       pos           = pos,
       neg           = neg,
       anypos_groups = anypos_groups,
-      description   = NA_character_
+      description   = description
     )
   }
   rules
 }
 
 PHENOTYPE_RULES_CSV_RAW <- .parse_phenotype_rules_csv(PHENOTYPE_RULES_PATH)
+
+# The markers that file actually declares, for the modal footer. Empty when no file.
+PHENOTYPE_RULES_MARKERS <- if (is.null(PHENOTYPE_RULES_CSV_RAW)) {
+  character()
+} else {
+  unique(unlist(lapply(PHENOTYPE_RULES_CSV_RAW,
+                       function(r) c(r$pos, r$neg, unlist(r$anypos_groups)))))
+}
 
 # Compose hierarchical rules: a sub-rule (e.g. "CD8 T cell") inherits the
 # positive/negative requirements of its parent chain ("T cell" -> "Immune").
@@ -675,8 +792,12 @@ format_phenotype_rule <- function(name, style = c("inline", "html", "plain")) {
   if (nzchar(neg_txt)) paste0(pos_txt, "  —  ", neg_txt) else pos_txt
 }
 
-# Order in which phenotypes are shown in the reference modal — endocrine first,
-# then immune (T cell subtypes grouped), then structural/endothelial, residuals last.
+# Fallback order for the reference modal — endocrine first, then immune (T cell subtypes
+# grouped), then structural/endothelial, residuals last. The ACTIVE domain's declared
+# `phenotypes.display_order` takes precedence; this list only covers names it omits, and is
+# the whole order for a domain that declares none. Unqualified, this CODEX-shaped literal
+# shares four spellings with the run cohort and sorted its other four alphabetically, so the
+# modal opened on Exocrine with the endocrine classes scattered below.
 PHENOTYPE_DISPLAY_ORDER <- c(
   "Beta cell", "Alpha cell", "Delta cell", "Endocrine",
   "Acinar", "Ductal", "Exocrine",
@@ -694,8 +815,9 @@ phenotype_rules_table_df <- function() {
   all_names <- c(csv_names, names(PHENOTYPE_RESIDUALS))
   all_names <- unique(all_names)
   # Order: known order first, then anything else alphabetical.
-  ordered <- c(intersect(PHENOTYPE_DISPLAY_ORDER, all_names),
-               sort(setdiff(all_names, PHENOTYPE_DISPLAY_ORDER)))
+  preferred <- tryCatch(domain_phenotype_order(), error = function(e) character())
+  preferred <- c(preferred, setdiff(PHENOTYPE_DISPLAY_ORDER, preferred))
+  ordered <- c(intersect(preferred, all_names), sort(setdiff(all_names, preferred)))
   rows <- lapply(ordered, function(nm) {
     rule <- get_phenotype_rule(nm)
     if (is.null(rule)) {
@@ -728,19 +850,19 @@ phenotype_rules_table_df <- function() {
 phenotype_rules_modal_ui <- function() {
   df <- phenotype_rules_table_df()
   header_row <- shiny::tags$tr(
-    shiny::tags$th("Phenotype",          style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Category",           style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Positive markers",   style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Negative markers",   style = "text-align:left; padding:6px 10px;"),
-    shiny::tags$th("Notes",              style = "text-align:left; padding:6px 10px;")
+    shiny::tags$th("Phenotype",          style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Category",           style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Positive markers",   style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Negative markers",   style = "text-align:left; padding:6px 10px"),
+    shiny::tags$th("Notes",              style = "text-align:left; padding:6px 10px")
   )
   body_rows <- lapply(seq_len(nrow(df)), function(i) {
     shiny::tags$tr(
-      shiny::tags$td(shiny::tags$strong(df$Phenotype[i]), style = "padding:6px 10px;"),
-      shiny::tags$td(df$Category[i],                       style = "padding:6px 10px; color:#555;"),
-      shiny::tags$td(df$Positive[i],                       style = "padding:6px 10px;"),
-      shiny::tags$td(df$Negative[i],                       style = "padding:6px 10px; color:#666;"),
-      shiny::tags$td(df$Notes[i],                          style = "padding:6px 10px; color:#444; font-size: 13px;")
+      shiny::tags$td(shiny::tags$strong(df$Phenotype[i]), style = "padding:6px 10px"),
+      shiny::tags$td(df$Category[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Positive[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Negative[i],                       style = "padding:6px 10px"),
+      shiny::tags$td(df$Notes[i],                          style = "padding:6px 10px; font-size: 13px")
     )
   })
   shiny::modalDialog(
@@ -749,24 +871,30 @@ phenotype_rules_modal_ui <- function() {
     footer = shiny::modalButton("Close"),
     shiny::tags$p(
       "Every cell in the app is classified into one of these phenotypes by the upstream ",
-      shiny::tags$code("data/phenotype_rules.csv"), " gating rules. A ",
+      shiny::tags$code(PHENOTYPE_RULES_PATH), " rules. A ",
       shiny::tags$code("+"),
       " means the marker is required to be positive; a ",
       shiny::tags$code("−"),
-      " means it must be negative. “any of X+ / Y+” means at least one of the listed markers must be positive."
+      " means it must be negative. “any of X+ / Y+” means at least one of the listed markers must be positive.",
+      " Where a phenotype's Notes column is filled, the call is not a flat marker gate and the note",
+      " is the rule — read it rather than the marker columns."
     ),
-    shiny::tags$div(style = "max-height: 60vh; overflow-y: auto; border-top: 1px solid #ddd;",
+    shiny::tags$div(style = "max-height: 60vh; overflow-y: auto",
       shiny::tags$table(
         class = "table table-striped",
-        style = "width: 100%; font-size: 14px; margin: 0;",
+        style = "width: 100%; font-size: 14px; margin: 0",
         shiny::tags$thead(header_row),
         shiny::tags$tbody(body_rows)
       )
     ),
-    shiny::tags$p(style = "margin-top: 10px; font-size: 12px; color: #777;",
-      "Rule source: ",
-      shiny::tags$code("data/phenotype_rules.csv"),
-      " (18 markers: CD99, INS, GCG, SST, SMA, CD20, CD3e, CD68, CD163, CD8a, CD4, HLADR, PDPN, CD34, CD31, B3TUBB, CD56)."
+    shiny::tags$p(style = "margin-top: 10px; font-size: 12px",
+      # The marker list is read from the file that was actually parsed: the two domains carry
+      # different panels, and a hard-coded list names the wrong markers for one of them.
+      "Rule source: ", shiny::tags$code(PHENOTYPE_RULES_PATH),
+      if (length(PHENOTYPE_RULES_MARKERS))
+        paste0(" (", length(PHENOTYPE_RULES_MARKERS), " markers: ",
+               paste(PHENOTYPE_RULES_MARKERS, collapse = ", "), ").")
+      else "."
     )
   )
 }
@@ -836,12 +964,12 @@ feature_display_label <- function(col) {
 phenotype_rules_button <- function(input_id,
                                    label = "Phenotype rules — marker definitions") {
   shiny::tags$div(
-    style = "margin-bottom: 12px; padding: 8px 14px; background-color: #eef4fb; border: 1px solid #c8d8e9; border-radius: 6px; display: inline-block;",
+    style = "margin-bottom: 12px; padding: 8px 14px; display: inline-block",
     shiny::actionLink(input_id,
-      shiny::tagList(shiny::icon("dna", style = "color:#4477AA;"),
-                     shiny::tags$span(style = "margin-left:6px; color:#2a4d75; font-weight:600;",
+      shiny::tagList(shiny::icon("dna"),
+                     shiny::tags$span(style = "margin-left:6px; font-weight:600",
                                       label)),
-      style = "text-decoration: none;")
+      style = "text-decoration: none")
   )
 }
 
@@ -855,14 +983,14 @@ phenotype_hint_ui <- function(name, prefix = "Markers:",
   rule_html <- format_phenotype_rule(name, "html")
   link <- if (!is.null(show_modal_link)) {
     shiny::tagList(
-      shiny::tags$span(style = "color:#888;", " · "),
+      shiny::tags$span(" · "),
       shiny::actionLink(show_modal_link, "see all rules →",
-                        style = "font-size: 12px; color: #4477AA;")
+                        style = "font-size: 12px")
     )
   }
   shiny::tags$div(
-    style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; background-color: #f7f9fc; border-left: 3px solid #4477AA; border-radius: 3px; font-size: 13px; color: #333; line-height: 1.4;",
-    shiny::tags$strong(style = "color:#4477AA;", paste0(prefix, " ")),
+    style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; font-size: 13px; line-height: 1.4",
+    shiny::tags$strong(paste0(prefix, " ")),
     shiny::tags$span(rule_html),
     link
   )

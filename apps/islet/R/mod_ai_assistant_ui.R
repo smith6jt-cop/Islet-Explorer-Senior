@@ -1,19 +1,19 @@
 ai_assistant_ui <- function(id) {
   ns <- NS(id)
   div(class = "card ai-chat-panel",
-    style = "margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px;",
+    style = "margin-bottom: 20px; padding: 15px; height: clamp(715px, 84.5vh - 97px, 1560px); display: flex; flex-direction: column; gap: 12px",
     div(
       class = "ai-chat-header",
-      style = "display: flex; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(44, 90, 160, 0.15);",
-      tags$img(src = "logo.png", alt = "Islet Explorer logo", style = "height: 80px; margin-right: 15px;"),
+      style = "display: flex; align-items: center; padding-bottom: 12px",
+      tags$img(src = "logo.png", alt = "Islet Explorer logo", style = "height: 80px; margin-right: 15px"),
       div(
-        style = "flex: 1;",
+        style = "flex: 1",
         span("Powered by Mab Lab and University of Florida Navigator AI Toolkit",
-             style = "font-size: 14px; font-weight: bold; color: #333;")
+             style = "font-size: 14px; font-weight: bold")
       )
     ),
     uiOutput(ns("chat_status"), container = div, class = "ai-chat-status"),
-    div(style = "flex: 1; overflow-y: auto;",
+    div(style = "flex: 1; overflow-y: auto",
       uiOutput(ns("chat_history"), container = div, class = "ai-chat-history")
     ),
     div(

@@ -395,7 +395,7 @@ list_available_zarr_images <- function() {
     if (length(lines) > 0) return(lines)
   }
 
-  zarr_root <- file.path("..", "..", "data", "app_data", "zarr_images")
+  zarr_root <- file.path(domain_data_root(), "zarr_images")
   if (!is.null(project_root)) {
     alt <- file.path(project_root, "data", "app_data", "zarr_images")
     if (dir.exists(alt)) zarr_root <- alt

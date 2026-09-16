@@ -9,12 +9,26 @@ traj_min_cells_value <- function(x) {
   if (length(v) == 1 && is.finite(v) && v >= 1) v else 1
 }
 
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own inputs, which is what the testthat suite and
+#'   any standalone use get; app.R always passes one.
 trajectory_server <- function(id, prepared, selected_islet, forced_image, active_tab = reactive("Trajectory"),
                               donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                               remove_outliers = reactive(FALSE),
-                              outlier_threshold = reactive(3.0)) {
+                              outlier_threshold = reactive(3.0),
+                              cohort = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Min cells/islet, from the cohort panel when it is mounted. This tab bound
+    # the same slider to `total_cells`, which is CORE ONLY, where every other
+    # tab used core+peri -- so the identical number meant a different subset
+    # here. The panel takes `cells_expr` for exactly that reason, and this tab
+    # asks for "core".
+    traj_min_cells <- reactive({
+      if (!is.null(cohort)) return(traj_min_cells_value(cohort$spec()$min_cells))
+      traj_min_cells_value(input$min_cells)
+    })
 
     validated_pt_mode <- reactive({
       value <- input$pt_mode %||% "core"
@@ -27,7 +41,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     # ---------- H5AD Path Resolution ----------
     resolve_traj_path <- function() {
       cand <- c(
-        file.path("..", "..", "data", "app_data", "adata_ins_root.h5ad"),
+        file.path(domain_data_root(), "adata_ins_root.h5ad"),
+        domain_data_file("adata_ins_root"),
         file.path("..", "..", "scripts", "adata_ins_root.h5ad"),
         if (!is.null(project_root)) file.path(project_root, "data", "app_data", "adata_ins_root.h5ad") else NULL,
         if (!is.null(project_root)) file.path(project_root, "scripts", "adata_ins_root.h5ad") else NULL,
@@ -82,7 +97,14 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       obs  <- tryCatch(ad$obs,  error = function(e) NULL)
       obsm <- tryCatch(ad$obsm, error = function(e) NULL)
       uns  <- tryCatch(ad$uns,  error = function(e) NULL)
-      var_names <- tryCatch(rownames(ad$var), error = function(e) NULL)
+      # `rownames(ad$var)` returns NULL for an anndata-R object -- measured, and it
+      # is why tr$var_names has always been NULL and every category in the
+      # feature selector came up empty. `ad$var_names` is a pandas Index proxy,
+      # so it needs converting before R sees eight strings rather than one
+      # object that prints like a list.
+      var_names <- tryCatch(
+        as.character(reticulate::py_to_r(ad$var_names)),
+        error = function(e) tryCatch(rownames(ad$var), error = function(e2) NULL))
 
       if (is.null(obs)) {
         traj(list(error = "Could not extract obs data from AnnData", error_detail = NULL))
@@ -188,22 +210,23 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                            choices = c("No features available" = ""), selected = ""))
       }
 
-      # Get available features from AnnData
-      available_features <- NULL
-      if (!is.null(tr$var_names)) {
-        available_features <- tr$var_names
-      } else {
-        # Fallback - try to get from the loaded trajectory
-        tryCatch({
-          adata_path <- resolve_traj_path()
-          if (!is.null(adata_path) && file.exists(adata_path)) {
-            adata <- anndata::read_h5ad(adata_path)
-            available_features <- rownames(adata$var)
-          }
-        }, error = function(e) NULL)
+      # TWO KINDS OF FEATURE, and the file genuinely carries both.
+      #
+      # `var_names` is the ISLET COMPOSITION -- the eight cell classes the
+      # trajectory itself was built from. obsm["X_marker_mean"] is the per-islet
+      # MARKER means added by build_islet_marker_means.py. The y-axis here reads
+      # "normalized expression", which is marker language, so markers lead; the
+      # composition stays reachable because it is what the ordering rests on.
+      marker_features <- {
+        nm <- marker_mean_names()
+        if (is.null(nm)) character(0) else {
+          core <- nm[!grepl("^marker_mean_peri_", nm)]
+          stats::setNames(core, sub("^marker_mean_", "", core))
+        }
       }
+      available_features <- tr$var_names %||% character(0)
 
-      if (is.null(available_features) || length(available_features) == 0) {
+      if (!length(available_features) && !length(marker_features)) {
         return(selectInput(ns("traj_feature"), "Select Feature:",
                            choices = c("No features available" = ""), selected = ""))
       }
@@ -231,8 +254,22 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (length(neural_markers)   > 0) choices[["Neural Markers"]]   <- setNames(neural_markers, neural_markers)
       if (length(other_markers)    > 0) choices[["Other Features"]]   <- setNames(other_markers, other_markers)
 
-      # Default selection
-      default_feature <- if ("INS" %in% available_features) "INS" else available_features[1]
+      # Markers first: they are what "expression" on the y-axis means.
+      if (length(marker_features)) {
+        hormone <- marker_features[names(marker_features) %in% c("INS", "GCG", "SST")]
+        rest    <- marker_features[!names(marker_features) %in% c("INS", "GCG", "SST")]
+        rest    <- rest[!names(rest) %in% EXCLUDED_MARKERS]
+        if (length(hormone)) choices[["Hormone markers"]] <- hormone
+        if (length(rest))    choices[["Markers"]]         <- rest
+      }
+      if (length(available_features)) {
+        choices[["Islet composition"]] <- setNames(available_features, available_features)
+      }
+
+      # Default selection: INS if the markers are there, else whatever leads.
+      default_feature <- if ("INS" %in% names(marker_features)) unname(marker_features[["INS"]])
+                         else if (length(marker_features)) unname(marker_features[[1]])
+                         else available_features[1]
 
       selectInput(ns("traj_feature"), "Select Feature:",
                   choices = choices,
@@ -244,9 +281,15 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       selected_feature <- input$traj_feature
       if (is.null(selected_feature)) return(NULL)
       tr <- traj()
-      if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
+      if (is.null(tr) || !is.null(tr$error)) return(NULL)
+      # The selector offers two vocabularies now: a marker mean from
+      # obsm["X_marker_mean"] (value prefixed `marker_mean_`) or one of the
+      # eight composition classes from var_names. Both are legitimate y-axes and
+      # the validator has to accept either, or picking a marker silently
+      # returns NULL and the tab goes blank with no message.
+      allowed <- c(tr$var_names %||% character(0), marker_mean_names() %||% character(0))
       if (!islet_valid_scalar_choice(
-        selected_feature, tr$var_names, "trajectory_feature_invalid"
+        selected_feature, allowed, "trajectory_feature_invalid"
       )) return(NULL)
 
       list(feature = selected_feature, status = "ready")
@@ -273,16 +316,25 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         if (is.null(adata)) return(NULL)
       }
 
-      var_names <- rownames(adata$var)
-      if (!selected_feature %in% var_names) return(NULL)
+      # NOT rownames(adata$var) -- that is NULL for an anndata-R object, which is
+      # the bug that left this selector empty in the first place.
+      var_names <- tr$var_names %||% character(0)
+      marker_names <- marker_mean_names() %||% character(0)
+      is_marker <- selected_feature %in% marker_names
+      if (!is_marker && !(selected_feature %in% var_names)) return(NULL)
 
       obs_df <- tr$obs
       if (is.null(obs_df)) return(NULL)
 
       # Extract expression values from .X (markers only).
       expression_vals <- tryCatch({
-        idx <- which(var_names == selected_feature)
-        as.numeric(adata$X[, idx])
+        if (is_marker) {
+          idx <- which(marker_names == selected_feature)
+          as.numeric(adata$obsm[["X_marker_mean"]][, idx])
+        } else {
+          idx <- which(var_names == selected_feature)
+          as.numeric(adata$X[, idx])
+        }
       }, error = function(e) {
         message("event=trajectory_feature_extract_failed")
         rep(NA_real_, nrow(obs_df))
@@ -395,8 +447,28 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       result_df <- result_df[valid_idx, , drop = FALSE]
 
+      # ---- cohort scope -------------------------------------------------
+      # THIS TAB HAD NO DONOR FILTER. It plotted every islet in the H5AD
+      # regardless of what the rest of the app was scoped to, so narrowing the
+      # cohort on Plot left the pseudotime scatter unnarrowed with nothing
+      # saying so -- the same gap Inflammation had.
+      #
+      # By DONOR ID, not by row filter: this frame is AnnData obs joined to the
+      # islet metrics and carries `donor_status` and `case_id` but no age, sex
+      # or AAb columns. cohort_donor_ids() resolves those against the islet
+      # table and returns a membership list, so all four donor-scope filters
+      # land here correctly instead of three of them reporting themselves
+      # "not applied" against a frame that could never carry them.
+      if (!is.null(cohort) && "case_id" %in% colnames(result_df)) {
+        keep <- cohort$donor_ids()
+        if (length(keep)) {
+          result_df <- result_df[as.character(result_df$case_id) %in% keep, , drop = FALSE]
+          if (!nrow(result_df)) return(NULL)
+        }
+      }
+
       # Apply min cells/islet filter
-      min_cells <- traj_min_cells_value(input$min_cells)
+      min_cells <- traj_min_cells()
       if (min_cells > 1 && "total_cells" %in% colnames(result_df)) {
         tc <- suppressWarnings(as.integer(result_df$total_cells))
         result_df <- result_df[is.finite(tc) & tc >= min_cells, , drop = FALSE]
@@ -417,21 +489,21 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       cur <- traj_path
       if (is.null(cur) || !file.exists(cur)) cur <- resolve_traj_path()
       if (is.null(cur) || !file.exists(cur)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "AnnData not found. Place 'adata_ins_root.h5ad' under data/ or scripts/, or set ADATA_PATH."))
       }
       if (!requireNamespace("anndata", quietly = TRUE)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "R package 'anndata' not installed. Install with BiocManager::install('anndata')."))
       }
       tr <- traj_with_pseudotime()
       if (is.null(tr)) {
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           "AnnData object not available or H5AD failed to load."))
       }
       if (!is.null(tr$error)) {
         install_hint <- if (grepl("anndata", tr$error, ignore.case = TRUE)) " Install with: BiocManager::install('anndata')" else ""
-        return(tags$div(style = "color:#b00;",
+        return(tags$div(
           sprintf("Trajectory load error: %s%s", tr$error, install_hint)))
       }
       ms <- traj_validate()
@@ -452,7 +524,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         badge_col <- if (hard) "#228833" else "#CC6633"
         badge_txt <- if (hard) "validated" else "check gates"
         valid_caption <- tags$div(
-          style = "color:#555; font-size:12px; margin-top:4px;",
+          style = "font-size:12px; margin-top:4px",
           tags$span(style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col), badge_txt),
           sprintf("Pseudotime (θ=%s): INS ρ=%+.2f · T1D>ND p=%.0e · within-status batch η² ND=%.2f/T1D=%.2f",
                   ifelse(is.na(g(tv[["chosen_theta"]])), "?", format(g(tv[["chosen_theta"]]))),
@@ -465,19 +537,33 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       mode_note <- NULL
       if (identical(validated_pt_mode(), "combined") &&
           !("dpt_pseudotime_combined" %in% names(tr$obs))) {
-        mode_note <- tags$div(style = "color:#CC6633; font-size:12px; margin-top:2px;",
+        mode_note <- tags$div(style = "font-size:12px; margin-top:2px",
           "Core + Peri pseudotime is not available in this dataset — showing Core only.")
       }
 
       tagList(
-        tags$div(style = "color:#555;",
+        tags$div(
           sprintf("Loaded AnnData (%d obs). Joined %d rows (%d unique islets) of %d islet metrics. Source: %s",
                   nrow(tr$obs), nj, ndist, nm, basename(src))
         ),
         valid_caption,
         mode_note,
-        tags$div(style = "color:#777; font-size:11px; margin-top:2px; font-style:italic;",
-          "Aab+ is a single donor (6521); its pseudotime reflects one individual and is excluded from the ordering statistic.")
+        local({
+          support <- status_support()
+          single <- if (!is.null(support)) {
+            names(Filter(function(s) s$donors == 1, support))
+          }
+          if (length(single)) tags$div(
+            style = "font-size:11px; margin-top:2px; font-style:italic",
+            sprintf("%s carried by a single donor (%s); %s pseudotime reflects one individual and is excluded from the ordering statistic.",
+                    paste(single, collapse = ", "),
+                    paste(vapply(single, function(st) {
+                      d <- traj_with_pseudotime()$obs
+                      col <- if ("Case ID" %in% names(d)) "Case ID" else "imageid"
+                      unique(as.character(d[[col]][as.character(d$donor_status) == st]))[1]
+                    }, character(1)), collapse = ", "),
+                    if (length(single) > 1) "each" else "its"))
+        })
       )
     })
 
@@ -730,8 +816,20 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       # Labels
+      #
+      # THE AXIS MUST NOT CLAIM A SCALE THE VALUES DO NOT HAVE. This read
+      # "normalized expression (mean per islet, 0-1)" for everything, which was
+      # true of the composition proportions and false the moment a marker could
+      # be selected: marker means are the REDSEA-corrected, UniFORM-aligned
+      # intensities and run to five figures. A reader trusting that label would
+      # have taken 15,000 for a proportion.
       selected_feature <- df$feature_name[1] %||% "Selected feature"
-      metric_label <- "— normalized expression (mean per islet, 0–1)"
+      is_marker_axis <- grepl("^marker_mean_", selected_feature)
+      if (is_marker_axis) selected_feature <- sub("^marker_mean_", "", selected_feature)
+      metric_label <- if (is_marker_axis)
+        "\u2014 mean aligned intensity per islet (core)"
+      else
+        "\u2014 proportion of islet-core cells (0\u20131)"
       x_label <- "Pseudotime (rank-normalized)"
 
       g <- g + labs(
@@ -880,21 +978,21 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (!is.null(info$donor_age) && !is.na(info$donor_age)) title_detail <- paste0(title_detail, ", age ", round(info$donor_age))
       if (!is.null(info$donor_gender) && !is.na(info$donor_gender) && nzchar(info$donor_gender)) title_detail <- paste0(title_detail, ", ", info$donor_gender)
 
-      div(class = "card", style = "padding: 20px; margin-bottom: 20px; border: 2px solid #0066CC;",
+      div(class = "card", style = "padding: 20px; margin-bottom: 20px",
         # Header: title + close button
-        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+        div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px",
           h4(paste0(info$islet_key, " (", title_detail, ")"),
-             style = "margin: 0; color: #0066CC; font-size: 20px;"),
+             style = "margin: 0; font-size: 20px"),
           actionButton(ns("clear_segmentation"), "Close", class = "btn btn-sm btn-outline-secondary")
         ),
         # Main content: controls sidebar (left) + plot (right)
         fluidRow(
           # Left sidebar: all controls
           column(2,
-            div(style = "padding: 10px; background-color: #f8f9fa; border-radius: 5px;",
+            div(style = "padding: 10px",
               if (has_cells) {
                 tagList(
-                  h5("Layers", style = "margin-top: 0; font-size: 15px;"),
+                  h5("Layers", style = "margin-top: 0; font-size: 15px"),
                   checkboxInput("drilldown_show_cells", "Single Cells", value = TRUE),
                   checkboxInput("drilldown_show_peri_boundary", "Peri Boundary", value = TRUE),
                   checkboxInput("drilldown_show_structures", "Structures", value = TRUE),
@@ -911,38 +1009,38 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                 )
               } else {
                 tagList(
-                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px;"),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-size: 15px"),
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #0066CC; margin-right: 8px;"),
-                    span("Islet", style = "font-size: 14px;")
+                    span("Islet", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00CCCC; margin-right: 8px;"),
-                    span("+20\u00b5m", style = "font-size: 14px;")
+                    span("+20\u00b5m", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC00CC; margin-right: 8px;"),
-                    span("Nerve", style = "font-size: 14px;")
+                    span("Nerve", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #CC0000; margin-right: 8px;"),
-                    span("Capillary", style = "font-size: 14px;")
+                    span("Capillary", style = "font-size: 14px")
                   ),
-                  div(style = "display: flex; align-items: center; margin-bottom: 8px;",
+                  div(style = "display: flex; align-items: center; margin-bottom: 8px",
                     div(style = "width: 24px; height: 3px; background-color: #00AA00; margin-right: 8px;"),
-                    span("Lymphatic", style = "font-size: 14px;")
+                    span("Lymphatic", style = "font-size: 14px")
                   )
                 )
               },
               hr(style = "margin: 8px 0;"),
               span(paste("Centroid:", round(info$centroid_x, 0), "/", round(info$centroid_y, 0), "\u00b5m"),
-                   style = "color: #666; font-size: 13px;")
+                   style = "font-size: 13px")
             )
           ),
           # Center: plot
           column(6,
             plotOutput("islet_segmentation_view", height = "550px"),
-            div(style = "text-align: right; margin-top: 6px;",
+            div(style = "text-align: right; margin-top: 6px",
               downloadButton("dl_islet_segmentation_view", "Download PNG",
                              class = "btn-sm btn-outline-primary"))
           ),
@@ -951,10 +1049,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
             if (has_cells) {
               conditionalPanel(
                 condition = "input.drilldown_show_cells",
-                div(style = "padding: 12px; background-color: #f8f9fa; border-radius: 5px;",
-                  h5("Cell Composition", style = "margin-top: 0; font-size: 16px;"),
+                div(style = "padding: 12px",
+                  h5("Cell Composition", style = "margin-top: 0; font-size: 16px"),
                   plotOutput("islet_drilldown_summary", height = "300px"),
-                  div(style = "text-align: right; margin-top: 6px;",
+                  div(style = "text-align: right; margin-top: 6px",
                     downloadButton("dl_islet_drilldown_summary", "Download PNG",
                                    class = "btn-sm btn-outline-primary")),
                   tableOutput("islet_drilldown_table"),
@@ -983,7 +1081,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (!nzchar(suffix)) {
         if (!isTRUE(summary$enabled)) {
           return(tags$div(
-            style = "background: #fdfbe7; border: 1px solid #f0d97a; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #6e6300;",
+            style = "padding: 4px 10px; margin-bottom: 6px; font-size: 12px",
             tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
               "\u24d8 Outlier filter OFF \u2014 all points contribute to trend lines.")
           ))
@@ -991,7 +1089,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         return(NULL)
       }
       tags$div(
-        style = "background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 4px 10px; margin-bottom: 6px; font-size: 12px; color: #5a4400;",
+        style = "padding: 4px 10px; margin-bottom: 6px; font-size: 12px",
         tags$span(title = GLOBAL_OUTLIER_TOOLTIP,
           sprintf("\u26a0 %d outlier%s excluded from trend lines (%s) \u2014 drawn as grey \u00d7 markers.",
                   summary$n_excluded,
@@ -1010,7 +1108,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       if (is.null(outlier_data) || nrow(outlier_data) == 0) {
         return(tagList(
-          div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 8px 12px; margin-top: 10px; color: #004085; font-size: 12px;",
+          div(style = "padding: 8px 12px; margin-top: 10px; font-size: 12px",
             "No outliers detected for the current selection.")
         ))
       }
@@ -1031,10 +1129,10 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       tagList(
-        div(style = "background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 10px; margin-top: 10px; color: #000000;",
-          h5(style = "color: #000000; margin-top: 0;", header),
-          p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
-          div(style = "max-height: 200px; overflow-y: auto;",
+        div(style = "padding: 10px; margin-top: 10px",
+          h5(style = "margin-top: 0", header),
+          p(style = "font-size: 12px; margin-bottom: 10px", body_text),
+          div(style = "max-height: 200px; overflow-y: auto",
             renderTable({
               outlier_data
             }, striped = TRUE, hover = TRUE, bordered = TRUE, spacing = "xs", width = "100%")
@@ -1043,27 +1141,50 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       )
     })
 
+    # How many donors and islets each disease status actually carries, from the loaded data.
+    # Two captions used to assert "Aab+ is a single donor (6521)" and "Aab+ = 1 donor (n=399
+    # islets)" as literals. Those are facts about the CODEX cohort; under the run cohort they
+    # named a donor that is not in it and a count from a different dataset, which is worse than
+    # saying nothing because it reads like a measurement.
+    status_support <- reactive({
+      tr <- traj_with_pseudotime()
+      obs <- if (!is.null(tr) && is.null(tr$error)) tr$obs else NULL
+      if (is.null(obs) || !"donor_status" %in% names(obs)) return(NULL)
+      donor_col <- if ("Case ID" %in% names(obs)) "Case ID" else "imageid"
+      if (!donor_col %in% names(obs)) return(NULL)
+      split_obs <- split(as.character(obs[[donor_col]]), as.character(obs$donor_status))
+      lapply(split_obs, function(ids) list(donors = length(unique(ids)), islets = length(ids)))
+    })
+
     # ---------- Legend for trajectory scatter ----------
     output$traj_legend <- renderUI({
       color_by <- input$traj_color_by %||% "donor_status"
 
       if (color_by == "donor_status") {
         dc <- donor_colors_reactive()
+        support <- status_support()
+        # Only the statuses this dataset actually has. A swatch for a status with no donor
+        # invites the reader to look for points that cannot exist.
+        present <- if (!is.null(support)) intersect(domain_group_levels(), names(support))
+                   else domain_group_levels()
+        swatches <- lapply(present, function(st) {
+          div(style = "display: flex; align-items: center; margin-bottom: 8px",
+            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;",
+                                dc[[st]] %||% "#999999")),
+            span(st, style = "font-size: 15px;")
+          )
+        })
+        thin <- if (!is.null(support)) {
+          Filter(Negate(is.null), lapply(present, function(st) {
+            s <- support[[st]]
+            if (!is.null(s) && s$donors == 1)
+              sprintf("%s = 1 donor (n=%s islets)", st, format(s$islets, big.mark = ","))
+          }))
+        }
         tagList(
-          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["ND"]])),
-            span("ND", style = "font-size: 15px;")
-          ),
-          div(style = "display: flex; align-items: center; margin-bottom: 8px;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["Aab+"]])),
-            span("Aab+", style = "font-size: 15px;")
-          ),
-          div(style = "display: flex; align-items: center;",
-            div(style = sprintf("width: 20px; height: 20px; background-color: %s; border-radius: 3px; margin-right: 8px;", dc[["T1D"]])),
-            span("T1D", style = "font-size: 15px;")
-          ),
-          div(style = "font-size: 11px; color: #777; margin-top: 8px; font-style: italic;",
-            "Aab+ = 1 donor (n=399 islets)")
+          swatches,
+          if (length(thin)) div(style = "font-size: 11px; margin-top: 8px; font-style: italic",
+                                paste(unlist(thin), collapse = "; "))
         )
       } else if (color_by == "donor_id") {
         df <- traj_data_clean()
@@ -1084,18 +1205,18 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           col2_ids <- if (n_donors > mid_point) donor_ids[(mid_point + 1):n_donors] else NULL
 
           col1_items <- lapply(seq_along(col1_ids), function(i) {
-            div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+            div(style = "display: flex; align-items: center; margin-bottom: 6px",
               div(style = sprintf("width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;", colors[i])),
-              span(col1_ids[i], style = "font-size: 14px;")
+              span(col1_ids[i], style = "font-size: 14px")
             )
           })
 
           col2_items <- if (!is.null(col2_ids)) {
             lapply(seq_along(col2_ids), function(i) {
               idx <- mid_point + i
-              div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+              div(style = "display: flex; align-items: center; margin-bottom: 6px",
                 div(style = sprintf("width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;", colors[idx])),
-                span(col2_ids[i], style = "font-size: 14px;")
+                span(col2_ids[i], style = "font-size: 14px")
               )
             })
           } else {
@@ -1103,19 +1224,19 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           }
 
           tagList(
-            div(style = "display: flex; gap: 10px;",
-              div(style = "flex: 1;", col1_items),
-              if (!is.null(col2_items)) div(style = "flex: 1;", col2_items)
+            div(style = "display: flex; gap: 10px",
+              div(style = "flex: 1", col1_items),
+              if (!is.null(col2_items)) div(style = "flex: 1", col2_items)
             )
           )
         } else {
-          p("No data available", style = "font-size: 12px; color: #999;")
+          p("No data available", style = "font-size: 12px")
         }
       } else if (startsWith(color_by, "leiden_")) {
         df <- traj_data_clean()
         if (is.null(df) || !(color_by %in% colnames(df))) {
           return(p("Leiden clusters unavailable (rebuild islet_explorer.h5ad).",
-                   style = "font-size: 12px; color: #999;"))
+                   style = "font-size: 12px"))
         }
         lvl_vals <- unique(stats::na.omit(df[[color_by]]))
         num_vals <- suppressWarnings(as.numeric(lvl_vals))
@@ -1130,17 +1251,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         col1_idx <- seq_len(mid_point)
         col2_idx <- if (n_clust > mid_point) (mid_point + 1):n_clust else integer(0)
         make_row <- function(i) {
-          div(style = "display: flex; align-items: center; margin-bottom: 6px;",
+          div(style = "display: flex; align-items: center; margin-bottom: 6px",
             div(style = sprintf(
               "width: 18px; height: 18px; background-color: %s; border-radius: 3px; margin-right: 6px;",
               clust_colors[i])),
-            span(paste("Cluster", clust_levels[i]), style = "font-size: 14px;")
+            span(paste("Cluster", clust_levels[i]), style = "font-size: 14px")
           )
         }
         tagList(
-          div(style = "display: flex; gap: 10px;",
-            div(style = "flex: 1;", lapply(col1_idx, make_row)),
-            if (length(col2_idx) > 0) div(style = "flex: 1;", lapply(col2_idx, make_row))
+          div(style = "display: flex; gap: 10px",
+            div(style = "flex: 1", lapply(col1_idx, make_row)),
+            if (length(col2_idx) > 0) div(style = "flex: 1", lapply(col2_idx, make_row))
           )
         )
       }
@@ -1165,7 +1286,9 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         scale_x_continuous(expand = expansion(mult = 0.02)) +
         scale_y_continuous(expand = expansion(mult = 0.02)) +
         coord_fixed() +
-        labs(x = "UMAP 1", y = "UMAP 2", title = "UMAP: Donor Status") +
+        # The card header (mod_trajectory_ui.R) already names this plot; an in-plot title
+        # repeats it and overlaps it in a narrow card.
+        labs(x = "UMAP 1", y = "UMAP 2") +
         guides(color = guide_legend(override.aes = list(size = 3))) +
         theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
@@ -1178,7 +1301,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         p <- traj_umap_donor_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
@@ -1200,9 +1324,14 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         scale_x_continuous(expand = expansion(mult = 0.02)) +
         scale_y_continuous(expand = expansion(mult = 0.02)) +
         coord_fixed() +
+        # The card header already says "UMAP: Selected Feature"; only the feature name adds
+        # anything, and the repeated "UMAP:" prefix is what collided with it.
+        # Same rule as the scatter axis: strip the storage prefix, and say which
+        # quantity the colour is rather than the generic "Expression".
         labs(x = "UMAP 1", y = "UMAP 2",
-             title = paste("UMAP:", selected_feature),
-             color = "Expression") +
+             title = sub("^marker_mean_", "", selected_feature),
+             color = if (grepl("^marker_mean_", selected_feature))
+                       "Mean intensity" else "Proportion") +
         theme_islet() +
         theme(axis.text = element_blank(), axis.ticks = element_blank(),
               panel.grid = element_blank(), axis.line = element_blank())
@@ -1221,7 +1350,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         p <- traj_umap_feature_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
@@ -1339,13 +1469,41 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
     # ---------- Multi-Feature Heatmap ----------
 
-    # Marker selector UI
-    output$multi_heatmap_marker_selector <- renderUI({
+    # MARKERS, from obsm, NOT var_names.
+    #
+    # This read `tr$var_names` and therefore listed the eight CELL CLASSES -- and
+    # it was right to: adata_ins_root.h5ad is (islets x 8 cell classes), its `X`
+    # IS the composition the trajectory was built from, and the file carried no
+    # marker anywhere. A heatmap of "how markers move along pseudotime" was
+    # showing cell-type proportions because that is all there was to show.
+    #
+    # obsm["X_marker_mean"] + uns["marker_mean_names"] are per-islet means of the
+    # REDSEA-corrected, UniFORM-aligned values, built by
+    # build_islet_marker_means.py, core and peri kept as separate columns.
+    marker_mean_names <- reactive({
       tr <- traj()
-      if (is.null(tr) || !is.null(tr$error) || is.null(tr$var_names)) return(NULL)
-      hm_markers <- setdiff(tr$var_names, EXCLUDED_MARKERS)
+      if (is.null(tr) || !is.null(tr$error)) return(NULL)
+      nm <- tryCatch(as.character(tr$uns[["marker_mean_names"]]), error = function(e) NULL)
+      if (is.null(nm) || !length(nm)) return(NULL)
+      nm
+    })
+
+    output$multi_heatmap_marker_selector <- renderUI({
+      nm <- marker_mean_names()
+      if (is.null(nm)) {
+        return(ie_callout(tone = "note",
+          "This dataset carries no per-islet marker means, so the heatmap has no markers to ",
+          "draw. Build them with scripts/typing/build_islet_marker_means.py."))
+      }
+      # Core by default. The peri columns are the same markers over the 20 um
+      # ring and doubling the list is how a 116-box selector becomes unusable.
+      core <- nm[!grepl("^marker_mean_peri_", nm)]
+      pretty <- sub("^marker_mean_", "", core)
+      choices <- stats::setNames(core, pretty)
+      keep <- setdiff(pretty, EXCLUDED_MARKERS)
       checkboxGroupInput(ns("multi_heatmap_markers"), "Select markers:",
-                         choices = hm_markers, selected = hm_markers, inline = TRUE)
+                         choices = choices,
+                         selected = unname(choices[pretty %in% keep]), inline = TRUE)
     })
 
     # Multi-feature data reactive
@@ -1354,15 +1512,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (is.null(markers) || length(markers) == 0) return(NULL)
       tr <- traj_with_pseudotime()
       if (is.null(tr) || !is.null(tr$error) || is.null(tr$adata)) return(NULL)
-      if (!islet_valid_choice_vector(
-        markers, setdiff(tr$var_names, EXCLUDED_MARKERS),
-        "trajectory_feature_invalid"
-      )) return(NULL)
+      nm <- marker_mean_names()
+      if (is.null(nm)) return(NULL)
+      if (!islet_valid_choice_vector(markers, nm, "trajectory_feature_invalid")) return(NULL)
       valid <- markers
-      idx <- match(valid, tr$var_names)
-      expr <- tryCatch(as.matrix(tr$adata$X[, idx, drop = FALSE]), error = function(e) NULL)
+      idx <- match(valid, nm)
+      expr <- tryCatch(as.matrix(tr$adata$obsm[["X_marker_mean"]][, idx, drop = FALSE]),
+                       error = function(e) NULL)
       if (is.null(expr)) return(NULL)
-      colnames(expr) <- valid
+      # Label with the bare marker name; the obsm column name carries the prefix.
+      colnames(expr) <- sub("^marker_mean_", "", valid)
+      valid <- colnames(expr)
       result <- data.frame(
         pt = as.numeric(tr$obs$pseudotime),
         total_cells = as.integer(tr$obs$total_cells),
@@ -1371,7 +1531,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       result <- result[is.finite(result$pt), , drop = FALSE]
 
       # Apply min cells/islet filter (matches traj_data_clean)
-      min_cells <- traj_min_cells_value(input$min_cells)
+      min_cells <- traj_min_cells()
       if (min_cells > 1) {
         result <- result[is.finite(result$total_cells) & result$total_cells >= min_cells, , drop = FALSE]
         if (nrow(result) == 0) return(NULL)
@@ -1470,7 +1630,8 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         h <- max(6, 1 + n * 0.4)
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_HEATMAP_PNG_DIMS$width, height = h,
-                        dpi = ISLET_HEATMAP_PNG_DIMS$dpi, units = ISLET_HEATMAP_PNG_DIMS$units)
+                        dpi = ISLET_HEATMAP_PNG_DIMS$dpi, units = ISLET_HEATMAP_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 

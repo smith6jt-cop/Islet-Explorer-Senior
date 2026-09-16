@@ -7,13 +7,24 @@
 #   PHENOTYPE_COLORS — from drilldown_helpers.R
 #   donor_tissue_available(), get_available_donors(), load_donor_tissue() — from spatial_helpers.R
 
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own inputs, which is what the testthat suite and
+#'   any standalone use get; app.R always passes one.
 spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                            donor_colors_reactive = reactive(DONOR_COLORS_BRIGHT),
                            remove_outliers = reactive(FALSE),
-                           outlier_threshold = reactive(3.0)) {
+                           outlier_threshold = reactive(3.0),
+                           cohort = NULL) {
 
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # Donor status, from the cohort panel when it is mounted and from this
+    # tab's own checkbox group otherwise. One reader, so the five sites below
+    # cannot drift apart from each other the way the three outlier mirrors did.
+    active_groups <- reactive({
+      if (!is.null(cohort)) cohort$groups() else input$groups
+    })
 
     # ---- Outlier-table reactiveVals (parity with Plot/Trajectory) ----
     # Populated inside the Card A and Card C renderPlotly bodies, consumed by
@@ -43,6 +54,29 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       )
     }
 
+    # Offer only the disease statuses this dataset actually has. Both status filters were
+    # hard-coded c("ND", "Aab+", "T1D"); under the run cohort, which has no Aab+ donor, that
+    # invites the reader to filter on a category whose box can never contain a point. These
+    # update statically-mounted inputs, so they cannot race a renderUI mount.
+    statuses_present <- reactive({
+      pd <- prepared()
+      if (is.null(pd$comp) || !"Donor Status" %in% colnames(pd$comp)) return(domain_group_levels())
+      present <- unique(as.character(pd$comp$`Donor Status`))
+      intersect(domain_group_levels(), present)
+    })
+
+    observe({
+      present <- statuses_present()
+      if (!length(present)) return()
+      for (id in c("groups", "dist_status")) {
+        current <- isolate(input[[id]])
+        updateCheckboxGroupInput(session, id, choices = present,
+                                 selected = if (is.null(current)) present
+                                            else intersect(current, present),
+                                 inline = identical(id, "dist_status"))
+      }
+    })
+
     has_neighborhood <- reactive({
       pd <- prepared()
       if (is.null(pd$comp)) return(FALSE)
@@ -65,7 +99,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     output$donor_selector <- renderUI({
       donors <- get_available_donors()
       if (length(donors) == 0) {
-        return(div(style = "color: #888; font-style: italic; padding-top: 8px;",
+        return(div(style = "font-style: italic; padding-top: 8px",
                    "No per-donor tissue data available."))
       }
       pd <- prepared()
@@ -166,13 +200,13 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         selected_phenos <- setdiff(phenos, hide_default)
       }
       tagList(
-        div(style = "display: flex; align-items: center; gap: 6px; margin-bottom: 4px;",
-          tags$label("Phenotypes", style = "font-weight: 600; font-size: 13px; margin: 0;"),
-          actionLink(ns("pheno_all"), "All", style = "font-size: 11px;"),
-          span("|", style = "color: #ccc;"),
-          actionLink(ns("pheno_none"), "None", style = "font-size: 11px;")
+        div(style = "display: flex; align-items: center; gap: 6px; margin-bottom: 4px",
+          tags$label("Phenotypes", style = "font-weight: 600; font-size: 13px; margin: 0"),
+          actionLink(ns("pheno_all"), "All", style = "font-size: 11px"),
+          span("|"),
+          actionLink(ns("pheno_none"), "None", style = "font-size: 11px")
         ),
-        div(style = "column-count: 2; column-gap: 8px;",
+        div(style = "column-count: 2; column-gap: 8px",
           checkboxGroupInput(ns("pheno_filter"), NULL,
                              choices = phenos, selected = selected_phenos,
                              inline = FALSE)
@@ -431,16 +465,18 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         p <- spatial_tissue_scatter_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = 12, height = 10,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
     # ==== Card 3: Leiden UMAP (plotly, 1015 islets) ====
     output$leiden_not_available <- renderUI({
       if (!has_leiden()) {
-        return(div(style = "color: #888; font-style: italic; margin-bottom: 10px;",
-          "Leiden clustering not available in current H5AD. ",
-          "Rebuild with build_h5ad_for_app.py after running Leiden clustering."))
+        return(div(style = "font-style: italic; margin-bottom: 10px",
+          "Islet-level Leiden clustering is not present in this dataset: the islet table carries ",
+          "no ", tags$code("leiden_<resolution>"), " or ", tags$code("leiden_umap_1/2"),
+          " columns. Every other card on this tab is unaffected."))
       }
       NULL
     })
@@ -459,8 +495,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       # Filter by donor status
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       umap1 <- suppressWarnings(as.numeric(plot_comp$leiden_umap_1))
@@ -521,8 +557,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       req("leiden_umap_1" %in% colnames(comp), "leiden_umap_2" %in% colnames(comp))
 
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       umap1 <- suppressWarnings(as.numeric(plot_comp$leiden_umap_1))
@@ -554,7 +590,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         p <- spatial_umap_donor_plot(); if (is.null(p)) return()
         ggplot2::ggsave(file, plot = p,
                         width = ISLET_PNG_DIMS$width, height = ISLET_PNG_DIMS$height,
-                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units)
+                        dpi = ISLET_PNG_DIMS$dpi, units = ISLET_PNG_DIMS$units,
+                        bg = "white")
       }
     )
 
@@ -572,8 +609,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       # Filter by donor status
       plot_comp <- comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(plot_comp)) {
-        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% input$groups, , drop = FALSE]
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(plot_comp)) {
+        plot_comp <- plot_comp[plot_comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       }
 
       # Get phenotype proportion columns (prop_*), filtered by selected phenotypes
@@ -660,8 +697,8 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
         df <- pd$comp
         if (is.null(df) || nrow(df) == 0) { df <- data.frame() }
         else {
-          if (!is.null(input$groups) && "Donor Status" %in% colnames(df))
-            df <- df[df$`Donor Status` %in% input$groups, , drop = FALSE]
+          if (!is.null(active_groups()) && "Donor Status" %in% colnames(df))
+            df <- df[df$`Donor Status` %in% active_groups(), , drop = FALSE]
           if ("total_cells_peri" %in% colnames(df))
             df <- df[!is.na(df$total_cells_peri) & df$total_cells_peri > 0, , drop = FALSE]
         }
@@ -682,9 +719,16 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       pd <- prepared()
       req(pd$comp)
       comp <- pd$comp
-      if (!is.null(input$groups) && "Donor Status" %in% colnames(comp))
-        comp <- comp[comp$`Donor Status` %in% input$groups, , drop = FALSE]
-      # Global min cells filter
+      # The panel applies donor status, age, sex, AAb, min-cells and diameter in
+      # one fixed order, and records which of them bound to a column here. The
+      # hand-rolled block this replaces applied groups and min-cells only, so
+      # the neighborhood cards were scoped differently from every other tab on
+      # the same screen -- and its `nbr_min_cells` was a fourth unsynced copy of
+      # a slider that also lived on Plot, Trajectory and Statistics.
+      if (!is.null(cohort)) return(cohort$apply(comp, cells_expr = "core_peri"))
+
+      if (!is.null(active_groups()) && "Donor Status" %in% colnames(comp))
+        comp <- comp[comp$`Donor Status` %in% active_groups(), , drop = FALSE]
       min_cells <- input$nbr_min_cells %||% 1
       if (min_cells > 1) {
         tc_core <- if ("total_cells_core" %in% colnames(comp)) comp$total_cells_core else NA
@@ -815,44 +859,46 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
     # ---- Neighborhood cards UI (conditional on data availability) ----
     output$neighborhood_cards <- renderUI({
-      if (!has_neighborhood()) return(NULL)
-
-      # section_heading helper (inline — cannot share with UI function directly)
-      sec_heading <- function(step, title, subtitle) {
-        div(style = "margin-bottom: 14px; margin-top: 22px; padding-bottom: 8px; border-bottom: 2px solid #d0e0f0;",
-          div(style = "display: flex; align-items: baseline; gap: 10px;",
-            span(step,
-                 style = paste0("display: inline-block; background: linear-gradient(135deg, #4477AA, #5599CC);",
-                                " color: white; font-weight: 700; font-size: 14px; padding: 2px 10px;",
-                                " border-radius: 12px; min-width: 28px; text-align: center;")),
-            span(title, style = "font-weight: 700; font-size: 18px;")
-          ),
-          tags$small(subtitle, style = "color: #777; display: block; margin-top: 4px;")
-        )
+      # Cards A-C need the per-region composition columns. Returning NULL made three whole
+      # sections disappear with nothing said, so a dataset that simply lacks the columns looked
+      # identical to a dataset where they failed to load. Say which is missing instead.
+      if (!has_neighborhood()) {
+        return(div(class = "card",
+          style = "padding: 15px; margin: 15px 0; border-left: 4px solid #CC6633;",
+          tags$strong("Neighborhood analysis unavailable for this dataset."),
+          tags$p(style = "margin: 6px 0 0",
+            "Cards A-C read per-region composition columns (", tags$code("peri_prop_*"),
+            ", ", tags$code("enrich_z_*"), ", ", tags$code("min_dist_*"),
+            ") from the islet table, and none is present. They are written by ",
+            tags$code("neighborhood_metrics.csv"), " and merged into ", tags$code("islets.parquet"),
+            "; every other tab is unaffected.")
+        ))
       }
 
+      # section_heading helper (inline — cannot share with UI function directly)
+      # Was a fourth inline copy of section_heading, with the comment
+      # "inline -- cannot share with UI function directly". It can: the
+      # helper is sourced from R/ui_modernist_bits.R like everything else.
+      sec_heading <- ie_section_heading
+
       tagList(
-        # ==== Global filter for neighborhood cards ====
-        # The "Exclude outliers" checkbox is the non-namespaced mirror of the
-        # Plot/Trajectory controls — wired up by app.R synchronisation
-        # observers so all three move together. Cards A (z-score) and C
-        # (z on log1p(distance)) honour it; Card B's "Clip z > 5" is a
-        # display saturation, kept separate.
+        # ==== Display controls for the neighborhood cards ====
+        # THREE CONTROLS LEFT, and the two that went are the point: "Exclude
+        # outliers" and its z-threshold were non-namespaced MIRRORS of the
+        # Plot and Trajectory copies, kept in step by three observers in app.R
+        # that each had to name the other two. The cohort panel owns the rule
+        # now. Min cells/islet went the same way -- it was a fourth unsynced
+        # copy of a filter the panel applies to every tab.
+        #
+        # What is left is display only: point size and transparency change how
+        # this card draws, not which islets it draws. Cards A (z-score) and C
+        # (z on log1p(distance)) honour the panel's outlier rule; Card B's
+        # "Clip z > 5" is display saturation and stays separate.
         fluidRow(column(12,
-          div(class = "card", style = "padding: 12px 15px; margin-bottom: 10px; margin-top: 10px; display: flex; align-items: center; gap: 20px; overflow: visible;",
-            span(style = "font-weight: 600; font-size: 15px; white-space: nowrap;", "Neighborhood Analysis"),
-            numericInput(ns("nbr_min_cells"), "Min cells/islet", value = 1, min = 1, max = 100, step = 1, width = "130px"),
+          div(class = "card", style = "padding: 12px 15px; margin-bottom: 10px; margin-top: 10px; display: flex; align-items: center; gap: 20px; overflow: visible",
+            span(style = "font-weight: 600; font-size: 15px; white-space: nowrap", "Neighborhood analysis"),
             sliderInput(ns("nbr_pt_size"), "Point size", min = 2, max = 12, value = 5, step = 1, width = "150px"),
             sliderInput(ns("nbr_pt_alpha"), "Point transparency", min = 0, max = 0.95, value = 0.6, step = 0.05, width = "150px"),
-            tags$div(title = GLOBAL_OUTLIER_TOOLTIP, style = "min-width: 200px;",
-              checkboxInput("spatial_remove_outliers",
-                            "Exclude outliers",
-                            value = FALSE)
-            ),
-            tags$div(style = "min-width: 230px;",
-              sliderInput("spatial_outlier_z", "Outlier z-threshold",
-                          min = 0.5, max = 10, value = 3, step = 0.5, width = "220px")
-            ),
             uiOutput(ns("nbr_islet_count"))
           )
         )),
@@ -862,11 +908,11 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           "A", "Peri-Islet Phenotype Enrichment",
           "Per-phenotype peri-zone enrichment across disease stages, with peri vs core proportion scatter."
         ))),
-        fluidRow(style = "display: flex; flex-wrap: wrap;",
+        fluidRow(style = "display: flex; flex-wrap: wrap",
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box;",
-              div(style = "display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;",
-                div(style = "flex: 1; min-width: 180px;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box",
+              div(style = "display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px",
+                div(style = "flex: 1; min-width: 180px",
                   # Populated server-side from phenotype_choices().
                   selectInput(ns("infiltration_phenotype"), "Phenotype (peri enrichment z)",
                               choices = NULL, width = "100%"),
@@ -874,7 +920,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                 ),
                 checkboxInput(ns("infiltration_show_outlier_table"),
                               "Show excluded-outlier table", value = FALSE),
-                tags$small(style = "color: #666; flex-basis: 100%;",
+                tags$small(style = "flex-basis: 100%",
                   "Outlier exclusion follows the global toggle above (Tukey 1.5×IQR per donor status on non-zero values, to tolerate phenotypes absent from many islets).")
               ),
               plotlyOutput(ns("infiltration_bars"), height = "400px"),
@@ -882,9 +928,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
             )
           ),
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box;",
-              div(style = "display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px;",
-                div(style = "flex: 1; min-width: 180px;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box",
+              div(style = "display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px",
+                div(style = "flex: 1; min-width: 180px",
                   # Populated server-side from phenotype_choices().
                   selectInput(ns("scatter_phenotype"), "Phenotype (peri vs core)",
                               choices = NULL, width = "100%"),
@@ -898,7 +944,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           )
         ),
         fluidRow(column(12,
-          div(style = "background: #f0f6ff; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; color: #555;",
+          div(style = "padding: 10px 15px; margin-bottom: 20px; font-size: 13px",
             tags$em("Immune infiltration quantifies the proportion of immune cells among all cells in the peri-islet zone (20\u00b5m expansion) and islet core. Higher fractions indicate increased immune surveillance or active infiltration.")
           )
         )),
@@ -908,10 +954,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           "B", "Phenotype Composition & Enrichment",
           "Which phenotypes are present in islet core vs peri-islet zones, and which are enriched vs tissue-wide background?"
         ))),
-        fluidRow(style = "display: flex; flex-wrap: wrap;",
+        fluidRow(style = "display: flex; flex-wrap: wrap",
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box;",
-              div(style = "display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box",
+              div(style = "display: flex; gap: 15px; align-items: center; flex-wrap: wrap; margin-bottom: 8px",
                 radioButtons(ns("enrich_region"), "Region",
                              c("Peri-islet (enrichment z)" = "peri",
                                "Core (proportion)" = "core",
@@ -928,14 +974,14 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
             )
           ),
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; height: 100%; box-sizing: border-box;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; height: 100%; box-sizing: border-box",
               h5("Heatmap", style = "font-size: 15px; margin-top: 0;"),
               plotlyOutput(ns("enrichment_heatmap"), height = "420px")
             )
           )
         ),
         fluidRow(column(12,
-          div(style = "background: #f0f6ff; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; color: #555;",
+          div(style = "padding: 10px 15px; margin-bottom: 20px; font-size: 13px",
             tags$em("Enrichment z-scores (peri-islet mode) compare observed immune cell counts in the peri-islet zone vs expected counts based on tissue-wide proportions (Poisson model). z > 0 = enriched; z < 0 = depleted. Core and peri-islet proportion modes show raw cell type fractions (0\u20131) within each compartment.")
           )
         )),
@@ -945,23 +991,23 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           "C", "Phenotype Proximity to Islet",
           "Minimum distance from islet core centroid to nearest peri-islet cells of each phenotype, plus signed-distance KDE for selected types."
         ))),
-        fluidRow(style = "display: flex; flex-wrap: wrap;",
+        fluidRow(style = "display: flex; flex-wrap: wrap",
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box",
               # Populated server-side: "Immune (all)" + every phenotype with min_dist_*.
               selectInput(ns("distance_metric"), "Distance to nearest",
                           choices = NULL, width = "100%"),
               uiOutput(ns("distance_pheno_hint")),
               checkboxInput(ns("distance_show_outlier_table"),
                             "Show excluded-outlier table", value = FALSE),
-              tags$small(style = "color: #666;",
+              tags$small(
                 "Outlier exclusion follows the global toggle above (robust |z| from median/MAD on log(1+distance), per donor status — two-sided; threshold from the slider). Excluded points still appear as faint × markers."),
               plotlyOutput(ns("distance_boxplot"), height = "420px"),
               uiOutput(ns("distance_outlier_info"))
             )
           ),
           column(6,
-            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box;",
+            div(class = "card", style = "padding: 15px; margin-bottom: 15px; overflow: visible; height: 100%; box-sizing: border-box",
               # Per-cell distance-to-islet, two views:
               #   * Density   — one population (a phenotype, a RESTORE-marker+ subset,
               #                 or all cells) as a signed-distance density, by status.
@@ -970,24 +1016,32 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
               # This card has its OWN disease-status toggle (input$dist_status),
               # independent of the sidebar Donor Status filter.
               radioButtons(ns("dist_ptype"), "Plot",
-                           choices = c("Density curves" = "density", "Composition bars" = "composition"),
+                           choices = if (cell_distance_has_markers())
+                                       c("Density curves" = "density", "Composition bars" = "composition")
+                                     else c("Density curves" = "density"),
                            selected = "density", inline = TRUE),
               conditionalPanel(
                 condition = "input.dist_ptype == 'density'", ns = ns,
                 fluidRow(
                   column(5, radioButtons(ns("dist_mode"), "Group cells by",
-                                         choices = c("Phenotype" = "phenotype", "Marker" = "marker"),
+                                         choices = if (cell_distance_has_markers())
+                                                     c("Phenotype" = "phenotype", "Marker" = "marker")
+                                                   else c("Phenotype" = "phenotype"),
                                          selected = "phenotype", inline = TRUE)),
                   column(7, selectInput(ns("dist_group"), "Show", choices = NULL, width = "100%"))
                 )
               ),
               conditionalPanel(
                 condition = "input.dist_ptype == 'composition'", ns = ns,
-                checkboxGroupInput(ns("dist_comp_markers"), "Markers (RESTORE-positive)",
-                                   choices = cell_distance_markers(),
-                                   selected = intersect(c("INS", "CD3e", "CD20", "CD163", "CD31"),
-                                                        cell_distance_markers()),
-                                   inline = TRUE)
+                if (cell_distance_has_markers())
+                  checkboxGroupInput(ns("dist_comp_markers"), "Markers (RESTORE-positive)",
+                                     choices = cell_distance_markers(),
+                                     selected = intersect(c("INS", "CD3e", "CD20", "CD163", "CD31"),
+                                                          cell_distance_markers()),
+                                     inline = TRUE)
+                else
+                  tags$small(
+                    "This dataset carries no per-marker positivity call, so composition bars are unavailable. Use the Density view, grouped by phenotype.")
               ),
               checkboxGroupInput(ns("dist_status"), "Disease status",
                                  choices = c("ND", "Aab+", "T1D"),
@@ -998,7 +1052,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
           )
         ),
         fluidRow(column(12,
-          div(style = "background: #f0f6ff; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; color: #555;",
+          div(style = "padding: 10px 15px; margin-bottom: 20px; font-size: 13px",
             tags$em("Left: Distance metrics measure minimum Euclidean distance (\u00b5m) from islet core centroid to nearest peri-islet immune cells. NAs indicate no cells of that type in the peri-islet zone. Right: KDE of signed distance from islet boundary for individual immune cells. Negative = inside islet (core), positive = outside (peri-islet zone). The dashed line at zero marks the islet boundary.")
           )
         ))
@@ -1009,7 +1063,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     output$nbr_islet_count <- renderUI({
       comp <- nbr_comp()
       n <- if (!is.null(comp)) nrow(comp) else 0
-      span(style = "color: #555; font-size: 13px; white-space: nowrap;",
+      span(style = "font-size: 13px; white-space: nowrap",
            paste0(formatC(n, big.mark = ","), " islets"))
     })
 
@@ -1024,7 +1078,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       if (is.null(tbl) || nrow(tbl) == 0) {
         return(tags$div(
-          style = "margin-top: 10px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          style = "margin-top: 10px; padding: 8px 10px; font-size: 12px",
           "No outliers detected for the current phenotype."
         ))
       }
@@ -1043,10 +1097,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       }
 
       tags$div(
-        style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
-        tags$h6(style = "margin-top: 0; color: #000000;", header),
-        tags$p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
-        tags$div(style = "max-height: 220px; overflow-y: auto;",
+        style = "margin-top: 10px; padding: 10px",
+        tags$h6(style = "margin-top: 0", header),
+        tags$p(style = "font-size: 12px; margin-bottom: 10px", body_text),
+        tags$div(style = "max-height: 220px; overflow-y: auto",
           renderTable(tbl, striped = TRUE, hover = TRUE, bordered = TRUE,
                       spacing = "xs", width = "100%")
         )
@@ -1061,7 +1115,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       if (is.null(tbl) || nrow(tbl) == 0) {
         return(tags$div(
-          style = "margin-top: 10px; padding: 8px 10px; background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; color: #004085; font-size: 12px;",
+          style = "margin-top: 10px; padding: 8px 10px; font-size: 12px",
           "No outliers detected for the current distance metric."
         ))
       }
@@ -1082,10 +1136,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       }
 
       tags$div(
-        style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; color: #000000;",
-        tags$h6(style = "margin-top: 0; color: #000000;", header),
-        tags$p(style = "color: #000000; font-size: 12px; margin-bottom: 10px;", body_text),
-        tags$div(style = "max-height: 220px; overflow-y: auto;",
+        style = "margin-top: 10px; padding: 10px",
+        tags$h6(style = "margin-top: 0", header),
+        tags$p(style = "font-size: 12px; margin-bottom: 10px", body_text),
+        tags$div(style = "max-height: 220px; overflow-y: auto",
           renderTable(tbl, striped = TRUE, hover = TRUE, bordered = TRUE,
                       spacing = "xs", width = "100%")
         )
@@ -1169,12 +1223,12 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       if (is.null(label)) return(NULL)
       if (identical(label, "Immune (all)")) {
         return(shiny::tags$div(
-          style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; background-color: #f7f9fc; border-left: 3px solid #4477AA; border-radius: 3px; font-size: 13px; color: #333; line-height: 1.4;",
-          shiny::tags$strong(style = "color:#4477AA;", "Markers: "),
+          style = "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; font-size: 13px; line-height: 1.4",
+          shiny::tags$strong("Markers: "),
           shiny::tags$em("Aggregate of all immune phenotypes (any of CD20, CD3e, CD68, CD163, CD8a, CD4, HLADR positive)."),
-          shiny::tags$span(style = "color:#888;", " · "),
+          shiny::tags$span(" · "),
           shiny::actionLink(inline_id, "see all rules →",
-                            style = "font-size: 12px; color: #4477AA;")
+                            style = "font-size: 12px")
         ))
       }
       phenotype_hint_ui(label, show_modal_link = inline_id)
@@ -1192,10 +1246,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
                 ns("show_phenotype_rules_inline_dist"))
     })
     output$kde_pheno_hint <- renderUI({
-      box_style <- "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; background-color: #f7f9fc; border-left: 3px solid #4477AA; border-radius: 3px; font-size: 13px; color: #333; line-height: 1.4;"
+      box_style <- "margin-top: -6px; margin-bottom: 8px; padding: 6px 10px; font-size: 13px; line-height: 1.4"
       if (identical(input$dist_ptype %||% "density", "composition")) {
         return(shiny::tags$div(style = box_style,
-          shiny::tags$strong(style = "color:#4477AA;", "Composition: "),
+          shiny::tags$strong("Composition: "),
           shiny::tags$em("stacked count of RESTORE-positive cells per marker at each distance bin (a cell may be positive for more than one marker).")))
       }
       mode <- input$dist_mode %||% "phenotype"
@@ -1207,7 +1261,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       }
       if (identical(mode, "marker")) {
         return(shiny::tags$div(style = box_style,
-          shiny::tags$strong(style = "color:#4477AA;", "Marker: "),
+          shiny::tags$strong("Marker: "),
           shiny::tags$em(paste0(grp, "-positive cells by the RESTORE per-image threshold (calibrated on REDSEA-corrected MFI)."))))
       }
       # phenotype mode: the dropdown value IS the phenotype label from cell_distance

@@ -38,11 +38,18 @@ INFLAM_FDR_FAMILY <- c("CD8a Tcell", "CD4 Tcell", "B cell",
                        "T cell", "Macrophage", "APCs", "Immune")
 INFLAM_DEFAULT_PHENOTYPES <- INFLAM_FDR_FAMILY
 
-inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLORS)) {
+#' @param cohort the shared cohort filter from cohortFilterServer(), or NULL.
+#'   NULL keeps this module's own inputs, which is what the testthat suite and
+#'   any standalone use get; app.R always passes one.
+inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLORS),
+                                cohort = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    status_levels <- c("ND", "Aab+", "T1D")
+    # DOMAIN, not a literal: this is the other cohort's vocabulary, and it
+    # orders every stage contrast in this module. The run cohort declares its
+    # own levels in config/run20_default.yml.
+    status_levels <- domain_group_levels()
 
     # =========================================================================
     # Shared data
@@ -54,11 +61,26 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
       shiny::validate(shiny::need(!is.null(df) && nrow(df) > 0,
                     "data/cell_distance.csv not found — run scripts/compute_neighborhood_metrics.py"))
       df$donor_status <- factor(as.character(df$donor_status), levels = status_levels)
-      df[!is.na(df$donor_status), , drop = FALSE]
+      df <- df[!is.na(df$donor_status), , drop = FALSE]
+      # A CELL-level frame: it carries case_id and donor_status but no age, sex,
+      # AAb, diameter or per-islet counts, so the panel's donor-scope filters
+      # resolve against the islet table and land here as an id membership test.
+      if (!is.null(cohort)) {
+        keep <- cohort$donor_ids()
+        cid <- intersect(c("case_id", "Case ID", "imageid"), colnames(df))
+        if (length(keep) && length(cid)) {
+          df <- df[as.character(df[[cid[1]]]) %in% keep, , drop = FALSE]
+        }
+      }
+      df
     })
 
     # One row per donor from the nPOD metadata joined into comp by prep_data().
-    cohort <- reactive({
+    # RENAMED from `cohort`, which now names the shared cohort FILTER passed in
+    # as a parameter -- a local of the same name inside moduleServer() shadows
+    # it, so the module would have silently kept its old unfiltered behaviour
+    # while app.R believed it had wired the panel through.
+    donor_table <- reactive({
       pd <- prepared()
       shiny::validate(shiny::need(!is.null(pd$comp) && nrow(pd$comp) > 0, "No donor data loaded."))
       cn <- colnames(pd$comp)
@@ -69,18 +91,31 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
       have <- intersect(want, cn)
       d <- unique(pd$comp[, have, drop = FALSE])
       d <- d[!duplicated(d$`Case ID`), , drop = FALSE]
+      # THE COHORT PANEL REACHES THIS TAB FOR THE FIRST TIME. Inflammation had
+      # no donor filter at all: every card ran on all donors regardless of what
+      # the rest of the app was scoped to, so a reader who had narrowed the
+      # cohort on Plot saw an unnarrowed answer here with nothing saying so.
+      # min-cells and diameter are islet-level and do not apply to a donor row.
+      # min-cells and diameter are ISLET-level and a donor row has neither
+      # column, so they are switched OFF rather than left to report themselves
+      # "not applied" -- an audit banner about a filter that could never apply
+      # to this frame is noise, and noise is how a real one gets ignored.
+      if (!is.null(cohort)) {
+        d <- cohort_apply(d, utils::modifyList(cohort$spec(),
+                                               list(min_cells = 1, diam = NULL)))
+      }
       d$`Donor Status` <- factor(as.character(d$`Donor Status`), levels = status_levels)
       d[order(d$`Donor Status`, suppressWarnings(as.numeric(d$age))), , drop = FALSE]
     })
 
-    npod_available <- reactive("t1d_duration_years" %in% colnames(cohort()))
+    npod_available <- reactive("t1d_duration_years" %in% colnames(donor_table()))
 
     # =========================================================================
     # Card A: donor cohort table
     # =========================================================================
 
     output$cohort_note <- renderUI({
-      d <- cohort()
+      d <- donor_table()
       if (!npod_available()) {
         return(tags$div(style = paste0("background: #fdecea; border: 1px solid #f5b7b1;",
                                        " border-radius: 4px; padding: 8px 12px; margin-bottom: 10px;",
@@ -105,13 +140,13 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
         d$`Case ID`[is.finite(a) & is.finite(b) & abs(a - b) > 0.01]
       } else character(0)
       tagList(
-        tags$p(style = "font-size: 12px; color: #555; margin: 0 0 8px 0; line-height: 1.5;",
+        tags$p(style = "font-size: 12px; margin: 0 0 8px 0; line-height: 1.5",
           tags$strong("Scope. "), dur_txt,
           " This cohort therefore corresponds to the Steenbuck et al. “Onset” group; ",
           "it contains no long-duration T1D donors. Disease duration has too little ",
           "variance to serve as a covariate — it is reported here as a descriptor."),
         if (length(mism)) {
-          tags$p(style = "font-size: 11px; color: #8a6d00; margin: 0 0 8px 0;",
+          tags$p(style = "font-size: 11px; margin: 0 0 8px 0",
             tags$strong("Note: "),
             sprintf("donor %s has a different age in the H5AD (%s) than in the nPOD record (%s). ",
                     paste(mism, collapse = ", "),
@@ -123,7 +158,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
     })
 
     cohort_display <- reactive({
-      d <- cohort()
+      d <- donor_table()
       fmt <- function(x, digits = 1) ifelse(is.na(x), "—", sprintf(paste0("%.", digits, "f"), as.numeric(x)))
       aab_cols <- intersect(c("AAb_GADA", "AAb_IA2A", "AAb_mIAA", "AAb_ZnT8A"), colnames(d))
       profile <- if (length(aab_cols)) {
@@ -165,7 +200,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
       filename = function() paste0("inflammation_donor_cohort_",
                                    format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv"),
       content = function(file) {
-        write_islet_csv(file, cohort(), islet_csv_header(
+        write_islet_csv(file, donor_table(), islet_csv_header(
           "Donor cohort — nPOD clinical metadata",
           "Source: scripts/build_donor_metadata.py -> data/donor_metadata.csv",
           "age = H5AD value (canonical for modelling); age_years_npod = nPOD record",
@@ -243,7 +278,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
 
     output$edger_note <- renderUI({
       e <- edger_fit()
-      tags$p(style = "font-size: 12px; color: #666; margin: 4px 0 10px 0; line-height: 1.5;",
+      tags$p(style = "font-size: 12px; margin: 4px 0 10px 0; line-height: 1.5",
         tags$strong(e$label), " — ",
         sprintf("%s cells from %d donors; %d cell type%s tested",
                 formatC(e$n_cells, format = "d", big.mark = ","),
@@ -252,7 +287,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
                                      e$n_dropped, paste(e$dropped, collapse = ", ")) else "",
         sprintf(". Common dispersion %.3f (BCV %.2f).", e$dispersion, sqrt(e$dispersion)),
         tags$br(),
-        tags$span(style = "color: #888;",
+        tags$span(
           "logFC is on a log2 scale after library-size normalisation, so it is a change in ",
           "abundance rather than in share of the tissue. FDR is Benjamini-Hochberg across ",
           "the cell types tested in this contrast."))
@@ -543,7 +578,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
         near100   = "cells within 100 µm of an islet",
         "all cells on the section")
       tagList(
-        tags$p(style = "font-size: 11px; color: #666; margin: 8px 0 0 0; line-height: 1.5;",
+        tags$p(style = "font-size: 11px; margin: 8px 0 0 0; line-height: 1.5",
           tags$strong("Testing. "),
           "Kruskal-Wallis across the three stages on donor-level scores. FDR is Benjamini-Hochberg ",
           "within a ", tags$strong("pre-specified family of the ", length(INFLAM_FDR_FAMILY),
@@ -671,7 +706,7 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
     # =========================================================================
 
     output$inflam_methods <- renderUI({
-      tags$div(style = "padding: 10px; font-size: 13px; line-height: 1.6;",
+      tags$div(style = "padding: 10px; font-size: 13px; line-height: 1.6",
         tags$p(
           tags$strong("Source. "),
           "Both analyses follow Steenbuck N., Damond N., et al., ",

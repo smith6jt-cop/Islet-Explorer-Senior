@@ -4,7 +4,29 @@
 
 # ---------- UI ----------
 
-ui <- fluidPage(
+ui <- bslib::page_fillable(
+  padding = 0, gap = 0,
+
+  # bs_theme(version = 5) UNMODIFIED, on purpose, and this is the one genuinely
+  # behavioural change the design port makes. Two reasons it is the right one:
+  #
+  #   * The Modernist sheets were authored against Bootstrap 5. On Bootstrap 3
+  #     a third of modernist-shiny.css addressed markup Shiny was not emitting
+  #     -- most visibly `.nav-tabs .nav-link`, which is the BS5 form, so the tab
+  #     bar was never styled by this app at all and showed Bootstrap's own blue.
+  #   * bslib serves an UNMODIFIED BS5 theme from a precompiled bundle (~0.15 s,
+  #     no Sass run). Any customisation -- primary=, base_font=, enable-rounded=
+  #     -- flips it to a real compile, cold once per shiny-server worker. The
+  #     whole design system here is CSS custom properties, so customising
+  #     bs_theme would buy nothing and cost the app's startup time.
+  #
+  # Shiny emits identical classes under 3 and 5 for every input this app uses
+  # (selectInput / radioButtons / checkboxGroupInput / actionButton / helpText),
+  # and bslib's BS5 bundle ships a BS3 compatibility layer that still styles
+  # .btn-default, .checkbox-inline, .well, .form-group, .help-block,
+  # .control-label and .irs--shiny.
+  theme = bslib::bs_theme(version = 5),
+
   useShinyjs(),
   tags$head(
     tags$title("Islet Explorer Senior"),
@@ -19,262 +41,82 @@ ui <- fluidPage(
     tags$link(rel = "icon", type = "image/png", sizes = "512x512", href = "favicon-512.png"),
     tags$link(rel = "apple-touch-icon", sizes = "180x180", href = "apple-touch-icon.png"),
     tags$link(rel = "shortcut icon", type = "image/x-icon", href = "favicon.ico"),
+    # The Modernist design system. Order matters: fonts, then styles.css (which
+    # establishes the components), then modernist-shiny.css (which maps them onto
+    # Shiny's own markup and rescues the native inputs styles.css hides).
+    tags$link(rel = "preload", as = "font", type = "font/woff2",
+              href = "fonts/Archivo-Variable.woff2", crossorigin = "anonymous"),
+    tags$link(rel = "stylesheet", href = "fonts/archivo.css"),
+    tags$link(rel = "stylesheet", href = "styles.css"),
+    tags$link(rel = "stylesheet", href = "modernist-shiny.css"),
     tags$style(HTML("
-    /* Viewer and trajectory mode styles - fix tab positioning */
-    body.viewer-mode .col-sm-2 {
-      display: none !important;
-    }
-    body.viewer-mode .col-sm-10 {
-      width: 100% !important;
-      max-width: 100% !important;
-      flex: 0 0 100%;
-    }
-    body.trajectory-mode .container-fluid > .row > .col-sm-3 {
-      display: none !important;
-    }
-    body.trajectory-mode .container-fluid > .row > .col-sm-9 {
-      width: 100% !important;
-      max-width: 100% !important;
-      flex: 0 0 100%;
-    }
+    /* ---------------------------------------------------------------------
+       What the Modernist stylesheets do NOT cover, and therefore stays here.
+       Everything else that used to live in this block -- .card, buttons, form
+       controls, wells, plotly figures, the sliders -- is now in
+       www/styles.css and www/modernist-shiny.css, linked above.
 
-    /* Global biomedical theme styling */
-    body {
-      background-color: #f8f9fa;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      padding-top: 0;
-      min-width: 1200px;
-      overflow-x: auto;
-    }
+       .ai-chat-*          LAYOUT ONLY. The chat card's skin moved to
+                           modernist-shiny.css; what is left here is flex and sizing.
+       .skip-link, focus   accessibility, added to Senior after the fork. The skip
+                           link's own colours are in the sheet.
 
-    .skip-link {
+       REMOVED with the shell: `body.viewer-mode` / `body.trajectory-mode`, which
+       were keyed to the Bootstrap-3 grid AND which nothing ever set -- grep found
+       no writer of either class in any R or JS file; and `.equal-height-row`,
+       whose row no longer exists.
+
+       MOVED OUT 2026-09-14, to modernist-shiny.css's Senior section: .logo-header,
+       every .sidebar rule, the tab bar, and the .ai-chat-* colours. They were the
+       2019 blue skin and, being inline, they beat both linked sheets on source
+       order -- so the app still rendered blue after the sheets were linked. The
+       tab rules were also written as `.nav-tabs .nav-link`, the Bootstrap 5 form;
+       Shiny renders Bootstrap 3, which is `.nav-tabs > li > a`, so that rule had
+       never matched anything and Bootstrap's own blue showed through.
+
+       Dropped deliberately: the global `body` and `.container-fluid` rules, so the
+       sheet's --color-ground can take effect, and `accent-color` on native radios and
+       checkboxes, which modernist-shiny.css:608-627 restyles properly.
+       --------------------------------------------------------------------- */
+.skip-link {
       position: absolute;
       left: 12px;
       top: -80px;
       z-index: 10000;
       padding: 10px 14px;
-      background: #ffffff;
-      color: #1e3a72;
-      border: 3px solid #1e3a72;
-      border-radius: 4px;
       font-weight: 700;
     }
-    .skip-link:focus { top: 12px; }
-    a:focus-visible, button:focus-visible, input:focus-visible,
+.skip-link:focus { top: 12px; }
+a:focus-visible, button:focus-visible, input:focus-visible,
     select:focus-visible, [tabindex]:focus-visible {
       outline: 3px solid #ffbf47 !important;
       outline-offset: 2px !important;
     }
-
-    .container-fluid {
-      background-color: #ffffff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      margin: 10px;
-      padding: 20px;
-      min-width: 1180px;
-    }
-
-    /* Logo header styling */
-    .logo-header {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      padding: 10px 0;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-      border-bottom: 2px solid #e3f2fd;
-    }
-
-    /* Enhanced card styling with biomedical color scheme */
-    .card {
-      background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-      border: 1px solid #e3f2fd;
-      box-shadow: 0 4px 12px rgba(44, 90, 160, 0.08);
-      transition: all 0.3s ease;
-      border-radius: 12px;
-    }
-    .card:hover {
-      box-shadow: 0 8px 20px rgba(44, 90, 160, 0.15);
-      transform: translateY(-2px);
-    }
-
-    .card h5 {
-      color: #2c5aa0;
-      font-weight: 600;
-      border-bottom: 2px solid #e3f2fd;
-      padding-bottom: 8px;
-      margin-bottom: 15px;
-    }
-
-    /* Sidebar styling with scientific theme */
-    .sidebar {
-      background: linear-gradient(180deg, #2c5aa0 0%, #1e3a72 100%);
-      color: white;
-      border-radius: 12px;
-      padding: 20px;
-      font-size: 14px;
-      box-shadow: 0 4px 12px rgba(44, 90, 160, 0.2);
-    }
-
-    .sidebar h4, .sidebar h5 {
-      color: #ffffff;
-      font-weight: 600;
-      border-bottom: 1px solid rgba(255,255,255,0.2);
-      padding-bottom: 8px;
-    }
-
-    .sidebar .form-group {
-      margin-bottom: 18px;
-    }
-
-    .sidebar label {
-      color: #e3f2fd;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .sidebar .form-control {
-      background-color: rgba(255,255,255,0.9);
-      border: 1px solid #b3d9ff;
-      border-radius: 6px;
-      color: #2c5aa0;
-    }
-
-    .sidebar .form-control:focus {
-      background-color: #ffffff;
-      border-color: #66b3ff;
-      box-shadow: 0 0 0 0.2rem rgba(44, 90, 160, 0.25);
-    }
-
-    .sidebar .btn {
-      background: linear-gradient(145deg, #1d70b8 0%, #1261a0 100%);
-      border: none;
-      border-radius: 6px;
-      color: white;
-      font-weight: 500;
-    }
-
-    .sidebar .btn:hover {
-      background: linear-gradient(145deg, #1261a0 0%, #0b4778 100%);
-      transform: translateY(-1px);
-    }
-
-    /* Tab styling */
-    .nav-tabs {
-      border-bottom: 2px solid #e3f2fd;
-    }
-
-    .nav-tabs .nav-link {
-      color: #2c5aa0;
-      font-weight: 500;
-      border: none;
-      border-radius: 8px 8px 0 0;
-      margin-right: 4px;
-      background-color: #f8f9fa;
-    }
-
-    .nav-tabs .nav-link.active {
-      background: linear-gradient(145deg, #2c5aa0 0%, #1e3a72 100%);
-      color: white;
-      border-bottom: 3px solid #66b3ff;
-    }
-
-    .nav-tabs .nav-link:hover {
-      background-color: #e3f2fd;
-      color: #1e3a72;
-    }
-
-    /* Form controls styling */
-    .form-control {
-      border: 2px solid #e3f2fd;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-    }
-
-    .form-control:focus {
-      border-color: #66b3ff;
-      box-shadow: 0 0 0 0.2rem rgba(44, 90, 160, 0.15);
-    }
-
-    /* Button styling */
-    .btn-primary {
-      background: linear-gradient(145deg, #2c5aa0 0%, #1e3a72 100%);
-      border: none;
-      border-radius: 8px;
-      font-weight: 500;
-      padding: 8px 16px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover {
-      background: linear-gradient(145deg, #1e3a72 0%, #0f1f3d 100%);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(44, 90, 160, 0.3);
-    }
-
-    /* Checkbox and radio button styling */
-    input[type='checkbox'], input[type='radio'] {
-      accent-color: #2c5aa0;
-    }
-
-    /* Slider styling */
-    .irs--shiny {
-      color: #2c5aa0;
-    }
-
-    .irs--shiny .irs-bar {
-      background: linear-gradient(90deg, #66b3ff 0%, #2c5aa0 100%);
-    }
-
-    .irs--shiny .irs-handle {
-      background: #2c5aa0;
-      border: 3px solid #ffffff;
-    }
-
-    /* Help text styling */
-    .help-block {
-      color: #b3d9ff;
-      font-size: 12px;
-      font-style: italic;
-    }
-
-    /* Well and panel styling */
-    .well {
-      background: linear-gradient(145deg, #f8f9fa 0%, #e3f2fd 100%);
-      border: 1px solid #b3d9ff;
-      border-radius: 8px;
-    }
-    .ai-chat-panel {
-      background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-      border: 1px solid #e3f2fd;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(44, 90, 160, 0.08);
+.ai-chat-panel {
       padding: 15px;
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
-    .ai-chat-logo {
+.ai-chat-logo {
       display: flex;
       justify-content: center;
       align-items: center;
       padding-bottom: 8px;
-      border-bottom: 1px solid rgba(44, 90, 160, 0.15);
     }
-    .ai-chat-logo img {
+.ai-chat-logo img {
       max-width: 100%;
       height: auto;
       max-height: 90px;
     }
-    .ai-chat-header {
+.ai-chat-header {
       display: flex;
       justify-content: center;
       align-items: center;
       margin-top: 8px;
       margin-bottom: 4px;
     }
-    .ai-chat-history {
+.ai-chat-history {
       flex: 1;
       overflow-y: auto;
       padding: 8px;
@@ -282,26 +124,21 @@ ui <- fluidPage(
       flex-direction: column;
       gap: 10px;
     }
-    .ai-chat-message {
+.ai-chat-message {
       padding: 10px 12px;
-      border-radius: 8px;
       margin: 4px 0;
       max-width: 90%;
       word-wrap: break-word;
     }
-    .ai-chat-message.user {
-      background: linear-gradient(145deg, #e3f2fd 0%, #bbdefb 100%);
-      border-left: 4px solid #2c5aa0;
+.ai-chat-message.user {
       align-self: flex-end;
       margin-left: auto;
     }
-    .ai-chat-message.assistant {
-      background: linear-gradient(145deg, #f5f5f5 0%, #eeeeee 100%);
-      border-left: 4px solid #66b3ff;
+.ai-chat-message.assistant {
       align-self: flex-start;
       margin-right: auto;
     }
-    .ai-chat-meta {
+.ai-chat-meta {
       font-weight: 600;
       font-size: 12px;
       display: block;
@@ -309,42 +146,15 @@ ui <- fluidPage(
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .ai-chat-message.user .ai-chat-meta {
-      color: #1e3a72;
-    }
-    .ai-chat-message.assistant .ai-chat-meta {
-      color: #2c5aa0;
-    }
-
-    /* --- Plotly modebar positioning -------------------------------------
-       The modebar (top-right hover controls) sits in the same vertical band
-       as the centered chart title, overlapping it on hover. Reserve a 28px
-       strip above each plotly figure so the modebar lives above the title.
-       Applies to every plot_ly + ggplotly fig in the app. */
-    .js-plotly-plot,
-    .html-widget.plotly {
-      padding-top: 28px;
-    }
-    .js-plotly-plot .plotly .modebar {
+.js-plotly-plot .plotly .modebar {
       top: -28px !important;
     }
-  "))),
-  tags$head(tags$style(HTML("
-    .ai-chat-logo img {
+.ai-chat-logo img {
       max-width: 100%;
       height: auto;
       max-height: 120px;
     }
-    /* Equal height panels */
-    .equal-height-row {
-      display: flex;
-      flex-wrap: nowrap;
-    }
-    .equal-height-panel {
-      height: calc(100vh - 40px);
-      overflow-y: auto;
-    }
-    /* AI chat panel - match card heights */
+/* AI chat panel - match card heights */
     .ai-chat-panel-container {
       height: calc(100vh - 100px);
       display: flex;
@@ -352,84 +162,149 @@ ui <- fluidPage(
       overflow-y: auto;
       margin-top: 20px;
     }
-  "))),
-  uiOutput("theme_css"),
-  tags$script(HTML("
-    $(document).on('shiny:connected', function() {
-      function adjustLayout() {
-        var activeTab = $('#tabs li.active a').text().trim();
-        var sidebar = $('.equal-height-panel').first();
-        var mainPanel = $('.main-content-panel');
-
-        // Show sidebar on Plot and Statistics tabs, hide on others
-        if (activeTab === 'Plot' || activeTab === 'Statistics') {
-          sidebar.show();
-          mainPanel.css({
-            'width': '88.33333333%',
-            'max-width': '88.33333333%',
-            'flex': '0 0 88.33333333%'
-          });
-        } else {
-          sidebar.hide();
-          mainPanel.css({
-            'width': '100%',
-            'max-width': '100%',
-            'flex': '0 0 100%'
-          });
-        }
-      }
-
-      // Adjust on initial load
-      setTimeout(adjustLayout, 100);
-
-      // Adjust when tabs change
-      $('a[data-toggle=\"tab\"]').on('shown.bs.tab', function() {
-        adjustLayout();
-      });
-    });
-  ")),
+"))),
+  # The layout jQuery that lived here is GONE with the shell it served. It read
+  # `$('#tabs li.active a').text()` -- the Bootstrap-3 tab bar, which no longer
+  # exists -- and resized `.equal-height-panel` / `.main-content-panel`, two
+  # classes the rail replaced. Under the flex shell nothing needs measuring: the
+  # panels and the control panel are flex siblings and the conditionalPanel
+  # takes the control panel out of the row by itself. Left as a note rather than
+  # silently deleted, because "the sidebar stopped hiding on Viewer" would
+  # otherwise look like a regression rather than a rule that moved to CSS.
   tags$a(class = "skip-link", href = "#main-content", "Skip to main content"),
-  fluidRow(class = "equal-height-row",
-    # Left Sidebar Panel (Plot controls, hidden on other tabs via JS)
-    column(width = 1.4, class = "equal-height-panel",
-      role = "complementary", `aria-label` = "Plot controls",
-      conditionalPanel(
-        condition = "input.tabs == 'Plot' || input.tabs == 'Statistics'",
-        plot_sidebar_ui("plot")
+
+  div(
+    class = "ie-shell",
+
+    # ---- Left rail: every destination, in one place ------------------------
+    # Replaces the horizontal tabsetPanel. The VALUES are the old tab labels,
+    # so `input$tabs` still reads "Plot" / "Trajectory" / ... and every
+    # active-tab guard and conditionalPanel downstream is unchanged.
+    railUI(
+      "rail", IE_PIPELINE, IE_REFERENCE,
+      brand = "Islet Explorer", logo = "logo.png",
+      help = tagList(
+        rail_help_link("help_rules", "Phenotype rules", "Marker definitions"),
+        rail_help_link("help_tips", "Tips for this tab", "How to read it")
+      ),
+      footer = tagList(
+        rail_palette_select("rail_phenotype_palette", "Phenotype palette",
+                            names(PHENOTYPE_PALETTES), "High Contrast"),
+        rail_palette_select("rail_donor_palette", "Donor palette",
+                            names(DONOR_PALETTES), "Bright")
       )
     ),
-    # Main Panel
-    column(width = 10.6, class = "equal-height-panel main-content-panel",
-      id = "main-content", role = "main", tabindex = "-1",
-      tabsetPanel(id = "tabs",
-        tabPanel("Plot",
-          fluidRow(
-            plot_main_ui("plot", extra_panel = if (AI_ENABLED) column(2, ai_assistant_ui("ai")) else NULL)
+
+    div(
+      class = "ie-main",
+
+      # ---- Frozen TOP bar: what is identical on every tab -------------------
+      # The split between here and the right-hand panel is by SIMILARITY, not by
+      # kind. FILTER is which islets are in scope and is the same question on
+      # every tab, so it earns a fixed horizontal strip the eye stops seeing;
+      # SELECTION is what the tab plots and stays in the right-hand panel, where
+      # attention already is.
+      #
+      # Before this, donor status lived under three different ids, min-cells
+      # under four with no syncing at all, and Trajectory and Inflammation had
+      # no cohort filter whatsoever.
+      #
+      # Hidden on the Viewer, which is a read-only image surface and reads none
+      # of it.
+      conditionalPanel(
+        condition = "input.tabs != 'Viewer'",
+        div(class = "ie-topbar", cohortFilterUI("cohort"))
+      ),
+
+      div(
+        class = "ie-body",
+
+        # The panels and the control panel are SIBLINGS in a flex row, each
+        # with its own scroller, not nested. That is what .equal-height-panel
+        # gave both of them before: the Plot sidebar is ~1700px of controls
+        # against a ~1000px viewport, so sharing a scroller makes the whole
+        # document grow to the sidebar's height and the shell stops containing
+        # anything.
+        div(
+          class = "ie-panels", id = "main-content", role = "main", tabindex = "-1",
+
+          # navset_hidden mounts EVERY panel and toggles CSS visibility, just
+          # as tabsetPanel did. That is why the drill-down duplicate-output
+          # guards in mod_plot_server.R and mod_trajectory_server.R are still
+          # required. Order matches IE_PIPELINE: navset_hidden selects its
+          # FIRST panel by default and railUI checks its first row, so if the
+          # two disagree the app opens on one tab with another lit in the rail.
+          bslib::navset_hidden(
+            id = "tabs",
+            bslib::nav_panel_hidden("Plot",
+              fluidRow(
+                plot_main_ui("plot", extra_panel = if (AI_ENABLED) column(2, ai_assistant_ui("ai")) else NULL)
+              )
+            ),
+            bslib::nav_panel_hidden("Trajectory", trajectory_ui("traj")),
+            bslib::nav_panel_hidden("Statistics", statistics_ui("stats")),
+            bslib::nav_panel_hidden("Spatial",    spatial_ui("spatial")),
+            # Same module namespace -- a relocation of the three neighborhood
+            # cards, not a second module.
+            bslib::nav_panel_hidden("Neighborhoods", spatial_neighborhood_ui("spatial")),
+            # Hidden unless SHOW_INFLAMMATION_TAB=1 (see 00_globals.R).
+            # navset_hidden drops NULL entries, so this mounts nothing when off
+            # -- and IE_PIPELINE is gated on the same flag, so the rail can
+            # never offer a destination the tabset does not mount.
+            if (SHOW_INFLAMMATION_TAB) {
+              bslib::nav_panel_hidden("Inflammation", inflammation_ui("inflam"))
+            },
+            bslib::nav_panel_hidden("Viewer", viewer_ui("viewer"))
           )
         ),
-        tabPanel("Trajectory",
-          trajectory_ui("traj")
-        ),
-        tabPanel("Viewer",
-          viewer_ui("viewer")
-        ),
-        tabPanel("Statistics",
-          statistics_ui("stats")
-        ),
-        tabPanel("Spatial",
-          spatial_ui("spatial")
-        ),
-        # Hidden unless SHOW_INFLAMMATION_TAB=1 (see 00_globals.R).
-        # tabsetPanel drops NULL entries, so this mounts nothing when off.
-        if (SHOW_INFLAMMATION_TAB) {
-          tabPanel("Inflammation",
-            inflammation_ui("inflam")
+
+        # ---- Frozen control panel ------------------------------------------
+        # The Data & Filters controls, in the same place on every tab that
+        # reads them, instead of a column that appeared and vanished. It stays
+        # OUTSIDE the navset because statistics_server consumes
+        # plot_returns$raw_df_prezero, so these inputs must stay mounted and
+        # visible on the Statistics tab.
+        #
+        # Under BS5 Shiny gives the conditionalPanel wrapper `display: contents`
+        # (modernist-shiny.css), so `.ie-aside` is a direct flex item of
+        # `.ie-body` and the whole subtree leaves the row when the condition is
+        # false, rather than leaving a blank gutter.
+        # Hidden on the Viewer, which is a read-only image surface and reads
+        # none of it. Each tab mounts its OWN block, namespaced to its module,
+        # so nothing about the modules' wiring changes -- only where the
+        # controls render.
+        conditionalPanel(
+          condition = "input.tabs != 'Viewer'",
+          tags$aside(
+            class = "ie-aside", role = "complementary",
+            `aria-label` = "Controls for the active tab",
+            div(
+              class = "ie-aside-block",
+              conditionalPanel(
+                condition = "input.tabs == 'Plot' || input.tabs == 'Statistics'",
+                plot_sidebar_ui("plot")
+              ),
+              conditionalPanel(
+                condition = "input.tabs == 'Spatial' || input.tabs == 'Neighborhoods'",
+                spatial_selection_ui("spatial")
+              )
+            )
           )
-        }
+        )
       )
     )
   )
 )
+
+# Fail loudly at startup if a rail key drifts from a nav_panel_hidden value. A
+# drifted key does not error at runtime -- it silently greys out a panel, which
+# is exactly the failure the active-tab guards exist to prevent.
+stopifnot(setequal(
+  IE_TAB_KEYS,
+  c("Plot", "Trajectory", "Statistics", "Spatial", "Neighborhoods", "Viewer",
+    if (SHOW_INFLAMMATION_TAB) "Inflammation")
+))
+
 
 # ---------- Server ----------
 
@@ -468,38 +343,31 @@ server <- function(input, output, session) {
     pd
   })
 
-  # ---- Theme CSS (light/dark toggle, if theme_bg input exists) ----
-  output$theme_css <- renderUI({
-    if (!is.null(input$theme_bg) && input$theme_bg == "Dark") {
-      tags$style(HTML("body { background-color: #000000; color: #e6e6e6; }
-                       .well { background-color: #111111; }"))
-    } else {
-      tags$style(HTML("body { background-color: #ffffff; color: #111111; }"))
-    }
-  })
-
   # ---- Module servers ----
+
+  # ---- The shared cohort filter ----
+  # One definition of "which islets are in scope", mounted once and consumed by
+  # every tab. `cohort$apply(df)` returns the subset AND attaches an audit of
+  # which filters bound to which column, so a filter this frame cannot apply
+  # surfaces as a banner rather than silently doing nothing.
+  cohort <- cohortFilterServer("cohort", prepared)
 
   # Active tab reactive (used to prevent duplicate non-namespaced output IDs)
   active_tab <- reactive(input$tabs)
 
+  # The rail drives the hidden tabset. Its values ARE the old tab labels, so
+  # `input$tabs` keeps reading "Plot" / "Trajectory" / ... and every guard
+  # downstream of active_tab() is unchanged by the shell.
+  railServer("rail", "tabs")
+
   # Active phenotype palette (global, consumed by root renders + spatial module)
-  # Two non-namespaced inputs update this: spatial_palette (Spatial tab) and drilldown_palette (drill-down panel)
+  # Writers: the rail footer and the drill-down panel's own selector. The
+  # Spatial tab used to carry a third copy; it went with the control card that
+  # moved into the frozen panel.
   palette_name <- reactiveVal("High Contrast")
 
-  observeEvent(input$spatial_palette, {
-    if (!identical(input$spatial_palette, palette_name())) {
-      palette_name(input$spatial_palette)
-      updateSelectInput(session, "drilldown_palette", selected = input$spatial_palette)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$drilldown_palette, {
-    if (!identical(input$drilldown_palette, palette_name())) {
-      palette_name(input$drilldown_palette)
-      updateSelectInput(session, "spatial_palette", selected = input$drilldown_palette)
-    }
-  }, ignoreInit = TRUE)
+  ie_sync_selects(input, session, palette_name,
+                  c("rail_phenotype_palette", "drilldown_palette"))
 
   active_palette <- reactive({
     get_phenotype_palette(palette_name())
@@ -509,120 +377,39 @@ server <- function(input, output, session) {
   donor_palette_name <- reactiveVal("Bright")
   DONOR_PALETTE_CHOICES <- names(DONOR_PALETTES)
 
-  # Sync all donor palette selectors (Plot sidebar, Trajectory, Spatial)
-  observeEvent(input$sidebar_donor_palette, {
-    if (!identical(input$sidebar_donor_palette, donor_palette_name())) {
-      donor_palette_name(input$sidebar_donor_palette)
-      updateSelectInput(session, "traj_donor_palette", selected = input$sidebar_donor_palette)
-      updateSelectInput(session, "spatial_donor_palette", selected = input$sidebar_donor_palette)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$traj_donor_palette, {
-    if (!identical(input$traj_donor_palette, donor_palette_name())) {
-      donor_palette_name(input$traj_donor_palette)
-      updateSelectInput(session, "sidebar_donor_palette", selected = input$traj_donor_palette)
-      updateSelectInput(session, "spatial_donor_palette", selected = input$traj_donor_palette)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$spatial_donor_palette, {
-    if (!identical(input$spatial_donor_palette, donor_palette_name())) {
-      donor_palette_name(input$spatial_donor_palette)
-      updateSelectInput(session, "sidebar_donor_palette", selected = input$spatial_donor_palette)
-      updateSelectInput(session, "traj_donor_palette", selected = input$spatial_donor_palette)
-    }
-  }, ignoreInit = TRUE)
+  # Sync every donor-palette selector, the rail's included.
+  # ONE writer left for each palette, plus the drill-down panel's own phenotype
+  # selector. The Plot sidebar's, Trajectory's and Spatial's copies all went to
+  # the rail footer. ie_sync_selects() stays because the drill-down copy is real
+  # -- it sits inside a renderUI'd panel and users reach it there.
+  ie_sync_selects(input, session, donor_palette_name, c("rail_donor_palette"))
 
   active_donor_colors <- reactive({
     get_donor_color_palette(donor_palette_name())
   })
 
-  # Global outlier filter (synced across Plot sidebar, Trajectory, Spatial).
-  # Defaults to FALSE so the raw distribution renders out of the box; users
-  # opt in via the checkbox when they want to exclude tails from trends and
-  # tests. The three non-namespaced inputs `sidebar_remove_outliers`,
-  # `traj_remove_outliers`, `spatial_remove_outliers` mirror this reactive;
-  # observers keep them in sync. Modules read `remove_outliers_global()` and
-  # the threshold reactive `outlier_z_global()` directly.
-  remove_outliers_rv <- reactiveVal(FALSE)
-
-  observeEvent(input$sidebar_remove_outliers, {
-    if (!identical(input$sidebar_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$sidebar_remove_outliers))
-      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
-      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$sidebar_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$traj_remove_outliers, {
-    if (!identical(input$traj_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$traj_remove_outliers))
-      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$traj_remove_outliers))
-      updateCheckboxInput(session, "spatial_remove_outliers", value = isTRUE(input$traj_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$spatial_remove_outliers, {
-    if (!identical(input$spatial_remove_outliers, remove_outliers_rv())) {
-      remove_outliers_rv(isTRUE(input$spatial_remove_outliers))
-      updateCheckboxInput(session, "sidebar_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
-      updateCheckboxInput(session, "traj_remove_outliers", value = isTRUE(input$spatial_remove_outliers))
-    }
-  }, ignoreInit = TRUE)
-
-  remove_outliers_global <- reactive({
-    isTRUE(remove_outliers_rv())
-  })
-
-  # Global outlier z-threshold slider (synced across Plot / Trajectory /
-  # Spatial). Default 3.0 (legacy behavior). Range 0.5–10, step 0.5. Feeds
-  # `flag_outliers(threshold = …)` for every z-score site. Spatial Card A's
-  # IQR rule (1.5×) is intentionally NOT routed through this — different
-  # scale, kept fixed for zero-inflated phenotype enrichment.
-  outlier_z_rv <- reactiveVal(3.0)
-
-  observeEvent(input$sidebar_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$sidebar_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "traj_outlier_z", value = val)
-      updateSliderInput(session, "spatial_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$traj_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$traj_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "sidebar_outlier_z", value = val)
-      updateSliderInput(session, "spatial_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  observeEvent(input$spatial_outlier_z, {
-    val <- suppressWarnings(as.numeric(input$spatial_outlier_z))
-    if (is.finite(val) && !isTRUE(all.equal(val, outlier_z_rv()))) {
-      outlier_z_rv(val)
-      updateSliderInput(session, "sidebar_outlier_z", value = val)
-      updateSliderInput(session, "traj_outlier_z", value = val)
-    }
-  }, ignoreInit = TRUE)
-
-  outlier_z_global <- reactive({
-    val <- suppressWarnings(as.numeric(outlier_z_rv()))
-    if (is.finite(val) && val >= 0.5) val else 3.0
-  })
+  # GONE WITH THE COHORT PANEL: two reactiveVals and six observers that mirrored
+  # `sidebar_remove_outliers` / `traj_remove_outliers` / `spatial_remove_outliers`
+  # and the matching z-threshold sliders into each other. Three copies of one
+  # value, each of which had to name the other two -- and Trajectory and
+  # Inflammation still got no cohort filter at all. The panel owns the rule now;
+  # modules read `cohort$outlier_enabled()` and `cohort$outlier_z()`.
+  #
+  # Unchanged by the move: Spatial Card A's IQR rule (1.5x) is still NOT routed
+  # through this. Different scale, deliberately fixed for zero-inflated
+  # phenotype enrichment.
 
   # Plot module: returns list(raw_df, summary_df, get_selection_description)
   plot_returns <- plot_server("plot", prepared, selected_islet, active_tab, active_donor_colors,
-                              remove_outliers = remove_outliers_global,
-                              outlier_threshold = outlier_z_global)
+                              remove_outliers = cohort$outlier_enabled,
+                              outlier_threshold = cohort$outlier_z,
+                              cohort = cohort)
 
   # Trajectory module
   trajectory_server("traj", prepared, selected_islet, forced_image, active_tab, active_donor_colors,
-                    remove_outliers = remove_outliers_global,
-                    outlier_threshold = outlier_z_global)
+                    remove_outliers = cohort$outlier_enabled,
+                    outlier_threshold = cohort$outlier_z,
+                    cohort = cohort)
 
   # Viewer module
   viewer_server("viewer", forced_image, reactive(input$tabs))
@@ -637,17 +424,19 @@ server <- function(input, output, session) {
                     raw_df                  = plot_returns$raw_df_prezero,
                     get_selection_description = plot_returns$get_selection_description,
                     donor_colors             = active_donor_colors,
-                    remove_outliers          = remove_outliers_global)
+                    remove_outliers          = cohort$outlier_enabled,
+                    cohort                   = cohort)
 
   # Spatial Neighborhood module
   spatial_server("spatial", prepared, active_palette, active_donor_colors,
-                 remove_outliers = remove_outliers_global,
-                 outlier_threshold = outlier_z_global)
+                 remove_outliers = cohort$outlier_enabled,
+                 outlier_threshold = cohort$outlier_z,
+                 cohort = cohort)
 
   # Inflammation module. Gated on the same flag as its tabPanel (see
   # 00_globals.R) so the module is not wired up when the tab is hidden.
   if (SHOW_INFLAMMATION_TAB) {
-    inflammation_server("inflam", prepared, active_donor_colors)
+    inflammation_server("inflam", prepared, active_donor_colors, cohort = cohort)
   }
 
   # AI Assistant module (self-contained; gated so public builds omit it — see AI_ENABLED)
@@ -752,19 +541,19 @@ server <- function(input, output, session) {
       colour <- if (!is.null(pal) && nm %in% names(pal)) pal[[nm]] else "#CCCCCC"
       rule_html <- format_phenotype_rule(nm, "html")
       tags$div(
-        style = "display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eef0f3;",
+        style = "display: flex; align-items: flex-start; gap: 8px; padding: 4px 0",
         tags$span(style = sprintf("display:inline-block; width:12px; height:12px; min-width:12px; margin-top:4px; background:%s; border:1px solid #888; border-radius:2px;", colour)),
         tags$div(
-          tags$div(style = "font-weight:600; color:#333; font-size:13px;", nm),
-          tags$div(style = "font-size:12px; color:#444; line-height:1.35;", rule_html)
+          tags$div(style = "font-weight:600; font-size:13px", nm),
+          tags$div(style = "font-size:12px; line-height:1.35", rule_html)
         )
       )
     })
     tags$details(
-      style = "margin-top: 10px; padding: 8px 10px; background:#fafbfd; border:1px solid #e2e8f0; border-radius: 4px; font-size: 13px;",
-      tags$summary(style = "cursor: pointer; font-weight: 600; color: #4477AA;",
+      style = "margin-top: 10px; padding: 8px 10px; font-size: 13px",
+      tags$summary(style = "cursor: pointer; font-weight: 600",
                    "Marker rules for phenotypes in this islet"),
-      tags$div(style = "margin-top: 8px;", rows)
+      tags$div(style = "margin-top: 8px", rows)
     )
   })
 
@@ -788,20 +577,22 @@ server <- function(input, output, session) {
   }, striped = TRUE, spacing = "s")
 
   # ---- Phenotype Rules modal (shared across all tabs) ----
-  # Each tab's `phenotype_rules_button("show_phenotype_rules_<tab>")` fires one
-  # of these observers; they all open the same modal so users see a single
-  # source of truth for marker -> celltype gating.
-  for (id in c("show_phenotype_rules_plot",
-               "show_phenotype_rules_traj",
-               "show_phenotype_rules_spatial",
-               "show_phenotype_rules_stats",
-               "show_phenotype_rules_viewer")) {
-    local({
-      input_id <- id
-      observeEvent(input[[input_id]], { showModal(phenotype_rules_modal_ui()) },
-                   ignoreInit = TRUE)
-    })
-  }
+  # ONE observer now. Five tabs each mounted their own
+  # `phenotype_rules_button("show_phenotype_rules_<tab>")` pill at the top of
+  # the panel, and a sixth -- Inflammation's -- had no observer at all, so its
+  # pill had always been inert. The rail's Help entry replaces all six and
+  # reaches the modal from every tab, including the ones that never had a pill.
+  # The INLINE links inside the Spatial module are separate and still live;
+  # they are namespaced and registered in mod_spatial_server.R.
+  observeEvent(input$help_rules, { showModal(phenotype_rules_modal_ui()) },
+               ignoreInit = TRUE)
+
+  # The rail's second Help entry. One observer for every tab, because the modal
+  # reads the ACTIVE tab rather than being mounted per panel -- which is the
+  # whole point of moving the hint strips off the panels.
+  observeEvent(input$help_tips, {
+    showModal(ie_tab_tips_modal(active_tab()))
+  }, ignoreInit = TRUE)
 }
 
 shinyApp(ui, server)

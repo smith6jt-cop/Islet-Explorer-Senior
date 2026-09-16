@@ -1,5 +1,42 @@
 # Islet Explorer (Senior) — App Capability Status
 
+> **Two datasets now, and this document's 2026-06 assessment is of the CODEX one.** The app serves
+> the legacy CODEX cohort and the PhenoCycler run cohort, selected by `ISLET_DOMAIN_CONFIG`; the
+> assessment below predates that split and its verdicts describe `islet_default.yml`. The run
+> cohort's own matrix is the next section. Two claims below are now **stale** and are corrected
+> there: the Viewer does *not* have images for all 22 donors, and the "new outputs are intentionally
+> not wired into the app" note no longer holds — REDSEA/RESTORE are retired and the run cohort's
+> subpanel typing is wired in.
+
+## Run cohort (`config/run20_default.yml`) — assessed 2026-09-14
+
+**Method:** `tests/tab_smoke.R` — Chrome via shinytest2 through all five tabs, reporting per tab the
+R output errors Shiny surfaced, the JS console errors, and how many outputs exist but drew nothing.
+Screenshots are what the verdicts rest on, not a code read.
+
+| Tab | R errors | JS errors | Verdict |
+|-----|---------|-----------|---------|
+| **Plot** | 0 | 0 | Works — islet-size scatter and donor-group violin render on ND/T1D; the domain's denominator note shows in the sidebar |
+| **Trajectory** | 0 | 0 | Works — composition pseudotime, both UMAPs, feature selector carrying the eight class names |
+| **Spatial** | 0 | 0 | Works — tissue scatter 122,951 foreground / 729,312 background for donor 115; neighbourhood Cards A–C live on 7,634 islets |
+| **Statistics** | 0 | 0 | Works — narrative and controls render; result panels populate on demand after Run Statistics |
+| **Viewer** | 0 | 1 | Wired correctly, image fetch fails **as expected**: Avivator mounts, the dropdown lists `115.ome.tiff`, the URL builds, and only the tile request fails. `runApp` cannot serve HTTP Range. Verify under the deployed server (`deploy/local/README.md`). |
+
+**Data on disk for this cohort:** 7,780 islets, 13.37 M cells, 10 donors (8 ND / 2 T1D, no Aab+).
+DuckDB views `islets`, `tissue`, `cell_distance`, `uns_targets`, `uns_composition`; `uns_markers`
+deliberately absent because this dataset has no per-marker positivity. OME-TIFFs for all ten donors;
+`.tmap` projects building.
+
+**Eight cohort facts had been written into the UI as literals** and printed as measurements of
+whichever dataset was loaded — a donor id (6521) absent from this cohort, "N=15 total", "N=5 per
+group", "all fifteen", a hard-coded `c("ND","Aab+","T1D")` filter, and "(scVI)" on a dataset with no
+scVI. All now derive from the loaded data or the DOMAIN. None was visible to the 238-assertion
+testthat suite, because every path resolved and every column existed.
+
+---
+
+## Legacy CODEX cohort (`config/islet_default.yml`)
+
 **Assessed:** 2026-06-29 · **Method:** the dev server was booted
 (`Rscript -e 'shiny::runApp(".", port=7777)'`, `RETICULATE_PYTHON` → `scvi-env`) and every tab was
 loaded and screenshotted in a headless browser. Verdicts below are what the **running app actually
@@ -14,7 +51,9 @@ did**, not a code read. Screenshots are in `docs/img/capability/`.
   `get_islet_annotations` loop, each scanning the full 9.6k-row spatial lookup (~88M comparisons per
   render). **Fixed 2026-06-29** by vectorizing that lookup into one `match()` (renders instantly).
   The "islet-key join" was a red herring — the keys (`Islet_755` both sides) match perfectly.
-- **Viewer now serves per-donor OME-TIFFs for the full 22-donor cohort** (Jul 2026). The `.qptiff`
+- **Viewer serves per-donor OME-TIFFs** (Jul 2026). *(Stale as written: 16 of 22 donors have an
+  OME-TIFF as of 2026-09-14 — all ten run-cohort donors plus six others. The six batch-2 slides
+  6505, 6523, 6534, 6566, 6591 and 6623 are not converted.)* The `.qptiff`
   slides are converted to pyramidal, tiled OME-TIFF via `scripts/senior/convert_viewer_ometiff.sh`
   (bioformats2raw 0.12.1 → raw2ometiff 0.10.0, Baseline series only, LZW) into
   `/data/islet_ome_tiff/<case_id>.ome.tiff` (+ `<case_id>.offsets.json`), surfaced through the
@@ -26,7 +65,8 @@ did**, not a code read. Screenshots are in `docs/img/capability/`.
   Avivator resolves them against each image's own OME-XML) — correct defaults for every donor.
   **Avivator requires HTTP Range (206)** — production nginx/shiny-server provides it; the dev
   `runApp` (httpuv) does **not**, so images render only under the deployed server, not `shiny::runApp`.
-- **Every tab still serves the OLD provisional fine phenotypes** (Beta cell, Alpha cell,
+- *(Stale as written — REDSEA and RESTORE are retired, and the run cohort's subpanel typing is
+  wired into the app as a second domain.)* **Every tab still serves the OLD provisional fine phenotypes** (Beta cell, Alpha cell,
   M2 macrophage, NK cell, Regulatory T cell, Stromal, …). The new REDSEA/RESTORE/broad-lineage
   outputs are **intentionally not wired into the app** — they live only in the phenotyping notebook
   (`notebooks/senior_phenotyping_redsea_restore.ipynb`). No app data rebuild was requested.
