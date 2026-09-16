@@ -279,6 +279,33 @@ GeoJSON coordinates are **qptiff pixels**; scale is fitted, not read from a tag 
 6. **`nullgate_fast.py` (the production path) drifted from the reference once**, silently
    awarding lineages the reference refuses. The frame-for-frame equivalence test must be part
    of the gate, not optional.
+7. **`sc.tl.score_genes` already subtracts a binned control-gene reference.** It is the only
+   implicit background correction anywhere in the pipeline, it is gene-expression-based rather
+   than control-probe-based, and it applies to every `{celltype}_score` column. Do not stack a
+   second correction on those scores without checking what it already removed.
+8. **Dead config.** `DETECTION_SUBTYPE_LINEAGES[*]["gate_thr"] = log1p(1.0)`
+   (`pancreas.py:474, 483, 492, 501`; `thymus.py:724-758`) is **never read** —
+   `hierarchical_phenotype.py:870-871` hardcodes `RAW_DETECT_FLOOR` on `layers['counts']`. The
+   declared lognorm threshold has no effect, and the comment above it describes behaviour the
+   code does not have.
+9. **Two independent canary implementations.** `02_phenotyping.ipynb` cell 22 (lognorm,
+   `log1p(3)`, exclusive-group counting, `margin >= 2 AND top_depth >= 2`) is a different code
+   path from `hierarchical_phenotype.py` (raw counts, floors 1 and 2). The notebook's own
+   comment at `:726` says "raw count >= 3" while the code at `:757` is lognorm — and because
+   `normalize_total` uses the median library size, a ~40% inflated denominator from gDNA
+   raises the effective raw bar. Fix the comment or the code, but know they disagree.
+10. **Scripts referenced in `CLAUDE.md` that are missing from disk**:
+    `verify_upper_tail_doublets.py`, `lineage_phenotype.py`, `refine_rare_celltypes.py`,
+    `compute_panel_detection.py`. `pancreas.py`'s `LABEL_TO_CANARY` is consumed only by the
+    first of these, so it is currently dead.
+
+### Highest-leverage locations for the gDNA remediation
+
+`hierarchical_phenotype.py:701-705` (the eligibility mask — one stray transcript makes a
+lineage eligible), `:658` (`ic_detect_counts`), `:870-872` (fine gate), `:847-850` (dominant
+canary), `01_preprocessing_v2.ipynb:1547` (the vendor `total_counts` overwrite), and `:1657`
+(the regex that would need `Intergenic_Region_` / `DeprecatedCodeword_` if the reader ever
+stopped filtering controls out).
 
 ---
 
