@@ -209,14 +209,45 @@ def test_sequential_steps_refuse_in_same_slide_mode(tmp_path):
 
 
 def test_crossmodal_refuses_in_same_slide_mode(tmp_path):
-    """In same-slide mode the pairing is measured, so approximating it is a mistake."""
+    """In same-slide mode the pairing is measured, so approximating it is a mistake.
+
+    The pair must be DECLARED same_slide, not merely run under [integration] mode. Since
+    2026-09-16 same-slide status is a property of the section pair rather than of the run
+    (section_modes.csv), because it is an acquisition fact -- one physical section imaged
+    twice -- and a config flag cannot assert it. Without a declaration link_donor refuses
+    earlier and for a different reason, which is correct but is not what this test is for.
+    """
+    p, x = _paired_tables(n_markers=10, n=100)
+    modes = tmp_path / "section_modes.csv"
+    modes.write_text(
+        "donor_id,roi,xenium_serial,mode,evidence,note\n"
+        'T,panc,,same_slide,"synthetic fixture: one section imaged twice",'
+        "crossmodal must refuse here\n"
+    )
+    cfg_ss = load_config(data_dir=tmp_path, integration_mode="same_slide",
+                         section_modes_csv=modes)
+    from phenocycler.integration.contract import partition_path, write_cell_table
+
+    write_cell_table(p.df, partition_path(cfg_ss.cells_pheno_dir, "T", "panc"))
+    write_cell_table(x.df, partition_path(cfg_ss.cells_xen_dir, "T", "panc"))
+    with pytest.raises(RuntimeError, match="sameslide"):
+        link_donor(cfg_ss, "T", "panc")
+
+
+def test_same_slide_cannot_be_asserted_by_the_run_mode_alone(tmp_path):
+    """An undeclared pair is refused even when [integration] mode says same_slide.
+
+    This is the guard that made the test above fail after the 2026-09-16 change, and it is
+    worth keeping on purpose: analysing a serial pair as same_slide fabricates a cell-to-cell
+    measurement, while the reverse only costs resolution.
+    """
     p, x = _paired_tables(n_markers=10, n=100)
     cfg_ss = load_config(data_dir=tmp_path, integration_mode="same_slide")
     from phenocycler.integration.contract import partition_path, write_cell_table
 
     write_cell_table(p.df, partition_path(cfg_ss.cells_pheno_dir, "T", "panc"))
     write_cell_table(x.df, partition_path(cfg_ss.cells_xen_dir, "T", "panc"))
-    with pytest.raises(RuntimeError, match="sameslide"):
+    with pytest.raises(Exception, match="not declared"):
         link_donor(cfg_ss, "T", "panc")
 
 
