@@ -96,6 +96,18 @@ ISLET_GEOJSON = {
     "0112": "Islets_0081366_HDL112_pLNpanc_Scan3.er.qptiff - resolution #1.geojson",
 }
 
+#: The structures that legitimately traverse an islet, as their own QuPath annotation layers,
+#: and the reference each one makes a cell a candidate for. A vessel, a lymphatic and a nerve
+#: are objects that were drawn, so membership is read by point-in-polygon exactly as islet
+#: membership is -- not inferred from a marker and not inferred from a neighbourhood.
+#:
+#: The marker still has to agree. Being inside a drawn vessel makes a cell a CANDIDATE for
+#: ``Endo-vascular``; it is called that only if it also meets what that reference requires
+#: (CD31, plus one of CD34 / CD99 / Caveolin). Centroid and corresponding marker, both.
+OBJECT_LAYERS = {"blood_vessel": "Blood_vessel", "lymphatic": "Lymphatic", "nerve": "Nerve"}
+STRUCTURE_REFERENCE = {"blood_vessel": "Endo-vascular", "lymphatic": "Endo-lymphatic",
+                       "nerve": "Neural"}
+
 
 #: Step 1's output for these donors. The lane's step order is not optional: Step 1 decides
 #: which measurements the later steps may lean on, and running Step 3 without it means
@@ -163,7 +175,7 @@ def load_expression(donor: str, markers: list) -> tuple:
     handle = pq.ParquetFile(path)
     on_disk = {f.name for f in handle.schema_arrow}
     keep = ["object_id", "qc_analysis_eligible", "cell_region", "islet_num",
-            "X_centroid", "Y_centroid"]
+            "X_centroid", "Y_centroid", "image"]
     keep = [c for c in keep if c in on_disk]
     present = [m for m in markers if m in on_disk]
     # The file, not the dataset: the partition directory carries donor_id as a dictionary
@@ -268,6 +280,75 @@ def _load_islet_polygons(path: pathlib.Path) -> tuple:
     return core, expanded
 
 
+def _layer_path(image: str, kind: str) -> pathlib.Path | None:
+    """The object layer for one image, named as QuPath exported it.
+
+    QuPath writes ``<Class>__<image name>.geojson`` with the image's spaces and ``#``
+    flattened to underscores, so the name is derivable from the ``image`` column rather than
+    hard-coded per donor. A glob is tried as well, because the export names have already
+    changed once in this project.
+    """
+    stem = image.replace(" ", "_").replace("#", "_")
+    exact = DATA_ROOT / f"{OBJECT_LAYERS[kind]}__{stem}.geojson"
+    if exact.exists():
+        return exact
+    hits = sorted(DATA_ROOT.glob(f"{OBJECT_LAYERS[kind]}__*.geojson"))
+    hits = [h for h in hits if image.split(".")[0] in h.name]
+    return hits[0] if hits else None
+
+
+def _load_annotation_polygons(path: pathlib.Path) -> list:
+    """Every annotation in a layer, as shapely geometries in MICRONS."""
+    from shapely.affinity import scale as affine_scale
+    from shapely.geometry import shape
+
+    features = json.loads(path.read_text())
+    features = features["features"] if isinstance(features, dict) else features
+    out = []
+    for f in features:
+        g = shape(f["geometry"])
+        if not g.is_valid:
+            g = g.buffer(0)
+        out.append(affine_scale(g, xfact=PIXEL_UM, yfact=PIXEL_UM, origin=(0, 0)))
+    return out
+
+
+def structure_membership(donor: str, df: pd.DataFrame) -> np.ndarray:
+    """Which drawn structure each cell's centroid falls inside, or ``''``.
+
+    Stamped for EVERY cell, in every region, because it is a fact about the cell and costs
+    one spatial query. It is only allowed to DECIDE inside ``Islet_N`` -- see
+    :func:`_islet_core_cascade` -- where the question "is this an intruding vessel, lymphatic
+    or nerve" is the one the islet prior leaves open. Outside the islet nothing needs the
+    shortcut: every reference already competes there, and the membership is reported beside
+    the call instead so the two can be compared.
+
+    A cell inside more than one layer takes the more specific one -- nerve, then lymphatic,
+    then blood vessel -- because blood vessel is by far the largest layer (111,806 polygons
+    against 11,293 and 8,535 on 6533) and would otherwise absorb the overlaps.
+    """
+    from shapely import STRtree, points as shp_points
+
+    image = str(df["image"].iloc[0]) if "image" in df.columns else ""
+    out = np.full(len(df), "", dtype=object)
+    if not image:
+        return out
+    xy = shp_points(df["X_centroid"].to_numpy("float64"), df["Y_centroid"].to_numpy("float64"))
+    found = []
+    for kind in ("blood_vessel", "lymphatic", "nerve"):       # least to most specific
+        path = _layer_path(image, kind)
+        if path is None:
+            continue
+        geoms = _load_annotation_polygons(path)
+        if not geoms:
+            continue
+        hit, _ = STRtree(geoms).query(xy, predicate="within")
+        out[hit] = kind
+        found.append(f"{kind} {len(geoms):,} polys -> {len(np.unique(hit)):,} cells")
+    print(f"  {donor}: object layers -- " + ("; ".join(found) if found else "none found"))
+    return out
+
+
 def islet_regions(donor: str, df: pd.DataFrame) -> pd.DataFrame:
     """``cell_region`` in {core, peri, tissue} plus ``islet_num``, by whichever route exists.
 
@@ -312,7 +393,8 @@ ENDOCRINE_REASONS = ("hormone_argmax", "cd99_islet_endocrine")
 
 
 def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intruders: list,
-                        require_min: float, score_rows) -> pd.DataFrame | None:
+                        require_min: float, score_rows, structure: np.ndarray,
+                        available: set) -> pd.DataFrame | None:
     """Inside `Islet_N`: hormone, then CD99, then everything else. In that order.
 
     The islet polygons were drawn by a QuPath pixel classifier on **INS, GCG, SST and CD99**,
@@ -328,8 +410,12 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
        (6533) and 65.0% (0112) of core cells against 4.6% / 3.8% in the surrounding ring,
        an 18-75x enrichment, so it separates islet-endocrine from islet-non-endocrine rather
        than merely being present.
-    3. **Everything else** is islet-NON-endocrine and is typed by marker profile against the
-       non-endocrine reference set -- immune, vascular, lymphatic, neural, other.
+    3. **Structure, by centroid and by marker.** A vessel, a lymphatic and a nerve traverse
+       islets, and each was drawn as its own QuPath annotation layer. A CD99-negative cell
+       whose centroid sits inside one is a candidate for that structure's reference -- and is
+       called it only if it also meets what the reference requires. Centroid AND corresponding
+       marker; neither alone.
+    4. **Everything else** is typed by marker profile against the non-endocrine reference set.
 
     This replaces an earlier arrangement in which endocrine references were removed from
     contention inside the core and a cell became endocrine only by meeting NO intruder rule.
@@ -353,21 +439,42 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
     out = sub.copy()
     out["reason"] = np.where(by_hormone, "hormone_argmax", "cd99_islet_endocrine")
     out["n_candidates"] = np.nan
-    if rest.any():
-        # The non-endocrine remainder competes on marker profile alone. `intruders` is
-        # run_islet.intruder_references -- the whole epithelial branch is out, because an
-        # endocrine cell satisfies those rules by construction and this branch of the
-        # cascade has already established the cell is not endocrine.
+    def _write(rows_in_core: np.ndarray, refs: list, reason: str) -> np.ndarray:
+        """Score `rows_in_core` against `refs`; return who was actually called."""
+        if not rows_in_core.any() or not refs:
+            return np.zeros(len(idx), dtype=bool)
         mask = np.zeros(len(core), dtype=bool)
-        mask[idx[rest]] = True
-        scored = score_rows(mask, intruders)
-        scored.index = np.flatnonzero(rest)
+        mask[idx[rows_in_core]] = True
+        scored = score_rows(mask, refs)
+        scored.index = np.flatnonzero(rows_in_core)
+        # A candidacy step only claims the cells it actually called. The last step claims
+        # every cell it was given, Ambiguous included -- there is nothing after it.
+        keep = ((scored["call"] != "Ambiguous").to_numpy() if reason != "marker_profile"
+                else np.ones(len(scored), dtype=bool))
+        take = scored.index[keep]
         for c in out.columns:
             if c in scored.columns:
-                out.loc[scored.index, c] = scored[c].to_numpy()
-        out.loc[scored.index, "reason"] = np.where(
-            scored["reason"].to_numpy(dtype=object) == "", "marker_profile",
-            scored["reason"].to_numpy(dtype=object))
+                out.loc[take, c] = scored.loc[take, c].to_numpy()
+        got = scored.loc[take, "reason"].to_numpy(dtype=object)
+        out.loc[take, "reason"] = np.where(got == "", reason, got)
+        done = np.zeros(len(idx), dtype=bool)
+        done[take] = True
+        return done
+
+    if rest.any():
+        # Step 3 -- the drawn structures, one reference each, each behind its own requirement
+        # gate. A cell inside a vessel that shows no CD31 is NOT called a vessel; it falls
+        # through to step 4 with every other reference still available to it.
+        placed = np.zeros(len(idx), dtype=bool)
+        for kind, ref in STRUCTURE_REFERENCE.items():
+            if ref not in available:
+                continue
+            sel = rest & ~placed & (structure[idx] == kind)
+            placed |= _write(sel, [ref], f"structure_{kind}")
+        # Step 4 -- marker profile. `intruders` is run_islet.intruder_references: the whole
+        # epithelial branch is out, because an endocrine cell satisfies those rules by
+        # construction and this branch has already established the cell is not endocrine.
+        _write(rest & ~placed, intruders, "marker_profile")
     out.index = idx
     return out
 
@@ -392,7 +499,8 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
     Rm = Rm.loc[have, alive]
     Rm = Rm.loc[:, (Rm != 0).any(axis=0)]
     regions = islet_regions(donor, df)
-    df = df.assign(cell_region=regions["cell_region"], islet_num=regions["islet_num"])
+    df = df.assign(cell_region=regions["cell_region"], islet_num=regions["islet_num"],
+                   structure=structure_membership(donor, df))
     df = df[df["qc_analysis_eligible"]].reset_index(drop=True)
     if df.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -431,7 +539,8 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
         o.index = np.flatnonzero(rows)
         return o
 
-    core_out = _islet_core_cascade(Xs, have, core, intruder, require_min, _call)
+    core_out = _islet_core_cascade(Xs, have, core, intruder, require_min, _call,
+                                   df["structure"].to_numpy(dtype=object), set(usable))
     parts = [x for x in (core_out, _call(~core, usable)) if x is not None]
     out = pd.concat(parts).sort_index().reset_index(drop=True)
     out["islet_endocrine"] = out["reason"].isin(ENDOCRINE_REASONS).to_numpy()
@@ -440,6 +549,7 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
     out.insert(0, "donor_id", donor)
     out["cell_region"] = df["cell_region"].to_numpy()
     out["islet_num"] = df["islet_num"].to_numpy()
+    out["structure"] = df["structure"].to_numpy()
     out["X_centroid"] = df["X_centroid"].to_numpy()
     out["Y_centroid"] = df["Y_centroid"].to_numpy()
     return out, scale
