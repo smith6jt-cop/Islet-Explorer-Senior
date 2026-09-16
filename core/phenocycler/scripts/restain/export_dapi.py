@@ -155,7 +155,7 @@ def export_one(record: RI.RegistrationInput, *, out_root: Path = OUT / "valis") 
 
     # --- Xenium DAPI: morphology_focus channel 0 -----------------------------------------
     bundle = record.bundle
-    focus = bundle / "morphology_focus" / "morphology_focus_0000.ome.tif"
+    focus = RI.morphology_dapi_path(bundle)
     if not focus.exists():
         raise FileNotFoundError(f"{focus} is absent -- transfer it before exporting")
     with tifffile.TiffFile(str(focus)) as tif:
@@ -196,7 +196,7 @@ def export_one(record: RI.RegistrationInput, *, out_root: Path = OUT / "valis") 
          "if_pixel_um": pixel_um, "if_dapi_page": record.dapi_page,
          "if_channel_names": list(record.channel_names),
          "if_pyramid_shapes": [list(shape) for shape in record.pyramid_shapes],
-         "pixel_size_source": "qptiff XML PixelSizeMicrons",
+         "pixel_size_source": record.pixel_size_source,
          "provenance_source": record.provenance_source,
          "geojson": None if record.geojson is None else str(record.geojson),
          "if": rec["if"], "xenium": rec["xenium"],

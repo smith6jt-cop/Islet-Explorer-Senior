@@ -192,8 +192,8 @@ def nearest_neighbour_rmse(src: np.ndarray, dst: np.ndarray,
     from scipy.spatial import cKDTree
 
     ts, td = cKDTree(src), cKDTree(dst)
-    d_sd, i_sd = td.query(src, k=1)
-    _d_ds, i_ds = ts.query(dst, k=1)
+    d_sd, i_sd = td.query(src, k=1, workers=-1)
+    _d_ds, i_ds = ts.query(dst, k=1, workers=-1)
     mutual = i_ds[i_sd] == np.arange(len(src))
     keep = mutual & (d_sd <= max_dist_um)
     if not keep.any():
@@ -435,9 +435,9 @@ def icp(
 
     for _ in range(max_iter):
         cur = tf.apply(moving_xy)
-        d, j = tree_fixed.query(cur, k=1)
+        d, j = tree_fixed.query(cur, k=1, workers=-1)
         tree_cur = cKDTree(cur)
-        _d2, i2 = tree_cur.query(fixed_xy, k=1)
+        _d2, i2 = tree_cur.query(fixed_xy, k=1, workers=-1)
         mutual = i2[j] == np.arange(len(cur))
         keep = mutual & (d <= max_dist_um)
         if keep.sum() < 3:
@@ -1439,6 +1439,16 @@ def _registration_rasters(
 
     man = load_manifest(cfg)
     row = man[(man["donor_id"] == donor) & (man["roi"] == moving_table.roi)]
+    if len(row) > 1:
+        # One donor+roi can hold two Xenium sections (6533/panc is 0041393 and 0080870).
+        # Taking row 0 registered this section against a DIFFERENT piece of tissue and said
+        # nothing -- the same failure the qptiff fallback above refuses by name.
+        serials = ", ".join(sorted(str(v) for v in row["xenium_serial"].unique()))
+        raise ValueError(
+            f"donor {donor}/{moving_table.roi} resolves to {len(row)} Xenium sections "
+            f"({serials}). Registration cannot choose between them: they are different "
+            f"sections of the same block. Select one explicitly."
+        )
     bundle = str(row.iloc[0]["xenium_bundle"]) if len(row) else ""
     if bundle and Path(bundle).exists():
         try:

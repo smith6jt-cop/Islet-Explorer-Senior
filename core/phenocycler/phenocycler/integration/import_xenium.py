@@ -480,6 +480,22 @@ def run_import_xenium(
                 taxonomies[t] = None
         return taxonomies[t]
 
+    # partition_path keys on (donor_id, roi) only, so two sections of one donor+roi would
+    # both write donor_id=<d>/roi=<r>/data_0.parquet and the second would silently replace
+    # the first. Detect that before anything is written rather than after.
+    dupes = (man.groupby(["donor_id", "roi"]).size().loc[lambda v: v > 1])
+    if len(dupes):
+        detail = "; ".join(
+            f"{d}/{r}: " + ", ".join(sorted(
+                str(v) for v in man[(man["donor_id"] == d) & (man["roi"] == r)]
+                ["xenium_serial"].unique()))
+            for d, r in dupes.index)
+        raise ValueError(
+            f"these donor/roi keys resolve to more than one Xenium section -- {detail}. "
+            f"They would overwrite each other in cells_xen. Filter to one section "
+            f"(--donor/--roi) or give the extra section its own roi key."
+        )
+
     rows = []
     for _, r in man.iterrows():
         src = _resolve_source(r)

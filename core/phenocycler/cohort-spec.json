@@ -15,6 +15,7 @@
     "6505",
     "6521",
     "6523",
+    "6533",
     "6534",
     "6539",
     "6551",
@@ -27,7 +28,8 @@
     "measurement_csv": [
       "/home/smith6jt/IO60panc2nd/results/Cellmeasurements.csv",
       "/home/smith6jt/IO60panc2nd/results/CellmeasurementsBatch2.csv",
-      "/home/smith6jt/IO60panc2nd/results/Cellmeasurements_6539parentFixed.csv"
+      "/home/smith6jt/IO60panc2nd/results/Cellmeasurements_6539parentFixed.csv",
+      "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/6533.tsv"
     ],
     "segmentation_version": "qupath-0.7.0__instanseg-fluorescence_nuclei_and_cells-0.1.1",
     "nucleus_geojson": null,
@@ -195,6 +197,15 @@
       "qptiff": "/home/smith6jt/IO60panc2nd/Images/6623panc_Scan1.er.qptiff",
       "cell_geojson": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/redsea_scratch/geojson/cells__6623panc_Scan1.er.qptiff_-_resolution__1.geojson",
       "panel_id": "panel-b-catenin1-59ch"
+    },
+    {
+      "donor_id": "6533",
+      "image_id": "0080870_6533_pLNpanc_Scan3.er.qptiff - resolution #1",
+      "measurement_csv_index": 3,
+      "qptiff": null,
+      "cell_geojson": null,
+      "islet_geojson": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080870_6533_pLNpanc_Scan3.er.qptiff - resolution #1.geojson",
+      "panel_id": null
     }
   ]
 }

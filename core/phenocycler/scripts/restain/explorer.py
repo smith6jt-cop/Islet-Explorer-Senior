@@ -440,7 +440,8 @@ def morphology_grid(bundle: Path, *, xenium_um_per_px: float = XENIUM_UM_PER_PX)
     import re
     import tifffile
 
-    p = Path(bundle) / "morphology_focus" / "morphology_focus_0000.ome.tif"
+    from registration_inputs import morphology_dapi_path
+    p = morphology_dapi_path(bundle)
     if not p.exists():
         raise ExplorerExportError(f"{p} is absent")
     with tifffile.TiffFile(str(p), is_ome=False) as tif:

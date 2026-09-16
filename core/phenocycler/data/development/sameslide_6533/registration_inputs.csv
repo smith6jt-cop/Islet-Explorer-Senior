@@ -1,0 +1,10 @@
+# Registration inventory for the 6533 same-slide pair (PhenoCycler 70-plex, then Xenium).
+# Its own file and its own images dir so the loader's one-row-per-donor and
+# inventory==local-qptiff-set rules hold without touching the post-Xenium IF cohort.
+#
+# pixel_um: this export carries no XML PixelSizeMicrons. 0.507800 is FITTED from the cell
+# GeoJSON against the measurement table's own micron centroids (24 nm median residual), and
+# cross-checks: 19200 px * 0.5078 = 9750 um matches the cell extent.
+# allow_dtype: PhenoCycler Fusion writes uint16; uint8 is a post-Xenium IF cohort property.
+image_file,donor_id,roi,xenium_serial,provenance_source,pixel_um,allow_dtype
+0080870_6533_panc_Scan3.qptiff,6533,panc,0080870,sameslide_6533,0.507800,uint16
