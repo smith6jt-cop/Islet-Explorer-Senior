@@ -94,11 +94,22 @@ test_that("TissUUmaps filters project files and the OME-TIFF fallback", {
   expect_identical(env$list_available_tmap_projects(), c("0112", "7001"))
   env$read_viewer_cohort <- function() .viewer_cohort("7002")
   expect_identical(env$list_available_tmap_projects(), character(0))
+  inventory <- env$tmap_project_inventory()
+  expect_identical(inventory$n_found, 3L)
+  expect_identical(inventory$n_excluded, 3L)
+  expect_s3_class(inventory$note, "ie_guard_note")
+  expect_match(format(inventory$note), "[viewer_cohort_assets_excluded]", fixed = TRUE)
+  expect_match(format(inventory$note), "Assets found: 3; excluded by cohort membership: 3", fixed = TRUE)
   env$read_viewer_cohort <- .viewer_cohort
   env$resolve_tissuumaps_project_dir <- function() NULL
   expect_identical(env$list_available_tmap_projects(), c("0112", "7002"))
   env$read_viewer_cohort <- function() .viewer_cohort("9000")
   expect_identical(env$list_available_tmap_projects(), character(0))
+  inventory <- env$tmap_project_inventory()
+  expect_identical(inventory$n_found, 5L)
+  expect_identical(inventory$n_excluded, 5L)
+  expect_s3_class(inventory$note, "ie_guard_note")
+  expect_match(format(inventory$note), "Assets found: 5; excluded by cohort membership: 5", fixed = TRUE)
 })
 
 test_that("both viewer backends reject excluded dropdown and forced selections", {
@@ -120,6 +131,7 @@ test_that("both viewer backends reject excluded dropdown and forced selections",
       args = list(forced_image = forced, current_tab = shiny::reactive("Viewer")), {
         session$flushReact()
         expect_identical(available_images_r(), expected)
+        expect_null(cohort_note_r())
         expect_identical(selected_basename_r(), expected[[1]])
         expect_identical(viewer_info()$selection, expected[[1]])
         expect_false(grepl("7003", output$image_selector$html, fixed = TRUE))
@@ -138,6 +150,75 @@ test_that("both viewer backends reject excluded dropdown and forced selections",
         session$flushReact()
         expect_identical(selected_basename_r(), expected[[2]])
       }))
+  }
+})
+
+test_that("assets excluded by a measured cohort render counted notes on both backends", {
+  skip_if_not_installed("shiny")
+  cases <- list(
+    list(backend = "avivator", roots = "www", n = 1L),
+    list(backend = "avivator", roots = "local", n = 1L),
+    list(backend = "avivator", roots = c("www", "local"), n = 2L),
+    list(backend = "tissuumaps", roots = c("www", "projects"), n = 1L),
+    list(backend = "tissuumaps", roots = "www", n = 1L)
+  )
+  for (case in cases) {
+    root <- withr::local_tempdir()
+    dirs <- list(www = file.path(root, "www", "local_images"),
+                 local = file.path(root, "local"), projects = file.path(root, "projects"))
+    for (dir in dirs) dir.create(dir, recursive = TRUE)
+    for (site in case$roots) {
+      filename <- if (site == "projects") "6539.tmap" else "6539.ome.tiff"
+      file.create(file.path(dirs[[site]], filename))
+    }
+    # Existing project files stay authoritative even with eligible TIFFs nearby.
+    if ("projects" %in% case$roots) file.create(file.path(dirs$www, "0112.ome.tiff"))
+    env <- .viewer_server_env(case$backend, dirs, .viewer_cohort(c("112", "6450")))
+    withr::local_envvar(c(LOCAL_IMAGE_ROOT = dirs$local, ISLET_VIEWER_BACKEND = case$backend))
+    withr::local_dir(root)
+    forced <- shiny::reactive(if (case$backend == "avivator") "6539.ome.tiff" else "6539")
+    suppressMessages(shiny::testServer(env$viewer_server,
+      args = list(forced_image = forced, current_tab = shiny::reactive("Viewer")), {
+        session$flushReact()
+        expect_identical(viewer_cohort_r()$availability$state, "measured")
+        expect_identical(available_images_r(), character(0))
+        expect_null(selected_basename_r())
+        expect_identical(image_inventory_r()$n_found, case$n)
+        expect_identical(image_inventory_r()$n_excluded, case$n)
+        expect_s3_class(cohort_note_r(), "ie_guard_note")
+        expect_null(output$image_selector)
+        html <- output$viewer_frame$html
+        expect_match(html, "[viewer_cohort_assets_excluded]", fixed = TRUE)
+        expect_match(html, sprintf("Assets found: %d; excluded by cohort membership: %d", case$n, case$n),
+                     fixed = TRUE)
+        expect_match(html, "eligible: 0", fixed = TRUE)
+        expect_false(grepl("<iframe|Build one per donor|No images found|No TissUUmaps projects found", html))
+      }))
+  }
+})
+
+test_that("empty asset directories keep their missing-asset message on both backends", {
+  skip_if_not_installed("shiny")
+  root <- withr::local_tempdir()
+  dirs <- list(www = file.path(root, "www", "local_images"),
+               local = file.path(root, "local"), projects = file.path(root, "projects"))
+  for (dir in dirs) dir.create(dir, recursive = TRUE)
+  withr::local_envvar(c(LOCAL_IMAGE_ROOT = dirs$local))
+  withr::local_dir(root)
+  for (backend in c("avivator", "tissuumaps")) {
+    env <- .viewer_server_env(backend, dirs)
+    withr::local_envvar(c(ISLET_VIEWER_BACKEND = backend))
+    shiny::testServer(env$viewer_server,
+      args = list(forced_image = shiny::reactive(NULL), current_tab = shiny::reactive("Viewer")), {
+        session$flushReact()
+        expect_identical(available_images_r(), character(0))
+        expect_identical(image_inventory_r()$n_found, 0L)
+        expect_identical(image_inventory_r()$n_excluded, 0L)
+        expect_null(cohort_note_r())
+        message <- if (backend == "avivator") "No images found." else "No TissUUmaps projects found."
+        expect_match(output$image_selector$html, message, fixed = TRUE)
+        expect_false(grepl("viewer_cohort_assets_excluded|<iframe", output$viewer_frame$html))
+      })
   }
 })
 

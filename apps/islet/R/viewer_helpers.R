@@ -252,6 +252,25 @@ filter_viewer_images <- function(images, cohort = read_viewer_cohort()) {
   images[!is.na(ids) & ids %in% cohort$donor_ids]
 }
 
+# Keep the measured listing counts beside the choices, so an empty picker can
+# distinguish absent assets from assets excluded by the active cohort.
+viewer_image_inventory <- function(images, cohort = read_viewer_cohort()) {
+  eligible <- filter_viewer_images(images, cohort)
+  n_found <- length(images)
+  n_excluded <- n_found - length(eligible)
+  note <- NULL
+  if (n_found > 0L && !length(eligible)) {
+    note <- structure(list(
+      guard = "viewer_cohort_assets_excluded",
+      lines = sprintf(paste(
+        "No viewer assets match the active cohort.",
+        "Assets found: %d; excluded by cohort membership: %d; eligible: 0."
+      ), n_found, n_excluded)
+    ), class = "ie_guard_note")
+  }
+  list(images = eligible, n_found = n_found, n_excluded = n_excluded, note = note)
+}
+
 # Helper function to find an eligible image for an exact case_id.
 find_image_for_case <- function(case_id, www_dir, local_root, cohort = read_viewer_cohort()) {
   pattern <- "\\.(ome\\.)?tiff?$"
@@ -336,23 +355,31 @@ resolve_tissuumaps_project_dir <- function() {
 #' the app (a split deployment where only the container mounts the volume) —
 #' build_tissuumaps_project.py names each project after the same case id.
 list_available_tmap_projects <- function(cohort = read_viewer_cohort()) {
+  tmap_project_inventory(cohort)$images
+}
+
+# The server also needs the counts before cohort filtering for its empty state.
+tmap_project_inventory <- function(cohort = read_viewer_cohort()) {
   dir <- resolve_tissuumaps_project_dir()
   if (!is.null(dir)) {
     projects <- list.files(dir, pattern = "\\.tmap$", ignore.case = TRUE)
-    eligible <- filter_viewer_images(projects, cohort)
     # A visible project listing remains authoritative even if none are in the
     # cohort; image stems must not invent eligible projects that do not exist.
-    if (length(projects)) return(sort(sub("\\.tmap$", "", eligible, ignore.case = TRUE)))
+    if (length(projects)) {
+      inventory <- viewer_image_inventory(projects, cohort)
+      inventory$images <- sort(sub("\\.tmap$", "", inventory$images, ignore.case = TRUE))
+      return(inventory)
+    }
   }
 
   images_dir <- file.path("www", "local_images")
+  files <- character(0)
   if (dir.exists(images_dir)) {
-    files <- filter_viewer_images(
-      list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE), cohort)
-    if (length(files)) return(sort(sub("\\.ome\\.tiff?$", "", files, ignore.case = TRUE)))
+    files <- list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
   }
-
-  character(0)
+  inventory <- viewer_image_inventory(files, cohort)
+  inventory$images <- sort(sub("\\.ome\\.tiff?$", "", inventory$images, ignore.case = TRUE))
+  inventory
 }
 
 #' Full iframe URL for one TissUUmaps project.
