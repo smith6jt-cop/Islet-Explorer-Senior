@@ -24,11 +24,18 @@ viewer_server <- function(id, forced_image, current_tab) {
     iframe_id <- ns("avivator_viewer")
     wrap_id   <- ns("viewer_wrap")
 
+    # Resolve the active build once per session. Missing membership must never
+    # turn a filesystem listing into permission to display every donor.
+    viewer_cohort_r <- reactive(read_viewer_cohort())
+
     # Images available to pick from. TissUUmaps picks `.tmap` projects (bare
     # case ids); Avivator picks OME-TIFF basenames from www/local_images +
-    # LOCAL_IMAGE_ROOT.
-    available_images_r <- reactive({
-      if (use_tissuumaps) return(list_available_tmap_projects())
+    # LOCAL_IMAGE_ROOT. Keep the counts before filtering for a named empty note.
+    image_inventory_r <- reactive({
+      cohort <- viewer_cohort_r()
+      note <- ie_require_measured(cohort$availability, guard = "viewer_cohort")
+      if (!is.null(note)) return(list(images = character(0), note = note))
+      if (use_tissuumaps) return(tmap_project_inventory(cohort))
 
       imgs <- character(0)
       images_dir <- file.path("www", "local_images")
@@ -37,10 +44,15 @@ viewer_server <- function(id, forced_image, current_tab) {
       }
       local_root <- Sys.getenv("LOCAL_IMAGE_ROOT", unset = "")
       if (nzchar(local_root) && dir.exists(local_root)) {
-        imgs <- unique(c(imgs, list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)))
+        imgs <- c(imgs, list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE))
       }
-      imgs
+      # Count files from both roots, while offering each eligible basename once.
+      inventory <- viewer_image_inventory(imgs, cohort)
+      inventory$images <- unique(inventory$images)
+      inventory
     })
+    available_images_r <- reactive(image_inventory_r()$images)
+    cohort_note_r <- reactive(image_inventory_r()$note)
 
     # The basename currently being viewed (forced image wins, then the user's
     # dropdown choice, then the first available image).
@@ -173,6 +185,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       tab <- current_tab()
       if (is.null(tab) || tab != "Viewer") return(NULL)
       if (is.null(viewer_base)) return(NULL)  # missing-build message lives in viewer_frame
+      if (!is.null(cohort_note_r())) return(NULL)  # named note lives in viewer_frame
 
       available_images <- available_images_r()
       # isolate(): the selector reflects the current choice on first mount but
@@ -236,6 +249,9 @@ viewer_server <- function(id, forced_image, current_tab) {
                    "To install: run scripts/install_avivator.sh (requires Node >= 18) or place a prebuilt bundle under shiny/www/avivator.")
         ))
       }
+
+      cohort_note <- cohort_note_r()
+      if (!is.null(cohort_note)) return(tags$div(format(cohort_note)))
 
       # Depend on the FLIP-only boolean (mounts once); read the URL via isolate
       # so this renderUI does NOT re-fire — and recreate the iframe — when the

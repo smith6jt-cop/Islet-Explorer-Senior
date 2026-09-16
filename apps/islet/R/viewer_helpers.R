@@ -189,13 +189,98 @@ get_pixel_size_um <- function(path) {
   res
 }
 
-# Helper function to find image file for case_id
-find_image_for_case <- function(case_id, www_dir, local_root) {
-  pattern <- sprintf(".*%s.*\\.(ome\\.)?tiff?$", case_id)
+# ---- Cohort boundary for every image listing -----------------------------
+
+# Compare string ids, including padded ids, without inferring donors from names.
+normalize_viewer_donor_id <- function(ids) {
+  ids <- trimws(as.character(ids))
+  ids[!is.na(ids) & !nzchar(ids)] <- NA_character_
+  ids <- sub("^0+", "", ids)
+  ids[!is.na(ids) & ids == ""] <- "0"
+  ids
+}
+
+# The converters name assets after the complete donor id. Only remove the known
+# extension: a filename containing a donor's digits is not evidence of identity.
+viewer_image_donor_ids <- function(images) {
+  stems <- sub("\\.(ome\\.)?tiff?$|\\.tmap$", "", basename(images), ignore.case = TRUE)
+  normalize_viewer_donor_id(stems)
+}
+
+# Read membership from the active dataset's BUILD, not donor_metadata.csv (which
+# also contains donors outside the build), nor a second list of exclusions.
+# Both app Parquet schemas carry imageid; the Excel path carries Case ID.
+read_viewer_cohort <- function() {
+  source <- file.path(domain_data_root(), "parquet", "islets.parquet")
+  absent <- function(state, reason) {
+    list(donor_ids = NULL, availability = ie_avail(state, reason, source = source))
+  }
+
+  tryCatch({
+    if (file.exists(source)) {
+      con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+      on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+      ids <- DBI::dbGetQuery(con, paste(
+        "SELECT DISTINCT CAST(imageid AS VARCHAR) AS donor_id",
+        "FROM read_parquet(?, hive_partitioning = false)"
+      ), params = list(source))$donor_id
+    } else {
+      source <- domain_data_file("master", "master_results.xlsx")
+      if (is.null(source) || !file.exists(source)) {
+        return(absent("unavailable", "viewer_cohort_source_missing"))
+      }
+      cohort <- readxl::read_excel(source, sheet = "Islet_Composition", col_types = "text")
+      if (!"Case ID" %in% names(cohort)) {
+        return(absent("failed", "viewer_cohort_missing_case_id_column"))
+      }
+      ids <- cohort[["Case ID"]]
+    }
+    ids <- unique(normalize_viewer_donor_id(ids))
+    if (anyNA(ids)) return(absent("failed", "viewer_cohort_invalid_donor_ids"))
+    if (!length(ids)) return(absent("unavailable", "viewer_cohort_has_no_donors"))
+    list(donor_ids = ids,
+         availability = ie_avail("measured", n = length(ids), source = source))
+  }, error = function(e) {
+    absent("failed", paste0("viewer_cohort_read_failed: ", conditionMessage(e)))
+  })
+}
+
+filter_viewer_images <- function(images, cohort = read_viewer_cohort()) {
+  note <- ie_require_measured(cohort$availability, guard = "viewer_cohort")
+  if (!is.null(note)) stop(format(note), call. = FALSE)
+  ids <- viewer_image_donor_ids(images)
+  images[!is.na(ids) & ids %in% cohort$donor_ids]
+}
+
+# Keep the measured listing counts beside the choices, so an empty picker can
+# distinguish absent assets from assets excluded by the active cohort.
+viewer_image_inventory <- function(images, cohort = read_viewer_cohort()) {
+  eligible <- filter_viewer_images(images, cohort)
+  n_found <- length(images)
+  n_excluded <- n_found - length(eligible)
+  note <- NULL
+  if (n_found > 0L && !length(eligible)) {
+    note <- structure(list(
+      guard = "viewer_cohort_assets_excluded",
+      lines = sprintf(paste(
+        "No viewer assets match the active cohort.",
+        "Assets found: %d; excluded by cohort membership: %d; eligible: 0."
+      ), n_found, n_excluded)
+    ), class = "ie_guard_note")
+  }
+  list(images = eligible, n_found = n_found, n_excluded = n_excluded, note = note)
+}
+
+# Helper function to find an eligible image for an exact case_id.
+find_image_for_case <- function(case_id, www_dir, local_root, cohort = read_viewer_cohort()) {
+  pattern <- "\\.(ome\\.)?tiff?$"
+  case_id <- normalize_viewer_donor_id(case_id)
 
   # Try www directory first (preferred for HTTP Range support)
   if (!is.null(www_dir) && dir.exists(www_dir)) {
-    matches <- list.files(www_dir, pattern = pattern, ignore.case = TRUE, full.names = TRUE)
+    matches <- filter_viewer_images(
+      list.files(www_dir, pattern = pattern, ignore.case = TRUE, full.names = TRUE), cohort)
+    matches <- matches[viewer_image_donor_ids(matches) %in% case_id]
     if (length(matches) > 0) {
       return(matches[1])
     }
@@ -203,7 +288,9 @@ find_image_for_case <- function(case_id, www_dir, local_root) {
 
   # Fallback to LOCAL_IMAGE_ROOT
   if (!is.null(local_root) && dir.exists(local_root)) {
-    matches <- list.files(local_root, pattern = pattern, ignore.case = TRUE, full.names = TRUE)
+    matches <- filter_viewer_images(
+      list.files(local_root, pattern = pattern, ignore.case = TRUE, full.names = TRUE), cohort)
+    matches <- matches[viewer_image_donor_ids(matches) %in% case_id]
     if (length(matches) > 0) {
       return(matches[1])
     }
@@ -267,20 +354,32 @@ resolve_tissuumaps_project_dir <- function() {
 #' Falls back to the OME-TIFF stems when the project directory isn't visible to
 #' the app (a split deployment where only the container mounts the volume) —
 #' build_tissuumaps_project.py names each project after the same case id.
-list_available_tmap_projects <- function() {
+list_available_tmap_projects <- function(cohort = read_viewer_cohort()) {
+  tmap_project_inventory(cohort)$images
+}
+
+# The server also needs the counts before cohort filtering for its empty state.
+tmap_project_inventory <- function(cohort = read_viewer_cohort()) {
   dir <- resolve_tissuumaps_project_dir()
   if (!is.null(dir)) {
     projects <- list.files(dir, pattern = "\\.tmap$", ignore.case = TRUE)
-    if (length(projects)) return(sort(sub("\\.tmap$", "", projects, ignore.case = TRUE)))
+    # A visible project listing remains authoritative even if none are in the
+    # cohort; image stems must not invent eligible projects that do not exist.
+    if (length(projects)) {
+      inventory <- viewer_image_inventory(projects, cohort)
+      inventory$images <- sort(sub("\\.tmap$", "", inventory$images, ignore.case = TRUE))
+      return(inventory)
+    }
   }
 
   images_dir <- file.path("www", "local_images")
+  files <- character(0)
   if (dir.exists(images_dir)) {
     files <- list.files(images_dir, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)
-    if (length(files)) return(sort(sub("\\.ome\\.tiff?$", "", files, ignore.case = TRUE)))
   }
-
-  character(0)
+  inventory <- viewer_image_inventory(files, cohort)
+  inventory$images <- sort(sub("\\.ome\\.tiff?$", "", inventory$images, ignore.case = TRUE))
+  inventory
 }
 
 #' Full iframe URL for one TissUUmaps project.
