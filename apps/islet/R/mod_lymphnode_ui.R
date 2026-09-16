@@ -15,10 +15,8 @@
 #' `title` is what the card shows when it cannot render -- so the note has a
 #' subject even before the builder exists.
 IE_LYMPHNODE_CARDS <- list(
-  list(id = "ledger",   title = "Donor × capability"),
-  list(id = "x1_gradient", title = "Peri-islet immune gradient"),
-  list(id = "x2_overlay",  title = "Post-Xenium IF overlay"),
-  list(id = "x3_identity", title = "IF hormone identity")
+  list(id = "n1_sections",     title = "Donor 112 · two sections, two frames"),
+  list(id = "s3_compartments", title = "Immune cells: islet · exocrine · pLN")
 )
 
 #' Lymph Node tab UI.

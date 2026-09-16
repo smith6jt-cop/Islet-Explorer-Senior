@@ -303,7 +303,8 @@ a:focus-visible, button:focus-visible, input:focus-visible,
 # is exactly the failure the active-tab guards exist to prevent.
 stopifnot(setequal(
   IE_TAB_KEYS,
-  c("Plot", "Trajectory", "Statistics", "Spatial", "Neighborhoods", "Viewer",
+  c("Plot", "Trajectory", "Statistics", "Spatial", "Neighborhoods",
+    "CrossModal", "LymphNode", "Viewer",
     if (SHOW_INFLAMMATION_TAB) "Inflammation")
 ))
 
