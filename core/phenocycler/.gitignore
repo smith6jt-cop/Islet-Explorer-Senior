@@ -226,6 +226,10 @@ __marimo__/
 # Hand-recorded by the maintainer and recorded nowhere else: the qptiff carries channel
 # names but no <Biomarker> tag, and a serial carries both a Panc and a pLN bundle.
 !/data/integration/restain_sections.csv
+# Likewise hand-recorded: which QuPath annotation delimits the lymph node on each pLN slide.
+# 18 of 19 slides carry explicit pLN_* outlines; 6380 carries one Tissue annotation and no
+# pLN_* region at all, and only the maintainer can say that the one Tissue IS the node there.
+!/data/integration/pln_node_annotations.csv
 /figures/
 /logs/
 *.h5ad
