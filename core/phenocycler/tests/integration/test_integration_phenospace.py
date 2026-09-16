@@ -68,9 +68,7 @@ def _release(
 
 def _cfg(tmp_path, release_dir, *, modality="phenocycler"):
     data = tmp_path / "data"
-    manifest = data / "runs" / "run1" / "manifests" / "expression.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(json.dumps({"content_id": "content-ok"}))
+    data.mkdir(parents=True, exist_ok=True)
     kwargs = {f"{modality}_identity_release": release_dir}
     return PipelineConfig(data_dir=data, **kwargs)
 
@@ -99,16 +97,26 @@ def test_undeclared_label_raises_and_spaces_do_not_mutate_module_state(tmp_path)
         a.common_for("Endo-by-prefix")
 
 
-def test_release_round_trip_and_expression_content_pin(tmp_path):
+def test_release_round_trip_carries_provenance_without_enforcing_it(tmp_path):
+    """run_id and content_id are recorded on the release, not checked against anything.
+
+    They used to be compared to data/runs/<run_id>/manifests/expression.json, so a release
+    naming a content_id the manifest disagreed with was refused. Stage manifests were
+    removed on 2026-09-16 and there is nothing left to compare to. Measured before removing
+    it: against the real configuration that comparison passed, so no real release changes
+    status here -- what changes is that a wrong id is now silent.
+    """
+
     release_dir = _release(tmp_path)
     release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
     assert release.release_id == "synthetic-release-v1"
+    assert release.run_id == "run1"
     assert release.expression_content_id == "content-ok"
     assert release.space.common_for("Endo-beta")[0] == "Endocrine"
 
     bad_dir = _release(tmp_path / "bad", content_id="wrong")
-    with pytest.raises(PhenotypeSpaceError, match="content id"):
-        load_release(_cfg(tmp_path / "bad", bad_dir), "phenocycler")
+    loaded = load_release(_cfg(tmp_path / "bad", bad_dir), "phenocycler")
+    assert loaded.expression_content_id == "wrong"
 
 
 def test_attach_identity_is_exact_uuid_join_and_stamps_release(tmp_path):

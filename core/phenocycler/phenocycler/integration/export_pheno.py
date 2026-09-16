@@ -140,8 +140,15 @@ _IDENTITY_ONLY_MARKERS = frozenset({"INS", "GCG", "SST"})
 
 
 def _run_root(cfg: PipelineConfig, run_id: Optional[str] = None) -> Path:
-    """Resolve a run directory, defaulting to whatever ``runs/LATEST`` names."""
+    """Resolve the stage root to export from.
+
+    Defaults to the flat ``data/`` tree. An explicit ``run_id`` still reads one of the
+    retired content-addressed runs under ``data/runs/``, which is how the 20-donor
+    cohort output from before 2026-09-16 stays reachable.
+    """
     runs = cfg.runs_dir
+    if not run_id:
+        return cfg.data_dir
     if run_id:
         root = runs / run_id
         if not root.is_dir():
@@ -286,7 +293,6 @@ def export_geometry(
 
     # Provenance: which immutable run these coordinates came from. Cheap to carry, and the
     # alternative is a table nobody can trace back to a content-addressed source.
-    out["phenocycler_run_id"] = root.name
     if "image" in expr.columns:
         out["image"] = expr["image"].astype(str).to_numpy()
 

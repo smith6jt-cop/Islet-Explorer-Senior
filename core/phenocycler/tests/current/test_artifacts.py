@@ -12,21 +12,13 @@ import pytest
 import phenocycler.artifacts as artifacts
 from phenocycler.artifacts import (
     ChannelMapping,
-    CodeMetadata,
     ContractError,
     DuplicateObjectError,
     GeometryContractError,
-    InputArtifact,
-    PartialArtifactError,
     QuPathCohortManifest,
     QuPathImageManifest,
-    RunManifest,
-    SchemaContractError,
-    StageManifest,
-    StaleArtifactError,
     hash_identifiers,
     image_id_to_donor_id,
-    snapshot_parquet_dataset,
 )
 
 
@@ -137,31 +129,6 @@ def test_qupath_manifest_roundtrip_and_current_validation(tmp_path):
     assert loaded.cell_geometry.feature_count == 2
     assert loaded.cell_geometry.nucleus_geometry_count == 2
     assert loaded.cell_geometry.object_id_sha256 == hash_identifiers(["a", "b"])
-    loaded.validate_current()
-
-
-def test_qupath_manifest_is_stale_when_any_source_byte_changes(tmp_path):
-    manifest = _qupath_manifest(tmp_path)
-    Path(manifest.qptiff.path).write_bytes(b"changed qptiff")
-
-    with pytest.raises(StaleArtifactError, match="file (size|content) changed"):
-        manifest.validate_current()
-
-
-def test_fast_qupath_validation_does_not_rehash_unchanged_qptiff(tmp_path, monkeypatch):
-    manifest = _qupath_manifest(tmp_path)
-    qptiff_path = manifest.qptiff.path
-    original = artifacts.sha256_file
-
-    def refuse_qptiff(path):
-        if str(path) == qptiff_path:
-            raise AssertionError("routine status reread an unchanged qptiff")
-        return original(path)
-
-    monkeypatch.setattr(artifacts, "sha256_file", refuse_qptiff)
-    manifest.validate_current(mode="fast")
-    with pytest.raises(AssertionError, match="reread"):
-        manifest.validate_current(mode="content")
 
 
 def test_qptiff_can_use_an_explicitly_labelled_sampled_fingerprint(tmp_path):
@@ -184,7 +151,6 @@ def test_qptiff_can_use_an_explicitly_labelled_sampled_fingerprint(tmp_path):
     )
     assert manifest.qptiff.hash_mode == "sampled"
     assert manifest.qptiff.sample_size_bytes == 4
-    manifest.validate_current(mode="content")
 
 
 def test_qupath_manifest_fails_on_missing_or_duplicate_geometry(tmp_path):
@@ -235,7 +201,6 @@ def test_qupath_manifest_records_partially_missing_embedded_nuclei(tmp_path):
     assert manifest.cell_geometry.feature_count == 2
     assert manifest.cell_geometry.nucleus_geometry_count == 1
     assert manifest.nucleus_geometry.primary_geometry_count == 1
-    manifest.validate_current(mode="content")
 
 
 def _write_partition(root: Path, donor: str, object_ids, values=None):
@@ -263,207 +228,6 @@ def _stage_fixture(tmp_path: Path):
     inputs = (InputArtifact.from_path("raw", input_path),)
     config = {"alpha": 1.0, "emit_compartments": True}
     return output, source, input_path, code, inputs, config
-
-
-def test_dataset_snapshot_requires_exact_donor_set_schema_and_object_ids(tmp_path):
-    output = tmp_path / "output"
-    _write_partition(output, "1", ["a", "b"])
-    _write_partition(output, "2", ["c", "d"])
-
-    snapshot = snapshot_parquet_dataset(output, expected_donors=("1", "2"))
-    assert snapshot.donor_ids == ("1", "2")
-    assert snapshot.total_rows == 4
-
-    with pytest.raises(PartialArtifactError, match="extra"):
-        snapshot_parquet_dataset(output, expected_donors=("1",))
-    with pytest.raises(PartialArtifactError, match="missing"):
-        snapshot_parquet_dataset(output, expected_donors=("1", "2", "3"))
-
-
-def test_dataset_snapshot_rejects_schema_drift_and_duplicate_objects(tmp_path):
-    schema_root = tmp_path / "schema"
-    _write_partition(schema_root, "1", ["a"], [1])
-    _write_partition(schema_root, "2", ["b"], ["one"])
-    with pytest.raises(SchemaContractError, match="schema differs"):
-        snapshot_parquet_dataset(schema_root, expected_donors=("1", "2"))
-
-    duplicate_root = tmp_path / "duplicates"
-    _write_partition(duplicate_root, "1", ["a", "a"])
-    with pytest.raises(DuplicateObjectError, match="duplicate object_id"):
-        snapshot_parquet_dataset(duplicate_root, expected_donors=("1",))
-
-
-def test_stage_manifest_is_content_derived_and_validates_current_state(tmp_path):
-    output, _, _, code, inputs, config = _stage_fixture(tmp_path)
-    first = StageManifest.create(
-        stage="redsea",
-        method_version="redsea-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-    second = StageManifest.create(
-        stage="redsea",
-        method_version="redsea-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-    # Creation timestamps differ, but the run identity is entirely content-derived.
-    assert first.content_id == second.content_id
-    output_file = output / "donor_id=1" / "data_0.parquet"
-    stat = output_file.stat()
-    os.utime(
-        output_file,
-        ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000),
-    )
-    touched = StageManifest.create(
-        stage="redsea",
-        method_version="redsea-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-    assert touched.content_id == first.content_id
-
-    # Use the freshly captured stat cache after deliberately touching the file.
-    path = touched.write_json(tmp_path / "redsea.stage.json")
-    loaded = StageManifest.read_json(path)
-    loaded.validate_current(config=config)
-    assert loaded.output.total_rows == 4
-    assert loaded.output.schema_sha256
-    assert loaded.output.object_id_sha256
-
-
-def test_stage_manifest_detects_config_input_code_output_and_partial_drift(tmp_path):
-    output, source, input_path, code, inputs, config = _stage_fixture(tmp_path)
-    manifest = StageManifest.create(
-        stage="geometry_qc",
-        method_version="geometry-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-
-    with pytest.raises(StaleArtifactError, match="configuration changed"):
-        manifest.validate_current(config={**config, "alpha": 0.5})
-
-    input_path.write_text("changed source data\n")
-    with pytest.raises(StaleArtifactError, match="input 'raw' changed"):
-        manifest.validate_current(config=config)
-    input_path.write_text("source data\n")
-
-    source.write_text("METHOD = 'v2'\n")
-    with pytest.raises(StaleArtifactError, match="producing code changed"):
-        manifest.validate_current(config=config)
-    source.write_text("METHOD = 'v1'\n")
-
-    _write_partition(output, "1", ["a", "b"], [100.0, 2.0])
-    with pytest.raises(StaleArtifactError, match="content changed"):
-        manifest.validate_current(config=config)
-
-    # Restore content, then remove a complete donor partition.
-    _write_partition(output, "1", ["a", "b"], [1.0, 2.0])
-    (output / "donor_id=2" / "data_0.parquet").unlink()
-    (output / "donor_id=2").rmdir()
-    with pytest.raises(PartialArtifactError, match="missing"):
-        manifest.validate_current(config=config)
-
-
-def test_stage_manifest_fingerprints_immutable_sidecars(tmp_path):
-    output, _, _, code, inputs, config = _stage_fixture(tmp_path)
-    sidecar = tmp_path / "model_audit.json"
-    sidecar.write_text('{"status":"valid"}\n')
-    manifest = StageManifest.create(
-        stage="calibrate",
-        method_version="calibration-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        sidecar_paths=(sidecar,),
-        config=config,
-        code=code,
-    )
-    manifest.validate_current(config=config)
-    sidecar.write_text('{"status":"changed"}\n')
-    with pytest.raises(StaleArtifactError, match="sidecar changed"):
-        manifest.validate_current(config=config)
-
-
-def test_stage_manifest_refuses_partial_creation(tmp_path):
-    output = tmp_path / "output"
-    _write_partition(output, "1", ["a"])
-    source = tmp_path / "source.py"
-    source.write_text("pass\n")
-    input_path = tmp_path / "input"
-    input_path.write_text("x")
-    with pytest.raises(PartialArtifactError, match="missing"):
-        StageManifest.create(
-            stage="cells",
-            method_version="v1",
-            expected_donors=("1", "2"),
-            inputs=(InputArtifact.from_path("csv", input_path),),
-            output_root=output,
-            config={},
-            code=CodeMetadata.capture(tmp_path, source_paths=(source,)),
-        )
-
-
-def test_run_manifest_references_exact_stage_content(tmp_path):
-    output, _, _, code, inputs, config = _stage_fixture(tmp_path)
-    stage = StageManifest.create(
-        stage="cells",
-        method_version="cells-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-    stage_path = stage.write_json(tmp_path / "cells.stage.json")
-    run = RunManifest.create(
-        run_name="cohort-run",
-        expected_donors=("1", "2"),
-        stage_manifest_paths=(stage_path,),
-        config=config,
-        code=code,
-    )
-    run_path = run.write_json(tmp_path / "run.json")
-    loaded = RunManifest.read_json(run_path)
-    loaded.validate_current()
-    assert loaded.stages[0].manifest_content_id == stage.content_id
-
-
-def test_run_manifest_refuses_a_stale_stage_output(tmp_path):
-    output, _, _, code, inputs, config = _stage_fixture(tmp_path)
-    stage = StageManifest.create(
-        stage="cells",
-        method_version="cells-v1",
-        expected_donors=("1", "2"),
-        inputs=inputs,
-        output_root=output,
-        config=config,
-        code=code,
-    )
-    stage_path = stage.write_json(tmp_path / "cells.stage.json")
-    _write_partition(output, "1", ["a", "b"], [100.0, 2.0])
-
-    with pytest.raises(StaleArtifactError, match="content changed"):
-        RunManifest.create(
-            run_name="cohort-run",
-            expected_donors=("1", "2"),
-            stage_manifest_paths=(stage_path,),
-            config=config,
-            code=code,
-        )
 
 
 def test_channel_map_and_measurement_contracts_are_explicit(tmp_path):
@@ -526,22 +290,18 @@ def test_qupath_cohort_manifest_roundtrip_and_pure_ingest_mapping(tmp_path):
     assert image_id_to_donor_id(loaded) == expected
     assert image_id_to_donor_id(loaded.images) == expected
     assert loaded.image_to_donor() == expected
-    loaded.validate_current(mode="fast")
-
-    reference = InputArtifact.from_qupath_cohort_manifest("qupath", path)
-    reference.validate_current(mode="fast")
 
 
 def test_qupath_cohort_requires_exactly_one_unique_image_per_expected_donor(tmp_path):
     first = _cohort_image(tmp_path, donor_id="1", image_id="image-1")
     second = _cohort_image(tmp_path, donor_id="2", image_id="image-2")
-    with pytest.raises(PartialArtifactError, match="missing=.*3"):
+    with pytest.raises(ContractError, match="missing=.*3"):
         QuPathCohortManifest.create(
             cohort_name="cohort",
             expected_donors=("1", "2", "3"),
             images=(first, second),
         )
-    with pytest.raises(PartialArtifactError, match="extra=.*2"):
+    with pytest.raises(ContractError, match="extra=.*2"):
         QuPathCohortManifest.create(
             cohort_name="cohort",
             expected_donors=("1",),
@@ -607,42 +367,3 @@ def test_qupath_cohort_enforces_one_exact_channel_map_per_panel(tmp_path):
     assert [panel.panel_id for panel in cohort.panels] == ["panel-v1", "panel-v2"]
 
 
-def test_qupath_cohort_fast_validation_never_rereads_unchanged_qptiffs(
-    tmp_path, monkeypatch
-):
-    images = (
-        _cohort_image(tmp_path, donor_id="1", image_id="image-1"),
-        _cohort_image(tmp_path, donor_id="2", image_id="image-2"),
-    )
-    cohort = QuPathCohortManifest.create(
-        cohort_name="cohort",
-        expected_donors=("1", "2"),
-        images=images,
-    )
-    qptiffs = {image.qptiff.path for image in images}
-    original = artifacts.sha256_file
-
-    def refuse_qptiffs(path):
-        if str(path) in qptiffs:
-            raise AssertionError("cohort status reread an unchanged qptiff")
-        return original(path)
-
-    monkeypatch.setattr(artifacts, "sha256_file", refuse_qptiffs)
-    cohort.validate_current(mode="fast")
-    with pytest.raises(AssertionError, match="reread"):
-        cohort.validate_current(mode="content")
-
-
-def test_qupath_cohort_reports_a_changed_embedded_source(tmp_path):
-    images = (
-        _cohort_image(tmp_path, donor_id="1", image_id="image-1"),
-        _cohort_image(tmp_path, donor_id="2", image_id="image-2"),
-    )
-    cohort = QuPathCohortManifest.create(
-        cohort_name="cohort",
-        expected_donors=("1", "2"),
-        images=images,
-    )
-    Path(images[1].qptiff.path).write_bytes(b"changed qptiff")
-    with pytest.raises(StaleArtifactError, match="file (size|content) changed"):
-        cohort.validate_current(mode="fast")

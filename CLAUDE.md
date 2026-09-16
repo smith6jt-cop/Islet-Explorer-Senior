@@ -63,8 +63,13 @@ QuPath cohort manifest
 ```
 
 Ordinary execution stops after expression. Pair-dependent `controls`,
-`calibrate`, `type`, state calling, and assignment export are blocked. The
-run/stage manifest architecture remains authoritative for upstream stages.
+`calibrate`, `type`, state calling, and assignment export are blocked.
+
+**The content-addressed run framework was removed on 2026-09-16.** Stages write to
+stable roots -- `data/cells`, `data/geometry_qc`, `data/redsea`, `data/expression` --
+and a donor is done when its partition has content. There is no `run_id`, no stage
+manifest, no donor receipt, no fingerprint validation and no `data/runs/<run_id>/`.
+A stage whose output is already present is skipped; `--force` reruns it.
 
 Run it **from `core/phenocycler/`**, which owns the only real `config.ini`:
 
@@ -82,11 +87,14 @@ defaults it omitted. If a root `config.ini` ever reappears, it is a bug.
 
 Raw CSV, qptiff, cell/nucleus geometry, pixel calibration, channel mapping,
 panel identity, and segmentation version belong in
-`core/phenocycler/data/qupath_manifest.json`. Generated results live under
-`core/phenocycler/data/runs/<run_id>/`; stages and runs are immutable and
-content addressed. Active mutable review artifacts live under the repo-root
-`data/development/` — a level above `core/`, not inside the package; they never
-write a stage manifest or mutate `data/runs/`. Only the ingest/geometry and REDSEA/expression notebooks
+`core/phenocycler/data/qupath_manifest.json`. That manifest still records a
+`content_id` and per-file sha256, but **nothing validates them** -- it is a
+description, so it can be hand-edited when a source file moves. Generated results
+live under `core/phenocycler/data/<stage>/`. Runs made before 2026-09-16 are still
+on disk under `core/phenocycler/data/runs/<run_id>/`; that tree is historical and
+nothing writes to it. Active mutable review artifacts live under the repo-root
+`data/development/` — a level above `core/`, not inside the package. Only the
+ingest/geometry and REDSEA/expression notebooks
 describe current stages. Calibration, hierarchical/probabilistic typing,
 marker-debug, and Otsu material is historical.
 
@@ -121,15 +129,15 @@ for the source workflow, not deleted for the app.
 
 ## Downstream application boundary
 
-The source workflow currently ends at immutable upstream expression. The
-existing application aggregation scripts consume a legacy single-cell H5AD and
-are not a supported bridge from a current content-addressed Phenocycler run.
+The source workflow currently ends at upstream expression. The existing
+application aggregation scripts consume a legacy single-cell H5AD and are not a
+supported bridge from a current Phenocycler run.
 
 The next downstream implementation must make one canonical adapter:
 
 ```text
-<future verified run>/cells + expression + marker_evidence + assignments + cell_states
-  -> run-aware single-cell H5AD
+cells + expression + marker_evidence + assignments + cell_states
+  -> single-cell H5AD
   -> islet, spatial, trajectory, and application aggregates
 ```
 

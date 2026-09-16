@@ -329,8 +329,16 @@ def test_disease_trend_groups_by_tissue():
     assert len(t_nk) == 2
 
 
-def test_run_donor_refuses_cached_retired_pheno_sections(cfg, tmp_path):
-    """A direct runner cannot reuse cached sections while phenotype export is blocked."""
+def test_run_donor_refuses_cached_sections_with_no_declared_identity(cfg, tmp_path):
+    """A direct runner cannot reuse cached sections without a declared identity release.
+
+    This test used to pass for the wrong reason. It pointed ``data_dir`` at a tmp
+    directory, which made the old expression-content-id check look for
+    ``data/runs/run1/manifests/expression.json`` there, not find it, and raise -- so it was
+    really asserting that a stage manifest was missing. Stage manifests were removed on
+    2026-09-16. The guard that actually matters is that no identity release is declared,
+    so that is what this asserts now, by clearing the configured release explicitly.
+    """
     from phenocycler.integration.contract import write_cell_table
     from phenocycler.integration.donor import run_donor
     from phenocycler.integration.export_pheno import ExportError
@@ -338,6 +346,7 @@ def test_run_donor_refuses_cached_retired_pheno_sections(cfg, tmp_path):
     data = tmp_path / "data"
     local = load_config()
     local.data_dir = data
+    local.phenocycler_identity_release = None
     for roi in ("panc", "pln_1"):
         for modality, base in (("phenocycler", local.cells_pheno_dir),
                                ("xenium", local.cells_xen_dir)):

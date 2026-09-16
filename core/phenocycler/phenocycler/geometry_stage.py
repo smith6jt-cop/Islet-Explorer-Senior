@@ -163,9 +163,8 @@ def run_geometry_qc_for_image(
     *,
     config: GeometryQCConfig | None = None,
 ) -> GeometryQCResult:
-    """Rasterize one contracted image and evaluate immutable QC eligibility."""
+    """Rasterize one contracted image and evaluate its QC eligibility."""
 
-    image.validate_current(mode="fast")
     tf, _pages, _channels, shape, pixel_size = qptiff_channels(
         Path(image.qptiff.path), 0
     )

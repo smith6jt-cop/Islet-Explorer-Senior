@@ -63,8 +63,12 @@ def qupath_normalized_column(compartment: str, marker: str) -> str:
 
 
 def header_cols(csv_path: Path) -> list[str]:
+    # Delimiter from the suffix -- the 2026-09 re-exports are .tsv. See
+    # artifacts.measurement_delimiter() for why this is not sniffed.
+    from .artifacts import measurement_delimiter
+
     with open(csv_path, newline="") as f:
-        return next(csv.reader(f))
+        return next(csv.reader(f, delimiter=measurement_delimiter(csv_path)))
 
 
 def marker_means(cols: list[str]) -> dict[str, str]:
@@ -383,7 +387,6 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     import duckdb
 
     cohort = QuPathCohortManifest.read_json(cfg.qupath_manifest)
-    cohort.validate_current(mode="fast")
     contracted_csvs = {image.measurement_csv.path for image in cohort.images}
     csv_paths = tuple(Path(path) for path in sorted(contracted_csvs))
     donor_mapping = image_id_to_donor_id(cohort)

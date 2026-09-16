@@ -13,16 +13,9 @@ from pathlib import Path
 import pandas as pd
 
 from .artifacts import (
-    CodeMetadata,
     ContractError,
-    FileFingerprint,
-    InputArtifact,
-    PartialArtifactError,
     QuPathCohortManifest,
-    RunManifest,
-    StageManifest,
-    StaleArtifactError,
-    sha256_json,
+    sha256_file,
 )
 from .cells_parquet import build_cells_parquet
 from .cohort import ensure_eligible_donors
@@ -194,9 +187,7 @@ class RunContext:
     broad_gate_policy: BroadGatePolicy | None
     donors: tuple[str, ...]
     repository: Path
-    code: CodeMetadata
     identity_config: dict
-    run_id: str
 
     @property
     def run_root(self) -> Path:
@@ -204,9 +195,6 @@ class RunContext:
 
     def output_root(self, stage: str) -> Path:
         return Path(getattr(self.config, STAGE_OUTPUT_ATTRIBUTE[stage]))
-
-    def stage_manifest_path(self, stage: str) -> Path:
-        return self.config.manifests_dir / f"{stage}.json"
 
 
 def _identity_config(
@@ -234,10 +222,9 @@ def _identity_config(
     if verified_pairs:
         verified_pair_config = RestoreStageConfig.from_pipeline(cfg)
         if cfg.restore_expression_reviews is not None:
-            expression_reviews_content_id = InputArtifact.from_path(
-                "restore_expression_reviews",
-                cfg.restore_expression_reviews,
-            ).content_sha256
+            expression_reviews_content_id = sha256_file(
+                cfg.restore_expression_reviews
+            )
     return {
         "run_schema_version": RUN_SCHEMA_VERSION,
         "typing_model": (
@@ -306,14 +293,22 @@ def _identity_config(
 
 
 def resolve_run_context(cfg: PipelineConfig) -> RunContext:
-    """Resolve and validate every source of run identity before writing output."""
+    """Resolve the cohort and registry a run needs.
+
+    Output goes to the stable stage roots under ``data/`` -- ``data/cells``,
+    ``data/redsea`` and so on. There is no content-addressed run directory and no
+    run id: a rerun overwrites in place, and two invocations that differ only in
+    code write to the same tree. The immutable-run framework this replaced keyed
+    the output directory on a hash of the cohort, the config AND the package
+    source, so an unrelated edit orphaned finished stages and the only way to
+    reuse them was a 688-line resume module that re-validated them first.
+    """
 
     cohort = QuPathCohortManifest.read_json(cfg.qupath_manifest)
-    cohort.validate_current(mode="fast")
     donors = tuple(
         ensure_eligible_donors(
             cohort.expected_donors,
-            context="content-addressed Phenocycler run",
+            context="Phenocycler run",
         )
     )
     if donors != cohort.expected_donors:
@@ -330,112 +325,21 @@ def resolve_run_context(cfg: PipelineConfig) -> RunContext:
         )
     )
     repository = Path(__file__).resolve().parents[1]
-    code = CodeMetadata.capture(
-        repository,
-        source_paths=("phenocycler", "pyproject.toml"),
-    )
     identity = _identity_config(
         cfg,
         registry=registry,
         broad_gate_policy=broad_gate_policy,
     )
-    run_id = sha256_json(
-        {
-            "cohort": cohort.content_id,
-            "registry": registry.fingerprint,
-            "broad_gate_rules": (
-                "" if broad_gate_policy is None else broad_gate_policy.fingerprint
-            ),
-            "configuration": identity,
-            "code": code.source_sha256,
-        }
-    )[:20]
-    run_root = cfg.runs_dir / run_id
-    run_cfg = replace(cfg, data_dir=run_root)
     return RunContext(
         base_config=cfg,
-        config=run_cfg,
+        config=cfg,
         cohort=cohort,
         registry=registry,
         broad_gate_policy=broad_gate_policy,
         donors=donors,
         repository=repository,
-        code=code,
         identity_config=identity,
-        run_id=run_id,
     )
-
-
-def _stage_config(context: RunContext, stage: str) -> dict:
-    return {
-        "run_id": context.run_id,
-        "stage": stage,
-        "method_version": STAGE_METHODS[stage],
-        "configuration": context.identity_config,
-        "registry_fingerprint": context.registry.fingerprint,
-        "broad_gate_rules_fingerprint": (
-            context.broad_gate_policy.fingerprint
-            if context.broad_gate_policy is not None
-            else ""
-        ),
-    }
-
-
-def _stage_code(context: RunContext, stage: str) -> CodeMetadata:
-    return CodeMetadata.capture(
-        context.repository,
-        source_paths=STAGE_SOURCE_PATHS[stage],
-    )
-
-
-def _stage_external_inputs(
-    context: RunContext,
-    stage: str,
-) -> tuple[InputArtifact, ...]:
-    """Capture non-stage inputs without requiring completed predecessors."""
-
-    inputs: list[InputArtifact] = []
-    if stage in {"ingest", "geometry", "redsea"}:
-        inputs.append(
-            InputArtifact.from_qupath_cohort_manifest(
-                "qupath_cohort", context.base_config.qupath_manifest
-            )
-        )
-    if stage in {"ingest", "redsea", "expression", "controls", "calibrate", "type"}:
-        inputs.append(
-            InputArtifact.from_path(
-                "marker_registry", context.base_config.marker_registry
-            )
-        )
-    if stage == "calibrate":
-        if context.base_config.restore_expression_reviews is not None:
-            inputs.append(
-                InputArtifact.from_path(
-                    "restore_expression_reviews",
-                    context.base_config.restore_expression_reviews,
-                )
-            )
-    if stage == "type":
-        inputs.append(
-            InputArtifact.from_path(
-                "broad_gate_rules",
-                context.base_config.broad_gate_rules,
-            )
-        )
-    return tuple(inputs)
-
-
-def _stage_inputs(context: RunContext, stage: str) -> tuple[InputArtifact, ...]:
-    inputs: list[InputArtifact] = []
-    for dependency in STAGE_DEPENDENCIES[stage]:
-        path = context.stage_manifest_path(dependency)
-        if not path.exists():
-            raise PartialArtifactError(
-                f"{stage} requires completed stage {dependency!r}"
-            )
-        inputs.append(InputArtifact.from_stage_manifest(dependency, path))
-    inputs.extend(_stage_external_inputs(context, stage))
-    return tuple(inputs)
 
 
 def _write_audit(context: RunContext, name: str, frame: pd.DataFrame) -> Path:
@@ -628,56 +532,24 @@ STAGE_RUNNERS: dict[str, Callable[[RunContext], None]] = {
 }
 
 
-def run_stage(context: RunContext, stage: str) -> StageManifest:
-    """Run or validate one immutable stage."""
+def run_stage(context: RunContext, stage: str, *, force: bool = False) -> None:
+    """Run one stage into its stable output root.
+
+    Present, non-empty output is treated as done and skipped -- `--force` reruns it.
+    Nothing here validates a fingerprint or a manifest, so a renamed input, a touched
+    file or an edit to unrelated package source can no longer refuse to run.
+    """
 
     _assert_stages_available(context, (stage,))
-
-    manifest_path = context.stage_manifest_path(stage)
-    if manifest_path.exists():
-        manifest = StageManifest.read_json(manifest_path)
-        manifest.validate_current(
-            config=_stage_config(context, stage),
-            validation_mode="fast",
-        )
-        print(f"[current] {stage}: {manifest.output.total_rows:,} rows")
-        return manifest
-
     output = context.output_root(stage)
     if output.exists() and any(output.iterdir()):
-        raise PartialArtifactError(
-            f"{stage}: output exists without a valid stage manifest: {output}. "
-            "This content-addressed run is incomplete; inspect it before "
-            "explicitly removing only that stage directory."
-        )
-    inputs = _stage_inputs(context, stage)
-    # Validate every prerequisite before the stage is allowed to create output.
-    # StageManifest.create repeats this check after execution, closing the race
-    # where an input changes while the runner is active.
-    for input_artifact in inputs:
-        input_artifact.validate_current(mode="fast")
+        if not force:
+            print(f"[skip] {stage}: output present at {output} (--force to rerun)")
+            return
+        print(f"[force] {stage}: rerunning over existing output at {output}")
     print(f"[run] {stage}")
     STAGE_RUNNERS[stage](context)
-    manifest = StageManifest.create(
-        stage=stage,
-        method_version=STAGE_METHODS[stage],
-        expected_donors=context.donors,
-        inputs=inputs,
-        output_root=output,
-        sidecar_paths=tuple(
-            context.run_root / relative
-            for relative in STAGE_SIDECARS.get(stage, ())
-        ),
-        config=_stage_config(context, stage),
-        code=_stage_code(context, stage),
-    )
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_json(manifest_path)
-    print(
-        f"[done] {stage}: {manifest.output.total_rows:,} rows, "
-        f"manifest={manifest.content_id[:12]}"
-    )
-    return manifest
+    print(f"[done] {stage}: {output}")
 
 
 def _export_manifest_path(context: RunContext) -> Path:
@@ -685,51 +557,9 @@ def _export_manifest_path(context: RunContext) -> Path:
 
 
 def _validate_export(context: RunContext) -> bool:
-    path = _export_manifest_path(context)
-    if not path.exists():
-        return False
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ContractError("QuPath export manifest must be a JSON object")
-    content_id = payload.pop("content_id", None)
-    if not isinstance(content_id, str) or not content_id:
-        raise ContractError("QuPath export manifest is missing content_id")
-    if sha256_json(payload) != content_id:
-        raise StaleArtifactError("QuPath export manifest identity is invalid")
-    if payload.get("run_id") != context.run_id:
-        raise StaleArtifactError("QuPath export belongs to another run")
-    type_manifest_path = context.stage_manifest_path("type")
-    if not type_manifest_path.exists():
-        raise StaleArtifactError("QuPath export has no current type stage")
-    type_manifest = StageManifest.read_json(type_manifest_path)
-    type_manifest.validate_current(
-        config=_stage_config(context, "type"),
-        validation_mode="fast",
-    )
-    if payload.get("assignment_stage_content_id") != type_manifest.content_id:
-        raise StaleArtifactError(
-            "QuPath export does not match the current assignment stage"
-        )
-    if tuple(payload.get("expected_donors", ())) != context.donors:
-        raise StaleArtifactError(
-            "QuPath export donor contract differs from the run"
-        )
-    files = payload.get("files")
-    if not isinstance(files, list):
-        raise ContractError("QuPath export manifest files must be a list")
-    if len(files) != len(context.donors):
-        raise PartialArtifactError(
-            "QuPath export does not contain exactly one file per donor"
-        )
-    for index, item in enumerate(files):
-        try:
-            fingerprint = FileFingerprint.from_dict(item)
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ContractError(
-                f"QuPath export file fingerprint {index} is malformed"
-            ) from exc
-        fingerprint.validate_current(mode="fast")
-    return True
+    """True when the QuPath export exists. Presence only -- no identity check."""
+
+    return _export_manifest_path(context).exists()
 
 
 def export_qupath(context: RunContext) -> None:
@@ -740,14 +570,9 @@ def export_qupath(context: RunContext) -> None:
     if _validate_export(context):
         print("[current] qupath export")
         return
-    type_manifest = context.stage_manifest_path("type")
-    if not type_manifest.exists():
-        raise PartialArtifactError("QuPath export requires the type stage")
-    current_type = StageManifest.read_json(type_manifest)
-    current_type.validate_current(
-        config=_stage_config(context, "type"),
-        validation_mode="fast",
-    )
+    type_output = context.output_root("type")
+    if not type_output.is_dir() or not any(type_output.iterdir()):
+        raise ContractError("QuPath export requires the type stage")
     paths = []
     for donor in context.donors:
         paths.extend(
@@ -760,16 +585,11 @@ def export_qupath(context: RunContext) -> None:
             )
         )
     payload = {
-        "run_id": context.run_id,
         "expected_donors": list(context.donors),
-        "assignment_stage_content_id": current_type.content_id,
-        "files": [asdict(FileFingerprint.capture(path)) for path in paths],
+        "files": [str(path) for path in paths],
     }
-    payload["content_id"] = sha256_json(payload)
     manifest_path = _export_manifest_path(context)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    if manifest_path.exists():
-        raise FileExistsError(manifest_path)
     manifest_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -782,73 +602,17 @@ def run_pipeline(
     *,
     stages: Sequence[str] = DEFAULT_STAGE_ORDER,
     export: bool = True,
-) -> RunManifest | None:
-    """Run selected stages and write a complete run manifest when possible."""
+    force: bool = False,
+) -> None:
+    """Run the selected stages. No run manifest, no completion gate."""
 
     _assert_stages_available(context, stages)
     context.run_root.mkdir(parents=True, exist_ok=True)
     for stage in stages:
-        run_stage(context, stage)
+        run_stage(context, stage, force=force)
     if export and "type" in stages:
         export_qupath(context)
-
-    completion_stages = _completion_stage_order(context)
-    all_paths = [context.stage_manifest_path(stage) for stage in completion_stages]
-    if not all(path.exists() for path in all_paths):
-        return None
-    # Existence is not completion. Validate every required stage—including
-    # stages not selected in this invocation—before writing run.json or
-    # advancing LATEST. In development_no_verified_typing, the content-addressed
-    # run product intentionally ends at expression; states remains an optional
-    # add-on and blocked pair stages cannot be completion requirements.
-    for stage, path in zip(completion_stages, all_paths, strict=True):
-        manifest = StageManifest.read_json(path)
-        if manifest.stage != stage:
-            raise ContractError(
-                f"manifest at {path} declares stage {manifest.stage!r}, "
-                f"expected {stage!r}"
-            )
-        manifest.validate_current(
-            config=_stage_config(context, stage),
-            validation_mode="fast",
-        )
-    run_config = {
-        **context.identity_config,
-        "cohort_content_id": context.cohort.content_id,
-        "registry_fingerprint": context.registry.fingerprint,
-        "broad_gate_rules_fingerprint": (
-            ""
-            if context.broad_gate_policy is None
-            else context.broad_gate_policy.fingerprint
-        ),
-    }
-    run_manifest = RunManifest.create(
-        run_name=context.run_id,
-        expected_donors=context.donors,
-        stage_manifest_paths=all_paths,
-        config=run_config,
-        code=context.code,
-    )
-    run_manifest_path = context.run_root / "run.json"
-    if run_manifest_path.exists():
-        current = RunManifest.read_json(run_manifest_path)
-        current.validate_current(
-            config=run_config,
-            validation_mode="fast",
-        )
-        if current.content_id != run_manifest.content_id:
-            raise StaleArtifactError(
-                "completed run manifest differs from the current stage set"
-            )
-        run_manifest = current
-    else:
-        run_manifest.write_json(run_manifest_path)
-    context.base_config.runs_dir.mkdir(parents=True, exist_ok=True)
-    (context.base_config.runs_dir / "LATEST").write_text(
-        context.run_id + "\n", encoding="utf-8"
-    )
-    print(f"[complete] run {context.run_id}")
-    return run_manifest
+    print("[complete] " + ", ".join(stages))
 
 
 def _completion_stage_order(context: RunContext) -> tuple[str, ...]:
@@ -860,10 +624,9 @@ def _completion_stage_order(context: RunContext) -> tuple[str, ...]:
 
 
 def status(context: RunContext) -> int:
-    """Print evidence-backed stage status; return nonzero for stale/partial state."""
+    """Print what each stage has on disk. Always returns 0: status reports, it does not gate."""
 
-    print(f"run_id {context.run_id}")
-    healthy = True
+    print(f"data root {context.config.data_dir}")
     for stage in STAGE_ORDER:
         if (
             stage in TYPING_DEPENDENT_STAGES
@@ -871,53 +634,36 @@ def status(context: RunContext) -> int:
         ):
             print(f"  {stage:11s} BLOCKED {NO_VERIFIED_TYPING_REASON}")
             continue
-        path = context.stage_manifest_path(stage)
-        if not path.exists():
+        output = context.output_root(stage)
+        present = sorted(
+            path.name.split("=", 1)[1]
+            for path in output.glob("donor_id=*")
+        ) if output.is_dir() else []
+        if not output.is_dir() or not any(output.iterdir()):
             if stage == "states":
                 print(f"  {stage:11s} OPTIONAL (explicit-only)")
-                continue
-            if stage != "ingest":
-                from .donor_pipeline import donor_progress
-
-                completed, expected = donor_progress(context, stage)
             else:
-                completed, expected = 0, len(context.donors)
-            if completed:
-                print(
-                    f"  {stage:11s} IN PROGRESS "
-                    f"{completed:>3}/{expected:<3} donor receipts"
-                )
-            else:
-                print(f"  {stage:11s} MISSING")
-            healthy = False
+                print(f"  {stage:11s} ABSENT")
             continue
-        try:
-            manifest = StageManifest.read_json(path)
-            manifest.validate_current(
-                config=_stage_config(context, stage),
-                validation_mode="fast",
-            )
-        except (ContractError, OSError, ValueError) as exc:
-            print(f"  {stage:11s} STALE   {exc}")
-            healthy = False
-        else:
+        expected = len(context.donors)
+        missing = [donor for donor in context.donors if donor not in present]
+        if present and missing:
             print(
-                f"  {stage:11s} CURRENT "
-                f"{manifest.output.total_rows:>12,} rows "
-                f"{manifest.content_id[:12]}"
+                f"  {stage:11s} PARTIAL {len(present):>3}/{expected:<3} donors"
+                f"  missing={missing}"
             )
+        elif present:
+            print(f"  {stage:11s} PRESENT {len(present):>3}/{expected:<3} donors")
+        else:
+            print(f"  {stage:11s} PRESENT {output}")
     if context.registry.production_status == NO_VERIFIED_TYPING_STATUS:
         print(f"  {'qupath':11s} BLOCKED {NO_VERIFIED_TYPING_REASON}")
     else:
-        try:
-            export_current = _validate_export(context)
-        except (ContractError, OSError, ValueError) as exc:
-            print(f"  {'qupath':11s} STALE   {exc}")
-            healthy = False
-        else:
-            print(f"  {'qupath':11s} {'CURRENT' if export_current else 'MISSING'}")
-            healthy &= export_current
-    return 0 if healthy else 1
+        print(
+            f"  {'qupath':11s} "
+            f"{'PRESENT' if _validate_export(context) else 'ABSENT'}"
+        )
+    return 0
 
 
 def _selected_stages(only: Sequence[str] | None, through: str | None) -> tuple[str, ...]:
@@ -968,18 +714,6 @@ def main(argv=None) -> int:
         from .qupath_manifest import main as manifest_main
 
         return manifest_main(raw[1:])
-    if raw and raw[0] == "resume":
-        from .resume import main as resume_main
-
-        return resume_main(raw[1:])
-    if raw and raw[0] == "recover":
-        from .recovery import main as recovery_main
-
-        return recovery_main(raw[1:])
-    if raw and raw[0] == "adopt":
-        from .adoption import main as adoption_main
-
-        return adoption_main(raw[1:])
     if not raw or raw[0].startswith("-"):
         raw.insert(0, "run")
 
@@ -991,6 +725,11 @@ def main(argv=None) -> int:
     run.add_argument("--only", nargs="+", choices=STAGE_ORDER)
     run.add_argument("--through", choices=STAGE_ORDER)
     run.add_argument("--no-export", action="store_true")
+    run.add_argument(
+        "--force",
+        action="store_true",
+        help="rerun stages whose output is already present",
+    )
     run.add_argument(
         "--pipelined",
         "--donor-pipeline",
@@ -1059,7 +798,12 @@ def main(argv=None) -> int:
             export=not args.no_export,
         )
         return 0
-    run_pipeline(context, stages=stages, export=not args.no_export)
+    run_pipeline(
+        context,
+        stages=stages,
+        export=not args.no_export,
+        force=bool(getattr(args, "force", False)),
+    )
     return 0
 
 

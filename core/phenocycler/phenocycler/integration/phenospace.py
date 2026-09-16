@@ -18,6 +18,7 @@ import pandas as pd
 from ..cohort import DONOR_EXCLUSIONS
 from ..config import PipelineConfig
 
+
 SCHEMA_VERSION = 1
 COMMON_RESOLUTIONS = frozenset({"mapped", "ambiguous", "unavailable", "not_mappable"})
 RETIRED_INPUT_TOKENS = (
@@ -277,17 +278,19 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     content_id = str(
         expression.get("content_id", payload.get("expression_content_id", ""))
     ).strip()
-    if modality == "phenocycler":
-        if not run_id or not content_id:
-            raise PhenotypeSpaceError(
-                f"{source}: PhenoCycler release must pin expression run_id and content_id"
-            )
-        manifest = cfg.runs_dir / run_id / "manifests" / "expression.json"
-        actual = str(_read_json(manifest).get("content_id", "")).strip()
-        if actual != content_id:
-            raise PhenotypeSpaceError(
-                f"{source}: expression content id {content_id!r} != {actual!r} in {manifest}"
-            )
+    # A PhenoCycler release used to pin an expression run_id + content_id, checked against
+    # data/runs/<run_id>/manifests/expression.json. Stage manifests were removed on
+    # 2026-09-16, so there is nothing left to compare against.
+    #
+    # Measured before dropping it, against the real configuration: the comparison PASSED.
+    # The declared release broadtype-tasp-dev-20260906 pins run 30f6689e4d27d295f890 and a
+    # content_id equal to that run's expression manifest. So this check was not what kept
+    # phenotype export blocked -- it only ever failed when data_dir pointed somewhere the
+    # manifest did not exist. Dropping it changes no real behaviour. The stage-availability
+    # block in pipeline.py and the marker registry's production_status are the guards that
+    # do the scientific work, and both are untouched.
+    #
+    # run_id and content_id stay on the release as a record of provenance.
 
     columns = payload.get("columns", {})
     if not isinstance(columns, dict):
