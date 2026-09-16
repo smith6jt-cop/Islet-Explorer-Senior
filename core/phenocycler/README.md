@@ -16,16 +16,22 @@ QuPath cohort manifest
   -> authoritative per-marker expression
 ```
 
-The run/stage manifest architecture remains authoritative for these upstream
-artifacts. Pair-dependent `controls`, `calibrate`, `type`, and assignment
-`export` are blocked until target/reference pairs are independently verified.
-Historical RESTORE, probabilistic, marker-debug, and Otsu material is retained
-only as method history; it is not a current command path or fallback.
+Stages write to stable roots under `data/` (`cells/`, `geometry_qc/`, `redsea/`,
+`expression/`); a donor is done when its partition has content, a present
+stage is skipped, and `--force` reruns it. There is no run manifest, no
+run ID, and no fingerprint gate on these upstream artifacts — see
+[Outputs](#outputs). Pair-dependent `controls`,
+`calibrate`, `type`, and assignment `export` are blocked until
+target/reference pairs are independently verified. Historical RESTORE,
+probabilistic, marker-debug, and Otsu material is retained only as method
+history; it is not a current command path or fallback.
 
 ## What the workflow guarantees
 
-- Every source image is declared in an immutable cohort manifest. Donors are
-  never inferred from filenames.
+- Every source image is declared in the cohort manifest
+  (`qupath_manifest.json`), which records a content ID and per-file SHA-256 as
+  a description; nothing validates them, so the file can be hand-edited when a
+  source moves. Donors are never inferred from filenames.
 - The QuPath `object_id` UUID is the cell key throughout the upstream workflow.
 - Geometry QC precedes REDSEA and uses geometry only. Analysis eligibility,
   model-estimation eligibility, and physical spillover context are separate
@@ -48,8 +54,10 @@ only as method history; it is not a current command path or fallback.
   CD79a is excluded as a pair candidate because its expression is too sparse in
   normal tissue. These comparisons make no positivity call and write no
   production artifact.
-- Every run and stage is content addressed. Partial, stale, or donor-incomplete
-  output fails closed instead of being silently reused.
+- Each stage writes to a stable, non-content-addressed root. Existing output
+  for a donor/stage is reused as-is; there is no fingerprint check against the
+  source data, registry, or code, so a stale input is not detected — rerun
+  with `--force` after any upstream change.
 
 The detailed scientific and operational contract is in
 [the workflow guide](docs/WORKFLOW.md). Input, output, and column contracts are
@@ -146,9 +154,10 @@ python -m phenocycler.pipeline status --config config.ini
 `--pipelined` keeps ingest as a cohort barrier, then schedules independent
 donor work as soon as its own prerequisites are complete. For example, REDSEA
 for one donor can run while geometry rasterization continues for another.
-Every donor-stage output is atomically written and receives an immutable
-receipt before it can unlock downstream work. The ordinary cohort stage
-manifest is sealed after all receipts for that stage are current.
+Each stage writes directly to its stable output root
+(`data/{cells,geometry_qc,redsea,expression}`); a donor-stage is considered
+done once its partition has non-empty content, with no receipt or manifest
+step in between.
 
 The operational limits live in `[compute]`:
 
@@ -178,86 +187,11 @@ require a verified marker-pair workflow, which does not currently exist. The
 orthogonal `states` stage is pair-independent and may be requested explicitly
 after expression with `--only states`; it is not part of the ordinary run.
 
-To carry forward the maximum compatible work from any prior run with completed
-stage manifests, first build an adoption plan and review every stage decision.
-Planning does not modify either run; `--out` writes only the requested immutable
-plan file:
-
-```bash
-python -m phenocycler.pipeline adopt plan \
-  --config config.ini \
-  --from-run <completed_run_id> \
-  --out adoption-plan.json
-
-python -m phenocycler.pipeline adopt apply \
-  --config config.ini \
-  --plan adoption-plan.json
-
-# Inspect manifests/adoption/, then launch only the missing work.
-python -m phenocycler.pipeline run --config config.ini --pipelined
-```
-
-Adoption follows the stage dependency graph. It compares the cohort and direct
-inputs, stage-specific scientific configuration, method version, schema,
-donor/UUID universe, recorded file fingerprints, and producing-code contract.
-Identical code is accepted directly; code drift is accepted only by an exact,
-checked-in compatibility record—there is no `--force` switch. Accepted Parquet
-datasets and scientific audit sidecars are verified hard links, then receive
-new target manifests under the current compatibility contract. Immutable
-receipts retain the original producer manifests and current dependency IDs.
-An incompatible node and its DAG descendants are recomputed. Current adoption
-is limited to the upstream stages through expression; historical pair-dependent
-artifacts are not adopted into the current workflow. The generated plan is
-authoritative about the exact reusable stages and byte count.
-Run these commands from `core/phenocycler`, whose `config.ini` owns that
-source run. To launch recomputation immediately instead of inspecting first,
-add `--continue` (and optionally `--jobs N`) to `adopt apply`. If code,
-configuration, or source content changes, write a newly named plan rather than
-overwriting the immutable reviewed plan.
-Use `--validation-mode content` on `adopt plan` when an archival audit should
-rehash every source byte rather than use the normal fingerprint cache.
-
-If geometry stopped at the first duplicated-islet donor after completing a
-duplicate-free prefix under `duplicate_policy = fatal`, resume the corrected
-`deterministic_keep` run without rebuilding ingest or rerasterizing that
-prefix:
-
-```bash
-python -m phenocycler.pipeline resume \
-  --config config.ini \
-  --from-run <failed_run_id> \
-  --from-donor <first_unfinished_donor>
-```
-
-The resume command verifies the source ingest manifest, code, cohort, filter,
-bytes, donor/UUID universes, geometry policy transition, and absence of
-duplicate groups in every reused geometry donor. It hard-links ingest files
-to avoid another data copy. The completed geometry prefix is value-preserving
-re-encoded only to give its optional duplicate columns the same Parquet types
-as later duplicate-bearing donors. Resume receipts are included in the new
-stage manifests. The reusable geometry prefix immediately becomes eligible
-for REDSEA while geometry resumes at the unfinished donor. By default the
-command continues through all later stages; add `--through geometry` to stop
-after sealing the resumed geometry stage.
-
-If a run started before donor receipts were available and was stopped only
-after sealing geometry, recover its manifested geometry and any fully written
-REDSEA donor files into the receipt queue with:
-
-```bash
-python -m phenocycler.pipeline recover \
-  --config config.ini \
-  --from-run <stopped_run_id>
-```
-
-Recovery does not accept arbitrary partial files. It validates the source
-ingest and geometry manifests, scientific configuration, code lineage, donor
-set, row/UUID universes, and geometry content. Every surviving REDSEA Parquet
-must pass a complete all-column scan and match the current schema, donor,
-ingest row count, and UUID universe. Accepted files are hard-linked into a new
-content-addressed run and receive donor receipts; scratch files are never
-adopted. Use `--prepare-only` to create and inspect the verified handoff
-without starting the queue.
+There is no adoption, resume, or recovery command any more —
+`adoption.py`, `resume.py`, and `recovery.py` were deleted on 2026-09-16 along
+with the run framework they served (see [Outputs](#outputs)). Rerunning
+`phenocycler.pipeline run` picks up any donor still missing output; `--force`
+reruns a donor/stage whose output is already present.
 
 The donor-local dependency graph is fixed:
 
@@ -286,54 +220,40 @@ normal tissue.
 The mixed Iba1/Ker8_18 comparison is rank-only; the two marker scales are not
 numerically combined. The tools report coverage, association, and exact
 co-high-tail overlap without creating a threshold, positive call, cell type,
-or immutable run artifact. See
+or production artifact. See
 [`scripts/review/README.md`](scripts/review/README.md) for commands.
 
 The first two notebooks remain useful for upstream inspection. Calibration,
 typing, refinement, probabilistic-promotion, marker-debug, and Otsu notebooks
 or scripts are historical and do not define a current execution path.
 
-## Runs and failure behavior
-
-The run identifier is derived from the cohort content ID, marker-registry
-fingerprint, upstream configuration, and relevant source-code hash. Outputs
-live below:
-
-```text
-data/runs/<run_id>/
-```
-
-Each upstream stage writes a manifest containing its exact inputs,
-configuration, source hash, expected donors, output schema, row counts,
-object-ID universe, and fingerprints for its audit/availability sidecars. The
-manifest architecture is preserved even though the current workflow stops at
-expression.
-
-Existing valid content is reused. The pipeline stops when it finds any of the
-following:
-
-- source data, registry, rules, configuration, or code changed;
-- a donor or expected partition is missing;
-- an output schema or UUID universe changed;
-- an audit or availability sidecar changed or disappeared;
-- an acquired marker's required source column is absent;
-- geometry is missing or object IDs are duplicated;
-- a non-empty output exists without a valid manifest.
-
-Do not repair these failures by deleting manifests or mixing files between run
-directories. Correct the declared input or configuration and create the new
-content-addressed run.
-
 ## Outputs
 
-The principal artifacts under a run are:
+**The content-addressed run framework was removed on 2026-09-16.** Each
+upstream stage now writes straight to a stable root under `data/`:
 
-- `cells/`: canonical UUID-keyed QuPath measurements;
-- `geometry_qc/`: geometry-only analysis and estimation eligibility;
-- `redsea/`: compartment-resolved spillover-corrected measurements;
-- `expression/`: one authoritative intensity per registered marker;
-- `audit/expression_availability.parquet`: source selection and availability;
-- `manifests/`: immutable upstream stage contracts.
+```text
+data/cells/
+data/geometry_qc/
+data/redsea/
+data/expression/
+data/audit/expression_availability.parquet
+```
+
+A donor is done when its partition (`donor_id=<donor>/`) has content; a
+present stage is skipped on the next run, and `--force` reruns it. There is no
+`run_id`, no stage manifest, no donor receipt, and no fingerprint check
+against the cohort, registry, configuration, or code — a stale or moved input
+is not detected, so correct the declared input yourself and pass `--force`
+where output already exists. `resume`, `recover`, and `adopt` are gone as
+commands; rerunning `run` (optionally with `--force`) is the only re-entry
+path now that there is no locked run state to re-enter.
+
+Runs made before 2026-09-16 remain, untouched, under
+`data/runs/<run_id>/manifests/` and the corresponding stage directories; that
+tree is historical and nothing writes to it going forward, but the full
+20-donor cohort output still lives only there. Donors 6533 and 112 were added
+on 2026-09-16 and exist only in the flat `data/<stage>/` tree above.
 
 See [DATA_README.md](DATA_README.md#run-layout) for the full tree and schemas.
 
@@ -354,8 +274,9 @@ environment:
 Design and data caveats: **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
 Running the whole thing on HiPerGator: **[docs/HIPERGATOR.md](docs/HIPERGATOR.md)**.
 
-**Current status (verified 2026-09-03).** Both modalities can be exported as geometry-profile
-cell tables. The PhenoCycler exporter reads immutable run `expression` plus same-run cell
+**Current status (verified 2026-09-03; run framework removed 2026-09-16).**
+Both modalities can be exported as geometry-profile cell tables. The
+PhenoCycler exporter reads the `expression` stage output plus same-run cell
 area; the Xenium importer ignores embedded label-shaped columns. Manifest, geometry export,
 Xenium import, raster/image registration, geometry QC, and geometry figures are live.
 Identity-dependent stages accept only exact native-key calls from configured, validated

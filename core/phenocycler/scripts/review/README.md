@@ -9,7 +9,8 @@ measurements. It does not call markers or create cell types.
 > paths.
 
 Run commands from `core/phenocycler`. Development outputs live under the
-repo-root `data/development`, outside the content-addressed run tree.
+repo-root `data/development`, outside the current PhenoCycler stage roots
+(`data/{cells,geometry_qc,redsea,expression}`).
 
 ## Active roster
 
@@ -179,11 +180,14 @@ All active tools:
 - require unique UUIDs and aligned arrays;
 - replace only a tool-owned mutable workspace;
 - never read RESTORE calls or a production assignment;
-- never write a run/stage manifest, reference control, divisor, marker call,
-  state call, cell type, or QuPath assignment export.
+- never write a run/stage manifest (no current stage writes one), reference
+  control, divisor, marker call, state call, cell type, or QuPath assignment
+  export.
 
-The production run/manifests architecture remains intact for ingest, geometry,
-REDSEA, and expression. Review outputs must never be copied into `data/runs/`.
+Ingest, geometry, REDSEA, and expression write to their own stable roots under
+`data/`; the content-addressed run/manifest architecture that used to gate
+them was removed on 2026-09-16. Review outputs must never be copied into any
+of those roots, nor into the historical `data/runs/` tree.
 
 ## Historical scripts
 

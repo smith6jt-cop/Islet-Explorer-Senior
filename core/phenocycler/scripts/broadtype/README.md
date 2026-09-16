@@ -1,8 +1,9 @@
 # `scripts/broadtype/` — the broad-typing bake-off (PhenoCycler)
 
 Protocol: `docs/BROADTYPE_PROTOCOL_2026-09.md` (Sections 0–3 frozen 2026-09-05). Everything here is
-development only: writes `data/development/broadtype/`, never `data/runs/`, never a stage manifest;
-nothing under `scripts/**` is hashed into `run_id`. Rules: root `CLAUDE.md` — no frequency /
+development only: writes `data/development/broadtype/`, never the stable `data/{cells,geometry_qc,
+redsea,expression}` roots or the historical `data/runs/` tree, and creates no manifest of any kind —
+there is no run framework left to write one. Rules: root `CLAUDE.md` — no frequency /
 uniformity / disease-ordering tuning; QuPath classes and legacy labels are audit context only;
 `object_id` is the join key; a missing measurement is `Unavailable(reason)`; every conclusion reads
 "this arm at this configuration on donors 6436 and 6442".

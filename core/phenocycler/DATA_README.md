@@ -7,19 +7,22 @@ that a stage completed.
 **Current boundary:** there are no verified production target/reference pairs.
 The ordinary workflow stops after `expression`. Pair-dependent
 `reference_controls`, `marker_evidence`, `assignments`, and QuPath assignment
-export are not current outputs. The run/stage manifest architecture is retained
-for ingest, geometry, REDSEA, expression, and an explicit pair-independent
-`states` stage.
+export are not current outputs. Ingest, geometry, REDSEA, expression, and the
+explicit pair-independent `states` stage each write to a stable root under
+`data/`; see [Run layout](#run-layout) — **the content-addressed run framework
+that used to gate these stages was removed on 2026-09-16.**
 
-**Adoption audit, 2026-09-02.** A dry run of
+**Adoption audit, 2026-09-02 (historical — the `adopt` command it exercised was
+deleted on 2026-09-16).** A dry run of
 `phenocycler adopt plan --from-run 30f6689e4d27d295f890` proposed zero adoptable
-stages: ingest, geometry, REDSEA, expression, and states require recomputation;
-controls, calibrate, and type remain blocked by `no_verified_typing`. No
-`adopt apply` was run. Lanes pin immutable inputs by run/content hash (the
-source expression content ID is
-`35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0`), so
-`pipeline status` is informational until an output exists under the current
-code; a historical directory is not evidence that a current stage completed.
+stages: ingest, geometry, REDSEA, expression, and states required recomputation;
+controls, calibrate, and type remained blocked by `no_verified_typing`. No
+`adopt apply` was run. At the time, lanes pinned inputs by run/content hash (the
+source expression content ID was
+`35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0`); that
+content-ID pinning no longer exists. `pipeline status` now reports what each
+stage's stable output root holds; a present, non-empty partition is the only
+evidence a stage completed.
 
 For the scientific rationale and stage algorithms, see
 [the workflow guide](docs/WORKFLOW.md). For installation and commands, see
@@ -162,7 +165,7 @@ canonical registry name. Every marker, channel name, and channel index must be
 unique within an image. Images with the same `panel_id` must have equivalent
 mappings. Different panel IDs may intentionally differ.
 
-Build the immutable cohort manifest:
+Build the cohort manifest:
 
 ```bash
 python -m phenocycler.pipeline manifest create \
@@ -189,8 +192,12 @@ python -m phenocycler.pipeline manifest create \
   --qptiff-hash-mode full
 ```
 
-Do not hand-edit the generated cohort manifest. Edit the small specification
-and recreate it so its identity can be verified.
+`content_id` and the per-file SHA-256 values are a description, not an
+enforced contract: nothing downstream validates them against the manifest
+recreated for a hand edit, so `qupath_manifest.json` can be hand-edited when a
+source file moves. Prefer editing the small specification and recreating the
+manifest so the recorded fingerprints stay accurate, but a direct edit is not
+rejected.
 
 ## Panel availability
 
@@ -474,47 +481,47 @@ current workflow step.
 
 ## Run layout
 
-Given a base `data_dir = data`, the content-addressed layout is:
+**The content-addressed run framework was removed on 2026-09-16.** Given a
+base `data_dir = data`, the current stable layout is:
 
 ```text
 data/
 ├── qupath_manifest.json
+├── cells/donor_id=<id>/*.parquet
+├── ingest_rejects.parquet
+├── panel_availability.json
+├── geometry_qc/donor_id=<id>/*.parquet
+├── redsea/donor_id=<id>/*.parquet
+├── expression/donor_id=<id>/*.parquet
+├── audit/
+│   ├── donors/<audit_name>/donor_id=<id>/data.parquet
+│   └── expression_availability.parquet
+├── scratch/redsea/
 └── runs/
     └── <run_id>/
-        ├── run.json
-        ├── manifests/
-        │   ├── ingest.json
-        │   ├── ingest_reuse.json                  # only for verified reuse
-        │   ├── geometry.json
-        │   ├── geometry_resume.json               # only for verified resume
-        │   ├── geometry_recovery.json             # only for verified recovery
-        │   ├── redsea_recovery.json               # only for verified recovery
-        │   ├── redsea.json
-        │   ├── expression.json
-        │   ├── donors/
-        │   │   └── donor_id=<id>/
-        │   │       ├── geometry.json
-        │   │       ├── redsea.json
-        │   │       └── expression.json
-        ├── cells/donor_id=<id>/*.parquet
-        ├── ingest_rejects.parquet
-        ├── panel_availability.json
-        ├── geometry_qc/donor_id=<id>/*.parquet
-        ├── redsea/donor_id=<id>/*.parquet
-        ├── expression/donor_id=<id>/*.parquet
-        ├── audit/
-        │   ├── donors/<audit_name>/donor_id=<id>/data.parquet
-        │   └── expression_availability.parquet
-        └── scratch/redsea/
+        └── ...                                    # historical, read-only; see below
 ```
 
-`run.json` records completion of the current upstream stage set. Historical
-downstream directories may exist in older runs but are not current outputs and
-must not be mixed into this layout.
+A donor's partition under a stage root (e.g. `expression/donor_id=<id>/`) is
+the only signal that stage is done for that donor: a present, non-empty
+partition is skipped on the next `run`, and `--force` reruns it regardless of
+whether the source data, registry, or code changed since. There is no
+`run.json`, no per-donor receipt, and no manifest sealing a stage as complete.
 
-## Manifest contents and immutability
+Runs made before 2026-09-16 remain, untouched, under `data/runs/<run_id>/` in
+their original content-addressed layout (`run.json`, `manifests/`, and
+per-stage output nested under the run). That tree is historical: nothing
+writes to it any more, and it is not equivalent to — or interchangeable with —
+the flat roots above. The full 20-donor cohort output still lives only there;
+donors 6533 and 112 were added on 2026-09-16 and exist only in the flat tree.
+Discovery reads `data/expression` first and falls back to the historical
+run tree with a warning; do not hand-merge files between the two.
 
-Each stage manifest records:
+## Manifest contents (historical runs only)
+
+Runs made before 2026-09-16, under `data/runs/<run_id>/`, still carry the
+manifests described in this section; nothing is generated in this shape any
+more for current work. Each stage manifest in that historical tree recorded:
 
 - stage and method version;
 - cohort, registry, and upstream configuration identities;
@@ -525,25 +532,21 @@ Each stage manifest records:
   hashes;
 - exact fingerprints for stage-owned availability and audit sidecars.
 
-With donor-pipelined execution, each post-ingest partition first receives a
-donor-stage receipt under `manifests/donors/`. That receipt carries the same
-config/code/input/output contracts at donor scope and owns its donor-local
-audit file. Once every donor receipt for a stage is current, the pipeline
-concatenates the donor audits, seals the ordinary cohort stage manifest, and
-includes every donor receipt among that manifest's fingerprinted sidecars.
-Thus donor receipts permit cross-stage scheduling without weakening the
-cohort-level archival contract.
+With donor-pipelined execution, each post-ingest partition first received a
+donor-stage receipt under `manifests/donors/`. That receipt carried the same
+config/code/input/output contracts at donor scope. Once every donor receipt
+for a stage was current, the pipeline concatenated the donor audits and sealed
+the cohort stage manifest.
 
-A donor partition is immutable within a run. In pipelined mode, a non-empty
-donor partition without its valid donor receipt is partial and fails; current
-receipts remain valid while the cohort stage manifest is still pending. In
-stage mode, non-empty output without the stage manifest remains partial.
-Changed inputs, configuration, code, schemas, donors, output bytes, receipt
-bytes, or sidecar bytes make the owning contract stale and also fail. Correct
-the source contract and run again; the changed content resolves to a new
-`run_id`. Cross-run reuse is limited to the specialized `pipeline resume` and
-`pipeline recover` contracts: they verify their documented transitions,
-record reuse receipts, and seal new stage manifests under the new run ID.
+None of that validation runs today. A donor partition under the current flat
+roots is not immutable and is not receipted: `--force` overwrites it in place,
+and nothing checks whether inputs, configuration, code, schema, or donor set
+changed since it was written. Correcting a stale output is the caller's
+responsibility — there is no `run_id` to change to, and no `pipeline resume`
+or `pipeline recover` command any more (`resume.py` and `recovery.py` were
+deleted on 2026-09-16; they existed only to re-enter runs the removed
+framework had locked). Rerun `pipeline run`, with `--force` where output
+already exists.
 
 ## Storage, privacy, and retention
 

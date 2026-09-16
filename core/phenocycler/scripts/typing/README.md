@@ -5,8 +5,10 @@ then one question per context against reference levels drawn from the ordinary t
 build** turns those calls into the dataset `apps/islet` serves under
 `ISLET_DOMAIN_CONFIG=config/run20_default.yml`.
 
-Development lane: writes only `data/development/typing/`, never `data/runs/`, never a stage
-manifest, does not move the `NO_VERIFIED_TYPING` latch.
+Development lane: writes only `data/development/typing/`, never the stable
+`data/{cells,geometry_qc,redsea,expression}` roots or the historical
+`data/runs/` tree, and creates no manifest of any kind (there is no stage
+manifest left to write); does not move the `NO_VERIFIED_TYPING` latch.
 
 ## The typing itself is not re-derived here
 
@@ -93,9 +95,9 @@ subsample. Cells outside the subsample carry **no** pseudotime; none is imputed.
   reader does not understand and falls back from **without an error** — feature names arrive as
   `1, 2, 3 …` and string columns arrive empty. Force object dtype before writing, and check the
   HDF5 encodings rather than that the file opens.
-- **The per-cell polygons exist in exactly one place**, `data/redsea_scratch/geojson/` — the
-  content-addressed run carries none. They are in pixels; convert with each image's own
-  `pixel_size_um_x`.
+- **The per-cell polygons exist in exactly one place**, `data/redsea_scratch/geojson/` — no
+  PhenoCycler stage output (current flat roots or historical run tree) carries them. They are in
+  pixels; convert with each image's own `pixel_size_um_x`.
 - **R integer arithmetic overflows at 2^31.** `50000L * 122951L` silently becomes NA.
 - **A proportion over an empty region is not zero.** Three islets have no peri cell at all; writing
   `0.0` there states "0 % of this islet's peri cells are Alpha" about an islet with no peri cells.
