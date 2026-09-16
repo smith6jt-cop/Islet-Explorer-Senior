@@ -253,10 +253,45 @@ all three per donor:
 | negative constraint lost | 16 immune | less specific, reported |
 | mandatory constraint or whole OR-group lost | 0 | none dropped |
 
-**The whole epithelial branch is excluded from the islet intruder set** — `run_islet.
-intruder_references`, reused unchanged, ancestors and siblings alike. A hand-rolled filter
-excluding only endocrine-prefixed names was tried first: the generic `Epithelial` parent then
-took 21,450 of 65,363 islet cells.
+**Inside `Islet_N` the decision is an ordered cascade, not a competition.** The polygons were
+drawn by a QuPath pixel classifier on INS, GCG, SST and CD99, so the cascade reads those four
+in the order the annotation was built:
+
+| step | test | result |
+|---|---|---|
+| 1 | hormone argmax over INS/GCG/SST, clearing the floor | `Endo-beta` / `Endo-alpha` / `Endo-delta` |
+| 2 | CD99 positive, for cells with no hormone | `Endo-hormone-negative` |
+| 3 | centroid inside a drawn structure **and** its marker | `Endo-vascular` / `Endo-lymphatic` / `Neural` |
+| 4 | marker profile, non-endocrine references | everything else |
+
+**Shape** is `geometry_qc`'s `min_cell_solidity = 0.70` (`config.ini:60`), applied upstream as
+part of `qc_analysis_eligible` — 4,144 (6533) / 2,169 (0112) cells carry the `low_solidity`
+reason. **Structure** is read from the QuPath object layers (`Blood_vessel`, `Lymphatic`,
+`Nerve` — 111,806 / 8,535 / 11,293 polygons on 6533), point-in-polygon exactly as islet
+membership is. Step 3 requires **both**: a cell inside a vessel showing no CD31 is not a
+vessel cell and falls through to step 4. On 6533's cores that is 534 of the 2,901 cells inside
+a vessel polygon; on 0112, 1,089 of 4,217.
+
+The layers and the marker profile are independent and agree far above chance, measured
+**outside** the islet where the cascade never consults a layer:
+
+| layer | called its reference | outside any layer | fold |
+|---|---:|---:|---:|
+| `Blood_vessel` | 37.5% / 29.9% | 0.9% / 0.6% | 41x / 47x |
+| `Lymphatic` | 36.4% / 10.6% | 0.04% / 0.01% | 921x / 1177x |
+| `Nerve` | 50.9% / 32.1% | 0.5% / 0.2% | 107x / 189x |
+
+Step 4 scores the non-endocrine references from `run_islet.intruder_references`, which excludes
+the whole epithelial branch, ancestors and siblings alike — an endocrine cell satisfies those
+rules by construction. A hand-rolled filter excluding only endocrine-prefixed names was tried
+first: the generic `Epithelial` parent then took 21,450 of 65,363 islet cells.
+
+**The lane's step order holds.** Step 1 (marker usability, per donor) runs first and gates the
+markers scored here; `run_step1.py` was made runnable on a donor outside the acquisition table
+(`CELLTYPE_EXPRESSION_DIR`, plus on-disk marker resolution) rather than substituted for, and it
+rejects **0 of 58 markers** on both — the same answer it gave on all 1,120 cohort (donor,
+marker) cells. Step 2 is the only step that cannot run, and not for convenience: it is UniFORM
+alignment **across the cohort**.
 
 **Measured — core cells, median scaled hormone by call:**
 
@@ -271,13 +306,22 @@ Each endocrine call carries its own hormone as its median and not the others. Fr
 endocrine-by-prior cells clearing the 0.10 gate: **89.9% (6533), 75.7% (0112)** — against
 **37.9%** on uncompensated intensities, which is what REDSEA was being waited on for.
 
-**Open, recorded not patched: the intruder set has no endocrine escape hatch.** 98.9% of the
-cells called `Imm-NK-cell` inside 6533's islet cores clear the hormone gate (1,969 of them
-SST-top) while their median Granzyme B and CD3e are both 0.00; 0112 reads 95.4%. Endocrine
-references are excluded from contention inside the core by construction, so a delta cell
-clearing `CD56` + (`CD57`|`Granzyme_B`) + any one of nine pan-immune markers has nowhere to
-go but NK. Same pattern, weaker, on the generic `Immune` parent (87.4% / 54.7%). This is a
-question about the intruder set, not about these values.
+**Fixed, and what it cost.** An earlier arrangement removed the endocrine references from
+contention inside the core and made a cell endocrine only by meeting NO other rule. It had no
+endocrine escape hatch and the measurement said so: 98.9% of the cells it called
+`Imm-NK-cell` inside 6533's cores cleared the hormone floor, 1,969 of them SST-top, at a
+median Granzyme B and CD3e of 0.00. A delta cell satisfying `CD56` + (`CD57`|`Granzyme_B`) +
+any one of nine pan-immune markers had nowhere else to go. Under the cascade:
+
+| 6533 core (n=26,388) | before | after |
+|---|---:|---:|
+| `Imm-NK-cell` | 3,002 | **6** |
+| islet-endocrine | 12,321 | **24,064** (91.2%) |
+| `Endo-alpha` / `delta` / `beta` | 6,505 / 2,250 / 2,319 | 11,794 / 7,177 / 3,532 |
+
+0112: `Imm-NK-cell` 1,814 → 43; islet-endocrine 15,030 → 22,774 (73.1%). Every non-endocrine
+call left in a core sits at a median scaled CD99 of 0.000–0.015 and a median top hormone of
+0.00–0.04, so step 4 operates on cells that are genuinely neither.
 
 The Xenium-only call is primary. **Any protein/RNA concordance claim must come from the
 Xenium-only arm**, or it is circular.
