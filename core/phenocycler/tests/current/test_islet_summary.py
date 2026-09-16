@@ -286,6 +286,17 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
     for (p in c("shiny", "ggplot2", "arrow", "scales")) {
       if (!requireNamespace(p, quietly = TRUE)) stop("Missing test dependency: ", p)
     }
+    # Read the real navigation keys without loading the app's data and packages.
+    navigation <- new.env(parent = baseenv())
+    navigation$SHOW_INFLAMMATION_TAB <- FALSE
+    for (expr in parse("apps/islet/R/00_globals.R")) {
+      if (is.call(expr) && identical(expr[[1]], as.name("<-")) &&
+          is.symbol(expr[[2]]) &&
+          as.character(expr[[2]]) %in% c("IE_PIPELINE", "IE_REFERENCE", "IE_TAB_KEYS")) {
+        eval(expr, navigation)
+      }
+    }
+    stopifnot("Plot" %in% navigation$IE_TAB_KEYS)
     missing <- card_s1_size_composition_read(file.path(args[1], "absent"), args[2])
     stopifnot(inherits(missing$note, "ie_guard_note"),
               grepl("islet_summary_not_built", format(missing$note)),
@@ -294,14 +305,19 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
     stopifnot(grepl("different_domain", format(wrong_domain$note)))
     shiny::testServer(function(input, output, session) {
       card <- card_s1_size_composition_server(input, output, session,
+                    active_tab = shiny::reactive(input$tabs),
                     layers_dir = args[1], active_domain_root = args[2])
     }, {
-      session$setInputs(s1_donor = "112", s1_stratum = "large")
+      session$setInputs(tabs = "Plot", s1_stratum = "large")
+      tryCatch(card$layer(), shiny.silent.error = function(e) {
+        stop("S1 must render when the Plot tab is active")
+      })
       stopifnot(nrow(card$sizes()) == 2L, all(card$sizes()$donor_id == "112"),
                 identical(ie_frame_of(card$sizes()), "none"),
                 all(card$composition()$n_cells == 12))
       before <- card$sizes()
       html <- as.character(output$s1_body$html)
+      stopifnot(grepl('<option value="112" selected>', html, fixed = TRUE))
       stopifnot(regexpr("Size distribution", html)[1] < regexpr("Composition within", html)[1])
       stopifnot(inherits(card$size_plot(), "ggplot"), inherits(card$composition_plot(), "ggplot"))
       ggplot2::ggplot_build(card$size_plot())
@@ -309,12 +325,28 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
       session$setInputs(s1_stratum = "small")
       stopifnot(identical(card$sizes(), before), all(card$composition()$n_cells == 1))
       session$setInputs(s1_donor = "6539", s1_stratum = "all")
+      # A donor change updates plots without rebuilding the controls.
+      stopifnot(identical(as.character(output$s1_body$html), html))
       stopifnot(all(card$sizes()$donor_id == "6539"),
                 identical(sort(card$sizes()$n_cells), c(0L, 24L)),
                 all(card$composition()$donor_id == "6539"))
       session$setInputs(s1_stratum = "small")
       stopifnot(nrow(card$composition()) == 0L,
                 grepl("no_composition_in_selected_size_stratum", output$s1_composition_view$html))
+      for (other_tab in setdiff(navigation$IE_TAB_KEYS, "Plot")) {
+        session$setInputs(tabs = other_tab)
+        stopifnot(inherits(tryCatch(card$layer(), error = identity), "shiny.silent.error"))
+        session$setInputs(tabs = "Plot")
+        stopifnot(grepl('<option value="6539" selected>', output$s1_body$html, fixed = TRUE),
+                  all(card$sizes()$donor_id == "6539"),
+                  identical(card$size_plot()$labels$title, "Donor 6539"))
+      }
+      # Stale input from an artifact that no longer contains a donor falls back
+      # to the same available donor in both the rebuilt menu and the plot.
+      session$setInputs(s1_donor = "not-an-exported-donor", tabs = "Viewer")
+      session$setInputs(tabs = "Plot")
+      stopifnot(grepl('<option value="112" selected>', output$s1_body$html, fixed = TRUE),
+                all(card$sizes()$donor_id == "112"))
     })
     cat("S1 Shiny acceptance passed\n")
     """

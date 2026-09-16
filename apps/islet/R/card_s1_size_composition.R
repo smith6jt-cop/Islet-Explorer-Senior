@@ -87,7 +87,7 @@ card_s1_size_composition_ui <- function(ns) {
 card_s1_size_composition_server <- function(
     input, output, session, prepared = NULL, cohort = NULL, active_tab = NULL,
     layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
-    active_domain_root = NULL, tab_key = "spatial", ...) {
+    active_domain_root = NULL, tab_key = "Plot", ...) {
   ns <- session$ns
   layer <- shiny::reactive({
     if (!is.null(active_tab)) shiny::req(identical(active_tab(), tab_key))
@@ -129,7 +129,8 @@ card_s1_size_composition_server <- function(
     if (!is.null(data$note)) return(.s1_note_ui(data$note))
     shiny::tagList(
       shiny::selectInput(ns("s1_donor"), "Donor (shown separately)",
-                         choices = sort(unique(data$islets$donor_id))),
+                         choices = sort(unique(data$islets$donor_id)),
+                         selected = shiny::isolate(donor())),
       shiny::tags$h4("Size distribution — all exported islets for this donor"),
       shiny::uiOutput(ns("s1_size_view")),
       shiny::textOutput(ns("s1_size_caption")),
