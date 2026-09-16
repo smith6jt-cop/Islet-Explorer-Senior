@@ -12,6 +12,7 @@ enrichment is reported against something that must not be enriched.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 
 import pandas as pd
@@ -48,7 +49,14 @@ RUN_ID = "30f6689e4d27d295f890"
 #: than silently changing every number this lane produces.
 EXPRESSION_CONTENT_SHA256 = "35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0"
 EXPRESSION_TOTAL_ROWS = 31_454_041
-EXPRESSION = PKG / "data" / "runs" / RUN_ID / "expression"
+#: Overridable so a donor outside the immutable cohort run can be measured by the SAME steps
+#: rather than by a substitute. The same-slide Pheno-Xeno donors (6533, 0112) were processed
+#: by their own lane into partitions that follow this exact contract, but they live beside
+#: their raw inputs rather than in ``data/runs/``. Unset, nothing changes -- the constant is
+#: the run below and the content assertions above still apply.
+EXPRESSION = (pathlib.Path(os.environ["CELLTYPE_EXPRESSION_DIR"])
+              if os.environ.get("CELLTYPE_EXPRESSION_DIR")
+              else PKG / "data" / "runs" / RUN_ID / "expression")
 REDSEA = PKG / "data" / "runs" / RUN_ID / "redsea"
 OUT = REPO / "data" / "development" / "celltype"
 
@@ -192,7 +200,14 @@ def donor_markers(donor: str | None = None) -> dict | list:
     project.  A rule that names CD38 is evaluable on the 13 donors that have it and
     ``unavailable`` on the other 7 -- which is a smaller n, not an unencodable rule.
     """
-    coh = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
+    table = REPO / "data" / "donor_acquisition_batch.csv"
+    if not table.exists():
+        if donor is None:
+            raise FileNotFoundError(
+                f"{table} is absent, so the cohort's per-donor panel variants cannot be "
+                "read. A single donor can still be resolved from its partition.")
+        return markers_on_disk(donor)
+    coh = pd.read_csv(table, dtype={"donor_id": str})
     coh = coh[coh["eligible"]]
     base = [m for m in markers(include_variant=True) if m not in PANEL_VARIANT_MARKERS]
     out = {}
@@ -203,7 +218,36 @@ def donor_markers(donor: str | None = None) -> dict | list:
         if r["has_b_Catenin1"]:
             got.append("b_Catenin1")
         out[r["donor_id"]] = sorted(got)
+    if donor is not None and str(donor) not in out:
+        return markers_on_disk(donor)
     return out[donor] if donor is not None else out
+
+
+def markers_on_disk(donor: str) -> list:
+    """What a donor OUTSIDE the acquisition table actually carries, read off its partition.
+
+    The cohort table is the right source for the 20 cohort donors -- acquisition is a fact
+    about the run, not about the file. It has no row for a donor acquired later, and guessing
+    the full list for one would be worse than reading it: a column that is present but
+    entirely NaN is a marker the panel did not carry, and treating it as carried puts a column
+    of NaN into every statistic downstream.
+
+    So: a registry marker counts as carried when its column exists AND holds at least one
+    finite value. Nothing is inferred from the column's presence alone.
+    """
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    path = EXPRESSION / f"donor_id={donor}" / "data.parquet"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"donor {donor} is not in data/donor_acquisition_batch.csv and has no partition "
+            f"at {path}. Point CELLTYPE_EXPRESSION_DIR at the lane that wrote it.")
+    handle = pq.ParquetFile(path)
+    on_disk = {f.name for f in handle.schema_arrow}
+    want = [m for m in markers(include_variant=True) if m in on_disk]
+    df = handle.read(columns=want).to_pandas()
+    return sorted(m for m in want if np.isfinite(df[m].to_numpy("float64")).any())
 
 
 def donors_with(markers_needed) -> list:

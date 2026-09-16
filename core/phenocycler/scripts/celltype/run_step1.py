@@ -35,8 +35,12 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     """
     markers = [m for m in markers if m in set(panel.donor_markers(donor))]
     cols = ["object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid"] + markers
-    df = pq.read_table(panel.EXPRESSION / f"donor_id={donor}" / "data.parquet",
-                       columns=cols).to_pandas()
+    # The FILE, not the dataset. A partition that also carries ``donor_id`` as a column
+    # conflicts with the hive key inferred from its directory (large_string vs dictionary),
+    # and dataset discovery refuses to merge the two. Reading the file skips the inference
+    # and is identical for a partition that does not carry it.
+    df = pq.ParquetFile(panel.EXPRESSION / f"donor_id={donor}" / "data.parquet") \
+           .read(columns=cols).to_pandas()
     n_all = len(df)
     df = df[df["qc_analysis_eligible"]]
     n_elig = len(df)
@@ -94,8 +98,17 @@ def main() -> int:
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
-    coh = panel.cohort()
-    donors = args.donors or coh["donor_id"].tolist()
+    # The acquisition table describes the 20 cohort donors. A donor acquired outside it --
+    # or a checkout without the table -- can still be measured per (donor, marker), which is
+    # everything Step 3 leans on; only the acquisition-GROUP statistic needs the cohort, and
+    # it is a between-group ratio that a single donor cannot carry anyway.
+    try:
+        coh = panel.cohort()
+    except FileNotFoundError:
+        coh = None
+    donors = args.donors or (coh["donor_id"].tolist() if coh is not None else [])
+    if not donors:
+        raise SystemExit("no donor_acquisition_batch.csv on disk, so --donors is required")
     markers = panel.markers(include_variant=True)
     partners, controls = panel.partner_map(), panel.control_map()
     print(f"Step 1 — {len(donors)} donors x {len(markers)} markers, "
@@ -110,14 +123,22 @@ def main() -> int:
     df = pd.DataFrame(rows)
 
     # Acquisition-group structure needs every donor, so it is added after the loop.
-    grp = coh.set_index("donor_id")["acq_group"]
-    df = df.merge(coh[["donor_id", "batch", "epoch", "panel_variant", "acq_group", "status"]],
-                  on="donor_id", how="left")
-    acq = []
-    for m, g in df.groupby("marker"):
-        acq.append({"marker": m,
-                    **U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)})
-    df = df.merge(pd.DataFrame(acq), on="marker", how="left")
+    off_table = sorted(set(df["donor_id"]) - set(coh["donor_id"])) if coh is not None else \
+        sorted(set(df["donor_id"]))
+    if off_table:
+        print(f"\n  acquisition-group structure NOT computed: {len(off_table)} donor(s) are "
+              f"not in the acquisition table ({off_table}). The per-(donor, marker) "
+              f"statistics below are unaffected; only the between-group ratio is skipped.")
+    else:
+        grp = coh.set_index("donor_id")["acq_group"]
+        df = df.merge(
+            coh[["donor_id", "batch", "epoch", "panel_variant", "acq_group", "status"]],
+            on="donor_id", how="left")
+        acq = []
+        for m, g in df.groupby("marker"):
+            acq.append({"marker": m,
+                        **U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)})
+        df = df.merge(pd.DataFrame(acq), on="marker", how="left")
 
 
     out = pathlib.Path(args.out) if args.out else panel.OUT / "marker_donor_usability.parquet"
@@ -126,7 +147,8 @@ def main() -> int:
     print(f"\nwrote {out}  ({len(df):,} rows, {time.time() - t0:.0f}s)")
     print("\nmarkers whose level steps with the acquisition group "
           f"(ratio >= {U.BARS['acq_ratio_flag']}) — the one measurement Step 2 acts on:")
-    r = df.groupby("marker")["acq_ratio"].first().dropna().sort_values(ascending=False)
+    r = (df.groupby("marker")["acq_ratio"].first().dropna().sort_values(ascending=False)
+         if "acq_ratio" in df.columns else pd.Series(dtype=float))
     if r.empty:
         print("    not computable: the ratio needs at least two acquisition groups")
     else:

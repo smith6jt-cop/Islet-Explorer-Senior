@@ -6,6 +6,13 @@ This is Stage 5 of the streamlined Xenium plan, and under the user-directed orde
 context prior and the protein is the only measurement dense enough to supply one.  70-plex on
 the same physical section, against ~433 sparse transcripts of which ~29% are gDNA background.
 
+**The lane's step order holds.** Step 1 (marker usability, per donor) runs first and its
+verdict gates the markers scored here -- ``run_step1.py`` was made runnable on a donor outside
+the acquisition table rather than substituted for, and it rejects 0 of 58 markers on both.
+Step 3 (cosine behind the requirement gate) is reused unchanged. Step 2 is the one step that
+cannot run, and not for convenience: it is UniFORM alignment ACROSS THE COHORT, and both the
+plan and the maintainer's constraint are that nothing here is cohort-wide.
+
 It is the stock :mod:`celltype` lane with the two cohort-wide steps removed, because these
 two donors are not part of the cohort that was aligned:
 
@@ -20,12 +27,19 @@ two donors are not part of the cohort that was aligned:
 
 Everything that decides a cell type is reused unchanged -- ``rules.flatten`` /
 ``reference_matrix`` / ``requirements``, ``score.score_and_gate`` / ``call_from_scores``, and
-``run_islet.intruder_references`` / ``subtype_endocrine``.  In particular the islet prior uses
-``run_islet.intruder_references``, which excludes the **whole epithelial branch**, ancestors
-and siblings, from the set allowed to displace the prior.  A hand-rolled filter that excluded
-only endocrine-prefixed names was tried and measured: the generic ``Epithelial`` parent then
-took 21,450 of 65,363 islet cells, reproducing exactly the failure that function exists to
-prevent.
+``run_islet.intruder_references`` / ``subtype_endocrine``.
+
+**Inside ``Islet_N`` the decision is an ordered cascade**, not a competition -- see
+:func:`_islet_core_cascade`.  The polygons were drawn by a QuPath pixel classifier on INS,
+GCG, SST and CD99, so the cascade reads those four in the order the annotation was built:
+hormone argmax, then CD99 for the hormone-negative endocrine cells, then marker profile for
+the CD99-negative remainder.  That last step scores the non-endocrine references, which
+``run_islet.intruder_references`` supplies -- it excludes the **whole epithelial branch**,
+ancestors and siblings, because an endocrine cell satisfies those rules by construction.  A
+hand-rolled filter that excluded only endocrine-prefixed names was tried and measured: the
+generic ``Epithelial`` parent then took 21,450 of 65,363 islet cells.
+
+The ring and the rest of the tissue have no prior and every reference competes, unchanged.
 
 Input is the same-slide lane's own output, which already follows the stock ``expression``
 contract -- REDSEA spillover-corrected whole-cell means for the 64 corrected markers, and the
@@ -82,6 +96,51 @@ ISLET_GEOJSON = {
     "0112": "Islets_0081366_HDL112_pLNpanc_Scan3.er.qptiff - resolution #1.geojson",
 }
 
+
+#: Step 1's output for these donors. The lane's step order is not optional: Step 1 decides
+#: which measurements the later steps may lean on, and running Step 3 without it means
+#: scoring on measurements nothing has vetted.
+#:
+#:     CELLTYPE_EXPRESSION_DIR=<expression dir> \
+#:       python scripts/celltype/run_step1.py --donors 6533 0112 \
+#:         --out ../../data/development/celltype/marker_donor_usability_sameslide.parquet
+STEP1 = panel.OUT / "marker_donor_usability_sameslide.parquet"
+
+
+def step1_unusable(donor: str) -> list:
+    """Markers Step 1 says are not a valid measurement on this donor.
+
+    ``usability.py`` stopped emitting a label because on the cohort every marker passed and
+    the label carried no information -- but the three criteria it was built from are stated
+    in the lane README and are applied here to Step 1's own columns, so the gate is the
+    lane's and not this module's:
+
+    * fewer than ``usability.MIN_CELLS`` cells,
+    * more than half the cells reading exactly 0,
+    * no spatial structure above this donor's own permutation null (neither Moran's I on
+      ranks nor on the bright tail clears it).
+
+    Measured on 6533 and 0112: **0 of 58 markers unusable on either donor**, the same answer
+    Step 1 gave on all 1,120 cohort (donor, marker) cells. The gate excludes nothing here.
+    That is a result, not a reason to skip the step.
+    """
+    if not STEP1.exists():
+        raise SystemExit(
+            f"Step 1 has not been run for these donors: {STEP1} is absent. Run\n"
+            f"  CELLTYPE_EXPRESSION_DIR={DATA_ROOT / 'expression'} \\\n"
+            f"    python scripts/celltype/run_step1.py --donors 6533 0112 --out {STEP1}\n"
+            "first -- Step 3 is not entitled to measurements Step 1 has not vetted.")
+    import usability as U
+
+    d = pd.read_parquet(STEP1)
+    d = d[d["donor_id"].astype(str) == str(donor)]
+    if d.empty:
+        raise SystemExit(f"{STEP1} carries no rows for donor {donor}; re-run Step 1 with "
+                         f"--donors including it.")
+    structure = np.maximum(d["morans_rank"].abs(), d["morans_top1"].abs())
+    bad = ((d["n"] < U.MIN_CELLS) | (d["zero_frac"] > 0.5)
+           | (structure <= d["morans_null"]))
+    return sorted(d.loc[bad, "marker"].tolist())
 
 def expression_path(donor: str) -> pathlib.Path:
     return DATA_ROOT / "expression" / f"donor_id={donor}" / "data.parquet"
@@ -247,6 +306,71 @@ def islet_regions(donor: str, df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({"cell_region": region, "islet_num": islet}, index=df.index)
 
 
+
+#: The two reasons that mean "this cell is endocrine", as opposed to a marker-profile call.
+ENDOCRINE_REASONS = ("hormone_argmax", "cd99_islet_endocrine")
+
+
+def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intruders: list,
+                        require_min: float, score_rows) -> pd.DataFrame | None:
+    """Inside `Islet_N`: hormone, then CD99, then everything else. In that order.
+
+    The islet polygons were drawn by a QuPath pixel classifier on **INS, GCG, SST and CD99**,
+    so those four are what the annotation is made of and the cascade reads them in the order
+    the annotation was built:
+
+    1. **Hormone.** The argmax over INS/GCG/SST, if it clears the floor, IS the call --
+       ``Endo-beta`` / ``Endo-alpha`` / ``Endo-delta``. Nothing else is consulted, because
+       inside a hormone-drawn polygon a hormone-bright cell is not an open question.
+    2. **CD99.** A cell with no hormone but bright CD99 is still endocrine, hormone-negative
+       -- a real category in T1D islets, and the one the pixel classifier's fourth channel
+       exists to catch. CD99 earns this: on the per-donor scale it reads positive in 82.7%
+       (6533) and 65.0% (0112) of core cells against 4.6% / 3.8% in the surrounding ring,
+       an 18-75x enrichment, so it separates islet-endocrine from islet-non-endocrine rather
+       than merely being present.
+    3. **Everything else** is islet-NON-endocrine and is typed by marker profile against the
+       non-endocrine reference set -- immune, vascular, lymphatic, neural, other.
+
+    This replaces an earlier arrangement in which endocrine references were removed from
+    contention inside the core and a cell became endocrine only by meeting NO intruder rule.
+    That ordering had no endocrine escape hatch, and it showed: 98.9% of the cells it called
+    ``Imm-NK-cell`` inside 6533's cores cleared the hormone floor, 1,969 of them SST-top, at
+    a median Granzyme B and CD3e of 0.00. A delta cell that happened to satisfy
+    CD56 + CD57 + any one of nine pan-immune markers had nowhere else to go. Here the hormone
+    is read first and the question never arises.
+    """
+    if not core.any():
+        return None
+    idx = np.flatnonzero(core)
+    m = {k: i for i, k in enumerate(markers)}
+
+    sub = RI.subtype_endocrine(Xs[idx], markers, require_min)
+    by_hormone = (sub["call"] != "Endo-hormone-negative").to_numpy()
+    cd99 = (Xs[idx, m["CD99"]] >= require_min) if "CD99" in m else np.zeros(len(idx), bool)
+    by_cd99 = ~by_hormone & cd99
+    rest = ~by_hormone & ~cd99
+
+    out = sub.copy()
+    out["reason"] = np.where(by_hormone, "hormone_argmax", "cd99_islet_endocrine")
+    out["n_candidates"] = np.nan
+    if rest.any():
+        # The non-endocrine remainder competes on marker profile alone. `intruders` is
+        # run_islet.intruder_references -- the whole epithelial branch is out, because an
+        # endocrine cell satisfies those rules by construction and this branch of the
+        # cascade has already established the cell is not endocrine.
+        mask = np.zeros(len(core), dtype=bool)
+        mask[idx[rest]] = True
+        scored = score_rows(mask, intruders)
+        scored.index = np.flatnonzero(rest)
+        for c in out.columns:
+            if c in scored.columns:
+                out.loc[scored.index, c] = scored[c].to_numpy()
+        out.loc[scored.index, "reason"] = np.where(
+            scored["reason"].to_numpy(dtype=object) == "", "marker_profile",
+            scored["reason"].to_numpy(dtype=object))
+    out.index = idx
+    return out
+
 def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
                require_min: float) -> tuple:
     """One donor's protein call: two regions, two reference sets, one prior.
@@ -258,6 +382,12 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
     for these two donors the protein arm is the prior the RNA arm will consume.
     """
     df, have, unmeasured = load_expression(donor, list(Rm.index))
+    rejected = [m for m in step1_unusable(donor) if m in have]
+    print(f"  {donor}: Step 1 vetted {len(have)} rule markers, rejected {len(rejected)}"
+          + (f": {rejected}" if rejected else ""))
+    if rejected:
+        have = [m for m in have if m not in rejected]
+        unmeasured = sorted(set(unmeasured) | set(rejected))
     alive = audit_unmeasured(donor, unmeasured, Rm, reqs)
     Rm = Rm.loc[have, alive]
     Rm = Rm.loc[:, (Rm != 0).any(axis=0)]
@@ -287,8 +417,7 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
 
     usable = list(Rm.columns)
     intruder = [p for p in usable if p in intruders]
-    print(f"  {donor}: {len(usable)} references evaluable, {len(intruder)} of them may "
-          f"displace the endocrine prior")
+    print(f"  {donor}: {len(usable)} references evaluable, {len(intruder)} of them non-endocrine")
     core = (df["cell_region"] == "core").to_numpy()
 
     def _call(rows, refs):
@@ -302,21 +431,10 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, intruders: list,
         o.index = np.flatnonzero(rows)
         return o
 
-    parts = [x for x in (_call(core, intruder), _call(~core, usable)) if x is not None]
+    core_out = _islet_core_cascade(Xs, have, core, intruder, require_min, _call)
+    parts = [x for x in (core_out, _call(~core, usable)) if x is not None]
     out = pd.concat(parts).sort_index().reset_index(drop=True)
-
-    # Inside Islet_N a cell showing no intruder is endocrine BY THE PRIOR, and is subtyped by
-    # hormone rather than left Ambiguous.
-    sub = RI.subtype_endocrine(Xs, have, require_min)
-    fell_through = core & (out["call"] == "Ambiguous").to_numpy()
-    for c in ("call", "runner_up"):
-        out[c] = np.where(fell_through, sub[c].to_numpy(dtype=object),
-                          out[c].to_numpy(dtype=object))
-    for c in ("score", "margin"):
-        out[c] = np.where(fell_through, sub[c].to_numpy("float64"),
-                          out[c].to_numpy("float64"))
-    out["reason"] = np.where(fell_through, "endocrine_by_islet_prior",
-                             out.get("reason", pd.Series([""] * len(out))).to_numpy(dtype=object))
+    out["islet_endocrine"] = out["reason"].isin(ENDOCRINE_REASONS).to_numpy()
 
     out.insert(0, "object_id", df["object_id"].to_numpy())
     out.insert(0, "donor_id", donor)
@@ -344,8 +462,9 @@ def main() -> int:
     excluded = [c for c in Rm.columns if c not in intruders]
     print(f"protein arm — {Rm.shape[1]} references over {Rm.shape[0]} markers, "
           f"encoding={args.encoding}, require_min={args.require_min}")
-    print(f"  inside Islet_N, {len(intruders)} references may displace the endocrine prior")
-    print(f"  excluded as implied by it ({len(excluded)}): {excluded}")
+    print(f"  inside Islet_N: hormone -> CD99 -> marker profile; the last step scores the "
+          f"{len(intruders)} non-endocrine references")
+    print(f"  not in that set, endocrine + epithelial branch ({len(excluded)}): {excluded}")
 
     OUT.mkdir(parents=True, exist_ok=True)
     for d in args.donors:
