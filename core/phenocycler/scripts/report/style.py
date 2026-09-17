@@ -17,12 +17,25 @@
 from __future__ import annotations
 
 import pathlib
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
+
+# `import pins` used to be relied on for the side effect of putting scripts/restain and
+# scripts/celltype on sys.path (pins.py does that itself). That only happens the FIRST time
+# 'pins' is imported in the process; when this lane is collected alongside another that has
+# already cached its own same-named 'pins' module, the side effect never runs and `import
+# display` fails with "No module named 'display'" even though scripts/restain/display.py
+# exists. Insert both directories explicitly so this module does not depend on import order.
+_SCRIPTS = pathlib.Path(__file__).resolve().parent.parent
+for _sub in ("restain", "celltype"):
+    _p = str(_SCRIPTS / _sub)
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import pins  # noqa: E402
 import display as DISP  # noqa: E402  (scripts/restain/display.py)
