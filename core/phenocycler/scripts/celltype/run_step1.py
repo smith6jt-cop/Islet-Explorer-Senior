@@ -35,8 +35,10 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     """
     markers = [m for m in markers if m in set(panel.donor_markers(donor))]
     cols = ["object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid"] + markers
-    df = pq.read_table(panel.EXPRESSION / f"donor_id={donor}" / "data.parquet",
-                       columns=cols).to_pandas()
+    # panel.expression_path resolves the stable flat root first, falling back to the retired
+    # run tree per donor -- a donor added after 2026-09-16 (e.g. 6533, 112) exists only in the
+    # flat root, so the retired run's fixed path here would raise FileNotFoundError for them.
+    df = pq.read_table(panel.expression_path(donor), columns=cols).to_pandas()
     n_all = len(df)
     df = df[df["qc_analysis_eligible"]]
     n_elig = len(df)

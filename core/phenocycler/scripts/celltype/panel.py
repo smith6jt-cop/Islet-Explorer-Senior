@@ -99,9 +99,11 @@ REGISTRY_EXCLUDED = ("IAPP",)
 #: others as though it were the same one.
 NUCLEUS_MEASURED = ("DAPI", "FOXP3", "Ki67", "PCNA", "SOX2", "TCF_1", "TOX", "TP63")
 
-#: Acquired on only some donors.  NOT a reason to drop them: the panel is three variants, so
+#: Acquired on only some donors.  NOT a reason to drop them: the panel is four variants, so
 #: marker availability is a per-donor property and a comparison that uses one of these simply
-#: runs on fewer donors.  CD38 is on 13 of 20, b_Catenin1 on 4, and 3 donors carry neither.
+#: runs on fewer donors.  CD38 is on 15 of 22 (2 of them also carry b_Catenin1), b_Catenin1 is
+#: on 6, and 3 donors carry neither.  Availability of one is not exclusive of the other, so
+#: ``donors_with(["CD38"])`` and ``donors_with(["b_Catenin1"])`` overlap by those 2 donors.
 #: :func:`donor_markers` is the per-donor authority; ``markers()`` is the cohort intersection,
 #: for the places that genuinely need one common space.
 PANEL_VARIANT_MARKERS = ("CD38", "b_Catenin1")
@@ -167,13 +169,17 @@ DECLARED_CONTROLS = [
 
 
 def cohort() -> pd.DataFrame:
-    """The 20 eligible donors, with the acquisition group their level may step with.
+    """The 22 eligible donors, with the acquisition group their level may step with.
 
     ``acquisition_software`` is a proxy for the filter-responsivity calibration epoch and
     reproduces it exactly on this cohort (2.3.1 -> 2025-09-10, 2.4.0 -> 2026-03-12,
     2.4.1 -> 2026-06-11), so the group is derived from the cohort table alone.  Deriving it
     from ``data/pilots/acquisition_by_biomarker.parquet`` instead would lose donor 6523,
     whose slide is filed under another name.
+
+    Five acquisition groups since 6533 and 112 were added 2026-09-16: 2.3.1/CD38,
+    2.4.0/CD38, 2.4.1/b_Catenin1, 2.4.1/both (the new panel variant, carrying both CD38 and
+    b_Catenin1) and 2.4.1/neither.
     """
     df = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
     df = df[df["eligible"]].copy()
@@ -220,9 +226,10 @@ def compartments() -> dict:
 def donor_markers(donor: str | None = None) -> dict | list:
     """Which markers each donor actually carries.
 
-    The cohort is three panel variants, so this is a property of the donor and not of the
-    project.  A rule that names CD38 is evaluable on the 13 donors that have it and
-    ``unavailable`` on the other 7 -- which is a smaller n, not an unencodable rule.
+    The cohort is four panel variants, so this is a property of the donor and not of the
+    project.  A rule that names CD38 is evaluable on the 15 donors that have it and
+    ``unavailable`` on the other 7 -- which is a smaller n, not an unencodable rule.  CD38
+    and b_Catenin1 are not mutually exclusive: 2 donors (the "both" variant) carry both.
     """
     coh = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
     coh = coh[coh["eligible"]]

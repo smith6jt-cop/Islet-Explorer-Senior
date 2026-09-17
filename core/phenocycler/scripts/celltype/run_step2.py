@@ -44,10 +44,11 @@ BAR_MODE_SD = 0.10
 def marker_values(marker: str, donors: list, unavailable: dict | None = None) -> dict:
     """One marker's analysis-eligible values, for the donors that carry it.
 
-    A panel-variant marker is aligned across its own donors -- CD38 over 13, b_Catenin1 over
-    4 -- and left alone on the rest.  Aligning it against donors that never acquired it would
-    be aligning against nothing. Acquired columns without any finite QC-eligible value
-    at or above UniFORM's log floor are unavailable, not a synthetic zero histogram.
+    A panel-variant marker is aligned across its own donors -- CD38 over 15, b_Catenin1 over
+    6 (2 of those donors carry both) -- and left alone on the rest.  Aligning it against
+    donors that never acquired it would be aligning against nothing. Acquired columns without
+    any finite QC-eligible value at or above UniFORM's log floor are unavailable, not a
+    synthetic zero histogram.
     """
     out = {}
     for d in [x for x in donors if marker in set(panel.donor_markers(x))]:
