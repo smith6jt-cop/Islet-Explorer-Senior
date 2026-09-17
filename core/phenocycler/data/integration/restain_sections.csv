@@ -27,12 +27,28 @@
 # was a rounding of the value three of these files carry.
 #
 # THE FILES DISAGREE FOR TWO ROWS, and that is recorded here rather than erased, so nobody
-# "corrects" this back later without seeing it. Measured 2026-09-16 from the qptiff tags and
-# the embedded PerkinElmer XML, all five series 0 "Baseline", ImageType FullResolution,
-# Binning 1:
+# "corrects" this back later without seeing it. All five are series 0 "Baseline", ImageType
+# FullResolution, Binning 1. Measured 2026-09-16 -- and the two sources in the file do NOT
+# say the same thing, which an earlier version of this header got wrong:
 #
-#   0059865 / 0059907 / 0059947   Objective 20x   0.25047 um/px   agrees with 0.2505
-#   HDL115  / npod6591            Objective 10x   0.50139 um/px   2.0018x the declared value
+#   source                                20x images                10x images
+#   <PixelSizeMicrons> in the PerkinElmer XML   0.25                     0.5
+#   TIFF XResolution rational                   0.25047                  0.50139
+#
+# THE XML IS THE BETTER SOURCE. Both TIFF rationals carry numerator 4294967295 -- uint32
+# max, a saturated value -- so all their precision sits in the denominator and the trailing
+# digits of 0.25047 / 0.50139 are an artifact of that clamp, not a measurement. The XML
+# records round 0.25 and 0.5. An earlier header here attributed 0.25047/0.50139 to "the
+# qptiff tags and the embedded PerkinElmer XML"; the XML never contained those values.
+#
+# What survives the correction is the part that matters: 0059865 / 0059907 / 0059947 were
+# scanned on a 20x objective and HDL115 / npod6591 on a 10x, and the two groups genuinely
+# differ by a factor of 2. The maintainer's declared 0.2505 is within 0.2% of the XML's 0.25
+# for the three 20x images and is half the XML's 0.5 for the two 10x ones.
+#
+# Note `core/phenocycler/scripts/restain/geo.py` hard-codes PIXEL_UM = 0.25, matching the XML.
+# That lane is internally consistent at 0.25, so a builder converting its IF-frame coordinates
+# at 0.2505 sits ~0.2% off the frame the fitted transform targets -- about 10 um across 5 mm.
 #
 # QuPath read the same thing: PostXeniumIHC/data/{4,5}/server.json record pixelWidth
 # 0.5013891496931643 um for those two, against 0.25046989327540387 for the other three.
