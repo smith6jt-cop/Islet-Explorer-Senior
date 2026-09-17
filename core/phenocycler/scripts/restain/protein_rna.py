@@ -418,18 +418,42 @@ def main(argv=None) -> int:
 
     sections = HZ.load_section_map(SECTIONS)
     (args.out / "protein_rna").mkdir(parents=True, exist_ok=True)
-    recs = []
+    recs = {}
     for serial, _gj in discover(args.geojson_dir).items():
         donor = donor_of(serial, XENIUM_PATHS)
         if args.donors and donor not in args.donors:
             continue
-        recs.append(measure_one(serial, sections, roi=args.roi, out_dir=args.out,
-                                um_per_px=args.um_per_px))
+        rec = measure_one(serial, sections, roi=args.roi, out_dir=args.out,
+                          um_per_px=args.um_per_px)
+        rec.setdefault("serial", serial)
+        rec.setdefault("donor", donor)
+        recs[serial] = rec
     if not recs:
         print("no donor matched", file=sys.stderr)
         return 1
     p = args.out / f"protein_rna_{args.roi}.json"
-    p.write_text(json.dumps(recs, indent=2, allow_nan=False))
+    # MERGE, never replace. `--donors 6539` used to rewrite this file with that one record and
+    # drop 6436 and 6442 from it -- the per-donor .npy arrays survived, so nothing was
+    # measured twice, but the index silently lost every donor not named on the command line.
+    # Keyed by serial so a re-run of a donor replaces its own record and no other.
+    if p.exists():
+        try:
+            prior = json.loads(p.read_text())
+        except (OSError, json.JSONDecodeError):
+            prior = []
+        # Records written before `serial` existed carry None, so they cannot be matched by
+        # key. Identify those by what they measured: a prior record whose n_cells equals one
+        # just written is the same section, and the fresh record wins.
+        measured_now = {r.get("n_cells") for r in recs.values()}
+        for rec in prior if isinstance(prior, list) else []:
+            key = rec.get("serial")
+            if key is None:
+                if rec.get("n_cells") in measured_now:
+                    continue
+                key = f"n_cells={rec.get('n_cells')}"
+            recs.setdefault(key, rec)
+    merged = sorted(recs.values(), key=lambda r: str(r.get("serial") or ""))
+    p.write_text(json.dumps(merged, indent=2, allow_nan=False))
     print(f"wrote {p}")
     return 0
 
