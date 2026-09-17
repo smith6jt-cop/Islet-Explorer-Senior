@@ -76,8 +76,15 @@ under the repo-root `data/development/` — a level above `core/`.
 
 The current typing is the **subpanel classification**: context from QuPath objects, then one
 question per context answered by the markers that can answer it, against reference levels drawn from
-the ordinary tissue. 25,150,537 cells, all 20 donors, in
-`data/development/typing/subpanel/subpanel_calls.parquet`.
+the ordinary tissue. **25,230,109 cells, all 20 donors, in `data/development/typing/cells/`.**
+
+`data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation and must not
+be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against `typing/cells/`'s
+25,230,109 rows written Sep 15 — 79,572 cells apart, and its endocrine counts differ materially
+(Beta 191,485 / Alpha 246,055 / Delta 62,797 against 226,183 / 279,686 / 90,658). That tree stacks
+generations side by side with nothing marking which is which, so check mtimes before citing anything
+in it. `scripts/senior/build_distance_profiles.py` refuses the superseded file by path, with the
+counts in the error.
 
 - **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
