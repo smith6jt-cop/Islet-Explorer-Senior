@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 
 import numpy as np
@@ -53,13 +54,64 @@ def _manifest() -> tuple[dict, dict]:
              for r in raw["images"]})
 
 
+#: How far into a candidate export to look for a detection before accepting it as annotations.
+#: 64 MiB reaches ~1,700 detections in the one measured cell export; an islet export of any donor
+#: in this cohort is smaller than this outright, so a clean file is read whole and accepted.
+_OBJECT_TYPE_PROBE_BYTES = 64 * 1024 * 1024
+
+#: Tolerant of whitespace on purpose.  QuPath writes this compactly today, and a probe that only
+#: matched the compact spelling would fail *open* against a pretty-printed export -- reading the
+#: 66 GiB detection file instead of refusing it.  Failing open is the expensive direction here.
+_DETECTION_MARKER = re.compile(rb'"objectType"\s*:\s*"(?:cell|detection)"')
+
+
+def _is_annotation_export(path) -> str | None:
+    """None if `path` is an annotation export; otherwise the measured reason it is not.
+
+    QuPath will write a *detection* export to whatever filename it is given, and one such file
+    -- 71 GB of per-cell measurements -- currently sits in the islets directory under a name that
+    matches an islet export exactly.  Its features carry ``"objectType":"cell"``; an islet export
+    is 100% ``"annotation"``.  That is the discriminator, and it is checked on a bounded prefix so
+    a mis-targeted export is never read into memory.
+    """
+    with path.open("rb") as handle:
+        head = handle.read(_OBJECT_TYPE_PROBE_BYTES)
+    if _DETECTION_MARKER.search(head):
+        size_gib = path.stat().st_size / 1024 ** 3
+        return (f"carries objectType=cell in its first "
+                f"{min(len(head), _OBJECT_TYPE_PROBE_BYTES) / 1024 ** 2:.0f} MiB -- this is a "
+                f"detection export ({size_gib:.1f} GiB), not islet annotations")
+    return None
+
+
+def islet_export(stem: str):
+    """The islet export to use for one image: the newest annotation export that matches `stem`.
+
+    The directory is searched recursively, because re-exports arrive in dated subdirectories
+    (`2026SeptNew/`) beside the originals and under a different spelling -- spaces and `#` where
+    the June files have underscores.  Newest mtime wins, so a re-export supersedes without anything
+    having to be moved or deleted.  A candidate that is not an annotation export is *refused with
+    its reason printed*, never silently skipped, and the search falls through to the next newest.
+    """
+    candidates = sorted((p for p in S.ISLETS.rglob("*.geojson") if stem in p.name),
+                        key=lambda p: p.stat().st_mtime, reverse=True)
+    if not candidates:
+        raise FileNotFoundError(f"islet outlines for {stem!r}: found 0 files under {S.ISLETS}")
+    for candidate in candidates:
+        reason = _is_annotation_export(candidate)
+        if reason is None:
+            return candidate
+        print(f"[refuse] {candidate.name}: {reason}", file=sys.stderr)
+    raise FileNotFoundError(
+        f"islet outlines for {stem!r}: {len(candidates)} file(s) matched and every one was "
+        f"refused as a detection export")
+
+
 def islet_outlines(stem: str) -> dict[str, object]:
     """`Islet_N` -> its outline, in pixels, for one image."""
-    matches = [p for p in S.ISLETS.glob("*.geojson") if stem in p.name]
-    if len(matches) != 1:
-        raise FileNotFoundError(f"islet outlines for {stem!r}: found {len(matches)} files")
+    source = islet_export(stem)
     out = {}
-    for feature in json.loads(matches[0].read_text())["features"]:
+    for feature in json.loads(source.read_text())["features"]:
         properties = feature.get("properties", {})
         label = (properties.get("classification") or {}).get("name")
         if label != "Islet" or not feature.get("geometry"):
