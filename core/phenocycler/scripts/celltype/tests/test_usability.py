@@ -117,11 +117,14 @@ def test_compartment_is_inherited_from_partners_when_the_registry_declines():
 
 
 def test_cohort_is_the_twenty_eligible_donors_in_four_acquisition_groups():
+    """Stale name kept for history; the fact it asserts is now the 2026-09-16 cohort growth:
+    22 donors (6533 and 112 added, Fusion 2.4.1, panel variant "both") in five acquisition
+    groups -- "both" carries CD38 and b_Catenin1 together, which no prior donor did."""
     c = panel.cohort()
-    assert len(c) == 20 and c["donor_id"].is_unique
+    assert len(c) == 22 and c["donor_id"].is_unique
     assert not {"6457", "6579"} & set(c["donor_id"]), "centrally excluded donors must not appear"
-    assert set(c["acq_group"]) == {"2.3.1/CD38", "2.4.0/CD38",
-                                   "2.4.1/b_Catenin1", "2.4.1/neither"}
+    assert set(c["acq_group"]) == {"2.3.1/CD38", "2.4.0/CD38", "2.4.1/b_Catenin1",
+                                   "2.4.1/both", "2.4.1/neither"}
 
 
 def test_panel_variant_markers_are_out_by_default():
@@ -298,9 +301,9 @@ def test_flattening_refuses_a_cycle_rather_than_looping():
 
 
 def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
-    """The cohort is three panel variants, so availability is a per-donor property.
+    """The cohort is four panel variants, so availability is a per-donor property.
 
-    A rule naming CD38 is evaluable on the 13 donors that carry it, not unencodable.  Built
+    A rule naming CD38 is evaluable on the 15 donors that carry it, not unencodable.  Built
     over the cohort intersection instead, its constraint vanishes and B_cell becomes
     identical to CD38_high_B with nothing to show it -- which is the fail-open this guards.
     """
@@ -313,8 +316,8 @@ def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
     assert not (M["B_cell"] == M["CD38_high_B"]).all()
 
     ev = R.evaluable_donors(flat).set_index("phenotype")
-    assert ev.loc["B_cell", "n_donors"] == 20
-    assert ev.loc["CD38_high_B", "n_donors"] == 13
+    assert ev.loc["B_cell", "n_donors"] == 22
+    assert ev.loc["CD38_high_B", "n_donors"] == 15
     assert ev.loc["CD38_high_B", "variant_markers"] == "CD38"
 
     thin, dropped = R.reference_matrix(flat, panel.markers(), "zero", strict=False)
@@ -323,12 +326,15 @@ def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
 
 
 def test_marker_availability_is_a_property_of_the_donor():
+    """CD38 and b_Catenin1 are not mutually exclusive: since 2026-09-16, donors 6533 and 112
+    carry the new "both" panel variant, so the two donor sets overlap by 2."""
     dm = panel.donor_markers()
-    assert len(dm) == 20
-    assert len(panel.donors_with(["CD38"])) == 13
-    assert len(panel.donors_with(["b_Catenin1"])) == 4
-    assert len(panel.donors_with(["CD38", "b_Catenin1"])) == 0, "no donor carries both"
-    assert len(panel.donors_with(["CD3e"])) == 20
+    assert len(dm) == 22
+    assert len(panel.donors_with(["CD38"])) == 15
+    assert len(panel.donors_with(["b_Catenin1"])) == 6
+    assert len(panel.donors_with(["CD38", "b_Catenin1"])) == 2, \
+        "6533 and 112 carry the new both variant"
+    assert len(panel.donors_with(["CD3e"])) == 22
     for d in ("6523", "6566", "6591"):
         got = set(panel.donor_markers(d))
         assert not got & set(panel.PANEL_VARIANT_MARKERS), f"{d} carries neither"
@@ -651,12 +657,13 @@ def test_a_variant_marker_does_not_cost_a_donor_its_cells():
 
 def test_a_variant_marker_is_aligned_only_across_the_donors_that_carry_it():
     """Aligning CD38 against donors that never acquired it would be aligning against
-    nothing.  13 donors carry it, 4 carry b_Catenin1, 3 carry neither."""
+    nothing.  15 donors carry it, 6 carry b_Catenin1 (2 of those carry both), 3 carry
+    neither."""
     donors = panel.cohort()["donor_id"].tolist()
     got = S2.marker_values.__doc__
     assert "donors that carry it" in got
-    assert len(panel.donors_with(["CD38"])) == 13
-    assert len(panel.donors_with(["b_Catenin1"])) == 4
+    assert len(panel.donors_with(["CD38"])) == 15
+    assert len(panel.donors_with(["b_Catenin1"])) == 6
 
 
 def test_the_shift_record_says_how_many_donors_backed_each_marker():
