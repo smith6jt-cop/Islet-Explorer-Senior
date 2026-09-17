@@ -5,13 +5,15 @@ Sources
   * ``phenocycler/marker_registry.json``: ``kind`` (type / state / excluded / structural) and
     ``broad_compartment`` (Immune / Epithelial / Endothelial / Mesenchymal / Neural).  The
     registry is the marker authority (root CLAUDE.md).
-  * ``phenotype_workflow.csv`` (the 37-reference rule table): used for exactly two things --
-    the split of the registry's single Immune compartment into T_NK / B_Plasma / Myeloid by
+  * ``phenotype_workflow.csv`` (the 37-reference rule table): the supported identity-marker
+    columns, the split of the registry's single Immune compartment into T_NK / B_Plasma / Myeloid by
     the branch in which a marker carries a positive token, and the endocrine hormones (the
     ``allpos`` markers of the Endo-beta / Endo-alpha / Endo-delta leaves).
 
 Tiering rule (the PhenoCycler mirror of Xenium decision #17): identity markers are registry
-``type`` markers only.  ``state`` markers never enter identity; they are appended after typing as
+``type`` markers represented in the rule table. Registry additions without a rule-table column
+remain excluded with a reason; adding a measurement does not declare it as identity evidence.
+``state`` markers never enter identity; they are appended after typing as
 continuous per-cell columns.  Conflicts between the two sources are recorded, and a marker is
 EXCLUDED when the rule table makes a definitional (``allpos``/``pos``) identity claim for it in a
 different top-level branch than its registry compartment (CD66: registry Epithelial, rule-table
@@ -135,6 +137,9 @@ def derive() -> dict:
 
     notes, excluded = [], {}
     declared: dict = {L: [] for L in LABELS}
+    for m in sorted(kind):
+        if kind[m] == pins.KIND_TYPE and comp.get(m) and m not in marker_cols:
+            excluded[m] = "registry type marker absent from the rule table; no identity rule declared"
 
     # 1. Endocrine: the hormones, from the Endo-* leaves' definitional tokens.
     hormones = sorted({m for m in marker_cols
@@ -146,7 +151,7 @@ def derive() -> dict:
         declared["Endocrine"].append(m)
     # 2. Registry compartments.
     for m, c in sorted(comp.items()):
-        if kind[m] != pins.KIND_TYPE or not c or m in declared["Endocrine"]:
+        if kind[m] != pins.KIND_TYPE or not c or m in declared["Endocrine"] or m in excluded:
             continue
         # conflict check: a definitional claim in a different top-level branch excludes the marker
         strong = positive_rows(m, tokens=("pos", "allpos"))
@@ -208,8 +213,9 @@ def derive() -> dict:
     if bad:
         raise RuntimeError(f"non-type markers reached identity: {bad}")
     return {
-        "method_version": "broadtype-declarations-2026-09-05",
-        "rule": ("identity = registry kind=='type'; compartments from the registry; Immune split by the "
+        "method_version": "broadtype-declarations-2026-09-17",
+        "rule": ("identity = registry kind=='type' and represented in the rule table; "
+                 "compartments from the registry; Immune split by the "
                  "rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* "
                  "leaves; definitional (pos/allpos) cross-branch claims exclude; OR-membership notes"),
         "labels": labels,
@@ -250,8 +256,8 @@ def rules_broad8(dec: dict) -> pd.DataFrame:
 
 def write() -> dict:
     dec = derive()
-    DECLARATIONS_JSON.write_text(json.dumps(dec, indent=1, sort_keys=False) + "\n")
     df = rules_broad8(dec)
+    DECLARATIONS_JSON.write_text(json.dumps(dec, indent=1, sort_keys=False) + "\n")
     # v4 layout the celltype loader reads: two unnamed leading columns
     df = df.rename(columns={"parent": "", "phenotype": ""})
     df.to_csv(RULES_BROAD8_CSV, index=False)

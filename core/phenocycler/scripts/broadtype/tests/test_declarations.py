@@ -38,7 +38,7 @@ def test_declarations_json_is_derived_not_typed():
     frozen_text = declarations.DECLARATIONS_JSON.read_text()
     assert json.dumps(fresh, indent=1, sort_keys=False) + "\n" == frozen_text
     assert json.loads(frozen_text) == fresh
-    assert fresh["method_version"] == "broadtype-declarations-2026-09-05"
+    assert fresh["method_version"] == "broadtype-declarations-2026-09-17"
 
 
 def test_declarations_record_the_sha_of_both_sources():
@@ -114,7 +114,7 @@ def test_no_state_marker_in_any_label_markers_or_negatives(dec):
         assert not state & set(spec["markers"]), f"{L}: state marker in identity markers"
         assert not state & set(spec["negatives"]), f"{L}: state marker used as a negative"
     assert not state & set(dec["identity_markers"])
-    assert len(state) == 23
+    assert len(state) == 33  # 23 original + 10 deferred state measurements added 2026-09-16
 
 
 def test_negatives_are_identity_markers_of_other_labels(dec):
@@ -147,14 +147,36 @@ def test_neural_is_undeclared_with_the_recorded_reason(dec):
 
 
 def test_conflict_rule_exclusions_are_the_recorded_ones(dec):
-    """The protocol's Section 1 list, verbatim -- CD34, CD66, CD56, b_Catenin1, CD11b, IAPP, B3TUBB."""
-    assert set(dec["excluded"]) == {"B3TUBB", "CD11b", "CD34", "CD56", "CD66", "IAPP", "b_Catenin1"}
+    """The protocol's exclusions plus the two new type measurements without identity rules."""
+    assert set(dec["excluded"]) == {"B3TUBB", "CD11b", "CD34", "CD56", "CD66", "IAPP", "b_Catenin1",
+                                    "CD141", "CD21"}
     assert dec["excluded"]["CD11b"] == "registry kind=excluded"
     assert dec["excluded"]["IAPP"] == "registry kind=excluded"
     assert "Mes-CD34-fibroblast" in dec["excluded"]["CD34"]
     assert "Imm-neutrophil" in dec["excluded"]["CD66"]
     for m in dec["excluded"]:
         assert m not in dec["identity_markers"]
+
+
+def test_registry_additions_need_rule_table_support_before_entering_identity(dec):
+    """The 72-marker measurement registry includes deferred markers outside this rule table."""
+    import rules
+    registry = {m["name"]: m for m in pins.registry()["markers"]}
+    table = rules.load_rules(pins.RULES_37)
+    absent_types = {m for m, spec in registry.items()
+                    if spec["kind"] == pins.KIND_TYPE and m not in table.columns}
+    assert absent_types == {"CD141", "CD21", "b_Catenin1"}
+    assert absent_types <= set(dec["excluded"])
+    for m in ("CD141", "CD21"):
+        assert registry[m]["calibration_status"] == "deferred"
+        assert registry[m]["uses"] == ["deferred_type"]
+        assert dec["excluded"][m] == "registry type marker absent from the rule table; no identity rule declared"
+    assert not absent_types & set(dec["identity_markers"])
+    assert set(dec["identity_markers"]) <= set(table.columns)
+    accounted = [*dec["identity_markers"], *dec["state_markers"],
+                 *dec["structural_markers"], *dec["excluded"]]
+    assert len(accounted) == len(set(accounted)) == len(registry)
+    assert set(accounted) == set(registry)
 
 
 def test_write_is_idempotent_on_the_frozen_files(tmp_path, monkeypatch):

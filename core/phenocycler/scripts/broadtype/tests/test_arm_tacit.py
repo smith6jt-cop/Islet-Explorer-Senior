@@ -167,13 +167,40 @@ def test_planted_types_recovered_through_the_r_pipeline(tmp_path):
     called = calls["label"].isin(PLANT).to_numpy()
     assert np.isfinite(calls.loc[called, "score"]).all()
 
+    # The native subsample path must preserve TACIT's labels, including cluster-level calls
+    # below the cell's own threshold. The hand-table test above covers that override too.
+    native = detail["tacit_label"].reindex(ctx.ids)
+    native_type = in_sub & native.isin(PLANT).to_numpy()
+    assert native.notna().to_numpy().tolist() == in_sub.tolist()
+    assert np.array_equal(lab[native_type], native.to_numpy()[native_type])
+    assert (lab[in_sub & ~native_type] == records.AMBIGUOUS).all()
+    for L in PLANT:
+        sel = native_type & (native.to_numpy() == L)
+        margins = detail[f"score__{L}"].reindex(ctx.ids).to_numpy()[sel] - learned["thresholds"][L]
+        np.testing.assert_allclose(calls["score"].to_numpy()[sel], margins)
+
+    # The other path uses the learned thresholds for every complete cell outside the subsample.
+    threshold_labels = detail["label_threshold"].reindex(ctx.ids).to_numpy()
+    threshold_reasons = detail["reason_threshold"].reindex(ctx.ids).to_numpy()
+    outside = complete & ~in_sub
+    assert np.array_equal(lab[outside], threshold_labels[outside])
+    assert np.array_equal(calls["reason"].to_numpy()[outside], threshold_reasons[outside])
+
     # doublets are Ambiguous(multi_type); no-signal cells are Ambiguous(no_type_above_threshold)
     # the package resolves a multi-positive cell by kNN inside the subsample (its own design); only the
     # threshold path outside the subsample can say Ambiguous(multi_type), so that is where it is asserted
     dbl = (truth == "doublet") & complete & ~in_sub
     assert ((lab[dbl] == records.AMBIGUOUS) & (calls["reason"].to_numpy()[dbl] == "multi_type")).mean() >= 0.75   # measured 0.78
     non = (truth == "none") & complete
-    assert ((lab[non] == records.AMBIGUOUS) & (calls["reason"].to_numpy()[non] == "no_type_above_threshold")).mean() >= 0.8
+    # This is a threshold-path property, not a promise about TACIT's cluster/kNN overrides:
+    # the pinned package labels 16 planted no-signal cells below every threshold (2026-09-17).
+    # Keep the 0.8 cutoff on the learned decision for ALL no-signal cells and on actual calls
+    # outside the subsample; above we check native subsample labels cell for cell.
+    assert ((threshold_labels[non] == records.AMBIGUOUS) &
+            (threshold_reasons[non] == "no_type_above_threshold")).mean() >= 0.8
+    non_outside = non & outside
+    assert ((lab[non_outside] == records.AMBIGUOUS) &
+            (calls["reason"].to_numpy()[non_outside] == "no_type_above_threshold")).mean() >= 0.8
 
     # scratch is gone; the detail sidecars exist where we asked
     assert not any((tmp_path / "scratch").glob("*")) or not (tmp_path / "scratch").exists()

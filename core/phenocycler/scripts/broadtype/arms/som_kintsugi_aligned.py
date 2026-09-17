@@ -29,17 +29,6 @@ ARM = "som-kintsugi-aligned"
 STOCHASTIC = base.STOCHASTIC
 
 
-class _AlignedFeatures:
-    """``arm_base`` with ``within_donor_rank`` replaced by the identity transform on aligned values."""
-
-    @staticmethod
-    def within_donor_rank(X: pd.DataFrame) -> pd.DataFrame:
-        return X.astype(float).copy()
-
-    def __getattr__(self, name):
-        return getattr(arm_base, name)
-
-
 DEFAULT_PARAMS = dict(base.DEFAULT_PARAMS)
 DEFAULT_PARAMS["features"] = ("aligned intensity as loaded (UniFORM Step-2 values; KINTSUGI features.py arm A), declared type "
                               "markers only, no rank; StandardScaler inside som_cluster weights markers; a cell with any "
@@ -49,14 +38,8 @@ DEFAULT_PARAMS["declared_after"] = ("som-kintsugi (rank features) screened 2026-
 
 
 def run(ctx: arm_base.ArmContext) -> pd.DataFrame:
-    base.ARM = ARM
-    base.SCRATCH_ROOT = pins.OUT / "scratch" / ARM
-    base.DEFAULT_PARAMS = DEFAULT_PARAMS
-    base.arm_base = _AlignedFeatures()
-    try:
-        return base.run(ctx)
-    finally:
-        base.arm_base = arm_base
+    return base.run_features(ctx, ctx.X.astype(float).copy(),
+                             params=DEFAULT_PARAMS, scratch_root=pins.OUT / "scratch" / ARM)
 
 
 if __name__ == "__main__":

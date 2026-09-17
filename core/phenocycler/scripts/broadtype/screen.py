@@ -36,7 +36,7 @@ Outputs, all under ``data/development/broadtype/`` (never ``data/runs/``, never 
 An arm whose module is absent is skipped with a printed reason (arms are written concurrently);
 one whose subprocess fails is recorded with its return code and judged on whatever it produced
 (a missing primary makes every label ``failed: primary_not_available``).  A record whose
-``identity_markers`` contain a state marker fails every label: the tiering rule is enforced here
+``identity_markers`` contain a state marker or any undeclared marker fails every label: the tiering rule is enforced here
 as well as in the tests.
 
 Recorded deviation from the protocol text: Section 2's whole-donor fallback for a marker whose
@@ -297,15 +297,19 @@ def judge(arm: str, donor: str, scope: str, configs: dict, recs: dict, ctx, dec:
     cell_region = ctx.context["cell_region"].to_numpy() if "cell_region" in ctx.context.columns else None
     have = list(values.columns)
     used = {cid: recs[cid] for cid in configs if cid in recs and configs[cid].get("calls")}
-    leak = sorted({m for r in used.values() for m in r.get("identity_markers", [])} & set(dec["state_markers"]))
+    markers_used = {m for r in used.values() for m in r.get("identity_markers", [])}
+    leak = sorted(markers_used & set(dec["state_markers"]))
+    undeclared = sorted(markers_used - set(dec["identity_markers"]))
     out = {"labels": {}, "records_used": list(used.values()),
            "n_external_pins": max([len(set(r.get("pinned") or {}) - set(BASE_PINS)) for r in used.values()] or [0]),
            "noise_false_award_rate": false_award_rate(used),
-           "state_marker_in_identity_inputs": leak}
+           "state_marker_in_identity_inputs": leak,
+           "undeclared_identity_inputs": undeclared}
     primary_cfg = configs.get("primary") or {}
     primary_path = primary_cfg.get("calls")
-    if leak or not primary_path or not pathlib.Path(primary_path).exists():
+    if leak or undeclared or not primary_path or not pathlib.Path(primary_path).exists():
         err = (f"state_marker_in_identity_inputs: {leak}" if leak
+               else f"undeclared_identity_inputs: {undeclared}" if undeclared
                else f"primary_not_available (rc={primary_cfg.get('returncode')})")
         for L, spec in dec["labels"].items():
             res = {"label": L, "common_lineage": spec["common_lineage"], "declared_markers": spec["markers"],
