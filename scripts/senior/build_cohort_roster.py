@@ -36,7 +36,7 @@ COHORT_SPEC_PATH = PHENOCYCLER_ROOT / "cohort-spec.json"
 DEFAULT_OUT = REPO_ROOT / "apps" / "islet" / "config" / "cohort.json"
 
 sys.path.insert(0, str(PHENOCYCLER_ROOT))
-from phenocycler.cohort import DONOR_EXCLUSIONS, filter_eligible_donors  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED, filter_eligible_donors  # noqa: E402
 
 
 def norm_donor(value: str) -> str:
@@ -56,10 +56,17 @@ def build_roster(spec_path: Path = COHORT_SPEC_PATH) -> dict:
     candidate_donors = load_expected_donors(spec_path)
     excluded_ids = sorted({norm_donor(d) for d in DONOR_EXCLUSIONS})
 
+    # A donor whose exclusion has been LIFTED is a cohort member, and it must be carried here or
+    # it disappears. 6579 is in neither cohort-spec.json's expected_donors nor DONOR_EXCLUSIONS
+    # since 2026-09-17, so a union of just those two drops it from every list -- not excluded, not
+    # eligible, simply absent -- while the shipped roster still called it excluded on the retracted
+    # pancreatitis reason. Both halves of that are wrong and REINSTATED is the authority for it.
+    reinstated_ids = sorted({norm_donor(d) for d in REINSTATED})
+
     # The full roster is the vetted candidates plus the known-excluded donors: an excluded donor
     # must be *in* the roster (as an excluded entry) so a card can name it and say why, rather
     # than a donor that silently never appears anywhere.
-    all_donors = sorted(set(candidate_donors) | set(excluded_ids))
+    all_donors = sorted(set(candidate_donors) | set(excluded_ids) | set(reinstated_ids))
 
     eligible_donors = filter_eligible_donors(all_donors)
 

@@ -1,6 +1,6 @@
 {
   "spec_version": 1,
-  "generated_at": "2026-09-16T20:14:22+00:00",
+  "generated_at": "2026-09-17T21:48:31+00:00",
   "sources": {
     "candidate_donors": "core/phenocycler/cohort-spec.json",
     "exclusion_authority": "core/phenocycler/phenocycler/cohort.py"
@@ -34,10 +34,6 @@
     {
       "donor_id": "6457",
       "reason": "Excluded until further notice: poor DAPI staining prevented accurate Phenocycler channel registration."
-    },
-    {
-      "donor_id": "6579",
-      "reason": "Excluded until further notice by maintainer decision: pancreatitis outlier must not be included in analysis."
     }
   ],
   "eligible_donors": [
@@ -59,6 +55,7 @@
     "6539",
     "6551",
     "6566",
+    "6579",
     "6591",
     "6593",
     "6623"

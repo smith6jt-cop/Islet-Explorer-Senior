@@ -8,6 +8,27 @@
 .cohort_json_path <- .find_repo_file("apps/islet/config/cohort.json")
 
 #' Call the Python authority directly and return its eligible-donor answer for `donors`.
+# The exclusion list itself, asked of the same authority. Naming donors here is the restatement
+# CLAUDE.md forbids -- and it went stale the day 6579 was reinstated, failing this file rather
+# than anything real.
+.python_excluded_donors <- function(repo_root) {
+  python_bin <- Sys.which("python3")
+  if (!nzchar(python_bin)) skip("python3 not available to run the parity check")
+  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "phenocycler"))
+  script <- sprintf(
+    paste("import sys, json",
+          "sys.path.insert(0, %s)",
+          "from phenocycler.cohort import DONOR_EXCLUSIONS",
+          "print(json.dumps(sorted(DONOR_EXCLUSIONS)))",
+          sep = "\n"),
+    shQuote(phenocycler_dir, type = "cmd"))
+  out <- system2(python_bin, c("-c", shQuote(script)), stdout = TRUE, stderr = TRUE)
+  if (!is.null(attr(out, "status")) && attr(out, "status") != 0) {
+    skip(paste("python authority unavailable:", paste(out, collapse = " ")))
+  }
+  jsonlite::fromJSON(tail(out, 1))
+}
+
 .python_eligible_donors <- function(donors, repo_root) {
   python_bin <- Sys.which("python3")
   if (!nzchar(python_bin)) skip("python3 not available to run the parity check")
@@ -40,23 +61,28 @@
   jsonlite::fromJSON(out[length(out)])
 }
 
-test_that("cohort.json names 6457 and 6579 as excluded, with a measured reason each", {
+test_that("cohort.json names every excluded donor, with a measured reason each", {
   cohort <- ie_cohort_load(.cohort_json_path)
+  excluded <- .python_excluded_donors(.cohort_repo_root)
 
-  expect_true(all(c("6457", "6579") %in% ie_cohort_excluded_ids(cohort)))
-  expect_true(all(c("6457", "6579") %in% cohort$all_donors))
+  # Derived from the authority, never named here. This file used to assert the pair
+  # {6457, 6579} and so could not survive 6579 being reinstated on 2026-09-17 -- it failed on
+  # a correct change, which is the failure mode "no lane may restate the list" exists to stop.
+  expect_setequal(ie_cohort_excluded_ids(cohort), excluded)
+  expect_true(all(excluded %in% cohort$all_donors))
 
   reasons <- setNames(cohort$excluded_donors$reason, cohort$excluded_donors$donor_id)
-  expect_true(nzchar(reasons[["6457"]]))
-  expect_true(nzchar(reasons[["6579"]]))
+  for (donor in excluded) expect_true(nzchar(reasons[[donor]]))
 })
 
-test_that("ie_cohort_filter() removes 6457 and 6579 from a donor vector", {
+test_that("ie_cohort_filter() removes exactly the excluded donors from a donor vector", {
   cohort <- ie_cohort_load(.cohort_json_path)
+  excluded <- .python_excluded_donors(.cohort_repo_root)
+  keep <- c("6539", "115")
 
-  filtered <- ie_cohort_filter(c("6457", "6579", "6539", "115"), cohort = cohort)
-  expect_setequal(filtered, c("6539", "115"))
-  expect_false(any(c("6457", "6579") %in% filtered))
+  filtered <- ie_cohort_filter(c(excluded, keep), cohort = cohort)
+  expect_setequal(filtered, keep)
+  expect_false(any(excluded %in% filtered))
 })
 
 test_that("ie_cohort_filter() normalises donor ids before comparing", {
@@ -78,6 +104,11 @@ test_that("the R filter and the live Python authority agree on the full donor li
   expect_setequal(r_eligible, py_eligible)
   expect_setequal(r_eligible, cohort$eligible_donors)
 
-  expect_false(any(c("6457", "6579") %in% r_eligible))
-  expect_false(any(c("6457", "6579") %in% py_eligible))
+  # Derived, never named. Whoever is in DONOR_EXCLUSIONS is out of both lists and nobody else is,
+  # so a reinstatement flows through instead of breaking this file.
+  excluded <- .python_excluded_donors(.cohort_repo_root)
+  expect_true(length(excluded) > 0)
+  expect_false(any(excluded %in% r_eligible))
+  expect_false(any(excluded %in% py_eligible))
+  expect_setequal(setdiff(cohort$all_donors, r_eligible), intersect(cohort$all_donors, excluded))
 })

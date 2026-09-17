@@ -236,10 +236,7 @@ IE_COMPARTMENT_LINEAGES <- c("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
       shiny::tags$h5(modality),
       .ie_compartment_composition_table(
         sub[sub$state == "measured", , drop = FALSE],
-        paste0("Whole-node composition. Counts, not a gradient: there is no axis ",
-               "to place them on. Each modality is typed by its own lane against ",
-               "its own evidence — read them side by side, never pooled, and ",
-               "never tuned against one another.")),
+        "Whole-node composition"),
       if (nrow(absent)) lapply(seq_len(nrow(absent)), function(i) {
         .ie_compartment_note(ie_avail(absent$state[[i]], absent$reason[[i]]),
                              "guard_s3_pln_composition")
@@ -321,14 +318,45 @@ IE_COMPARTMENT_LINEAGES <- c("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
 # or a named unavailable(<reason>) taken from the artifact — never a blank
 # panel, and never a distance axis.
 
-.ie_pln_claim <- function() {
+#' The standing methods text for this column, in ONE place.
+#'
+#' It was inline, as a paragraph above every panel on every render: the boundary claim, the
+#' counts-not-a-gradient note, the compare-within-one-modality note, the identity-core-does-not-sum
+#' note and the membership definitions. Measured at ~470 words of prose on one tab, identical every
+#' time, which buries the numbers the card exists to show. None of it is retracted -- every
+#' guarantee still holds and is still one click away. What changes is that standing text is stated
+#' once and MEASURED state stays inline, because measured state is a fact about what the reader is
+#' looking at and standing text is not.
+.ie_pln_methods_modal <- function() {
+  shiny::modalDialog(
+    title = "How this column is measured", easyClose = TRUE, size = "l",
+    footer = shiny::modalButton("Close"),
+    shiny::tags$p(shiny::tags$strong("Compositional only."), " The pLN section comes from a ",
+      "different block than the pancreas on the same slide, so this column joins to the pancreas ",
+      "panel on donor and disease status alone. No distance, adjacency, neighbourhood or KDE ",
+      "crosses the tissue boundary, and no signed distance to an islet exists here \u2014 there are ",
+      "no islets in a lymph node."),
+    shiny::tags$p(shiny::tags$strong("Counts, not a gradient."), " Whole-node composition. There ",
+      "is no axis to place these cells on."),
+    shiny::tags$p(shiny::tags$strong("One modality at a time."), " Each modality is typed ",
+      "separately from a different section. Compare within one, never across."),
+    shiny::tags$p(shiny::tags$strong("Identity-core rows do not sum to the Immune total."), " An ",
+      "immune cell whose identity was not resolved is still immune."),
+    shiny::tags$p(shiny::tags$strong("Pancreas compartments."), " Core membership follows the ",
+      "exported islet outline. The peri-islet expansion is non-core cells at 0 < distance ",
+      "\u2264 20 \u00b5m, derived from the signed distance and not the drawn annotation. Other ",
+      "pancreas is every remaining eligible cell. Fractions are immune counts over all cells in ",
+      "that compartment.")
+  )
+}
+
+#' One line, with the methods a click away. Replaces five standing paragraphs.
+.ie_pln_claim <- function(modal_link = "s3_show_pln_methods") {
   shiny::tags$p(
-    class = "ie-card-note",
-    "Compositional only. The pLN section comes from a different block than the ",
-    "pancreas on the same slide, so this column is joined to the pancreas panel ",
-    "on donor and disease status alone. No distance, adjacency, neighbourhood or ",
-    "KDE crosses the tissue boundary, and no signed distance to an islet exists ",
-    "here — there are no islets in a lymph node."
+    class = "ie-card-note", style = "font-size: 12px",
+    "Compositional only \u00b7 counts, not a gradient \u00b7 one modality at a time",
+    shiny::tags$span(" \u00b7 "),
+    shiny::actionLink(modal_link, "how this is measured \u2192", style = "font-size: 12px")
   )
 }
 
@@ -395,9 +423,6 @@ IE_COMPARTMENT_LINEAGES <- c("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
   # "Section cells" is repeated on every row rather than stated once.
   composition <- if (nrow(measured)) {
     shiny::tagList(
-      shiny::tags$p("Cell-type composition of the whole node section. ",
-                    "Counts, not a gradient; there is no axis to place them on. ",
-                    "Each modality is typed separately — compare within one, never across."),
       shiny::tags$table(
         class = "ie-pln-composition",
         shiny::tags$tr(lapply(c("Modality", "Call", "Resolved by", "Cells",
@@ -414,10 +439,6 @@ IE_COMPARTMENT_LINEAGES <- c("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
           )
         })
       ),
-      # The lineage rows are stage 2's and do not sum to the immune total.
-      shiny::tags$p(class = "ie-card-note",
-                    "Identity-core rows do not sum to the Immune total: an immune cell ",
-                    "whose identity was not resolved is still immune.")
     )
   } else NULL
   shiny::tagList(claim, composition, notes,
@@ -448,6 +469,11 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
                                        cohort = NULL, active_tab = NULL, tab_key = NULL, ...) {
   active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
                              identical(active_tab(), tab_key))
+  # The standing methods text lives in one modal rather than above every panel. Registered here
+  # because the shared phenotype-rules loop is keyed by id and does not know about this card.
+  shiny::observeEvent(input$s3_show_pln_methods, {
+    shiny::showModal(.ie_pln_methods_modal())
+  }, ignoreInit = TRUE)
   layer <- shiny::reactive({
     shiny::req(active())
     .ie_distance_read()
@@ -483,7 +509,7 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     # The compositional pLN panel is the compartment gradient's. The section
     # table from distance_profiles stays beneath it: it names which section was
     # measured on which modality, which the composition alone does not say.
-    shiny::tagList(.ie_pln_claim(),
+    shiny::tagList(.ie_pln_claim(session$ns("s3_show_pln_methods")),
                    .ie_compartment_pln_panel(gradient(), donor()),
                    .ie_distance_pln_panel(layer(), donor()),
                    .ie_pln_outside_cohort_note(layer(), cohort))
@@ -522,11 +548,7 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     })
     shiny::tagList(
       notes, shiny::plotOutput(session$ns("s3_compartments_plot")),
-      shiny::tags$p("Core membership follows the exported islet outline. ",
-                    "The peri-islet expansion contains non-core cells at 0 < distance ≤ 20 µm. ",
-                    "Other pancreas contains all remaining eligible pancreas cells. ",
-                    "Fractions use immune counts divided by all eligible, non-excluded cells; ",
-                    "bin fractions are never averaged. Resolved by: ",
+      shiny::tags$p(class = "ie-card-note", style = "font-size: 12px", "Resolved by: ",
                     if (length(value$provenance)) paste(value$provenance, collapse = ", ")
                     else "no immune calls observed", "."),
       shiny::tableOutput(session$ns("s3_compartments_counts")),

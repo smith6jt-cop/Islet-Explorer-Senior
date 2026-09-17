@@ -976,8 +976,19 @@ shiny::testServer(function(input, output, session) {
   stopifnot(grepl("xenium Immune all 4 6", body, fixed = TRUE))
   stopifnot(grepl("phenocycler Immune all 3 4", body, fixed = TRUE))
   stopifnot(!grepl(" 10 ", body, fixed = TRUE))
-  stopifnot(grepl("compare within one, never across", body, fixed = TRUE))
-  stopifnot(grepl("do not sum to the Immune total", body, fixed = TRUE))
+  # The don't-conflate guarantee must be REACHABLE, not printed above every panel. It moved into
+  # the "how this is measured" modal when the tab was measured at ~470 words of standing prose;
+  # what the reader must still get is the one-line claim and a way to the full statement.
+  stopifnot(grepl("one modality at a time", body, fixed = TRUE))
+  stopifnot(grepl("how this is measured", body, fixed = TRUE))
+  # And the statement itself still exists, in the modal that link opens.
+  stopifnot(grepl("Compare within one, never across",
+                  paste(readLines("apps/islet/R/card_s3_compartments.R"), collapse = " "),
+                  fixed = TRUE))
+  # Also moved into the modal, and checked there for the same reason.
+  stopifnot(grepl("do not sum to the Immune total",
+                  paste(readLines("apps/islet/R/card_s3_compartments.R"), collapse = " "),
+                  fixed = TRUE))
   # And the node column still grows no distance axis.
   for (word in c("signed_distance", "distance_bin", "Islet core")) {
     stopifnot(!grepl(word, body, fixed = TRUE))
