@@ -9,6 +9,7 @@ pilot with every other gate green, and no other check in the plan can see it.
 import sys, json, time
 sys.path.insert(0,'/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler')
 sys.path.insert(0,'/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler/scripts/dct')
+sys.path.insert(0,'/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler/scripts/common')
 import numpy as np, pandas as pd, tifffile
 from scipy.stats import spearmanr
 from phenocycler.redsea import qptiff_channels

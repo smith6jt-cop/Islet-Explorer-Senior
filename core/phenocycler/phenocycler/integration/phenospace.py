@@ -18,6 +18,7 @@ import pandas as pd
 from ..cohort import DONOR_EXCLUSIONS
 from ..config import PipelineConfig
 
+
 SCHEMA_VERSION = 1
 COMMON_RESOLUTIONS = frozenset({"mapped", "ambiguous", "unavailable", "not_mappable"})
 RETIRED_INPUT_TOKENS = (
@@ -94,6 +95,21 @@ class PhenotypeRelease:
     donors: tuple[str, ...]
     space: PhenotypeSpace
     source: Path
+    provenance: str = "unchecked"
+    """Outcome of checking the declared expression input, never a content hash.
+
+    ``verified:<path>``            the declared input exists and covers every donor claimed
+    ``unverifiable:<reason>``      the declared input does not resolve, so nothing was checked
+
+    This exists because the old run_id + content_id pin was checked against a stage manifest,
+    and stage manifests were removed on 2026-09-16. A release naming a wrong content id would
+    otherwise load with no error and no trace -- the failure mode being silent was the problem,
+    not the failure mode being possible. A consumer that needs provenance reads this field;
+    `integration --status` prints it.
+
+    It deliberately cannot fire because package source changed: it reads only the filesystem
+    the release itself names.
+    """
 
     def calls_for(self, donor_id: str, roi: str = "") -> list[Path]:
         donor = str(donor_id)
@@ -198,6 +214,14 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     configured = _configured_path(cfg, modality)
     if configured is None:
         raise PhenotypeSpaceError(f"no declared {modality} identity release is configured")
+    if not configured.exists():
+        # config.ini may name the release directory a producer lane WILL write (the
+        # broadtype A.4a release, the Xenium typer release) before either exists. For the
+        # strict loader that is still "no release": identity stages must fail closed on it.
+        raise PhenotypeSpaceError(
+            f"{modality} identity release is configured at {configured} but nothing exists "
+            "there yet; the producer lane has not written its release"
+        )
     source = configured / "release.json" if configured.is_dir() else configured
     payload = _read_json(source)
     version = int(payload.get("schema_version", -1))
@@ -269,17 +293,20 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     content_id = str(
         expression.get("content_id", payload.get("expression_content_id", ""))
     ).strip()
-    if modality == "phenocycler":
-        if not run_id or not content_id:
-            raise PhenotypeSpaceError(
-                f"{source}: PhenoCycler release must pin expression run_id and content_id"
-            )
-        manifest = cfg.runs_dir / run_id / "manifests" / "expression.json"
-        actual = str(_read_json(manifest).get("content_id", "")).strip()
-        if actual != content_id:
-            raise PhenotypeSpaceError(
-                f"{source}: expression content id {content_id!r} != {actual!r} in {manifest}"
-            )
+    # A PhenoCycler release used to pin an expression run_id + content_id, checked against
+    # data/runs/<run_id>/manifests/expression.json. Stage manifests were removed on
+    # 2026-09-16, so there is nothing left to compare a content id against.
+    #
+    # What replaces it is coverage, not identity: does the declared input exist, and does it
+    # actually contain every donor this release claims to call? That catches the realistic
+    # wrong-id release -- one pointing at a tree that is gone, or claiming donors the data
+    # does not have -- without hashing anything, and it cannot fire because code changed.
+    #
+    # A release whose input does not resolve is NOT refused. It is recorded as unverifiable,
+    # because refusing on a path that may simply be configured elsewhere is how the old check
+    # ended up failing for reasons unrelated to provenance. Silence was the defect; a hard
+    # gate is not the only cure for it.
+    provenance = _check_declared_input(expression, donors, source)
 
     columns = payload.get("columns", {})
     if not isinstance(columns, dict):
@@ -308,13 +335,102 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
         donors=donors,
         space=space,
         source=source,
+        provenance=provenance,
     )
 
 
-def load_release_or_none(cfg: PipelineConfig, modality: str) -> Optional[PhenotypeRelease]:
-    """Return None only when no path is configured; configured invalid releases still raise."""
+# core/phenocycler/phenocycler/integration/this_file.py -> parents[4] is the repository root.
+# parents[3] is core/, which resolves a repo-relative declared path only when the process
+# happens to be running from the repo root -- so --status reported "unverifiable" for a
+# release that is in fact verifiable.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
-    return None if _configured_path(cfg, modality) is None else load_release(cfg, modality)
+
+def _check_declared_input(
+    expression: Mapping[str, object],
+    donors: tuple[str, ...],
+    source: Path,
+) -> str:
+    """Check the declared expression input by coverage. Never by content hash.
+
+    Returns a ``verified:`` or ``unverifiable:`` string for
+    :attr:`PhenotypeRelease.provenance`. Raises only when the input resolves AND
+    contradicts the release -- a release that claims donors its own declared input does
+    not contain is wrong in a way no configuration explains.
+    """
+
+    declared = str(expression.get("path", "")).strip()
+    if not declared:
+        return "unverifiable:release declares no expression input path"
+
+    candidates = [Path(declared)]
+    if not Path(declared).is_absolute():
+        candidates.append(_REPO_ROOT / declared)
+    root = next((c for c in candidates if c.is_dir()), None)
+    if root is None:
+        # Expected for a release whose input lives on another machine, and for the
+        # synthetic releases in the test-suite. Recorded, not raised.
+        return f"unverifiable:declared input {declared} does not resolve"
+
+    present = {
+        p.name.split("=", 1)[1]
+        for p in root.glob("donor_id=*")
+        if "=" in p.name
+    }
+    # donor_id is not normalised across trees: 0112 and 112 are one donor.
+    normalised = {d.lstrip("0") or "0" for d in present}
+    missing = [
+        d for d in donors
+        if d not in present and (d.lstrip("0") or "0") not in normalised
+    ]
+    if missing:
+        raise PhenotypeSpaceError(
+            f"{source}: release claims donors its declared expression input does not "
+            f"contain: missing={sorted(missing)} under {root}. Either the release names "
+            "the wrong input or it claims calls it cannot have made."
+        )
+    return f"verified:{root}"
+
+
+def load_release_or_none(cfg: PipelineConfig, modality: str) -> Optional[PhenotypeRelease]:
+    """Return None when no release is *available*; a configured invalid release still raises.
+
+    Two absences are treated alike: no path configured, and a configured path that does not
+    exist yet. The second is the normal state while a producer lane is still running --
+    ``config.ini`` names the directory it will write so that geometry stages attach identity
+    the moment it lands, without a config edit. A directory that exists but holds an invalid
+    release is different: that is a broken declaration, and it raises.
+    """
+
+    configured = _configured_path(cfg, modality)
+    if configured is None:
+        return None
+    if not configured.exists():
+        print(f"[phenospace] {modality} identity release configured at {configured} does not "
+              "exist yet; continuing geometry only", flush=True)
+        return None
+    return load_release(cfg, modality)
+
+
+def identity_attached(cfg: PipelineConfig) -> bool:
+    """True only when BOTH declared releases actually load.
+
+    ``bool(cfg.phenocycler_identity_release and cfg.xenium_identity_release)`` was the
+    previous test, and it became wrong the moment ``config.ini`` started naming release
+    directories ahead of their producers: a configured path is a promise, not an attached
+    identity. A configured release that fails validation is reported and counted as not
+    attached, so a geometry-only report is never blocked by a broken declaration.
+    """
+
+    for modality in ("phenocycler", "xenium"):
+        try:
+            if load_release_or_none(cfg, modality) is None:
+                return False
+        except PhenotypeSpaceError as exc:
+            print(f"[phenospace] {modality} identity release is configured but invalid; "
+                  f"treating identity as not attached: {exc}", flush=True)
+            return False
+    return True
 
 
 def require_declared_phenotype(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
@@ -448,6 +564,7 @@ __all__ = [
     "PhenotypeSpace",
     "PhenotypeSpaceError",
     "attach_release_identity",
+    "identity_attached",
     "load_phenotype_space",
     "load_release",
     "load_release_or_none",

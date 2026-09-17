@@ -37,6 +37,7 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from .manifest import load_manifest, paired_rows
+from .qc import permits, section_verdicts
 from .register import registration_dir
 from .structures import structures_path
 from .tissues import structure_kinds as tissue_structure_kinds
@@ -335,6 +336,11 @@ def run_match(
     Scoped by ``roi`` (one section), ``tissue`` (that tissue's ROIs) or neither (the whole
     cohort). ROIs whose tissue has no structural unit are announced and skipped — a combined
     pancreas + lymph-node run therefore does the right thing without the caller filtering.
+
+    A section is matched only when its registration verdict permits ``structure``
+    (``qc.ALLOWED_BY_VERDICT``): a FAIL registration still returns *a* transform, and matching
+    islets through it would produce confident pairs of the wrong islets. The verdict is graded
+    live from the stored ``qc.json``, so this holds whether or not the ``qc`` stage has run.
     """
     from .export_pheno import require_current_identity
 
@@ -345,6 +351,7 @@ def run_match(
     if man.empty:
         print("[match] no paired donors", flush=True)
         return pd.DataFrame()
+    verdicts = section_verdicts(cfg, roi=roi, tissue=tissue)
 
     # Announce the skip once per tissue rather than once per donor, so a 20-donor lymph-node
     # run does not bury the pancreas results under 20 identical lines.
@@ -365,6 +372,10 @@ def run_match(
     all_pairs, stats_rows = [], []
     for _, r in man.iterrows():
         donor, roi_name = r["donor_id"], r["roi"]
+        ok, why = permits(verdicts, donor, roi_name, "structure")
+        if not ok:
+            print(f"[match] {donor}/{roi_name}: skipped — {why}", flush=True)
+            continue
         pairs, stats = match_donor(cfg, donor, roi_name)
         if stats.get("skipped"):
             continue

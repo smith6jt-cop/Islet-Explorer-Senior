@@ -242,23 +242,31 @@ def test_comparable_lineages_exclude_compartments_the_tissue_lacks():
 # QC gating
 # --------------------------------------------------------------------------- #
 
-def test_lymph_node_registration_is_graded_on_dice_alone():
-    """The islet-RMSE gate is undefined without islets, so it is dropped, not failed.
+#: The image bar, which the gate has decided on since 2026-09-10. Islet evidence is added
+#: per-case, because the whole point of the lymph-node path is that it has none.
+IMAGE_BAR = dict(footprint_ncc_z=9.0)
+ISLET_BAR = dict(islet_peak_ratio=5.5, islet_peak_offset_um=40.0)
+
+
+def test_lymph_node_registration_is_graded_on_the_image_bar_alone():
+    """The islet gate is undefined without islets, so it is dropped, not failed.
 
     Counting it as a missed gate would cap every lymph-node donor at WARN forever and
     permanently withhold `crossmodal` from half the cohort — an artefact of the gate design,
     not a property of the registration.
     """
     good = dict(dice_min=0.80, rmse_max=50.0)
-    v, reasons = verdict_for(0.91, np.nan, **good, require_structures=False)
+    v, reasons = verdict_for(0.91, np.nan, **good, **IMAGE_BAR, require_structures=False)
     assert v == PASS
     assert any("n/a" in r for r in reasons), "the dropped gate must be stated, not hidden"
 
-    v, _ = verdict_for(0.42, np.nan, **good, require_structures=False)
+    # A registration that fails the image bar fails, islets or no islets.
+    v, _ = verdict_for(0.42, np.nan, **good, footprint_ncc_z=1.0, require_structures=False)
     assert v == FAIL
 
-    # Same inputs in a tissue that does have islets stay at WARN — the gate is real there.
-    assert verdict_for(0.91, np.nan, **good)[0] == WARN
+    # Same inputs in a tissue that does have islets stay at WARN — the gate is real there,
+    # and nothing corroborated it.
+    assert verdict_for(0.91, np.nan, **good, **IMAGE_BAR)[0] == WARN
 
 
 def test_geometry_only_pancreas_does_not_fail_an_unavailable_identity_gate():
@@ -267,6 +275,7 @@ def test_geometry_only_pancreas_does_not_fail_an_unavailable_identity_gate():
         0.91,
         np.nan,
         **good,
+        **IMAGE_BAR,
         require_structures=False,
         structure_reason="identity not attached; structure-derived landmarks are unavailable",
     )
@@ -274,11 +283,22 @@ def test_geometry_only_pancreas_does_not_fail_an_unavailable_identity_gate():
     assert any("identity not attached" in reason for reason in reasons)
 
 
-def test_dice_gate_still_binds_for_both_tissues():
+def test_the_image_bar_binds_for_both_tissues_and_dice_binds_for_neither():
+    """Dice used to be the gate. It is now reported and never decisive.
+
+    The bar that binds is the footprint correlation measured against other placements of the
+    same footprint on the same section — a within-donor null, so it does not import an
+    expectation from another donor or another disease state.
+    """
     good = dict(dice_min=0.80, rmse_max=50.0)
-    assert verdict_for(0.91, 20.0, **good)[0] == PASS
-    assert verdict_for(0.50, 20.0, **good)[0] == WARN        # rmse rescues it to WARN
-    assert verdict_for(0.50, 900.0, **good)[0] == FAIL
+    # Dice far below the old 0.80 bar, everything else clear: PASS in both tissues.
+    assert verdict_for(0.50, 20.0, **good, **IMAGE_BAR, **ISLET_BAR)[0] == PASS
+    assert verdict_for(0.50, np.nan, **good, **IMAGE_BAR,
+                       require_structures=False)[0] == PASS
+    # Dice excellent, image bar missed: FAIL in both.
+    assert verdict_for(0.99, 20.0, **good, footprint_ncc_z=1.0, **ISLET_BAR)[0] == FAIL
+    assert verdict_for(0.99, np.nan, **good, footprint_ncc_z=1.0,
+                       require_structures=False)[0] == FAIL
 
 
 # --------------------------------------------------------------------------- #
@@ -329,8 +349,16 @@ def test_disease_trend_groups_by_tissue():
     assert len(t_nk) == 2
 
 
-def test_run_donor_refuses_cached_retired_pheno_sections(cfg, tmp_path):
-    """A direct runner cannot reuse cached sections while phenotype export is blocked."""
+def test_run_donor_refuses_cached_sections_with_no_declared_identity(cfg, tmp_path):
+    """A direct runner cannot reuse cached sections without a declared identity release.
+
+    This test used to pass for the wrong reason. It pointed ``data_dir`` at a tmp
+    directory, which made the old expression-content-id check look for
+    ``data/runs/run1/manifests/expression.json`` there, not find it, and raise -- so it was
+    really asserting that a stage manifest was missing. Stage manifests were removed on
+    2026-09-16. The guard that actually matters is that no identity release is declared,
+    so that is what this asserts now, by clearing the configured release explicitly.
+    """
     from phenocycler.integration.contract import write_cell_table
     from phenocycler.integration.donor import run_donor
     from phenocycler.integration.export_pheno import ExportError
@@ -338,6 +366,7 @@ def test_run_donor_refuses_cached_retired_pheno_sections(cfg, tmp_path):
     data = tmp_path / "data"
     local = load_config()
     local.data_dir = data
+    local.phenocycler_identity_release = None
     for roi in ("panc", "pln_1"):
         for modality, base in (("phenocycler", local.cells_pheno_dir),
                                ("xenium", local.cells_xen_dir)):

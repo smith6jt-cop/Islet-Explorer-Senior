@@ -192,7 +192,9 @@ def main() -> int:
         unknown = wanted - set(cohort)
         if unknown:
             log(f"WARNING: not in the cohort map, ignoring: {', '.join(sorted(unknown))}")
-        blocked = wanted & excluded
+        # `excluded` is the reason-keyed mapping from phenocycler.cohort, not a set; `set & dict`
+        # raises, so --cases crashed before it could build anything.
+        blocked = wanted & set(excluded)
         if blocked:
             log(f"WARNING: centrally excluded, not building: {', '.join(sorted(blocked))}")
         cases = [c for c in cases if c in wanted]

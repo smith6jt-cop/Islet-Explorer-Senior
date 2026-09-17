@@ -9,7 +9,8 @@
 #
 # Output: $OUT_DIR/<case_id>.ome.tiff  (LZW = lossless; matches source MFI).
 # The <case_id> basename is what the Viewer dropdown lists and what
-# find_image_for_case() substring-matches for the drill-down "jump to Viewer" path.
+# find_image_for_case() matches by exact stem, normalising leading zeros, for
+# the drill-down "jump to Viewer" path.
 #
 # Design notes:
 #   * STORAGE — the intermediate Zarr is thousands of small chunk files (random I/O);

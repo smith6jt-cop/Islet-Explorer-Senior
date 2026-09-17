@@ -1,880 +1,1048 @@
 {
-  "schema_version": 3,
-  "registry_version": "marker-measurement-registry-v3-no-verified-typing",
-  "method_version": "upstream-marker-selection-v3-no-verified-typing",
-  "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified.",
-  "allowed_compartments": [
-    "Nucleus",
-    "Cytoplasm",
-    "Membrane",
-    "Cell"
-  ],
-  "allowed_spillover_policies": [
-    "redsea_corrected",
-    "redsea_passthrough",
-    "uncompensated"
-  ],
-  "allowed_measurement_sources": [
-    "redsea",
-    "qupath_raw",
-    "qupath_norm"
-  ],
-  "families": {},
-  "markers": [
-    {
-      "name": "E_cadherin",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Pan_Cytokeratin",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Ker8_18",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Keratin_5",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "EpCAM",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "TP63",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD66",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "INS",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "GCG",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Epithelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "SST",
-      "kind": "type",
-      "uses": [
-        "subtype"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD31",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Endothelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD34",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Endothelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Podoplanin",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Endothelial",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Caveolin",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Endothelial",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "B3TUBB",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Neural",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD56",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD3e",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD8",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD4",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "FOXP3",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD20",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD79a",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD68",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD163",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Iba1",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD206",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "M2Gal3",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD11c",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD209",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD11b",
-      "kind": "excluded",
-      "uses": [
-        "assay_qc"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "standalone",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "MPO",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Immune",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "SMA",
-      "kind": "type",
-      "uses": [
-        "broad",
-        "subtype"
-      ],
-      "broad_compartment": "Mesenchymal",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Vimentin",
-      "kind": "type",
-      "uses": [
-        "broad"
-      ],
-      "broad_compartment": "Mesenchymal",
-      "calibration_status": "unverified",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "b_Catenin1",
-      "kind": "type",
-      "uses": [
-        "deferred_type"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Ki67",
-      "kind": "state",
-      "uses": [
-        "proliferation"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "standalone",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "PCNA",
-      "kind": "state",
-      "uses": [
-        "proliferation"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "standalone",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Granzyme_B",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD107a",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "PD_1",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "PD_L1",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "LAG3",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "TOX",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "VISTA",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "ICOS",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "TCF_1",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD39",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "HLA_DR",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "HLA_A",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "iNOS",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "IDO1",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "SOX2",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Bcl_2",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Beta_actin",
-      "kind": "state",
-      "uses": [
-        "housekeeping"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD44",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD57",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD38",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "CD99",
-      "kind": "state",
-      "uses": [
-        "deferred_state"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "DAPI",
-      "kind": "structural",
-      "uses": [
-        "structural_qc"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "standalone",
-      "reference": null,
-      "families": [],
-      "compartment": "Nucleus",
-      "spillover_policy": "uncompensated",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "Collagen_IV",
-      "kind": "structural",
-      "uses": [
-        "microenvironment"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_passthrough",
-      "mutually_exclusive": false
-    },
-    {
-      "name": "IAPP",
-      "kind": "excluded",
-      "uses": [
-        "failed_marker"
-      ],
-      "broad_compartment": null,
-      "calibration_status": "deferred",
-      "reference": null,
-      "families": [],
-      "compartment": "Cell",
-      "spillover_policy": "redsea_corrected",
-      "mutually_exclusive": false
-    }
-  ],
-  "production_status": "development_no_verified_typing"
+ "schema_version": 3,
+ "registry_version": "marker-measurement-registry-v3-no-verified-typing",
+ "method_version": "upstream-marker-selection-v3-no-verified-typing",
+ "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified.",
+ "allowed_compartments": [
+  "Nucleus",
+  "Cytoplasm",
+  "Membrane",
+  "Cell"
+ ],
+ "allowed_spillover_policies": [
+  "redsea_corrected",
+  "redsea_passthrough",
+  "uncompensated"
+ ],
+ "allowed_measurement_sources": [
+  "redsea",
+  "qupath_raw",
+  "qupath_norm"
+ ],
+ "families": {},
+ "markers": [
+  {
+   "name": "ASCT2",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "ATP5A",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "B3TUBB",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Neural",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Bcl_2",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Beta_actin",
+   "kind": "state",
+   "uses": [
+    "housekeeping"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD107a",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD11b",
+   "kind": "excluded",
+   "uses": [
+    "assay_qc"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "standalone",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD11c",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD141",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Endothelial",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD163",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD20",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD206",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD209",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD21",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD31",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Endothelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD34",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Endothelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD38",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD39",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD3e",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD4",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD44",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD56",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD57",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD66",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD68",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD79a",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD8",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD99",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CS",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Caveolin",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Endothelial",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Collagen_IV",
+   "kind": "structural",
+   "uses": [
+    "microenvironment"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_passthrough",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "DAPI",
+   "kind": "structural",
+   "uses": [
+    "structural_qc"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "standalone",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "E_cadherin",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "EpCAM",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "FOXP3",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "G6PD",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "GCG",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "GLUT1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Granzyme_B",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "HK1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "HLA_A",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "HLA_DR",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Histone_H3_(p_Ser28)",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "IAPP",
+   "kind": "excluded",
+   "uses": [
+    "failed_marker"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "ICOS",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "IDH2",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "IDO1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "INS",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Iba1",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Ker8_18",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Keratin_5",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Ki67",
+   "kind": "state",
+   "uses": [
+    "proliferation"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "standalone",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "LAG3",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "LDHA",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "M2Gal3",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "MPO",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "PCNA",
+   "kind": "state",
+   "uses": [
+    "proliferation"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "standalone",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "PD_1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "PD_L1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Pan_Cytokeratin",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Podoplanin",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Endothelial",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "SDHA",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "SMA",
+   "kind": "type",
+   "uses": [
+    "broad",
+    "subtype"
+   ],
+   "broad_compartment": "Mesenchymal",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "SOX2",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "SST",
+   "kind": "type",
+   "uses": [
+    "subtype"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "TCF_1",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "TOX",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "TP63",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Nucleus",
+   "spillover_policy": "uncompensated",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "VISTA",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Vimentin",
+   "kind": "type",
+   "uses": [
+    "broad"
+   ],
+   "broad_compartment": "Mesenchymal",
+   "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "b_Catenin1",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "iNOS",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  }
+ ],
+ "production_status": "development_no_verified_typing"
 }

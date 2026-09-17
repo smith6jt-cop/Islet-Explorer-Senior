@@ -28,6 +28,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.path.insert(0, str(ROOT / "core" / "phenocycler"))
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "common"))  # gates/tiff_window/window_mask/label_space live in scripts/common (Track E.3)
 
 from phenocycler.redsea import qptiff_channels                    # noqa: E402
 from phenocycler.artifacts import iter_qupath_geojson_features    # noqa: E402

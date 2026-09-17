@@ -12,21 +12,19 @@ enrichment is reported against something that must not be enriched.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
+import warnings
 
 import pandas as pd
 
 HERE = pathlib.Path(__file__).resolve().parent
 PKG = HERE.parents[1]                      # core/phenocycler
 REPO = PKG.parents[1]                      # repo root
-#: The run this lane reads.
+#: The retired run used when a donor has no expression in the stable root.
 #:
-#: It is the ONLY run on disk, and ``data/runs/LATEST`` names it.  The two legacy runs
-#: (``3bf4fc8e391d007766d1``, ``c8412757d12de36ca056``) were deleted at the maintainer's
-#: instruction, so an earlier version of this comment -- which argued the choice between them
-#: was immaterial because both hardlinked the same ``expression`` bytes -- no longer describes
-#: anything.  There is nothing to choose between.
+#: New exports use ``data/expression`` since 2026-09-16. The original 20 donors still
+#: live in this retired tree; ``expression_path`` selects the stable root independently
+#: for each donor and warns when it has to read the retired copy.
 #:
 #: **It is regenerable, which the deleted run was not.**  That run could not be rebuilt: the
 #: registry demanded ``measurement_source = qupath_norm`` on CD68, Iba1 and M2Gal3, which needs
@@ -45,20 +43,46 @@ REPO = PKG.parents[1]                      # repo root
 #: adoptable (``adoption.py`` refused those for the pre-monorepo path).
 RUN_ID = "30f6689e4d27d295f890"
 
-#: Asserted by the test suite, so swapping the run or mutating the stage is caught rather
-#: than silently changing every number this lane produces.
+#: Assertions for the retired stage only; these do not describe the mixed-root cohort.
 EXPRESSION_CONTENT_SHA256 = "35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac744f1bc8931ea0"
 EXPRESSION_TOTAL_ROWS = 31_454_041
-#: Overridable so a donor outside the immutable cohort run can be measured by the SAME steps
-#: rather than by a substitute. The same-slide Pheno-Xeno donors (6533, 0112) were processed
-#: by their own lane into partitions that follow this exact contract, but they live beside
-#: their raw inputs rather than in ``data/runs/``. Unset, nothing changes -- the constant is
-#: the run below and the content assertions above still apply.
-EXPRESSION = (pathlib.Path(os.environ["CELLTYPE_EXPRESSION_DIR"])
-              if os.environ.get("CELLTYPE_EXPRESSION_DIR")
-              else PKG / "data" / "runs" / RUN_ID / "expression")
+# Keep the historical root available to older consumers; new reads resolve per donor.
+EXPRESSION = PKG / "data" / "runs" / RUN_ID / "expression"
+EXPRESSION_FLAT = PKG / "data" / "expression"
 REDSEA = PKG / "data" / "runs" / RUN_ID / "redsea"
 OUT = REPO / "data" / "development" / "celltype"
+
+
+def expression_path(donor: str) -> pathlib.Path:
+    """Resolve one donor's parquet, stable root first, then the warned retired fallback.
+
+    Numeric partition names are compared without leading zeroes: ``0112`` and ``112``
+    name one donor. Multiple populated aliases in the same root are ambiguous.
+    """
+    def identity(value: str) -> str:
+        return str(int(value)) if value.isdecimal() else value
+
+    donor = identity(str(donor))
+    for root in (EXPRESSION_FLAT, EXPRESSION):
+        matches = sorted(
+            part / "data.parquet" for part in root.glob("donor_id=*")
+            if identity(part.name.removeprefix("donor_id=")) == donor
+            and (part / "data.parquet").is_file()
+        )
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous expression partitions for donor {donor}: {matches}")
+        if matches:
+            if root == EXPRESSION:
+                warnings.warn(
+                    f"Donor {donor} has no expression in {EXPRESSION_FLAT}; "
+                    f"reading the retired run tree {matches[0]}",
+                    RuntimeWarning, stacklevel=2,
+                )
+            return matches[0]
+    raise FileNotFoundError(
+        f"Expression unavailable for donor {donor}: no data.parquet in "
+        f"{EXPRESSION_FLAT} or retired run {EXPRESSION}"
+    )
 
 #: IAPP only.  The registry records it ``kind: excluded, uses: failed_marker``.
 #:
@@ -249,13 +273,7 @@ def markers_on_disk(donor: str) -> list:
     import numpy as np
     import pyarrow.parquet as pq
 
-    path = next((c for c in (EXPRESSION / f"donor_id={d}" / "data.parquet"
-                             for d in _donor_spellings(donor)) if c.exists()),
-                EXPRESSION / f"donor_id={donor}" / "data.parquet")
-    if not path.exists():
-        raise FileNotFoundError(
-            f"donor {donor} is not in data/donor_acquisition_batch.csv and has no partition "
-            f"at {path}. Point CELLTYPE_EXPRESSION_DIR at the lane that wrote it.")
+    path = expression_path(donor)      # stable root first, warned retired fallback
     handle = pq.ParquetFile(path)
     on_disk = {f.name for f in handle.schema_arrow}
     want = [m for m in markers(include_variant=True) if m in on_disk]

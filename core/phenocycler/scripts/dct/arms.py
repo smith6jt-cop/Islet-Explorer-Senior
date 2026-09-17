@@ -40,6 +40,7 @@ import pandas as pd
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "common"))  # gates/tiff_window/window_mask/label_space live in scripts/common (Track E.3)
 sys.path.insert(0, str(HERE.parents[1]))
 
 from concordance_gate import GateInputs, run_gate               # noqa: E402

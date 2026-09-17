@@ -6,24 +6,29 @@
 
 test_that("every established tab retains one UI and one server implementation", {
   contract <- data.frame(
-    tab = c("Plot", "Trajectory", "Viewer", "Statistics", "Spatial", "Inflammation", "AI"),
+    tab = c("Plot", "Trajectory", "Viewer", "Statistics", "Spatial", "Inflammation", "AI",
+            "CrossModal", "LymphNode"),
     ui_file = c(
       "mod_plot_ui.R", "mod_trajectory_ui.R", "mod_viewer_ui.R",
       "mod_statistics_ui.R", "mod_spatial_ui.R", "mod_inflammation_ui.R",
-      "mod_ai_assistant_ui.R"
+      "mod_ai_assistant_ui.R",
+      "mod_crossmodal_ui.R", "mod_lymphnode_ui.R"
     ),
     ui_function = c(
       "plot_main_ui", "trajectory_ui", "viewer_ui", "statistics_ui",
-      "spatial_ui", "inflammation_ui", "ai_assistant_ui"
+      "spatial_ui", "inflammation_ui", "ai_assistant_ui",
+      "crossmodal_ui", "lymphnode_ui"
     ),
     server_file = c(
       "mod_plot_server.R", "mod_trajectory_server.R", "mod_viewer_server.R",
       "mod_statistics_server.R", "mod_spatial_server.R", "mod_inflammation_server.R",
-      "mod_ai_assistant_server.R"
+      "mod_ai_assistant_server.R",
+      "mod_crossmodal_server.R", "mod_lymphnode_server.R"
     ),
     server_function = c(
       "plot_server", "trajectory_server", "viewer_server", "statistics_server",
-      "spatial_server", "inflammation_server", "ai_assistant_server"
+      "spatial_server", "inflammation_server", "ai_assistant_server",
+      "crossmodal_server", "lymphnode_server"
     )
   )
 

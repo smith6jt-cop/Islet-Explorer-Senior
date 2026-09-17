@@ -39,8 +39,7 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     # conflicts with the hive key inferred from its directory (large_string vs dictionary),
     # and dataset discovery refuses to merge the two. Reading the file skips the inference
     # and is identical for a partition that does not carry it.
-    df = pq.ParquetFile(panel.EXPRESSION / f"donor_id={donor}" / "data.parquet") \
-           .read(columns=cols).to_pandas()
+    df = pq.ParquetFile(panel.expression_path(donor)).read(columns=cols).to_pandas()
     n_all = len(df)
     df = df[df["qc_analysis_eligible"]]
     n_elig = len(df)

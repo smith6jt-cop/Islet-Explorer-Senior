@@ -28,6 +28,7 @@ figures/*
 .RData
 .Rhistory
 apps/islet/.Renviron
+apps/islet/.Rprofile
 .Renviron
 # Filled-in PubApps EnvironmentFile (may hold secrets if AI is re-enabled); template is deploy/env.sh.example
 deploy/env.sh
@@ -42,6 +43,9 @@ notebooks/*_executed.ipynb
 notebooks/*.png
 
 # App runtime flags
+# shiny-server reloads the app when this file's mtime changes; it is a local
+# signal, not configuration.
+apps/islet/restart.txt
 apps/islet/APP_LOADED_FLAG
 apps/islet/R/APP_LOADED_FLAG
 
@@ -95,3 +99,8 @@ logs/
 # DeepCell portal access token. Untracked AND unignored until 2026-08-24, so the
 # first `git add -A` of the DCT lane would have committed a live credential.
 /deepcellToken
+
+# Worker scratch from the parallel build; never committed.
+NEEDS.md
+FIX.md
+BRIEF.md

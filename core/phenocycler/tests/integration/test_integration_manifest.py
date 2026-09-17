@@ -300,38 +300,59 @@ def test_empty_inputs_warn_rather_than_crash(tmp_path):
     assert any("no Xenium runs" in w for w in summary.warnings)
 
 
-def test_default_pheno_discovery_reads_current_run_and_manifest(tmp_path):
+def _pheno_discovery_fixture(tmp_path, expression_root):
     data = tmp_path / "data"
-    run_id = "immutable-run"
-    expression = data / "runs" / run_id / "expression"
     for donor, image in (
         ("6436", "6436_Scan1.er.qptiff - resolution #1"),
         ("6450", "6450panc_Scan1.er.qptiff - resolution #1"),
     ):
-        part = expression / f"donor_id={donor}"
+        part = expression_root / f"donor_id={donor}"
         part.mkdir(parents=True)
         pd.DataFrame({"image": [image, image], "object_id": ["a", "b"]}).to_parquet(
             part / "data.parquet", index=False
         )
-    (data / "runs" / "LATEST").write_text(run_id)
-
     qmanifest = data / "qupath_manifest.json"
+    qmanifest.parent.mkdir(parents=True, exist_ok=True)
     qmanifest.write_text(json.dumps({"images": [
         {"donor_id": "6436", "image_id": "6436_Scan1.er.qptiff - resolution #1"},
         {"donor_id": "6450", "image_id": "6450panc_Scan1.er.qptiff - resolution #1"},
     ]}))
     section_overrides = data / "integration" / "section_overrides.csv"
-    section_overrides.parent.mkdir(parents=True)
+    section_overrides.parent.mkdir(parents=True, exist_ok=True)
     section_overrides.write_text("image_id,donor_id,roi,slide,reason\n")
-
-    cfg = load_config(
+    return load_config(
         data_dir=data,
         qupath_manifest=qmanifest,
         section_overrides_csv=section_overrides,
     )
+
+
+def test_default_pheno_discovery_reads_the_flat_expression_root(tmp_path):
+    """data/expression is the current output location and needs no run pointer."""
+
+    cfg = _pheno_discovery_fixture(tmp_path, tmp_path / "data" / "expression")
     summary = ManifestSummary()
+
     assert _discover_pheno_sections(cfg, summary) == {("6436", "panc"), ("6450", "panc")}
     assert summary.warnings == []
+
+
+def test_pheno_discovery_falls_back_to_the_retired_run_tree_and_says_so(tmp_path):
+    """The 20-donor cohort still lives only under data/runs/<run_id>/.
+
+    Re-running it is hours of compute, so discovery still reads it -- but it warns,
+    because output written to data/expression from now on would be the newer thing and
+    silently preferring the old tree is how two generations get confused.
+    """
+
+    run_id = "retired-run"
+    expression = tmp_path / "data" / "runs" / run_id / "expression"
+    cfg = _pheno_discovery_fixture(tmp_path, expression)
+    (tmp_path / "data" / "runs" / "LATEST").write_text(run_id)
+    summary = ManifestSummary()
+
+    assert _discover_pheno_sections(cfg, summary) == {("6436", "panc"), ("6450", "panc")}
+    assert any("retired run tree" in w for w in summary.warnings)
 
 
 # --- Path verification -------------------------------------------------------------------

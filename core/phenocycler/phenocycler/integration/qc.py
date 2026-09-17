@@ -29,6 +29,14 @@ lymph-node donor at WARN forever and permanently withhold ``crossmodal`` from ha
 cohort — for a reason that is an artefact of the gate design, not of the registration. So
 for those tissues the verdict rests on tissue Dice alone, which is the metric that actually
 exists. See ``phenocycler.integration.tissues``.
+
+The verdict is enforced by the consumers, not only printed in the report. ``match`` and
+``cellmatch`` skip a section whose verdict does not permit ``structure``; ``grid`` computes
+its registered half only where ``grid`` is permitted (its niche half needs no registration
+and always runs); ``crossmodal`` gates on ``crossmodal``. They read the verdicts through
+:func:`section_verdicts` / :func:`permits`, graded live from every stored ``qc.json``, so the
+gate holds before the ``qc`` stage has written ``registration_qc.csv`` and cannot be
+satisfied by a stale one.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ import pandas as pd
 
 from ..config import PipelineConfig, load_config
 from .manifest import load_manifest, paired_rows
+from .phenospace import identity_attached as _identity_attached
 from .register import registration_dir
 from .tissues import DISPLAY_NAME, has_structures
 
@@ -58,37 +67,109 @@ ALLOWED_BY_VERDICT = {
 def verdict_for(tissue_dice: float, islet_rmse_um: float, *,
                 dice_min: float, rmse_max: float,
                 require_structures: bool = True,
-                structure_reason: str = "tissue has no structural unit") -> tuple[str, list[str]]:
+                structure_reason: str = "tissue has no structural unit",
+                footprint_ncc_z: float = float("nan"),
+                islet_peak_ratio: float = float("nan"),
+                islet_peak_offset_um: float = float("nan"),
+                ncc_z_min: float = 5.0,
+                peak_ratio_min: float = 2.0,
+                peak_offset_max_um: float = 150.0) -> tuple[str, list[str]]:
     """Grade one registration. Returns ``(verdict, reasons)``.
+
+    **Tissue Dice is reported here but no longer decides anything.** It was the primary gate
+    at a 0.80 bar until 2026-09-10, and it was wrong in two independent ways. Structurally,
+    when one section is a sub-field of the other the metric has a hard ceiling below the bar —
+    0.565 and 0.703 on the two donors registered so far — so the gate was unreachable by
+    construction. Empirically it is worse than useless: correcting donor 6436's transform from
+    12.5 deg and 0.8 mm out (islet correspondence 12 of 136, against a chance expectation of
+    5) to right (69 of 136) *lowered* tissue Dice from 0.549 to 0.530. A gate that moves
+    against the truth cannot be relaxed into correctness; it has to be replaced.
+
+    What decides instead is evidence the transform was not fitted against:
+
+    * ``footprint_ncc_z`` — image structure inside the moving footprint, scored against other
+      placements of that same footprint on the same section. A within-donor null, so staining,
+      density and the donor's disease state are held fixed and only placement varies. This is
+      the primary bar. The absolute correlation is deliberately not gated: 6436's correct
+      placement reads *higher* than 6442's correct placement, so any absolute bar set from one
+      donor rejects the other.
+    * ``islet_peak_ratio`` / ``islet_peak_offset_um`` — whether the joint rotation+translation
+      correspondence landscape peaks at this transform rather than somewhere else. Corroborating
+      only, never decisive, because both islet callers are hormone-seeded and the panels weight
+      a T1D donor's islets differently on the two modalities.
 
     ``require_structures=False`` for a tissue with no structural unit (lymph node): the
     landmark residual is undefined there, so it is dropped from the decision entirely rather
     than counted as a failed gate.
     """
     reasons = []
-    dice_ok = np.isfinite(tissue_dice) and tissue_dice >= dice_min
     rmse_ok = np.isfinite(islet_rmse_um) and islet_rmse_um <= rmse_max
+    # Available and failing are different things and must not collapse into one another. A
+    # donor registered without an image pair has no NCC to fail; it falls back to the islet
+    # criterion and is capped at WARN, rather than being graded as though the bar was measured
+    # and missed.
+    ncc_available = bool(np.isfinite(footprint_ncc_z))
+    peak_available = bool(np.isfinite(islet_peak_ratio)
+                          and np.isfinite(islet_peak_offset_um))
+    ncc_ok = ncc_available and footprint_ncc_z >= ncc_z_min
+    peak_ok = (peak_available and islet_peak_ratio >= peak_ratio_min
+               and islet_peak_offset_um <= peak_offset_max_um)
 
-    if not np.isfinite(tissue_dice):
-        reasons.append("tissue Dice not computed")
-    elif not dice_ok:
-        reasons.append(f"tissue Dice {tissue_dice:.3f} < {dice_min:.2f}")
+    if np.isfinite(tissue_dice) and tissue_dice < dice_min:
+        reasons.append(
+            f"tissue Dice {tissue_dice:.3f} < {dice_min:.2f} (reported, not gated — it is "
+            f"capped by the extent ratio and moves against correctness)")
+
+    if ncc_available:
+        reasons.append(
+            f"footprint NCC z={footprint_ncc_z:.1f} vs other placements on this section "
+            f"({'clears' if ncc_ok else 'below'} {ncc_z_min:.0f})")
+    else:
+        reasons.append("footprint NCC unavailable — no image pair was registered")
 
     if not require_structures:
         # One gate, honestly labelled. Do not report the missing RMSE as a shortcoming of
         # this registration — no landmark exists in this tissue to measure it against.
-        reasons.append(f"islet RMSE n/a — {structure_reason}; graded on Dice alone")
-        return (PASS if dice_ok else FAIL), reasons
+        reasons.append(f"islet RMSE n/a — {structure_reason}; graded on the image bar alone")
+        if ncc_ok:
+            return PASS, reasons
+        if not ncc_available:
+            reasons.append("no out-of-sample evidence available; fail-closed, not measured")
+        return FAIL, reasons
 
     if not np.isfinite(islet_rmse_um):
         reasons.append("islet RMSE not computed (too few structures to check)")
     elif not rmse_ok:
         reasons.append(f"islet RMSE {islet_rmse_um:.0f} um > {rmse_max:.0f} um")
 
-    if dice_ok and rmse_ok:
+    if np.isfinite(islet_peak_ratio):
+        reasons.append(
+            f"islet correspondence peaks {islet_peak_offset_um:.0f} um from this transform at "
+            f"{islet_peak_ratio:.1f}x the landscape p95 "
+            f"({'corroborates' if peak_ok else 'does NOT corroborate'})")
+
+    if ncc_ok and peak_ok:
         return PASS, reasons
-    if dice_ok or rmse_ok:
+    if ncc_ok:
+        # Say which of the two it is. "Not demonstrated" covers a donor whose islets were
+        # checked and disagreed and a donor that has no structures to check at all, and those
+        # are different facts about different problems -- the first is about this transform,
+        # the second is about whether identity has reached this donor yet.
+        reasons.append(
+            "anatomy-level only; islet correspondence tested and did not corroborate"
+            if peak_available else
+            "anatomy-level only; no structures for this donor, so islet correspondence could "
+            "not be tested (identity has not reached it)")
         return WARN, reasons
+    if not ncc_available and peak_ok:
+        # No image pair to measure the primary bar against, but the structures corroborate.
+        # Enough for structure- and grid-level work, never enough for the cross-modal claim
+        # that PASS also unlocks.
+        reasons.append("graded on islet correspondence alone; capped at WARN without an "
+                       "image pair to check it against")
+        return WARN, reasons
+    if not ncc_available and not peak_available:
+        reasons.append("no out-of-sample evidence available; fail-closed, not measured")
     return FAIL, reasons
 
 
@@ -102,9 +183,9 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
     man = paired_rows(load_manifest(cfg), roi=roi, tissue=tissue)
 
     rows = []
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
+    # Attached means both releases LOAD, not that both paths are configured: config.ini names
+    # release directories before their producers have written them.
+    identity_attached = _identity_attached(cfg)
     for _, r in man.iterrows():
         donor, roi_name = r["donor_id"], r["roi"]
         roi_tissue = r.get("tissue", "") or cfg.tissue_for_roi(roi_name)
@@ -117,17 +198,23 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
         )
         path = registration_dir(cfg, donor, roi_name) / "qc.json"
         if not path.exists():
+            # No qc.json means no transform was ever fitted, so there is no `mirrored` value
+            # to report — the row says so explicitly rather than carrying a default.
             rows.append({"donor_id": donor, "roi": roi_name, "tissue": roi_tissue,
                          "verdict": FAIL, "reasons": "no registration produced", "track": "",
-                         "tissue_dice": np.nan, "islet_rmse_um": np.nan})
+                         "tissue_dice": np.nan, "islet_rmse_um": np.nan,
+                         "has_transform": False})
             continue
         d = json.loads(path.read_text())
         v, reasons = verdict_for(
             float(d.get("tissue_dice", np.nan)), float(d.get("rmse_um", np.nan)),
             dice_min=cfg.qc_tissue_dice_min, rmse_max=cfg.qc_islet_rmse_max_um,
             require_structures=require_structure_gate,
-            structure_reason=structure_reason)
-        tf = d.get("transform", {})
+            structure_reason=structure_reason,
+            footprint_ncc_z=float(d.get("footprint_ncc_z", np.nan)),
+            islet_peak_ratio=float(d.get("islet_peak_ratio", np.nan)),
+            islet_peak_offset_um=float(d.get("islet_peak_offset_um", np.nan)))
+        tf = d.get("transform", {}) or {}
         rows.append({
             "donor_id": donor, "roi": roi_name, "tissue": roi_tissue, "verdict": v,
             "reasons": "; ".join(reasons),
@@ -135,7 +222,17 @@ def collect_registration_qc(cfg: PipelineConfig, roi: Optional[str] = None,
             "tissue_dice": d.get("tissue_dice", np.nan),
             "islet_dice": d.get("islet_dice", np.nan),
             "islet_rmse_um": d.get("rmse_um", np.nan),
+            "footprint_ncc": d.get("footprint_ncc", np.nan),
+            "footprint_ncc_z": d.get("footprint_ncc_z", np.nan),
+            "footprint_containment": d.get("footprint_containment", np.nan),
+            "footprint_null_mean": d.get("footprint_null_mean", np.nan),
+            "footprint_null_sd": d.get("footprint_null_sd", np.nan),
+            "footprint_null_n": d.get("footprint_null_n", 0),
+            "footprint_null_floor": d.get("footprint_null_floor", np.nan),
+            "islet_peak_ratio": d.get("islet_peak_ratio", np.nan),
+            "islet_peak_offset_um": d.get("islet_peak_offset_um", np.nan),
             "n_inliers": d.get("n_inliers", 0),
+            "has_transform": bool(tf),
             "mirrored": tf.get("mirrored", False),
             "rotation_deg": tf.get("rotation_deg", np.nan),
             "scale": tf.get("scale", np.nan),
@@ -170,18 +267,39 @@ def sanity_flags(qc: pd.DataFrame, cfg: PipelineConfig) -> pd.DataFrame:
     flags = []
     for _, r in out.iterrows():
         f = []
-        scale = float(r.get("scale", np.nan))
+        scale = _finite_or_nan(r.get("scale", np.nan))
         if np.isfinite(scale) and not (0.9 <= scale <= 1.11):
             f.append(f"scale {scale:.3f} far from 1 — check units, not biology")
-        disp = float(r.get("max_disp_um", 0.0) or 0.0)
-        if disp >= cfg.reg_max_disp_um * 0.99:
+        disp = _finite_or_nan(r.get("max_disp_um", np.nan))
+        if np.isfinite(disp) and disp >= cfg.reg_max_disp_um * 0.99:
             f.append(f"displacement pinned at the {cfg.reg_max_disp_um:.0f} um cap")
-        mirrored = r.get("mirrored", False)
-        if pd.notna(mirrored) and bool(mirrored):
+        # Mirroring is a property of a fitted transform. The no-qc.json branch of
+        # collect_registration_qc never fits one, so its row has no `mirrored` value to
+        # assert; frames read back from CSV can carry NaN or a stray object. Assert the flag
+        # only when the row demonstrably has a transform and the value is a genuine True.
+        has_tf = r.get("has_transform", None)
+        if has_tf is None or (isinstance(has_tf, float) and np.isnan(has_tf)):
+            has_tf = np.isfinite(scale)       # a fitted transform always carries a finite scale
+        if bool(has_tf) and _is_true(r.get("mirrored", False)):
             f.append("section mounted mirrored (expected sometimes; noted for the record)")
         flags.append("; ".join(f))
     out["sanity_flags"] = flags
     return out
+
+
+def _finite_or_nan(value) -> float:
+    """``float(value)`` for anything numeric-looking; NaN for None/blank/garbage."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _is_true(value) -> bool:
+    """A genuine boolean True, or its CSV spelling. NaN, None, 0, '' and 'nan' are not."""
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    return str(value).strip().lower() == "true"
 
 
 def summarize(cfg: PipelineConfig, roi: Optional[str] = None,
@@ -325,9 +443,7 @@ def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
     # Geometry only: registration gates are Dice and islet RMSE, not composition.
     qc, report = summarize(cfg, roi, tissue)
     results = gather_results(cfg)
-    identity_attached = bool(
-        cfg.phenocycler_identity_release and cfg.xenium_identity_release
-    )
+    identity_attached = _identity_attached(cfg)
     if not identity_attached:
         # Old integration caches are deliberately not evidence that identity is current.
         results = {name: value for name, value in results.items() if name == "registration"}
@@ -345,14 +461,70 @@ def run_qc(cfg: PipelineConfig, *, roi: Optional[str] = None,
     return qc
 
 
+def section_verdicts(cfg: PipelineConfig, roi: Optional[str] = None,
+                     tissue: Optional[str] = None) -> dict[tuple[str, str], dict]:
+    """Verdict per ``(donor_id, roi)``, graded live from the stored ``qc.json`` files.
+
+    Computed through :func:`collect_registration_qc` rather than read from
+    ``registration_qc.csv``, so the gate is available before the ``qc`` stage has written
+    anything and cannot be satisfied by a CSV left over from an earlier registration.
+    Each value carries ``verdict``, the graded ``reasons`` and the ``allows`` tuple from
+    :data:`ALLOWED_BY_VERDICT`.
+    """
+    qc = collect_registration_qc(cfg, roi, tissue)
+    out: dict[tuple[str, str], dict] = {}
+    for _, r in qc.iterrows():
+        verdict = str(r["verdict"])
+        out[(str(r["donor_id"]), str(r["roi"]))] = {
+            "verdict": verdict,
+            "reasons": str(r.get("reasons", "") or ""),
+            "allows": tuple(ALLOWED_BY_VERDICT.get(verdict, ())),
+        }
+    return out
+
+
+def permits(verdicts: dict, donor: str, roi: str, level: str) -> tuple[bool, str]:
+    """Whether one section's verdict permits ``level``, and why not when it does not.
+
+    A section absent from ``verdicts`` was never graded — it is not in the paired manifest
+    scope — and is refused with that reason rather than passed by default.
+    """
+    if level not in ALLOWED_BY_VERDICT[PASS]:
+        raise ValueError(f"unknown integration level {level!r}; one of {ALLOWED_BY_VERDICT[PASS]}")
+    v = verdicts.get((str(donor), str(roi)))
+    if v is None:
+        return False, (f"no registration verdict for {donor}/{roi} (section not graded); "
+                       f"'{level}' is not permitted")
+    if level in v["allows"]:
+        return True, ""
+    why = (f"registration verdict {v['verdict']} does not permit '{level}' "
+           f"(permits: {', '.join(v['allows']) or 'nothing'}")
+    if v["reasons"]:
+        why += f"; {v['reasons']}"
+    return False, why + ")"
+
+
+def permitted_donors(cfg: PipelineConfig, level: str, roi: Optional[str] = None,
+                     tissue: Optional[str] = None) -> set[tuple[str, str]]:
+    """The ``(donor_id, roi)`` sections whose registration verdict permits ``level``.
+
+    Keyed by section, not donor: a donor's pancreas can register cleanly while its lymph
+    node does not, and a donor-level answer would let the bad alignment through. Computed
+    from :func:`collect_registration_qc`, so it works before the ``qc`` stage runs.
+    """
+    verdicts = section_verdicts(cfg, roi, tissue)
+    return {key for key in verdicts if permits(verdicts, key[0], key[1], level)[0]}
+
+
 def passing_donors(cfg: PipelineConfig, level: str, roi: Optional[str] = None,
                    tissue: Optional[str] = None) -> list[str]:
-    """Donors whose verdict permits ``level`` ('structure', 'grid', 'crossmodal', ...)."""
-    qc = collect_registration_qc(cfg, roi, tissue)
-    if qc.empty:
-        return []
-    ok = qc["verdict"].map(lambda v: level in ALLOWED_BY_VERDICT.get(v, ()))
-    return sorted(set(qc.loc[ok, "donor_id"].tolist()))
+    """Donor ids with at least one section permitted at ``level``.
+
+    Retained for callers that want a donor list; anything that gates a section should use
+    :func:`permitted_donors` or :func:`permits` so a donor's failed lymph node cannot ride
+    on its passing pancreas.
+    """
+    return sorted({donor for donor, _roi in permitted_donors(cfg, level, roi, tissue)})
 
 
 def main(argv: Optional[list[str]] = None) -> int:

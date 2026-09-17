@@ -65,9 +65,12 @@ Restoring RESTORE did not discard the later provenance and safety work:
 ## What to compare
 
 Run `c8412757d12de36ca056` is evidence of a failed phenotyping implementation,
-not a source of labels. Its upstream image/geometry/REDSEA artifacts can be
-adopted, but its marker evidence, assignments, and QuPath export must be
-recomputed.
+not a source of labels. At the time this was written its upstream
+image/geometry/REDSEA artifacts could be adopted into a new run without
+recomputation; the `adopt` command that did that was removed on 2026-09-16
+along with the run framework it served, so nothing today can carry those
+artifacts forward automatically. Its marker evidence, assignments, and QuPath
+export must be recomputed regardless.
 
 The then-current [REFINEMENT_WORKFLOW.md](REFINEMENT_WORKFLOW.md) described the
 error-resolution loop. Its essential distinction was that QuPath review

@@ -5,8 +5,10 @@ panel-agnostic vision-language model (raw pixels + label mask + channel *names* 
 It derives no per-marker threshold and needs no target/reference pair, so it does not revive the
 retired RESTORE lane and does not depend on the blocked `controls`/`calibrate`/`type` stages.
 
-Nothing here writes a `StageManifest` or mutates `data/runs/`. `pipeline.py` hashes only
-`phenocycler/` and `pyproject.toml` into `run_id`, so nothing under `scripts/**` can re-key a run.
+Nothing here writes a `StageManifest` (no current stage writes one) or mutates the stable
+`data/{cells,geometry_qc,redsea,expression}` roots or the historical `data/runs/` tree.
+`pipeline.py` computes no `run_id` at all — the content-addressed run framework it fed was
+removed on 2026-09-16 — so nothing under `scripts/**` can re-key a run that no longer exists.
 Pilot output goes to the mutable repo-root `data/development/`.
 
 ## Software pins
@@ -141,3 +143,11 @@ on purpose.
 DCT's `Langerhans` class is the **Langerhans cell** — an epidermal dendritic cell, lineage
 Myeloid — **not** the islet of Langerhans. In a pancreas project this is a mislabel waiting to
 happen. Islet endocrine classes are `AlphaCell`, `BetaCell` and the generic `Endocrine`.
+
+## 2026-09-05 — Track E.3 executed
+
+`gates.py`, `tiff_window.py`, `window_mask.py` and `label_space.py` (with their tests) now live in
+`scripts/common/`; this lane imports them from there. `broad_class_crosswalk.json` stays here because it
+is this lane's decision record. The review document's "discard `scripts/dct/`" instruction is now
+executable without breaking `scripts/restain/tiles.py` or `scripts/celltype/usability.py` (whose dead
+`require_evidence` import was removed).

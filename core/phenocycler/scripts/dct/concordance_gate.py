@@ -36,6 +36,7 @@ from scipy.stats import rankdata, spearmanr
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent / "common"))  # gates/tiff_window/window_mask/label_space live in scripts/common (Track E.3)
 
 from gates import Verdict, assess_anchor_concordance, require_evidence  # noqa: E402
 from label_space import load_label_space  # noqa: E402

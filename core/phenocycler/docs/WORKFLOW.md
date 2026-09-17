@@ -46,15 +46,17 @@ Three versioned inputs govern the current workflow:
    current pair.
 3. `config.ini` owns fixed geometry, REDSEA, and compute parameters.
 
-The command-line pipeline and its stage APIs are the only writers below a
-content-addressed run. Review notebooks and development scripts must not:
+The command-line pipeline and its stage APIs are the only writers below the
+stable stage output roots under `data/`. Review notebooks and development
+scripts must not:
 
 - infer donors or panels from filenames;
 - replace a required source with a similarly named raw, REDSEA, or historical
   RESTORE-normalized column;
 - replace unavailable values with zero;
 - create marker calls, cell types, or production manifests;
-- overwrite a run/stage manifest or mix outputs from different runs.
+- overwrite another stage's output directory or mix outputs from different
+  configurations.
 
 ## Stage graph
 
@@ -67,8 +69,11 @@ QuPath cohort manifest
 ```
 
 Expression depends on geometry and REDSEA because the registry contains raw,
-REDSEA-routed, and exact QuPath-normalized measurements. The run/stage manifest
-architecture remains in place for all four stages.
+REDSEA-routed, and exact QuPath-normalized measurements. **The content-addressed
+run framework that formerly gated these four stages was removed on
+2026-09-16.** Each stage now writes directly to a stable root
+(`data/{cells,geometry_qc,redsea,expression}`), keyed only by donor partition —
+see [Stable-root execution](#stable-root-execution) below.
 
 ## Stage 0: lock the QuPath cohort
 
@@ -134,7 +139,6 @@ The outputs are:
 ```text
 expression/donor_id=<id>/*.parquet
 audit/expression_availability.parquet
-manifests/expression.json
 ```
 
 ## Mutable development diagnostics
@@ -156,10 +160,10 @@ report coverage, correlations, and deterministic exact-rank co-high-tail
 overlap only.
 
 Development outputs live under `../data/development`, are replaceable when
-owned by the tool, and carry no run/stage manifest or production meaning. See
+owned by the tool, and carry no production meaning. See
 [`scripts/review/README.md`](../scripts/review/README.md).
 
-## Content-addressed execution
+## Stable-root execution
 
 Run the upstream workflow from the package directory:
 
@@ -179,14 +183,18 @@ Do not request pair-dependent stages or assignment export. A future production
 workflow requires a new reviewed registry and code contract; it cannot be
 enabled by treating historical artifacts as current.
 
-Each current stage manifest records its method, inputs, scientific
-configuration, code identity, donor set, schema, row and UUID universe, output
-fingerprints, and owned audit sidecars. Donor receipts permit pipelined work
-without weakening cohort-level completion checks.
+**The content-addressed run framework was removed on 2026-09-16.** There is no
+stage manifest, no run ID, no donor receipt, and no fingerprint check against
+the cohort, registry, configuration, or code. Each stage writes to its stable
+root under `data/`; a donor-stage is done once its partition has non-empty
+content, a present donor-stage is skipped, and `--force` reruns it. Runs made
+before 2026-09-16 remain, untouched, under `data/runs/<run_id>/`; that tree is
+historical and the 20-donor cohort output still lives only there.
 
-Adoption, resume, and recovery may reuse only verified-compatible upstream
-artifacts. Historical reference controls, marker evidence, assignments, state
-calls, and exports are not adopted into the current workflow.
+`adoption.py`, `resume.py`, and `recovery.py` are deleted; there is no adopt,
+resume, or recover command. They existed only to re-enter runs the removed
+framework had locked, and there is no locked state left to re-enter — rerun
+`pipeline run`, optionally with `--force`.
 
 ## Failure contract
 
@@ -199,7 +207,7 @@ calls, and exports are not adopted into the current workflow.
 | acquired source column missing | correct the registry, channel map, or upstream export; do not substitute another scale |
 | REDSEA alignment failure | correct UUID/channel/raster contracts |
 | request for controls/calls/types/export | stop: no verified production pairs exist |
-| stale or partial manifest | repair the declared input and create/continue the correct content-addressed run |
+| donor/stage output looks stale after an upstream change | correct the input, then rerun with `--force` (no manifest or fingerprint check will catch this for you) |
 
 Never tune a threshold, pair, donor exclusion, or cell-type frequency to make a
 failure disappear.

@@ -53,6 +53,12 @@ def test_annotations_arrive_in_microns_not_pixels(tmp_path):
     assert (x1 - x0) == pytest.approx(4000 * geo.PIXEL_UM)
 
 
+def test_tissue_presence_requires_a_nonempty_tissue_class():
+    assert geo.has_tissue({geo.TISSUE: [object()], geo.ISLET: [object()]})
+    assert not geo.has_tissue({geo.ISLET: [object()]})
+    assert not geo.has_tissue({geo.TISSUE: []})
+
+
 def test_the_islet_size_filter_keeps_islets_and_drops_fragments(tmp_path):
     """95% of the classifier's `Islet` objects are sub-cell fragments -- median 23-27 um^2,
     about one cell across.  Without the filter a centroid set is mostly noise, so the filter

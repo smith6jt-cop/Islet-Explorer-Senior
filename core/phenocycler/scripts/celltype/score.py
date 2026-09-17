@@ -188,26 +188,49 @@ def meets_requirements(Xs: np.ndarray, markers: list, reqs: dict, names: list,
     made the DeepCellTypes decile contrast unreadable.  One number for the whole panel, stated
     and swept, rather than a cut per marker.
 
+    ``reqs`` values are ``(all_of, any_groups)`` or ``(all_of, any_groups, none_of)`` -- the
+    shapes ``rules.requirements`` returns without and with ``with_negatives``.  A ``none_of``
+    marker at or above ``min_scaled`` fails the gate: the rule says the cell must NOT show it,
+    and until this was enforced the negatives entered only the signed cosine as a direction,
+    so a cell bright in a forbidden marker could still win the reference on angle.
+
     A marker a donor does not carry cannot be shown, so a reference needing it fails here and
-    is scored on the donors that have it.
+    is scored on the donors that have it.  The same holds for a negative: absence cannot be
+    verified on an unmeasured marker, so the reference fails closed rather than passing on a
+    constraint nobody checked (a missing measurement is unavailable, not negative).  For the
+    same reason a NaN value on a ``none_of`` marker fails the cell -- ``NaN < min_scaled`` is
+    False -- exactly as it fails an ``all_of`` marker.  A caller that means to waive a
+    constraint on an unmeasured marker removes it from ``reqs`` and records that it did.
     """
     idx = {m: i for i, m in enumerate(markers)}
     hot = Xs >= min_scaled
+    cold = Xs < min_scaled                     # NaN is neither hot nor cold
     ok = np.ones((len(Xs), len(names)), dtype=bool)
     for j, ph in enumerate(names):
-        all_of, any_groups = reqs.get(ph, ([], []))
+        spec = reqs.get(ph, ([], []))
+        all_of, any_groups = list(spec[0]), list(spec[1])
+        none_of = list(spec[2]) if len(spec) > 2 else []
+        col = np.ones(len(Xs), dtype=bool)
+        unverifiable = False
         for m in all_of:
             if m not in idx:
-                ok[:, j] = False
+                unverifiable = True
                 break
-            ok[:, j] &= hot[:, idx[m]]
-        else:
+            col &= hot[:, idx[m]]
+        if not unverifiable:
             for grp in any_groups:
                 have = [idx[m] for m in grp if m in idx]
                 if not have:
-                    ok[:, j] = False
+                    unverifiable = True
                     break
-                ok[:, j] &= hot[:, have].any(axis=1)
+                col &= hot[:, have].any(axis=1)
+        if not unverifiable:
+            for m in none_of:
+                if m not in idx:
+                    unverifiable = True
+                    break
+                col &= cold[:, idx[m]]
+        ok[:, j] = False if unverifiable else col
     return ok
 
 

@@ -252,11 +252,21 @@ def align_one(record: RI.RegistrationInput, *, mode: str = "nucleus", windows: s
     donor, serial, roi = record.donor_id, record.serial, record.roi
     qptiff, pixel_um, bundle = record.qptiff, float(record.pixel_um), record.bundle
     annotations = geo.load_annotations(record.geojson) if record.geojson is not None else None
-    resolved_windows = ("tissue" if annotations is not None else "occupied") \
+    annotations_have_tissue = annotations is not None and geo.has_tissue(annotations)
+    resolved_windows = ("tissue" if annotations_have_tissue else "occupied") \
         if windows == "auto" else windows
     if resolved_windows in {"tissue", "islets"} and annotations is None:
         raise AL.AlignError(
             f"donor {donor} has no GeoJSON; use --windows auto or --windows occupied")
+    if resolved_windows == "tissue" and not annotations_have_tissue:
+        raise AL.AlignError(
+            f"donor {donor} GeoJSON has no {geo.TISSUE!r} annotation; classes present: "
+            f"{sorted(annotations)}; use --windows auto or --windows occupied")
+    if transform == "ecc" and not annotations_have_tissue:
+        classes = [] if annotations is None else sorted(annotations)
+        raise AL.AlignError(
+            f"donor {donor} cannot use the annotation-derived ECC transform without a "
+            f"{geo.TISSUE!r} annotation; classes present: {classes}")
     if (transform == "ecc" or resolved_windows in {"tissue", "islets"}) \
             and pixel_um != geo.PIXEL_UM:
         raise AL.AlignError(

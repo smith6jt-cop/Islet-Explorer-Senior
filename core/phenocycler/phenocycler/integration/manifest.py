@@ -340,22 +340,31 @@ def _discover_pheno_sections(cfg: PipelineConfig,
     ``None`` means "nothing exported yet" and is distinct from an empty set: the manifest
     still builds a Xenium-shaped picture rather than claiming every donor is unpaired.
 
-    The old implementation globbed ``data/cells/donor_id=*``. Current core outputs live at
-    ``data/runs/<run_id>/expression`` and a donor directory alone cannot state which physical
-    section it contains. The image id in that parquet is therefore resolved against
-    ``qupath_manifest.json`` plus exact, tracked section overrides.
+    A donor directory alone cannot state which physical section it contains, so the
+    image id in that parquet is resolved against ``qupath_manifest.json`` plus exact,
+    tracked section overrides.
+
+    Expression is read from ``data/expression``. When that root does not exist yet, the
+    pre-2026-09-16 content-addressed tree named by ``data/runs/LATEST`` is read instead,
+    with a warning -- the 20-donor cohort still lives only there, and re-running it is
+    hours of compute that this function must not silently demand.
     """
 
-    latest = cfg.runs_dir / "LATEST"
-    if not latest.exists():
-        return None
-    run_id = latest.read_text().strip()
-    expression = cfg.runs_dir / run_id / "expression"
+    expression = cfg.selected_expression_dir
     if not expression.is_dir():
+        latest = cfg.runs_dir / "LATEST"
+        if not latest.exists():
+            return None
+        run_id = latest.read_text().strip()
+        expression = cfg.runs_dir / run_id / "expression"
+        if not expression.is_dir():
+            summary.warnings.append(
+                f"{latest} names run {run_id!r}, but it has no expression directory"
+            )
+            return None
         summary.warnings.append(
-            f"{latest} names run {run_id!r}, but it has no expression directory"
+            f"{cfg.selected_expression_dir} is absent; reading the retired run tree {expression}"
         )
-        return None
 
     try:
         manifest_payload = json.loads(Path(cfg.qupath_manifest).read_text())

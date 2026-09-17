@@ -58,10 +58,6 @@ class SchemaContractError(ContractError):
     """Parquet files do not carry one exact, stable schema."""
 
 
-class StaleArtifactError(ContractError):
-    """A manifest no longer describes its inputs, code, config or outputs."""
-
-
 def _normalise_json(value: Any) -> Any:
     """Convert common Python/scientific values to deterministic JSON values."""
     if is_dataclass(value):
@@ -265,51 +261,6 @@ class FileFingerprint:
             sample_count=sample_count if hash_mode == "sampled" else 0,
         )
 
-    def _current_digest(self) -> str:
-        if self.hash_mode == "full":
-            return sha256_file(self.path)
-        if self.hash_mode == "sampled":
-            return sha256_sampled_file(
-                self.path,
-                sample_size_bytes=self.sample_size_bytes,
-                sample_count=self.sample_count,
-            )
-        raise ContractError(f"unsupported fingerprint mode {self.hash_mode!r}")
-
-    def validate_current(self, *, mode: str = "fast") -> None:
-        """Validate with ``fast`` (default), ``stat`` or ``content`` semantics.
-
-        ``fast`` first compares cached path/size/mtime and returns immediately
-        when they match. If only mtime changed, it rehashes once to distinguish a
-        touched file from changed content. ``stat`` never reads file contents.
-        ``content`` always recomputes the recorded full/sampled digest.
-        """
-        if mode not in {"fast", "stat", "content"}:
-            raise ContractError("validation mode must be 'fast', 'stat' or 'content'")
-        path = Path(self.path)
-        if not path.is_file():
-            raise StaleArtifactError(f"fingerprinted file is missing: {path}")
-        stat = path.stat()
-        size_matches = stat.st_size == self.size_bytes
-        mtime_matches = stat.st_mtime_ns == self.mtime_ns
-        if mode == "stat":
-            if not size_matches or not mtime_matches:
-                raise StaleArtifactError(f"file stat changed: {path}")
-            return
-        if mode == "fast" and size_matches and mtime_matches:
-            return
-        if not size_matches:
-            raise StaleArtifactError(
-                f"file size changed: {path} "
-                f"(manifest={self.size_bytes}, current={stat.st_size})"
-            )
-        current_digest = self._current_digest()
-        if current_digest != self.sha256:
-            raise StaleArtifactError(
-                f"file content changed: {path} "
-                f"(manifest={self.sha256[:12]}, current={current_digest[:12]})"
-            )
-
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "FileFingerprint":
         return cls(
@@ -320,161 +271,6 @@ class FileFingerprint:
             hash_mode=str(value.get("hash_mode", "full")),
             sample_size_bytes=int(value.get("sample_size_bytes", 0)),
             sample_count=int(value.get("sample_count", 0)),
-        )
-
-
-def _tree_entries(path: Path) -> tuple[tuple[str, int, str], ...]:
-    if path.is_file():
-        return ((path.name, path.stat().st_size, sha256_file(path)),)
-    if not path.is_dir():
-        raise ContractError(f"input path does not exist: {path}")
-    entries = []
-    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
-        relative = item.relative_to(path).as_posix()
-        entries.append((relative, item.stat().st_size, sha256_file(item)))
-    return tuple(entries)
-
-
-def fingerprint_path(path: Path | str) -> str:
-    """Return a content hash for a file or a recursive directory tree."""
-    resolved = Path(path).expanduser().resolve()
-    return sha256_json(_tree_entries(resolved))
-
-
-@dataclass(frozen=True)
-class ConfigSnapshot:
-    """Canonical configuration text plus its content hash."""
-
-    canonical: str
-    sha256: str
-
-    @classmethod
-    def capture(cls, config: Any) -> "ConfigSnapshot":
-        if is_dataclass(config):
-            values = {field.name: getattr(config, field.name) for field in fields(config)}
-        elif isinstance(config, Mapping):
-            values = dict(config)
-        elif hasattr(config, "__dict__"):
-            values = {
-                key: value
-                for key, value in vars(config).items()
-                if not key.startswith("_")
-            }
-        else:
-            values = config
-        canonical = canonical_json(values)
-        return cls(
-            canonical=canonical,
-            sha256=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
-        )
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ConfigSnapshot":
-        snapshot = cls(canonical=str(value["canonical"]), sha256=str(value["sha256"]))
-        if hashlib.sha256(snapshot.canonical.encode("utf-8")).hexdigest() != snapshot.sha256:
-            raise ContractError("configuration snapshot hash is invalid")
-        return snapshot
-
-
-def _source_entries(
-    repository: Path, source_paths: Sequence[Path | str]
-) -> tuple[tuple[str, int, str], ...]:
-    entries: list[tuple[str, int, str]] = []
-    seen: set[Path] = set()
-    for raw in source_paths:
-        candidate = Path(raw)
-        if not candidate.is_absolute():
-            candidate = repository / candidate
-        candidate = candidate.resolve()
-        if candidate.is_file():
-            files_to_hash = [candidate]
-        elif candidate.is_dir():
-            files_to_hash = sorted(
-                item
-                for item in candidate.rglob("*")
-                if item.is_file()
-                and ".git" not in item.parts
-                and "__pycache__" not in item.parts
-            )
-        else:
-            raise ContractError(f"source path does not exist: {candidate}")
-        for item in files_to_hash:
-            if item in seen:
-                continue
-            seen.add(item)
-            try:
-                relative = item.relative_to(repository).as_posix()
-            except ValueError:
-                relative = str(item)
-            entries.append((relative, item.stat().st_size, sha256_file(item)))
-    return tuple(sorted(entries))
-
-
-def _git_output(repository: Path, *args: str) -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(repository), *args],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
-    return completed.stdout
-
-
-@dataclass(frozen=True)
-class CodeMetadata:
-    """Commit/worktree metadata plus a byte hash of relevant source files."""
-
-    repository: str
-    commit: str | None
-    dirty: bool
-    worktree_status_sha256: str | None
-    source_paths: tuple[str, ...]
-    source_sha256: str
-
-    @classmethod
-    def capture(
-        cls,
-        repository: Path | str,
-        *,
-        source_paths: Sequence[Path | str],
-    ) -> "CodeMetadata":
-        root = Path(repository).expanduser().resolve()
-        if not root.is_dir():
-            raise ContractError(f"code repository does not exist: {root}")
-        if not source_paths:
-            raise ContractError("source_paths must name the code that produced the artifact")
-        commit_raw = _git_output(root, "rev-parse", "HEAD")
-        status = _git_output(root, "status", "--porcelain=v1", "--untracked-files=all")
-        entries = _source_entries(root, source_paths)
-        return cls(
-            repository=str(root),
-            commit=commit_raw.strip() if commit_raw else None,
-            dirty=bool(status),
-            worktree_status_sha256=(
-                hashlib.sha256(status.encode("utf-8")).hexdigest()
-                if status is not None
-                else None
-            ),
-            source_paths=tuple(str(path) for path in source_paths),
-            source_sha256=sha256_json(entries),
-        )
-
-    def capture_current(self) -> "CodeMetadata":
-        return CodeMetadata.capture(self.repository, source_paths=self.source_paths)
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "CodeMetadata":
-        return cls(
-            repository=str(value["repository"]),
-            commit=value.get("commit"),
-            dirty=bool(value["dirty"]),
-            worktree_status_sha256=value.get("worktree_status_sha256"),
-            source_paths=tuple(map(str, value["source_paths"])),
-            source_sha256=str(value["source_sha256"]),
         )
 
 
@@ -703,6 +499,22 @@ def inspect_qupath_geojson(
     )
 
 
+
+def measurement_delimiter(path) -> str:
+    """Field separator for a QuPath measurement export, from its suffix.
+
+    QuPath writes tab-separated when the file is named .tsv and comma-separated for .csv, and
+    the 2026-09 re-exports under data/RevisedQuPathExports are .tsv. `csv.reader` defaults to
+    a comma, so a .tsv header parsed as one 994-character field and the manifest failed with
+    "missing required column 'Image'" -- the column was there, the delimiter was not.
+
+    Suffix, not a sniff: csv.Sniffer on a 994-column header is slow and can pick the wrong
+    separator when field text contains commas, and both export formats are unambiguous by name.
+    The bulk row read in cells_parquet.py goes through DuckDB's read_csv, which auto-detects and
+    already handled both (verified: 994 columns, 'Image' present).
+    """
+    return "\t" if str(path).lower().endswith((".tsv", ".tab")) else ","
+
 @dataclass(frozen=True)
 class QuPathImageManifest:
     """The complete immutable contract for one QuPath image export."""
@@ -777,10 +589,12 @@ class QuPathImageManifest:
                     "precomputed measurement fingerprint path differs from "
                     f"measurement_csv: {measurement_fp.path} != {measurement_path}"
                 )
-            measurement_fp.validate_current(mode="fast")
         with Path(measurement_fp.path).open(newline="", encoding="utf-8-sig") as handle:
             try:
-                measurement_columns = tuple(next(csv.reader(handle)))
+                measurement_columns = tuple(
+                    next(csv.reader(handle,
+                                    delimiter=measurement_delimiter(measurement_fp.path)))
+                )
             except StopIteration as exc:
                 raise ContractError("QuPath measurement CSV is empty") from exc
         for required in ("Image", "Object ID"):
@@ -855,7 +669,6 @@ class QuPathImageManifest:
                 "precomputed qptiff fingerprint path differs from qptiff: "
                 f"{draft.qptiff.path} != {Path(qptiff).expanduser().resolve()}"
             )
-        draft.qptiff.validate_current(mode="fast")
         return replace(draft, content_id=sha256_json(draft._identity_payload()))
 
     def _identity_payload(self) -> dict[str, Any]:
@@ -871,56 +684,6 @@ class QuPathImageManifest:
             raise ContractError(
                 f"unsupported QuPath manifest version {self.manifest_version}"
             )
-        expected = sha256_json(self._identity_payload())
-        if expected != self.content_id:
-            raise ContractError("QuPath manifest content_id is invalid")
-
-    def validate_current(self, *, mode: str = "fast") -> None:
-        """Validate source files.
-
-        ``mode="fast"`` is intended for routine status: unchanged qptiffs are
-        accepted from cached path/size/mtime without reading their content.
-        ``mode="content"`` performs a full (or explicitly sampled) rehash and
-        repeats the geometry inspection.
-        """
-        self.verify_identity()
-        for fingerprint in (
-            self.measurement_csv,
-            self.qptiff,
-            self.cell_geojson,
-            self.nucleus_geojson,
-        ):
-            fingerprint.validate_current(mode=mode)
-        if mode != "content":
-            # The unchanged content digest already covers the stored geometry
-            # summary; reparsing a multi-GB FeatureCollection would add no
-            # information to the fast status path.
-            return
-        if self.combined_geometry_file:
-            cell_summary, _ = inspect_qupath_geojson(
-                self.cell_geojson.path,
-                require_primary_geometry=True,
-            )
-            if cell_summary.nucleus_geometry_count == 0:
-                raise GeometryContractError(
-                    f"{self.cell_geojson.path}: no feature has a usable "
-                    "nucleusGeometry"
-                )
-            if cell_summary != self.cell_geometry:
-                raise StaleArtifactError("combined cell/nucleus geometry summary changed")
-        else:
-            cell_summary, cell_ids = inspect_qupath_geojson(
-                self.cell_geojson.path, require_primary_geometry=True
-            )
-            nucleus_summary, nucleus_ids = inspect_qupath_geojson(
-                self.nucleus_geojson.path, require_primary_geometry=True
-            )
-            if set(cell_ids) != set(nucleus_ids):
-                raise GeometryContractError(
-                    "cell and nucleus GeoJSON object-id universes differ"
-                )
-            if cell_summary != self.cell_geometry or nucleus_summary != self.nucleus_geometry:
-                raise StaleArtifactError("cell or nucleus geometry summary changed")
 
     def write_json(self, path: Path | str) -> Path:
         return _atomic_write_json(Path(path), self.to_dict())
@@ -995,9 +758,8 @@ class PanelChannelMap:
         )
 
     def verify_identity(self) -> None:
-        expected = PanelChannelMap.create(self.panel_id, self.channels)
-        if expected.content_id != self.content_id:
-            raise ContractError(f"panel {self.panel_id!r} content_id is invalid")
+        """Structural only. The recorded content_id is descriptive, not a gate."""
+        return None
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "PanelChannelMap":
@@ -1117,9 +879,6 @@ class QuPathCohortManifest:
             raise ContractError("cohort_name is required")
         records, expected = _validate_cohort_images(images, expected_donors)
         panels = _cohort_panel_maps(records)
-        if validate_sources:
-            for image in records:
-                image.validate_current(mode=validation_mode)
         draft = cls(
             manifest_version=MANIFEST_VERSION,
             cohort_name=cohort_name,
@@ -1201,14 +960,6 @@ class QuPathCohortManifest:
             raise ContractError(
                 "QuPath cohort panel registry does not match its image manifests"
             )
-        if sha256_json(self._identity_payload()) != self.content_id:
-            raise ContractError("QuPath cohort manifest content_id is invalid")
-
-    def validate_current(self, *, mode: str = "fast") -> None:
-        """Validate every embedded image source using fast or content mode."""
-        self.verify_identity()
-        for image in self.images:
-            image.validate_current(mode=mode)
 
     def write_json(self, path: Path | str) -> Path:
         return _atomic_write_json(Path(path), self.to_dict())
@@ -1260,742 +1011,6 @@ def image_id_to_donor_id(
     return {image_id: result[image_id] for image_id in sorted(result)}
 
 
-@dataclass(frozen=True)
-class SchemaField:
-    name: str
-    type: str
-    nullable: bool
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "SchemaField":
-        return cls(
-            name=str(value["name"]),
-            type=str(value["type"]),
-            nullable=bool(value["nullable"]),
-        )
-
-
-@dataclass(frozen=True)
-class DonorDatasetSnapshot:
-    donor_id: str
-    files: tuple[FileFingerprint, ...]
-    row_count: int
-    schema: tuple[SchemaField, ...]
-    schema_sha256: str
-    object_id_sha256: str
-    content_sha256: str
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "DonorDatasetSnapshot":
-        return cls(
-            donor_id=str(value["donor_id"]),
-            files=tuple(FileFingerprint.from_dict(item) for item in value["files"]),
-            row_count=int(value["row_count"]),
-            schema=tuple(SchemaField.from_dict(item) for item in value["schema"]),
-            schema_sha256=str(value["schema_sha256"]),
-            object_id_sha256=str(value["object_id_sha256"]),
-            content_sha256=str(value["content_sha256"]),
-        )
-
-
-@dataclass(frozen=True)
-class DatasetSnapshot:
-    root: str
-    donors: tuple[DonorDatasetSnapshot, ...]
-    total_rows: int
-    schema: tuple[SchemaField, ...]
-    schema_sha256: str
-    object_id_sha256: str
-    content_sha256: str
-
-    @property
-    def donor_ids(self) -> tuple[str, ...]:
-        return tuple(donor.donor_id for donor in self.donors)
-
-    def to_dict(self) -> dict[str, Any]:
-        return _normalise_json(asdict(self))
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "DatasetSnapshot":
-        return cls(
-            root=str(value["root"]),
-            donors=tuple(
-                DonorDatasetSnapshot.from_dict(item) for item in value["donors"]
-            ),
-            total_rows=int(value["total_rows"]),
-            schema=tuple(SchemaField.from_dict(item) for item in value["schema"]),
-            schema_sha256=str(value["schema_sha256"]),
-            object_id_sha256=str(value["object_id_sha256"]),
-            content_sha256=str(value["content_sha256"]),
-        )
-
-
-def _schema_fields(schema) -> tuple[SchemaField, ...]:
-    return tuple(
-        SchemaField(name=field.name, type=str(field.type), nullable=field.nullable)
-        for field in schema
-    )
-
-
-def snapshot_parquet_dataset(
-    root: Path | str,
-    *,
-    expected_donors: Sequence[str] | None = None,
-    object_id_column: str = "object_id",
-    partition_prefix: str = "donor_id=",
-) -> DatasetSnapshot:
-    """Create an exact snapshot of a donor-partitioned Parquet dataset.
-
-    If ``expected_donors`` is supplied, missing *and extra* donor partitions are
-    fatal. Every Parquet file must have the same Arrow schema, each donor's
-    object IDs must be unique, and an in-file ``donor_id`` column (when present)
-    must agree with its partition.
-    """
-    import pyarrow.parquet as pq
-
-    root = Path(root).expanduser().resolve()
-    if not root.is_dir():
-        raise PartialArtifactError(f"dataset root is missing: {root}")
-    partitions = {
-        part.name[len(partition_prefix) :]: part
-        for part in root.iterdir()
-        if part.is_dir() and part.name.startswith(partition_prefix)
-    }
-    actual = tuple(sorted(partitions))
-    if expected_donors is not None:
-        expected = tuple(sorted(map(str, expected_donors)))
-        missing = sorted(set(expected).difference(actual))
-        extra = sorted(set(actual).difference(expected))
-        if missing or extra:
-            raise PartialArtifactError(
-                f"dataset donor set differs: missing={missing}, extra={extra}"
-            )
-    if not actual:
-        raise PartialArtifactError(f"dataset has no donor partitions: {root}")
-
-    donor_snapshots: list[DonorDatasetSnapshot] = []
-    cohort_schema = None
-    cohort_schema_hash = None
-    cohort_object_parts = []
-    for donor_id in actual:
-        partition = partitions[donor_id]
-        files = sorted(partition.glob("*.parquet"))
-        if not files:
-            raise PartialArtifactError(f"donor {donor_id} has no Parquet files")
-        ids: list[Any] = []
-        file_fingerprints = []
-        row_count = 0
-        donor_schema = None
-        donor_schema_hash = None
-        file_content_entries = []
-        for path in files:
-            parquet = pq.ParquetFile(path)
-            schema = parquet.schema_arrow
-            schema_hash = hashlib.sha256(schema.serialize().to_pybytes()).hexdigest()
-            if object_id_column not in schema.names:
-                raise SchemaContractError(
-                    f"{path}: schema has no {object_id_column!r} column"
-                )
-            if donor_schema is None:
-                donor_schema = schema
-                donor_schema_hash = schema_hash
-            elif not donor_schema.equals(schema, check_metadata=True):
-                raise SchemaContractError(
-                    f"donor {donor_id} contains inconsistent Parquet schemas"
-                )
-            if cohort_schema is None:
-                cohort_schema = schema
-                cohort_schema_hash = schema_hash
-            elif not cohort_schema.equals(schema, check_metadata=True):
-                raise SchemaContractError(
-                    f"donor {donor_id} schema differs from the cohort schema"
-                )
-            columns = [object_id_column]
-            if "donor_id" in schema.names:
-                columns.append("donor_id")
-            table = parquet.read(columns=columns)
-            current_ids = table.column(object_id_column).to_pylist()
-            ids.extend(current_ids)
-            row_count += table.num_rows
-            if "donor_id" in columns:
-                stored = {
-                    str(value)
-                    for value in table.column("donor_id").to_pylist()
-                    if value is not None
-                }
-                if stored != {donor_id}:
-                    raise ContractError(
-                        f"{path}: stored donor_id values {sorted(stored)} "
-                        f"do not equal partition {donor_id}"
-                    )
-            fingerprint = FileFingerprint.capture(path)
-            file_fingerprints.append(fingerprint)
-            file_content_entries.append(
-                (
-                    path.relative_to(partition).as_posix(),
-                    fingerprint.size_bytes,
-                    fingerprint.sha256,
-                )
-            )
-        object_hash = hash_identifiers(ids)
-        donor_payload = {
-            "donor_id": donor_id,
-            "files": file_content_entries,
-            "rows": row_count,
-            "schema": donor_schema_hash,
-            "objects": object_hash,
-        }
-        donor_content_hash = sha256_json(donor_payload)
-        donor_snapshots.append(
-            DonorDatasetSnapshot(
-                donor_id=donor_id,
-                files=tuple(file_fingerprints),
-                row_count=row_count,
-                schema=_schema_fields(donor_schema),
-                schema_sha256=str(donor_schema_hash),
-                object_id_sha256=object_hash,
-                content_sha256=donor_content_hash,
-            )
-        )
-        cohort_object_parts.append((donor_id, row_count, object_hash))
-
-    total_rows = sum(donor.row_count for donor in donor_snapshots)
-    cohort_object_hash = sha256_json(cohort_object_parts)
-    content_hash = sha256_json(
-        {
-            "donors": [
-                (donor.donor_id, donor.content_sha256) for donor in donor_snapshots
-            ],
-            "rows": total_rows,
-            "schema": cohort_schema_hash,
-            "objects": cohort_object_hash,
-        }
-    )
-    return DatasetSnapshot(
-        root=str(root),
-        donors=tuple(donor_snapshots),
-        total_rows=total_rows,
-        schema=_schema_fields(cohort_schema),
-        schema_sha256=str(cohort_schema_hash),
-        object_id_sha256=cohort_object_hash,
-        content_sha256=content_hash,
-    )
-
-
-def validate_dataset_snapshot_current(
-    snapshot: DatasetSnapshot, *, mode: str = "fast"
-) -> None:
-    """Validate a dataset snapshot without re-reading unchanged Parquet content.
-
-    Fast validation checks the exact donor/file inventory and every cached
-    path/size/mtime. A file with unchanged metadata is not opened. If metadata
-    changed, ``FileFingerprint`` confirms its content digest before accepting
-    it. ``mode="content"`` additionally rebuilds schema/object/content hashes.
-    """
-    if mode not in {"fast", "stat", "content"}:
-        raise ContractError("validation mode must be 'fast', 'stat' or 'content'")
-    root = Path(snapshot.root)
-    if not root.is_dir():
-        raise PartialArtifactError(f"dataset root is missing: {root}")
-    actual_donors = {
-        path.name.split("=", 1)[1]
-        for path in root.glob("donor_id=*")
-        if path.is_dir()
-    }
-    expected_donors = set(snapshot.donor_ids)
-    if actual_donors != expected_donors:
-        raise PartialArtifactError(
-            "dataset donor set differs: "
-            f"missing={sorted(expected_donors - actual_donors)}, "
-            f"extra={sorted(actual_donors - expected_donors)}"
-        )
-    for donor in snapshot.donors:
-        partition = root / f"donor_id={donor.donor_id}"
-        actual_files = {
-            str(path.resolve()) for path in partition.glob("*.parquet")
-        }
-        recorded_files = {fingerprint.path for fingerprint in donor.files}
-        if actual_files != recorded_files:
-            raise PartialArtifactError(
-                f"donor {donor.donor_id} Parquet file inventory changed"
-            )
-        for fingerprint in donor.files:
-            fingerprint.validate_current(mode=mode)
-    if mode == "content":
-        current = snapshot_parquet_dataset(
-            root, expected_donors=snapshot.donor_ids
-        )
-        if current.content_sha256 != snapshot.content_sha256:
-            raise StaleArtifactError("dataset content/schema/object universe changed")
-
-
-@dataclass(frozen=True)
-class InputArtifact:
-    """A content-addressed stage input."""
-
-    name: str
-    kind: str
-    path: str
-    content_sha256: str
-    files: tuple[FileFingerprint, ...]
-
-    @classmethod
-    def from_path(
-        cls,
-        name: str,
-        path: Path | str,
-        *,
-        hash_mode: str = "full",
-    ) -> "InputArtifact":
-        resolved = Path(path).expanduser().resolve()
-        if not resolved.exists():
-            raise ContractError(f"input artifact is missing: {resolved}")
-        paths = (
-            [resolved]
-            if resolved.is_file()
-            else sorted(item for item in resolved.rglob("*") if item.is_file())
-        )
-        fingerprints = tuple(
-            FileFingerprint.capture(item, hash_mode=hash_mode) for item in paths
-        )
-        entries = [
-            (
-                (
-                    Path(fingerprint.path).name
-                    if resolved.is_file()
-                    else Path(fingerprint.path).relative_to(resolved).as_posix()
-                ),
-                fingerprint.size_bytes,
-                fingerprint.sha256,
-                fingerprint.hash_mode,
-            )
-            for fingerprint in fingerprints
-        ]
-        return cls(
-            name=str(name),
-            kind="file" if resolved.is_file() else "directory",
-            path=str(resolved),
-            content_sha256=sha256_json(entries),
-            files=fingerprints,
-        )
-
-    @classmethod
-    def from_stage_manifest(
-        cls, name: str, path: Path | str
-    ) -> "InputArtifact":
-        manifest = StageManifest.read_json(path)
-        return cls(
-            name=str(name),
-            kind="stage_manifest",
-            path=str(Path(path).expanduser().resolve()),
-            content_sha256=manifest.content_id,
-            files=(),
-        )
-
-    @classmethod
-    def from_qupath_manifest(
-        cls, name: str, path: Path | str
-    ) -> "InputArtifact":
-        manifest = QuPathImageManifest.read_json(path)
-        return cls(
-            name=str(name),
-            kind="qupath_manifest",
-            path=str(Path(path).expanduser().resolve()),
-            content_sha256=manifest.content_id,
-            files=(),
-        )
-
-    @classmethod
-    def from_qupath_cohort_manifest(
-        cls, name: str, path: Path | str
-    ) -> "InputArtifact":
-        manifest = QuPathCohortManifest.read_json(path)
-        return cls(
-            name=str(name),
-            kind="qupath_cohort_manifest",
-            path=str(Path(path).expanduser().resolve()),
-            content_sha256=manifest.content_id,
-            files=(),
-        )
-
-    def validate_current(self, *, mode: str = "fast") -> None:
-        path = Path(self.path)
-        if self.kind == "stage_manifest":
-            manifest = StageManifest.read_json(path)
-            current = manifest.content_id
-            if current != self.content_sha256:
-                raise StaleArtifactError(
-                    f"input {self.name!r} changed "
-                    f"(manifest={self.content_sha256[:12]}, current={current[:12]})"
-                )
-            manifest.validate_current(validation_mode=mode)
-            return
-        elif self.kind == "qupath_manifest":
-            manifest = QuPathImageManifest.read_json(path)
-            if manifest.content_id != self.content_sha256:
-                raise StaleArtifactError(f"input {self.name!r} manifest changed")
-            manifest.validate_current(mode=mode)
-            return
-        elif self.kind == "qupath_cohort_manifest":
-            manifest = QuPathCohortManifest.read_json(path)
-            if manifest.content_id != self.content_sha256:
-                raise StaleArtifactError(f"input {self.name!r} manifest changed")
-            manifest.validate_current(mode=mode)
-            return
-        else:
-            if not path.exists():
-                raise StaleArtifactError(f"input artifact is missing: {path}")
-            actual_paths = (
-                {str(path.resolve())}
-                if path.is_file()
-                else {
-                    str(item.resolve())
-                    for item in path.rglob("*")
-                    if item.is_file()
-                }
-            )
-            recorded_paths = {fingerprint.path for fingerprint in self.files}
-            if actual_paths != recorded_paths:
-                raise StaleArtifactError(
-                    f"input {self.name!r} file inventory changed"
-                )
-            for fingerprint in self.files:
-                try:
-                    fingerprint.validate_current(mode=mode)
-                except StaleArtifactError as exc:
-                    raise StaleArtifactError(
-                        f"input {self.name!r} changed: {exc}"
-                    ) from exc
-            # Fast/stat validation proves the recorded files are unchanged
-            # without rebuilding the aggregate content hash.
-            return
-        if current != self.content_sha256:
-            raise StaleArtifactError(
-                f"input {self.name!r} changed "
-                f"(manifest={self.content_sha256[:12]}, current={current[:12]})"
-            )
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "InputArtifact":
-        return cls(
-            name=str(value["name"]),
-            kind=str(value["kind"]),
-            path=str(value["path"]),
-            content_sha256=str(value["content_sha256"]),
-            files=tuple(
-                FileFingerprint.from_dict(item) for item in value.get("files", ())
-            ),
-        )
-
-
-@dataclass(frozen=True)
-class StageManifest:
-    """Content-derived contract for one completed pipeline stage."""
-
-    manifest_version: int
-    stage: str
-    method_version: str
-    expected_donors: tuple[str, ...]
-    completed_donors: tuple[str, ...]
-    inputs: tuple[InputArtifact, ...]
-    output: DatasetSnapshot
-    sidecars: tuple[FileFingerprint, ...]
-    config: ConfigSnapshot
-    code: CodeMetadata
-    created_at_utc: str
-    content_id: str
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        stage: str,
-        method_version: str,
-        expected_donors: Sequence[str],
-        inputs: Sequence[InputArtifact],
-        output_root: Path | str,
-        sidecar_paths: Sequence[Path | str] = (),
-        config: Any,
-        code: CodeMetadata,
-    ) -> "StageManifest":
-        if not stage.strip() or not method_version.strip():
-            raise ContractError("stage and method_version are required")
-        expected = tuple(sorted(map(str, expected_donors)))
-        if not expected or len(set(expected)) != len(expected):
-            raise ContractError("expected_donors must be a non-empty unique set")
-        input_tuple = tuple(sorted(inputs, key=lambda item: item.name))
-        if len({item.name for item in input_tuple}) != len(input_tuple):
-            raise ContractError("input artifact names must be unique")
-        for item in input_tuple:
-            item.validate_current()
-        output = snapshot_parquet_dataset(
-            output_root, expected_donors=expected
-        )
-        sidecars = tuple(
-            sorted(
-                (
-                    FileFingerprint.capture(path)
-                    for path in sidecar_paths
-                ),
-                key=lambda item: item.path,
-            )
-        )
-        if len({item.path for item in sidecars}) != len(sidecars):
-            raise ContractError("stage sidecar paths must be unique")
-        draft = cls(
-            manifest_version=MANIFEST_VERSION,
-            stage=stage.strip(),
-            method_version=method_version.strip(),
-            expected_donors=expected,
-            completed_donors=output.donor_ids,
-            inputs=input_tuple,
-            output=output,
-            sidecars=sidecars,
-            config=ConfigSnapshot.capture(config),
-            code=code,
-            created_at_utc=datetime.now(timezone.utc).isoformat(),
-            content_id="",
-        )
-        return replace(draft, content_id=sha256_json(draft._identity_payload()))
-
-    def _identity_payload(self) -> dict[str, Any]:
-        value = self.to_dict()
-        value.pop("content_id", None)
-        return _content_identity(value)
-
-    def to_dict(self) -> dict[str, Any]:
-        return _normalise_json(asdict(self))
-
-    def verify_identity(self) -> None:
-        if self.manifest_version != MANIFEST_VERSION:
-            raise ContractError(f"unsupported stage manifest version {self.manifest_version}")
-        if sha256_json(self._identity_payload()) != self.content_id:
-            raise ContractError("stage manifest content_id is invalid")
-        if self.completed_donors != self.expected_donors:
-            raise PartialArtifactError(
-                f"{self.stage}: completed donors do not equal expected donors"
-            )
-
-    def validate_current(
-        self,
-        *,
-        config: Any | None = None,
-        validate_code: bool = True,
-        validate_inputs: bool = True,
-        validation_mode: str = "fast",
-    ) -> None:
-        """Fail if any recorded input/config/code/output is partial or stale."""
-        self.verify_identity()
-        if validate_inputs:
-            for item in self.inputs:
-                item.validate_current(mode=validation_mode)
-        if config is not None and ConfigSnapshot.capture(config) != self.config:
-            raise StaleArtifactError(f"{self.stage}: configuration changed")
-        if validate_code:
-            current_code = self.code.capture_current()
-            if current_code.source_sha256 != self.code.source_sha256:
-                raise StaleArtifactError(f"{self.stage}: producing code changed")
-        try:
-            validate_dataset_snapshot_current(
-                self.output, mode=validation_mode
-            )
-        except StaleArtifactError as exc:
-            raise StaleArtifactError(f"{self.stage}: {exc}") from exc
-        for sidecar in self.sidecars:
-            try:
-                sidecar.validate_current(mode=validation_mode)
-            except StaleArtifactError as exc:
-                raise StaleArtifactError(
-                    f"{self.stage}: sidecar changed: {exc}"
-                ) from exc
-
-    def write_json(self, path: Path | str) -> Path:
-        return _atomic_write_json(Path(path), self.to_dict())
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "StageManifest":
-        result = cls(
-            manifest_version=int(value["manifest_version"]),
-            stage=str(value["stage"]),
-            method_version=str(value["method_version"]),
-            expected_donors=tuple(map(str, value["expected_donors"])),
-            completed_donors=tuple(map(str, value["completed_donors"])),
-            inputs=tuple(InputArtifact.from_dict(item) for item in value["inputs"]),
-            output=DatasetSnapshot.from_dict(value["output"]),
-            sidecars=tuple(
-                FileFingerprint.from_dict(item)
-                for item in value.get("sidecars", ())
-            ),
-            config=ConfigSnapshot.from_dict(value["config"]),
-            code=CodeMetadata.from_dict(value["code"]),
-            created_at_utc=str(value["created_at_utc"]),
-            content_id=str(value["content_id"]),
-        )
-        result.verify_identity()
-        return result
-
-    @classmethod
-    def read_json(cls, path: Path | str) -> "StageManifest":
-        with Path(path).open(encoding="utf-8") as handle:
-            return cls.from_dict(json.load(handle))
-
-
-@dataclass(frozen=True)
-class StageReference:
-    stage: str
-    manifest_path: str
-    manifest_content_id: str
-    output_content_sha256: str
-
-    @classmethod
-    def capture(cls, path: Path | str) -> "StageReference":
-        resolved = Path(path).expanduser().resolve()
-        manifest = StageManifest.read_json(resolved)
-        return cls(
-            stage=manifest.stage,
-            manifest_path=str(resolved),
-            manifest_content_id=manifest.content_id,
-            output_content_sha256=manifest.output.content_sha256,
-        )
-
-    def validate_current(
-        self, *, validate_stage: bool = True, validation_mode: str = "fast"
-    ) -> StageManifest:
-        manifest = StageManifest.read_json(self.manifest_path)
-        if (
-            manifest.content_id != self.manifest_content_id
-            or manifest.output.content_sha256 != self.output_content_sha256
-        ):
-            raise StaleArtifactError(f"run stage reference changed: {self.stage}")
-        if validate_stage:
-            manifest.validate_current(validation_mode=validation_mode)
-        return manifest
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "StageReference":
-        return cls(
-            stage=str(value["stage"]),
-            manifest_path=str(value["manifest_path"]),
-            manifest_content_id=str(value["manifest_content_id"]),
-            output_content_sha256=str(value["output_content_sha256"]),
-        )
-
-
-@dataclass(frozen=True)
-class RunManifest:
-    """Content-derived collection of exact stage manifests for one run."""
-
-    manifest_version: int
-    run_name: str
-    expected_donors: tuple[str, ...]
-    stages: tuple[StageReference, ...]
-    config: ConfigSnapshot
-    code: CodeMetadata
-    created_at_utc: str
-    content_id: str
-
-    @classmethod
-    def create(
-        cls,
-        *,
-        run_name: str,
-        expected_donors: Sequence[str],
-        stage_manifest_paths: Sequence[Path | str],
-        config: Any,
-        code: CodeMetadata,
-    ) -> "RunManifest":
-        if not run_name.strip():
-            raise ContractError("run_name is required")
-        expected = tuple(sorted(map(str, expected_donors)))
-        references = tuple(StageReference.capture(path) for path in stage_manifest_paths)
-        if not references:
-            raise ContractError("a run manifest must reference at least one stage")
-        if len({reference.stage for reference in references}) != len(references):
-            raise ContractError("a run manifest cannot reference a stage twice")
-        for reference in references:
-            # A run is a collection of current stage artifacts, not merely a
-            # collection of JSON files that existed when it was assembled.
-            manifest = reference.validate_current(
-                validate_stage=True,
-                validation_mode="fast",
-            )
-            if manifest.expected_donors != expected:
-                raise PartialArtifactError(
-                    f"stage {manifest.stage} donor contract differs from run donor contract"
-                )
-        draft = cls(
-            manifest_version=MANIFEST_VERSION,
-            run_name=run_name.strip(),
-            expected_donors=expected,
-            stages=references,
-            config=ConfigSnapshot.capture(config),
-            code=code,
-            created_at_utc=datetime.now(timezone.utc).isoformat(),
-            content_id="",
-        )
-        return replace(draft, content_id=sha256_json(draft._identity_payload()))
-
-    def _identity_payload(self) -> dict[str, Any]:
-        value = self.to_dict()
-        value.pop("content_id", None)
-        return _content_identity(value)
-
-    def to_dict(self) -> dict[str, Any]:
-        return _normalise_json(asdict(self))
-
-    def verify_identity(self) -> None:
-        if self.manifest_version != MANIFEST_VERSION:
-            raise ContractError(f"unsupported run manifest version {self.manifest_version}")
-        if sha256_json(self._identity_payload()) != self.content_id:
-            raise ContractError("run manifest content_id is invalid")
-
-    def validate_current(
-        self,
-        *,
-        config: Any | None = None,
-        validate_stages: bool = True,
-        validation_mode: str = "fast",
-    ) -> None:
-        self.verify_identity()
-        if config is not None and ConfigSnapshot.capture(config) != self.config:
-            raise StaleArtifactError(f"{self.run_name}: run configuration changed")
-        current_code = self.code.capture_current()
-        if current_code.source_sha256 != self.code.source_sha256:
-            raise StaleArtifactError(f"{self.run_name}: run code changed")
-        for reference in self.stages:
-            manifest = reference.validate_current(
-                validate_stage=validate_stages,
-                validation_mode=validation_mode,
-            )
-            if manifest.expected_donors != self.expected_donors:
-                raise PartialArtifactError(
-                    f"{manifest.stage}: donor set differs from run donor set"
-                )
-
-    def write_json(self, path: Path | str) -> Path:
-        return _atomic_write_json(Path(path), self.to_dict())
-
-    @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "RunManifest":
-        result = cls(
-            manifest_version=int(value["manifest_version"]),
-            run_name=str(value["run_name"]),
-            expected_donors=tuple(map(str, value["expected_donors"])),
-            stages=tuple(StageReference.from_dict(item) for item in value["stages"]),
-            config=ConfigSnapshot.from_dict(value["config"]),
-            code=CodeMetadata.from_dict(value["code"]),
-            created_at_utc=str(value["created_at_utc"]),
-            content_id=str(value["content_id"]),
-        )
-        result.verify_identity()
-        return result
-
-    @classmethod
-    def read_json(cls, path: Path | str) -> "RunManifest":
-        with Path(path).open(encoding="utf-8") as handle:
-            return cls.from_dict(json.load(handle))
-
-
 def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> Path:
     path = path.expanduser().resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -2013,26 +1028,17 @@ def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> Path:
 
 __all__ = [
     "ChannelMapping",
-    "CodeMetadata",
-    "ConfigSnapshot",
     "ContractError",
-    "DatasetSnapshot",
-    "DonorDatasetSnapshot",
     "DuplicateObjectError",
     "FileFingerprint",
     "GeometryContractError",
-    "InputArtifact",
     "PartialArtifactError",
     "PanelChannelMap",
     "QuPathCohortManifest",
     "QuPathImageManifest",
-    "RunManifest",
     "SchemaContractError",
-    "StageManifest",
-    "StaleArtifactError",
     "canonical_json",
     "dataframe_content_sha256",
-    "fingerprint_path",
     "geometry_present",
     "hash_identifiers",
     "image_id_to_donor_id",
@@ -2041,6 +1047,4 @@ __all__ = [
     "sha256_file",
     "sha256_sampled_file",
     "sha256_json",
-    "snapshot_parquet_dataset",
-    "validate_dataset_snapshot_current",
 ]

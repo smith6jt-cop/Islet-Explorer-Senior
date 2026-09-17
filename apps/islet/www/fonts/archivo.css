@@ -1,0 +1,26 @@
+/* Archivo, self-hosted. SIL Open Font License 1.1 — see OFL.txt.
+ *
+ * Replaces the `@import url(https://fonts.googleapis.com/...)` that ships at the
+ * top of styles.css. Two reasons the import cannot stay:
+ *   1. The app is mounted at a sub-path (/islet-explorer/), and it is served on
+ *      an internal address. Clients that cannot reach fonts.gstatic.com fall
+ *      back to the system sans SILENTLY — the page just stops being Modernist.
+ *   2. An @import inside a linked sheet blocks first paint on a third-party
+ *      DNS + TLS round trip.
+ *
+ * url() is RELATIVE on purpose: an absolute /fonts/... would 404 behind the
+ * sub-path mount.
+ *
+ * Google serves Archivo as a VARIABLE font — the 400/600/800 woff2 URLs are one
+ * byte-identical file (verified: same md5). So this is a single face spanning
+ * the whole axis, not three static faces; `font-weight: 100 900` is what lets
+ * the browser interpolate 400/600/800 out of it.
+ */
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("Archivo-Variable.woff2") format("woff2-variations"),
+       url("Archivo-Variable.woff2") format("woff2");
+}

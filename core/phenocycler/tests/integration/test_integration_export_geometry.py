@@ -1,6 +1,6 @@
-"""Geometry export: a contract table from ``runs/<id>/expression``, carrying no identity.
+"""Geometry export: a contract table from ``data/expression``, carrying no identity.
 
-Synthetic run tree throughout — these tests must not depend on the 157.9 GB of real run data.
+Synthetic tree throughout — these tests must not depend on the real run data.
 """
 
 from __future__ import annotations
@@ -17,9 +17,10 @@ from phenocycler.integration.contract import feature_columns, has_identity
 MARKERS = ("INS", "GCG", "SST", "CD3e", "CD31")
 
 
-def _make_run(tmp_path, run_id="run0001", donor="6539", n=6, *, with_area=True,
+def _make_run(tmp_path, run_id=None, donor="6539", n=6, *, with_area=True,
               eligible=None, drop_area_for=()):
-    root = tmp_path / "runs" / run_id
+    """Write a stage tree. Flat by default; ``run_id`` builds a retired run directory."""
+    root = tmp_path if run_id is None else tmp_path / "runs" / run_id
     ids = [f"uuid-{i}" for i in range(n)]
     if eligible is None:
         eligible = [True] * n
@@ -51,7 +52,8 @@ def _make_run(tmp_path, run_id="run0001", donor="6539", n=6, *, with_area=True,
         c.mkdir(parents=True)
         cells.to_parquet(c / "data.parquet", index=False)
 
-    (tmp_path / "runs" / "LATEST").write_text(run_id)
+    if run_id is not None:
+        (tmp_path / "runs" / "LATEST").write_text(run_id)
     (tmp_path / "qupath_manifest.json").write_text(json.dumps({
         "images": [{
             "donor_id": donor,
@@ -123,15 +125,28 @@ def test_qc_ineligible_cells_are_dropped_by_default(cfg, tmp_path):
     assert len(keep_all) == 6
 
 
-def test_run_provenance_is_stamped_on_every_row(cfg, tmp_path):
-    _make_run(tmp_path, run_id="abc123")
+def test_no_run_id_is_stamped_on_any_row(cfg, tmp_path):
+    """Rows used to carry ``phenocycler_run_id``, set to the run directory's name.
+
+    There is no run directory now, so the column would have said "data" on every row.
+    Nothing outside these tests ever read it.
+    """
+
+    _make_run(tmp_path)
     out = export_pheno.export_geometry(cfg, "6539")
-    assert (out["phenocycler_run_id"] == "abc123").all()
+    assert "phenocycler_run_id" not in out.columns
 
 
-def test_latest_is_used_when_no_run_id_is_given(cfg, tmp_path):
-    _make_run(tmp_path, run_id="newest")
-    assert (export_pheno.export_geometry(cfg, "6539")["phenocycler_run_id"] == "newest").all()
+def test_the_flat_tree_is_used_when_no_run_id_is_given(cfg, tmp_path):
+    _make_run(tmp_path)
+    assert len(export_pheno.export_geometry(cfg, "6539")) == 6
+
+
+def test_a_retired_run_directory_is_still_readable_by_name(cfg, tmp_path):
+    """The pre-2026-09-16 cohort output is 76 GB and stays where it is."""
+
+    _make_run(tmp_path, run_id="retired-run")
+    assert len(export_pheno.export_geometry(cfg, "6539", run_id="retired-run")) == 6
 
 
 def test_an_unknown_run_or_donor_fails_loudly(cfg, tmp_path):

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from phenocycler.artifacts import ContractError, StaleArtifactError
+from phenocycler.artifacts import ContractError
 from phenocycler.config import PipelineConfig
 from phenocycler.pipeline import (
     DEFAULT_STAGE_ORDER,
@@ -105,29 +105,34 @@ def test_type_stage_has_only_the_simultaneous_interface(monkeypatch, tmp_path):
     assert observed["written"] is assignments
 
 
-def test_malformed_export_manifest_fails_with_a_contract_error(tmp_path):
+def test_export_manifest_presence_is_not_an_identity_check(tmp_path):
+    """A malformed export manifest reads as present, not as a contract violation.
+
+    It used to recompute sha256_json over the payload, compare it to a recorded
+    content_id, and additionally refuse a manifest whose run_id belonged to another
+    run. Both checks are gone: the file is either there or it is not.
+    """
+
     manifests = tmp_path / "manifests"
     manifests.mkdir()
     (manifests / "qupath_export.json").write_text("{}\n")
-    context = SimpleNamespace(
-        config=SimpleNamespace(manifests_dir=manifests),
-        run_id="run",
-    )
+    context = SimpleNamespace(config=SimpleNamespace(manifests_dir=manifests))
 
-    with pytest.raises(ContractError, match="missing content_id"):
-        _validate_export(context)
+    assert _validate_export(context) is True
 
 
-def test_stage_inputs_are_validated_before_the_runner(monkeypatch, tmp_path):
+def test_a_changed_input_does_not_block_the_runner(monkeypatch, tmp_path):
+    """Inputs are no longer fingerprinted, so a changed one cannot refuse to run.
+
+    This is the failure that motivated the removal: a QuPath export renamed on disk,
+    or an edit to unrelated package source, raised StaleArtifactError and stopped a
+    stage whose data was fine.
+    """
+
     from phenocycler import pipeline
-
-    class StaleInput:
-        def validate_current(self, *, mode):
-            raise StaleArtifactError("upstream changed")
 
     context = SimpleNamespace(
         registry=SimpleNamespace(production_status="verified"),
-        stage_manifest_path=lambda stage: tmp_path / f"{stage}.json",
         output_root=lambda stage: tmp_path / stage,
     )
     ran = False
@@ -136,13 +141,31 @@ def test_stage_inputs_are_validated_before_the_runner(monkeypatch, tmp_path):
         nonlocal ran
         ran = True
 
-    monkeypatch.setattr(pipeline, "_stage_inputs", lambda *_: (StaleInput(),))
     monkeypatch.setitem(pipeline.STAGE_RUNNERS, "ingest", runner)
+    pipeline.run_stage(context, "ingest")
 
-    with pytest.raises(StaleArtifactError, match="upstream changed"):
-        pipeline.run_stage(context, "ingest")
-    assert not ran
-    assert not (tmp_path / "ingest").exists()
+    assert ran
+
+
+def test_present_output_is_skipped_unless_forced(monkeypatch, tmp_path):
+    from phenocycler import pipeline
+
+    context = SimpleNamespace(
+        registry=SimpleNamespace(production_status="verified"),
+        output_root=lambda stage: tmp_path / stage,
+    )
+    (tmp_path / "ingest").mkdir()
+    (tmp_path / "ingest" / "data.parquet").write_bytes(b"x")
+    runs = []
+    monkeypatch.setitem(
+        pipeline.STAGE_RUNNERS, "ingest", lambda _c: runs.append(1)
+    )
+
+    pipeline.run_stage(context, "ingest")
+    assert runs == []
+
+    pipeline.run_stage(context, "ingest", force=True)
+    assert runs == [1]
 
 
 def test_pipelined_cli_dispatches_dependency_prefix_and_worker_overrides(
@@ -170,7 +193,7 @@ def test_pipelined_cli_dispatches_dependency_prefix_and_worker_overrides(
     monkeypatch.setattr(
         donor_pipeline,
         "run_pipelined_pipeline",
-        lambda passed, *, stages, export: dispatched.update(
+        lambda passed, *, stages, export, force=False: dispatched.update(
             context=passed,
             stages=stages,
             export=export,
@@ -223,79 +246,34 @@ def test_pair_dependent_stages_fail_before_execution():
     _assert_stages_available(context, DEFAULT_STAGE_ORDER)
 
 
-def test_no_pair_default_run_finalizes_at_expression(monkeypatch, tmp_path):
+def test_default_run_writes_no_run_manifest_and_no_latest_pointer(
+    monkeypatch, tmp_path
+):
+    """The run completes at expression and leaves no run identity behind."""
+
     from phenocycler import pipeline
 
-    stage_root = tmp_path / "manifests"
-    observed: dict[str, object] = {"ran": []}
-
-    class FakeStageManifest:
-        def __init__(self, stage):
-            self.stage = stage
-
-        def validate_current(self, **_kwargs):
-            return None
-
-    class FakeRunManifest:
-        content_id = "upstream-run"
-
-        def write_json(self, path):
-            path.write_text("{}\n", encoding="utf-8")
-
-    def fake_run_stage(_context, stage):
-        observed["ran"].append(stage)
-        path = stage_root / f"{stage}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{}\n", encoding="utf-8")
-
-    def fake_create(**kwargs):
-        observed["completion_paths"] = tuple(kwargs["stage_manifest_paths"])
-        return FakeRunManifest()
-
-    monkeypatch.setattr(pipeline, "run_stage", fake_run_stage)
+    ran: list[str] = []
     monkeypatch.setattr(
-        pipeline.StageManifest,
-        "read_json",
-        lambda path: FakeStageManifest(path.stem),
+        pipeline,
+        "run_stage",
+        lambda _context, stage, force=False: ran.append(stage),
     )
-    monkeypatch.setattr(pipeline, "_stage_config", lambda *_args: {})
-    monkeypatch.setattr(pipeline.RunManifest, "create", fake_create)
-
     context = SimpleNamespace(
-        run_id="upstream-only",
         run_root=tmp_path / "run",
         donors=("D1",),
         registry=SimpleNamespace(
             production_status="development_no_verified_typing",
             fingerprint="registry",
         ),
-        broad_gate_policy=None,
-        identity_config={},
-        cohort=SimpleNamespace(content_id="cohort"),
-        code="code",
-        base_config=SimpleNamespace(runs_dir=tmp_path / "runs"),
-        stage_manifest_path=lambda stage: stage_root / f"{stage}.json",
     )
 
-    result = pipeline.run_pipeline(
-        context,
-        stages=DEFAULT_STAGE_ORDER,
-        export=False,
-    )
+    pipeline.run_pipeline(context, export=False)
 
-    assert result.content_id == "upstream-run"
-    assert observed["ran"] == list(DEFAULT_STAGE_ORDER)
-    assert [path.stem for path in observed["completion_paths"]] == list(
-        DEFAULT_STAGE_ORDER
-    )
-    assert (context.run_root / "run.json").is_file()
-    assert (context.base_config.runs_dir / "LATEST").read_text().strip() == (
-        context.run_id
-    )
-    assert not any(
-        context.stage_manifest_path(stage).exists()
-        for stage in ("controls", "calibrate", "type", "states")
-    )
+    assert ran == list(pipeline.DEFAULT_STAGE_ORDER)
+    assert ran[-1] == "expression"
+    assert not (tmp_path / "run" / "run.json").exists()
+    assert not (tmp_path / "runs" / "LATEST").exists()
 
 
 @pytest.mark.parametrize(
@@ -326,33 +304,62 @@ def test_cli_blocks_pair_work_before_resolving_cohort(monkeypatch, argv):
         pipeline.main(argv)
 
 
-def test_status_reports_donor_receipt_progress(capsys, tmp_path):
+def test_status_reports_partitions_on_disk_and_never_gates(capsys, tmp_path):
+    """Status counts donor partitions and always returns 0.
+
+    It used to return 1 for anything short of a validated manifest, which made a
+    perfectly good half-finished cohort look like a failure to every caller.
+    """
+
     from phenocycler.pipeline import status
 
-    manifests = tmp_path / "manifests"
-    receipt = (
-        manifests
-        / "donors"
-        / "donor_id=1"
-        / "geometry.json"
-    )
-    receipt.parent.mkdir(parents=True)
-    receipt.write_text("{}\n")
+    geometry = tmp_path / "geometry" / "donor_id=1"
+    geometry.mkdir(parents=True)
+    (geometry / "data.parquet").write_bytes(b"x")
     context = SimpleNamespace(
         donors=("1", "2"),
-        run_id="run",
         registry=SimpleNamespace(
             production_status="development_no_verified_typing"
         ),
-        config=SimpleNamespace(manifests_dir=manifests),
-        stage_manifest_path=lambda stage: manifests / f"{stage}.json",
+        config=SimpleNamespace(data_dir=tmp_path),
+        output_root=lambda stage: tmp_path / stage,
     )
 
-    assert status(context) == 1
+    assert status(context) == 0
     output = capsys.readouterr().out
-    assert "geometry    IN PROGRESS   1/2" in output
+    assert "geometry    PARTIAL" in output
+    assert "missing=['2']" in output
+    assert "ingest      ABSENT" in output
     assert "controls    BLOCKED NO_VERIFIED_TYPING" in output
-    assert "calibrate   BLOCKED NO_VERIFIED_TYPING" in output
-    assert "type        BLOCKED NO_VERIFIED_TYPING" in output
     assert "states      OPTIONAL (explicit-only)" in output
     assert "qupath      BLOCKED NO_VERIFIED_TYPING" in output
+
+
+
+
+def test_force_reaches_the_pipelined_path(monkeypatch, tmp_path):
+    """--force was accepted and silently ignored by --pipelined until 2026-09-16.
+
+    CLAUDE.md documents `run --config config.ini --pipelined --through expression` as THE
+    invocation, and run_pipelined_pipeline took no force parameter, so the flag parsed, did
+    nothing, and reported nothing. A flag that is accepted and ignored is worse than one that
+    is rejected.
+    """
+    from phenocycler import donor_pipeline
+
+    context = SimpleNamespace(
+        donors=("1", "2"),
+        registry=SimpleNamespace(production_status="verified"),
+        output_root=lambda stage: tmp_path / stage,
+    )
+    for donor in context.donors:
+        part = tmp_path / "geometry" / f"donor_id={donor}"
+        part.mkdir(parents=True)
+        (part / "data.parquet").write_bytes(b"x")
+
+    # Without force, present partitions are complete and nothing is pending.
+    assert donor_pipeline._initial_task_state(context, ("geometry",)) == {
+        donor_pipeline.DonorTask("geometry", d) for d in context.donors
+    }
+    # With force, every donor is pending again.
+    assert donor_pipeline._initial_task_state(context, ("geometry",), force=True) == set()

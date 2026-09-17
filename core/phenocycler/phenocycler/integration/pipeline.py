@@ -61,8 +61,8 @@ STAGES: list[tuple[str, str, str]] = [
     ("manifest", "integration/manifest.csv", "Donor <-> Xenium pairing manifest"),
     ("export_pheno", "integration/cells_pheno/donor_id=*", "PhenoCycler -> contract"),
     ("import_xenium", "integration/cells_xen/donor_id=*", "Xenium -> contract"),
-    ("postxen", "integration/paired/postxen_cells.parquet",
-     "Post-Xenium re-stain <-> Xenium, same slide [measurement]"),
+    ("postxen", "integration/qc/postxen_qc.csv",
+     "Post-Xenium re-stain IF values -> Xenium cells, same slide [measurement]"),
     ("vocab", "integration/vocab_crosswalk.csv", "Lineage + marker crosswalk"),
     ("structures", "integration/structures/*/donor_id=*", "Islets / ducts / vessels"),
     ("register", "integration/registration/donor_id=*", "Serial-section registration"),
@@ -197,6 +197,24 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
     print(f"tissues          : {', '.join(DISPLAY_NAME.get(t, t) for t in selected)}")
     print(f"rois             : {', '.join(cfg.resolve_rois(None, selected))}")
     print()
+    from .phenospace import identity_attached, load_release_or_none
+    attached = identity_attached(cfg)
+    attached_ids = ", ".join(
+        getattr(load_release_or_none(cfg, m), "release_id", "?") for m in ("phenocycler", "xenium")
+    ) if attached else ""
+    # Print whether each release's declared input could actually be checked. The old
+    # run_id + content_id pin was verified against a stage manifest; stage manifests were
+    # removed on 2026-09-16, so a release naming a wrong id now loads without error. Making
+    # that outcome visible here is the point -- an unverifiable release must not look the
+    # same as a verified one.
+    provenance_note = ""
+    if attached:
+        marks = []
+        for modality in ("phenocycler", "xenium"):
+            release = load_release_or_none(cfg, modality)
+            state = getattr(release, "provenance", "unchecked")
+            marks.append(f"{modality}={state.split(':', 1)[0]}")
+        provenance_note = "; provenance " + ", ".join(marks)
     print(f"  {'stage':<15} {'done':>5}  {'':<3} description")
     print("  " + "-" * 74)
     for name, pattern, label in STAGES:
@@ -208,9 +226,12 @@ def status(cfg: PipelineConfig, tissues: Optional[list[str]] = None) -> None:
             scope = "  [outputs present but never trusted as a cache; always re-derived]"
         if name not in order:
             mark = "n/a"
-        elif name in PHENO_IDENTITY_STAGES:
+        elif name in PHENO_IDENTITY_STAGES and not attached:
             mark = "BLOCKED"
             scope = "  [needs a cell identity; no verified pair roster. cached files ignored]"
+        elif name in PHENO_IDENTITY_STAGES:
+            scope = (f"  [identity attached: {attached_ids}{provenance_note}; "
+                     "development releases, latch NO_VERIFIED_TYPING down]")
         else:
             runs_on = applicable_tissues(name, selected)
             if not runs_on:
@@ -368,6 +389,7 @@ def _panel_genes(cfg: PipelineConfig, tissue: str) -> Optional[list[str]]:
     genuine per-tissue panel difference rather than surface it.
     """
     from .contract import discover_partitions, feature_name, read_cell_table
+    from .import_xenium import is_gene_feature
 
     wanted = set(cfg.rois_for_tissue(tissue))
     parts = [p for p in discover_partitions(cfg.cells_xen_dir) if not wanted or p[1] in wanted]
@@ -379,7 +401,7 @@ def _panel_genes(cfg: PipelineConfig, tissue: str) -> Optional[list[str]]:
     except FileNotFoundError:
         return None
     genes = [feature_name(c) for c in t.features]
-    return [g for g in genes if not g.startswith("score_")] or None
+    return [g for g in genes if is_gene_feature(g)] or None
 
 
 def main(argv: Optional[list[str]] = None) -> int:

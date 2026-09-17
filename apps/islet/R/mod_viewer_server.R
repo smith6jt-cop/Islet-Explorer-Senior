@@ -1,4 +1,14 @@
 viewer_server <- function(id, forced_image, current_tab) {
+  # Auto-launch, as asked for 2026-09-14. Returns FALSE and moves on if a server
+  # cannot be reached or started -- the tab then shows its ordinary "no projects"
+  # message rather than the app failing to start. See R/tissuumaps_service.R for
+  # why this holds a lock until the server ANSWERS: shiny-server runs one R
+  # worker per session, and a naive check-then-spawn was measured starting six
+  # servers from six concurrent workers.
+  if (identical(tolower(Sys.getenv("ISLET_VIEWER_BACKEND", "avivator")), "tissuumaps")) {
+    isTRUE(try(ensure_tissuumaps(), silent = TRUE))
+  }
+
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -14,11 +24,18 @@ viewer_server <- function(id, forced_image, current_tab) {
     iframe_id <- ns("avivator_viewer")
     wrap_id   <- ns("viewer_wrap")
 
+    # Resolve the active build once per session. Missing membership must never
+    # turn a filesystem listing into permission to display every donor.
+    viewer_cohort_r <- reactive(read_viewer_cohort())
+
     # Images available to pick from. TissUUmaps picks `.tmap` projects (bare
     # case ids); Avivator picks OME-TIFF basenames from www/local_images +
-    # LOCAL_IMAGE_ROOT.
-    available_images_r <- reactive({
-      if (use_tissuumaps) return(list_available_tmap_projects())
+    # LOCAL_IMAGE_ROOT. Keep the counts before filtering for a named empty note.
+    image_inventory_r <- reactive({
+      cohort <- viewer_cohort_r()
+      note <- ie_require_measured(cohort$availability, guard = "viewer_cohort")
+      if (!is.null(note)) return(list(images = character(0), note = note))
+      if (use_tissuumaps) return(tmap_project_inventory(cohort))
 
       imgs <- character(0)
       images_dir <- file.path("www", "local_images")
@@ -27,10 +44,15 @@ viewer_server <- function(id, forced_image, current_tab) {
       }
       local_root <- Sys.getenv("LOCAL_IMAGE_ROOT", unset = "")
       if (nzchar(local_root) && dir.exists(local_root)) {
-        imgs <- unique(c(imgs, list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE)))
+        imgs <- c(imgs, list.files(local_root, pattern = "\\.ome\\.tiff?$", ignore.case = TRUE))
       }
-      imgs
+      # Count files from both roots, while offering each eligible basename once.
+      inventory <- viewer_image_inventory(imgs, cohort)
+      inventory$images <- unique(inventory$images)
+      inventory
     })
+    available_images_r <- reactive(image_inventory_r()$images)
+    cohort_note_r <- reactive(image_inventory_r()$note)
 
     # The basename currently being viewed (forced image wins, then the user's
     # dropdown choice, then the first available image).
@@ -163,6 +185,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       tab <- current_tab()
       if (is.null(tab) || tab != "Viewer") return(NULL)
       if (is.null(viewer_base)) return(NULL)  # missing-build message lives in viewer_frame
+      if (!is.null(cohort_note_r())) return(NULL)  # named note lives in viewer_frame
 
       available_images <- available_images_r()
       # isolate(): the selector reflects the current choice on first mount but
@@ -181,14 +204,14 @@ viewer_server <- function(id, forced_image, current_tab) {
           )
         } else if (use_tissuumaps) {
           tags$div(
-            style = "padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 10px;",
+            style = "padding: 10px; margin-bottom: 10px",
             tags$strong("No TissUUmaps projects found."),
             " Build one per donor with ", tags$code("scripts/senior/build_tissuumaps_project.py"),
             " and point ", tags$code("TISSUUMAPS_PROJECT_DIR"), " at the output directory."
           )
         } else {
           tags$div(
-            style = "padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; margin-bottom: 10px;",
+            style = "padding: 10px; margin-bottom: 10px",
             tags$strong("No images found."),
             " Place OME-TIFF files in ", tags$code("apps/islet/www/local_images/"),
             " or set ", tags$code("LOCAL_IMAGE_ROOT"), " environment variable."
@@ -197,10 +220,10 @@ viewer_server <- function(id, forced_image, current_tab) {
         if (VIEWER_DEBUG_ENABLED) {
           vi <- isolate(viewer_info())
           tags$details(
-            style = "margin: 10px 0;",
+            style = "margin: 10px 0",
             tags$summary("Viewer debug info"),
             tags$pre(
-              style = "max-height:200px; overflow:auto;",
+              style = "max-height:200px; overflow:auto",
               jsonlite::toJSON(list(
                 env = vi$env, image_rel = vi$image_rel,
                 image_app = vi$image_app_url %||% vi$image_url,
@@ -221,11 +244,14 @@ viewer_server <- function(id, forced_image, current_tab) {
 
       if (is.null(viewer_base)) {
         return(tagList(
-          tags$div(style = "color:#b00;", "Local Avivator static build not found under shiny/www/avivator."),
-          tags$div(style = "color:#666; font-size:90%;",
+          tags$div("Local Avivator static build not found under shiny/www/avivator."),
+          tags$div(style = "font-size:90%",
                    "To install: run scripts/install_avivator.sh (requires Node >= 18) or place a prebuilt bundle under shiny/www/avivator.")
         ))
       }
+
+      cohort_note <- cohort_note_r()
+      if (!is.null(cohort_note)) return(tags$div(format(cohort_note)))
 
       # Depend on the FLIP-only boolean (mounts once); read the URL via isolate
       # so this renderUI does NOT re-fire — and recreate the iframe — when the
@@ -233,7 +259,7 @@ viewer_server <- function(id, forced_image, current_tab) {
       ready <- has_image_stable()
       if (!isTRUE(ready)) {
         return(tags$div(
-          style = "padding: 20px; text-align: center; color: #666;",
+          style = "padding: 20px; text-align: center",
           sprintf("Select an image from the dropdown above to view it in %s.", viewer_label)
         ))
       }
@@ -241,16 +267,16 @@ viewer_server <- function(id, forced_image, current_tab) {
       src0 <- isolate(viewer_info()$iframe_src)
       if (is.null(src0) || !nzchar(src0)) {
         return(tags$div(
-          style = "padding: 20px; text-align: center; color: #666;",
+          style = "padding: 20px; text-align: center",
           sprintf("Select an image from the dropdown above to view it in %s.", viewer_label)
         ))
       }
 
       tags$div(
         id = wrap_id,
-        style = "position: relative;",
+        style = "position: relative",
         tags$div(
-          style = "padding: 6px 10px; background-color: #f6f8fa; color: #666; font-size: 90%; margin-bottom: 6px; border: 1px solid #e1e4e8; border-radius: 3px;",
+          style = "padding: 6px 10px; font-size: 90%; margin-bottom: 6px",
           if (use_tissuumaps) {
             paste("Click inside the viewer to enable pan/zoom and wheel zoom.",
                   "Islet outlines load automatically; use the Regions tab to draw or export annotations,",
@@ -264,7 +290,7 @@ viewer_server <- function(id, forced_image, current_tab) {
           title = "Interactive pancreatic tissue image viewer",
           width = "100%", frameBorder = 0, allowfullscreen = NA,
           tabindex = "0", allow = "fullscreen",
-          style = "width:100%; height:calc(100vh - 180px); border:0;"
+          style = "width:100%; height:calc(100vh - 180px)"
         ),
         tags$script(HTML(sprintf("(function(){
   var wrap = document.getElementById('%s');

@@ -830,6 +830,24 @@ def copy_regions(gj, dst: Path, scale: float, layer_index: int = 0,
 # ---------------------------------------------------------------------------
 
 
+# Default-on layers are composited with "lighter" -- ADDITIVELY -- so their opacities are not
+# independent: four layers at 1.0 each sum, and a pixel with moderate signal in all four clips to
+# white. The first build set every layer to 1.0 and the result was a tissue-wide yellow-green wash
+# (DAPI's grey plus SST's 100,100,0 summing everywhere) with the islets blown out on top. That is a
+# COMPOSITING problem, not an extraction one: the channels themselves are at EXTRACTION_VERSION 4,
+# the robust background-anchored stretch.
+#
+# DAPI is the odd one out and gets the lowest weight. It is the structural backdrop -- nuclei are
+# everywhere, so whatever it contributes is added to every pixel in the section, and it is the
+# single largest cause of the wash. The markers keep most of their range because they are the
+# signal and are spatially sparse.
+#
+# A layer switched on by hand later still comes up at 1.0; this only sets the ones that open.
+DEFAULT_ON_OPACITY = 0.70
+NUCLEAR_OPACITY = 0.35
+NUCLEAR_CHANNELS = {"DAPI", "HOECHST", "DRAQ5"}
+
+
 def build_project(
     case_id: str,
     channels: list[str],
@@ -870,6 +888,9 @@ def build_project(
             continue
         matched.append(f"{marker}@{idx}")
         visibilities[str(idx)] = True
+        # Attenuate ONLY what opens by default -- see DEFAULT_ON_OPACITY above.
+        opacities[str(idx)] = (NUCLEAR_OPACITY if name.upper() in NUCLEAR_CHANNELS
+                               else DEFAULT_ON_OPACITY)
         filters[str(idx)][0]["value"] = color
     log(f"default-on channels: {', '.join(matched) if matched else 'NONE'}")
 

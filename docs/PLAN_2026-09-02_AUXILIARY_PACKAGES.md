@@ -108,20 +108,22 @@ repaired ring (this change corrects the two READMEs that still say otherwise).
 | step | what | packages |
 |---|---|---|
 | **A.1** cosine lane cohort pass | Step 3 and Step 4 on all 20 donors (currently 6450, and older than the Step 2 regeneration); `figures_ambiguous` regenerated; `verify_step2` made to write an artifact | UniFORM, UTAG, pSAM scoring |
-| **A.4a** release contract, development-stamped (right after A.1) | `data/development/celltype/release/{phenotype_contract.json, label_space.json, calls/donor_id=*/data.parquet}` keyed by `run_id 30f6689e…` and expression `content_id 35fa90fa…`; producer commit stamped; `common_lineage` declared on broad labels only; `prior_source = qupath:Islet_N` recorded on islet-refined calls. The only thing integration and the app bridge may consume. Does **not** lift the registry latch | — |
+| **A.4a** release contract, development-stamped | **Corrected 2026-09-05:** `data/development/broadtype/release/{release.json, label_space.json, calls/donor_id=*/roi=panc/data.parquet}` -- `release.json` is what `phenospace.load_release` reads; the pinned expression id is the manifest's top-level `content_id 73cd7ee2…` (`35fa90fa…` is `output.content_sha256`, recorded beside it); the release covers EVERY expression cell with QC-ineligible cells `Unavailable(qc_analysis_ineligible:<reason>)`, matching the complete-cell-set geometry export; `common_lineage` is declared per producer label of the 7-label broad space (`declarations.json`), never by prefix; `evidence_positive` is a non-null boolean. Writer: `scripts/broadtype/release.py`. Does **not** lift the registry latch | — |
 | **A.2** SOM lane completion (off the critical path) | arms B/C bake-off; node count by the pre-registered seed-stability rule, never by agreement with A.1; cohort run; Step 5 bootstrap vendored from `external/KINTSUGI`; concordance cohort-wide | KINTSUGI, pyFlowSOM, stackview |
 | **A.3** Phase 4, executed | the cosine-vs-SOM disagreement figure (endocrine resolution; the no-rule cells), with SpleenFollicle H16/H20 as historical data points once absorbed; a written producer choice | — |
 | **A.4b** final release after A.3 | the declared producer; the latch stays down (a production typing workflow needs a new reviewed registry and code contract, per root `CLAUDE.md`) | — |
 
-DeepCellTypes stays closed. Nimbus, KRONOS, TACIT and CellSighter are **not** scheduled; any of them
-would enter only as a pre-registered pilot with a `gates.py` verdict, as DeepCellTypes did.
+**Amended 2026-09-04/05 at the maintainer's instruction:** Nimbus, KRONOS (conditional on a pending Hugging
+Face access request), TACIT, CELESTA and a deepcell-types re-run on the broad space entered as pre-registered
+pilots under one bar -- `docs/BROADTYPE_PROTOCOL_2026-09.md`, lane `core/phenocycler/scripts/broadtype/`. The
+2026-08-24 DeepCellTypes verdict is untouched and cited. CellSighter is not scheduled.
 
 ## Track B — RNA identity (Xenium): give the established typer its input
 
 | step | what | packages |
 |---|---|---|
 | **B.1 — done 2026-09-03** | Added one strict path resolver shared by `finalize_panel.py`, `hierarchical_phenotype.py`, and `insulitis_analysis.py`: explicit nested `--paths`, complete-set preflight before mutation/GPU setup, duplicate-serial refusal, and immune sidecars beside their base ROI. Ran builder → 478-gene panel finalizer → per-donor scANVI typer on 6436 (`0059907`: 641,487 retained; 416,962 anchors / 224,525 propagated; 1,695 low-signal; 25.47% confidence <0.50) and 6442 (`0059947`: 906,211 retained; 755,067 anchors / 151,144 propagated; 1,435 low-signal; 22.08% confidence <0.50). Sidecars have unique, exactly aligned IDs and no null required fields. All 85 Xenium tests pass. These are development sidecars, not an integration release | scvi-tools / scANVI, scanpy, core/panels |
-| **B.2** | Extend to the other 18 donors, per-donor, the mixed ND/non-ND Xenium instrument runs first — MM035 (115, 6591), MM041 (6461, 6566), MM042 (6493, 6521), MM043 (6482, 6551), MM044 (6436, 6539), MM045 (6442, 6593) — then MM039, MM046, MM047, MM038, MM040. Report `broad_lowsignal` and `broad_n_identity_genes` so anchored vs propagated calls are visible. Assumption Q1 | same |
+| **B.2** | **Rewritten 2026-09-05:** a producer comparison under one label-free gate (`scripts/xenium_typing/`): X1 the per-donor scANVI typer (incumbent; no replicates, so its stability is unjudged), X2 a joint run-aware scVI (`batch_key = xenium_run`, never donor) with null-gated Leiden clusters and per-cell kNN votes, X3 the Xenium Analyzer's onboard clusters annotated by the same null gate (the maintainer's requested baseline). Release writer `scripts/xenium_typing/release.py` covers every bundle cell. The per-donor extension text below is superseded: extend to the other 18 donors, per-donor, the mixed ND/non-ND Xenium instrument runs first — MM035 (115, 6591), MM041 (6461, 6566), MM042 (6493, 6521), MM043 (6482, 6551), MM044 (6436, 6539), MM045 (6442, 6593) — then MM039, MM046, MM047, MM038, MM040. Report `broad_lowsignal` and `broad_n_identity_genes` so anchored vs propagated calls are visible. Assumption Q1 | same |
 | **B.3** | Add a dated standing note beside decisions #16/#17 recording the 6539 null-gate measurement (5 of 8 lineages inside a detection-matched null) and the 2026-08-25 KODAMA decision beside the 2026-08-28 typer route. The `04_immune_B_plasma` core split (XBP1 = 39 % of the core mean) is a **flagged maintainer decision, one line**: accepting it moves the `076d1192` pin and the `0348d149` snapshot stamp on every Xenium output; the typer's runtime specificity filter already drops pan-ER genes, so it does not block B.2 | core/panels |
 | **B.4** | KODAMA + nullgate is **parked** (assumption Q1). If reaffirmed it re-enters as a pre-registered comparison: k chosen by seed stability, never by agreement with the typer; the nullgate's ~30 % family-wise false-positive rate on noise treated as a gate; `--max-cells` fixed; M-parallelism measured on an idle machine first; HiPerGator needs a key | KODAMA, Rnanoflann |
 
@@ -209,7 +211,7 @@ have to be resolved before a source repository counts as absorbed.
 
 Stated so the plan is executable; each reversible by editing the line it governs.
 
-- **Q1 — Xenium producer.** The established two-tier scANVI typer, per-donor, on all 20 donors: it is
+- **Q1 — Xenium producer.** *Superseded 2026-09-05 by the B.2 comparison above (the maintainer questioned scANVI and per-donor modelling).* Previously: the established two-tier scANVI typer, per-donor, on all 20 donors: it is
   the route `48c15ef` built the input for and the approved re-stain plan uses; the 2026-08-25 KODAMA
   route is gated on an unresolved cost model and a denied HiPerGator route. KODAMA stays parked as a
   pre-registered comparison (B.4).

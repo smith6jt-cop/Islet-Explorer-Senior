@@ -110,7 +110,6 @@ def donor_image(cfg: PipelineConfig, donor: str) -> str:
 
 def resolve_paths(cfg: PipelineConfig, donor: str):
     image = contracted_image(cfg, donor)
-    image.validate_current(mode="fast")
     return (
         image,
         Path(image.cell_geojson.path),

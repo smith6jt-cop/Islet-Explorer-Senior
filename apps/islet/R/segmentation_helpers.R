@@ -1,4 +1,24 @@
 # ===== Islet Segmentation Viewer Helper Functions =====
+
+# The outline classes the viewer draws, from the ACTIVE DOMAIN rather than a literal: each
+# region's `geojson_class`, the expansion's, and each structure's. Both domains resolve to the
+# same five today (`Islet`, `IsletExpanded`, `Nerve`, `Capillary`, `Lymphatic` -- note
+# `IsletExpanded`, not "ExpandedIslet", which matched nothing), so this is behaviour-identical;
+# what it buys is that the run cohort's non-endocrine region (correction E) appears by declaring
+# it in that config alone. The list had been a literal in five separate functions, and a class
+# added to four of the five renders in some views and silently vanishes in others.
+SEGMENTATION_CLASSES <- local({
+  items <- vapply(domain_region_items(),
+                  function(r) r[["geojson_class"]] %||% NA_character_, character(1))
+  classes <- c(items[!is.na(items) & nzchar(items)],
+               domain_expansion_class(),
+               vapply(domain_structures(), function(s) s[["class"]], character(1)))
+  unique(classes[nzchar(classes)])
+})
+SEGMENTATION_STRUCTURE_CLASSES <- vapply(domain_structures(),
+                                         function(s) s[["class"]], character(1))
+.empty_polygon_list <- function() stats::setNames(
+  vector("list", length(SEGMENTATION_CLASSES)), SEGMENTATION_CLASSES)
 # Extracted from app.R -- GeoJSON loading, spatial queries, and segmentation data helpers.
 # References PIXEL_SIZE_UM and SF_AVAILABLE from global.R.
 
@@ -32,9 +52,9 @@ load_case_geojson <- function(case_id) {
   # Try each candidate: uncompressed first, then compressed
   json_path <- NULL
   for (cid in candidate_ids) {
-    p <- file.path("..", "..", "data", "app_data", "json", paste0(cid, ".geojson"))
+    p <- file.path(domain_data_root(), "json", paste0(cid, ".geojson"))
     if (file.exists(p)) { json_path <- p; break }
-    p <- file.path("..", "..", "data", "app_data", "gson", paste0(cid, ".geojson.gz"))
+    p <- file.path(domain_data_root(), "gson", paste0(cid, ".geojson.gz"))
     if (file.exists(p)) { json_path <- p; break }
   }
 
@@ -100,7 +120,7 @@ get_classification_name <- function(geojson) {
 # GeoJSON polygons are in pixel coordinates, so we convert um -> pixels
 get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buffer_um = 200) {
   if (!SF_AVAILABLE || is.null(geojson) || nrow(geojson) == 0) {
-    return(list(Islet = NULL, IsletExpanded = NULL, Nerve = NULL, Capillary = NULL, Lymphatic = NULL))
+    return(.empty_polygon_list())
   }
 
   # Convert micrometers to pixels for GeoJSON query
@@ -137,7 +157,7 @@ get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buf
   })
 
   if (is.null(bbox_polygon)) {
-    return(list(Islet = NULL, IsletExpanded = NULL, Nerve = NULL, Capillary = NULL, Lymphatic = NULL))
+    return(.empty_polygon_list())
   }
 
   # Find features that intersect with the bounding box
@@ -151,7 +171,7 @@ get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buf
   cropped <- geojson[intersects, ]
 
   if (nrow(cropped) == 0) {
-    return(list(Islet = NULL, IsletExpanded = NULL, Nerve = NULL, Capillary = NULL, Lymphatic = NULL))
+    return(.empty_polygon_list())
   }
 
   # Get classification names
@@ -159,7 +179,7 @@ get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buf
 
   # Extract by classification
   result <- list()
-  for (cls in c("Islet", "IsletExpanded", "Nerve", "Capillary", "Lymphatic")) {
+  for (cls in SEGMENTATION_CLASSES) {
     matches <- grepl(paste0("^", cls, "$"), cls_names, ignore.case = TRUE)
     if (any(matches)) {
       result[[cls]] <- cropped[matches, ]
@@ -173,23 +193,31 @@ get_islet_region_polygons <- function(geojson, centroid_x_um, centroid_y_um, buf
 
 # Load segmentation annotations from data directory
 load_segmentation_data <- function() {
-  seg_path <- file.path("..", "..", "data", "app_data", "annotations.tsv")
+  seg_path <- file.path(domain_data_root(), "annotations.tsv")
   if (!file.exists(seg_path)) {
     message("event=segmentation_annotations_missing")
     return(NULL)
   }
 
   tryCatch({
-    df <- read.delim(seg_path, stringsAsFactors = FALSE)
-    # Validate required columns
-    required_cols <- c("Image", "Name", "Class", "Centroid X µm", "Centroid Y µm")
+    # check.names = FALSE, or read.delim rewrites "Centroid X µm" to "Centroid.X.µm" and the
+    # schema check below can never pass. Together with the class-name mismatch fixed below, that
+    # is why this loader returned NULL on every call it has ever made.
+    df <- read.delim(seg_path, stringsAsFactors = FALSE, check.names = FALSE)
+    required_cols <- c("Image", "Name", "Classification", "Centroid X µm", "Centroid Y µm")
     if (!all(required_cols %in% colnames(df))) {
       warning("Segmentation annotations failed schema validation")
       return(NULL)
     }
 
     # Filter for islet-related classes
-    df <- df[df$Class %in% c("Islet", "ExpandedIslet", "Nerve", "Lymphatic", "Capillary"), ]
+    # `IsletExpanded` is the class QuPath writes; "ExpandedIslet" matched nothing, so the
+    # expansion rows were silently dropped here and at the class-count loop below. Line 162
+    # already had it right, which is why the outlines rendered while these did not.
+    # The column is named on purpose now: `df$Class` used to resolve `Classification` only by
+    # R's partial matching, which works until a second `Class*` column exists and then silently
+    # returns NULL.
+    df <- df[df$Classification %in% SEGMENTATION_CLASSES, ]
     df
   }, error = function(e) {
     message("event=segmentation_annotations_load_failed")
@@ -199,7 +227,7 @@ load_segmentation_data <- function() {
 
 # Load spatial lookup for trajectory zoom-to-islet
 load_islet_spatial_lookup <- function() {
-  lookup_path <- file.path("..", "..", "data", "app_data", "islet_spatial_lookup.csv")
+  lookup_path <- file.path(domain_data_root(), "islet_spatial_lookup.csv")
   if (!file.exists(lookup_path)) {
     message("event=islet_spatial_lookup_missing")
     return(NULL)
@@ -405,13 +433,13 @@ get_islet_annotations <- function(case_id, islet_key) {
     centroid_y = safe_numeric(matches$`Centroid Y µm`[1]),
     area = safe_numeric(matches$`Area µm^2`[1]),
     perimeter = safe_numeric(matches$`Perimeter µm`[1]),
-    classes = unique(matches$Class),
+    classes = unique(matches$Classification),
     source = "annotations"
   )
 
   # Add class-specific counts if available
-  for (cls in c("Islet", "ExpandedIslet", "Nerve", "Lymphatic", "Capillary")) {
-    cls_matches <- matches[matches$Class == cls, ]
+  for (cls in SEGMENTATION_CLASSES) {
+    cls_matches <- matches[matches$Classification == cls, ]
     if (nrow(cls_matches) > 0) {
       annotations[[paste0("has_", tolower(cls))]] <- TRUE
       annotations[[paste0(tolower(cls), "_count")]] <- nrow(cls_matches)
@@ -530,14 +558,14 @@ build_segmentation_base_plot <- function(info, buffer_um = 150,
   ylim_range <- c(centroid_y_px - buffer_px, centroid_y_px + buffer_px)
 
   colors <- c(
-    "Islet" = "#0066CC", "IsletExpanded" = "#00CCCC",
+    "Islet" = "#0066CC", "IsletExpanded" = "#00CCCC", "IsletNonEndocrine" = "#8C6BB1",
     "Nerve" = "#CC00CC", "Capillary" = "#CC0000", "Lymphatic" = "#00AA00"
   )
 
   # Determine which layer classes to skip based on toggle params
   skip_classes <- character(0)
   if (!show_peri_boundary) skip_classes <- c(skip_classes, "IsletExpanded")
-  if (!show_structures) skip_classes <- c(skip_classes, "Nerve", "Capillary", "Lymphatic")
+  if (!show_structures) skip_classes <- c(skip_classes, SEGMENTATION_STRUCTURE_CLASSES)
 
   p <- ggplot2::ggplot() +
     theme_islet() +
@@ -547,41 +575,34 @@ build_segmentation_base_plot <- function(info, buffer_um = 150,
     ) +
     ggplot2::coord_sf(xlim = xlim_range, ylim = rev(ylim_range), expand = FALSE)
 
-  # Filter Islet and IsletExpanded polygons to only the selected islet
-  # (the bounding box query picks up neighboring islets)
-  if (!is.null(polygons$Islet) && nrow(polygons$Islet) > 0 && !is.null(info$islet_key)) {
-    islet_names <- if ("name" %in% names(polygons$Islet)) polygons$Islet$name
-                   else if ("id" %in% names(polygons$Islet)) polygons$Islet$id
-                   else NULL
-    if (!is.null(islet_names)) {
-      match_idx <- which(islet_names == info$islet_key)
-      if (length(match_idx) == 0) match_idx <- grep(info$islet_key, islet_names, fixed = TRUE)
-      if (length(match_idx) > 0) {
-        polygons$Islet <- polygons$Islet[match_idx[1], , drop = FALSE]
-      }
-    }
+  # The bounding-box query picks up neighbouring islets, so each islet-scoped class is narrowed
+  # to the selected one by its own name. One helper rather than a block per class: `Islet` and
+  # `IsletExpanded` each had their own copy and `IsletNonEndocrine` had none, so every neighbour's
+  # non-endocrine outline drew over the selected islet.
+  .keep_selected <- function(layer, expected) {
+    if (is.null(layer) || nrow(layer) == 0 || is.null(info$islet_key)) return(layer)
+    names_here <- if ("name" %in% names(layer)) layer$name
+                  else if ("id" %in% names(layer)) layer$id
+                  else NULL
+    if (is.null(names_here)) return(layer)
+    match_idx <- which(names_here == expected)
+    if (length(match_idx) == 0) match_idx <- grep(info$islet_key, names_here, fixed = TRUE)
+    if (length(match_idx) > 0) layer[match_idx[1], , drop = FALSE] else layer
   }
-  if (!is.null(polygons$IsletExpanded) && nrow(polygons$IsletExpanded) > 0 && !is.null(info$islet_key)) {
-    exp_names <- if ("name" %in% names(polygons$IsletExpanded)) polygons$IsletExpanded$name
-                 else if ("id" %in% names(polygons$IsletExpanded)) polygons$IsletExpanded$id
-                 else NULL
-    if (!is.null(exp_names)) {
-      exp_key <- paste0(info$islet_key, "_exp20um")
-      match_idx <- which(exp_names == exp_key)
-      if (length(match_idx) == 0) match_idx <- grep(info$islet_key, exp_names, fixed = TRUE)
-      if (length(match_idx) > 0) {
-        polygons$IsletExpanded <- polygons$IsletExpanded[match_idx[1], , drop = FALSE]
-      }
-    }
-  }
+  polygons$Islet <- .keep_selected(polygons$Islet, info$islet_key)
+  polygons$IsletExpanded <- .keep_selected(polygons$IsletExpanded,
+                                           paste0(info$islet_key, "_exp20um"))
+  polygons$IsletNonEndocrine <- .keep_selected(polygons$IsletNonEndocrine,
+                                               paste0(info$islet_key, "_nonendo"))
 
   # Display names for legend
   display_names <- c(
     "Islet" = "Islet", "IsletExpanded" = "Peri Boundary",
+    "IsletNonEndocrine" = "Non-endocrine",
     "Nerve" = "Nerve", "Capillary" = "Capillary", "Lymphatic" = "Lymphatic"
   )
   display_colors <- c(
-    "Islet" = "#0066CC", "Peri Boundary" = "#00CCCC",
+    "Islet" = "#0066CC", "Peri Boundary" = "#00CCCC", "Non-endocrine" = "#8C6BB1",
     "Nerve" = "#CC00CC", "Capillary" = "#CC0000", "Lymphatic" = "#00AA00"
   )
 

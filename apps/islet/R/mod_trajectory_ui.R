@@ -1,29 +1,19 @@
 trajectory_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    phenotype_rules_button("show_phenotype_rules_traj"),
-    div(style = "background-color: #e8f4fd; border: 1px solid #b8daff; border-radius: 5px; padding: 10px 15px; margin-bottom: 15px; color: #004085; font-size: 13px;",
-      "Click any point on the pseudotime scatter plot to view the segmentation map for that islet."
-    ),
-    div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap;",
-      tags$div(
-        title = GLOBAL_OUTLIER_TOOLTIP,
-        checkboxInput("traj_remove_outliers",
-                      "Exclude outliers",
-                      value = FALSE,
-                      width = "200px")
-      ),
-      tags$div(style = "min-width: 240px;",
-        sliderInput("traj_outlier_z", "Outlier z-threshold",
-                    min = 0.5, max = 10, value = 3, step = 0.5, width = "230px")
-      ),
+    # Pill and hint strip moved to the rail's Help entries -- see IE_TAB_TIPS.
+    # `traj_remove_outliers` and `traj_outlier_z` are gone: they were
+    # non-namespaced MIRRORS of the Plot and Spatial copies, kept in step by
+    # observers in app.R. The cohort panel in the top bar owns the rule for
+    # every tab. The excluded-outlier TABLE is a display choice and stays.
+    div(style = "display: flex; gap: 20px; align-items: center; margin-bottom: 8px; flex-wrap: wrap",
       checkboxInput(ns("show_outlier_table"), "Show excluded-outlier table", value = FALSE)
     ),
     uiOutput(ns("traj_status")),
     fluidRow(
       # Left card: Scatterplot and heatmaps (narrowed from col-8)
       column(7,
-        div(class = "card", style = "padding: 15px; margin-bottom: 20px;",
+        div(class = "card", style = "padding: 15px; margin-bottom: 20px",
           fluidRow(
             column(3,
               uiOutput(ns("traj_feature_selector")),
@@ -57,17 +47,20 @@ trajectory_ui <- function(id) {
                          min = 0, max = 0.95, value = 0.4, step = 0.05),
               sliderInput(ns("traj_point_size_slider"), "Point size:",
                          min = 0.5, max = 5.0, value = 3.0, step = 0.1),
-              numericInput(ns("min_cells"), "Min cells/islet",
-                           value = 1, min = 1, max = 200, step = 1)
+              # Min cells/islet moved to the cohort panel. It was one of four
+              # unsynced copies, and THIS one bound to `total_cells` -- core
+              # only -- where the others used core+peri, so the same number
+              # meant a different subset on this tab than on any other.
             ),
             column(3,
-              div(style = "border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9; min-height: 100px;",
-                h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-weight: bold; color: #333; font-size: 15px;"),
+              div(class = "ie-legend-box",
+                h5("Legend", style = "margin-top: 0; margin-bottom: 10px; font-weight: bold; font-size: 15px"),
                 uiOutput(ns("traj_legend"))
-              ),
-              selectInput("traj_donor_palette", "Donor Status Colors",
-                          choices = names(DONOR_PALETTES),
-                          selected = "Bright")
+              )
+              # `traj_donor_palette` moved to the rail footer, which is the only
+              # writer of either palette now. It was the third copy of one
+              # selectInput, kept in step by observers that each had to name the
+              # other two.
             )
           ),
           uiOutput(ns("traj_outlier_badge")),
@@ -75,32 +68,41 @@ trajectory_ui <- function(id) {
           br(),
           plotlyOutput(ns("traj_heatmap"), height = 100),
           hr(),
-          h5("Multi-Feature Heatmap", style = "color: #2c5aa0;"),
+          h5("Multi-Feature Heatmap"),
           fluidRow(
             column(8, uiOutput(ns("multi_heatmap_marker_selector"))),
             column(4, sliderInput(ns("multi_heatmap_nbins"), "Number of bins:", min = 10, max = 40, value = 20, step = 5))
           ),
           plotOutput(ns("traj_multi_heatmap"), height = "auto"),
-          div(style = "text-align: right; margin-top: 8px;",
+          div(style = "text-align: right; margin-top: 8px",
             downloadButton(ns("dl_multi_heatmap"), "Download PNG",
                            class = "btn-sm btn-outline-primary"))
         )
       ),
       # Right column: UMAPs stacked + segmentation viewer below
       column(5,
-        div(class = "card", style = "padding: 15px; margin-bottom: 20px;",
+        div(class = "card", style = "padding: 15px; margin-bottom: 20px",
+          # STACKED, not side by side. These are coord_fixed() plots -- a UMAP has
+          # no meaningful aspect other than 1:1 -- and this card sits in 5 of 12
+          # columns, so two of them abreast got ~190px of width each against
+          # 500px of height. Most of that width went to the legend and the data
+          # collapsed into a dot in the corner with the axis titles overlapping.
+          # One per row gets the full column, and the height comes down to match
+          # so each is about square.
           fluidRow(
-            column(6,
-              h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0;"),
-              plotOutput(ns("traj_umap_donor"), height = 500),
-              div(style = "text-align: right; margin-top: 6px;",
+            column(12,
+              h5("UMAP: Donor Status", style = "font-size: 13px; margin-top: 0"),
+              plotOutput(ns("traj_umap_donor"), height = 320),
+              div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_donor"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))
-            ),
-            column(6,
-              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 0;"),
-              plotOutput(ns("traj_umap_feature"), height = 500),
-              div(style = "text-align: right; margin-top: 6px;",
+            )
+          ),
+          fluidRow(
+            column(12,
+              h5("UMAP: Selected Feature", style = "font-size: 13px; margin-top: 12px"),
+              plotOutput(ns("traj_umap_feature"), height = 320),
+              div(style = "text-align: right; margin-top: 6px",
                 downloadButton(ns("dl_umap_feature"), "Download PNG",
                                class = "btn-sm btn-outline-primary"))
             )

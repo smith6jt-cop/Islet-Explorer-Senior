@@ -68,9 +68,7 @@ def _release(
 
 def _cfg(tmp_path, release_dir, *, modality="phenocycler"):
     data = tmp_path / "data"
-    manifest = data / "runs" / "run1" / "manifests" / "expression.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(json.dumps({"content_id": "content-ok"}))
+    data.mkdir(parents=True, exist_ok=True)
     kwargs = {f"{modality}_identity_release": release_dir}
     return PipelineConfig(data_dir=data, **kwargs)
 
@@ -99,16 +97,68 @@ def test_undeclared_label_raises_and_spaces_do_not_mutate_module_state(tmp_path)
         a.common_for("Endo-by-prefix")
 
 
-def test_release_round_trip_and_expression_content_pin(tmp_path):
+def test_release_round_trip_records_whether_provenance_could_be_checked(tmp_path):
+    """content_id is no longer compared to anything, and that outcome is now VISIBLE.
+
+    It used to be checked against data/runs/<run_id>/manifests/expression.json. Stage
+    manifests were removed on 2026-09-16, so a release naming a wrong content id loads with
+    no error. That it was possible was tolerable; that it was SILENT was not. The release now
+    carries `provenance`, and a synthetic release whose declared input does not resolve says
+    so rather than looking checked.
+    """
+
     release_dir = _release(tmp_path)
     release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
     assert release.release_id == "synthetic-release-v1"
+    assert release.run_id == "run1"
     assert release.expression_content_id == "content-ok"
-    assert release.space.common_for("Endo-beta")[0] == "Endocrine"
+    assert release.provenance.startswith("unverifiable:"), release.provenance
+    assert "does not resolve" in release.provenance
 
+    # A wrong content id still loads -- nothing compares it -- but it is not passed off as
+    # verified either.
     bad_dir = _release(tmp_path / "bad", content_id="wrong")
-    with pytest.raises(PhenotypeSpaceError, match="content id"):
-        load_release(_cfg(tmp_path / "bad", bad_dir), "phenocycler")
+    loaded = load_release(_cfg(tmp_path / "bad", bad_dir), "phenocycler")
+    assert loaded.expression_content_id == "wrong"
+    assert loaded.provenance.startswith("unverifiable:")
+
+
+def test_a_resolvable_input_is_checked_for_donor_coverage(tmp_path):
+    """When the declared input exists, it must contain every donor the release claims."""
+
+    expression = tmp_path / "expr"
+    for donor in ("6436", "6442"):
+        (expression / f"donor_id={donor}").mkdir(parents=True)
+    release_dir = _release(tmp_path, donors=("6436", "6442"),
+                           input_path=str(expression))
+    release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
+    assert release.provenance == f"verified:{expression}"
+
+
+def test_a_release_claiming_a_donor_its_input_lacks_is_refused(tmp_path):
+    """The realistic wrong-id failure, and the one case worth failing on.
+
+    No configuration explains a release claiming calls for a donor its own declared input
+    does not contain. This needs no content hash and no manifest -- and unlike the check it
+    replaces, it cannot fire because package source changed.
+    """
+
+    expression = tmp_path / "expr"
+    (expression / "donor_id=6436").mkdir(parents=True)
+    release_dir = _release(tmp_path, donors=("6436", "6442"),
+                           input_path=str(expression))
+    with pytest.raises(PhenotypeSpaceError, match="does not contain"):
+        load_release(_cfg(tmp_path, release_dir), "phenocycler")
+
+
+def test_donor_coverage_tolerates_the_zero_padding_split(tmp_path):
+    """0112 and 112 are one donor; the pLNpanc partitions pad and the cohort does not."""
+
+    expression = tmp_path / "expr"
+    (expression / "donor_id=0112").mkdir(parents=True)
+    release_dir = _release(tmp_path, donors=("112",), input_path=str(expression))
+    release = load_release(_cfg(tmp_path, release_dir), "phenocycler")
+    assert release.provenance.startswith("verified:")
 
 
 def test_attach_identity_is_exact_uuid_join_and_stamps_release(tmp_path):

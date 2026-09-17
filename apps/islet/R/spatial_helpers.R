@@ -14,7 +14,7 @@
 .donor_tissue_cache <- new.env(parent = emptyenv())
 
 # Path to per-donor tissue CSVs (legacy fallback)
-DONORS_DIR <- file.path("..", "..", "data", "app_data", "donors")
+DONORS_DIR <- file.path(domain_data_root(), "donors")
 
 #' Check whether the `tissue` DuckDB view exists in the shared connection.
 duckdb_tissue_available <- function() {
@@ -145,6 +145,13 @@ cell_distance_phenotypes <- function() {
 cell_distance_markers <- function() {
   sub("_pos$", "", grep("_pos$", .cd_columns(), value = TRUE))
 }
+
+#' Does the active domain's cell_distance view carry per-marker positivity?
+#' The legacy CODEX view does (ten RESTORE `{m}_pos` booleans); the PhenoCycler run
+#' cohort does not, because its typing never asks "is this cell <marker>-positive" as
+#' a standalone question. Card C's marker mode and Composition view are offered only
+#' where the columns exist, rather than presenting an empty control.
+cell_distance_has_markers <- function() length(cell_distance_markers()) > 0
 
 # Distinct colours for the composition stack (Tableau-10; keyed by marker).
 CELL_DIST_MARKER_COLORS <- c(

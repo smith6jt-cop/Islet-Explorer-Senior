@@ -19,12 +19,14 @@ is visible in the values: median CD99 194.3 against 192.1 and median INS 9.8 aga
 where the uncorrected intensities differed by up to 10x. Per-marker, the shift table records
 the mode SD falling from 0.368 to 0.028.
 
-Neither ``run_step1`` nor ``run_step3`` could reach these donors, for reasons that were about
-plumbing rather than about the donors: both read fixed directories inside this checkout, and
-Step 1 reads the panel variant out of an acquisition table that has no row for a donor
-acquired later. ``CELLTYPE_EXPRESSION_DIR`` and ``CELLTYPE_ALIGNED_DIR`` point them at
-partitions that follow the same contract; a donor outside the acquisition table resolves its
-markers from its own partition. Nothing about what they measure changed.
+Both steps reach these donors through the lane's own resolution, not through a bypass.
+``panel.expression_path`` selects the stable expression root per donor and normalises ``0112``
+and ``112`` to one donor; ``run_step3.ALIGNED`` is the lane's ``uniform`` directory. Where a
+checkout keeps that data outside the repo, it is wired in by symlink rather than by an
+override in the code. The one accommodation that remains in code is that a donor absent from
+the acquisition table resolves its markers from its own partition -- see
+``panel.markers_on_disk`` -- because acquisition is a fact about the run and the table has no
+row for a donor acquired later.
 
 Everything that decides a cell type is reused unchanged -- ``rules.flatten`` /
 ``reference_matrix`` / ``requirements``, ``score.score_and_gate`` / ``call_from_scores``, and
@@ -114,9 +116,8 @@ STRUCTURE_REFERENCE = {"blood_vessel": "Endo-vascular", "lymphatic": "Endo-lymph
 #: which measurements the later steps may lean on, and running Step 3 without it means
 #: scoring on measurements nothing has vetted.
 #:
-#:     CELLTYPE_EXPRESSION_DIR=<expression dir> \
-#:       python scripts/celltype/run_step1.py --donors 6533 0112 \
-#:         --out ../../data/development/celltype/marker_donor_usability_sameslide.parquet
+#:     python scripts/celltype/run_step1.py --donors 6533 112 \
+#:       --out ../../data/development/celltype/marker_donor_usability_sameslide.parquet
 STEP1 = panel.OUT / "marker_donor_usability_sameslide.parquet"
 
 
@@ -140,8 +141,7 @@ def step1_unusable(donor: str) -> list:
     if not STEP1.exists():
         raise SystemExit(
             f"Step 1 has not been run for these donors: {STEP1} is absent. Run\n"
-            f"  CELLTYPE_EXPRESSION_DIR={DATA_ROOT / 'expression'} \\\n"
-            f"    python scripts/celltype/run_step1.py --donors 6533 0112 --out {STEP1}\n"
+            f"  python scripts/celltype/run_step1.py --donors 6533 112 --out {STEP1}\n"
             "first -- Step 3 is not entitled to measurements Step 1 has not vetted.")
     import usability as U
 
@@ -156,13 +156,9 @@ def step1_unusable(donor: str) -> list:
     return sorted(d.loc[bad, "marker"].tolist())
 
 def expression_path(donor: str) -> pathlib.Path:
-    """The raw expression partition. ``112`` and ``0112`` are the same donor -- see
-    :func:`panel._donor_spellings`."""
-    for d in panel._donor_spellings(donor):
-        p = DATA_ROOT / "expression" / f"donor_id={d}" / "data.parquet"
-        if p.exists():
-            return p
-    return DATA_ROOT / "expression" / f"donor_id={donor}" / "data.parquet"
+    """The raw expression partition, resolved by ``panel`` -- stable root first, retired
+    fallback second, with ``112`` and ``0112`` normalised to one donor there."""
+    return panel.expression_path(donor)
 
 
 def load_expression(donor: str, markers: list) -> tuple:

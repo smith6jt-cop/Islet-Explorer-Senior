@@ -1,5 +1,11 @@
 # Workflow map — what runs today, where, and against what
 
+> **Superseded note (2026-09-16):** the content-addressed run-framework sections below (`data/runs/<id>/`,
+> run manifests, `adopt`/`resume`/`recover`) describe the workflow as it stood on 2026-09-02 and are no
+> longer current — that framework was removed on 2026-09-16. See
+> `core/phenocycler/docs/INTEGRATION.md` for the current state. The body of this file is left
+> unchanged as a record of what was true when written.
+
 **Status:** written 2026-09-02 against HEAD `1a23105` (branch `feat/dct-step0-pinning`, 56 commits
 ahead of `main`, working tree clean). Every status cites a file, a command output or a commit. This
 map links to the document that owns each step; it does not replace those documents. The planned
@@ -92,6 +98,23 @@ compositions; KODAMA's M-parallelism does not scale; `--max-cells` double-subsam
 Only 2 of 20 donors have all three inputs (Xenium `morphology_focus`, QuPath Tissue/Islet GeoJSON,
 a `restain_sections.csv` row). Recorded rows: 5; GeoJSON exports: 2; IF qptiffs local: 20.
 
+### 2.6 `restain/pheno_annotations.py` — PhenoCycler QuPath annotations ↔ Xenium, **serial** section
+
+A different section pair from 2.5 and a different transform: this one rides the S4 registration in
+§4, not the nucleus-matched one above. It shares the Explorer 4.1 GeoJSON contract and nothing else
+about what the result may claim.
+
+| step | what | on disk | status |
+|---|---|---|---|
+| `pheno_residual_search.py` | joint rotation × translation correspondence landscape, translation free at every angle; `peak / p95` against the donor's own landscape | `pheno_residual_search_panc.json`, `figures/pheno_residual_search_*.png` | runs (~2 s/donor, no image I/O). Both donors now peak at **0 deg** within one 50 µm bin, at 6.0× and 6.9× p95. This is what found 6436's 800 µm error; the rotation-only sweep it replaces could not, because rotating about the warped moving centroid fixes that centroid and so cannot express a translation |
+| `run_pheno_annotation_export.py --donors 6436 6442` | six QuPath classes onto the Xenium morphology grid, in **level-0 pixels** at 0.2125 µm/px | `explorer_bundle/donor_*/annotations/*_pheno_*.geojson` | runs. **85,026** polygons / 13 files (6436) and **118,645** / 16 files (6442), each validated against the Explorer 4.1 contract on reopen and published under a rollback transaction |
+| `PA.xenium_tissue_outline` (new 2026-09-10) | the region annotations are selected against: `rasterize.tissue_mask` on Xenium cell centroids → `cv2.findContours` | `pheno_annotations_qc.json → tissue_outline` | runs. **77.9** and **102.7 mm²**, which is **72.3%** of the morphology rectangle on *both* donors — the exporter previously tested against that rectangle, so more than a quarter of the area an annotation could pass in was blank background. Removed a further 24,867 (6436) and 24,434 (6442) parts that had been landing on it |
+| selection rule | keep only polygons lying **entirely** inside the outline; drop straddlers whole and count them | per-class in the QC file | clipping is refused by design — it would invent an anatomical boundary and misstate the annotation's area |
+| `pheno_annotation_figures.py`, `pheno_transform_diff_figure.py`, `pheno_capture_box_figure.py`, `pheno_registration_inputs_figure.py` | verification sheets drawn from the **published** files, so a figure cannot agree with the export by construction | `figures/pheno_*` | all regenerated 2026-09-10 against the corrected transforms. Three had been rendering the superseded −9.19 deg transform, and `pheno_capture_box_figure.py` defaulted to drawing a −7 deg candidate that a settled question had left behind |
+
+The bundles remain under the hold in `explorer_bundle/DO_NOT_SEND.md`. Nothing here has been
+visually confirmed in Xenium Explorer yet, which is the check that decides it.
+
 ## 3. Xenium lane — `analysis/xenium/` and `core/panels/`
 
 Authority: `analysis/xenium/README.md`, `analysis/xenium/CLAUDE.md` (decisions #1–#17). Environment:
@@ -116,7 +139,7 @@ Authority: `core/phenocycler/docs/INTEGRATION.md` (its preamble and paths are co
 | `manifest` S0 (`--report`, `--verify-paths`) | runs. Rebuilt 2026-09-03: 57 rows, **20 paired** pancreas donors, 35 Xenium-only sections and 2 `donor_unknown`; all 20 current-run PhenoCycler qptiff/GeoJSON pairs resolve exactly through `qupath_manifest.json` plus the tracked two-row override file. The missing 6591 pLN source and two unknown Xenium runs remain explicit warnings |
 | `export_pheno` S1a | geometry half runs from immutable run `30f6689e4d27d295f890`: **20 `roi=panc` partitions / 25,150,537 analysis-eligible cells**, schema v1 geometry profile, 57 identity-safe features, zero 6457/6579. INS/GCG/SST are withheld; `islet_num` is carried only as `qupath_islet_num`; identity export still requires a validated release |
 | `import_xenium` S1b | geometry half runs from per-section bundles. Verified on 6436 (695,113 cells) and 6442 (958,744): zero duplicate cell IDs, blank identity and nullable evidence. Embedded label-shaped columns are ignored; a configured Xenium release must provide an exact cell-ID call set |
-| `register`, `qc`, `figures` | geometry stages, no longer identity-blocked. Real DAPI/geometry runs on 6436 and 6442 produced affine Dice 0.586 and 0.768, both honestly `FAIL` at the fixed 0.80 gate. QC explicitly says identity/composition are omitted. The SimpleITK unit arm runs; its 2-million-pixel/200-iteration real 6436 probe was stopped after extended non-completion and is not claimed as a result |
+| `register`, `qc`, `figures` | geometry stages, no longer identity-blocked. **Rebuilt 2026-09-10**: both donors now `PASS`. 6436's transform was wrong by 12.5 deg and 2.6 mm — its correct coarse hypothesis ranked 4th of 144 while `register_image` refined only the top 3 — and correcting it takes islet RMSE 176.9 → **89.1 µm** and Xenium islets matched within 100 µm from 12 of 136 (chance ≈ 5) to **69**. 6442 is the regression control and barely moves (+5.11 → +5.09 deg; 107.9 → 92.1 µm from the masked ECC alone). Changes: adaptive coarse plateau (`reg_coarse_keep_frac`) instead of a fixed rank cut; ECC masked to the Xenium footprint (`refine_ecc(moving_mask=)`); `reg_nonrigid = false`, on measurement — the field failed the exporter's round trip on 15.0% / 6.1% of real annotation vertices and 6436's earlier field was *folded* (min Jacobian det −1.657 over 0.85%). **The 0.80 tissue-Dice gate is gone**: it is unreachable by extent (ceiling 0.565 / 0.703) and, worse, it moves *against* correctness — 6436's Dice falls 0.549 → 0.530 at the right answer. The gate is now `footprint_ncc_z` (DAPI correlation inside the warped footprint against 120 other placements of that same footprint on the same section: **6.9** and **6.7**, vs 2.3 for 6436's old transform) with the joint rotation+translation islet landscape as corroboration (both peak at 35 µm, ~6× the landscape p95). New diagnostic: `scripts/restain/pheno_residual_search.py` |
 | `vocab structures match cellmatch grid donor crossmodal sameslide postxen` | identity stages; blocked unless the required PhenoCycler and/or Xenium releases pass `phenospace.py`. Existing cached structure files are ignored. `hormone_seed_mask` rejects a geometry table, so QuPath context and raw hormone intensities cannot become identity by accident |
 | `boundaries`, `rasterize`, `contract`, `tissues`, `sections` | libraries, live (`boundaries.py` and `rasterize.py` extended 2026-09-01 for the restain lane) |
 | `crossmodal` S9 | identity-gated and structurally input-starved as shipped (`import_xenium` writes only `feat__score_*`, which `resolve_anchors` excludes as direct gene anchors); no inferred links were produced |
@@ -189,3 +212,34 @@ git -C ../../external/UniFORM rev-parse HEAD    # 7c33396d12e5a19dc0b36e46a94c32
 git -C ../../external/utag rev-parse HEAD       # 056cb87ee90aa850450b806b075033bc8c50703a
 git -C ../../external/KINTSUGI rev-parse HEAD   # 716d1ebd87db916ab04910c6374e04d2d9ea508e
 ```
+
+## 9. 2026-09-05 addendum — what changed since this map was written
+
+- New lanes: `core/phenocycler/scripts/broadtype/` (the broad-typing bake-off; protocol
+  `docs/BROADTYPE_PROTOCOL_2026-09.md`), `scripts/xenium_typing/` (X1/X2/X3 Xenium producer comparison),
+  `scripts/report/` (the two-donor figure set under `data/development/report/`), `scripts/common/` (Track E.3
+  executed: gates/tiff_window/window_mask/label_space moved out of the closed dct lane).
+- §4: `export_pheno` now exports the complete cell set and attaches a declared release; `import_xenium`
+  writes per-gene type anchors and `feat__if_*`; verdict enforcement in match/cellmatch/grid;
+  `config.ini` names both release directories. The stale `structures/phenocycler/*/islets.parquet` were removed.
+- §3: all 20 Xenium bases exist and are finalized (identity_panel 478, zero state-only overlap); the
+  integration manifest resolves `xenium_h5ad` for all 20 paired donors.
+- §7: `external/.venv-nimbus`, `external/.venv-kronos` (KRONOS access pending), R CELESTA + spdep installed.
+- Xenium Analyzer outputs (`analysis/`, `analysis_summary.html`, `metrics_summary.csv`, `experiment.xenium`) for
+  the 16 bundles under `/orange/maigan/Xenium_T1D_PancPLN` landed 2026-09-06 (Globus task `793c7c34…`, 480 files,
+  5.8 GB, into the matching bundle dirs under `/data/xenium/HuPrime5kPanTissue/`). The first attempt
+  (`b84a08bc…`) had been aimed at endpoint `6ea86da5…` "D6-36_FBMS-J506-W1", which is a *different* workstation, and
+  failed every retry with `500 Path not allowed`; this machine is `f1b69b9e…` "LInux Processing" and its Globus
+  Connect Personal must be started (`~/globusconnectpersonal-3.2.8/globusconnectpersonal -start`) before a
+  transfer. The MM046/MM047 runs (6450, 6505, 6534, 6623) were recorded here as "not found under either
+  HiPerGator root" — they were not missing, they were under a **different project root**:
+  `/orange/brusko/xenium/HuPrime5kPanTissue/Y9QRJ6/MM046_…` and `…/MM047_…`, not `/orange/maigan/…`
+  (maintainer, 2026-09-10). Their DAPI landed 2026-09-10 (Globus task `ef4698c5…`, 4 files, 3.2 GB).
+  Two things differ about those two batches and both matter. They use the **newer Xenium channel
+  naming** — `morphology_focus/ch0000_dapi.ome.tif`, not `morphology_focus_0000.ome.tif`;
+  `rasterize.read_xenium_morphology` already falls back to `*.ome.tif` sorted, so `ch0000_dapi` resolves
+  as channel 0 with no renaming, and renaming it to match the old convention would be a lie about which
+  file it is. And only the DAPI channel was fetched, so `tifffile` warns that three companion channels
+  are missing and zeroes them — the same warning the other 18 donors already produce, and harmless
+  because only channel 0 is read. `experiment.xenium` is still absent for these four; nothing in the
+  registration path reads it.

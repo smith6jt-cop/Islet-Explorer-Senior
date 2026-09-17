@@ -25,17 +25,12 @@ Four families:
 """
 from __future__ import annotations
 
-import sys
-import pathlib
 
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 from scipy.stats import rankdata
 
-HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "dct"))
-from gates import require_evidence                  # noqa: E402  (reused, never copied)
 
 __all__ = ["shape_stats", "tail_overlap", "neighbour_graph", "morans_i", "morans_null",
            "spatial_stats", "acquisition_group_ratio", "MIN_CELLS", "BARS"]

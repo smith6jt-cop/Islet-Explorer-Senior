@@ -209,14 +209,45 @@ def test_sequential_steps_refuse_in_same_slide_mode(tmp_path):
 
 
 def test_crossmodal_refuses_in_same_slide_mode(tmp_path):
-    """In same-slide mode the pairing is measured, so approximating it is a mistake."""
+    """In same-slide mode the pairing is measured, so approximating it is a mistake.
+
+    The pair must be DECLARED same_slide, not merely run under [integration] mode. Since
+    2026-09-16 same-slide status is a property of the section pair rather than of the run
+    (section_modes.csv), because it is an acquisition fact -- one physical section imaged
+    twice -- and a config flag cannot assert it. Without a declaration link_donor refuses
+    earlier and for a different reason, which is correct but is not what this test is for.
+    """
+    p, x = _paired_tables(n_markers=10, n=100)
+    modes = tmp_path / "section_modes.csv"
+    modes.write_text(
+        "donor_id,roi,xenium_serial,mode,evidence,note\n"
+        'T,panc,,same_slide,"synthetic fixture: one section imaged twice",'
+        "crossmodal must refuse here\n"
+    )
+    cfg_ss = load_config(data_dir=tmp_path, integration_mode="same_slide",
+                         section_modes_csv=modes)
+    from phenocycler.integration.contract import partition_path, write_cell_table
+
+    write_cell_table(p.df, partition_path(cfg_ss.cells_pheno_dir, "T", "panc"))
+    write_cell_table(x.df, partition_path(cfg_ss.cells_xen_dir, "T", "panc"))
+    with pytest.raises(RuntimeError, match="sameslide"):
+        link_donor(cfg_ss, "T", "panc")
+
+
+def test_same_slide_cannot_be_asserted_by_the_run_mode_alone(tmp_path):
+    """An undeclared pair is refused even when [integration] mode says same_slide.
+
+    This is the guard that made the test above fail after the 2026-09-16 change, and it is
+    worth keeping on purpose: analysing a serial pair as same_slide fabricates a cell-to-cell
+    measurement, while the reverse only costs resolution.
+    """
     p, x = _paired_tables(n_markers=10, n=100)
     cfg_ss = load_config(data_dir=tmp_path, integration_mode="same_slide")
     from phenocycler.integration.contract import partition_path, write_cell_table
 
     write_cell_table(p.df, partition_path(cfg_ss.cells_pheno_dir, "T", "panc"))
     write_cell_table(x.df, partition_path(cfg_ss.cells_xen_dir, "T", "panc"))
-    with pytest.raises(RuntimeError, match="sameslide"):
+    with pytest.raises(Exception, match="not declared"):
         link_donor(cfg_ss, "T", "panc")
 
 
@@ -237,16 +268,53 @@ def test_centroid_pairing_is_mutual_and_capped():
 # QC gates
 # --------------------------------------------------------------------------- #
 
-@pytest.mark.parametrize("dice,rmse,expected", [
-    (0.92, 60.0, PASS),
-    (0.92, 400.0, WARN),
-    (0.40, 60.0, WARN),
-    (0.40, 400.0, FAIL),
-    (float("nan"), float("nan"), FAIL),
+# The evidence the gate actually decides on, since 2026-09-10. Tissue Dice is passed through
+# every case and is deliberately never what changes the answer -- see the two tests below it.
+GOOD_EVIDENCE = dict(footprint_ncc_z=9.0, islet_peak_ratio=5.5, islet_peak_offset_um=40.0)
+
+
+@pytest.mark.parametrize("dice,rmse,evidence,expected", [
+    # Both bars clear: the image bar against other placements, and the islet landscape peaking
+    # at this transform rather than somewhere else.
+    (0.92, 60.0, GOOD_EVIDENCE, PASS),
+    (0.40, 60.0, GOOD_EVIDENCE, PASS),
+    # Image bar clears, islets do not corroborate: anatomy-level only.
+    (0.92, 60.0, dict(GOOD_EVIDENCE, islet_peak_ratio=1.2), WARN),
+    # The islet landscape peaks 900 um away -- this transform is not where the correspondence
+    # is, which is donor 6436's original failure and the one the old gate could not see.
+    (0.92, 60.0, dict(GOOD_EVIDENCE, islet_peak_offset_um=900.0), WARN),
+    # Image bar fails outright.
+    (0.92, 60.0, dict(GOOD_EVIDENCE, footprint_ncc_z=1.5), FAIL),
+    # No image pair, but the structures corroborate: enough for structure/grid work, capped
+    # at WARN because the primary bar was never measured.
+    (0.92, 60.0, dict(GOOD_EVIDENCE, footprint_ncc_z=float("nan")), WARN),
+    # Nothing measured at all: fail closed, and say so.
+    (float("nan"), float("nan"), {}, FAIL),
 ])
-def test_verdict_grading(dice, rmse, expected):
-    v, _reasons = verdict_for(dice, rmse, dice_min=0.80, rmse_max=150.0)
+def test_verdict_grading(dice, rmse, evidence, expected):
+    v, _reasons = verdict_for(dice, rmse, dice_min=0.80, rmse_max=150.0, **evidence)
     assert v == expected
+
+
+def test_tissue_dice_cannot_change_the_verdict():
+    """It carried half the old score and moved *against* correctness on donor 6436.
+
+    Correcting that donor's transform -- islet correspondence 12 of 136 (chance 5) to 69 --
+    lowered tissue Dice from 0.549 to 0.530. A gate that prefers the wrong answer cannot be
+    relaxed into correctness, so Dice is reported and never weighed.
+    """
+    for dice in (0.10, 0.53, 0.55, 0.99):
+        assert verdict_for(dice, 60.0, dice_min=0.80, rmse_max=150.0,
+                           **GOOD_EVIDENCE)[0] == PASS
+
+
+def test_an_unmeasured_bar_is_reported_as_unavailable_not_as_a_failure():
+    """A missing measurement is unavailable, not zero and not negative."""
+    _v, reasons = verdict_for(0.92, 60.0, dice_min=0.80, rmse_max=150.0,
+                              islet_peak_ratio=5.5, islet_peak_offset_um=40.0)
+    joined = "; ".join(reasons)
+    assert "unavailable" in joined
+    assert "below" not in joined
 
 
 def test_failed_registration_still_allows_registration_free_analyses():
@@ -262,3 +330,24 @@ def test_verdict_reasons_are_actionable():
     _v, reasons = verdict_for(0.4, 400.0, dice_min=0.80, rmse_max=150.0)
     assert any("Dice" in r for r in reasons)
     assert any("RMSE" in r for r in reasons)
+
+
+def test_a_warn_says_whether_the_islets_were_tested_or_untestable():
+    """Two different facts about two different problems, and they must not share a sentence.
+
+    A donor whose islets disagree has a transform question. A donor with no structures has an
+    identity question — the corroborating bar was never measured. Both land at WARN; only the
+    reason tells them apart.
+    """
+    tested, _r = verdict_for(0.9, 60.0, dice_min=0.80, rmse_max=150.0,
+                             footprint_ncc_z=9.0, islet_peak_ratio=1.1,
+                             islet_peak_offset_um=900.0)
+    _v, reasons_tested = verdict_for(0.9, 60.0, dice_min=0.80, rmse_max=150.0,
+                                     footprint_ncc_z=9.0, islet_peak_ratio=1.1,
+                                     islet_peak_offset_um=900.0)
+    _v2, reasons_untested = verdict_for(0.9, np.nan, dice_min=0.80, rmse_max=150.0,
+                                        footprint_ncc_z=9.0)
+    assert tested == WARN
+    assert any("did not corroborate" in r for r in reasons_tested)
+    assert any("no structures for this donor" in r for r in reasons_untested)
+    assert not any("did not corroborate" in r for r in reasons_untested)

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import json
 import pathlib
 import sys
@@ -22,11 +21,7 @@ import panel                                     # noqa: E402
 import rules as R                                # noqa: E402
 import score as SC                               # noqa: E402
 
-#: Step 2's output. Overridable for the same reason ``panel.EXPRESSION`` is: a donor aligned
-#: outside this checkout's ``data/development/celltype/uniform`` is still aligned by Step 2,
-#: and the alternative is to re-derive a scale rather than use the one that exists.
-ALIGNED = (pathlib.Path(os.environ["CELLTYPE_ALIGNED_DIR"])
-           if os.environ.get("CELLTYPE_ALIGNED_DIR") else panel.OUT / "uniform")
+ALIGNED = panel.OUT / "uniform"
 OUT = panel.OUT / "calls"
 ENCODING = "signed"          # measured: resolves 37 of 37 references; zero leaves 34
 

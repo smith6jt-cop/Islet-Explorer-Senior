@@ -38,8 +38,14 @@ import qupath.lib.io.GsonTools
 import java.security.MessageDigest
 
 // ---- configuration ---------------------------------------------------------
+// Default so the script can be run from the QuPath GUI with no arguments at all: open the image,
+// paste this in the script editor, press Run.  The first ARGUMENT is the assignment DIRECTORY --
+// never the image name, which QuPath already knows from the open image.
+String DEFAULT_ASSIGNMENT_FOLDER =
+    "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/development/typing/qupath_export"
+
 String assignmentFolder = (
-    args != null && args.size() > 0 ? args[0]?.trim() : ""
+    args != null && args.size() > 0 && args[0]?.trim() ? args[0].trim() : DEFAULT_ASSIGNMENT_FOLDER
 )
 String assignmentLevel = (
     args != null && args.size() > 1 ? args[1]?.trim()?.toLowerCase() : "specific"
@@ -48,7 +54,7 @@ boolean storeRankedProbabilities = false
 // ----------------------------------------------------------------------------
 
 if (assignmentFolder == null || assignmentFolder.isEmpty()) {
-    println "ERROR: pass the run's qupath_export directory as the first script argument."
+    println "ERROR: no assignment directory set."
     return
 }
 if (!(assignmentLevel in ["broad", "specific"])) {
@@ -58,8 +64,15 @@ if (!(assignmentLevel in ["broad", "specific"])) {
 def folder = new File(assignmentFolder)
 if (!folder.isDirectory()) {
     println "ERROR: assignment directory not found: ${folder}"
+    println "  The first argument is the DIRECTORY holding cell_assignments_*.csv,"
+    println "  not the image name -- QuPath already knows which image is open."
+    println "  Expected something like: ${DEFAULT_ASSIGNMENT_FOLDER}"
     return
 }
+println "Reading assignments from: ${folder}"
+println "Open image is: '" + (getProjectEntry() != null
+        ? getProjectEntry().getImageName()
+        : getCurrentImageData().getServer().getMetadata().getName()) + "'"
 
 def requiredColumns = [
     "object_id", "image", "broad_type", "specific_type",
@@ -337,6 +350,17 @@ if (!outsideCanonicalUniverse.isEmpty()) {
 }
 
 def broadColors = [
+    // scripts/typing lineage vocabulary.  Distinct hues, none of them the Ambiguous orange, so a
+    // reviewer can tell the classes apart on the image at a glance.
+    "Endocrine"   : [204, 102, 119],
+    "Exocrine"    : [68, 119, 170],
+    "Vascular"    : [102, 204, 238],
+    "Stromal"     : [170, 51, 119],
+    "T_NK"        : [34, 136, 51],
+    "B_Plasma"    : [221, 204, 119],
+    "Myeloid"     : [153, 79, 0],
+    "Granulocyte" : [136, 34, 85],
+    // retained from the earlier vocabulary so older exports still colour correctly
     "Immune"      : [34, 136, 51],
     "Endothelial" : [102, 204, 238],
     "Epithelial"  : [68, 119, 170],

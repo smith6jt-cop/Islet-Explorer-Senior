@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[1] / "scripts" / "dct"))
+sys.path.insert(0, str(HERE.parents[1] / "scripts" / "common"))
 
 from tiff_window import read_window                               # noqa: E402
 
