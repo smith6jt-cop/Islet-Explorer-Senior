@@ -1,5 +1,10 @@
 {
   "entries": {
+    "ATP5A": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
+      "target": null
+    },
     "B3TUBB": {
       "confidence": "settled",
       "reason": "Gene symbol vs protein name.",
@@ -10,9 +15,19 @@
       "reason": "Registry has only a generic Actin; beta-actin is one isoform of it.",
       "target": "Actin"
     },
+    "CD141": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
+      "target": null
+    },
     "CD99": {
       "confidence": "settled",
       "reason": "No registry entry.",
+      "target": null
+    },
+    "CS": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
       "target": null
     },
     "Caveolin": {
@@ -28,6 +43,11 @@
     "DAPI": {
       "confidence": "settled",
       "reason": "Not mapped to dsDNA by default. dsDNA IS in the registry and DAPI is a DNA dye, so this is a panel-membership decision, not a naming one -- it is a named marker-dropout arm.",
+      "target": null
+    },
+    "G6PD": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
       "target": null
     },
     "GCG": {
@@ -50,9 +70,19 @@
       "reason": "HLA-DR is the class II molecule the registry names generically.",
       "target": "HLA-Class-2"
     },
+    "Histone H3 (p Ser28)": {
+      "confidence": "settled",
+      "reason": "No entry for histone H3 phosphorylated at Ser28 in the pinned DeepCellTypes vocabulary.",
+      "target": null
+    },
     "IAPP": {
       "confidence": "settled",
       "reason": "Failed marker throughout this project.",
+      "target": null
+    },
+    "IDH2": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
       "target": null
     },
     "IDO1": {
@@ -75,6 +105,11 @@
       "reason": "Direct synonym.",
       "target": "CK5"
     },
+    "LDHA": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
+      "target": null
+    },
     "M2Gal3": {
       "confidence": "settled",
       "reason": "No registry entry.",
@@ -94,6 +129,11 @@
       "confidence": "settled",
       "reason": "Punctuation only.",
       "target": "PDL1"
+    },
+    "SDHA": {
+      "confidence": "settled",
+      "reason": "No entry in the pinned DeepCellTypes 278-marker vocabulary.",
+      "target": null
     },
     "SST": {
       "confidence": "settled",

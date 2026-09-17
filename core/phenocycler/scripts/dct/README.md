@@ -151,3 +151,17 @@ happen. Islet endocrine classes are `AlphaCell`, `BetaCell` and the generic `End
 is this lane's decision record. The review document's "discard `scripts/dct/`" instruction is now
 executable without breaking `scripts/restain/tiles.py` or `scripts/celltype/usability.py` (whose dead
 `require_evidence` import was removed).
+
+## 2026-09-17 — expanded cohort and panel readback
+
+The live QuPath manifest contains 22 donors and the registry contains 72 markers. Of the
+12 added channel names, the pinned DCT package resolves ASCT2, CD21, GLUT1 and HK1 itself;
+the crosswalk explicitly excludes the other eight with reasons. This does not change their
+deferred calibration status in the marker registry.
+
+Regenerating `anchors.json` from the same rule yields **27 anchors**, with 50 DCT markers
+in the cohort intersection. `Ker8_18` is absent from both new images' channel maps, so its
+former anchor is no longer shared by every donor. CD21 is also not shared by every donor,
+and CD141 has no DCT vocabulary entry. The frozen exclusions record all three facts; the
+gate criteria and method version are unchanged. The readback test compares the entire
+generated artifact, including its derived cohort/intersection counts.

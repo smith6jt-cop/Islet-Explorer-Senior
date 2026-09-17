@@ -16,4 +16,18 @@ covariate; `random_state 0`; `dl_num_workers 0`). Protocol: the plan's Phase 2 (
 
 Run order: arms → `gate.judge(arm, donor)` (writes `gate/<arm>/donor_id=<d>.json`) → `release.py --arm <producer>`.
 Producer choice follows the protocol's mechanical rule (verified lineages on both donors; then margin; then
-cohort coverage). Tests: `../../.venv/bin/python -m pytest -q scripts/xenium_typing/tests` (synthetic only).
+cohort coverage).
+
+`pins.donors()` reads the acquired cohort from `core/phenocycler/data/qupath_manifest.json`,
+not the older build specification, and normalizes `0112` to `112` before checking central
+eligibility. The 22 donors span 12 Xenium runs. Bundle selection stays keyed to
+`xenium_paths.csv`: 6533 uses `0041393` and 112 uses `0041396`, both in MM036. Rows marked
+`PhenoXeno` describe separate same-slide acquisitions and are excluded from this lane's
+maps. Duplicate cohort rows still raise, including in `run_map`.
+
+Tests include live cohort readback plus synthetic typing, missing-input, exclusion and
+bundle-selection checks. Run from the repository root with the shared data mounted:
+
+```bash
+.venv/bin/python -m pytest -q core/phenocycler/scripts/dct/tests core/phenocycler/scripts/xenium_typing/tests
+```
