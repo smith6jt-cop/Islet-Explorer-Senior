@@ -26,11 +26,13 @@ skip_if_not_installed("shiny")
 .card_registry_outputs <- c(
   s1_size_composition = "s1_body", s2_trajectory = "s2_trajectory_note",
   s3_compartments = "s3_compartments_body", x1_gradient = "x1_gradient_body",
-  x2_overlay = "x2_overlay_content", x3_identity = "x3_identity_content"
+  x2_overlay = "x2_overlay_content", x3_identity = "x3_identity_content",
+  g1_grid = "g1_body"
 )
 .card_registry_probes <- c(
   s1_size_composition = "layer", s2_trajectory = "data", s3_compartments = "selected",
-  x1_gradient = "selected", x2_overlay = "selection", x3_identity = "selection"
+  x1_gradient = "selected", x2_overlay = "selection", x3_identity = "selection",
+  g1_grid = "layer"
 )
 .card_registries <- function(env) {
   list(
@@ -78,7 +80,7 @@ test_that("every card is registered once and only the two unbuilt cards use plac
   expect_setequal(ids, c(names(.card_registry_outputs), "ledger", "n1_sections"))
   expect_identical(vapply(env$IE_CROSSMODAL_CARDS, `[[`, "", "id"),
                    c("ledger", "x1_gradient", "x2_overlay", "x3_identity",
-                     "s1_size_composition", "s2_trajectory"))
+                     "s1_size_composition", "s2_trajectory", "g1_grid"))
   expect_identical(vapply(env$IE_LYMPHNODE_CARDS, `[[`, "", "id"),
                    c("n1_sections", "s3_compartments"))
 })

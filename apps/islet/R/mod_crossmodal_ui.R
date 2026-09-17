@@ -31,7 +31,11 @@ IE_CROSSMODAL_CARDS <- list(
   # code: six cards on disk, four mounted. Found by worker I-islet, which filed NEEDS.md
   # rather than edit a registry it did not own.
   list(id = "s1_size_composition", title = "Islet size · composition"),
-  list(id = "s2_trajectory",       title = "Within-donor islet trajectory")
+  list(id = "s2_trajectory",       title = "Within-donor islet trajectory"),
+  # The four-cell grid -- pancreas and pLN, protein and RNA. The app reads one
+  # of the four; this card reads the layer that presents all four at donor
+  # level, and names the state of every cell it cannot show.
+  list(id = "g1_grid",             title = "Both tissues, both modalities")
 )
 
 #' Cross-Modal tab UI.

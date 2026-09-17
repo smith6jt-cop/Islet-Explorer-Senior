@@ -39,18 +39,48 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     })
 
     # ---------- H5AD Path Resolution ----------
+    #
+    # EVERY CANDIDATE STAYS INSIDE THE ACTIVE DOMAIN'S ROOT. The chain used to end with
+    # `<project>/data/app_data/adata_ins_root.h5ad` and `<project>/scripts/adata_ins_root.h5ad`,
+    # which is the OTHER cohort's root. That file exists -- 5,214 islets over the 15 CODEX donors,
+    # with an `X_umap` of its own -- so under the run cohort a missing file did not produce an
+    # empty tab: it produced a fully drawn UMAP of a different cohort's islets, labelled with this
+    # cohort's vocabulary. The two share five donors (6450, 6505, 6521, 6534, 6551) and an islet
+    # key exists on both sides, so nothing downstream could have caught it.
+    #
+    # `ADATA_PATH` survives as the documented operator override, but it is checked against the
+    # domain root as well: an override is for pointing at a rebuild inside the domain, not for
+    # crossing between two cohorts that must never be compared.
     resolve_traj_path <- function() {
+      root <- tryCatch(domain_data_root(), error = function(e) NULL)
       cand <- c(
-        file.path(domain_data_root(), "adata_ins_root.h5ad"),
+        if (!is.null(root)) file.path(root, "adata_ins_root.h5ad") else NULL,
         domain_data_file("adata_ins_root"),
-        file.path("..", "..", "scripts", "adata_ins_root.h5ad"),
-        if (!is.null(project_root)) file.path(project_root, "data", "app_data", "adata_ins_root.h5ad") else NULL,
-        if (!is.null(project_root)) file.path(project_root, "scripts", "adata_ins_root.h5ad") else NULL,
         Sys.getenv("ADATA_PATH", unset = "")
       )
-      cand <- cand[nzchar(cand)]
-      for (p in cand) if (file.exists(p)) return(p)
+      cand <- cand[!is.na(cand) & nzchar(cand)]
+      for (p in cand) {
+        if (!file.exists(p)) next
+        if (!is.null(root) && !islet_path_within(p, root)) {
+          warning(sprintf(
+            "ADATA_PATH %s is outside the active domain root %s; ignored.", p, root),
+            call. = FALSE)
+          next
+        }
+        return(p)
+      }
       NULL
+    }
+
+    #' Is `path` inside `root`, after both are made absolute?
+    #'
+    #' Compared on the normalised paths, so `root/../other_domain/x.h5ad` cannot pass by spelling.
+    islet_path_within <- function(path, root) {
+      path <- tryCatch(normalizePath(path, mustWork = FALSE), error = function(e) path)
+      root <- tryCatch(normalizePath(root, mustWork = FALSE), error = function(e) root)
+      if (!nzchar(path) || !nzchar(root)) return(FALSE)
+      root <- sub("/*$", "/", root)
+      startsWith(path, root)
     }
 
     traj_path <- resolve_traj_path()
@@ -513,23 +543,73 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       ndist <- if (is.null(jn)) 0 else nrow(dplyr::distinct(jn, case_id, islet_key))
       src <- if (!is.null(traj_path) && file.exists(traj_path)) traj_path else cur
 
-      # Pseudotime validity caption from uns['trajectory_validation'] (written by
-      # compute_trajectory_senior.py). Absent on older data -> caption is omitted.
+      # Pseudotime validity caption from uns['trajectory_validation'].
+      #
+      # TWO PRODUCERS WRITE THIS KEY IN TWO SHAPES. The legacy CODEX lane
+      # (`compute_trajectory_senior.py`) nests everything under `core`; the run cohort's
+      # `trajectory_islet.py` writes a FLAT list -- `hard_pass`, `gate_*`,
+      # `within_status_donor_eta2`. Reading only the nested shape meant that under the run
+      # cohort `tv[["core"]]` was NULL and the ENTIRE caption was dropped, badge included. The
+      # figure then rendered with nothing said about its gates, which is the worst of the three
+      # possible states: a failing build and a passing one look identical.
+      #
+      # The per-status numbers are read from whatever statuses the file carries, not from a
+      # written-in ND/T1D pair -- the run cohort has three statuses and the CODEX cohort's
+      # column set is different again.
       g <- function(x) { if (is.null(x)) return(NA_real_); suppressWarnings(as.numeric(x)[1]) }
       tv <- tryCatch(tr$uns[["trajectory_validation"]], error = function(e) NULL)
       valid_caption <- NULL
-      if (!is.null(tv) && !is.null(tv[["core"]])) {
-        cm <- tv[["core"]]
+      if (!is.null(tv)) {
+        nested <- !is.null(tv[["core"]])
+        cm <- if (nested) tv[["core"]] else tv
+        # A file that records no verdict gets no badge. Defaulting a missing `hard_pass` to
+        # FALSE would print "check gates" over a build whose gates were never written down,
+        # which is an assertion about the build rather than a reading of it.
+        has_verdict <- !is.null(cm[["hard_pass"]])
         hard <- isTRUE(as.logical(cm[["hard_pass"]])[1])
         badge_col <- if (hard) "#228833" else "#CC6633"
-        badge_txt <- if (hard) "validated" else "check gates"
+        badge_txt <- if (hard) "gates pass" else "check gates"
+
+        # Per-status donor eta-squared, in whatever form this producer wrote it.
+        eta_bits <- if (nested) {
+          keep <- grep("^within_status_eta2_", names(cm), value = TRUE)
+          stats::setNames(lapply(keep, function(k) g(cm[[k]])),
+                          sub("^within_status_eta2_", "", keep))
+        } else {
+          per <- cm[["within_status_donor_eta2"]]
+          if (is.null(per)) list() else stats::setNames(lapply(names(per), function(k) g(per[[k]])),
+                                                        names(per))
+        }
+        eta_txt <- if (length(eta_bits)) {
+          paste(vapply(names(eta_bits),
+                       function(k) sprintf("%s=%.2f", k, eta_bits[[k]]), character(1)),
+                collapse = "/")
+        } else NULL
+
+        ins_rho <- if (nested) g(cm[["spearman_INS"]])
+                   else g(cm[["spearman_pseudotime_beta_proportion"]])
+        parts <- c(
+          if (!is.na(g(tv[["chosen_theta"]])))
+            sprintf("\u03b8=%s", format(g(tv[["chosen_theta"]]))),
+          if (!is.na(ins_rho)) sprintf("\u03c1 vs beta proportion %+.2f", ins_rho),
+          if (!is.na(g(cm[["mwu_T1D_gt_ND_p"]])))
+            sprintf("p=%.0e", g(cm[["mwu_T1D_gt_ND_p"]])),
+          if (!is.null(eta_txt)) sprintf("within-status donor \u03b7\u00b2 %s", eta_txt)
+        )
+        failed <- names(cm)[grepl("^gate_", names(cm))]
+        failed <- failed[vapply(failed, function(k) !isTRUE(as.logical(cm[[k]])[1]), logical(1))]
         valid_caption <- tags$div(
           style = "font-size:12px; margin-top:4px",
-          tags$span(style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col), badge_txt),
-          sprintf("Pseudotime (θ=%s): INS ρ=%+.2f · T1D>ND p=%.0e · within-status batch η² ND=%.2f/T1D=%.2f",
-                  ifelse(is.na(g(tv[["chosen_theta"]])), "?", format(g(tv[["chosen_theta"]]))),
-                  g(cm[["spearman_INS"]]), g(cm[["mwu_T1D_gt_ND_p"]]),
-                  g(cm[["within_status_eta2_ND"]]), g(cm[["within_status_eta2_T1D"]]))
+          if (has_verdict) tags$span(
+            style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col),
+            badge_txt),
+          paste(c("Pseudotime:", parts), collapse = " "),
+          if (length(failed)) tags$div(
+            style = "font-size:11px; color:#B2182B; margin-top:2px",
+            sprintf("Method check not met: %s.",
+                    paste(sub("^gate_", "", failed), collapse = ", ")),
+            " The ordering is shown so it can be inspected, and gates nothing."),
+          NULL
         )
       }
 
@@ -589,7 +669,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         plot_df <- df
         plot_df$umap_1 <- plot_df$pt
         plot_df$umap_2 <- plot_df$value
-        plot_df$donor_status <- factor(plot_df$donor_status, levels = c("ND", "Aab+", "T1D"))
+        plot_df$donor_status <- factor(plot_df$donor_status, levels = domain_group_levels())
 
         render_umap_deck(plot_df,
                          color_col = "donor_status",
@@ -668,7 +748,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
 
       # Add color aesthetic
       if (color_by == "donor_status") {
-        df$donor_status <- factor(df$donor_status, levels = c("ND", "Aab+", "T1D"))
+        df$donor_status <- factor(df$donor_status, levels = domain_group_levels())
         aes_mapping$colour <- as.name("donor_status")
         color_title <- "Donor Status"
       } else if (color_by == "donor_id") {
@@ -685,7 +765,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         color_title <- paste("Leiden", sub("^leiden_", "res ", color_by))
       } else if (startsWith(color_by, "leiden_")) {
         # Column not present in df (e.g., Excel fallback) — fall back to donor_status
-        df$donor_status <- factor(df$donor_status, levels = c("ND", "Aab+", "T1D"))
+        df$donor_status <- factor(df$donor_status, levels = domain_group_levels())
         aes_mapping$colour <- as.name("donor_status")
         color_title <- "Donor Status"
         color_by <- "donor_status"
@@ -784,7 +864,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                              aes(x = pt, y = value, weight = loess_weight))
       } else if (trend_type == "by_donor") {
         if ("donor_status" %in% names(df) && !all(is.na(df$donor_status))) {
-          df$donor_status <- factor(df$donor_status, levels = c("ND", "Aab+", "T1D"))
+          df$donor_status <- factor(df$donor_status, levels = domain_group_levels())
           trend_colors <- donor_colors_reactive()
 
           if (color_by == "donor_id" || startsWith(color_by, "leiden_")) {
@@ -1278,7 +1358,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
           theme_void())
       }
 
-      df$donor_status <- factor(df$donor_status, levels = c("ND", "Aab+", "T1D"))
+      df$donor_status <- factor(df$donor_status, levels = domain_group_levels())
 
       ggplot(df, aes(x = umap_1, y = umap_2, color = donor_status)) +
         geom_point(alpha = 0.6, size = 1.0) +

@@ -203,7 +203,9 @@ DEFAULT_REGION_UM_PER_PX = 0.5078
 #   3  predictor="none" -- libvips' default corrupted every reduced pyramid level
 #   4  white point measured above mode+20sigma, not above the black point;
 #      the old floor blew out ~95% of a typical marker
-EXTRACTION_VERSION = 4
+#   5  background mode searched above the clamped bottom bin, so sigma stops
+#      collapsing to its floor and the cut points are measured again
+EXTRACTION_VERSION = 5
 
 # Name of the per-case record of how each channel was extracted.
 EXTRACTION_MANIFEST = "extraction.json"
@@ -400,12 +402,65 @@ def channel_stats(src, stretch: str, lo_pct: float, hi_pct: float,
         # Detector saturation piles every clipped pixel into the top bin, where
         # it can out-count the background peak and be mistaken for it, so the
         # mode is searched strictly below saturation.
-        mode = int(np.argmax(counts[:sat_bin])) if sat_bin > 0 else 0
-        below = counts[: mode + 1]
+        #
+        # THE BOTTOM BIN IS EXCLUDED FOR THE MIRROR-IMAGE REASON, and leaving it
+        # in is what stopped this estimator ever running on a real slide.
+        # PhenoCycler subtracts a per-cycle blank and clamps the result at zero,
+        # so bin 0 collects every pixel whose corrected value came out <= 0. It
+        # is a censored pile, not a sample of the background at level 0, exactly
+        # as the top bin is a saturated pile rather than a sample of the signal.
+        #
+        # Measured on donor 6436, all 59 channels: bin 0 holds 33.2% (Bcl-2) to
+        # 91.7% (CD57) of the frame and out-counts the real background peak on
+        # every single one, so argmax over the whole histogram returned mode = 0
+        # 59 times out of 59. The one-sided MAD *below* the mode then had a
+        # single bin to work with, returned 0, and sigma fell to its floor of
+        # 1.0 -- also 59 times out of 59. At that point nothing here is a
+        # measurement any more: black = mode + 3 sigma = 3 counts, the white-
+        # point floor = 20 counts and the blow-out reference = 40 counts, the
+        # same three constants for a channel whose background peak sits at 1
+        # (INS) and one whose background peak sits at 119 (CD209).
+        #
+        # What that looked like in the viewer, measured as the output grey level
+        # the MEDIAN pixel of the section renders at (half the section is at
+        # least this bright): CD209 39, CD3e 33, TP63 29, PD-L1 25, GranzymeB 18
+        # -- and at the 90th percentile, Bcl-2 168, GranzymeB 164, CD4 147,
+        # CD3e 143, TP63 143. A tenth of a pancreas section renders at or above
+        # half brightness on a T-cell marker. At the same time the top of the
+        # range was gone: the 99.9th percentile pixel rendered at a flat 255 on
+        # 12 of 13 channels checked, with 0.6% of the whole frame saturated.
+        # Background lifted into the light, signal crushed into flat white.
+        #
+        # Excluding the bottom bin puts the mode back on a measured interior
+        # peak on all 59 channels (mode 1-119), sigma into 1.0-31.1 instead of
+        # a constant 1.0, and the black point into 4-212 instead of a constant
+        # 3. The median pixel then renders at output 0 on all 59.
+        #
+        # Nothing is subtracted or discarded: bin-0 pixels still map through the
+        # LUT to output 0, which is where they were going anyway.
+        base_bin = 1 if counts.size > 2 else 0
+        mode = (base_bin + int(np.argmax(counts[base_bin:sat_bin]))
+                if sat_bin > base_bin else base_bin)
+        below = counts[base_bin: mode + 1]
         if below.sum() > 0:
             mad = int(np.searchsorted(np.cumsum(below[::-1]), below.sum() * 0.5))
         else:
             mad = 1
+        # A background peak that sits ON base_bin has no measurable lower side:
+        # its left tail is the censored pile. sigma keeps its floor of 1.0 there
+        # and the channel is left rendering as it did, which on 6436 is 34 of 59
+        # channels -- and every one of those was already dark: all 34 rendered
+        # their median pixel at output 0 before the change, and only SOX2 put
+        # its 90th percentile above output 100. The 25 channels that DO gain a
+        # measured sigma are exactly the ones whose background had been lifted
+        # into the light (median pixel up to output 39, on CD209).
+        #
+        # The upper half-width at half-maximum was tried as a substitute and
+        # rejected on measurement, not on taste: across the 22 channels of 6436
+        # where BOTH can be computed it runs a median 1.62x and up to 14.3x the
+        # lower-side MAD, because the background's upper tail is the
+        # autofluorescence the signal floor below exists to step over. It
+        # measures the tail, not the peak, so it cannot stand in for the peak.
         sigma = max(1.0, 1.4826 * mad)
         lo = int(min(mode + bg_k * sigma, sat_bin))
 
@@ -848,6 +903,68 @@ NUCLEAR_OPACITY = 0.35
 NUCLEAR_CHANNELS = {"DAPI", "HOECHST", "DRAQ5"}
 
 
+# A channel the marker registry has EXCLUDED still ships as a layer, carrying the
+# registry's own reason in its name.
+#
+# Two of the 59 are excluded today: IAPP, whose recorded use is `failed_marker`,
+# and CD11b, whose recorded use is `assay_qc`. Rendering either one unmarked
+# invites reading a stain the registry says cannot be read as if it were data --
+# and this viewer is the one place in the app where a marker is looked at
+# directly, so it is the one place that most needs saying so.
+#
+# Dropping them instead was considered and rejected. A 59-plex slide that opens
+# with 58 layers is a silent edit: whoever goes looking for IAPP finds nothing
+# and has no way to tell an excluded channel from a build that lost one. The
+# panel is shown whole and the exclusion is shown with it.
+#
+# The wording is the REGISTRY'S, keyed on its `kind == "excluded"` and its own
+# `uses` entry, not a judgement formed here. An unknown reason is passed through
+# verbatim rather than being guessed at, and a registry that cannot be read
+# leaves every layer unannotated and says so -- a viewer build must not fail
+# because a file two subtrees away moved.
+#
+# Matching is on the exact marker name, case-insensitively, against the name the
+# slide's OME-XML gives (after NAME_ALIASES). A registry name that does not match
+# a channel is simply not annotated: guessing at a near-match is how a label ends
+# up on the wrong marker, and both excluded markers today -- IAPP and CD11b --
+# are spelled identically on both sides.
+#
+# This changes DISPLAY TEXT ONLY. Channels are still resolved by marker name
+# against each slide's own OME-XML (read_channel_names -> page index), never by
+# index and never by this string; nothing reads a layer name back.
+MARKER_REGISTRY = (Path(__file__).resolve().parents[2]
+                   / "core" / "phenocycler" / "phenocycler" / "marker_registry.json")
+
+EXCLUSION_LABELS = {
+    "failed_marker": "FAILED STAIN - not readable",
+    "assay_qc": "ASSAY QC ONLY - not an identity marker",
+}
+
+
+def excluded_marker_labels(registry: Path = MARKER_REGISTRY) -> dict[str, str]:
+    """UPPER-CASED marker name -> why the registry excluded it, for every
+    marker whose registry ``kind`` is ``excluded``. Empty if unreadable."""
+    try:
+        with open(registry) as fh:
+            markers = json.load(fh)["markers"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        log(f"WARNING: marker registry unreadable ({exc}); no channel will be "
+            f"labelled with its exclusion status: {registry}")
+        return {}
+    out: dict[str, str] = {}
+    for m in markers:
+        if not isinstance(m, dict) or m.get("kind") != "excluded":
+            continue
+        name = str(m.get("name") or "").strip()
+        uses = [u for u in (m.get("uses") or []) if u]
+        if not name:
+            continue
+        reason = EXCLUSION_LABELS.get(uses[0] if uses else "",
+                                      (uses[0] if uses else "EXCLUDED"))
+        out[name.upper()] = reason
+    return out
+
+
 def build_project(
     case_id: str,
     channels: list[str],
@@ -863,8 +980,14 @@ def build_project(
     # Resolve the default-on markers BY NAME, never by index — the cohort mixes
     # panels (batch-1 SST@35 vs batch-2 SST@1, 58- vs 59-channel).
     upper = {c.upper(): i for i, c in enumerate(channels)}
+    excluded = excluded_marker_labels()
+    flagged = []
     for idx, (name, rel) in enumerate(zip(channels, channel_files)):
-        layers.append({"name": name, "tileSource": rel})
+        reason = excluded.get(name.upper())
+        label = f"{name} [{reason}]" if reason else name
+        if reason:
+            flagged.append(f"{name}@{idx} ({reason})")
+        layers.append({"name": label, "tileSource": rel})
         opacities[str(idx)] = 1.0
         visibilities[str(idx)] = False
         # Explicit colour for EVERY layer, not just the visible ones: a channel
@@ -879,6 +1002,10 @@ def build_project(
             {"name": fname, "value": marker_color(name) if fname == "Color" else value}
             for fname, value in FILTER_DEFAULTS
         ]
+    # marker_color() above is keyed on the bare marker name, not on the label, so
+    # an excluded channel keeps the same hue it has on every other donor.
+    log(f"registry-excluded channels, shipped and labelled: "
+        f"{', '.join(flagged) if flagged else 'NONE'}")
 
     matched = []
     for marker, color in DEFAULT_ON.items():
@@ -889,7 +1016,15 @@ def build_project(
         matched.append(f"{marker}@{idx}")
         visibilities[str(idx)] = True
         # Attenuate ONLY what opens by default -- see DEFAULT_ON_OPACITY above.
-        opacities[str(idx)] = (NUCLEAR_OPACITY if name.upper() in NUCLEAR_CHANNELS
+        #
+        # `channels[idx]`, NOT `name`. `name` is the loop variable left over from
+        # the layer loop above, so it holds the LAST channel of the panel (TP63
+        # on a 59-plex) whatever marker this iteration is setting. DEFAULT_ON is
+        # ordered INS, GCG, SST, DAPI, so the one layer this decides -- DAPI --
+        # was tested against TP63 and came out at DEFAULT_ON_OPACITY. Rebuilding
+        # any shipped project with that in place puts DAPI back to 0.70 and
+        # brings back the tissue-wide wash the constants were added to remove.
+        opacities[str(idx)] = (NUCLEAR_OPACITY if channels[idx].upper() in NUCLEAR_CHANNELS
                                else DEFAULT_ON_OPACITY)
         filters[str(idx)][0]["value"] = color
     log(f"default-on channels: {', '.join(matched) if matched else 'NONE'}")

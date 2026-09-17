@@ -1,10 +1,12 @@
-"""Unit tests for build_tissuumaps_project.py's region handling.
+"""Unit tests for the viewer's region layer: how it is found, and how it is built.
 
-Covers the parts the end-to-end smoke test only exercises down one path: finding
-a donor's GeoJSON in a directory of exports, reading it whether or not it is
-gzipped, and settling the coordinate scale into full-resolution pixels. No slide,
-no server, no pyvips -- the builder keeps its heavy imports function-local, so
-this runs on a bare interpreter in well under a second.
+Two modules. ``build_tissuumaps_project.py`` finds a donor's GeoJSON in a directory of exports,
+reads it whether or not it is gzipped, and settles the coordinate scale into full-resolution
+pixels. ``build_tissuumaps_regions.py`` decides WHAT each region is -- the join that names a
+non-endocrine outline, the signed-distance expansion that replaces the drawn annotation, the ring
+orientation the nonzero fill rule needs, and the area agreement that refuses a layer disagreeing
+with the numbers it is drawn beside. No slide, no server, no pyvips -- both builders keep their
+heavy imports function-local, so this runs on a bare interpreter in well under a second.
 
     python scripts/test_build_tissuumaps_regions.py
 """
@@ -139,6 +141,72 @@ check("scale 1 leaves coords",
 bare = TMP / "bare.geojson"
 bare.write_text(json.dumps(fc(box(0, 0, 5, 5))["features"]))
 check("bare list", b.copy_regions(b._load_geojson(bare), out, 2.0), 1)
+
+# --- build_tissuumaps_regions: what each region IS -------------------------
+import math  # noqa: E402
+
+import build_tissuumaps_regions as r  # noqa: E402
+from shapely.geometry import Polygon, shape  # noqa: E402
+
+# The join that the previous comparison failed on. The non-endocrine outline is named
+# `<islet_key>_nonendo` and the expansion `<islet_key>_exp20um`; the islet_key is what is left
+# when that suffix comes off, and it is what endocrine_union.islet_key carries. Stripping a fixed
+# character count instead -- `name[:-9]` for an 8-character suffix -- silently joins Islet_17 to
+# Islet_1 and produces a comparison of the wrong islets that still looks populated.
+check("nonendo suffix strips to the islet key", "Islet_17_nonendo".removesuffix("_nonendo"), "Islet_17")
+check("exp20um suffix strips to the islet key", "Islet_17_exp20um".removesuffix("_exp20um"), "Islet_17")
+check("a bare islet key is unchanged", "Islet_17".removesuffix("_nonendo"), "Islet_17")
+
+# Ring orientation: TissUUmaps fills with the nonzero winding rule, so an interior ring wound the
+# same way as its exterior fills in rather than punching a hole.
+square = Polygon(box(0, 0, 100, 100), [box(60, 60, 40, 40)])
+oriented = shape(r.feature(square, "Islet_1_exp20um", "IsletExpanded")["geometry"])
+check("exterior is counter-clockwise", oriented.exterior.is_ccw, True)
+check("interior is clockwise", oriented.interiors[0].is_ccw, False)
+check("orientation leaves the area alone", round(oriented.area, 6), round(square.area, 6))
+
+f = r.feature(square, "Islet_1_exp20um", "IsletExpanded")
+check("feature carries the app's name", f["properties"]["name"], "Islet_1_exp20um")
+check("feature carries the class", f["properties"]["classification"]["name"], "IsletExpanded")
+check("feature is an annotation", f["properties"]["objectType"], "annotation")
+
+# The expansion is derived, not read: a 20 um band outside the islet outline, computed with that
+# image's pixel size, and a RING -- the core is not part of it, because the core is its own region
+# and islet_geometry measures the two separately.
+PX = 0.5077663810243286
+core = Polygon([(p[0] * 1.0, p[1] * 1.0) for p in box(0, 0, 200, 200)])
+band = core.buffer(r.EXPANSION_UM / PX).difference(core)
+check("the expansion excludes the core", band.intersection(core).area < 1e-9, True)
+check("the expansion is 20 um wide",
+      round(band.bounds[2] - core.bounds[2], 3), round(r.EXPANSION_UM / PX, 3))
+check("20 um is the one number", r.EXPANSION_UM, 20.0)
+
+# Area agreement is the refusal: a derived region is compared against the um^2 islet_geometry
+# records for the same region, and a layer that disagrees is not written.
+import pandas as _pd  # noqa: E402
+
+derived = {"Islet_1": 1000.0, "Islet_2": 2000.0}
+measured = _pd.Series({"Islet_1": 1000.0 * PX * PX, "Islet_2": 2000.0 * PX * PX})
+n, worst = r._agreement(derived, measured, PX * PX)
+check("matching areas agree", n, 2)
+check("matching areas have no drift", worst < r.AREA_TOLERANCE, True)
+
+skewed = _pd.Series({"Islet_1": 1000.0 * PX * PX, "Islet_2": 2400.0 * PX * PX})
+n, worst = r._agreement(derived, skewed, PX * PX)
+check("a 20% disagreement is caught", n, 1)
+check("and is reported at its size", round(worst, 4), 0.1667)
+
+# A region with no measured area is UNAVAILABLE, not a pass and not a failure: it is skipped.
+absent = _pd.Series({"Islet_1": 1000.0 * PX * PX, "Islet_2": float("nan")})
+n, worst = r._agreement(derived, absent, PX * PX)
+check("an unavailable area is skipped, not counted", (n, worst < r.AREA_TOLERANCE), (1, True))
+check("nothing measured means nothing to disagree with",
+      r._agreement(derived, _pd.Series(dtype=float), PX * PX), (0, 0.0))
+
+check("the classes this builder derives", r.DERIVED,
+      ("Islet", "IsletExpanded", "IsletNonEndocrine"))
+check("every derived class has a colour",
+      sorted(r.CLASS_COLOR), sorted(r.DERIVED))
 
 print()
 print(f"{len(fails)} failed" if fails else "all checks passed")

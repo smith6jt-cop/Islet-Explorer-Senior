@@ -44,6 +44,7 @@ from shapely import STRtree, points
 from shapely.geometry import shape
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import build_islet_geometry as GEOM
 import cohort as COHORT
 import subpanel_io as S
 
@@ -66,12 +67,16 @@ def outlines(stem: str) -> tuple[dict, dict]:
 
     Keyed by the bare number rather than the name, so a core and its expansion carry the same key
     and a cell in either resolves to the same islet.
+
+    The file is chosen by ``build_islet_geometry.islet_export``, which searches the export
+    directory RECURSIVELY, takes the newest matching annotation export and refuses a detection
+    export with its reason printed. A flat, non-recursive glob was used here until 2026-09-17,
+    and it could not see the re-exports that arrive in dated subdirectories -- so this lane and
+    ``islet_geometry`` could read two different sets of outlines for the same donor and nothing
+    would say so. One resolver, one answer.
     """
-    matches = [p for p in S.ISLETS.glob("*.geojson") if stem in p.name]
-    if len(matches) != 1:
-        raise FileNotFoundError(f"islet outlines for {stem!r}: found {len(matches)} files")
     core, expansion = {}, {}
-    for feature in json.loads(matches[0].read_text())["features"]:
+    for feature in json.loads(GEOM.islet_export(stem).read_text())["features"]:
         properties = feature.get("properties") or {}
         name = str(properties.get("name") or "")
         if not name.startswith("Islet_") or not feature.get("geometry"):
@@ -83,7 +88,8 @@ def outlines(stem: str) -> tuple[dict, dict]:
         number = name[len("Islet_"):].removesuffix(EXPANSION_SUFFIX)
         (expansion if is_expansion else core)[number] = geometry
     if not core:
-        raise ValueError(f"{stem}: no `Islet_N` core outlines in {matches[0].name}")
+        raise ValueError(f"{stem}: no `Islet_N` core outlines in "
+                         f"{GEOM.islet_export(stem).name}")
     return core, expansion
 
 
@@ -141,17 +147,51 @@ def membership(donor: str, x_um: np.ndarray, y_um: np.ndarray,
     return frame
 
 
+#: Columns every cell source carries, whatever it is.
+_CELL_COLUMNS = ["object_id", "X_centroid", "Y_centroid", "islet_num", "cell_region",
+                 "qc_analysis_eligible"]
+
+
+def cells_with_distance(donor: str) -> tuple[pd.DataFrame, str, str]:
+    """(cells, which cell source, which distance source) for one donor.
+
+    WHY THE SOURCE IS NOT FIXED. This lane read the content-addressed run's expression partition
+    and the 2026-08-27 ``kintsugi/distance`` layer unconditionally, and on the seven re-exported
+    donors both predate the re-export -- the annotations they were computed against are not the
+    annotations `outlines()` now reads. Measured on 6450 (2026-09-17): against the run plus
+    kintsugi the containment and the signed distance disagree on 12,232 cells at a median
+    |d| of 265.79 um; against the revised export and its own re-run signed distance they
+    disagree on 1,131 at 0.42 um, which is the regime every batch-1 donor sits in (0.24-0.46 um).
+    That disagreement is the reason those donors were never built here, and it is a stale input
+    rather than a missing one.
+
+    So the cell geometry comes from ``S.cell_source`` -- the revised rebuild where one exists,
+    the run otherwise -- and the signed distance comes from whichever program computed it
+    against the SAME annotations: the revised export's own column, or kintsugi for the run.
+    The cross-check stays independent either way: containment is decided by this file's own
+    code from the outlines, the distance by another program entirely.
+    """
+    path, which = S.cell_source(donor)
+    have = set(pq.read_schema(path).names)
+    if "signed_dist_islet_um" in have:
+        cells = pq.read_table(
+            path, columns=_CELL_COLUMNS + ["signed_dist_islet_um"]).to_pandas()
+        distance_source = f"{which} export"
+    else:
+        cells = pq.read_table(path, columns=_CELL_COLUMNS).to_pandas()
+        distance = pq.read_table(DISTANCE / f"donor_id={donor}/data_0.parquet",
+                                 columns=["object_id", "signed_dist_islet_um"]).to_pandas()
+        cells = cells.merge(distance, on="object_id", how="left", validate="one_to_one")
+        distance_source = "kintsugi"
+    if cells["signed_dist_islet_um"].isna().any():
+        raise AssertionError(
+            f"{donor}: {int(cells['signed_dist_islet_um'].isna().sum())} cells have no signed "
+            f"distance in {distance_source} -- the cross-check cannot run")
+    return cells, which, distance_source
+
+
 def build_donor(donor: str, pixel: dict, stem: dict) -> tuple[pd.DataFrame, dict]:
-    run = pq.read_table(
-        S.RUN / f"expression/donor_id={donor}/data.parquet",
-        columns=["object_id", "X_centroid", "Y_centroid", "islet_num", "cell_region",
-                 "qc_analysis_eligible"]).to_pandas()
-    distance = pq.read_table(DISTANCE / f"donor_id={donor}/data_0.parquet",
-                             columns=["object_id", "signed_dist_islet_um"]).to_pandas()
-    run = run.merge(distance, on="object_id", how="left", validate="one_to_one")
-    if run["signed_dist_islet_um"].isna().any():
-        raise AssertionError(f"{donor}: {int(run['signed_dist_islet_um'].isna().sum())} cells "
-                             "have no signed distance -- the cross-check cannot run")
+    run, cell_source, distance_source = cells_with_distance(donor)
 
     # QuPath's own answer is renamed, never dropped: the diff below is the whole point, and a
     # column called `islet_num` that silently means one thing here and another downstream is how
@@ -180,6 +220,8 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> tuple[pd.DataFrame, dict
 
     report = {
         "donor_id": donor,
+        "cell_source": cell_source,
+        "distance_source": distance_source,
         "cells": len(frame),
         "eligible": int(eligible.sum()),
         "core_outlines": geo.attrs["n_core_outlines"],
@@ -188,6 +230,11 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> tuple[pd.DataFrame, dict
         # the resulting table showed geometry finding FEWER islet cells than Parent on 12 of 13
         # donors -- an artefact of comparing an eligible count against a raw one.
         "in_islet_geometry": int((frame["in_islet"] & eligible).sum()),
+        "in_expansion_geometry": int((frame["in_expansion_outline"] & eligible).sum()),
+        # Islets that actually hold an eligible cell -- not the outline count. 146 outlines in
+        # this cohort contain no cell at all, so the two are different numbers and the app's
+        # denominator is this one.
+        "islets_occupied": int(frame.loc[frame["in_islet"] & eligible, "islet_num"].nunique()),
         "in_islet_parent": int((was_in_islet & eligible).sum()),
         "gained": gained,
         "lost": lost,
@@ -217,9 +264,19 @@ def main() -> int:
     if not args.report:
         OUT.mkdir(parents=True, exist_ok=True)
 
-    reports = []
+    reports, refused = [], []
     for donor in donors:
-        frame, report = build_donor(donor, pixel, stem)
+        # A donor that cannot be built is recorded with the reason it could not, and the run goes
+        # on to the rest. Coverage is the question this lane is asked; stopping at the first
+        # failure answers it for one donor and leaves the others unmeasured. The exit status
+        # still carries the failure, so nothing passes quietly.
+        try:
+            frame, report = build_donor(donor, pixel, stem)
+        except Exception as error:                                   # noqa: BLE001
+            refused.append({"donor_id": donor,
+                            "reason": f"{type(error).__name__}: {error}"})
+            print(f"{donor}: NOT BUILT -- {type(error).__name__}: {error}", flush=True)
+            continue
         reports.append(report)
         print(f"{donor}: {report['in_islet_geometry']:>7,} islet cells by geometry vs "
               f"{report['in_islet_parent']:>7,} by Parent  "
@@ -232,12 +289,18 @@ def main() -> int:
             frame.to_parquet(target / "data.parquet", index=False)
 
     table = pd.DataFrame(reports)
-    pd.set_option("display.width", 220)
+    pd.set_option("display.width", 260)
     print("\n" + table.to_string(index=False))
+    print(f"\ncovered {len(reports)} of {len(donors)} donors asked for")
+    for row in refused:
+        print(f"  not built: {row['donor_id']}  {row['reason']}")
     if not args.report:
         table.to_parquet(OUT / "membership_diff.parquet", index=False)
+        if refused:
+            pd.DataFrame(refused).to_json(OUT / "not_built.json",
+                                          orient="records", indent=2)
         print(f"\n-> {OUT}")
-    return 0
+    return 1 if refused else 0
 
 
 if __name__ == "__main__":

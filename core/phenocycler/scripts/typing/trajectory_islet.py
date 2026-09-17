@@ -24,20 +24,28 @@ size.  The donor and disease eta-squared are reported for the same reason -- the
 the axis is donor rather than islet, which is a property of the build worth knowing either way.
 
 *It does not batch-correct.*  Correction needs a batch variable carrying within-group disease
-contrast.  On this ten-donor cohort the staining groups are S0(1 ND), S2(1 ND), S3(2 ND), S4(4 ND +
-1 T1D), S5(1 T1D) -- so S5 *is* donor 6436, one of only two T1D donors, and removing the S5 effect
-would remove that donor's disease signal with it.  Only S4 carries contrast.  Harmony on
-``stain_group`` is therefore not warranted here; the cohort is stratified and the confound reported.
+contrast.  Whether one exists is a property of the cohort in front of the script, so it is
+**measured per run** and written to ``uns['batch_correction_reason']``: the staining groups that
+hold a single donor within a disease status are named, because correcting on ``stain_group`` would
+take those donors' disease contributions out with their group effects.  Harmony is not applied;
+the cohort is stratified and the confound reported.
 
-**The cohort limit, stated in uns so the app can surface it**: eight ND donors, two T1D, no Aab+.
-This ordering is an islet-composition axis.  It is not a disease-progression axis, and nothing
-downstream should read it as one.
+**The cohort limit is likewise derived per run**, not written here, and recorded in
+``uns['cohort_limit']`` so the app can surface it: the donors per status, and the share of the
+pseudotime donor explains within each.  This ordering is an islet-composition axis.  It is not a
+disease-progression axis, and nothing downstream should read it as one.
+
+Those three strings used to be fixed text describing the ten-donor build.  Run on twenty donors
+they kept asserting "eight ND donors, two T1D, no Aab+" beside a ``within_status_donor_count`` of
+``{ND 8, Aab+ 3, T1D 9}`` in the same dict.  A cohort fact written as a literal is a leak whether
+it sits in the app or in the producer that feeds it.
 
     python core/phenocycler/scripts/typing/trajectory_islet.py
 """
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 
 import anndata as ad
@@ -66,16 +74,17 @@ ROOT_MIN_CELLS = 20
 #: Minimum core cells for an islet to receive a pseudotime.  Chosen by where the ordering becomes
 #: reproducible, not by any result.  Measured, recorded in uns, and reported at run time:
 #:
-#:     floor   islets  rho(n_neighbors 30 vs 15)
+#:     floor   islets  rho(n_neighbors 30 vs 15)     [measured on the ten-donor build, 2026-09-14]
 #:         0    7,302   -0.537   <- the two runs order the islets OPPOSITELY
 #:         5    5,707    0.632
 #:        10    4,371    0.931   <- chosen
 #:        20    3,101    0.958
 #:        50    1,687    0.958
 #:
-#: The median islet here holds 14 core cells, so a composition over eight classes is estimated
-#: from very few cells; below ten the ordering is not identified at all, and above ten the
-#: stability plateaus.  Islets below the floor stay in the file -- the app keys per islet and
+#: That table is the evidence for the VALUE and stays here as such; it is not carried into `uns`,
+#: where each run counts its own islets per floor.  A composition over eight classes is estimated
+#: from very few cells -- the ten-donor median islet held 14 -- and below ten the ordering is not
+#: identified at all, while above ten the stability plateaus.  Islets below the floor stay in the file -- the app keys per islet and
 #: pairs core with peri -- but their pseudotime is Unavailable with a reason, never zero.
 COMPOSITION_FLOOR_CELLS = 10
 ENDOCRINE = ("Beta_cell", "Alpha_cell", "Delta_cell")
@@ -93,10 +102,14 @@ DONOR_ETA2_CEILING = 0.15
 #: cohort that gates ND (eight donors) and reports T1D (two) -- which is the cohort's limit
 #: showing through, not an exemption granted to a failing number.
 DONOR_ETA2_MIN_DONORS = 3
+#: The coarse acquisition batch, derived from the donors whose QuPath export was re-done rather
+#: than restated: `cohort.BATCH2_REEXPORTED` IS the second batch. Batch is aliased with disease
+#: status -- every ND donor is in batch 1 -- so it is reported and never corrected on.
+BATCH2_DONORS = frozenset(COHORT.BATCH2_REEXPORTED)
 
 
-def load_islets(donors: list[str]) -> pd.DataFrame:
-    frame = pd.read_csv(APP / "islet_celltype_proportions.csv")
+def load_islets(donors: list[str], proportions: pathlib.Path | None = None) -> pd.DataFrame:
+    frame = pd.read_csv(proportions or (APP / "islet_celltype_proportions.csv"))
     frame = frame[frame["case_id"].astype(str).isin(donors)].reset_index(drop=True)
     meta = pd.read_csv(APP / "donor_metadata.csv")[
         ["case_id", "donor_status", "age", "sex"]].rename(columns={"sex": "gender"})
@@ -127,6 +140,45 @@ def diffusion_pseudotime(adata: ad.AnnData, rep: str, root: int,
     return work.obs["dpt_pseudotime"].to_numpy().copy(), work
 
 
+def embedding_eta2(coords: np.ndarray, donor: np.ndarray,
+                   donor_to_group: dict[str, str], permutations: int = 500,
+                   seed: int = 0) -> dict[str, float]:
+    """How much of a 2-D embedding is one grouping of DONORS, against a null that keeps nesting.
+
+    eta-squared here is the between-group sum of squares over the total, summed over both UMAP
+    axes.  The null is what makes the number readable: islets are nested in donors, so shuffling
+    islet labels asks a question nobody has -- it would call any donor-level grouping significant.
+    The donor-to-group map is permuted instead, group sizes preserved, so the null says "how much
+    would an ARBITRARY partition of these donors explain".  A grouping that is one donor per group
+    is therefore exactly its own null (p = 1) rather than a finding.
+    """
+    rng = np.random.default_rng(seed)
+
+    def eta2_2d(groups: np.ndarray) -> float:
+        ok = np.isfinite(coords).all(axis=1)
+        points, groups = coords[ok], groups[ok]
+        grand = points.mean(axis=0)
+        between = sum((groups == g).sum() * ((points[groups == g].mean(axis=0) - grand) ** 2).sum()
+                      for g in np.unique(groups))
+        total = ((points - grand) ** 2).sum()
+        return float(between / total) if total > 0 else float("nan")
+
+    donors = np.array(sorted(donor_to_group))
+    labels = np.array([donor_to_group[d] for d in donors])
+    observed = eta2_2d(np.array([donor_to_group[d] for d in donor]))
+    # One permutation PER DRAW, hoisted out of the per-islet lookup. Built inline it was
+    # re-drawn for every islet, which silently turns the donor-block null back into the
+    # islet-level shuffle it exists to avoid -- and that null is ~0 for every grouping, so the
+    # p-value looks decisive for a grouping that is its own null.
+    null = np.empty(permutations)
+    for draw in range(permutations):
+        shuffled = dict(zip(donors, rng.permutation(labels)))
+        null[draw] = eta2_2d(np.array([shuffled[d] for d in donor]))
+    return {"eta2": observed, "null_mean": float(null.mean()),
+            "null_p95": float(np.percentile(null, 95)), "k": int(len(set(labels))),
+            "p": float((1 + (null >= observed).sum()) / (1 + len(null)))}
+
+
 def pick_root(adata: ad.AnnData, rep: str) -> tuple[int, dict]:
     """Medoid of the top-K ND islets by endocrine fraction, above the cell floor.
 
@@ -154,10 +206,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
     parser.add_argument("--include-marginal", action="store_true")
+    #: The per-islet proportions to fit on, and where to write.  Both default to the app's domain
+    #: root, which is what a deploy wants; both are settable so a rebuild can be fitted and
+    #: inspected without overwriting the deployed files while a question about it is still open.
+    parser.add_argument("--islets", type=pathlib.Path, default=None,
+                        help="islet_celltype_proportions.csv to fit on (default: the app's)")
+    parser.add_argument("--out-dir", type=pathlib.Path, default=None,
+                        help="where islet_leiden.parquet and the H5AD are written (default: app)")
+    parser.add_argument("--leiden-name", default="islet_leiden.parquet",
+                        help="basename for the islet-level clustering, so a rebuild can sit "
+                             "beside the deployed file instead of replacing it")
     args = parser.parse_args()
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
+    out_dir = args.out_dir or APP
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    frame = load_islets(donors)
+    frame = load_islets(donors, args.islets)
     classes = sorted(c[len("count_"):] for c in frame.columns if c.startswith("count_"))
     print(f"{len(frame):,} islets, {len(donors)} donors, {len(classes)} classes\n")
 
@@ -343,6 +407,57 @@ def main() -> int:
         sc.tl.leiden(fitted, resolution=resolution, key_added=f"leiden_{resolution}",
                      flavor="igraph", n_iterations=2, directed=False)
         print(f"  leiden {resolution}: {fitted.obs[f'leiden_{resolution}'].nunique()} clusters")
+    # --- How much of the EMBEDDING is batch? Reported, never gated. --------------------------
+    # The pseudotime already carries a donor eta-squared; the UMAP is a different object and the
+    # app draws it, so it gets its own number. Acquisition batch is aliased with disease status
+    # at the coarse level -- every ND donor is in batch 1 -- so the coarse figure is printed and
+    # marked unattributable, and the finer variables (`stain_group`, `acq_run`) are what a reader
+    # should weigh. The within-status pass is where coarse batch becomes attributable at all: a
+    # status containing both batches is the only place the two come apart.
+    coords = np.asarray(fitted.obsm["X_umap"])
+    fit_donor = fitted.obs["imageid"].astype(str).to_numpy()
+    fit_status = fitted.obs["donor_status"].astype(str).to_numpy()
+    one_per = {d: str(d) for d in np.unique(fit_donor)}
+    donor_maps = {
+        "coarse_batch": {d: ("batch2" if d in BATCH2_DONORS else "batch1")
+                         for d in np.unique(fit_donor)},
+        "stain_group": dict(zip(fit_donor, fitted.obs["stain_group"].astype(str))),
+        "acq_run": dict(zip(fit_donor, fitted.obs["acq_run"].astype(str))),
+        "donor_status": dict(zip(fit_donor, fit_status)),
+        "donor": one_per,
+    }
+    embedding_batch = {name: embedding_eta2(coords, fit_donor, mapping)
+                       for name, mapping in donor_maps.items()}
+    print("\nembedding (2-D UMAP): eta-squared, against a null that permutes the donor->group map")
+    for name, stats in embedding_batch.items():
+        print(f"  {name:<14s} k={stats['k']:<3d} eta2={stats['eta2']:.3f}   "
+              f"null mean={stats['null_mean']:.3f} p95={stats['null_p95']:.3f}  "
+              f"p={stats['p']:.4f}")
+    statuses_with_both = [s_ for s_ in np.unique(fit_status)
+                          if len({("batch2" if d in BATCH2_DONORS else "batch1")
+                                  for d in np.unique(fit_donor[fit_status == s_])}) > 1]
+    print("  coarse_batch is ALIASED with donor status across the cohort and is not attributable "
+          "there.")
+    within_status_embedding = {}
+    for s_ in np.unique(fit_status):
+        mask = fit_status == s_
+        here = np.unique(fit_donor[mask])
+        entry = {"n_donors": int(len(here)),
+                 "donor": embedding_eta2(coords[mask], fit_donor[mask],
+                                         {d: str(d) for d in here})}
+        if s_ in statuses_with_both:
+            entry["coarse_batch"] = embedding_eta2(
+                coords[mask], fit_donor[mask],
+                {d: ("batch2" if d in BATCH2_DONORS else "batch1") for d in here})
+        within_status_embedding[str(s_)] = entry
+        batch_note = (f"coarse_batch eta2={entry['coarse_batch']['eta2']:.3f} "
+                      f"(null {entry['coarse_batch']['null_mean']:.3f}, "
+                      f"p={entry['coarse_batch']['p']:.4f})"
+                      if "coarse_batch" in entry
+                      else "coarse batch Unavailable here -- one batch only")
+        print(f"  within {s_:<5s} ({entry['n_donors']} donors): "
+              f"donor eta2={entry['donor']['eta2']:.3f}; {batch_note}")
+
     diffmap = pd.DataFrame(np.full((adata.n_obs, fitted.obsm["X_diffmap"].shape[1]), np.nan),
                            index=adata.obs_names)
     diffmap.loc[ordered.obs_names] = fitted.obsm["X_diffmap"]
@@ -363,9 +478,73 @@ def main() -> int:
     leiden["leiden_umap_2"] = adata.obsm["X_umap"][:, 1]
     leiden.insert(0, "islet_key", adata.obs["base_islet_id"].to_numpy())
     leiden.insert(0, "case_id", adata.obs["imageid"].astype(int).to_numpy())
-    leiden.reset_index(drop=True).to_parquet(APP / "islet_leiden.parquet", index=False)
+    leiden.reset_index(drop=True).to_parquet(out_dir / args.leiden_name, index=False)
     for column in [c for c in leiden.columns if c.startswith("leiden_") and "umap" not in c]:
         print(f"  {column}: {leiden[column].notna().sum():,} islets clustered")
+
+    # --- Three uns strings that were COHORT FACTS WRITTEN AS LITERALS -------------------------
+    #
+    # `cohort_limit`, `batch_correction_reason` and `composition_floor_sweep` were fixed text and
+    # a fixed table describing the ten-donor build. Run on twenty donors they went on asserting
+    # "Eight ND donors, two T1D, no Aab+" and a floor table topping out at 4,371 islets, while
+    # `within_status_donor_count` and `islets_ordered` in the SAME dict said {ND 8, Aab+ 3, T1D 9}
+    # and 8,665. A file that contradicts itself is worse than one that says less, and this is the
+    # leak the app's own rules name: a cohort's size, its donor ids and its method printed as a
+    # measurement of whichever dataset was loaded. All three are derived from this fit now.
+    floor_cells = adata.obs["total_cells"].to_numpy(float)
+    floor_sweep = {
+        "note": ("islets at or above each candidate floor, counted on THIS fit. `rho` is the "
+                 f"Spearman between n_neighbors {N_NEIGHBORS} and {N_NEIGHBORS_ALT} and is "
+                 "measured only at the floor actually used; at the others it is Unavailable "
+                 "rather than carried over from another cohort's sweep."),
+        "floor_used": COMPOSITION_FLOOR_CELLS,
+    }
+    for candidate in (0, 5, 10, 20, 30, 50):
+        kept = int(np.sum(np.nan_to_num(floor_cells, nan=-1.0) >= candidate))
+        floor_sweep[str(candidate)] = {
+            "islets": kept,
+            "rho": (float(rho_neighbors) if candidate == COMPOSITION_FLOOR_CELLS else None),
+        }
+
+    # Which staining groups hold a single donor *within* a disease status: correcting on
+    # stain_group would take that donor's disease contribution out with its group effect. This is
+    # the actual test the old sentence was asserting about S4/S5, run on whatever cohort is here.
+    fit_stain = fitted.obs["stain_group"].astype(str).to_numpy()
+    single_donor_groups, groups_with_contrast = {}, []
+    for s_ in sorted(set(fit_status)):
+        here = fit_status == s_
+        for group in sorted(set(fit_stain[here])):
+            donors_here = sorted(set(fit_donor[here & (fit_stain == group)]))
+            if len(donors_here) == 1:
+                single_donor_groups.setdefault(s_, {})[group] = donors_here[0]
+    for group in sorted(set(fit_stain)):
+        if len(set(fit_status[fit_stain == group])) > 1:
+            groups_with_contrast.append(group)
+    confounded = "; ".join(
+        f"{s_}: " + ", ".join(f"{g} is donor {d} alone" for g, d in sorted(v.items()))
+        for s_, v in sorted(single_donor_groups.items())) or "none on this cohort"
+    batch_correction_reason = (
+        "Correction needs a batch variable carrying within-group disease contrast. Measured on "
+        f"this fit, the staining groups holding a single donor within a status are -- {confounded}"
+        " -- so correcting on stain_group would remove those donors' contributions with their "
+        "group effects. Groups that do carry within-group disease contrast: "
+        + (", ".join(groups_with_contrast) or "none")
+        + ". The cohort is stratified and the confound reported instead.")
+
+    status_phrase = ", ".join(
+        f"{n} {s_}" for s_, n in sorted(within_status_donors.items(), key=lambda kv: -kv[1]))
+    eta_phrase = "; ".join(
+        f"within {s_} ({within_status_donors[s_]} donors) donor explains "
+        f"{within_status_donor_eta2[s_] * 100:.1f}% of the pseudotime"
+        + (" -- gated" if s_ in gated_statuses
+           else f" -- reported only, under {DONOR_ETA2_MIN_DONORS} donors")
+        for s_ in sorted(within_status_donor_eta2))
+    cohort_limit = (
+        f"{status_phrase} donors ({len(set(fit_donor))} in the fit). This is an "
+        "islet-composition ordering, not a disease-progression axis, and must not be read as "
+        f"one. {eta_phrase}. A status below {DONOR_ETA2_MIN_DONORS} donors yields one pairwise "
+        "contrast rather than a variance decomposition, so its number describes the build and "
+        f"does not gate it; the ceiling on a gated status is {DONOR_ETA2_CEILING}.")
 
     adata.uns["iroot"] = int(np.where(adata.obs_names == ordered.obs_names[root])[0][0])
     adata.uns["trajectory_validation"] = {
@@ -380,27 +559,22 @@ def main() -> int:
         "composition_floor_cells": COMPOSITION_FLOOR_CELLS,
         "islets_ordered": int(eligible.sum()),
         "islets_below_floor": int((~eligible).sum()),
-        "composition_floor_sweep": {
-            "note": "islets kept and Spearman rho between n_neighbors 30 and 15, per floor",
-            "0": [7302, -0.537], "5": [5707, 0.632], "10": [4371, 0.931],
-            "20": [3101, 0.958], "30": [2399, 0.970], "50": [1687, 0.958]},
+        "composition_floor_sweep": floor_sweep,
         "batch_correction": "none",
-        "batch_correction_reason": (
-            "Staining group is confounded with donor for the T1D donors on this cohort: "
-            "S5 contains only 6436 and S4 only 6593, so correcting on stain_group would remove "
-            "each T1D donor's contribution with its group effect. Only S4 carries within-group "
-            "disease contrast. The cohort is stratified and the confound reported instead."),
-        "cohort_limit": (
-            "Eight ND donors, two T1D, no Aab+. This is an islet-composition ordering, not a "
-            "disease-progression axis, and must not be read as one. Within ND -- eight donors, "
-            "so the statistic is a real variance decomposition -- donor explains 1.6% of the "
-            "pseudotime, so the axis is not a donor axis there. Within T1D it explains 46%, but "
-            "with only two T1D donors that is one pairwise contrast and cannot separate a build "
-            "artefact from two people genuinely differing. Read any T1D position on this axis "
-            "with that in mind; three or more T1D donors would make it decidable."),
+        "batch_correction_reason": batch_correction_reason,
+        "cohort_limit": cohort_limit,
         "islets_unavailable_no_core_endocrine": int(len(undefined_by_donor)
                                                     and sum(undefined_by_donor.values())),
         "islets_unavailable_by_donor": undefined_by_donor,
+    }
+    adata.uns["embedding_batch"] = {
+        "note": ("eta-squared of the 2-D UMAP on each donor-level grouping, with a null that "
+                 "permutes the donor->group map (islets are nested in donors, so an islet-level "
+                 "shuffle is not a null). Reported, never gated."),
+        "coarse_batch_is_aliased_with_status": True,
+        "statuses_containing_both_batches": statuses_with_both,
+        "pooled": embedding_batch,
+        "within_status": within_status_embedding,
     }
     adata.uns["phenotype_names"] = classes
     adata.uns["run_id"] = S.RUN_ID
@@ -421,9 +595,9 @@ def main() -> int:
     adata.obs = _string_array_encoding(adata.obs)
     adata.var = _string_array_encoding(adata.var)
 
-    target = APP / "adata_ins_root.h5ad"
+    target = out_dir / "adata_ins_root.h5ad"
     if not all(gates.values()):
-        rejected = APP / "adata_ins_root.rejected.h5ad"
+        rejected = out_dir / "adata_ins_root.rejected.h5ad"
         adata.write_h5ad(rejected)
         print(f"\nMETHOD CHECK FAILED -> {rejected} (the deployed file is untouched)")
         return 1

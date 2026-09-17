@@ -37,11 +37,21 @@ Values are the UniFORM-aligned ones on the classification's own floor and span *
 clip**.  The clip pins 55.1 % of values to exactly zero, which is right for *is this marker present*
 and wrong for *how similar are two cells* -- the same distinction the coarse embedding was built on.
 
+**COVERAGE, 2026-09-17.**  The first build of this file ran on ``COHORT.resolve(None)``, which on
+2026-09-14 was the ten batch-1 donors -- the seven re-exported batch-2 donors had not been rebuilt
+yet and so were not in ``CLEAN``, and the three ``MARGINAL`` donors need ``--include-marginal``.
+That is the whole reason the deployed trajectory covers ten donors, and it is why it carries no
+Aab+ case at all: all three Aab+ donors (6450, 6505, 6521) were outside that ten.  The default is
+now **every eligible donor** -- ``CLEAN`` plus ``MARGINAL``, with the centrally excluded donors
+removed by ``phenocycler.cohort`` rather than by any list restated here.  ``--clean-only`` asks for
+the narrower set.
+
     python core/phenocycler/scripts/typing/trajectory_singlecell_features.py
 """
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import sys
 
@@ -53,6 +63,9 @@ import pyarrow.parquet as pq
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import cohort as COHORT
 import subpanel_io as S
+
+sys.path.insert(0, str(S.REPO / "core/phenocycler"))
+from phenocycler.cohort import filter_eligible_donors  # noqa: E402  -- the one exclusion authority
 
 OUT = S.OUT / "trajectory"
 
@@ -116,9 +129,13 @@ def donor_frame(donor: str, markers: list[str], scale: pd.DataFrame) -> pd.DataF
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
-    parser.add_argument("--include-marginal", action="store_true")
+    parser.add_argument("--clean-only", action="store_true",
+                        help="CLEAN only -- the 2026-09-14 default, which is how the deployed "
+                             "build ended up with ten donors and no Aab+ case")
     args = parser.parse_args()
-    donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
+    donors = COHORT.resolve(args.donors, include_marginal=not args.clean_only)
+    # The exclusion list has exactly one home. This lane derives from it and never restates it.
+    donors = filter_eligible_donors(donors)
 
     markers = feature_markers()
     scale = S.load_scale()
@@ -133,14 +150,30 @@ def main() -> int:
     runs["case_id"] = runs["case_id"].astype(str)
     stain = runs.set_index("case_id")["stain_group"]
 
-    frames = []
+    frames, per_donor = [], {}
+    print(f"{len(donors)} donors: {', '.join(donors)}\n")
+    print(f"  {'donor':>6} {'status':>5} {'cells':>9} {'core':>8} {'peri':>8} {'islets':>7} "
+          f"{'markers':>7}  source generation")
     for donor in donors:
         frame = donor_frame(donor, markers, scale)
         frame["donor_status"] = status[donor]
         frame["stain_group"] = stain.get(donor, "unknown")
         counts = frame["region"].value_counts().to_dict()
-        print(f"  {donor}: {len(frame):>8,} cells  core {counts.get('core', 0):>7,} "
-              f"peri {counts.get('peri', 0):>7,}", flush=True)
+        have = sorted(m for m in markers if frame[m].notna().any())
+        source = S.OUT / f"cells/donor_id={donor}/data.parquet"
+        written = _dt.datetime.fromtimestamp(source.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        per_donor[donor] = {
+            "donor_status": str(status[donor]), "stain_group": str(stain.get(donor, "unknown")),
+            "cells": int(len(frame)), "core": int(counts.get("core", 0)),
+            "peri": int(counts.get("peri", 0)),
+            "islets": int(frame["islet_key"].nunique()),
+            "markers_available": len(have),
+            "markers_absent_on_this_panel": sorted(set(markers) - set(have)),
+            "source": str(source.relative_to(S.REPO)), "source_written": written,
+        }
+        print(f"  {donor:>6} {str(status[donor]):>5} {len(frame):>9,} "
+              f"{counts.get('core', 0):>8,} {counts.get('peri', 0):>8,} "
+              f"{frame['islet_key'].nunique():>7,} {len(have):>7}  {written}", flush=True)
         frames.append(frame)
 
     out = pd.concat(frames, ignore_index=True)
@@ -159,9 +192,12 @@ def main() -> int:
         "markers": markers,
         "n_cells": int(len(out)),
         "donors": list(donors),
+        "per_donor": per_donor,
+        "typing_generation": "data/development/typing/cells (current); NOT typing/subpanel",
         "scaling": "apply_scale floor/span, upper clip only -- no lower clip",
         "population": "islet core and peri-islet (20 um) cells, Excluded removed",
         "held_out": list(PANEL_IDENTITY),
+        "built": _dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "run_id": S.RUN_ID,
     }, indent=2))
     print(f"\n{len(out):,} cells x {len(markers)} features -> {target}")

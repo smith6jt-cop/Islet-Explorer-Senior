@@ -40,6 +40,100 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       "#9467bd", "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
     )
 
+    # ---- The islet-level embedding this tab draws -------------------------------------------
+    #
+    # `prepared()$comp` carries whatever `leiden_*` / `leiden_umap_1/2` columns were merged into
+    # the islet table when the Parquet views were last built. That is a SNAPSHOT of one fit, and
+    # on 2026-09-17 the snapshot in the run cohort's root was a fit over ten of the twenty
+    # donors, on a superseded typing generation: 4,371 islets carried a position out of 18,404
+    # islet cores, and the card said nothing about the other ten donors. A reader cannot tell a
+    # cohort that has no structure from a cohort that was never fitted.
+    #
+    # So: prefer a rebuilt embedding published in the ACTIVE DOMAIN'S ROOT under its own name,
+    # fall back to whatever the islet table already carries, and -- either way -- state the
+    # coverage under the card. `domain_data_root()` is the only path source here; a UMAP loaded
+    # from the other cohort's root would draw the wrong islets under the right keys, and the two
+    # cohorts share five donors, so the keys would match.
+    ISLET_EMBEDDING_FILE <- "islet_leiden_20donor.parquet"
+
+    resolve_islet_embedding <- function() {
+      root <- tryCatch(domain_data_root(), error = function(e) NULL)
+      if (is.null(root) || !nzchar(root)) return(NULL)
+      path <- file.path(root, ISLET_EMBEDDING_FILE)
+      if (file.exists(path)) path else NULL
+    }
+
+    #' The rebuilt embedding, or NULL. Read once per session, not once per render.
+    #'
+    #' A plain closure, deliberately not a `reactive()` over `reactiveVal`s: a reactive that
+    #' writes the same reactiveVal it reads invalidates itself, and the file cannot change while
+    #' the session is up, so there is nothing here for Shiny to track.
+    .embedding_cache <- NULL
+    .embedding_read <- FALSE
+    islet_embedding <- function() {
+      if (.embedding_read) return(.embedding_cache)
+      .embedding_read <<- TRUE
+      path <- resolve_islet_embedding()
+      if (is.null(path)) return(NULL)
+      frame <- tryCatch(as.data.frame(arrow::read_parquet(path)), error = function(e) NULL)
+      if (is.null(frame) || !all(c("case_id", "islet_key") %in% colnames(frame))) return(NULL)
+      .embedding_cache <<- frame
+      frame
+    }
+
+    #' `prepared()$comp` with the rebuilt embedding's columns substituted in where one exists.
+    #'
+    #' Substituted, not added: carrying two generations of `leiden_0.5` side by side is how a
+    #' figure ends up labelled with one fit and coloured by another.
+    leiden_comp <- reactive({
+      pd <- prepared()
+      comp <- pd$comp
+      if (is.null(comp)) return(NULL)
+      embedding <- islet_embedding()
+      if (is.null(embedding) || !"Case ID" %in% colnames(comp) ||
+          !"islet_key" %in% colnames(comp)) return(comp)
+      bring <- setdiff(colnames(embedding), c("case_id", "islet_key"))
+      bring <- bring[grepl("^leiden_", bring)]
+      if (!length(bring)) return(comp)
+      key_comp <- paste0(as.character(comp$`Case ID`), "|", as.character(comp$islet_key))
+      key_emb <- paste0(as.character(embedding$case_id), "|", as.character(embedding$islet_key))
+      index <- match(key_comp, key_emb)
+      # `[[<-` one column at a time: `comp` arrives from a dplyr pipeline and may be a tibble,
+      # whose `[<-` does not accept a plain list the way a data.frame's does.
+      for (column in bring) comp[[column]] <- embedding[[column]][index]
+      comp
+    })
+
+    #' What the card is actually drawing, derived -- never a written-in cohort size.
+    embedding_coverage <- reactive({
+      comp <- leiden_comp()
+      if (is.null(comp)) return(NULL)
+      nbr <- get_nbr_columns(colnames(comp))
+      if (!length(nbr$leiden_umap) || length(nbr$leiden_umap) < 2) {
+        return(list(source = if (is.null(islet_embedding())) "islet table" else "rebuild",
+                    positioned = 0L, islets = nrow(comp),
+                    donors_positioned = 0L,
+                    donors = length(unique(comp$`Case ID`)),
+                    donors_absent_from_table = 0L))
+      }
+      placed <- is.finite(suppressWarnings(as.numeric(comp$leiden_umap_1))) &
+                is.finite(suppressWarnings(as.numeric(comp$leiden_umap_2)))
+      # Donors the EMBEDDING holds but the islet table does not. This is the other half of the
+      # staleness and it points the opposite way: the islet table is rebuilt by a different
+      # script from the embedding, so either can be behind. Counted from both frames, not
+      # asserted from either.
+      embedding <- islet_embedding()
+      absent_from_table <- if (is.null(embedding)) 0L else {
+        length(setdiff(unique(as.character(embedding$case_id)),
+                       unique(as.character(comp$`Case ID`))))
+      }
+      list(source = if (is.null(embedding)) "islet table" else ISLET_EMBEDDING_FILE,
+           positioned = sum(placed), islets = nrow(comp),
+           donors_positioned = length(unique(comp$`Case ID`[placed])),
+           donors = length(unique(comp$`Case ID`)),
+           donors_absent_from_table = absent_from_table)
+    })
+
     # ---- Helpers: column identification ----
     get_nbr_columns <- function(comp_cols) {
       list(
@@ -85,9 +179,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     })
 
     has_leiden <- reactive({
-      pd <- prepared()
-      if (is.null(pd$comp)) return(FALSE)
-      nbr <- get_nbr_columns(colnames(pd$comp))
+      comp <- leiden_comp()
+      if (is.null(comp)) return(FALSE)
+      nbr <- get_nbr_columns(colnames(comp))
       length(nbr$leiden) > 0
     })
 
@@ -132,7 +226,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     # ---- Leiden resolution selector ----
     output$leiden_res_selector <- renderUI({
       if (!has_leiden()) return(NULL)
-      nbr <- get_nbr_columns(colnames(prepared()$comp))
+      nbr <- get_nbr_columns(colnames(leiden_comp()))
       # Available resolutions (e.g., leiden_0.3 -> "0.3")
       res_labels <- gsub("^leiden_", "", nbr$leiden)
       choices <- setNames(nbr$leiden, res_labels)
@@ -163,15 +257,14 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     # Leiden mapping for tissue scatter: map islet_name -> cluster for core/peri cells
     islet_leiden_map <- reactive({
       req(has_leiden())
-      pd <- prepared()
+      comp <- leiden_comp()
       leiden_col <- input$leiden_res
-      req(leiden_col, leiden_col %in% colnames(pd$comp))
+      req(leiden_col, leiden_col %in% colnames(comp))
 
       # Build islet_key -> cluster mapping for the selected donor
       donor_id <- selected_donor()
       req(donor_id)
 
-      comp <- pd$comp
       donor_mask <- comp$`Case ID` == as.integer(donor_id)
       if (!any(donor_mask)) return(NULL)
 
@@ -470,21 +563,48 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       }
     )
 
-    # ==== Card 3: Leiden UMAP (plotly, 1015 islets) ====
+    # ==== Card 3: the islet-level UMAP (plotly) ====
+    # This output is the card's provenance line. It used to render only on total absence, which
+    # left the far more common failure silent: an embedding that exists but covers a fraction of
+    # the cohort still drew, and drew confidently. Every number below is counted off the frame
+    # being plotted -- none is written in, because a cohort size in a string is a claim about
+    # whichever dataset happens to be loaded.
     output$leiden_not_available <- renderUI({
       if (!has_leiden()) {
         return(div(style = "font-style: italic; margin-bottom: 10px",
-          "Islet-level Leiden clustering is not present in this dataset: the islet table carries ",
+          "Islet-level clustering is not present in this dataset: the islet table carries ",
           "no ", tags$code("leiden_<resolution>"), " or ", tags$code("leiden_umap_1/2"),
           " columns. Every other card on this tab is unaffected."))
       }
-      NULL
+      coverage <- embedding_coverage()
+      if (is.null(coverage)) return(NULL)
+      missing_donors <- coverage$donors - coverage$donors_positioned
+      div(style = "font-size: 11px; color: #666; margin-bottom: 8px; line-height: 1.45",
+        sprintf("Embedding: %s islet%s positioned, of %s in %s donor%s.",
+                format(coverage$positioned, big.mark = ","),
+                if (coverage$positioned == 1L) "" else "s",
+                format(coverage$islets, big.mark = ","),
+                format(coverage$donors),
+                if (coverage$donors == 1L) "" else "s"),
+        if (missing_donors > 0) tags$span(style = "color: #B2182B",
+          sprintf(" %s donor%s contribute%s no point: their islets are not in this fit, or fall ",
+                  format(missing_donors), if (missing_donors == 1L) "" else "s",
+                  if (missing_donors == 1L) "s" else ""),
+          "below its composition floor. Read the map as covering the donors it holds, not the cohort."),
+        if (isTRUE(coverage$donors_absent_from_table > 0)) tags$span(style = "color: #B2182B",
+          sprintf(" The embedding also holds %s donor%s this islet table does not, so the islet ",
+                  format(coverage$donors_absent_from_table),
+                  if (coverage$donors_absent_from_table == 1L) "" else "s"),
+          "table is the older of the two."),
+        tags$br(),
+        "An islet's position is its cell composition, so acquisition batch can enter it. ",
+        "This is a description of composition, not an ordering of disease."
+      )
     })
 
     output$leiden_umap <- renderPlotly({
       req(has_leiden())
-      pd <- prepared()
-      comp <- pd$comp
+      comp <- leiden_comp()
       req("leiden_umap_1" %in% colnames(comp), "leiden_umap_2" %in% colnames(comp))
 
       leiden_col <- input$leiden_res %||% {
@@ -552,8 +672,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     # ==== Donor Status UMAP (static ggplot, mirrors trajectory tab) ====
     spatial_umap_donor_plot <- reactive({
       req(has_leiden())
-      pd <- prepared()
-      comp <- pd$comp
+      comp <- leiden_comp()
       req("leiden_umap_1" %in% colnames(comp), "leiden_umap_2" %in% colnames(comp))
 
       plot_comp <- comp
@@ -569,7 +688,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
       plot_df <- plot_df[is.finite(plot_df$umap1) & is.finite(plot_df$umap2), , drop = FALSE]
       if (nrow(plot_df) == 0) return(NULL)
 
-      plot_df$donor_status <- factor(plot_df$donor_status, levels = c("ND", "Aab+", "T1D"))
+      # The statuses come from the DOMAIN, not from a written-in list: this card is mounted
+      # under both cohorts and a literal here prints one cohort's categories over the other's.
+      plot_df$donor_status <- factor(plot_df$donor_status, levels = domain_group_levels())
 
       ggplot(plot_df, aes(x = umap1, y = umap2, color = donor_status)) +
         geom_point(alpha = 0.6, size = 1.0) +
@@ -598,8 +719,7 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     # ==== Card 3 (bottom): Cluster Composition ====
     output$cluster_composition <- renderPlotly({
       req(has_leiden())
-      pd <- prepared()
-      comp <- pd$comp
+      comp <- leiden_comp()
 
       leiden_col <- input$leiden_res %||% {
         nbr <- get_nbr_columns(colnames(comp))
