@@ -11,6 +11,7 @@ enrichment is reported against something that must not be enriched.
 """
 from __future__ import annotations
 
+import functools
 import json
 import pathlib
 import warnings
@@ -106,7 +107,18 @@ NUCLEUS_MEASURED = ("DAPI", "FOXP3", "Ki67", "PCNA", "SOX2", "TCF_1", "TOX", "TP
 #: ``donors_with(["CD38"])`` and ``donors_with(["b_Catenin1"])`` overlap by those 2 donors.
 #: :func:`donor_markers` is the per-donor authority; ``markers()`` is the cohort intersection,
 #: for the places that genuinely need one common space.
-PANEL_VARIANT_MARKERS = ("CD38", "b_Catenin1")
+#:
+#: The 12 metabolic-panel markers added on 2026-09-16 belong here for exactly the same reason:
+#: they are carried by 6533 and 112 ONLY -- 2 of 22 -- because those two slides were stained
+#: with a 70-channel panel no other donor has. Leaving them out of this tuple put them in
+#: ``markers()``, whose contract is "measured on every eligible donor", and the first caller to
+#: build a donor frame from that list asked pyarrow for ASCT2 on a donor that never had it.
+METABOLIC_PANEL_MARKERS = (
+    "ASCT2", "ATP5A", "CD141", "CD21", "CS", "G6PD",
+    "GLUT1", "HK1", "Histone_H3_(p_Ser28)", "IDH2", "LDHA", "SDHA",
+)
+
+PANEL_VARIANT_MARKERS = ("CD38", "b_Catenin1") + METABOLIC_PANEL_MARKERS
 
 #: Declared biology: (a, b) label the same cell, so their bright tails should overlap.
 #: Written before any tail statistic was computed on this cohort.
@@ -223,6 +235,48 @@ def compartments() -> dict:
     return comp
 
 
+@functools.lru_cache(maxsize=None)
+def _acquired_cached(donor: str, wanted: tuple) -> frozenset:
+    """Which of ``wanted`` this donor actually ACQUIRED, from parquet statistics only.
+
+    A column being present is not evidence the marker was measured. The expression schema is
+    the union across the cohort, so a donor that never carried a marker still gets a column --
+    filled with NaN, which is correct (a missing measurement is unavailable, not zero) but
+    which made ``donor_markers`` claim the marker.
+
+    Measured 2026-09-17: ``Ker8_18`` is entirely non-finite for 6533 and 112 and finite for all
+    20 other donors, because those two slides were stained with a 70-plex carrying Keratin_5
+    instead -- an acquisition fact, confirmed against their channel_map. Left unhandled it made
+    every cell of both donors "incomplete", so ``donor_frame`` returned 0 complete cells.
+
+    Uses per-row-group null counts rather than reading the column: exact for the all-null case,
+    which is the one that matters, and costs no data read. Cached because donor_markers() is
+    called per donor inside loops.
+    """
+    import pyarrow.parquet as _pq
+    try:
+        md = _pq.ParquetFile(expression_path(donor)).metadata
+    except (FileNotFoundError, OSError):
+        # Absence of the file is not evidence a marker is absent.
+        return frozenset(wanted)
+    names = {md.schema.column(i).name: i for i in range(md.num_columns)}
+    out = set()
+    for m in wanted:
+        i = names.get(m)
+        if i is None:
+            continue
+        nulls = sum(md.row_group(g).column(i).statistics.null_count
+                    for g in range(md.num_row_groups)
+                    if md.row_group(g).column(i).statistics is not None)
+        if nulls < md.num_rows:
+            out.add(m)
+    return frozenset(out)
+
+
+def _acquired(donor: str, wanted) -> frozenset:
+    return _acquired_cached(str(donor), tuple(sorted(wanted)))
+
+
 def donor_markers(donor: str | None = None) -> dict | list:
     """Which markers each donor actually carries.
 
@@ -234,6 +288,7 @@ def donor_markers(donor: str | None = None) -> dict | list:
     coh = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
     coh = coh[coh["eligible"]]
     base = [m for m in markers(include_variant=True) if m not in PANEL_VARIANT_MARKERS]
+    variant = set(PANEL_VARIANT_MARKERS)
     out = {}
     for _, r in coh.iterrows():
         got = list(base)
@@ -241,7 +296,17 @@ def donor_markers(donor: str | None = None) -> dict | list:
             got.append("CD38")
         if r["has_b_Catenin1"]:
             got.append("b_Catenin1")
-        out[r["donor_id"]] = sorted(got)
+        # The two has_* columns can only express two variants, and as of 2026-09-16 there is a
+        # third: 6533 and 112 carry 12 metabolic markers no other donor has. Rather than add a
+        # has_* column per panel change, ask the donor's own expression table which of the
+        # remaining variant markers it actually carries. The table is the authority on what was
+        # acquired; the CSV is the authority on the cohort. Absence of the file is not evidence
+        # that a marker is absent, so a donor with no expression yet keeps the CSV-derived set.
+        got = [m for m in got if m in _acquired(r["donor_id"], got)]
+        rest = sorted(variant - {"CD38", "b_Catenin1"})
+        if rest:
+            got.extend(m for m in _acquired(r["donor_id"], rest) if m in set(rest))
+        out[r["donor_id"]] = sorted(set(got))
     return out[donor] if donor is not None else out
 
 
