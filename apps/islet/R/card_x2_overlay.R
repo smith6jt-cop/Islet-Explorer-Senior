@@ -20,7 +20,15 @@ ie_restain_index <- function(root = ie_restain_root()) {
   if (!file.exists(path)) return(ie_restain_failure("restain_artifact_not_built"))
   tryCatch({
     d <- as.data.frame(arrow::read_parquet(path))
-    needed <- c("donor_id", "state", "reason", "n", "frame", "pixel_size_um")
+    needed <- c("donor_id", "state", "reason", "n", "frame", "pixel_size_um",
+                "producing_pixel_size_um", "pixel_size_tolerance_um", "calibration_state",
+                "transform_source", "transform_sha256", "transform_direction",
+                "nucleus_filter", "nucleus_filter_source", "n_xenium_cells",
+                "n_nucleated_cells", "n_without_nucleus")
+    for (marker in c("INS", "GCG")) {
+      needed <- c(needed, paste0("n_measured_if_", marker,
+                                 c("", "_before_nucleus_filter", "_excluded_without_nucleus")))
+    }
     if (!all(needed %in% names(d)) || !nrow(d)) {
       stop("restain availability schema is missing or empty")
     }
@@ -58,10 +66,28 @@ ie_restain_selection <- function(index, donor, root = ie_restain_root()) {
   }
   donor <- ie_restain_normalize_donor(donor)
   row <- index$data[index$data$donor_id == donor, , drop = FALSE]
-  if (nrow(row) != 1L) return(ie_restain_failure("no_restain_pairing"))
+  # Read registration failures even when this layer has no measured cell rows.
+  ledger <- ie_restain_ledger(donor, root)
+  if (nrow(row) != 1L) {
+    if (identical(ledger$state, "failed")) return(list(availability = ledger, data = NULL))
+    return(ie_restain_failure("no_restain_layer_record"))
+  }
   available <- ie_avail(row$state[[1]], reason = row$reason[[1]], n = row$n[[1]])
-  if (ie_is_measured(available)) available <- ie_restain_ledger(donor, root)
+  # Continuous protein measurements and hormone release are separate decisions.
+  # A withheld/unavailable hormone decision cannot hide measured IF intensity.
+  if (!identical(available$state, "failed") && identical(ledger$state, "failed")) {
+    available <- ledger
+  }
   list(availability = available, data = row)
+}
+
+ie_restain_state_text <- function(availability) {
+  # ie_state_text's unavailable label describes identity QC. Restain absence
+  # also includes work awaiting measurement and must not claim it was QC-dropped.
+  if (identical(availability$state, "unavailable")) {
+    return(paste0("Unavailable — ", availability$reason))
+  }
+  ie_state_text(availability)
 }
 
 ie_restain_note <- function(availability, guard) {
@@ -69,6 +95,7 @@ ie_restain_note <- function(availability, guard) {
     artifact = file.path(ie_restain_root(), "availability.parquet"),
     builder = "scripts/senior/build_restain_layer.py")
   if (is.null(note)) return(NULL)
+  note$lines[[1]] <- ie_restain_state_text(availability)
   shiny::tags$p(class = "ie-card-note", format(note))
 }
 
@@ -81,7 +108,21 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
   needed <- c("donor_id", "cell_id", "object_id", "x_um", "y_um", "frame",
               "object_id_state", "object_id_reason", "feat__if_INS", "feat__if_GCG",
               "feat__if_INS_state", "feat__if_INS_reason",
-              "feat__if_GCG_state", "feat__if_GCG_reason")
+              "feat__if_GCG_state", "feat__if_GCG_reason", "transform_source",
+              "transform_sha256", "transform_direction", "pixel_size_um",
+              "producing_pixel_size_um", "pixel_size_tolerance_um")
+  if (!identical(row$calibration_state[[1]], "measured") ||
+      !is.finite(row$pixel_size_um[[1]]) || !is.finite(row$producing_pixel_size_um[[1]]) ||
+      !is.finite(row$pixel_size_tolerance_um[[1]]) || row$pixel_size_tolerance_um[[1]] < 0 ||
+      abs(row$pixel_size_um[[1]] - row$producing_pixel_size_um[[1]]) >
+        row$pixel_size_tolerance_um[[1]] + 1e-12 ||
+      !identical(row$transform_source[[1]], "refined") ||
+      !identical(row$transform_direction[[1]], "xenium_um_to_if_um") ||
+      !identical(row$nucleus_filter[[1]], "cell_id_in_xenium_nuclei_cell_ids") ||
+      !isTRUE(row$n[[1]] == row$n_nucleated_cells[[1]]) ||
+      !isTRUE(row$n_xenium_cells[[1]] == row$n[[1]] + row$n_without_nucleus[[1]])) {
+    stop("invalid IF transform, calibration or nucleus filter provenance")
+  }
   if (!all(needed %in% names(d)) || !nrow(d) || anyNA(d$frame) ||
       any(d$frame != expected) || anyNA(d$donor_id) || any(d$donor_id != donor) ||
       anyNA(d$cell_id) || any(!nzchar(d$cell_id)) || anyDuplicated(d$cell_id) ||
@@ -89,6 +130,12 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
       any(d$object_id_state != "unavailable") || any(d$object_id_reason != "no_qupath_object_id") ||
       any(!is.finite(d$x_um)) || any(!is.finite(d$y_um)) || nrow(d) != row$n[[1]]) {
     stop("invalid IF-frame restain cells or count")
+  }
+  for (field in c("transform_source", "transform_sha256", "transform_direction",
+                  "pixel_size_um", "producing_pixel_size_um", "pixel_size_tolerance_um")) {
+    if (anyNA(d[[field]]) || is.na(row[[field]][[1]]) || any(d[[field]] != row[[field]][[1]])) {
+      stop("IF cells disagree with transform or calibration provenance")
+    }
   }
   for (marker in c("INS", "GCG")) {
     field <- paste0("feat__if_", marker)
@@ -98,6 +145,12 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
         any(state != "measured" & (is.na(reason) | !nzchar(reason))) ||
         any((state == "measured") != is.finite(d[[field]]))) {
       stop("invalid IF intensity availability")
+    }
+    prefix <- paste0("n_measured_if_", marker)
+    if (!isTRUE(row[[prefix]][[1]] == sum(state == "measured")) ||
+        !isTRUE(row[[paste0(prefix, "_before_nucleus_filter")]][[1]] ==
+          row[[prefix]][[1]] + row[[paste0(prefix, "_excluded_without_nucleus")]][[1]])) {
+      stop("invalid IF counts before and after the nucleus filter")
     }
   }
   ie_attach_frame(d, expected)
@@ -167,11 +220,21 @@ card_x2_overlay_server <- function(input, output, session, prepared = NULL, coho
     foreground <- background[background[[paste0(field, "_state")]] == "measured", , drop = FALSE]
     foreground$intensity <- foreground[[field]]
     ie_assert_same_frame(background, foreground, context = "post-Xenium IF overlay")
-    caption <- sprintf(
-      "IF frame; Xenium centroids warped into IF. Showing %s of %s nucleated cells. %s: %s measured; %s unavailable. CSV pixel size: %.4f µm/px. Hormone calls are reported separately.",
-      format(nrow(background), big.mark = ","), format(nrow(all), big.mark = ","), marker,
-      format(sum(valid), big.mark = ","), format(sum(!valid), big.mark = ","),
-      selection()$data$pixel_size_um[[1]])
+    row <- selection()$data
+    count <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+    caption <- sprintf(paste0(
+      "IF frame; Xenium centroids mapped with %s. ",
+      "Nucleus filter: retain cells with a recorded Xenium nucleus. ",
+      "%s total Xenium cells; %s retained; %s excluded without a recorded nucleus. ",
+      "Displaying %s retained cells. %s: %s measured; %s unavailable after filtering. ",
+      "%s IF measurements before filtering; %s excluded by the nucleus filter. ",
+      "Pixel size: CSV %.4f, producer %.4f µm/px. Continuous intensity; hormone calls are reported separately."),
+      row$transform_source[[1]], count(row$n_xenium_cells[[1]]), count(nrow(all)),
+      count(row$n_without_nucleus[[1]]), count(nrow(background)), marker,
+      count(sum(valid)), count(sum(!valid)),
+      count(row[[paste0("n_measured_if_", marker, "_before_nucleus_filter")]][[1]]),
+      count(row[[paste0("n_measured_if_", marker, "_excluded_without_nucleus")]][[1]]),
+      row$pixel_size_um[[1]], row$producing_pixel_size_um[[1]])
     plot <- ggplot2::ggplot(background, ggplot2::aes(x = x_um, y = y_um)) +
       ggplot2::geom_point(colour = "#9AA0A6", size = 0.2) +
       ggplot2::geom_point(data = foreground, ggplot2::aes(colour = intensity), size = 0.2) +

@@ -16,7 +16,7 @@ ie_restain_identity <- function(row) {
     availability <- ie_avail(row[[fields[[1]]]][[1]], reason = row[[fields[[2]]]][[1]])
     # Missing validation stays an explicit unavailable state, never a numeric zero.
     number <- function(x) if (is.na(x)) "Unavailable" else formatC(x, digits = 4, format = "f")
-    data.frame(Hormone = marker, State = ie_state_text(availability),
+    data.frame(Hormone = marker, State = ie_restain_state_text(availability),
       AUROC = number(row[[fields[[3]]]][[1]]),
       `Prerecorded AUROC threshold` = number(row[[fields[[4]]]][[1]]), check.names = FALSE)
   }))
@@ -37,7 +37,7 @@ card_x3_identity_server <- function(input, output, session, prepared = NULL, coh
     if (!ie_is_measured(d$availability)) return(ie_restain_note(d$availability, "x3_identity"))
     shiny::tagList(shiny::tableOutput(session$ns("x3_identity_table")),
       shiny::tags$p(class = "ie-card-note",
-        "Measured IF intensity does not establish hormone positivity. Withheld calls stay withheld; unavailable calls stay unavailable. No positivity thresholds are fitted by this card."))
+        "Continuous IF intensity is shown separately in the overlay. It does not establish hormone positivity. Withheld calls stay withheld; unavailable calls stay unavailable. No positivity thresholds are fitted by this card."))
   })
   output$x3_identity_table <- shiny::renderTable({
     d <- identity()
