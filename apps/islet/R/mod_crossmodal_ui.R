@@ -14,7 +14,7 @@
 #' Passed to every card server, so a card never hardcodes a tab key of its own. A card that
 #' guessed its own key is how card_s1_size_composition shipped with `tab_key = "spatial"` --
 #' which matches nothing in IE_TAB_KEYS, so `req(identical(active_tab(), tab_key))` was never
-#' true and the card could not draw. One source, checked at startup against IE_TAB_KEYS.
+#' true and the card could not draw. Checked against IE_TAB_KEYS in test-card-registry.R.
 IE_CROSSMODAL_TAB <- "CrossModal"
 
 #' Cards mounted on the Cross-Modal tab, in display order.
@@ -44,7 +44,7 @@ crossmodal_ui <- function(id) {
       class = "ie-card-stack",
       lapply(IE_CROSSMODAL_CARDS, function(card) {
         fn <- paste0("card_", card$id, "_ui")
-        if (exists(fn, mode = "function")) {
+        ui <- if (exists(fn, mode = "function")) {
           get(fn, mode = "function")(ns)
         } else {
           # The card has no builder yet. Say which one, and say it in the place
@@ -52,6 +52,7 @@ crossmodal_ui <- function(id) {
           # reads as "no data".
           ie_card_placeholder_ui(ns(card$id), card$title, fn)
         }
+        htmltools::tagAppendAttributes(ui, `data-card-id` = card$id)
       })
     )
   )

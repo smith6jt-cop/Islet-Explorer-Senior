@@ -103,9 +103,9 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
   ie_attach_frame(d, expected)
 }
 
-ie_restain_reactives <- function(input, output, session, id, cohort, active_tab) {
+ie_restain_reactives <- function(input, output, session, id, cohort, active) {
   index <- shiny::reactive({
-    shiny::req(identical(active_tab(), "CrossModal"))
+    shiny::req(active())
     ie_restain_index()
   })
   choices <- shiny::reactive({
@@ -143,8 +143,10 @@ card_x2_overlay_ui <- function(ns) {
 }
 
 card_x2_overlay_server <- function(input, output, session, prepared = NULL, cohort = NULL,
-                                   active_tab = function() "CrossModal") {
-  selection <- ie_restain_reactives(input, output, session, "x2_overlay", cohort, active_tab)
+                                   active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
+  selection <- ie_restain_reactives(input, output, session, "x2_overlay", cohort, active)
   cells <- shiny::reactive({
     selected <- selection()
     if (!ie_is_measured(selected$availability)) return(selected)
@@ -200,5 +202,5 @@ card_x2_overlay_server <- function(input, output, session, prepared = NULL, coho
       ggplot2::ggsave(file, d$plot + ggplot2::labs(caption = d$caption),
                       width = 9, height = 8, dpi = 180)
     })
-  invisible(list(selection = selection, cells = cells, drawing = drawing))
+  invisible(list(active = active, selection = selection, cells = cells, drawing = drawing))
 }

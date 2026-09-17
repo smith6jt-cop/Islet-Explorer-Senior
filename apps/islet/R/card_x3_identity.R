@@ -23,8 +23,10 @@ ie_restain_identity <- function(row) {
 }
 
 card_x3_identity_server <- function(input, output, session, prepared = NULL, cohort = NULL,
-                                    active_tab = function() "CrossModal") {
-  selection <- ie_restain_reactives(input, output, session, "x3_identity", cohort, active_tab)
+                                    active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
+  selection <- ie_restain_reactives(input, output, session, "x3_identity", cohort, active)
   identity <- shiny::reactive({
     selected <- selection()
     if (!ie_is_measured(selected$availability)) return(selected)
@@ -45,5 +47,5 @@ card_x3_identity_server <- function(input, output, session, prepared = NULL, coh
                                "IF hormone identity unavailable [x3_identity]"))
     d$data
   }, striped = TRUE, rownames = FALSE)
-  invisible(list(selection = selection, identity = identity))
+  invisible(list(active = active, selection = selection, identity = identity))
 }

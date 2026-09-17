@@ -15,9 +15,11 @@ card_s3_compartments_ui <- function(ns) {
 }
 
 card_s3_compartments_server <- function(input, output, session, prepared = NULL,
-                                       cohort = NULL, active_tab = shiny::reactive("")) {
+                                       cohort = NULL, active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
   layer <- shiny::reactive({
-    shiny::req(.ie_distance_active(active_tab, session))
+    shiny::req(active())
     .ie_distance_read()
   })
   donors <- shiny::reactive(.ie_distance_donors(layer(), cohort))
@@ -33,7 +35,7 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
                           input$s3_compartments_donor, input$s3_compartments_pair)
   })
   output$s3_compartments_pln <- shiny::renderUI({
-    shiny::req(.ie_distance_active(active_tab, session))
+    shiny::req(active())
     .ie_distance_note(ie_avail("unavailable", "guard_pln_export_absent"),
                       "guard_pln_export_absent", artifact = "pln/",
                       builder = "scripts/senior/build_pln_layer.py (increment 9)")
@@ -108,5 +110,5 @@ card_s3_compartments_server <- function(input, output, session, prepared = NULL,
     filename = function() "pancreas-compartment-immune-fractions.pdf",
     content = function(file) ggplot2::ggsave(file, plot = plot(), width = 8, height = 5)
   )
-  invisible(list(selected = selected, plot = plot, data = compartment_data))
+  invisible(list(active = active, selected = selected, plot = plot, data = compartment_data))
 }
