@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "method_version": "dct-anchors-2026-08-24",
-  "rule": "Every marker in phenocycler/marker_registry.json with kind == 'type' and a non-null broad_compartment, that resolves into the DeepCellTypes 278-marker vocabulary and is acquired on all 20 cohort donors (the 51-marker cross-donor intersection). Derived, never hand-picked: choosing anchors after seeing a result would be the tuning this lane exists to avoid.",
+  "rule": "Every marker in phenocycler/marker_registry.json with kind == 'type' and a non-null broad_compartment, that resolves into the DeepCellTypes 278-marker vocabulary and is acquired on all 22 cohort donors in qupath_manifest.json (the 50-marker cross-donor intersection). Derived, never hand-picked: choosing anchors after seeing a result would be the tuning this lane exists to avoid.",
   "reads": "the run's REDSEA expression parquet, one authoritative value per marker",
   "anchors": [
     {
@@ -42,11 +42,6 @@
     {
       "marker": "INS",
       "dct_marker": "C-peptide",
-      "compartment": "Epithelial"
-    },
-    {
-      "marker": "Ker8_18",
-      "dct_marker": "CK8",
       "compartment": "Epithelial"
     },
     {
@@ -147,9 +142,24 @@
   ],
   "excluded": [
     {
+      "marker": "CD141",
+      "compartment": "Endothelial",
+      "reason": "no DeepCellTypes vocabulary entry"
+    },
+    {
+      "marker": "CD21",
+      "compartment": "Immune",
+      "reason": "not acquired on every donor"
+    },
+    {
       "marker": "Caveolin",
       "compartment": "Endothelial",
       "reason": "no DeepCellTypes vocabulary entry"
+    },
+    {
+      "marker": "Ker8_18",
+      "compartment": "Epithelial",
+      "reason": "not acquired on every donor"
     },
     {
       "marker": "M2Gal3",

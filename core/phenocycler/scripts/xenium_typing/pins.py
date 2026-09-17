@@ -58,7 +58,7 @@ SCVI_ENV_PYTHON = pathlib.Path("/home/smith6jt/miniconda3/envs/scvi-env/bin/pyth
 
 # --------------------------------------------------------------------------- paths
 OUT = REPO / "data" / "development" / "xenium_typing"
-COHORT_SPEC = PKG / "cohort-spec.json"
+COHORT_MANIFEST = PKG / "data" / "qupath_manifest.json"
 XENIUM_PATHS = PKG / "data" / "integration" / "xenium_paths.csv"
 CONFIG_INI = PKG / "config.ini"                            # the ONLY config.ini (root CLAUDE.md)
 PROCESSED_ROOT = pathlib.Path("/data/xenium/processed")
@@ -88,26 +88,43 @@ class PinError(RuntimeError):
 
 # --------------------------------------------------------------------------- donors
 def donors() -> tuple[str, ...]:
-    """The 20 cohort donors from ``cohort-spec.json``, passed through the central exclusion
-    (``phenocycler.cohort`` -- 6457 and 6579 can never enter by configuration)."""
+    """The acquired cohort, normalized for the Xenium donor -> bundle join.
+
+    The live QuPath manifest includes acquisitions that the build specification can
+    predate. Its zero-padded donor IDs (``0112``) refer to the same donor as ``112`` in
+    ``xenium_paths.csv``. Central eligibility is checked after normalization.
+    """
     from phenocycler.cohort import ensure_eligible_donors
-    spec = json.loads(COHORT_SPEC.read_text())
-    return tuple(ensure_eligible_donors([str(d) for d in spec["expected_donors"]],
-                                        context="xenium typing lane"))
+    if not COHORT_MANIFEST.is_file():
+        raise PinError(f"{COHORT_MANIFEST} is absent; the acquired cohort is unavailable")
+    manifest = json.loads(COHORT_MANIFEST.read_text())
+    cohort = tuple(dict.fromkeys(str(d).strip().lstrip("0")
+                                 for d in manifest["expected_donors"]))
+    if not cohort or any(not d for d in cohort):
+        raise PinError(f"{COHORT_MANIFEST} has no valid acquired cohort")
+    return ensure_eligible_donors(cohort, context="xenium typing lane")
 
 
 # --------------------------------------------------------------------------- bundle paths
 def paths_table(csv: pathlib.Path = XENIUM_PATHS, roi: str = ROI):
-    """``xenium_paths.csv`` rows for one ROI with a recorded bundle path (``NA`` rows dropped).
+    """Cohort bundle rows for one ROI with a recorded path (``NA`` rows dropped).
 
-    Whitespace and trailing slashes are stripped: the hand-maintained file carries both."""
+    ``PhenoXeno`` rows describe separate same-slide acquisitions, not the MM0xx
+    cohort bundles this lane types. A donor may have both in ``xenium_paths.csv``;
+    those rows must never replace the cohort serial or introduce a second match.
+    Whitespace and trailing slashes are stripped: the hand-maintained file carries both.
+    """
     import pandas as pd
     if not pathlib.Path(csv).exists():
         raise PinError(f"{csv} is absent; it is the donor -> bundle manifest this lane keys on")
     t = pd.read_csv(csv, dtype=str)
-    t = t[(t["roi"] == roi) & t["source_path"].notna() & (t["source_path"].str.strip() != "NA")].copy()
+    t = t[(t["roi"] == roi) & (t["batch"].str.strip() != "PhenoXeno")
+          & t["source_path"].notna() & (t["source_path"].str.strip() != "NA")].copy()
     t["source_path"] = t["source_path"].str.strip().str.rstrip("/")
     t["donor_id"] = t["donor_id"].str.strip()
+    duplicates = t.loc[t["donor_id"].duplicated(), "donor_id"].tolist()
+    if duplicates:
+        raise PinError(f"donor(s) {duplicates} have duplicate {roi} cohort bundle rows in {csv}")
     return t.reset_index(drop=True)
 
 
@@ -133,8 +150,6 @@ def serial_map(csv: pathlib.Path = XENIUM_PATHS, roi: str = ROI) -> dict:
     t = paths_table(csv, roi)
     out = {}
     for d, p in zip(t["donor_id"], t["source_path"]):
-        if d in out:
-            raise PinError(f"donor {d} has two {roi} bundle rows in {csv}")
         out[d] = serial_of(p)
     return out
 

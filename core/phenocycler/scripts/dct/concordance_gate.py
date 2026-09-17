@@ -12,7 +12,7 @@ frequency, cross-donor uniformity or disease ordering.
 
 The anchors are DERIVED, not chosen (see :func:`derive_anchors`): every registry marker
 with ``kind == "type"`` and a non-null ``broad_compartment`` that resolves into the
-DeepCellTypes vocabulary and is acquired on all 20 donors.  Hand-picking anchors after
+DeepCellTypes vocabulary and is acquired on every cohort donor.  Hand-picking anchors after
 seeing a result would be the tuning this whole lane exists to avoid, so the rule is code
 and ``anchors.json`` is its frozen output.
 
@@ -80,11 +80,16 @@ def derive_anchors(repo_root: pathlib.Path | None = None) -> dict:
     """
     root = pathlib.Path(repo_root) if repo_root else HERE.parents[1]
     from deepcell_types.utils import resolve_supported_marker
+    from phenocycler.cohort import ensure_eligible_donors
 
     reg = json.loads((root / "phenocycler" / "marker_registry.json").read_text())["markers"]
     reg = reg if isinstance(reg, list) else [dict(name=k, **v) for k, v in reg.items()]
     xw = json.loads((HERE / "deepcell_types_crosswalk.json").read_text())["entries"]
     man = json.loads((root / "data" / "qupath_manifest.json").read_text())
+    donors = ensure_eligible_donors(
+        [str(im["donor_id"]).lstrip("0") for im in man["images"]],
+        context="DCT anchor cohort",
+    )
 
     per_donor, marker_to_dct = [], {}
     for im in man["images"]:
@@ -117,8 +122,9 @@ def derive_anchors(repo_root: pathlib.Path | None = None) -> dict:
         "rule": (
             "Every marker in phenocycler/marker_registry.json with kind == 'type' and a "
             "non-null broad_compartment, that resolves into the DeepCellTypes 278-marker "
-            "vocabulary and is acquired on all 20 cohort donors (the 51-marker cross-donor "
-            "intersection). Derived, never hand-picked: choosing anchors after seeing a "
+            f"vocabulary and is acquired on all {len(set(donors))} cohort donors in "
+            f"qupath_manifest.json (the {len(intersection)}-marker cross-donor intersection). "
+            "Derived, never hand-picked: choosing anchors after seeing a "
             "result would be the tuning this lane exists to avoid."
         ),
         "reads": "the run's REDSEA expression parquet, one authoritative value per marker",

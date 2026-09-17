@@ -21,6 +21,7 @@ sys.path.insert(0, str(HERE))
 from concordance_gate import (  # noqa: E402
     CRITERIA, GateInputs, derive_anchors, load_anchors, run_gate)
 from label_space import load_label_space  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 CROSSWALK = json.loads((HERE / "broad_class_crosswalk.json").read_text())
 CLASSES = tuple(CROSSWALK["entries"])
@@ -34,8 +35,7 @@ def test_anchors_are_derived_not_typed():
     """anchors.json must be exactly what the rule produces, or it has been hand-edited."""
     frozen = json.loads((HERE / "anchors.json").read_text())
     fresh = derive_anchors()
-    assert fresh["anchors"] == frozen["anchors"]
-    assert fresh["excluded"] == frozen["excluded"]
+    assert fresh == frozen
     assert frozen["method_version"] == "dct-anchors-2026-08-24"
 
 
@@ -52,8 +52,34 @@ def test_every_anchor_is_a_registry_type_marker_with_a_compartment():
 
 
 def test_anchor_set_size_is_pinned():
-    """A silent change here moves every count in the pre-registered bar."""
-    assert len(ANCHORS) == 28
+    """The 22-donor intersection loses Ker8_18: neither new image has that channel.
+
+    A silent change here moves every count in the pre-registered bar. The rule and
+    fractions stay fixed; its measured panel intersection determines the count.
+    """
+    assert len(ANCHORS) == 27
+
+
+def test_every_anchor_is_acquired_on_every_cohort_image():
+    manifest = json.loads((HERE.parents[1] / "data" / "qupath_manifest.json").read_text())
+    missing = {
+        im["donor_id"]: sorted({m for m, _ in ANCHORS}
+                               - {c["marker"] for c in im["channel_map"]})
+        for im in manifest["images"]
+    }
+    assert not {d: markers for d, markers in missing.items() if markers}
+
+
+@pytest.mark.parametrize("donor", sorted(DONOR_EXCLUSIONS))
+def test_anchor_derivation_rejects_centrally_excluded_donors(tmp_path, donor):
+    (tmp_path / "phenocycler").mkdir()
+    (tmp_path / "phenocycler" / "marker_registry.json").write_text('{"markers": []}')
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "qupath_manifest.json").write_text(json.dumps({
+        "images": [{"donor_id": "0" + donor, "channel_map": []}],
+    }))
+    with pytest.raises(ValueError, match="excluded donor"):
+        derive_anchors(repo_root=tmp_path)
 
 
 # ------------------------------------------------------ the positive control
