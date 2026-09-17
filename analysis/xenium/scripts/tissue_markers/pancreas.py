@@ -341,6 +341,20 @@ def apply_rare_celltype_rules(adata, log_detect, log_high):
         hhex = np.zeros(adata.n_obs)
     not_delta = (hhex < log_detect)
 
+    # AQP3 + ETV1 are the Gamma markers. ETV1 is supported by Wang YJ et al., Single-Cell
+    # Transcriptomics of the Human Endocrine Pancreas, Diabetes 2016 (PMC5033269), which
+    # reports it "highly enriched in PP and d-cells" -- note the delta overlap, which is why
+    # the not_delta (HHEX) term below is load-bearing rather than decorative.
+    #
+    # AQP3 was removed here on 2026-09-17 and RESTORED the same day. The removal rested on
+    # two bad arguments and is recorded so it is not repeated: (1) that 10x's hMulti.csv
+    # panel annotation does not list AQP3 for pancreas -- but that file is a panel-design
+    # annotation, not an expression atlas, and it lists nothing at all for ETV1, MEIS2, ARX,
+    # PAX6 or ISL1 either, so absence there is not evidence of absence; (2) that AQP3's
+    # 7-17% whole-section detection is too high for a cell type that is ~0.05% of cells --
+    # but this rule only ever fires on cells already labelled endocrine-like (see
+    # `is_gamma &= endo_mask` below), so the relevant quantity is AQP3 prevalence WITHIN
+    # endocrine cells, which that figure does not measure.
     aqp3 = _get_lognorm_col(adata, "AQP3")
     etv1 = _get_lognorm_col(adata, "ETV1")
     ghrl = _get_lognorm_col(adata, "GHRL")
@@ -355,15 +369,20 @@ def apply_rare_celltype_rules(adata, log_detect, log_high):
                             + (etv1 >= log_detect).astype(int))
     adata.obs["gamma_marker_count"] = gamma_markers_count.astype(np.int16)
 
-    not_gamma_for_epsilon = (aqp3 < log_high) | (etv1 < log_detect)
+    not_gamma_for_epsilon = gamma_markers_count < 2
 
     epsilon_markers_count = (ghrl >= log_detect).astype(int)
     adata.obs["epsilon_marker_count"] = epsilon_markers_count.astype(np.int16)
     not_epsilon_for_gamma = (ghrl < log_detect)
 
+    # BOTH markers required. The former `| (aqp3 >= log_high)` disjunction let a SINGLE gene
+    # call Gamma on its own, which is the one-gene argmax decision #12 exists to forbid --
+    # the same failure shape as the retired 1-gene GHRL Epsilon rule that mislabelled ~150K
+    # cells. That holds however good the marker is, so it stays removed even though AQP3 is
+    # restored above.
     is_gamma = (
         (pan_count >= 2)
-        & ((gamma_markers_count >= 2) | (aqp3 >= log_high))
+        & (gamma_markers_count >= 2)
         & not_beta
         & not_delta
         & not_epsilon_for_gamma
@@ -380,10 +399,14 @@ def apply_rare_celltype_rules(adata, log_detect, log_high):
     endo_mask = pd.Series(current).isin(_ENDO_LIKE).values
     is_gamma &= endo_mask
     is_epsilon &= endo_mask
+    # Tie-break needs BOTH gamma markers high, not one. GHRL is vendor-annotated to Epsilon
+    # cells (hMulti.csv: "Pancreas / Epsilon cells"), so a GHRL-positive cell stays Epsilon
+    # unless the gamma evidence is unambiguous. Previously `aqp3 >= log_high` alone arbitrated.
     overlap = is_gamma & is_epsilon
     if overlap.any():
-        is_epsilon[overlap & (aqp3[overlap] >= log_high)] = False
-        is_gamma[overlap & ~(aqp3[overlap] >= log_high)] = False
+        gamma_strong = (aqp3 >= log_high) & (etv1 >= log_high)
+        is_epsilon[overlap & gamma_strong] = False
+        is_gamma[overlap & ~gamma_strong] = False
 
     new_lab = current.copy()
     new_lab[is_gamma] = "Gamma"

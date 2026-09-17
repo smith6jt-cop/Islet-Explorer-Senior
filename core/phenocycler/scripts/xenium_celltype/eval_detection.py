@@ -8,14 +8,56 @@ measured on the same terms rather than on terms chosen for it:
   any kind and every count they register is background. `DDX3Y` and `KDM5D` cross-hybridise
   with their highly expressed X paralogs, so they measure something else and are reported
   separately rather than averaged in.
-* **clean autosomal negatives** -- panel genes whose tissue category cannot occur in pancreas.
-  Real gene probes, so what they pick up IS the gene-level background.
+* **clean autosomal negatives** -- an EXPLICIT, per-gene curated list (``CLEAN_NEG``) of panel
+  genes with no expression in pancreas in ANY compartment. Real gene probes, so what they pick
+  up IS the gene-level background. See "Why ``CLEAN_NEG`` is a gene list" below -- this set is
+  deliberately NOT derived from ``panel_audit.csv`` categories.
 * **median gene** -- the sensitivity that background is being traded against.
 * **selectivity** -- (median gene rate / clean negative rate), and the gain over `raw >= 1`.
   A mode that halves background and halves sensitivity has gained nothing, and this is the
   number that says so.
 
     python scripts/xenium_celltype/eval_detection.py --bundle <dir> --calls <parquet>
+
+Why ``CLEAN_NEG`` is a gene list and NOT a ``panel_audit.csv`` category filter
+-----------------------------------------------------------------------------
+This set was previously built by substring-matching the ``category`` column of
+``panel_audit.csv`` against ``CLEAN_NEG_CATEGORIES = ("skin", "nephron")``.  That selection
+was WRONG: it admitted genes pancreas expresses, so their contribution to ``clean_neg`` was
+real signal booked as background, and every clean_neg figure this script has ever produced is
+contaminated by it.
+
+A ``panel_audit.csv`` category records where a gene's CANONICAL biology sits -- it is a
+panel-design annotation, not a statement that the gene is silent in pancreas.  The
+``nephron_specific`` category alone contributed three genes that pancreas genuinely
+expresses:
+
+* ``AQP3`` -- ductal / centroacinar epithelium.  16.6% and 7.3% detection on PhenoCycler-free
+  pancreas sections (7.2% / 11.9% in the audit's own ``detection_pct_0041323`` /
+  ``detection_pct_0041326`` columns).  It is also a live Gamma-cell rule marker in the Xenium
+  phenotyping pipeline (``tissue_markers/pancreas.py``), where an attempt to drop it on
+  exactly this "the panel annotation says kidney" reasoning was made and reverted.
+* ``UMOD`` -- 1.6% / 3.2% detection in the same audit columns, well clear of the Y_CLEAN
+  optical floor measured on these sections.
+* ``WT1``  -- mesothelium, which lines the pancreatic capsule, plus stellate cells.
+
+``skin_cornification`` was the same failure: it carries ``KRT1`` and ``KRT14``, keratins that
+pancreatic ductal epithelium expresses.
+
+The consequence is not a small bias, it is a category error: once genes the tissue expresses
+are in the set, ``clean_neg`` is no longer an estimate of background at all, it is a blend of
+background and real signal.  ``clean_neg`` is the DENOMINATOR of ``selectivity``, so every
+selectivity number this script printed was computed against a quantity that does not mean what
+its name says.  The old selection was also thin -- on the base hAtlas_v1.1 5K panel it
+resolved to just 7 genes, of which 2 (``UMOD``, ``WT1``) were contaminants -- so a single
+expressed probe moved the whole denominator.  A category label cannot answer "is this gene
+silent in pancreas"; only per-gene curation can.
+
+``CLEAN_NEG`` below is that curation: photoreceptor, cornified epidermis, bone/cartilage,
+cardiac sarcomere, spermatogenesis and oocyte genes with no expression in pancreas in any
+compartment -- islet, acinar, ductal, stellate, endothelium, nerve, or infiltrating immune.
+Do NOT reintroduce a category- or substring-based selection here.  Add or remove genes one at
+a time, with a reason.
 """
 from __future__ import annotations
 
@@ -41,9 +83,29 @@ import gdna as GD                                      # noqa: E402
 Y_CLEAN = ("TBL1Y", "USP9Y", "EIF1AY")
 #: Zero-template but cross-hybridising (DDX3X / KDM5C), so a different measurement.
 Y_CROSSHYB = ("DDX3Y", "KDM5D")
-#: Tissue categories from the panel audit that cannot occur in pancreas and carry no
-#: cross-reactivity story -- the ones measured to land on the gDNA prediction (1.03-1.17x).
-CLEAN_NEG_CATEGORIES = ("skin", "nephron")
+#: Clean autosomal negatives: an EXPLICIT curated gene list, one gene at a time, NOT a
+#: ``panel_audit.csv`` category filter -- see the module docstring for why the category
+#: selection was wrong (it admitted AQP3, UMOD and WT1, which pancreas expresses).
+#: Every gene here has no expression in pancreas in any compartment: islet, acinar, ductal,
+#: stellate, endothelium, nerve, or infiltrating immune.  Real gene probes, so whatever they
+#: register IS the gene-level background.
+CLEAN_NEG = (
+    # photoreceptor / retinal pigment epithelium
+    "ABCA4", "ARR3", "CNGB1", "CNGB3", "GUCA1A", "GUCY2D", "IMPG1", "NR2E3", "OPN1LW",
+    "PDE6H", "PRPH2", "RPE65", "VSX2",
+    # cornified epidermis (NOT the KRT1/KRT14 keratins the old "skin" category swept in --
+    # ductal epithelium expresses those)
+    "DSG1", "DSG3", "TGM3",
+    # bone / cartilage
+    "COL2A1", "PHEX",
+    # cardiac sarcomere / natriuretic peptides
+    "TNNI3", "TNNT2", "NPPA", "NPPB", "TBX5",
+    # spermatogenesis / cancer-testis
+    "AKAP4", "BOLL", "DDX25", "DPY19L2", "MAGEA1", "MAGEA10", "MAGEA12", "MAGEA3", "MAGEA4",
+    "MEIOB", "PIWIL1", "PRM1", "SPATA16", "SPATA22", "SPATA4", "STK31", "SYCP1", "TEX14",
+    # oocyte / subcortical maternal complex
+    "DAZL", "GDF9", "KHDC3L", "NLRP5", "NLRP7", "TLE6",
+)
 
 
 def positive_sets(spearman: pathlib.Path, genes: pd.Index) -> dict:
@@ -71,17 +133,14 @@ def positive_sets(spearman: pathlib.Path, genes: pd.Index) -> dict:
     return out
 
 
-def clean_negatives(audit: pathlib.Path, genes: pd.Index) -> list:
-    if not audit.exists():
-        return []
-    a = pd.read_csv(audit)
-    col = next((c for c in ("category", "reason", "exclusion_category") if c in a.columns), None)
-    gcol = next((c for c in ("gene", "gene_name", "name") if c in a.columns), None)
-    if col is None or gcol is None:
-        return []
-    sel = a[a[col].astype(str).str.contains("|".join(CLEAN_NEG_CATEGORIES), case=False,
-                                            na=False)]
-    return sorted(set(sel[gcol].astype(str)) & set(genes))
+def clean_negatives(genes: pd.Index) -> list:
+    """``CLEAN_NEG`` restricted to the genes this bundle's panel actually carries.
+
+    Intersection only -- no category matching, no audit CSV.  A panel that is missing some of
+    these (the base hAtlas_v1.1 5K panel does not carry every one) simply measures background
+    on fewer probes.
+    """
+    return sorted(set(CLEAN_NEG) & set(genes))
 
 
 def rate(det: sp.csr_matrix, cols: np.ndarray) -> float:
@@ -95,8 +154,6 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", required=True, type=pathlib.Path)
     ap.add_argument("--calls", required=True, type=pathlib.Path)
-    ap.add_argument("--audit", type=pathlib.Path,
-                    default=pathlib.Path("/blue/maigan/smith6jt/Xenium_Analysis/panel_audit.csv"))
     ap.add_argument("--out", type=pathlib.Path, required=True)
     args = ap.parse_args(argv)
 
@@ -135,7 +192,7 @@ def main(argv=None) -> int:
     sets = {
         "y_clean": np.array([gidx[g] for g in Y_CLEAN if g in gidx]),
         "y_crosshyb": np.array([gidx[g] for g in Y_CROSSHYB if g in gidx]),
-        "clean_neg": np.array([gidx[g] for g in clean_negatives(args.audit, genes)]),
+        "clean_neg": np.array([gidx[g] for g in clean_negatives(genes)]),
     }
     real = np.array([i for g, i in gidx.items()
                      if not g.startswith(("Genomic", "Negative", "Unassigned", "Deprecated"))])
