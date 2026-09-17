@@ -150,3 +150,61 @@ jobs:
         run: |
           python -m phenocycler.integration.pipeline --status
           python -m phenocycler.integration.manifest --report
+
+  scripts:
+    name: Script lane (${{ matrix.lane }})
+    runs-on: ubuntu-latest
+    # `core/phenocycler/scripts/*/tests` (46 files, 10 lanes) was run by NO workflow before
+    # this job, which is why five stubs in the restain lane sat red unnoticed. It cannot be
+    # added as one `pytest scripts` step: every lane does `sys.path.insert(0, <its own dir>)`
+    # and same-named modules across lanes (`geo`, `panel`, `hormone`, `pins`, ...) shadow each
+    # other once collected together -- `typing` passes 46/46 run alone and fails inside a
+    # collective `pytest scripts`. Each lane is therefore its own matrix entry, run against
+    # only its own `tests/` directory, so a failure names the lane and lanes never collide.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Six lanes are green today and are required.
+          - lane: common
+            required: true
+          - lane: kintsugi
+            required: true
+          - lane: report
+            required: true
+          - lane: restain
+            required: true
+          - lane: typing
+            required: true
+          - lane: xenium_celltype
+            required: true
+          # Four lanes are red right now and are being fixed in parallel on other branches.
+          # Do not fix them here: they run so their status is visible, but `continue-on-error`
+          # keeps them from blocking the build. Each flips to `required: true` once its branch
+          # lands and the lane is green again.
+          - lane: broadtype
+            required: false   # work/N-broadtype
+          - lane: celltype
+            required: false   # work/O-celltype
+          - lane: dct
+            required: false   # work/P-dct
+          - lane: xenium_typing
+            required: false   # red today (1 fail/3); no fix branch assigned yet
+    continue-on-error: ${{ !matrix.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the declared integration stack
+        # Several lanes (report, celltype, xenium_celltype, ...) reach into
+        # phenocycler.integration.* for shared figure/vocab helpers, so this mirrors the
+        # `integration` job's install rather than the leaner `test`-only extra.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[integration,test]'
+      - name: Run scripts/${{ matrix.lane }}/tests in isolation
+        run: pytest -q -rs "scripts/${{ matrix.lane }}/tests"
