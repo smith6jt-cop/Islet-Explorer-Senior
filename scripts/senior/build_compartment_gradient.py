@@ -101,7 +101,11 @@ PLN_XENIUM = REPO / "data" / "development" / "xenium_typing" / "release_pln_immu
 DONOR_META = REPO / "data" / "development" / "typing" / "app" / "donor_metadata.csv"
 ACQ_RUNS = REPO / "data" / "donor_acquisition_runs.csv"
 CROSSWALK = REPO / "core" / "phenocycler" / "data" / "integration" / "vocab_crosswalk.csv"
-OUT = REPO / "data" / "development" / "integration" / "compartments"
+#: The layers root its READER uses. apps/islet/R/card_s3_compartments.R resolves
+#: $ISLET_LAYERS_DIR defaulting to /data/islet_layers, and every other layer already sits
+#: there. Writing beside the source trees instead put this artifact where no card looks --
+#: the same defect the pLN node layer had, and a layer nothing can read is the whole failure.
+OUT = pathlib.Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers")) / "compartments"
 
 #: The maintainer's pLN-attachment classification is not in the checkout yet.
 #: When it arrives it arrives as a column on the pLN section table; this is the
