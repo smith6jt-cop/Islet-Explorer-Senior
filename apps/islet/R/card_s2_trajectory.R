@@ -122,9 +122,10 @@ card_s2_trajectory_ui <- function(ns) {
 }
 
 card_s2_trajectory_server <- function(input, output, session, prepared = NULL, cohort = NULL,
-                                      active_tab = NULL, active_tabs = "Spatial",
-                                      layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers")) {
-  active <- shiny::reactive(is.null(active_tab) || active_tab() %in% active_tabs)
+                                      layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+                                      active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
   layer <- shiny::reactive({
     shiny::req(active())
     result <- .s2_trajectory_read(layers_dir, "trajectory", c(
@@ -211,5 +212,5 @@ card_s2_trajectory_server <- function(input, output, session, prepared = NULL, c
       ggplot2::ggsave(file, p, width = 10, height = 7, dpi = 300, bg = "white")
     }
   )
-  invisible(list(data = selected, plot = plot))
+  invisible(list(active = active, data = selected, plot = plot))
 }

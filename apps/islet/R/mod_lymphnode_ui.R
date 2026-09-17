@@ -9,6 +9,9 @@
 #
 # Adding a card is one line in the registry plus one new file. Nothing else.
 
+#' The nav_panel_hidden value this registry mounts into. See mod_crossmodal_ui.R.
+IE_LYMPHNODE_TAB <- "LymphNode"
+
 #' Cards mounted on the Lymph Node tab, in display order.
 #'
 #' `id` names the pair of functions `card_<id>_ui` / `card_<id>_server`.
@@ -29,7 +32,7 @@ lymphnode_ui <- function(id) {
       class = "ie-card-stack",
       lapply(IE_LYMPHNODE_CARDS, function(card) {
         fn <- paste0("card_", card$id, "_ui")
-        if (exists(fn, mode = "function")) {
+        ui <- if (exists(fn, mode = "function")) {
           get(fn, mode = "function")(ns)
         } else {
           # The card has no builder yet. Say which one, and say it in the place
@@ -37,6 +40,7 @@ lymphnode_ui <- function(id) {
           # reads as "no data".
           ie_card_placeholder_ui(ns(card$id), card$title, fn)
         }
+        htmltools::tagAppendAttributes(ui, `data-card-id` = card$id)
       })
     )
   )

@@ -20,7 +20,8 @@ lymphnode_server <- function(id, prepared, cohort = NULL, active_tab = reactive(
           this <- card
           get(paste0("card_", this$id, "_server"), mode = "function")(
             input, output, session,
-            prepared = prepared, cohort = cohort, active_tab = active_tab
+            prepared = prepared, cohort = cohort, active_tab = active_tab,
+            tab_key = IE_LYMPHNODE_TAB
           )
         })
       }

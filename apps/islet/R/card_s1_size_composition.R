@@ -85,12 +85,14 @@ card_s1_size_composition_ui <- function(ns) {
 }
 
 card_s1_size_composition_server <- function(
-    input, output, session, prepared = NULL, cohort = NULL, active_tab = NULL,
+    input, output, session, prepared = NULL, cohort = NULL,
     layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
-    active_domain_root = NULL, tab_key = "Plot", ...) {
+    active_domain_root = NULL, active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
   ns <- session$ns
   layer <- shiny::reactive({
-    if (!is.null(active_tab)) shiny::req(identical(active_tab(), tab_key))
+    shiny::req(active())
     domain_root <- if (is.null(active_domain_root)) domain_data_root() else active_domain_root
     card_s1_size_composition_read(layers_dir, domain_root)
   })
@@ -256,6 +258,6 @@ card_s1_size_composition_server <- function(
     filename = function() paste0("islet_composition_", donor(), ".png"),
     content = function(file) ggplot2::ggsave(file, composition_plot(), width = 10, height = 7, dpi = 160)
   )
-  invisible(list(size_plot = size_plot, composition_plot = composition_plot,
+  invisible(list(active = active, size_plot = size_plot, composition_plot = composition_plot,
                  sizes = sizes, composition = composition, layer = layer))
 }

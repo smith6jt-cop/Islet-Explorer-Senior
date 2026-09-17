@@ -86,13 +86,6 @@
   }, error = function(e) absent(paste0("distance_profile_read_failed: ", conditionMessage(e)), "failed"))
 }
 
-.ie_distance_active <- function(active_tab, session) {
-  namespace <- session$ns("")
-  expected <- if (startsWith(namespace, "crossmodal-")) "CrossModal" else
-    if (startsWith(namespace, "lymphnode-")) "LymphNode" else c("CrossModal", "LymphNode")
-  isTRUE(active_tab() %in% expected)
-}
-
 .ie_distance_donors <- function(layer, cohort) {
   if (!ie_is_measured(layer$value)) return(character())
   donors <- unique(layer$data$donor_id)
@@ -161,9 +154,11 @@ card_x1_gradient_ui <- function(ns) {
 }
 
 card_x1_gradient_server <- function(input, output, session, prepared = NULL,
-                                    cohort = NULL, active_tab = shiny::reactive("")) {
+                                    cohort = NULL, active_tab = NULL, tab_key = NULL, ...) {
+  active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
+                             identical(active_tab(), tab_key))
   layer <- shiny::reactive({
-    shiny::req(.ie_distance_active(active_tab, session))
+    shiny::req(active())
     .ie_distance_read()
   })
   donors <- shiny::reactive(.ie_distance_donors(layer(), cohort))
@@ -224,5 +219,5 @@ card_x1_gradient_server <- function(input, output, session, prepared = NULL,
     filename = function() "peri-islet-immune-gradient.pdf",
     content = function(file) ggplot2::ggsave(file, plot = plot(), width = 8, height = 5)
   )
-  invisible(list(selected = selected, plot = plot, data = plot_data))
+  invisible(list(active = active, selected = selected, plot = plot, data = plot_data))
 }
