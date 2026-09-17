@@ -1,6 +1,11 @@
 # Xenium analysis pipeline — gDNA-corrected, per-donor
 
-**Status:** Stages 1–2 implemented and validated. Stages 3–6 specified, not yet built.
+**Status:** Stages 1, 2 and 5 implemented and validated. Stages 3, 4 and 6 specified, not yet built.
+**Order:** `1 gdna -> 2 QC -> 5 protein arm -> 3 context-conditional detection -> 4 RNA group
+typing -> 6 records`. The protein arm runs **before** the RNA arm, per the maintainer: it is
+the dense measurement (70-plex on the same cells against ~433 transcripts of which ~126 are
+background), so it is the natural source of the context prior the RNA denoising needs, and
+running it first means that prior does not depend on the RNA.
 **Scope:** Xenium Prime 5k, per donor. Nothing in this pipeline is cohort-wide.
 **Applies to:** the Pheno-Xeno pair — 0080870 (donor 6533) and 0081366 (donor 112).
 Both donors are **female** (confirmed by the maintainer).
@@ -215,14 +220,108 @@ difference is the measurement of how much location leaks into identity.
 KODAMA is pinned to `smith6jt-cop/KODAMA@d2dbe30e` and `check_shard_equivalence.R` is a release
 gate. **Do not substitute a Python embedding** — it discards the equivalence proof.
 
-### Stage 5 — protein arm, reported beside (not merged)  ⬜ SPECIFIED
+### Stage 5 — protein arm  ✅ IMPLEMENTED, VALIDATED
 
-The same-slide pair gives 70-plex protein on the same cells, far denser than 433 transcripts.
-Reuse `core/phenocycler/scripts/celltype/{rules,score}.py` + `phenotype_workflow.csv`
-(37 references incl. `Endo-beta/alpha/delta`; 55 of 56 markers map onto this panel).
+`core/phenocycler/scripts/celltype/run_sameslide_protein.py`. Reads the same-slide lane's own
+`expression/donor_id=<d>/data.parquet` — REDSEA spillover-corrected whole-cell means for the
+corrected markers, raw QuPath *nucleus* mean for the eight in `panel.NUCLEUS_MEASURED`,
+verified column by column against `redsea/` and `cells/`.
 
-**Drop the cohort-wide parts** — no UniFORM, no cohort scale. Per-donor floor and robust top,
-with the limitation recorded: 6533 and 112 are then not strictly comparable to each other.
+```bash
+python core/phenocycler/scripts/celltype/run_sameslide_protein.py            # both donors
+SAMESLIDE_PHENO_DATA=<dir> python .../run_sameslide_protein.py --donors 6533
+```
+
+37 references over 56 rule markers, `signed` encoding, `require_min = 0.10`. Output:
+`data/development/celltype/sameslide_protein/donor_id=<d>/{data.parquet,scale.csv}`.
+Runtime ~8 s per donor.
+
+**Cohort-wide parts dropped.** No UniFORM (the Step-2 aligned partitions exist only for the
+22 cohort donors, and these two are not among them) and no cohort scale. Whole-cell INS means
+differ 11.6 (6533) against 113.0 (0112), so one pooled floor would put an entire donor under
+it. Per-donor floor (mode of `log1p`, the same estimator `build_scale` uses) and robust top
+(99.9th percentile). **The cost is real and is recorded in the module: within a donor the
+scaled values are comparable, between donors they are not.**
+
+**`Ker8_18` is on the rule table and not on this panel**, emitted as an all-NaN column.
+`audit_unmeasured` separates the three consequences rather than conflating them, and prints
+all three per donor:
+
+| consequence | references | verdict |
+|---|---:|---|
+| OR-group loses one of four alternatives (`E-cadherin \| Ker8/18 \| Pan-CK \| EpCAM`) | 11 epithelial | gate still satisfiable |
+| negative constraint lost | 16 immune | less specific, reported |
+| mandatory constraint or whole OR-group lost | 0 | none dropped |
+
+**Inside `Islet_N` the decision is an ordered cascade, not a competition.** The polygons were
+drawn by a QuPath pixel classifier on INS, GCG, SST and CD99, so the cascade reads those four
+in the order the annotation was built:
+
+| step | test | result |
+|---|---|---|
+| 1 | hormone argmax over INS/GCG/SST, clearing the floor | `Endo-beta` / `Endo-alpha` / `Endo-delta` |
+| 2 | CD99 positive, for cells with no hormone | `Endo-hormone-negative` |
+| 3 | centroid inside a drawn structure **and** its marker | `Endo-vascular` / `Endo-lymphatic` / `Neural` |
+| 4 | marker profile, non-endocrine references | everything else |
+
+**Shape** is `geometry_qc`'s `min_cell_solidity = 0.70` (`config.ini:60`), applied upstream as
+part of `qc_analysis_eligible` — 4,144 (6533) / 2,169 (0112) cells carry the `low_solidity`
+reason. **Structure** is read from the QuPath object layers (`Blood_vessel`, `Lymphatic`,
+`Nerve` — 111,806 / 8,535 / 11,293 polygons on 6533), point-in-polygon exactly as islet
+membership is. Step 3 requires **both**: a cell inside a vessel showing no CD31 is not a
+vessel cell and falls through to step 4. On 6533's cores that is 534 of the 2,901 cells inside
+a vessel polygon; on 0112, 1,089 of 4,217.
+
+The layers and the marker profile are independent and agree far above chance, measured
+**outside** the islet where the cascade never consults a layer:
+
+| layer | called its reference | outside any layer | fold |
+|---|---:|---:|---:|
+| `Blood_vessel` | 37.5% / 29.9% | 0.9% / 0.6% | 41x / 47x |
+| `Lymphatic` | 36.4% / 10.6% | 0.04% / 0.01% | 921x / 1177x |
+| `Nerve` | 50.9% / 32.1% | 0.5% / 0.2% | 107x / 189x |
+
+Step 4 scores the non-endocrine references from `run_islet.intruder_references`, which excludes
+the whole epithelial branch, ancestors and siblings alike — an endocrine cell satisfies those
+rules by construction. A hand-rolled filter excluding only endocrine-prefixed names was tried
+first: the generic `Epithelial` parent then took 21,450 of 65,363 islet cells.
+
+**The lane's step order holds.** Step 1 (marker usability, per donor) runs first and gates the
+markers scored here; `run_step1.py` was made runnable on a donor outside the acquisition table
+(`CELLTYPE_EXPRESSION_DIR`, plus on-disk marker resolution) rather than substituted for, and it
+rejects **0 of 58 markers** on both — the same answer it gave on all 1,120 cohort (donor,
+marker) cells. Step 2 is the only step that cannot run, and not for convenience: it is UniFORM
+alignment **across the cohort**.
+
+**Measured — core cells, median scaled hormone by call:**
+
+| call | INS | GCG | SST | n (6533 / 0112) |
+|---|---:|---:|---:|---|
+| `Endo-beta` | **0.637** | 0.082 | 0.055 | 2,319 / 6,350 |
+| `Endo-alpha` | 0.000 | **0.405** | 0.054 | 6,505 / 3,024 |
+| `Endo-delta` | 0.000 | 0.095 | **0.524** | 2,250 / 2,001 |
+| `Endo-hormone-negative` | 0.000 | 0.031 | 0.019 | 1,247 / 3,655 |
+
+Each endocrine call carries its own hormone as its median and not the others. Fraction of
+endocrine-by-prior cells clearing the 0.10 gate: **89.9% (6533), 75.7% (0112)** — against
+**37.9%** on uncompensated intensities, which is what REDSEA was being waited on for.
+
+**Fixed, and what it cost.** An earlier arrangement removed the endocrine references from
+contention inside the core and made a cell endocrine only by meeting NO other rule. It had no
+endocrine escape hatch and the measurement said so: 98.9% of the cells it called
+`Imm-NK-cell` inside 6533's cores cleared the hormone floor, 1,969 of them SST-top, at a
+median Granzyme B and CD3e of 0.00. A delta cell satisfying `CD56` + (`CD57`|`Granzyme_B`) +
+any one of nine pan-immune markers had nowhere else to go. Under the cascade:
+
+| 6533 core (n=26,388) | before | after |
+|---|---:|---:|
+| `Imm-NK-cell` | 3,002 | **6** |
+| islet-endocrine | 12,321 | **24,064** (91.2%) |
+| `Endo-alpha` / `delta` / `beta` | 6,505 / 2,250 / 2,319 | 11,794 / 7,177 / 3,532 |
+
+0112: `Imm-NK-cell` 1,814 → 43; islet-endocrine 15,030 → 22,774 (73.1%). Every non-endocrine
+call left in a core sits at a median scaled CD99 of 0.000–0.015 and a median top hormone of
+0.00–0.04, so step 4 operates on cells that are genuinely neither.
 
 The Xenium-only call is primary. **Any protein/RNA concordance claim must come from the
 Xenium-only arm**, or it is circular.
@@ -250,8 +349,23 @@ Both donors have islet annotations, but they reached disk differently:
 | 112 | `Islets_0081366_...geojson` only (TSV has no islet `Parent`) | 2,378 Islet + 2,376 IsletExpanded |
 
 One `islet_membership(donor)` accessor, two backends, returning
-`(cell_id, in_islet, islet_id)` either way. **6533 has both**, so validate polygon containment
-against QuPath's own `Parent` on 6533 before applying the geometric rule to 112.
+`(cell_id, in_islet, islet_id)` either way — implemented as
+`run_sameslide_protein.islet_regions`, which uses the `Parent`-derived `cell_region` when the
+partition carries one and recomputes containment when it does not.
+
+**The geometric route is validated against QuPath's own `Parent` on 6533**, the donor that has
+both, which is the gate this section asked for before applying it to 112:
+
+| | QuPath `Parent` | geometric | Jaccard |
+|---|---:|---:|---:|
+| core | 30,197 | 31,001 | 0.926 |
+| peri | 65,308 | 64,486 | 0.922 |
+| islet-associated (core \| peri) | 95,505 | 95,487 | **0.961** |
+
+**99.44% exact agreement over all 1,027,546 cells.** The disagreement is a boundary effect —
+1,358 QuPath-peri read geometric-core and 569 the other way, against 206 + 221 that change
+islet-associated status at all. 112's own core:ring ratio from the geometric route (35,656 :
+81,517 = 2.29) lands beside 6533's QuPath ratio (30,197 : 65,308 = 2.16).
 
 GeoJSON coordinates are **qptiff pixels**; scale is fitted, not read from a tag —
 `0.507800 µm/px` with a 24 nm median residual, reproduced independently on both donors.
@@ -316,6 +430,8 @@ stopped filtering controls out).
 | 1 | gDNA reproduces the vendor | within 5% of `est_FP..._including_genomic_counts` | ✅ 0.00% both |
 | 2 | Y probes under the detection rule | <= ~0.3% (they have no template) | ⬜ Stage 3 |
 | 3 | core size bias | P(Immune_T satisfied by gDNA) 0.834 -> <0.01, Exocrine ~unchanged | ⬜ Stage 3 |
+| 3b | geometric islet route vs QuPath `Parent` (6533) | Jaccard on islet-associated | ✅ 0.961, 99.44% exact |
+| 3c | endocrine call carries its own hormone | each of INS/GCG/SST is the median of exactly one call | ✅ Stage 5 |
 | 4 | null calibration | permuted labels award at the pre-registered rate (1 lineage 6.2%, 8 lineages 30.2% @ 50 draws) | ⬜ Stage 4 |
 | 5 | islet containment | geometric rule reproduces QuPath `Parent` on 6533 | ⬜ |
 | 6 | arm difference | `spatial - nonspatial` per k and lineage, never averaged | ⬜ |

@@ -285,7 +285,14 @@ def donor_markers(donor: str | None = None) -> dict | list:
     ``unavailable`` on the other 7 -- which is a smaller n, not an unencodable rule.  CD38
     and b_Catenin1 are not mutually exclusive: 2 donors (the "both" variant) carry both.
     """
-    coh = pd.read_csv(REPO / "data" / "donor_acquisition_batch.csv", dtype={"donor_id": str})
+    table = REPO / "data" / "donor_acquisition_batch.csv"
+    if not table.exists():
+        if donor is None:
+            raise FileNotFoundError(
+                f"{table} is absent, so the cohort's per-donor panel variants cannot be "
+                "read. A single donor can still be resolved from its partition.")
+        return markers_on_disk(donor)
+    coh = pd.read_csv(table, dtype={"donor_id": str})
     coh = coh[coh["eligible"]]
     base = [m for m in markers(include_variant=True) if m not in PANEL_VARIANT_MARKERS]
     variant = set(PANEL_VARIANT_MARKERS)
@@ -307,7 +314,57 @@ def donor_markers(donor: str | None = None) -> dict | list:
         if rest:
             got.extend(m for m in _acquired(r["donor_id"], rest) if m in set(rest))
         out[r["donor_id"]] = sorted(set(got))
+    # A row that OVERSTATES and a row that is ABSENT are different failures and both are real.
+    # The loop above corrects the first -- Ker8_18 was claimed for 6533 and 112 and never
+    # acquired -- by intersecting with the donor's own partition. It cannot correct the second,
+    # because a donor acquired after this table was written has no row for the loop to visit.
+    # That donor resolves from the same authority the loop consults: its own partition.
+    # Two sessions found these two halves independently on 2026-09-17; neither subsumes the other.
+    if donor is not None and str(donor) not in out:
+        return markers_on_disk(donor)
     return out[donor] if donor is not None else out
+
+
+def _same_donor(a: str, b: str) -> bool:
+    """Do two partition spellings name one donor? ``0112`` and ``112`` do."""
+    def ident(v: str) -> str:
+        v = str(v)
+        return str(int(v)) if v.isdecimal() else v
+    return ident(a) == ident(b)
+
+
+def _donor_spellings(donor: str) -> list:
+    """The ways one donor id is written on disk.
+
+    ``112`` and ``0112`` are the same donor: QuPath's export zero-pads, the UniFORM shift
+    table does not. Resolving by trying both beats renaming a partition, which would break
+    whichever consumer used the other spelling.
+    """
+    d = str(donor)
+    return list(dict.fromkeys([d, d.lstrip("0") or d, d.zfill(4)]))
+
+
+def markers_on_disk(donor: str) -> list:
+    """What a donor OUTSIDE the acquisition table actually carries, read off its partition.
+
+    The cohort table is the right source for the 20 cohort donors -- acquisition is a fact
+    about the run, not about the file. It has no row for a donor acquired later, and guessing
+    the full list for one would be worse than reading it: a column that is present but
+    entirely NaN is a marker the panel did not carry, and treating it as carried puts a column
+    of NaN into every statistic downstream.
+
+    So: a registry marker counts as carried when its column exists AND holds at least one
+    finite value. Nothing is inferred from the column's presence alone.
+    """
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    path = expression_path(donor)      # stable root first, warned retired fallback
+    handle = pq.ParquetFile(path)
+    on_disk = {f.name for f in handle.schema_arrow}
+    want = [m for m in markers(include_variant=True) if m in on_disk]
+    df = handle.read(columns=want).to_pandas()
+    return sorted(m for m in want if np.isfinite(df[m].to_numpy("float64")).any())
 
 
 def donors_with(markers_needed) -> list:

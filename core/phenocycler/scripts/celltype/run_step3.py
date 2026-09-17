@@ -61,8 +61,10 @@ def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
     have = [m for m in markers if m in set(panel.donor_markers(donor)) & on_disk]
     need = list(dict.fromkeys(have + extra + ["DAPI"]))
     need = [c for c in need if c not in ("donor_id",)]
-    df = pq.read_table(ALIGNED / f"donor_id={donor}" / "data.parquet",
-                       columns=need).to_pandas()
+    # The FILE, not the dataset: a partition that also carries ``donor_id`` as a column
+    # conflicts with the hive key inferred from its directory and discovery refuses to merge.
+    df = pq.ParquetFile(ALIGNED / f"donor_id={donor}" / "data.parquet") \
+           .read(columns=need).to_pandas()
     changed = []
     if ratio:
         df, changed = SC.nuclear_ratio(df, have, "DAPI", panel.NUCLEUS_MEASURED)
