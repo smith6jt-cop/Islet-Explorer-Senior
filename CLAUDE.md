@@ -27,8 +27,14 @@ a second copy of those CSVs; never hand-edit the snapshot.
 - Preserve the QuPath UUID as `object_id` throughout. Never substitute centroid matching, row order,
   filenames or donor-name parsing.
 - A missing measurement is unavailable — not zero, not negative.
-- Donors `6457` and `6579` are centrally excluded in `core/phenocycler/phenocycler/cohort.py`.
-  Configuration must not bypass it, and no lane may restate the list.
+- Donor `6457` is centrally excluded in `core/phenocycler/phenocycler/cohort.py`. Configuration
+  must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
+  from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
+  alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
+  drop it. It is not yet a 21st donor in any stage root — see `docs/DONOR_6579_REENTRY_2026-09-17.md`
+  for what it would take. `data/donor_acquisition_runs.csv` and
+  `core/phenocycler/data/integration/pln_node_annotations.csv` still carry `excluded=True` for it
+  and disagree with `cohort.py` until their generators rerun.
 - Acquisition batch is aliased with disease status at the coarse level; correct only on the finer
   variables (`stain_group`, `acq_run` — see `data/donor_acquisition_runs.csv`), never on the Fusion
   version, and stratify where correction is not warranted.
