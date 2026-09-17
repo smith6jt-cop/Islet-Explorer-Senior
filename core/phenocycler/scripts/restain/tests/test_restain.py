@@ -256,11 +256,15 @@ def test_a_recorded_pixel_size_overrides_the_resolution_tag(tmp_path):
     assert um_tag == pytest.approx(1.0018796, rel=1e-6)          # 4 x 0.2504699
 
     _, um_rec = RZ.read_qptiff_channel(p, 0, target_um=1.0, base_um_per_px=geo.PIXEL_UM)
-    assert um_rec == pytest.approx(1.0, rel=1e-12)               # 4 x 0.25, exactly
+    assert um_rec == pytest.approx(4 * geo.PIXEL_UM, rel=1e-12)  # exactly 4 x the declared size
 
-    # The size of the thing: 0.188% of a coordinate, not 0.188% of a length.
+    # The size of the thing: a fraction of a COORDINATE, not of a length. Derived from
+    # geo.PIXEL_UM rather than written as a constant, so the maintainer changing the declared
+    # size moves this expectation with it instead of turning it red. It went from 0.25 to
+    # 0.2505 on 2026-09-16, which is why this had been hardcoded to 1.0 and 28.9.
     drift_um = 15_402.0 * (1.0 - um_rec / um_tag)
-    assert drift_um == pytest.approx(28.9, abs=0.5)              # ~3 cell diameters
+    expected = 15_402.0 * (1.0 - (4 * geo.PIXEL_UM) / um_tag)
+    assert drift_um == pytest.approx(expected, abs=0.5)
 
     with pytest.raises(ValueError, match="must be positive"):
         RZ.read_qptiff_channel(p, 0, target_um=1.0, base_um_per_px=0.0)
@@ -717,8 +721,9 @@ def _registration_inventory(tmp_path, *, donor="6436", serial="0059907"):
 
 def test_registration_inventory_cross_checks_serial_and_reads_image_facts(tmp_path, monkeypatch):
     inventory, xenium, images, source = _registration_inventory(tmp_path)
-    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path: {
+    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path, **_kw: {
         "pixel_um": 0.251,
+        "pixel_size_source": "qptiff XML PixelSizeMicrons",
         "dapi_page": 2,
         "channel_names": ("Opal 480", "Opal 520", "DAPI"),
         "pyramid_shapes": ((100, 80), (50, 40)),
@@ -739,7 +744,7 @@ def test_registration_inventory_cross_checks_serial_and_reads_image_facts(tmp_pa
 def test_registration_inventory_refuses_donor_disagreement(tmp_path, monkeypatch):
     inventory, xenium, images, _source = _registration_inventory(tmp_path)
     xenium.write_text(xenium.read_text().replace("6436,panc", "6442,panc"))
-    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path: {})
+    monkeypatch.setattr(RI, "qptiff_registration_facts", lambda _path, **_kw: {})
 
     with pytest.raises(RI.RegistrationInputError, match="says donor 6436.*says 6442"):
         RI.load_registration_inputs(

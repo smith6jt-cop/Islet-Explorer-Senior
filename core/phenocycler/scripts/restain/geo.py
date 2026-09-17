@@ -32,10 +32,25 @@ from pathlib import Path
 
 import numpy as np
 
-#: Recorded in the qptiff as ``PixelSizeMicrons``; asserted rather than assumed by
-#: :func:`assert_scale_is_plausible`, because getting it wrong does not error -- it puts one
-#: section's annotations a whole tissue away from its own cells.
-PIXEL_UM = 0.25
+#: The post-Xenium IF pixel size, and the scale QuPath annotations are converted to microns
+#: by. Asserted rather than assumed by :func:`assert_scale_is_plausible`, because getting it
+#: wrong does not error -- it puts one section's annotations a whole tissue away from its own
+#: cells.
+#:
+#: 0.2505 is the maintainer's declared value for every post-Xenium IF image (2026-09-16,
+#: recorded in ``data/integration/restain_sections.csv``). It was 0.25 here, which is what the
+#: qptiff's own ``<PixelSizeMicrons>`` records; the declared value is the one the images
+#: actually have and is the one the two ends of the round trip must agree on -- see
+#: ``run_hormone.py``, which converts microns back into pixels and so needs these to be exact
+#: inverses.
+#:
+#: Changing it does not invalidate any fitted transform. ``refined.json`` carries a FITTED
+#: scale (0.9976-0.9984 across donors, via valis -> icp_similarity -> icp_affine), so a 0.2%
+#: change in the input scale is absorbed by the fit rather than displacing anything -- which is
+#: why the exported overlays check out in Xenium Explorer. And ``protein_rna.py`` uses the
+#: recorded size only to pick a pyramid level: round(0.5/0.25) and round(0.5/0.2505) are both
+#: 2, the same level.
+PIXEL_UM = 0.2505
 
 #: Below this equivalent diameter an ``Islet`` object is a classifier fragment, not an islet.
 #: Declared in microns rather than pixels so it does not silently change meaning if a future

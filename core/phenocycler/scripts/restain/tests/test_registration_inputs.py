@@ -15,9 +15,16 @@ sys.path.insert(0, str(HERE.parents[2]))
 import registration_inputs as RI  # noqa: E402
 
 
-def _facts(_path: Path) -> dict:
+def _facts(_path: Path, **_kw) -> dict:
+    # **_kw because qptiff_registration_facts() takes keyword-only options -- allow_dtypes
+    # today -- and a stub that pins the old signature turns any addition into five failures
+    # that look like a data problem. These five had been failing for exactly that reason,
+    # unnoticed, because scripts/*/tests is run by no CI workflow.
     return {
         "pixel_um": 0.25,
+        # qptiff_registration_facts() records WHERE the size came from -- the XML tag or a
+        # fitted inventory. Production reads it; the stub predated it.
+        "pixel_size_source": "qptiff XML PixelSizeMicrons",
         "dapi_page": 0,
         "channel_names": ("DAPI", "Opal 570"),
         "pyramid_shapes": ((64, 48), (32, 24)),
