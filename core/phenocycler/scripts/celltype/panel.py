@@ -247,6 +247,14 @@ def donor_markers(donor: str | None = None) -> dict | list:
     return out[donor] if donor is not None else out
 
 
+def _same_donor(a: str, b: str) -> bool:
+    """Do two partition spellings name one donor? ``0112`` and ``112`` do."""
+    def ident(v: str) -> str:
+        v = str(v)
+        return str(int(v)) if v.isdecimal() else v
+    return ident(a) == ident(b)
+
+
 def _donor_spellings(donor: str) -> list:
     """The ways one donor id is written on disk.
 

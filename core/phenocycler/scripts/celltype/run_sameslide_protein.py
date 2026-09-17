@@ -560,8 +560,21 @@ def main() -> int:
     print(f"  not in that set, endocrine + epithelial branch ({len(excluded)}): {excluded}")
 
     # The cohort floor and top, on the ALIGNED values -- the whole point of having run Step 2.
-    scale = S3.build_scale(args.donors, list(Rm.index), ratio=S3.NUCLEAR_RATIO)
-    print(f"  cohort scale over {len(args.donors)} aligned donor(s), "
+    #
+    # Built over EVERY aligned donor on disk, never over `--donors`. Deriving it from the
+    # donors being called would make `--donors 6533` silently produce a per-donor scale --
+    # the exact thing Step 2 exists to remove -- and it would do so without changing a single
+    # message. The scale is a property of the alignment, not of the request.
+    scale_donors = sorted(p.name.removeprefix("donor_id=") for p in S3.ALIGNED.glob("donor_id=*")
+                          if (p / "data.parquet").is_file())
+    if not scale_donors:
+        raise SystemExit(f"no aligned partitions under {S3.ALIGNED}; Step 2 must run first")
+    missing = [d for d in args.donors
+               if not any(panel._same_donor(d, s) for s in scale_donors)]
+    if missing:
+        raise SystemExit(f"donor(s) {missing} have no aligned partition under {S3.ALIGNED}")
+    scale = S3.build_scale(scale_donors, list(Rm.index), ratio=S3.NUCLEAR_RATIO)
+    print(f"  cohort scale over {len(scale_donors)} aligned donor(s) {scale_donors}, "
           f"{int(scale['top'].notna().sum())} markers")
 
     OUT.mkdir(parents=True, exist_ok=True)
