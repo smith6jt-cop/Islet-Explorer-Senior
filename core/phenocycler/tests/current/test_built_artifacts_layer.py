@@ -117,8 +117,23 @@ def test_persisted_islets_and_trajectory_reconcile_with_their_sources(artifacts)
 def test_persisted_distance_counts_reconcile_with_every_typing_partition(artifacts):
     _, tables = artifacts
     table = tables["distance"]
-    profile = table.to_pandas()
-    assert profile.frame.eq("signed_distance_um").all()
+    everything = table.to_pandas()
+
+    # The artifact carries two arms and only one of them has a distance axis. `signed_distance_um`
+    # is measured to the nearest islet border, and a lymph node has no islets -- so the pLN arm is
+    # COMPOSITIONAL, carrying frame="none" with a null distance by construction, not by omission.
+    # An earlier version of this test asserted the pancreas frame over every row, which would have
+    # been satisfied only by the builder inventing a distance the pLN cannot have.
+    pln = everything.loc[everything.frame == "none"]
+    profile = everything.loc[everything.frame != "none"].copy()
+
+    assert profile.frame.eq("signed_distance_um").all(), (
+        "every non-pLN row is measured on the signed distance to the nearest islet border")
+    if len(pln):
+        assert pln[["distance_bin_um", "compartment"]].isna().all().all(), (
+            "a pLN row may not carry a distance or a compartment -- there is no islet to measure "
+            "from, and the pancreas/pLN comparison is compositional, joined on donor and status")
+
     audit = json.loads(table.schema.metadata[b"audit"])
     cells_root = REPO / "data/development/typing/cells"
     eligible_counts, immune_counts, source_counts = {}, {}, {}
@@ -142,6 +157,8 @@ def test_persisted_distance_counts_reconcile_with_every_typing_partition(artifac
             immune = pc.and_(eligible, pc.fill_null(pc.equal(batch["cell_class"], "Immune"), False))
             eligible_counts[donor] += pc.sum(eligible).as_py() or 0
             immune_counts[donor] += pc.sum(immune).as_py() or 0
+    # Only the pancreas arm is reconciled against typing/cells: the pLN arm's donors come from a
+    # different tissue and a different QuPath project, and several are pLN-only.
     assert set(profile.donor_id) == set(eligible_counts)
     for donor, group in profile.groupby("donor_id"):
         assert audit[donor]["source_cells"] == source_counts[donor]
