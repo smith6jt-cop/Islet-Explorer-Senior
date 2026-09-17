@@ -82,28 +82,10 @@ Drop `test-*.R` files in `tests/testthat/`. Dependencies and the code under test
 are loaded once by `tests/testthat/helper-setup.R` (sourced automatically before
 the test files). Keep new tests data-independent so they run in CI.
 
-## Auto-install R in Claude Code web sessions (SessionStart hook)
+## Installing R
 
-A fresh Claude Code on the web container has **no R**, so the checks above can't run
-until R is installed. This repo ships a `SessionStart` hook that installs R + the
-test packages automatically at the start of every web session:
-
-- `.claude/hooks/session-start.sh` — installs `r-base-core` plus the precompiled
-  `r-cran-*` Debian packages (testthat, dplyr, tidyr, tibble, lme4, lmerTest). It is
-  idempotent (skips what's already present), remote-only (`$CLAUDE_CODE_REMOTE`
-  guard, so it's a no-op on local machines), and always exits 0 so it never blocks
-  session startup.
-- `.claude/settings.json` — registers the hook under `hooks.SessionStart`.
-
-The hook runs **synchronously**, so the session waits until R is ready (no race
-where the agent runs tests before the packages exist). The `r-cran-*` debs install
-fast on Ubuntu and bundle their own system dependencies (BLAS/LAPACK, gfortran
-runtime) — no compilation. Verified by running the full suite (188 assertions pass as of
-2026-09-04; the count drifts as tests are added — re-run rather than trusting this number,
-and note the suite was red from `d403563` to `2026-08-14` because that commit widened
-`cohens_d()`'s return value without updating its test) after
-a clean install.
-
-The hook only enables the automated **checks**. The **full app** still cannot be
-launched in a web session — it needs the gitignored `data/` artifacts (see above).
-To disable the hook, remove the `SessionStart` entry from `.claude/settings.json`.
+R must be installed manually if it is not already available, including in Claude
+Code web sessions. This repository does not provide a `SessionStart` hook that
+installs R. After installing R, install the test packages listed above before
+running the checks. Launching the full app also requires its runtime dependencies
+and the gitignored `data/` artifacts described above.

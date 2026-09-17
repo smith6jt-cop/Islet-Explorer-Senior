@@ -10,10 +10,20 @@ DONOR_EXCLUSIONS: dict[str, str] = {
         "Excluded until further notice: poor DAPI staining prevented accurate "
         "Phenocycler channel registration."
     ),
-    "6579": (
-        "Excluded until further notice by maintainer decision: pancreatitis outlier "
-        "must not be included in analysis."
-    ),
+}
+
+#: Reinstated 2026-09-17 by maintainer decision. 6579 was excluded as "a pancreatitis outlier
+#: [that] must not be included in analysis", "until further notice" -- and this is that notice.
+#:
+#: The pancreatitis is not retracted, only the exclusion. Anything that pools 6579 with the rest
+#: is pooling a donor with a different disease process, so a result that moves when 6579 joins
+#: has told you about 6579 rather than about the cohort. Stratify or report it separately; do not
+#: treat the larger n as free.
+#:
+#: 6457 is NOT reinstated -- its exclusion is technical (poor DAPI prevented accurate channel
+#: registration), not a judgement call, and nothing has changed about that.
+REINSTATED: dict[str, str] = {
+    "6579": "pancreatitis outlier; exclusion lifted 2026-09-17, the disease context is not",
 }
 
 

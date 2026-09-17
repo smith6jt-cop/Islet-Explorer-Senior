@@ -84,6 +84,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import os
 from pathlib import Path
 
 import numpy as np
@@ -105,7 +106,7 @@ CROSSWALK = REPO / "core" / "phenocycler" / "data" / "integration" / "vocab_cros
 #: $ISLET_LAYERS_DIR defaulting to /data/islet_layers, and every other layer already sits
 #: there. Writing beside the source trees instead put this artifact where no card looks --
 #: the same defect the pLN node layer had, and a layer nothing can read is the whole failure.
-OUT = pathlib.Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers")) / "compartments"
+OUT = Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers")) / "compartments"
 
 #: The maintainer's pLN-attachment classification is not in the checkout yet.
 #: When it arrives it arrives as a column on the pLN section table; this is the

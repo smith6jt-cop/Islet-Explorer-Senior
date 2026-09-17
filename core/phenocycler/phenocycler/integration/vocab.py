@@ -169,6 +169,110 @@ PHENO_ONLY_SPLITS = {
     "Stromal": ["Fibroblast (Vimentin)", "Muscle (SMA)"],
 }
 
+
+# --------------------------------------------------------------------------- #
+# Is-immune, and where that identity holds
+# --------------------------------------------------------------------------- #
+#
+# A lineage's name is not a machine-readable statement that it is immune. Nothing downstream
+# may infer "T_NK is immune" from the string, so the answer is recorded here and written into
+# the crosswalk CSV, and a consumer that cannot find it is right to withhold rather than
+# guess. `scripts/senior/build_distance_profiles.py` is the first such consumer.
+#
+# TISSUE SCOPE. Maintainer ruling, 2026-09-17: "All immune cell calls from pancreas can be
+# applied to pLN." The immune lineage vocabulary established on pancreas is the same
+# vocabulary in the pancreatic lymph node, and the typing method that produced the pancreas
+# calls is licensed to run on pLN cells. That is a ruling about IDENTITY. It is not a ruling
+# about anatomy or coordinates: the pancreas and pLN sections mounted on one slide are cut
+# from different blocks, they share a pixel grid and nothing anatomically, and no distance,
+# adjacency, neighbourhood or KDE may cross between them. It also does not license copying
+# label rows across -- the two ROIs are segmented separately, so their cell_id namespaces are
+# disjoint and the typer must be RUN on the pLN cells.
+
+#: Common lineages that are immune.
+IMMUNE_LINEAGES: tuple[str, ...] = ("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
+
+#: Common lineages that are positively not immune -- a recorded "no", not a default.
+NON_IMMUNE_LINEAGES: tuple[str, ...] = (
+    "Endocrine", "Exocrine", "Stromal", "Vascular", "Neural",
+)
+
+#: Common lineages for which is-immune has no answer. ``Unassigned`` is the absence of a
+#: lineage call, so it is neither immune nor non-immune; it must never be counted as either.
+IMMUNE_UNRESOLVED_LINEAGES: tuple[str, ...] = ("Unassigned",)
+
+#: The tissues in which :data:`IMMUNE_LINEAGES` carry an immune identity, per the ruling.
+#: Names match ``PipelineConfig.tissue_list`` / ``tissue_for_roi``.
+IMMUNE_TISSUE_SCOPE: tuple[str, ...] = ("pancreas", "pancreatic_lymph_node")
+
+_IMMUNE_NOTES = {
+    "yes": ("immune lineage; immune identity holds in {scope} "
+            "(maintainer ruling 2026-09-17: all immune cell calls from pancreas can be "
+            "applied to pLN -- identity only, no spatial relation crosses the tissues)"),
+    "no": "not an immune lineage",
+    "unresolvable": ("no lineage call; is-immune is not answerable and this bucket is "
+                     "neither immune nor non-immune"),
+    "not_applicable": "",
+}
+
+#: What a marker row carries in the is-immune column. Marker rows are not lineages, and an
+#: empty string there would read as "not immune".
+IMMUNE_NOT_APPLICABLE = "not_applicable"
+
+
+def immune_status(lineage: str) -> str:
+    """``yes`` / ``no`` / ``unresolvable`` for a common lineage.
+
+    Raises on an unrecognised lineage rather than returning ``no``: a lineage nobody has
+    classified is not evidence that it is not immune.
+    """
+    if lineage in IMMUNE_LINEAGES:
+        return "yes"
+    if lineage in NON_IMMUNE_LINEAGES:
+        return "no"
+    if lineage in IMMUNE_UNRESOLVED_LINEAGES:
+        return "unresolvable"
+    raise KeyError(
+        f"{lineage!r} has no recorded is-immune classification. Add it to IMMUNE_LINEAGES, "
+        "NON_IMMUNE_LINEAGES or IMMUNE_UNRESOLVED_LINEAGES in phenocycler.integration.vocab; "
+        "do not let it default."
+    )
+
+
+def immune_note(status: str) -> str:
+    """The reason string written beside the is-immune value, the way every other column
+    in the crosswalk carries a note."""
+    return _IMMUNE_NOTES.get(status, "").format(scope=" + ".join(IMMUNE_TISSUE_SCOPE))
+
+
+def immune_tissue_scope(status: str) -> str:
+    """Tissues in which this is-immune value applies, ``|``-joined, or '' when it does not
+    describe an immune lineage."""
+    return "|".join(IMMUNE_TISSUE_SCOPE) if status == "yes" else ""
+
+
+def _check_immune_classification_is_total() -> None:
+    """Every common lineage is classified exactly once, checked at import.
+
+    A lineage added to COMMON_LINEAGES without a decision here fails loudly instead of
+    silently arriving in the crosswalk as non-immune.
+    """
+    buckets = (IMMUNE_LINEAGES, NON_IMMUNE_LINEAGES, IMMUNE_UNRESOLVED_LINEAGES)
+    classified = [lin for bucket in buckets for lin in bucket]
+    duplicated = sorted({lin for lin in classified if classified.count(lin) > 1})
+    if duplicated:
+        raise AssertionError(f"lineages classified more than once as immune/not: {duplicated}")
+    missing = [lin for lin in COMMON_LINEAGES if lin not in set(classified)]
+    unknown = sorted(set(classified) - set(COMMON_LINEAGES))
+    if missing or unknown:
+        raise AssertionError(
+            f"is-immune classification does not cover COMMON_LINEAGES: missing {missing}, "
+            f"not a common lineage {unknown}"
+        )
+
+
+_check_immune_classification_is_total()
+
 # --------------------------------------------------------------------------- #
 # Protein <-> gene crosswalk
 # --------------------------------------------------------------------------- #
@@ -623,6 +727,11 @@ def crosswalk_frame(
 
     Two blocks: one row per common lineage (how each modality resolves it), then one row per
     PhenoCycler marker (its gene, or the surrogate panel standing in for it).
+
+    Lineage rows also carry ``is_immune`` (``yes``/``no``/``unresolvable``),
+    ``immune_tissue_scope`` (the tissues that value holds in) and ``immune_note`` (why), so a
+    consumer asking "is T_NK an immune lineage in the pancreatic lymph node" reads the answer
+    instead of inferring it from the label. Marker rows carry ``not_applicable``.
     """
     rows: list[dict] = []
     resolutions = resolvable_for(space=space)
@@ -637,6 +746,7 @@ def crosswalk_frame(
         p, x = res.get("phenocycler", "no"), res.get("xenium", "no")
         xen_native = sorted({k for k, v in XENIUM_TO_COMMON.items() if v == lineage})
         pheno_native = sorted(pheno_by_common[lineage])
+        immune = immune_status(lineage)
         rows.append({
             "kind": "lineage",
             "common": lineage,
@@ -650,6 +760,9 @@ def crosswalk_frame(
             "identity_core_genes": (len(tax.lineage_genes(
                 next((k for k, v in XENIUM_TO_COMMON.items() if v == lineage), "")))
                 if tax is not None else ""),
+            "is_immune": immune,
+            "immune_tissue_scope": immune_tissue_scope(immune),
+            "immune_note": immune_note(immune),
         })
 
     for mp in pairs:
@@ -665,6 +778,10 @@ def crosswalk_frame(
                             f"({len(mp.surrogate_genes)} genes)" if mp.surrogate_panel else ""),
             "collapsed": "",
             "identity_core_genes": len(mp.surrogate_genes) if mp.surrogate_panel else "",
+            # A marker is not a lineage. An empty string here would read as "not immune".
+            "is_immune": IMMUNE_NOT_APPLICABLE,
+            "immune_tissue_scope": "",
+            "immune_note": "",
         })
 
     return pd.DataFrame(rows)
@@ -707,7 +824,7 @@ def coverage_report(
         lines.append("")
 
     lines.append("lineage resolution by modality:")
-    lines.append(f"  {'common':<13} {'phenocycler':<15} {'xenium':<15} note")
+    lines.append(f"  {'common':<13} {'phenocycler':<15} {'xenium':<15} {'immune':<13} note")
     for lin in COMMON_LINEAGES:
         r = resolutions.get(lin, {})
         p, x = r.get("phenocycler", "no"), r.get("xenium", "no")
@@ -718,7 +835,7 @@ def coverage_report(
             note = "no Xenium broad class"
         elif p == "default_sink":
             note = "PhenoCycler fallback bucket — compare evidence-positive only"
-        lines.append(f"  {lin:<13} {p:<15} {x:<15} {note}")
+        lines.append(f"  {lin:<13} {p:<15} {x:<15} {immune_status(lin):<13} {note}")
 
     if tax is not None:
         probs = check_panel_roles_agreement(tax)
@@ -742,6 +859,10 @@ def run_vocab(cfg: PipelineConfig, panel_genes: Optional[Iterable[str]] = None,
     different core-gene counts than the pancreas rows. Each tissue therefore gets its own
     ``vocab_crosswalk_{tissue}.csv``, and the canonical ``vocab_crosswalk.csv`` is the
     concatenation of them, tagged by tissue.
+
+    ``is_immune`` is not tissue-derived: it is the recorded classification from
+    :data:`IMMUNE_LINEAGES` and friends, and ``immune_tissue_scope`` names the tissues it
+    holds in, so the same answer is readable from any tissue's rows.
     """
     from .export_pheno import require_current_pheno
 

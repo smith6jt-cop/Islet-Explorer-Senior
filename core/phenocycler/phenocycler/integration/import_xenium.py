@@ -508,26 +508,51 @@ def run_import_xenium(
         # features, so the imported cell set is complete and a declared release can attach to it.
         bundle = str(r.get("xenium_bundle", "") or "").strip()
         spine = Path(bundle) if bundle and Path(bundle).exists() else None
-        # A release that exists but does not declare THIS donor is, for this donor, an absent
-        # release -- the same reading `load_release_or_none` already applies to a release that
-        # has not been written yet. Failing the whole import instead would block the geometry
-        # half for every donor a partial release does not reach, which is most of the cohort
-        # while a producer lane is still running.
+        # A release that exists but does not declare THIS SECTION is, for this section, an
+        # absent release -- the same reading `load_release_or_none` already applies to a
+        # release that has not been written yet. Failing the whole import instead would block
+        # the geometry half for every section a partial release does not reach, which is most
+        # of the cohort while a producer lane is still running.
+        #
+        # Coverage is a property of the SECTION, not the donor, and the reason is STRUCTURAL.
+        # One Xenium serial emits the pancreas and the lymph node as two separate output
+        # bundles (e.g. 6442 / serial 0059947: output-...__Panc__... and output-...__pLN__...),
+        # separately segmented, so their `cell_id` namespaces are disjoint. Measured
+        # 2026-09-17: 6442's 958,744 pancreas calls match 100% of its panc cells and 44 of its
+        # 177,799 pln_1 cells -- and those same 44 are exactly the panc/pln_1 cell_id
+        # collisions. They are coincidental ids, not a mapping. Calls therefore cannot be
+        # carried from one bundle to the other; the typer has to be RUN on the pLN cells.
+        #
+        # This comment used to justify the guard biologically -- "a donor's pancreas calls are
+        # not statements about that donor's lymph node". That argument was OVERRULED for immune
+        # identity by the maintainer on 2026-09-17 and is no longer load-bearing here. The
+        # guard stays anyway, for the structural reason above. Do not delete it on the strength
+        # of the ruling: what you would attach is 44 cells.
+        #
+        # `calls_for` is what `attach_release_identity` itself resolves, and it returns nothing
+        # for a ROI the release partitions away from, so testing the donor alone sent a pLN
+        # section into an attachment that raised and aborted the whole import. Testing the pair
+        # the attachment will resolve is also what lets a release that DOES partition
+        # roi=pln_1 attach to the pLN section the moment it lands, with no code change here.
         #
         # Skipping attachment is safe because the protection is structural, not this branch:
         # the table stays geometry-profile, and every identity stage downstream refuses a
         # geometry-profile table. `attach_release_identity` itself stays strict -- asking it
-        # to attach a donor the release does not cover is still an error.
-        donor_covered = release is not None and (
+        # to attach a section the release does not cover is still an error.
+        donor_declared = release is not None and (
             not getattr(release, "donors", None)
             or str(r["donor_id"]) in {str(d) for d in release.donors})
-        if release is not None and not donor_covered:
+        section_covered = donor_declared and bool(
+            release.calls_for(str(r["donor_id"]), str(r["roi"])))
+        if release is not None and not section_covered:
+            reason = ("does not declare this donor" if not donor_declared
+                      else f"declares donor {r['donor_id']} but has no calls for roi={r['roi']}")
             print(f"[import_xenium] {r['donor_id']}/{r['roi']}: identity release "
-                  f"{release.release_id} does not declare this donor; importing geometry only",
+                  f"{release.release_id} {reason}; importing geometry only",
                   flush=True)
         df = import_sample(src, donor_id=r["donor_id"], roi=r["roi"], tissue=row_tissue,
                            sample_key=r.get("xenium_sample_key", ""), tax=_tax_for(row_tissue),
-                           release=release if donor_covered else None, spine=spine)
+                           release=release if section_covered else None, spine=spine)
         path = partition_path(cfg.cells_xen_dir, r["donor_id"], r["roi"])
         write_cell_table(df, path)
         print(f"[import_xenium] {r['donor_id']}/{r['roi']} ({row_tissue}): {len(df):,} "
@@ -544,7 +569,7 @@ def run_import_xenium(
                   f"stamped on {ifres['n_stamped']:,} cells (NaN where unmeasured)", flush=True)
         rows.append({"donor_id": r["donor_id"], "roi": r["roi"], "tissue": row_tissue,
                      "n_cells": len(df), "source": str(src),
-                     "identity": "attached" if donor_covered else "geometry only"})
+                     "identity": "attached" if section_covered else "geometry only"})
 
     out = pd.DataFrame(rows)
     if len(out):

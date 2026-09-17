@@ -254,3 +254,76 @@ def test_granulocyte_never_enters_a_comparable_set():
     assert "Granulocyte" not in COMPARABLE
     for tissue in TISSUES:
         assert "Granulocyte" not in comparable_for(tissue), tissue
+
+
+# --------------------------------------------------------------------------- #
+# Is-immune — recorded, total, and scoped to the tissues the ruling covers
+# --------------------------------------------------------------------------- #
+
+def test_immune_set_is_exactly_the_four_immune_lineages():
+    from phenocycler.integration.vocab import IMMUNE_LINEAGES, immune_status
+
+    assert set(IMMUNE_LINEAGES) == {"T_NK", "B_Plasma", "Myeloid", "Granulocyte"}
+    assert {lin for lin in COMMON_LINEAGES if immune_status(lin) == "yes"} == set(IMMUNE_LINEAGES)
+
+
+def test_every_common_lineage_is_classified_and_unassigned_is_neither():
+    """Totality, and the one bucket that is not answerable is not answered."""
+    from phenocycler.integration.vocab import immune_status
+
+    values = {lin: immune_status(lin) for lin in COMMON_LINEAGES}
+    assert set(values.values()) <= {"yes", "no", "unresolvable"}
+    assert values["Unassigned"] == "unresolvable"
+    assert {lin for lin, v in values.items() if v == "no"} == {
+        "Endocrine", "Exocrine", "Stromal", "Vascular", "Neural"}
+
+
+def test_an_unclassified_lineage_raises_instead_of_defaulting_to_not_immune():
+    from phenocycler.integration.vocab import immune_status
+
+    with pytest.raises(KeyError, match="no recorded is-immune classification"):
+        immune_status("Tuft")
+
+
+def test_immune_scope_covers_pancreas_and_lymph_node_and_cites_the_ruling():
+    """Maintainer ruling 2026-09-17: immune calls from pancreas apply to pLN."""
+    from phenocycler.integration.vocab import (
+        IMMUNE_TISSUE_SCOPE, immune_note, immune_tissue_scope,
+    )
+
+    assert set(IMMUNE_TISSUE_SCOPE) == {"pancreas", "pancreatic_lymph_node"}
+    assert immune_tissue_scope("yes") == "pancreas|pancreatic_lymph_node"
+    assert immune_tissue_scope("no") == ""
+    note = immune_note("yes")
+    assert "2026-09-17" in note and "pancreatic_lymph_node" in note
+    assert immune_note("unresolvable").startswith("no lineage call")
+
+
+def test_crosswalk_frame_records_is_immune_per_lineage(tax, legacy_space):
+    pairs = protein_gene_pairs(["PECAM1", "CD3E", "MS4A1"], tax=tax)
+    df = crosswalk_frame(legacy_space, pairs, tax=tax)
+    lineages = df[df["kind"] == "lineage"].set_index("common")
+    assert set(lineages.loc[lineages["is_immune"] == "yes"].index) == {
+        "T_NK", "B_Plasma", "Myeloid", "Granulocyte"}
+    assert lineages.loc["T_NK", "immune_tissue_scope"] == "pancreas|pancreatic_lymph_node"
+    assert lineages.loc["Endocrine", "immune_tissue_scope"] == ""
+    assert lineages.loc["Unassigned", "is_immune"] == "unresolvable"
+    # A marker row is not a lineage, and must not read as "not immune".
+    assert set(df.loc[df["kind"] == "marker", "is_immune"]) == {"not_applicable"}
+
+
+def test_shipped_crosswalk_csv_records_the_immune_mapping(cfg):
+    """The file a builder actually reads, not just the in-memory frame."""
+    import csv as _csv
+
+    path = cfg.vocab_crosswalk_csv
+    if not path.exists():  # pragma: no cover - crosswalk not built in this checkout
+        pytest.skip(f"{path} has not been built")
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = [r for r in _csv.DictReader(handle) if r["kind"] == "lineage"]
+    assert rows, f"{path} carries no lineage rows"
+    immune = {r["common"] for r in rows if r["is_immune"] == "yes"}
+    assert immune == {"T_NK", "B_Plasma", "Myeloid", "Granulocyte"}
+    scopes = {r["immune_tissue_scope"] for r in rows if r["is_immune"] == "yes"}
+    assert scopes == {"pancreas|pancreatic_lymph_node"}
+    assert all("2026-09-17" in r["immune_note"] for r in rows if r["is_immune"] == "yes")

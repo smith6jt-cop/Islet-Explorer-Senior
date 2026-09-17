@@ -1,448 +1,502 @@
-# pLN Xenium — immune typing by cluster-then-name, as run
+# pLN Xenium — immune typing, and the T/NK split made by the gene panel
 
-**Maintainer's method, 2026-09-17, in four statements.** *"All immune cell calls from pancreas can
-be applied to pLN."* *"Separate out the immune cells with canonical markers/genes and then use
-subpanels."* *"Clustering works well in pLN because of the regional cell types."* *"Tissue does not
-mean anything at all."*
+**The maintainer's ruling, 2026-09-17.** *"You say NK/ILC cannot be named when all you have to do is
+separate the cells based on CD8 and then apply the gene panel to those cells."*
 
-The last one is the load-bearing one, and it is literal. In the pancreas a QuPath pixel classifier
-hands each cell a context — islet, blood vessel, lymphatic, nerve, ordinary tissue — and a reference
-level is fitted against it. A lymph node section is one block of node: there is no partition of the
-section, so there is no "ordinary tissue" to draw a reference population from and the context
-machinery has nothing to attach to. **Clustering is the substitute for context.** The partition is
-discovered rather than supplied, and each cluster is then named by which canonical genes stand out
-*against the other clusters on that same section*.
+They are right and the earlier reasoning was wrong. It argued that NK could not be named because no
+single probe on either panel is NK-specific. **Negative evidence is evidence.** NK/ILC is the
+CD3-negative half of a class the panels already carry as one: PhenoCycler's `lineages.py` holds
+`T_NK: (CD3e, CD8, CD4, FOXP3, CD56)`, and `core/panels/data/identity_core/05_immune_NK_ILC.csv`
+holds 31 genes, 22 of which may name the lineage and all 22 of which are on the 5K panel. The coarse
+class is what the panel carries; the split is made by the presence/absence pattern inside it. That
+is what this build does, on both units where the data supports it.
 
 | | |
 |---|---|
-| Producer | `analysis/xenium/scripts/pln_immune_typing_v2.py` (new) |
-| Release | `data/development/xenium_typing/release_pln_immune_v2/` (new; the draft is left in place) |
-| `release_id` | `xenium-pln-immune-cluster-named-dev-20260917`, `schema_version` 1, `roi` `pln_1` |
-| Clusters consumed from | `data/development/typing/pln/clusters/xenium/assignments/` |
-| Cells | **6,007,789**, 22 sections, **20 donors** |
+| Producer | `analysis/xenium/scripts/pln_immune_typing_v3.py` |
+| Release | `data/development/xenium_typing/release_pln_immune_v3/` |
+| `release_id` | `xenium-pln-immune-tnk-split-dev-20260917`, `schema_version` 1, `roi` `pln_1` |
+| Cells | **6,007,789** in 22 sections, **20 donors**; **5,882,198** partitioned |
+| T_NK compartment | **1,659,255 cells**, split per cell and per sub-cluster |
 | Latch | development; nothing here is a release of record |
 
-`data/development/xenium_typing/release/` — the pancreas release — was not touched, and
-`release_pln_immune/` — the draft this supersedes — was not touched either.
+`release_pln_immune_v2/` and `release_pln_immune/` are left in place and are superseded, not
+overwritten. `data/development/typing/pln/clusters/xenium/` — the shared clustering track — was
+**read, never written**.
 
 ---
 
-## 1. What is withdrawn, and is not in this build
+## 1. What the T/NK split is
 
-1. **Any number derived from pancreas cells reaching a pLN call** — level, threshold, scale factor,
-   quantile. The producer reads no pancreas data of any kind. The earlier attempt that transferred
-   each donor's pancreas p99 onto their pLN slide is withdrawn; its numbers are a property of that
-   mistake and are not cited here as findings.
-2. **`subpanel.fit_levels` / `reference_level` / `context == 'tissue'` on the pLN.** There is no
-   context column and no reference population, and none is synthesised.
-3. **`IMMUNE_REQUIRE_MIN = 0.10` as an absolute floor on pLN values.** It is defined against a
-   reference level that does not exist here.
-4. **The draft release's detection predicate**, `raw >= depth / section_median_depth`. That is a
-   raw-count floor that rises with cell depth, applied in the tissue where gDNA background is worst.
-   §4 says what replaced it and shows the replacement binds nowhere.
+Two units, two questions, both reported. Neither replaces the other and **neither was tuned to the
+other or to the PhenoCycler side.**
+
+### Per cell — the floor
+
+For a cell in the T_NK compartment:
+
+```
+CD3E or CD3G detected     ->  T, then:  FOXP3 -> T_Treg
+                                        CD8A/CD8B and not CD4 -> T_CD8
+                                        CD4 and not CD8A/CD8B -> T_CD4
+                                        both -> T_CD4_CD8_both
+                                        none of them -> T_subset_unresolved
+neither detected, and >= 2 NK-exclusive naming genes detected  ->  NK_ILC
+neither detected, fewer than 2                                 ->  T_NK_unresolved
+```
+
+Every `NK_ILC` cell here is **individually corroborated**: on that one cell, two NK naming genes
+present and both CD3 chains absent. At a median of ~200 transcripts per cell most real NK cells will
+not clear that, so this is a **floor**, and the size of the undercount is not something a per-cell
+rule can measure.
+
+### Per T_NK sub-cluster — the population estimate
+
+The T_NK compartment of each section is sub-partitioned (same algorithm, same seed derivation as the
+coarse partition) and each sub-cluster is named against the **other T_NK sub-clusters of that same
+section**:
+
+```
+NK_ILC  <=>  CD3E or CD3G STANDS DOWN  (z <= -1 against the compartment AND detected less often
+                                        than in the rest of it)
+        AND  >= 2 NK-exclusive naming genes STAND UP
+        AND  the fraction of its cells detecting at least one of them exceeds that fraction in
+             the rest of the compartment
+```
+
+This is the unit the PhenoCycler pLN lane also calls at, which is why the cross-modality comparison
+in §7 uses it.
+
+> **Two rules were tried and refuted before this one, and both are recorded because the numbers they
+> produced are on the record too.**
+>
+> 1. *"CD3 does not stand out"* as the negative. Inside a compartment that is mostly T, not standing
+>    out is the default state of nine sub-clusters in ten. It returned **35.0% NK on donor 6347**.
+>    That is a rule failing, not a finding. **Standing down** — the exact mirror of standout, same
+>    contrast, same units, opposite direction — is what "CD3-negative" has to mean when every number
+>    is relative.
+> 2. *Two standout NK genes, with no set-level check.* Asked of two genes out of nineteen, that
+>    passes in sub-clusters whose cells carry **less** NK evidence than the compartment average —
+>    not thin evidence, contradicted evidence. Nine such sub-clusters (28,361 cells) were admitted
+>    and are named in §5. The set-level detection contrast removes them. It is not a new threshold:
+>    it is the detection half of the standout rule, asked of the set instead of gene by gene.
+
+### Which genes may name which lineage
+
+Read off `core/panels`' own `evidence` column — `canonical` or `both` may name, `cellxgene`
+("marks lineage (CL)") describes only.
+
+- **NK-exclusive naming set, 19 genes, all on panel:** `CD244 EOMES FCGR3A GATA3 IL1RL1 KIR2DL1
+  KIR2DL4 KIR3DL1 KIT KLRB1 KLRC1 KLRC2 KLRD1 KLRF1 NCAM1 NCR1 NCR3 RORC TBX21`.
+  `KLRG1`, `KLRK1` and `PRF1` are naming genes of the NK core **but also appear in the T core**, so
+  they are dropped from the NK evidence: a gene whose presence is equally explained by a T cell
+  cannot name NK.
+- **T naming set, 20 genes, all on panel:** `CD2 CD247 CD28 CD3E CD3G CD4 CD5 CD6 CD7 CD8A CD8B
+  CTLA4 FOXP3 IKZF2 IL2RA ITK LAT LCK THEMIS ZAP70`.
+- **Not used for the gate, and why.** `CD3D` is absent from the 5K panel — measured, never
+  substituted. **`CD247` (CD3-ζ) is deliberately not used**: NK cells carry CD3-ζ, so it would
+  collapse the distinction being drawn. `TRAC` is genuinely T-restricted and is on the panel but is
+  not in the panel authority's T core, so it is carried as a per-cell column and a sensitivity, never
+  as the gate.
+- `GATA3`, `IL1RL1`, `KIT` and `RORC` carry the core's own ILC `subtype_hint`. The identity core is
+  one combined NK/ILC core, so **the label is combined**; `n_nk_like_detected` and
+  `n_ilc_hint_detected` are written per cell as description, not as a call.
 
 ---
 
-## 2. Inputs, measured
+## 2. The result, per donor
 
-**The partition is consumed, never recomputed.** `core/phenocycler/scripts/pln/cluster_pln.py`
-partitioned each section within donor; this lane reads its `assignments/` verbatim and re-derives
-only the per-cluster gene profile, because it needs its own detection predicate (the clustering
-track's `det__` columns are `lognorm > 0` under a section-median normalisation, which is not the
-predicate declared here). Cluster ids are the clustering track's own `<section>_cNN`.
+`NK_ILC (cell)` is the per-cell floor; `NK_ILC (sub-cl.)` is the population estimate. Both are
+counts of cells.
 
-- **22 sections, 20 donors, 364 clusters.** 6579 contributes three sections (`6579a/b/c`); every
-  other donor one. 6457 was refused upstream by `phenocycler.cohort.filter_eligible_donors` and no
-  lane here restates that list.
-- **6,007,789 cells in the h5ads**; 5,920,568 carry a cluster. The remainder is 45,171 cells below
-  the clustering track's QC (`nCount_Xenium < 10` or `nFeature_Xenium < 5`) and 42,050 excluded for
-  having no nucleus (§4).
-- **429 genes wanted, 429 present, 0 absent, on every one of the 22 sections** — the five immune
-  identity cores, the four non-immune cores, the stage-1 canonicals, the Y probes and the regional
-  set, all read from `core/panels/data/identity_core/`. No copy of those CSVs was written.
-- **`CD3D` and `LYZ` are absent from all 24 pLN h5ads.** Nothing is substituted for them; the
-  release records them as unavailable.
-- **No control feature of any kind exists in the h5ad `var` index** — no `NegControl*`,
-  `Intergenic*`, `Unassigned*` or `Deprecated*` — measured on all 22 sections. `spatialdata_io`
-  loads Gene Expression only, so **no control probe was ever there to exclude**, and nothing in this
-  release claims controls were excluded.
-- `X` row sums equal `obs['nCount_Xenium']` for **all 6,007,789 cells**, so depth is the cell's own
-  measured total and not a second quantity wearing the same name.
+| donor | cells | % immune | T_NK | T_CD4 | T_CD8 | T_Treg | CD4+CD8 | T subset unres. | **NK_ILC (cell)** | **NK_ILC (sub-cl.)** | % of T_NK | T_NK unres. |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 112 | 221,578 | 49.1 | 55,328 | 3,796 | 12,716 | 1,445 | 1,982 | 15,383 | **1,534** | **3,600** | 6.51 | 18,472 |
+| 115 | 247,399 | 49.7 | 55,906 | 4,436 | 9,992 | 1,064 | 704 | 18,885 | **179** | 0 | 0.00 | 20,646 |
+| 6347 | 79,522 | 49.0 | 14,459 | 1,778 | 2,007 | 644 | 428 | 4,384 | **338** | **842** | 5.82 | 4,880 |
+| 6374 | 164,364 | 39.6 | 34,251 | 1,779 | 3,976 | 519 | 499 | 10,350 | **636** | 0 | 0.00 | 16,492 |
+| 6380 | 264,010 | 56.6 | 79,213 | 3,132 | 7,272 | 2,211 | 449 | 22,571 | **369** | 0 | 0.00 | 43,209 |
+| 6436 | 370,852 | 59.7 | 134,562 | 13,153 | 29,755 | 6,869 | 6,704 | 39,386 | **737** | **10,078** | 7.49 | 37,958 |
+| 6442 | 176,137 | 66.7 | 69,808 | 17,109 | 15,990 | 1,415 | 7,629 | 15,618 | **2,090** | **3,218** | 4.61 | 9,957 |
+| 6461 | 109,476 | 41.0 | 19,481 | 918 | 1,613 | 848 | 106 | 4,590 | **578** | **1,060** | 5.44 | 10,828 |
+| 6476 | 290,429 | 59.4 | 53,152 | 3,379 | 7,594 | 700 | 598 | 17,642 | **447** | 0 | 0.00 | 22,792 |
+| 6482 | 168,551 | 44.1 | 45,138 | 2,875 | 7,390 | 796 | 1,054 | 13,593 | **1,183** | **989** | 2.19 | 18,247 |
+| 6493 | 161,178 | 57.4 | 53,132 | 4,811 | 6,570 | 1,121 | 902 | 18,640 | **396** | **650** | 1.22 | 20,692 |
+| 6521 | 479,006 | 42.6 | 109,538 | 6,353 | 15,635 | 882 | 1,453 | 32,671 | **1,375** | **1,478** | 1.35 | 51,169 |
+| 6523 | 600,995 | 52.4 | 157,044 | 7,872 | 25,721 | 444 | 1,586 | 53,643 | **528** | 0 | 0.00 | 67,250 |
+| 6533 | 97,237 | 41.7 | 19,838 | 1,004 | 2,261 | 145 | 299 | 5,295 | **88** | **14** | 0.07 | 10,746 |
+| 6539 | 218,842 | 51.8 | 57,388 | 3,482 | 15,395 | 1,614 | 2,248 | 14,276 | **452** | 0 | 0.00 | 19,921 |
+| 6551 | 174,918 | 39.6 | 40,096 | 6,515 | 8,688 | 801 | 3,616 | 10,198 | **352** | **617** | 1.54 | 9,926 |
+| 6566 | 692,878 | 52.6 | 244,050 | 7,708 | 28,846 | 3,075 | 2,121 | 61,145 | **488** | **3,242** | 1.33 | 140,667 |
+| 6579 | 577,283 | 49.4 | 147,871 | 8,986 | 18,695 | 2,413 | 2,036 | 41,399 | **956** | 0 | 0.00 | 73,386 |
+| 6580 | 119,600 | 30.4 | 14,436 | 251 | 721 | 31 | 64 | 2,178 | **31** | **275** | 1.90 | 11,160 |
+| 6593 | 793,534 | 58.8 | 254,564 | 56,084 | 46,752 | 26,725 | 16,534 | 72,951 | **1,852** | **956** | 0.38 | 33,666 |
+| **20** | **6,007,789** | | **1,659,255** | **155,421** | **267,589** | **53,762** | **51,012** | **474,798** | **14,609** | **27,019** | | **642,064** |
 
-**Not in this release, and why.** `6450`, `6505`, `6534`, `6591`, `6623` have no pLN h5ad on this
-machine. `6457` is centrally excluded. Nothing about those donors is reported as zero.
+**`class_NK_ILC = 0` is gone.** The per-cell gate names NK/ILC cells on **all 20 donors**; the
+sub-cluster level names an NK/ILC sub-cluster on **13 of 20**. Five donors that v2 reported as
+`Immune_NK_ILC = 0` — 6380, 6493, 6523, 6533, 6551 — carry 369, 396, 528, 88 and 352 individually
+corroborated NK/ILC cells, and three of them carry a named NK sub-cluster as well.
 
----
+**Where the NK cells were hiding.** Of the 14,609 per-cell NK/ILC calls, **6,110 sit in clusters
+this build's own stage 2 called `Immune_T`** and 8,499 in clusters it called `Immune_NK_ILC`
+(`controls.csv`, `nk_calls_from_Immune_T_clusters`). On **6374, 6380, 6523 and 6533 every single NK
+call comes from a T-called cluster** — there is no NK-called cluster on those sections at all, which
+is exactly the shape of the defect: at the cluster unit those cells had nowhere to go.
 
-## 3. The method, as run
+**Internal coherence, asserted at write time.** The seven T_NK labels sum to the compartment on
+every donor, at both units; the producer raises rather than writes if they do not. The rest of the
+release sums too: 3,102,878 Immune + 1,967,990 Non_immune + 811,330 Uncalled_ambiguous + 45,119 not
+partitioned + 80,472 no-nucleus = 6,007,789. **A lymph node being mostly immune is an expectation
+and is not a check** — 6580 at 30.4% and 6593 at 58.8% are reported as measured.
 
-### Stage 0 — what "stands out" means
+### The two units disagree, and that is the measurement
 
-For gene *g* and cluster *k* of one section, with `mean(k,g)` the cluster's mean lognorm and
-`det(k,g)` its detection fraction:
+`T_NK_unresolved` is 38.7% of the compartment at the per-cell level and 54.2% at the sub-cluster
+level. They are not the same residue and they are not competing estimates of one number:
 
-```
-standout(k,g)  <=>  z(k,g) >= 1      where z = (mean(k,g) - mean over that section's clusters) / SD over them
-                AND det(k,g) > det(rest of the section, g)
-```
-
-Both halves are contrasts **inside one section**. Nothing is imported: no level, no quantile, no
-threshold that would have to mean the same thing on two slides. The z half asks whether the cluster
-is high for that gene relative to the section's own clusters; the detection half stops a difference
-in a handful of high-count cells from carrying a gene on its own.
-
-### Stage 1 — immune against non-immune, on clusters
-
-The immune set is the maintainer's list: `PTPRC CD3E CD3G CD4 CD8A MS4A1 CD79A CD19 CD68 ITGAX
-ITGAM NKG7 KLRD1`. The structural set is the naming genes of the four non-immune identity cores
-(`11_endothelial_vascular`, `12_pericyte_smooth_muscle`, `15_neural_glial`, `16_epithelial_general`
-— 52 on panel).
-
-```
-Immune             <=>  >= 2 immune canonicals stand out  AND  f_imm > f_str
-Non_immune         <=>  >= 2 structural naming genes stand out  AND  f_str > f_imm
-otherwise          ->   Uncalled_ambiguous, with the reason recorded
-```
-
-`f` is the **fraction** of each set standing out, not the count: the sets are 13 and 52 genes and a
-count comparison would hand the larger one an advantage that is not biology.
-
-| stage 1 | clusters | cells | median cluster depth | median immune standouts | median structural standouts |
-|---|---:|---:|---:|---:|---:|
-| Immune | 137 | 3,072,781 | 201 | 4 | 1 |
-| Non_immune | 165 | 2,125,949 | 194 | 0 | 12 |
-| Uncalled_ambiguous | 62 | 721,838 | **71** | 0 | 1 |
-
-The 62 ambiguous clusters are the low-depth ones — cell-weighted median depth 120 against 229 for
-the called clusters — and 44 of the 62 reach two standouts on neither side. They are named, not
-smoothed away.
-
-### Stage 2 — identity within immune, from the subpanels
-
-Sources: `core/panels/data/identity_core/03_immune_T_cell.csv` (101 genes, 20 of which may name),
-`04_immune_B_plasma.csv` (58 / 26), `05_immune_NK_ILC.csv` (31 / 22), `06_immune_myeloid.csv`
-(90 / 31), `07_immune_granulocyte.csv` (21 / 19). Which genes **may name** a lineage is read off the
-panel's own `evidence` column — `canonical` or `both` may name, `cellxgene` ("marks lineage (CL)")
-scores and describes but cannot admit a label.
-
-Score of a core = mean `z` over that core's on-panel genes; the winner is the argmax.
-
-> **The small-core defect is the thing to fix**, and the fix is not a margin. A core with few genes
-> can win an argmax on near-zero evidence, so the winner is admitted only when **at least one gene
-> that may name that lineage actually stands out in that cluster**. A cluster that fails is
-> `Immune_uncalled`, named, and **never reassigned to the runner-up** — absent evidence is not
-> evidence for something else.
-
-The gate fires on **1 cluster of 137, 17,390 cells** (`6476_c11`, winning core `Immune_B_Plasma`,
-zero standout naming genes). It fires rarely because a cluster mean is a far less noisy statistic
-than a single cell's counts — which is the whole reason the draft's per-cell argmax needed a floor
-of 2 and still produced the calls verification refuted. **136 of 136 called clusters carry ≥ 1
-standout naming gene of their own lineage** (minimum by lineage: Myeloid 3, Granulocyte 5, NK_ILC 7,
-T 7, B_Plasma 11).
-
-The evidence is auditable gene by gene. Every Granulocyte cluster, with the naming genes that stood
-out in it:
-
-| donor | cluster | cells | standout naming genes of the granulocyte core |
-|---|---|---:|---|
-| 6461 | `6461_c07` | 4,124 | CCR3 CEACAM3 CSF3R CXCR1 CXCR2 FCGR3B MMP8 MPO PRTN3 RNASE3 |
-| 6521 | `6521_c13` | 4,671 | CEACAM3 CTSG CXCR1 CXCR2 ENPP3 GATA2 IL5RA MPO PRG2 |
-| 6551 | `6551_c09` | 2,540 | CCR3 CEACAM3 CSF3R CXCR1 CXCR2 FCGR3B MMP8 MPO RNASE3 |
-| 6579 | `6579c_c06` | 4,091 | CCR3 CEACAM3 CSF3R CXCR1 CXCR2 MMP8 MMP9 MPO PRTN3 RNASE3 |
-| 6580 | `6580_c11` | 5,927 | CEACAM3 CSF3R CXCR1 CXCR2 FCGR3B |
-| 6593 | `6593_c18` | 6,158 | CCR3 CEACAM3 CSF3R CXCR1 CXCR2 FCGR3B MMP8 PRG2 |
-
-`6521_c13` stands out on `GATA2`, `IL5RA`, `PRG2`, `ENPP3` and `CTSG` and on none of the neutrophil
-genes the other five carry. That is the eosinophil/mast branch of the granulocyte core, not
-neutrophils, and the label does not split it. The 17 NK_ILC clusters carry 7–17 naming genes each
-(`KLRD1`, `KLRF1`, `KLRC1/2`, `PRF1`, `NCR1`, `EOMES`, `TBX21`, `KIR*`); two of them —
-`6593_c15` and part of `6374_c01` — lean on `GATA3`/`KIT`/`RORC`/`IL1RL1`, which is the ILC branch
-of that core rather than NK. `Immune_NK_ILC` is the union and is not split here.
-
-### Inheritance and heterogeneity
-
-Cells inherit their cluster's call verbatim. What that costs is measured per cluster and written
-into `clusters/cluster_calls.parquet`:
-
-| call | clusters | cells | cells whose own core argmax agrees | cells detecting ≥1 naming gene of the call |
-|---|---:|---:|---:|---:|
-| Immune_T | 45 | 1,421,211 | 74.2% | 91.4% |
-| Immune_B_Plasma | 33 | 983,313 | 93.8% | 97.6% |
-| Myeloid | 35 | 414,866 | 64.6% | 88.8% |
-| Immune_NK_ILC | 17 | 208,490 | **12.0%** | 62.9% |
-| Granulocyte | 6 | 27,511 | **34.7%** | 57.9% |
-
-Per-cell argmax is the draft's own estimator, and it is reported here beside the cluster call rather
-than in place of it. Where the two disagree most — NK_ILC and Granulocyte — the disagreement is
-visible in the release, not hidden behind a majority label.
+- The per-cell gate **undercounts by construction**. A CD3-negative cell needs two NK transcripts
+  present to be called, and most NK cells at this depth have none.
+- The sub-cluster call **cannot see an NK cell that is not part of an NK-enriched sub-cluster**. A
+  node's NK cells are scattered through the T zone, and a scattered population does not form a
+  sub-cluster.
+- **4,838 of the 14,609 per-cell NK calls (33.1%) fall inside a sub-cluster the other rule also
+  called NK.** Where a sub-cluster is strongly named, the two agree hard: `6442_t13` is 2,747 cells,
+  13 NK genes standing up, and 1,389 of its cells clear the per-cell gate on their own.
 
 ---
 
-## 4. Detection, the nucleus rule, and the controls
+## 3. What the calls rest on: the partition, rebuilt without the no-nucleus cells (D3)
 
-### Detection
+v2 consumed the shared clustering track's partition and then dropped `nucleus_count == 0` cells from
+the per-cluster means. Those cells were inside the Leiden subsample and inside the k-NN vote, so they
+had already shaped the clusters the calls rest on. **A cell with no nucleus is excluded from every
+calculation, and that is not satisfied by excluding it from the last one.**
+
+`--stage partition` re-runs the clustering track's own algorithm — `cluster_pln.leiden_on_subsample`,
+imported rather than copied, same seed derivation, same QC — on the nucleated cells only, into this
+release's own tree.
+
+| | cells |
+|---|---:|
+| in the h5ads | 6,007,789 |
+| passing the partition QC (`nCount_Xenium >= 10 and nFeature_Xenium >= 5`) — **what v2's partition contained** | 5,962,253 |
+| of those, `nucleus_count == 0` — **removed from the partition here** | **80,055** |
+| **partitioned, v3** | **5,882,198** |
+| labelled `Unavailable_no_nucleus` in the release (includes 417 that also failed QC) | 80,472 |
+| `no_nucleus_cells_inside_partition`, asserted per section | **0** |
+
+The brief put this at 41,685. Measured now it is **80,055**, because **all 22 sections have a local
+vendor bundle today and v2 could only reach 14** — the other eight were recorded UNMEASURABLE, never
+as passed, and the bundles have since landed. 6436 alone contributes 14,758 and 6593 11,930. The
+producer refuses to call a section whose partition still contains a no-nucleus cell.
+
+---
+
+## 4. Detection: one predicate, and what it is measured to cost (D2)
 
 ```
-lognorm(c,g) = log1p(raw(c,g) * 1e4 / depth(c)),   detected  <=>  lognorm >= log1p(1)
+lognorm(c,g) = log1p(raw(c,g) * 1e4 / depth(c))      detected  <=>  lognorm >= log1p(1)
 ```
 
-The target is **fixed at 1e4**, not the section median. For any cell of depth ≤ 10,000 the predicate
-is exactly `raw >= 1`, so no depth-scaled floor operates. Measured: **0 of 6,007,789 cells have
-depth above 10,000**, and **0 of 119,234,523 non-zero gene entries are dropped** by the target. The
-predicate is `raw >= 1` on this data, and that is measured rather than asserted.
+The target is **fixed at 1e4**, not the section median. This is the **only** detection predicate in
+the lane: every detection fraction in the release — per cell, per cluster, per sub-cluster, in the
+controls — comes from it, and the producer asserts the constant at run time.
 
-### A cell with no nucleus is excluded from every calculation
+The defect was that two different predicates wore the word "detection" in one release: the clustering
+track this lane consumed reports its `det__` columns at `lognorm > 0` under a **section-median**
+normalisation. v3 derives every detection fraction it reports from its own predicate and **measures
+the divergence rather than describing it**:
 
-The h5ads carry no nucleus geometry, so the only handle is the vendor bundle `cells.parquet`, matched
-by donor **and** by subset containment of the h5ad's own `cell_id` set — never by filename order.
+- **0 of 6,007,789 cells have depth above 10,000**, so the predicate is exactly `raw >= 1` on every
+  cell in this cohort.
+- **0 of 121,466,945 raw-nonzero entries in the named gene set fall below it.** `> 0` and
+  `>= log1p(1)` are measured to coincide, entry for entry, on this data. The divergence is zero and
+  now it is a number rather than an assumption.
 
-- **14 of 22 sections have a local bundle**: 42,050 cells with `nucleus_count == 0` are excluded
-  from the cluster aggregates as well as from the calls, and are labelled `Unavailable_no_nucleus`.
-- **8 sections have none** — `6436`, `6476`, `6493`, `6523`, `6539`, `6579a/b/c`. For those the rule
-  is **UNMEASURABLE**, recorded as such in `release.json`, never as passed. Transferring those
-  bundles' `cells.parquet` is the whole of what it takes to close that gap.
+*(That count is reported with a float64 accumulator. A float32 sum over 6593's 27.4 million stored
+entries is not exact above 2²⁴ and returned a count one higher than the entries it was counting.)*
 
-### The Y-probe control
+### The Y-probe control on that predicate
 
-`TBL1Y`, `USP9Y` and `EIF1AY` are the floor group: zero-template in a female donor and, unlike
-`DDX3Y` and `KDM5D`, not cross-hybridising with a highly expressed X paralog. In a female donor
-every detection of them is false, so their rate is the background this predicate admits. **Nine
-female donors, eleven sections** (the brief said two; measured, it is nine).
+`TBL1Y`, `USP9Y`, `EIF1AY` are the floor group: zero-template in a female donor and, unlike `DDX3Y`
+and `KDM5D`, not cross-hybridising with a highly expressed X paralog. In a female donor every
+detection of them is false.
+
+**Nine female donors, eleven sections** — the brief said two; measured, it is nine.
 
 | section | donor | floor group | all five Y probes |
 |---|---|---:|---:|
-| HDL115 | 115 | **0.0029%** | 0.028% |
-| 6579b | 6579 | 0.0026% | 0.030% |
-| 6533 | 6533 | 0.0052% | 0.029% |
-| 6476 | 6476 | 0.0062% | 0.050% |
-| 6523 | 6523 | 0.0064% | 0.030% |
-| 6579c | 6579 | 0.0065% | 0.040% |
-| HDL112 | 112 | 0.0069% | 0.038% |
-| 6380 | 6380 | 0.0073% | 0.027% |
-| 6374 | 6374 | 0.0148% | 0.096% |
-| 6579a | 6579 | 0.0172% | 0.088% |
-| 6482 | 6482 | **0.0173%** | 0.084% |
+| 6579b | 6579 | **0.0027%** | 0.0287% |
+| HDL115 | 115 | 0.0029% | 0.0279% |
+| 6533 | 6533 | 0.0052% | 0.0293% |
+| 6476 | 6476 | 0.0063% | 0.0499% |
+| 6523 | 6523 | 0.0064% | 0.0295% |
+| 6579c | 6579 | 0.0065% | 0.0398% |
+| HDL112 | 112 | 0.0069% | 0.0380% |
+| 6380 | 6380 | 0.0073% | 0.0270% |
+| 6374 | 6374 | 0.0148% | 0.0959% |
+| 6482 | 6482 | 0.0173% | 0.0836% |
+| 6579a | 6579 | **0.0174%** | 0.0894% |
 
-**0.0026–0.0173% against the ~0.3% requirement — inside it by a factor of 17 to 114.** In the eleven
-male sections the same probes run 3.49–23.17%, which is template, not background, and is why they
-are not a control there: for male donors this quantity is **UNMEASURED**, and the release says so
-rather than writing 0.
+**0.0027%–0.0174% against the ~0.3% requirement — inside it by a factor of 17 to 111.** In the
+eleven male sections the same probes run 3.49%–23.17%, which is template, not background; for male
+donors this quantity is **UNMEASURED** and the release says so rather than writing 0.
 
-### gDNA
+### The control the negative gate needs, and it is not flattering everywhere
 
-`data/development/xenium_gdna/gdna_triage_2026-09-17.parquet` carries a measured pLN rate for 18 of
-the 20 donors — 0.0029 (6593) to 0.0552 (6580); `6347` (0.0509) and `6580` (0.0552) are the two
-above 10× the tuned rate. **`6436` and `6539` are UNMEASURED** and are recorded as the string
-`UNMEASURED`, never as 0.
+A negative call is only as good as the probe's background. Both ends are measured per section, on
+that section's own cells, in `controls.csv`:
 
----
-
-## 5. The release
-
-```
-data/development/xenium_typing/release_pln_immune_v2/
-├── release.json                       schema_version 1, release_id, roi pln_1, donor list,
-│                                      the method block, and sha256 for all 44 inputs
-│                                      (22 h5ads + 22 cluster assignment parquets)
-├── label_space.json                   10 labels, each with the reason it exists
-├── calls/donor_id=<d>/roi=pln_1/data.parquet
-├── clusters/cluster_calls.parquet|csv 364 clusters: calls, standouts, scores, heterogeneity
-├── clusters/cluster_gene_stats.parquet 156,156 rows: per cluster per gene mean, z, detection,
-│                                      detection in the rest of the section, standout flag
-├── per_donor_summary.csv · controls.csv · section_reports.json
-├── verification_narrow_canonicals.csv the adversarial re-check of §7
-└── compare_draft_summary.csv · compare_draft_donor_<d>.csv · compare_draft.json
-```
-
-`release.json`'s method block describes what the code does, statement by statement — the draft's was
-refuted for claiming things its code did not do, so every clause there is one a reader can check
-against `pln_immune_typing_v2.py`.
-
-**Keying.** Rows are keyed on `cell_id` within `donor_id` / `roi`, and `cell_id` is the Xenium
-barcode verbatim, `-1` suffix included. **One measured exception: 6579's three sections share 35
-`cell_id` values**, so for that donor the key is (`section_key`, `cell_id`). `release.json` records
-this at `duplicate_cell_ids_within_donor`; no other donor has any.
-
-### Per donor, every label including the uncalled
-
-| donor | status | sex | cells | clusters | Immune | % | Non_immune | Ambiguous | not clustered | no nucleus | Immune_T | Immune_B_Plasma | Immune_NK_ILC | Myeloid | Granulocyte | Immune_uncalled |
-|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 112 | ND | F | 221,578 | 18 | 116,262 | 52.5 | 65,242 | 37,175 | 506 | 2,393 | 54,428 | 44,768 | 2,853 | 14,213 | 0 | 0 |
-| 115 | ND | F | 247,399 | 13 | 146,065 | 59.0 | 53,289 | 44,294 | 1,287 | 2,464 | 65,381 | 49,540 | 15,074 | 16,070 | 0 | 0 |
-| 6347 | AAb+ | M | 79,522 | 16 | 33,118 | 41.6 | 33,970 | 11,664 | 160 | 610 | 11,435 | 14,155 | 1,161 | 6,367 | 0 | 0 |
-| 6374 | ND | F | 164,364 | 16 | 67,142 | 40.8 | 76,671 | 18,844 | 496 | 1,211 | 32,743 | 19,148 | 7,669 | 7,582 | 0 | 0 |
-| 6380 | T1D | F | 264,010 | 11 | 142,654 | 54.0 | 73,975 | 42,879 | 2,050 | 2,452 | 73,479 | 47,325 | 0 | 21,850 | 0 | 0 |
-| 6436 | T1D | M | 370,852 | 12 | 223,226 | 60.2 | 147,364 | 0 | 262 | n/a | 100,728 | 42,963 | 42,296 | 37,239 | 0 | 0 |
-| 6442 | ND | M | 176,137 | 22 | 106,988 | 60.7 | 40,133 | 25,105 | 105 | 3,806 | 50,764 | 35,089 | 3,252 | 17,883 | 0 | 0 |
-| 6461 | ND | M | 109,476 | 17 | 51,504 | 47.0 | 53,758 | 2,882 | 615 | 717 | 13,941 | 21,265 | 5,428 | 6,746 | 4,124 | 0 |
-| 6476 | ND | F | 290,429 | 16 | 154,752 | 53.3 | 113,405 | 21,719 | 553 | n/a | 47,823 | 72,382 | 6,527 | 10,630 | 0 | **17,390** |
-| 6482 | ND | F | 168,551 | 15 | 81,303 | 48.2 | 62,040 | 24,045 | 474 | 689 | 39,256 | 15,285 | 10,223 | 16,539 | 0 | 0 |
-| 6493 | ND | M | 161,178 | 14 | 75,015 | 46.5 | 30,075 | 55,590 | 498 | n/a | 42,019 | 26,909 | 0 | 6,087 | 0 | 0 |
-| 6521 | AAb+ | M | 479,006 | 17 | 194,343 | 40.6 | 232,140 | 47,639 | 1,513 | 3,371 | 75,545 | 61,065 | 15,478 | 37,584 | 4,671 | 0 |
-| 6523 | T1D | F | 600,995 | 12 | 340,260 | 56.6 | 209,966 | 44,109 | 6,660 | n/a | 172,929 | 125,858 | 0 | 41,473 | 0 | 0 |
-| 6533 | T1D | F | 97,237 | 13 | 43,865 | 45.1 | 37,703 | 13,932 | 892 | 845 | 22,395 | 16,871 | 0 | 4,599 | 0 | 0 |
-| 6539 | ND | M | 218,842 | 17 | 116,062 | 53.0 | 71,292 | 31,047 | 441 | n/a | 46,506 | 37,103 | 10,937 | 21,516 | 0 | 0 |
-| 6551 | T1D | M | 174,918 | 15 | 69,062 | 39.5 | 104,620 | 0 | 315 | 921 | 42,017 | 15,820 | 0 | 8,685 | 2,540 | 0 |
-| 6566 | T1D | M | 692,878 | 26 | 335,686 | 48.4 | 191,650 | 135,854 | 20,218 | 9,470 | 198,200 | 97,693 | 18,336 | 21,457 | 0 | 0 |
-| 6579 | T1D | F | 577,283 | 36 | 267,112 | 46.3 | 227,125 | 78,504 | 4,542 | n/a | 121,880 | 79,740 | 11,722 | 49,679 | 4,091 | 0 |
-| 6580 | T1D | M | 119,600 | 39 | 38,454 | 32.2 | 51,494 | 25,393 | 3,098 | 1,161 | 12,747 | 14,748 | 245 | 4,787 | 5,927 | 0 |
-| 6593 | T1D | M | 793,534 | 19 | 469,908 | 59.2 | 250,037 | 61,163 | 486 | 11,940 | 196,995 | 145,586 | 57,289 | 63,880 | 6,158 | 0 |
-| **20** | | | **6,007,789** | **364** | **3,072,781** | | **2,125,949** | **721,838** | **45,171** | **42,050** | **1,421,211** | **983,313** | **208,490** | **414,866** | **27,511** | **17,390** |
-
-`n/a` in the nucleus column is the eight sections with no local bundle — unmeasurable, not zero.
-Stage 1 and stage 2 each sum to 6,007,789 exactly.
+- **CD3 detection in a compartment that is definitionally CD3-negative** (B/Plasma) is the gate's
+  false-positive floor: **4.0% (6461) to 35.0% (6593)**. B cells do not express CD3; whatever this
+  rate is, it is background.
+- **CD3 detection in T_NK** is its ceiling: **22.5% (6580) to 86.1% (6593)**.
+- Where those two are close the per-cell CD3 negative is weak. On 6593 the floor is 35.0% against a
+  ceiling of 86.1%; on 6461 it is 4.0% against 41.5%. **The per-cell NK count on 6593 should be read
+  with that in mind**, and it is the reason the sub-cluster estimate exists.
+- **The NK rule applied verbatim to a compartment that is not NK** (CD3-negative cells of the
+  B/Plasma compartment with ≥2 NK naming genes) runs **0.07%–1.79%**, against **0.28%–17.35%** in
+  T_NK. The NK evidence is 3–10× enriched where it should be, on every section.
 
 ---
 
-## 6. Against the draft release
+## 5. The NK/ILC sub-clusters, gene by gene
 
-The draft (`release_pln_immune/`, 13 donors, 3,569,071 bundle cells) is left in place and is
-superseded rather than overwritten. On the cells both cover — the 13 shared donors, h5ad cells only
-— rows are the draft's `lineage_native`, columns this release's `lineage`:
+All 14, with the NK-exclusive naming genes that stood up in each and the two independent
+corroborations — how often that sub-cluster's own cells detect any NK naming gene against the rest of
+the compartment, and how many of its cells clear the per-cell gate.
 
-| draft ↓ / v2 → | Immune_T | Immune_B_Plasma | Immune_NK_ILC | Myeloid | Granulocyte | Non_immune | Ambiguous | not clustered | no nucleus |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Immune_T (614,484) | 413,912 | 3,014 | 59,916 | 19,497 | 108 | 68,088 | 49,928 | 21 | 0 |
-| Immune_B_Plasma (593,442) | 25,884 | 439,387 | 4,417 | 10,162 | 387 | 55,188 | 57,998 | 19 | 0 |
-| Immune_NK_ILC (14,040) | 4,479 | 197 | 5,886 | 471 | 245 | 1,873 | 889 | 0 | 0 |
-| Myeloid (106,195) | 2,141 | 968 | 2,248 | 81,517 | 2,520 | 14,134 | 2,659 | 8 | 0 |
-| Granulocyte (4,708) | 287 | 71 | 221 | 928 | 1,874 | 1,085 | 241 | 1 | 0 |
-| Immune_unresolved (623,846) | 250,268 | 38,390 | 44,353 | 59,503 | 5,496 | 118,511 | 106,922 | 403 | 0 |
-| Non_immune (788,959) | 46,343 | 25,722 | 8,035 | 29,348 | 3,405 | 644,501 | 31,583 | 22 | 0 |
-| Ambiguous (738,928) | 72,533 | 43,284 | 11,932 | 24,966 | 9,385 | 349,367 | 197,770 | 29,691 | 0 |
-| Unavailable (39,598) | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 39,598 |
+| sub-cluster | cells | NK genes up | CD3 det. (rest of T_NK) | NK-set det. (rest) | cells clearing the per-cell gate |
+|---|---:|---:|---|---|---:|
+| `6436_t00` | 10,078 | 14 | 65.1% (67.7%) | 49.3% (12.8%) | 464 |
+| `HDL112_t06` | 3,600 | 17 | 26.3% (61.4%) | 80.4% (15.4%) | 1,214 |
+| `6566_t22` | 3,242 | 16 | 34.9% (39.6%) | 22.8% (5.5%) | 147 |
+| `6442_t13` | 2,747 | 13 | 35.7% (82.7%) | 94.8% (30.0%) | 1,389 |
+| `6521_t07` | 1,478 | 5 | 26.7% (48.5%) | 41.8% (19.6%) | 107 |
+| `6461_t06` | 1,060 | 17 | 17.1% (38.7%) | 82.7% (14.7%) | 456 |
+| `6482_t03` | 989 | 15 | 46.3% (53.5%) | 93.8% (23.7%) | 379 |
+| `6593_t04` | 956 | 17 | 69.5% (83.7%) | 95.6% (34.8%) | 220 |
+| `6347_t06` | 842 | 16 | 41.8% (62.8%) | 72.6% (20.0%) | 216 |
+| `6493_t05` | 650 | 8 | 47.2% (55.8%) | 52.0% (14.9%) | 51 |
+| `6551_t10` | 617 | 6 | 61.6% (72.5%) | 68.9% (24.9%) | 56 |
+| `6442_t11` | 471 | 5 | 54.6% (81.1%) | 93.6% (32.1%) | 139 |
+| `6580_t19` | 275 | 7 | 4.4% (22.1%) | 6.9% (5.7%) | 0 |
+| `6533_t08` | 14 | 2 | 42.9% (41.8%) | 14.3% (8.5%) | 0 |
 
-What this says, and only this:
+`HDL112_t06` stands up on **17 of the 19** NK-exclusive naming genes — `CD244 EOMES FCGR3A KIR2DL1
+KIR2DL4 KIR3DL1 KIT KLRB1 KLRC1 KLRC2 KLRD1 KLRF1 NCAM1 NCR1 NCR3 RORC TBX21` — with CD3 detection at
+26.3% against 61.4% in the rest of its compartment. That is not one probe doing the work; it is the
+core.
 
-- **The two lineages verification indicted move the most.** Of the draft's 4,708 Granulocyte calls,
-  1,874 (39.8%) remain Granulocyte; of its 14,040 NK_ILC calls, 5,886 (41.9%) remain. Neither is
-  reassigned wholesale to one place — they spread across T, Myeloid, Non_immune and Ambiguous.
-- **The draft's unresolved and ambiguous cells are where most of the new calls come from.** Its
-  623,846 `Immune_unresolved` and 738,928 `Ambiguous` supply 250,268 + 72,533 T calls and
-  38,390 + 43,284 B calls here. A cluster mean survives sparsity that a single cell's counts do not;
-  that is the mechanism, and it cuts both ways (§7).
-- **The no-nucleus set agrees exactly** — the draft's 39,598 `Unavailable` cells inside the h5ad map
-  one to one onto `Unavailable_no_nucleus`.
-- Stage 1 agrees on **2,123,248 of the 3,524,200 shared cells (60.2%)**; stage 2 on **1,587,077
-  (45.0%)**. Agreement is not itself evidence for either release — it is stated so the size of the
-  change is on the record.
+**Two are thin and are flagged, not hidden.** `6533_t08` is 14 cells on `KIT` and `KLRB1` alone and
+carries `nk_call_thin_two_or_three_genes`. `6580_t19` has seven genes but only 6.9% of its cells
+detect any of them, on a median depth of 34 — that is the lowest-depth section in the cohort and the
+call is correspondingly weak.
 
-Coverage differs too: this release types **20 donors** because it works from the h5ad and the
-cluster assignment, where the draft needed the vendor bundle for `nucleus_count` and so stopped at
-13. The trade is stated in §4 — seven of those seven extra donors have no measurable nucleus rule.
+**Removed by the set-level detection contrast (§1) — 9 sub-clusters, 28,361 cells.** They are named
+here because the earlier rule counted them:
+
+| sub-cluster | cells | NK genes up | NK-set det. | rest of T_NK |
+|---|---:|---:|---:|---:|
+| `6579a_t01` | 9,276 | 2 (`KIR2DL1 KIR3DL1`) | 7.2% | 14.6% |
+| `HDL115_t05` | 7,339 | 2 (`KIT NCR3`) | 6.5% | 7.7% |
+| `6579b_t08` | 2,897 | 2 (`KIR3DL1 NCAM1`) | 3.1% | 10.3% |
+| `6374_t07` | 2,656 | 3 | 13.3% | 18.2% |
+| `6566_t23` | 2,499 | 3 | 3.7% | 5.7% |
+| `6436_t02` | 1,855 | 3 | 11.6% | 15.6% |
+| `6580_t11` | 695 | 3 | 4.0% | 5.8% |
+| `6580_t04` | 661 | 2 | 4.5% | 5.7% |
+| `6580_t15` | 483 | 2 | 3.9% | 5.7% |
+
+Every one has cells carrying **less** NK evidence than the compartment average. That is the whole
+reason the contrast is there, and it is why 115, 6374, 6476, 6523, 6539 and 6579 have no NK
+sub-cluster: not "no NK cells" — their per-cell gate finds 179 to 956 each — but **no sub-cluster on
+those sections separates them.**
 
 ---
 
-## 7. What these numbers do not say
+## 6. The coarse stage, unchanged in method
 
-**The per-cell evidence problem is relocated, not solved, and here is the measurement.** The check
-that refuted the draft, recomputed from the h5ads against this release: for each cell, does it detect
-any of the narrow canonical list for the lineage it was called?
+Stage 1 (immune vs non-immune on clusters) and stage 2 (identity-core argmax within immune, admitted
+only when a gene that may name the winning lineage stands out) are v2's, run on the new partition.
+**362 clusters, 22 sections.**
 
-| call | cells | detecting **none** of its lineage's narrow canonicals |
+| stage 1 | clusters | cells |
 |---|---:|---:|
-| Immune_T | 1,421,211 | 61,984 (**4.4%**) |
-| Immune_B_Plasma | 983,313 | 53,399 (**5.4%**) |
-| Myeloid | 414,866 | 73,916 (**17.8%**) |
-| Immune_NK_ILC | 208,490 | 107,040 (**51.3%**) |
-| Granulocyte | 27,511 | 16,326 (**59.3%**) |
+| Immune | 140 | 3,102,878 |
+| Non_immune | 159 | 1,967,990 |
+| Uncalled_ambiguous | 63 | 811,330 |
 
-For NK_ILC and Granulocyte that is the same rate the draft was refuted at (50.5% and 55.4%). The
-difference is what the claim attaches to: the draft called each cell individually, so a cell with no
-canonical of its own lineage was a call resting on nothing. Here the call is a property of the
-**cluster** — every one of those clusters stands out on 5 to 17 naming genes of its lineage against
-the section's other clusters — and the per-cell rate is the cost of inheritance, reported in the
-table above, in `verification_narrow_canonicals.csv`, and per cluster in `cluster_calls.parquet`. A
-reader who needs cell-level evidence should filter on `n_naming_detected_for_cluster_call`, which is
-written per cell for exactly that purpose. **The granulocyte and NK_ILC counts here are cluster-level
-statements. They should not be read as 27,511 individually corroborated granulocytes.**
+| stage 2 | clusters | cells |
+|---|---:|---:|
+| Immune_T | 46 | 1,354,750 |
+| Immune_B_Plasma | 33 | 978,063 |
+| Immune_NK_ILC | 19 | 304,505 |
+| Myeloid | 33 | 413,344 |
+| Granulocyte | 8 | 34,200 |
+| Immune_uncalled | 1 | 18,016 |
 
-**Thin stage-1 calls are flagged, not hidden.** 23 Immune clusters (239,643 cells) and 22
-Non_immune clusters (293,754 cells) rest on exactly two standouts — the minimum the rule admits.
-`stage1_thin_two_standouts` marks them and `standout_immune_genes` / `standout_structural_genes`
-name the genes, so a reader can see that e.g. a Non_immune cluster carried by `CDH1` and `PRPH`
-alone is not the same evidence as one carried by seventeen endothelial genes.
+`Immune_T` and `Immune_NK_ILC` together are the **T_NK compartment**; their cells never keep those
+labels in the per-cell release — they carry the stage-3 split, with the cluster's own call preserved
+beside it in `cluster_lineage`.
 
-**The standout threshold is a choice, and its effect is measured.** Re-deciding everything at
-z ≥ 0.75 and z ≥ 1.5 (recorded per section in `section_reports.json`):
-
-| label | z ≥ 0.75 | **z ≥ 1.0 (released)** | z ≥ 1.5 |
-|---|---:|---:|---:|
-| Immune_T | 1,465,872 | 1,421,211 | 1,054,357 |
-| Immune_B_Plasma | 986,948 | 983,313 | 978,039 |
-| Immune_NK_ILC | 211,685 | 208,490 | 192,555 |
-| Myeloid | 414,866 | 414,866 | 385,018 |
-| Granulocyte | 37,215 | 27,511 | 29,582 |
-| Non_immune | 2,193,423 | 2,125,949 | 1,852,656 |
-| Uncalled_ambiguous | 591,196 | 721,838 | 1,428,361 |
-| Immune_uncalled | 19,363 | 17,390 | 0 |
-
-B_Plasma and Myeloid barely move; T and the ambiguous pool trade against each other; Granulocyte is
-the small-count label and is the least stable of the five.
-
-**Internal coherence, reported; expectation, not.** A lymph node is expected to be mostly immune and
-**that expectation is not a check** — nothing here was accepted because it reproduced it, and 6580
-at 32.2% immune and 6521 at 40.6% are reported unchanged beside 6442 at 60.7%. What *is* checkable is
-contradiction. Cell-weighted detection rates by called lineage:
-
-| called | PTPRC | CD3E | CD4 | CD8A | MS4A1 | CD79A | CD19 | CD68 | ITGAX | NKG7 | MPO |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Immune_T | 70.1 | 57.8 | 19.1 | 22.1 | 8.8 | 9.9 | 4.5 | 3.7 | 0.7 | 3.1 | 0.05 |
-| Immune_B_Plasma | 66.6 | 17.3 | 7.3 | 5.7 | **77.7** | **61.0** | **59.5** | 4.7 | 1.8 | 1.5 | 0.06 |
-| Myeloid | 61.1 | 24.1 | 44.3 | 8.9 | 9.6 | 9.2 | 5.7 | **36.1** | **12.9** | 2.9 | 0.19 |
-| Immune_NK_ILC | 79.1 | 59.5 | 14.0 | **54.0** | 11.7 | 10.5 | 5.5 | 5.7 | 2.5 | **23.6** | 0.06 |
-| Granulocyte | 52.1 | 6.7 | 7.6 | 2.5 | 4.8 | 4.7 | 3.3 | 6.5 | 19.2 | 1.3 | 0.20 |
-
-**CD4 19.1% and CD8A 22.1% within the T-called cells — 41.2% together, no contradiction.** The
-withdrawn attempt put CD4 at 69% and CD8 at 58% on the same cells, which was one. Two things the
-table shows that are not contradictions but are worth naming: `CD4` is higher in Myeloid-called
-cells (44.3%) than in T-called ones, which is what CD4 does on monocytes and macrophages; and the
-NK_ILC-called cells carry CD3E at 59.5% and CD8A at 54%, which says these clusters sit against the
-cytotoxic T compartment and that the union label is doing work there.
+**Against v2, on the 6,007,859 `cell_id` joins both releases cover** (70 more than the 6,007,789
+cells, because 6579's 35 duplicated ids join twice)**:** stage 1 agrees on 4,945,612 (82.3%), the
+coarse cluster lineage on 4,650,331 (77.4%). The partition changed, so this is a comparison of two
+partitions as much as of two rules; agreement is not evidence for either and is stated so the size of
+the change is on the record. Cross-tabs per donor are in `compare_v2/`. **v2's 208,491
+`Immune_NK_ILC` cells were a cluster-level statement, and v2's own verification measured CD3E at
+59.5% detection across them** — the reason this build splits that compartment rather than counting
+it.
 
 ---
 
-## 8. What the method does not license
+## 7. Cross-modality, compositional (§ `cross_modality/`)
 
-- **No spatial claim crosses the pancreas/pLN boundary.** They are different blocks on one slide.
-  Nothing here computes a distance, adjacency, neighbourhood, KDE or shared scatter, and
-  `obsm['spatial']` is absent from all 24 h5ads in any case. The pancreas/pLN comparison this feeds
-  is **compositional**, joined on `donor_id` and disease status and nothing else.
-- **No non-immune lineage is resolved.** `Non_immune` is terminal. The four non-immune cores appear
+**18 donors have a pLN section on both platforms; 11 have a typed one on both today.** Xenium-only:
+112, 6347, 6374, 6533, 6551, 6566, 6579, 6580, 6593. PhenoCycler-only: 6450, 6505, 6534.
+
+These are **different sections of different blocks**. The join is on `donor_id` and nothing else — no
+cell matched to a cell, no coordinate, no spatial claim — and the comparison is on **fractions**,
+never counts, because the two assays sample different areas. **Neither side was tuned to move the
+agreement and nothing here was accepted because it agreed.**
+
+PhenoCycler source: `data/development/typing/pln/pheno/per_donor_counts.csv`, mtime
+`2026-09-17T20:03:16Z`, sha256 `6bc3b62e…`, columns `tnk_T_CD4 tnk_T_CD8 tnk_T_reg tnk_NK_ILC
+tnk_T_NK_unresolved`. That lane is moving today; the release records the exact file this ran against.
+
+| quantity | Pearson | Spearman | Xenium median | PhenoCycler median | median \|diff\| |
+|---|---:|---:|---:|---:|---:|
+| % immune of all cells | 0.552 | 0.464 | 52.4% | 69.0% | 10.9 pts |
+| T_NK share of immune | 0.489 | 0.400 | 0.531 | 0.277 | 0.299 |
+| NK/ILC share of T_NK — Xenium per-cell | −0.485 | −0.400 | 0.0079 | 0.0167 | 0.026 |
+| **NK/ILC share of T_NK — Xenium sub-cluster** | **−0.624** | **−0.722** | **0.0122** | **0.0167** | **0.046** |
+| CD8 share of CD4+CD8 | 0.549 | 0.627 | 0.694 | 0.465 | 0.202 |
+| Treg share of resolved T | 0.219 | 0.218 | 0.072 | 0.231 | 0.115 |
+
+### The disagreements, which are the interesting part
+
+1. **Xenium calls fewer cells immune, on all 11 donors.** Median 52.4% against 69.0%, up to 32.9
+   points apart on 6461 (41.0% vs 73.9%). Eleven of eleven in the same direction, so it is a
+   property of the two methods, not noise.
+2. **Xenium puts a much larger share of the immune compartment in T_NK** — 0.531 vs 0.277 median, on
+   every one of the 11 donors. The two sides are not dividing the immune compartment the same way.
+3. **Xenium's CD8 share of CD4+CD8 is higher on all 11 donors** (median 0.694 vs 0.465), but it is
+   the **best-correlated** subset quantity in the table (Spearman 0.627). The level differs
+   systematically; the donor ordering survives.
+4. **Xenium's Treg share is lower on 10 of 11** (median 0.072 vs 0.231) and the correlation is near
+   zero (0.219). `FOXP3` is a low-abundance transcript and `FOXP3` protein is a nuclear stain; these
+   are not measuring the same thing with the same sensitivity, and the release does not pretend they
+   are.
+5. **NK/ILC: the levels land close and the ordering is anti-correlated.** Medians 0.0122 (Xenium
+   sub-cluster) against 0.0167 (PhenoCycler) — both around 1–2% of T_NK — but the per-donor
+   Spearman is **−0.72**, and the pattern behind it is almost exact:
+
+   | | Xenium sub-cluster | PhenoCycler |
+   |---|---:|---:|
+   | 6436 · 6461 · 6442 · 6482 | 7.5% · 5.4% · 4.6% · 2.2% | **0 on all four** |
+   | 115 · 6380 · 6476 · 6523 · 6539 | **0 on all five** | 2.3% · 1.7% · 2.9% · 5.6% · 5.5% |
+   | 6493 · 6521 | 1.2% · 1.4% | 1.2% · 6.9% |
+
+   The two sides find an NK population on **almost disjoint sets of donors**. On the nine donors at
+   the top of that table one side or the other is at zero, and a zero on either side is a
+   sub-cluster-level statement — *this section's partition did not separate an NK population* — not
+   a measured absence. Xenium's own per-cell gate finds 179 to 528 individually corroborated NK
+   cells on each of its five zeros, so it is not that the cells are absent. **This row is a
+   measurement of two partitions, and it should be recomputed when the PhenoCycler lane re-runs.**
+   It is reported as it stands, not withheld and not smoothed, and neither side was moved to
+   improve it.
+
+The two lanes share no threshold, no gene, no marker and no line of code. That is why the comparison
+is worth making, and also why a difference cannot be charged to one side without a further
+measurement.
+
+---
+
+## 8. A partial run cannot land on a cohort-wide name (D4)
+
+`build_pln_immune_pheno.py --donors X --stage standout` rewrote three cohort-wide files with the one
+donor it had processed. v2 had the same shape: `--only 6533` rewrote `release.json`, the cluster
+tables and the summaries for that subset alone, and §9 of the previous version of this document said
+so in prose instead of fixing it.
+
+Every cohort-shaped write in v3 goes through `partial_run_guard.RunScope`. A run whose section set is
+a strict subset of what the lane could process writes to
+`_partial/sections=<slug>/` with a `SCOPE.json` beside it, and the cohort file is not touched, not
+read and not merged. **What the lane could process is every section an eligible donor has an h5ad
+for — not what happens to be partitioned today**; scoping against the latter would let a one-section
+run call itself whole. Verified: `--sections 6347 --stage call` announced the partial scope and wrote
+21 files under `_partial/sections=6347/`.
+
+---
+
+## 9. Extension: the donors now transferring
+
+Sections are **discovered** from `/data/xenium/h5ad_out/*_pLNXenium.h5ad` and donor eligibility comes
+from `phenocycler.cohort.filter_eligible_donors` (`6457` refused there; this file does not restate
+the list). A section already partitioned is skipped unless `--force`, and the cohort rollups are
+rebuilt from whatever per-section artifacts are on disk.
+
+Adding a donor is: drop the h5ad in, add its bundle row to `xenium_paths.csv`, re-run the four
+stages. Nothing in the producer changes. `6450`, `6505`, `6534`, `6591` and `6623` have no pLN h5ad
+on this machine; nothing about them is reported as zero.
+
+---
+
+## 10. What this does not license
+
+- **No spatial claim** of any kind, and none across the pancreas/pLN boundary. Nothing here computes
+  a distance, adjacency or neighbourhood, and the cross-modality comparison is compositional.
+- **No cell-to-cell matching across modalities.** §7 joins on `donor_id` alone.
+- **No non-immune lineage is resolved.** `Non_immune` is terminal; the four non-immune cores appear
   only as far as stage 1 needs them to exclude.
-- **Nothing claims acinar or ductal.** Exocrine is one label in this project, and it would mean
-  nothing in a node.
-- **The regional genes are evidence, not calls.** `CR2`, `CXCL13`, `CCL19`, `CCL21`, `BCL6`,
-  `AICDA`, `SELL`, `CD27`, `MKI67` are carried in `cluster_gene_stats.parquet` per cluster. No
-  follicle, germinal-centre or T-zone call is made from them here; the regional reading is
+- **Nothing claims acinar or ductal.** Exocrine is one label in this project and would mean nothing
+  in a node.
+- **NK is not split from ILC.** The identity core is one combined core, so the label is combined;
+  the ILC-hint detections are carried per cell as description.
+- **The per-cell NK count is a floor, and the sub-cluster count is a sub-cluster-level statement.**
+  Neither is "the number of NK cells in the node". `n_nk_exclusive_naming_detected` is written per
+  cell so a reader can set their own floor.
+- **The regional genes are evidence, not calls.** `CR2 CXCL13 CCL19 CCL21 BCL6 AICDA SELL CD27 MKI67`
+  are in `clusters/cluster_gene_stats.parquet`; the regional reading is
   `docs/PLN_REGIONAL_CLUSTERING_2026-09-17.md`'s.
-- **No cluster gated anything.** The partition describes; it admits no label on its own and refuses
-  none.
 
 ---
 
-## 9. Reproduce
+## 11. Reproduce
 
 ```bash
 cd /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior
-.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v2.py --stage call
-.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v2.py --stage compare
-# one section or donor:  --only 6533
+.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v3.py --stage partition   # ~13 min
+.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v3.py --stage call        # ~2 min
+.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v3.py --stage tnk         # ~5 min
+.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v3.py --stage cross
+.venv/bin/python analysis/xenium/scripts/pln_immune_typing_v3.py --stage compare
+# one section:  --sections 6533   (writes under _partial/, never on a cohort name)
 ```
 
-CPU, repo `.venv`, no scVI and no GPU. **~2 minutes wall** for all 22 sections including re-reading
-every h5ad and hashing all 44 inputs. The producer takes no random draw of any kind; re-running
-`--only 6533` reproduced its `data.parquet` **byte for byte** (sha256 identical). Note that a
-`--only` run rewrites `release.json`, the cluster tables and the summaries for that subset alone —
-re-run the full `--stage call` afterwards, which is what was done here.
+CPU, repo `.venv`, no GPU. `partition` and `tnk` take a random subsample and record the seed they
+derived; `call`, `cross` and `compare` take no random draw at all.
 
-## 10. Files
+## 12. Files
 
 | path | |
 |---|---|
-| `analysis/xenium/scripts/pln_immune_typing_v2.py` | **the producer** |
-| `data/development/xenium_typing/release_pln_immune_v2/**` | the release |
-| `docs/PLN_IMMUNE_XENIUM_2026-09-17.md` | this file |
-| `data/development/xenium_typing/release_pln_immune/**` | the draft — **left in place**, superseded |
-| `data/development/xenium_typing/release/**` | the pancreas release — untouched |
-| `core/panels/data/identity_core/*.csv` | read only; no copy written |
+| `analysis/xenium/scripts/pln_immune_typing_v3.py` | **the producer** |
+| `…/release_pln_immune_v3/release.json` | method, panel, controls, nucleus rule, 22 input sha256 |
+| `…/release_pln_immune_v3/label_space.json` | every label with the reason it exists |
+| `…/release_pln_immune_v3/calls/donor_id=<d>/roi=pln_1/data.parquet` | per cell |
+| `…/release_pln_immune_v3/partition/` | the nucleus-clean partition and its per-section reports |
+| `…/release_pln_immune_v3/tnk/` | T_NK sub-cluster assignments and the 249 sub-cluster profiles |
+| `…/release_pln_immune_v3/per_donor_summary.csv` · `per_donor_tnk.csv` · `controls.csv` | |
+| `…/release_pln_immune_v3/cross_modality/` | §7, with the PhenoCycler file's sha256 and mtime |
+| `…/release_pln_immune_v3/compare_v2/` | §6 cross-tabs |
+| `data/development/xenium_typing/release_pln_immune_v2/**` | superseded, **left in place** |
+| `data/development/typing/pln/clusters/xenium/**` | the shared clustering track — **read only** |
+| `core/panels/data/identity_core/*.csv` | the one panel authority; no copy written |
+
+**Keying.** `cell_id` is the Xenium barcode verbatim, `-1` suffix included, within `donor_id`/`roi`.
+One measured exception: **6579's three sections share 35 `cell_id` values**, recorded in
+`release.json` at `duplicate_cell_ids_within_donor`; for that donor the key is
+(`section_key`, `cell_id`). No other donor has any.
