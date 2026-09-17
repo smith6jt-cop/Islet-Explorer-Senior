@@ -31,8 +31,8 @@ import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
-from phenocycler.cohort import filter_eligible_donors
+sys.path.insert(0, str(REPO))
+from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 DEFAULT_SOURCE = REPO / "data/development/typing/trajectory"
 SUMMARY_FILE = "singlecell_islet_summary.parquet"
@@ -66,11 +66,6 @@ SCHEMA = pa.schema([
     ("sampling_state", pa.string()), ("sampling_reason", pa.string()),
     ("frame", pa.string()), ("source", pa.string()), ("domain_data_root", pa.string()),
 ])
-
-
-def norm_donor(value: str) -> str:
-    """Canonical layer helper, verbatim from ISLET_LAYERS_SPEC.md section 0.3."""
-    return str(value).strip().lstrip("0") or "0"
 
 
 def _donors(values: pd.Series) -> pd.Series:

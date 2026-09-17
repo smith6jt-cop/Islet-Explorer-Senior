@@ -37,8 +37,8 @@ import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
-from phenocycler.cohort import filter_eligible_donors
+sys.path.insert(0, str(REPO))
+from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 TYPING = REPO / "data" / "development" / "typing"
 SUPERSEDED = (
@@ -55,11 +55,6 @@ SCHEMA = pa.schema([
     ("frame", pa.string()), ("compartment", pa.string()),
     ("state", pa.string()), ("reason", pa.string()),
 ])
-
-
-def norm_donor(value: str) -> str:
-    """The shared layer contract from ISLET_LAYERS_SPEC 0.3, verbatim."""
-    return str(value).strip().lstrip("0") or "0"
 
 
 def refuse_superseded(path: str | Path) -> None:

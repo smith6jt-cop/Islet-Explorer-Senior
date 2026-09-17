@@ -37,8 +37,8 @@ from shapely import from_wkb
 from shapely.affinity import scale
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
-from phenocycler.cohort import filter_eligible_donors  # noqa: E402
+sys.path.insert(0, str(REPO))
+from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor  # noqa: E402
 
 DEFAULT_SOURCE = REPO / "data/development/typing"
 KEY = ["donor_id", "islet_key"]
@@ -63,11 +63,6 @@ COMPOSITION_COLUMNS = [
     "prop",
 ]
 OUTLINE_COLUMNS = [*KEY, "endocrine_um2_from_outlines", "n_endocrine_outlines", "wkb"]
-
-
-def norm_donor(value: str) -> str:
-    """The shared layer-contract helper, verbatim from spec §0.3."""
-    return str(value).strip().lstrip("0") or "0"
 
 
 def refuse_hormone_composition(path: Path, frame: pd.DataFrame | None = None) -> None:
