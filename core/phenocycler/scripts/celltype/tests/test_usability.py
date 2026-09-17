@@ -737,3 +737,29 @@ def test_score_and_gate_is_the_plain_cosine_when_no_reference_qualifies():
     S_ref = SC.cosine_scores(Xs, Rmat)
     assert np.allclose(np.nan_to_num(S), np.nan_to_num(S_ref))
     assert (allowed == SC.meets_requirements(Xs, markers, reqs, names, 0.10)).all()
+
+
+def test_a_donor_with_no_expression_partition_is_credited_with_nothing_it_did_not_acquire(tmp_path,
+                                                                                          monkeypatch):
+    """Absence of the file is not evidence a marker is absent -- nor that it is present.
+
+    `_acquired` used to return `frozenset(wanted)` for a donor whose expression parquet is missing,
+    which is right when FILTERING a set down and wrong when EXTENDING one: every donor between
+    ingest and the expression stage was credited with all 12 METABOLIC_PANEL_MARKERS, and
+    donor_markers reported acquisitions that never happened.
+    """
+    import panel
+
+    missing = "does-not-exist-9999"
+
+    keep = panel._acquired(missing, ["CD38", "b_Catenin1"], on_missing="keep")
+    assert keep == {"CD38", "b_Catenin1"}, (
+        "filtering must keep the CSV-derived set when the donor has no expression partition")
+
+    none = panel._acquired(missing, panel.METABOLIC_PANEL_MARKERS, on_missing="none")
+    assert none == frozenset(), (
+        "extending must add nothing when the donor has no expression partition -- "
+        f"got {sorted(none)}")
+
+    with pytest.raises(ValueError, match="on_missing"):
+        panel._acquired(missing, ["CD38"], on_missing="whatever")

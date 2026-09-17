@@ -236,7 +236,7 @@ def compartments() -> dict:
 
 
 @functools.lru_cache(maxsize=None)
-def _acquired_cached(donor: str, wanted: tuple) -> frozenset:
+def _acquired_cached(donor: str, wanted: tuple, on_missing: str) -> frozenset:
     """Which of ``wanted`` this donor actually ACQUIRED, from parquet statistics only.
 
     A column being present is not evidence the marker was measured. The expression schema is
@@ -257,8 +257,21 @@ def _acquired_cached(donor: str, wanted: tuple) -> frozenset:
     try:
         md = _pq.ParquetFile(expression_path(donor)).metadata
     except (FileNotFoundError, OSError):
-        # Absence of the file is not evidence a marker is absent.
-        return frozenset(wanted)
+        # Absence of the file is evidence in NEITHER direction, so the caller says which way it
+        # must fail -- and the two call sites need opposite answers.
+        #
+        # Filtering a set DOWN (on_missing="keep") must keep it: a donor with no expression yet
+        # keeps the CSV-derived set rather than losing every marker.
+        # Extending a set (on_missing="none") must add NOTHING: "not evidence a marker is absent"
+        # is not evidence it is present. Returning `wanted` here credited any donor without an
+        # expression partition with all 12 METABOLIC_PANEL_MARKERS -- a state a donor is legitimately
+        # in between ingest and the expression stage -- so donor_markers claimed acquisitions that
+        # never happened and a comparison over those markers aligned them against a null histogram.
+        if on_missing == "keep":
+            return frozenset(wanted)
+        if on_missing == "none":
+            return frozenset()
+        raise ValueError(f"on_missing must be 'keep' or 'none', got {on_missing!r}")
     names = {md.schema.column(i).name: i for i in range(md.num_columns)}
     out = set()
     for m in wanted:
@@ -273,8 +286,9 @@ def _acquired_cached(donor: str, wanted: tuple) -> frozenset:
     return frozenset(out)
 
 
-def _acquired(donor: str, wanted) -> frozenset:
-    return _acquired_cached(str(donor), tuple(sorted(wanted)))
+def _acquired(donor: str, wanted, *, on_missing: str) -> frozenset:
+    """Which of ``wanted`` this donor acquired. ``on_missing`` decides the no-file case; see above."""
+    return _acquired_cached(str(donor), tuple(sorted(wanted)), on_missing)
 
 
 def donor_markers(donor: str | None = None) -> dict | list:
@@ -300,12 +314,14 @@ def donor_markers(donor: str | None = None) -> dict | list:
         # third: 6533 and 112 carry 12 metabolic markers no other donor has. Rather than add a
         # has_* column per panel change, ask the donor's own expression table which of the
         # remaining variant markers it actually carries. The table is the authority on what was
-        # acquired; the CSV is the authority on the cohort. Absence of the file is not evidence
-        # that a marker is absent, so a donor with no expression yet keeps the CSV-derived set.
-        got = [m for m in got if m in _acquired(r["donor_id"], got)]
+        # acquired; the CSV is the authority on the cohort. The two calls fail OPPOSITE ways when
+        # the donor has no expression partition, which is a legitimate state between ingest and the
+        # expression stage: the filter keeps what the CSV said, the extend adds nothing.
+        got = [m for m in got if m in _acquired(r["donor_id"], got, on_missing="keep")]
         rest = sorted(variant - {"CD38", "b_Catenin1"})
         if rest:
-            got.extend(m for m in _acquired(r["donor_id"], rest) if m in set(rest))
+            acquired_rest = _acquired(r["donor_id"], rest, on_missing="none")
+            got.extend(m for m in acquired_rest if m in set(rest))
         out[r["donor_id"]] = sorted(set(got))
     return out[donor] if donor is not None else out
 

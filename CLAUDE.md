@@ -32,9 +32,9 @@ a second copy of those CSVs; never hand-edit the snapshot.
   from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
   alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
   drop it. It is not yet a 21st donor in any stage root — see `docs/DONOR_6579_REENTRY_2026-09-17.md`
-  for what it would take. `data/donor_acquisition_runs.csv` and
-  `core/phenocycler/data/integration/pln_node_annotations.csv` still carry `excluded=True` for it
-  and disagree with `cohort.py` until their generators rerun.
+  for what it would take. `pln_node_annotations.csv` now records it `excluded=False`;
+  `data/donor_acquisition_runs.csv` still carries `excluded=True` and disagrees with `cohort.py`
+  until its generator reruns.
 - Acquisition batch is aliased with disease status at the coarse level; correct only on the finer
   variables (`stain_group`, `acq_run` — see `data/donor_acquisition_runs.csv`), never on the Fusion
   version, and stratify where correction is not warranted.
