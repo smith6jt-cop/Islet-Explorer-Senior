@@ -1,66 +1,66 @@
-tissue,kind,common,phenocycler,xenium,pheno_resolution,xenium_resolution,pheno_note,xenium_note,collapsed,identity_core_genes
-pancreas,lineage,Endocrine,Endocrine,Endocrine,yes,surrogate,resolved by a positive broad-level call,no 1:1 marker; resolved via curated surrogate identity panel,,18
-pancreas,lineage,Exocrine,Epithelial_nonendocrine,Exocrine,default_sink,yes,assigned by fallback when all positive gates fail (epi_default),resolved by a positive broad-level call,,8
-pancreas,lineage,Stromal,Stromal,Stromal,yes,yes,resolved by a positive broad-level call,resolved by a positive broad-level call,Fibroblast (Vimentin)|Muscle (SMA),48
-pancreas,lineage,Vascular,Vascular,Vascular,yes,yes,resolved by a positive broad-level call,resolved by a positive broad-level call,,87
-pancreas,lineage,T_NK,T_NK,Immune_T,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,129
-pancreas,lineage,B_Plasma,B_Plasma,Immune_B,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,58
-pancreas,lineage,Myeloid,Myeloid,Myeloid,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,111
-pancreas,lineage,Granulocyte,,,no,fine_only,not resolvable,no broad class; only reachable as a fine subtype,,0
-pancreas,lineage,Neural,,Neural,no,yes,not resolvable,resolved by a positive broad-level call,,17
-pancreas,lineage,Unassigned,,,never,no,this modality has no Unassigned bucket by construction,not resolvable,,0
-pancreas,marker,,Pan_Cytokeratin,KRT19,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,EpCAM,EPCAM,TYPE,on_panel,,,,
-pancreas,marker,,E_cadherin,CDH1,TYPE,on_panel,,,,
-pancreas,marker,,TP63,TP63,TYPE,on_panel,,,,
-pancreas,marker,,CD66,CEACAM1,TYPE,on_panel,,,,
-pancreas,marker,,Vimentin,,TYPE,off_panel,lineage gate,surrogate: 13_fibroblast_stellate (1 genes),,1
-pancreas,marker,,Collagen_IV,,OTHER,off_panel,,,,
-pancreas,marker,,SMA,ACTA2,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,B3TUBB,TUBB3,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,CD56,NCAM1,TYPE,on_panel,,,,
-pancreas,marker,,CD31,PECAM1,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,CD34,CD34,TYPE,on_panel,,,,
-pancreas,marker,,Podoplanin,PDPN,TYPE,on_panel,,,,
-pancreas,marker,,Caveolin,,TYPE,off_panel,,surrogate: 11_endothelial_vascular (3 genes),,3
-pancreas,marker,,INS,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0
-pancreas,marker,,GCG,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0
-pancreas,marker,,SST,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0
-pancreas,marker,,CD99,,PROCESS,off_panel,lineage gate,,,
-pancreas,marker,,CD3e,CD3E|CD3G,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,CD8,CD8A|CD8B,TYPE,on_panel,,,,
-pancreas,marker,,CD4,CD4,TYPE,on_panel,,,,
-pancreas,marker,,FOXP3,FOXP3,TYPE,on_panel,,,,
-pancreas,marker,,CD20,MS4A1,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,CD79a,CD79A,TYPE,on_panel,,,,
-pancreas,marker,,CD68,CD68,TYPE,on_panel,,,,
-pancreas,marker,,CD163,CD163,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,Iba1,,TYPE,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4
-pancreas,marker,,CD206,MRC1,TYPE,on_panel,,,,
-pancreas,marker,,M2Gal3,,TYPE,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4
-pancreas,marker,,CD11c,ITGAX,TYPE,on_panel,,,,
-pancreas,marker,,CD209,CD209,TYPE,on_panel,,,,
-pancreas,marker,,CD11b,,OTHER,off_panel,,,,
-pancreas,marker,,MPO,MPO,TYPE,on_panel,lineage gate,,,
-pancreas,marker,,b_Catenin1,CTNNB1,TYPE,on_panel,,,,
-pancreas,marker,,Ki67,,PROCESS,off_panel,,,,
-pancreas,marker,,PCNA,,PROCESS,off_panel,,,,
-pancreas,marker,,Granzyme_B,,PROCESS,off_panel,,,,
-pancreas,marker,,CD107a,,PROCESS,off_panel,,,,
-pancreas,marker,,PD_1,,PROCESS,off_panel,,,,
-pancreas,marker,,PD_L1,,PROCESS,off_panel,,,,
-pancreas,marker,,LAG3,,PROCESS,off_panel,,,,
-pancreas,marker,,TOX,,PROCESS,off_panel,,,,
-pancreas,marker,,VISTA,,PROCESS,off_panel,,,,
-pancreas,marker,,ICOS,,PROCESS,off_panel,,,,
-pancreas,marker,,TCF_1,,PROCESS,off_panel,,,,
-pancreas,marker,,CD39,,PROCESS,off_panel,,,,
-pancreas,marker,,HLA_DR,,PROCESS,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4
-pancreas,marker,,HLA_A,,PROCESS,off_panel,,,,
-pancreas,marker,,iNOS,,PROCESS,off_panel,,,,
-pancreas,marker,,IDO1,,PROCESS,off_panel,,,,
-pancreas,marker,,SOX2,,PROCESS,off_panel,,,,
-pancreas,marker,,Bcl_2,,PROCESS,off_panel,,,,
-pancreas,marker,,CD44,,PROCESS,off_panel,,,,
-pancreas,marker,,CD57,,PROCESS,off_panel,,,,
-pancreas,marker,,CD38,,PROCESS,off_panel,,,,
+tissue,kind,common,phenocycler,xenium,pheno_resolution,xenium_resolution,pheno_note,xenium_note,collapsed,identity_core_genes,is_immune,immune_tissue_scope,immune_note
+pancreas,lineage,Endocrine,Endocrine,Endocrine,yes,surrogate,resolved by a positive broad-level call,no 1:1 marker; resolved via curated surrogate identity panel,,18,no,,not an immune lineage
+pancreas,lineage,Exocrine,Epithelial_nonendocrine,Exocrine,default_sink,yes,assigned by fallback when all positive gates fail (epi_default),resolved by a positive broad-level call,,8,no,,not an immune lineage
+pancreas,lineage,Stromal,Stromal,Stromal,yes,yes,resolved by a positive broad-level call,resolved by a positive broad-level call,Fibroblast (Vimentin)|Muscle (SMA),48,no,,not an immune lineage
+pancreas,lineage,Vascular,Vascular,Vascular,yes,yes,resolved by a positive broad-level call,resolved by a positive broad-level call,,87,no,,not an immune lineage
+pancreas,lineage,T_NK,T_NK,Immune_T,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,129,yes,pancreas|pancreatic_lymph_node,"immune lineage; immune identity holds in pancreas + pancreatic_lymph_node (maintainer ruling 2026-09-17: all immune cell calls from pancreas can be applied to pLN -- identity only, no spatial relation crosses the tissues)"
+pancreas,lineage,B_Plasma,B_Plasma,Immune_B,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,58,yes,pancreas|pancreatic_lymph_node,"immune lineage; immune identity holds in pancreas + pancreatic_lymph_node (maintainer ruling 2026-09-17: all immune cell calls from pancreas can be applied to pLN -- identity only, no spatial relation crosses the tissues)"
+pancreas,lineage,Myeloid,Myeloid,Myeloid,subclass,yes,"recovered from per-marker gates, not the broad label",resolved by a positive broad-level call,,111,yes,pancreas|pancreatic_lymph_node,"immune lineage; immune identity holds in pancreas + pancreatic_lymph_node (maintainer ruling 2026-09-17: all immune cell calls from pancreas can be applied to pLN -- identity only, no spatial relation crosses the tissues)"
+pancreas,lineage,Granulocyte,,,no,fine_only,not resolvable,no broad class; only reachable as a fine subtype,,0,yes,pancreas|pancreatic_lymph_node,"immune lineage; immune identity holds in pancreas + pancreatic_lymph_node (maintainer ruling 2026-09-17: all immune cell calls from pancreas can be applied to pLN -- identity only, no spatial relation crosses the tissues)"
+pancreas,lineage,Neural,,Neural,no,yes,not resolvable,resolved by a positive broad-level call,,17,no,,not an immune lineage
+pancreas,lineage,Unassigned,,,never,no,this modality has no Unassigned bucket by construction,not resolvable,,0,unresolvable,,no lineage call; is-immune is not answerable and this bucket is neither immune nor non-immune
+pancreas,marker,,Pan_Cytokeratin,KRT19,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,EpCAM,EPCAM,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,E_cadherin,CDH1,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,TP63,TP63,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD66,CEACAM1,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,Vimentin,,TYPE,off_panel,lineage gate,surrogate: 13_fibroblast_stellate (1 genes),,1,not_applicable,,
+pancreas,marker,,Collagen_IV,,OTHER,off_panel,,,,,not_applicable,,
+pancreas,marker,,SMA,ACTA2,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,B3TUBB,TUBB3,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,CD56,NCAM1,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD31,PECAM1,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,CD34,CD34,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,Podoplanin,PDPN,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,Caveolin,,TYPE,off_panel,,surrogate: 11_endothelial_vascular (3 genes),,3,not_applicable,,
+pancreas,marker,,INS,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0,not_applicable,,
+pancreas,marker,,GCG,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0,not_applicable,,
+pancreas,marker,,SST,,TYPE,off_panel,lineage gate,surrogate: 01_pancreas_endocrine (0 genes),,0,not_applicable,,
+pancreas,marker,,CD99,,PROCESS,off_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,CD3e,CD3E|CD3G,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,CD8,CD8A|CD8B,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD4,CD4,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,FOXP3,FOXP3,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD20,MS4A1,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,CD79a,CD79A,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD68,CD68,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD163,CD163,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,Iba1,,TYPE,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4,not_applicable,,
+pancreas,marker,,CD206,MRC1,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,M2Gal3,,TYPE,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4,not_applicable,,
+pancreas,marker,,CD11c,ITGAX,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD209,CD209,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,CD11b,,OTHER,off_panel,,,,,not_applicable,,
+pancreas,marker,,MPO,MPO,TYPE,on_panel,lineage gate,,,,not_applicable,,
+pancreas,marker,,b_Catenin1,CTNNB1,TYPE,on_panel,,,,,not_applicable,,
+pancreas,marker,,Ki67,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,PCNA,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,Granzyme_B,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,CD107a,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,PD_1,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,PD_L1,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,LAG3,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,TOX,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,VISTA,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,ICOS,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,TCF_1,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,CD39,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,HLA_DR,,PROCESS,off_panel,,surrogate: 06_immune_myeloid (4 genes),,4,not_applicable,,
+pancreas,marker,,HLA_A,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,iNOS,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,IDO1,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,SOX2,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,Bcl_2,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,CD44,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,CD57,,PROCESS,off_panel,,,,,not_applicable,,
+pancreas,marker,,CD38,,PROCESS,off_panel,,,,,not_applicable,,

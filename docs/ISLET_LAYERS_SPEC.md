@@ -136,13 +136,28 @@ Columns: `donor_id`, `roi`, `modality`, `image_file`, `xenium_serial`, `pixel_si
 maintainer declares all post-Xenium IF to be `0.2505`; two of those files record `0.50139` and the
 CSV header documents that disagreement. The declared value governs.
 
-**`roi` does not select a Xenium bundle.** Every donor's `panc` and `pln_1` rows in
-`xenium_paths.csv` name the *same* serial — one run covers both regions and the split is geometric.
+**`roi` DOES select a Xenium bundle. An earlier issue of this spec said the opposite and was
+wrong.** The `panc` and `pln_1` rows share a *serial* — one run — but name **different output
+bundles**, distinguished by a region token:
+
+```
+115  panc   MM035_Xenium_nPODBatch1/output-XETG00298__0041117__PanT__20240919__203848
+115  pln_1  MM035_Xenium_nPODBatch1/output-XETG00298__0041117__pLN__20240919__203848
+```
+
+They hold different cells. Reading the `panc` bundle for `roi=pln_1` gives the wrong tissue with no
+error, and treating the split as geometric-within-one-bundle means the pLN cells are never loaded at
+all. Resolve the bundle from the row's own `source_path`, never from the serial.
+
 `6591,pln_1` is `NA`: recorded unavailable, and it stays that way.
 
 ### 1.3 `distance_profiles/` — worker G
 
-`build_distance_profiles.py`. Immune fraction against signed distance to the islet edge.
+`build_distance_profiles.py`. **Two arms that are not the same kind of measurement**, and the
+artifact keeps them apart by `roi`, `tissue` and `modality`.
+
+**The pancreas arm** (`roi=panc`, `modality=phenocycler`) is spatial: immune fraction against signed
+distance to the islet edge, `frame=signed_distance_um`.
 
 Reads `data/development/typing/cells` (20 files, **25,230,109** rows, 24 cols) and
 `data/development/typing/islet_membership` (**20,509,916** rows, 7 cols: `object_id`, `in_islet`,
@@ -151,10 +166,29 @@ Reads `data/development/typing/cells` (20 files, **25,230,109** rows, 24 cols) a
 Join on `object_id`. That UUID is the only join key; never centroid matching, never donor-name
 parsing.
 
-Columns: `donor_id`, `donor_status`, `distance_bin_um`, `n_cells`, `n_immune`, `immune_fraction`,
-`immune_subtype`, `resolved_by`, `frame` (`signed_distance_um`, scale-free).
+**The pLN arm** (`roi=pln_*`) is **compositional only**. `frame=none`, `distance_bin_um` is null and
+no `compartment` is assigned. The pancreas and pLN sections mounted on one slide are cut from
+**different blocks**: they share a pixel grid and nothing anatomically, and there is no islet in a
+lymph node to measure a distance from. It joins to the pancreas arm on `donor_id` and `donor_status`
+and on nothing else. `refuse_cross_tissue_distance` and `_assert_no_cross_tissue_distance` make that
+structural: a pLN row carrying a bin, a compartment or a signed-distance frame raises instead of
+being written. A pLN row carrying only COUNTS is the arm working, and is not refused.
 
-Three things this builder must do:
+Both pLN modalities are read, neither is waited on, and **they are never pooled into one fraction**:
+
+| modality | source | when absent |
+|---|---|---|
+| `xenium` | the pLN release under `data/development/xenium_typing/` (found by its declared `tissue`, not its directory name) | falls back to the `cells_xen` ingest, which carries no call on any pLN row |
+| `phenocycler` | `data/development/typing/pln/pheno/` at `donor_id=*/roi=*/*.parquet` | `unavailable(phenocycler_pln_calls_absent…)`, one row per donor the pLN **ingest** shows a section for |
+
+Hive partitions are read with an explicit string schema. Every pLN donor id is all digits, so
+inferred partitioning turns `0112` into the integer `112` and the id stops joining anywhere else.
+
+Columns: `donor_id`, `donor_status`, `roi`, `tissue`, `modality`, `distance_bin_um`, `n_cells`,
+`n_immune`, `immune_fraction`, `immune_subtype`, `resolved_by`, `frame`, `compartment`, `state`,
+`reason`.
+
+Five things this builder must do:
 
 1. **Refuse `typing/subpanel/subpanel_calls.parquet` by path**, with the superseded counts in the
    error. That file is a previous generation — Beta 191,485 / Alpha 246,055 / Delta 62,797 against
@@ -162,6 +196,24 @@ Three things this builder must do:
 2. Carry `resolved_by` through, so the card can state provenance rather than imply it.
 3. Use `islet_membership`, not QuPath's `Parent`. `Parent` mislabels 2.7% of islet-core cells,
    which fall through to Exocrine.
+4. **Read which lineages are immune; never infer it from a label's spelling.** `is_immune` and
+   `immune_tissue_scope` come from `core/phenocycler/data/integration/vocab_crosswalk.csv`, which is
+   written by `phenocycler.integration.vocab` and by nothing else. Maintainer ruling 2026-09-17:
+   *all immune cell calls from pancreas can be applied to pLN* — that licenses the **identity**, not
+   the geometry, and it is not a licence to copy label rows, because the panc and pLN bundles are
+   segmented separately and their cell id namespaces are disjoint. A lineage the crosswalk does not
+   classify is withheld **by name**, never defaulted to non-immune.
+5. **Count only what was answered.** A cell with no nucleus is excluded from every calculation. The
+   pLN denominator is the cells stage 1 resolved (`Immune` or `Non_immune`); `Ambiguous` goes in
+   neither the numerator nor the denominator and is emitted on its own `blank` row
+   (`resolved_by=stage1_unresolved`) so it stays visible. The numerator is stage 1's `Immune`, so the
+   stage-2 lineage rows **do not sum to it** — an immune cell stage 2 could not resolve is still
+   immune.
+
+Every source path the artifact records is validated by the app-side reader, not just
+`source_domain_root`: `source_cells` and `source_membership` must lie in the active domain's tree,
+and `source_xen_cells` / `source_immune_vocabulary` must be recorded once something depends on them.
+`value$n` describes the rows a card draws, not the artifact's row count.
 
 ### 1.4 `restain/` — worker H
 

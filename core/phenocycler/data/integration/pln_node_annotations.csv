@@ -20,26 +20,36 @@
 # (/data/IO60pLN/results/IO60pLN_cells.tsv, 2026-09-16) carries Parent = "Annotation (Tissue)"
 # on every row, and correction E2 established that QuPath's Parent mislabels membership anyway.
 #
-# donor 6579 is centrally excluded (core/phenocycler/phenocycler/cohort.py: pancreatitis
-# outlier). Its row is recorded so the exclusion is visible rather than absent, and every
-# builder filters it before counting.
-image_file,donor_id,roi,qupath_entry,node_classes,n_nodes,n_cells,excluded,recorded_by,recorded_on
-6476pLN_Scan1.er.qptiff,6476,pln_1,1,pLN_top;pLN_mid;pLN_bottom,3,613401,False,smith6jt,2026-09-16
-6579pLN_Scan1.er.qptiff,6579,pln_1,2,pLN_top;pLN_mid;pLN_bottom,3,1231818,True,smith6jt,2026-09-16
-6623pLN_Scan1.er.qptiff,6623,pln_1,4,pLN_top;pLN_bottom,2,260852,False,smith6jt,2026-09-16
-6380pLN_Scan1.er.qptiff,6380,pln_1,5,Tissue,1,254324,False,smith6jt,2026-09-16
-6523pLN_Scan1.er.qptiff,6523,pln_1,6,pLN_top;pLN_bottom,2,944986,False,smith6jt,2026-09-16
-6534pLN_Scan1.er.qptiff,6534,pln_1,7,pLN_top;pLN_topMid;pLN_bottomMid;pLN_bottom,4,147959,False,smith6jt,2026-09-16
-6450pLN_Scan1.er.qptiff,6450,pln_1,9,pLN_top;pLN_bottom,2,459167,False,smith6jt,2026-09-16
-HDL115pLN_Scan1.er.qptiff,115,pln_1,10,pLN_top,1,251349,False,smith6jt,2026-09-16
-6461pLN_Scan1.er.qptiff,6461,pln_1,11,pLN_top;pLN_mid;pLN_bottom,3,213805,False,smith6jt,2026-09-16
-6505pLN_Scan1.er.qptiff,6505,pln_1,12,pLN_top;pLN_mid;pLN_bottom,3,289469,False,smith6jt,2026-09-16
-6521pLN_Scan1.er.qptiff,6521,pln_1,13,pLN_top;pLN_bottom,2,937593,False,smith6jt,2026-09-16
-6566pLN_Scan1.er.qptiff,6566,pln_1,14,pLN_top;pLN_bottom,2,1103763,False,smith6jt,2026-09-16
-6493pLN_Scan1.er.qptiff,6493,pln_1,15,pLN_top;pLN_mid;pLN_bottom,3,279710,False,smith6jt,2026-09-16
-6482pLN_Scan1.er.qptiff,6482,pln_1,16,pLN_top;pLN_mid;pLN_bottom,3,401301,False,smith6jt,2026-09-16
-6436pLN_Scan1.er.qptiff,6436,pln_1,17,pLN_top;pLN_mid;pLN_bottom,3,566150,False,smith6jt,2026-09-16
-6551pLN_Scan1.er.qptiff,6551,pln_1,18,pLN_top;pLN_mid;pLN_bottom,3,386655,False,smith6jt,2026-09-16
-6539pLN_Scan1.er.qptiff,6539,pln_1,19,pLN_top;pLN_mid;pLN_bottom,3,443778,False,smith6jt,2026-09-16
-6593pLN_Scan1.er.qptiff,6593,pln_1,20,pLN_top;pLN_bottom,2,1035575,False,smith6jt,2026-09-16
-6442pLN_Scan1.er.qptiff,6442,pln_1,21,pLN_top;pLN_bottom,2,371331,False,smith6jt,2026-09-16
+# `excluded` withholds ONE IMAGE, for a reason about that image, and `excluded_reason` says
+# which. It is NOT a place to restate the central cohort exclusions: those live once, in
+# core/phenocycler/phenocycler/cohort.py, and every builder asks that module rather than this
+# column. A flag here that merely echoed cohort.py went stale exactly that way -- 6579 carried
+# excluded=True on the central pancreatitis-outlier exclusion, cohort.py moved 6579 to
+# REINSTATED on 2026-09-17, and this file went on withholding 1,231,818 cells from a decision
+# that had lapsed. 6579 is now excluded=False here, and build_pln_layer.py refuses any row whose
+# excluded_reason is empty or whose donor cohort.py has reinstated, so the same lapse cannot
+# happen silently again.
+#
+# Changed 2026-09-17: 6579 excluded True -> False, following cohort.py's REINSTATED entry of the
+# same day. The disease context is not retracted, only the exclusion (cohort.py says so): 6579 is
+# a pancreatitis donor and pooling it with the rest pools a different disease process.
+image_file,donor_id,roi,qupath_entry,node_classes,n_nodes,n_cells,excluded,recorded_by,recorded_on,excluded_reason
+6476pLN_Scan1.er.qptiff,6476,pln_1,1,pLN_top;pLN_mid;pLN_bottom,3,613401,False,smith6jt,2026-09-16,
+6579pLN_Scan1.er.qptiff,6579,pln_1,2,pLN_top;pLN_mid;pLN_bottom,3,1231818,False,smith6jt,2026-09-16,
+6623pLN_Scan1.er.qptiff,6623,pln_1,4,pLN_top;pLN_bottom,2,260852,False,smith6jt,2026-09-16,
+6380pLN_Scan1.er.qptiff,6380,pln_1,5,Tissue,1,254324,False,smith6jt,2026-09-16,
+6523pLN_Scan1.er.qptiff,6523,pln_1,6,pLN_top;pLN_bottom,2,944986,False,smith6jt,2026-09-16,
+6534pLN_Scan1.er.qptiff,6534,pln_1,7,pLN_top;pLN_topMid;pLN_bottomMid;pLN_bottom,4,147959,False,smith6jt,2026-09-16,
+6450pLN_Scan1.er.qptiff,6450,pln_1,9,pLN_top;pLN_bottom,2,459167,False,smith6jt,2026-09-16,
+HDL115pLN_Scan1.er.qptiff,115,pln_1,10,pLN_top,1,251349,False,smith6jt,2026-09-16,
+6461pLN_Scan1.er.qptiff,6461,pln_1,11,pLN_top;pLN_mid;pLN_bottom,3,213805,False,smith6jt,2026-09-16,
+6505pLN_Scan1.er.qptiff,6505,pln_1,12,pLN_top;pLN_mid;pLN_bottom,3,289469,False,smith6jt,2026-09-16,
+6521pLN_Scan1.er.qptiff,6521,pln_1,13,pLN_top;pLN_bottom,2,937593,False,smith6jt,2026-09-16,
+6566pLN_Scan1.er.qptiff,6566,pln_1,14,pLN_top;pLN_bottom,2,1103763,False,smith6jt,2026-09-16,
+6493pLN_Scan1.er.qptiff,6493,pln_1,15,pLN_top;pLN_mid;pLN_bottom,3,279710,False,smith6jt,2026-09-16,
+6482pLN_Scan1.er.qptiff,6482,pln_1,16,pLN_top;pLN_mid;pLN_bottom,3,401301,False,smith6jt,2026-09-16,
+6436pLN_Scan1.er.qptiff,6436,pln_1,17,pLN_top;pLN_mid;pLN_bottom,3,566150,False,smith6jt,2026-09-16,
+6551pLN_Scan1.er.qptiff,6551,pln_1,18,pLN_top;pLN_mid;pLN_bottom,3,386655,False,smith6jt,2026-09-16,
+6539pLN_Scan1.er.qptiff,6539,pln_1,19,pLN_top;pLN_mid;pLN_bottom,3,443778,False,smith6jt,2026-09-16,
+6593pLN_Scan1.er.qptiff,6593,pln_1,20,pLN_top;pLN_bottom,2,1035575,False,smith6jt,2026-09-16,
+6442pLN_Scan1.er.qptiff,6442,pln_1,21,pLN_top;pLN_bottom,2,371331,False,smith6jt,2026-09-16,

@@ -138,5 +138,7 @@ def test_multi_section_cohort_flows_through_ingest_and_redsea(tmp_path):
     for key in keys:
         assert redsea.donor_image(cfg, key) == f"{key}_Scan1.er.qptiff"
 
+    from phenocycler.cohort import DONOR_EXCLUSIONS
+    excluded_section = f"{sorted(DONOR_EXCLUSIONS)[0]}pln"
     with pytest.raises(ValueError, match="excluded donor"):
-        ensure_eligible_donors([*keys, "6579pln"], context="test")
+        ensure_eligible_donors([*keys, excluded_section], context="test")

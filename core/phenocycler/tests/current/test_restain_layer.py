@@ -27,6 +27,8 @@ SPEC = importlib.util.spec_from_file_location("restain_layer", SCRIPT)
 layer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(layer)
 
+from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+
 
 @pytest.fixture
 def declared_sections(tmp_path):
@@ -114,7 +116,13 @@ def builder_inputs(tmp_path, declared_sections):
         }
     }]))
     paths = tmp_path / "xenium_paths.csv"
-    paths.write_text("donor_id,roi\n6436,panc\n0112,panc\n6457,panc\n6579,panc\n")
+    # Every donor the builder can learn of: one with a full pairing, one with sources but no
+    # IF columns, one known only from this list, and every CENTRALLY excluded donor -- read
+    # from cohort.py rather than written out, so a cohort decision (6579 was reinstated
+    # 2026-09-17) is not mistaken for a builder regression. Naming the excluded ones here is
+    # what makes the builder be SEEN dropping them instead of never meeting them.
+    known = ["6436", "0112", "6579", *sorted(DONOR_EXCLUSIONS)]
+    paths.write_text("donor_id,roi\n" + "".join(f"{d},panc\n" for d in known))
     return dict(cells_xen_root=source, restain_root=restain,
                 sections_csv=declared_sections, xenium_paths_csv=paths,
                 layers_dir=tmp_path / "layers")
@@ -125,15 +133,24 @@ def test_builder_csv_calibration_and_if_overlay_acceptance(builder_inputs, forbi
     result = layer.build_restain_layer(**builder_inputs).set_index("donor_id")
     assert result.loc["6436", "pixel_size_um"] == 0.2505
     assert not forbid_qptiff
-    assert set(result.index) == {"112", "6436", "6442"}
+    # Every donor named by a source, by the sections CSV, or by the paths list gets an
+    # explicit row -- except the centrally excluded ones, which the builder drops without
+    # restating the list. Derived, not hardcoded, so it cannot go stale against cohort.py.
+    named = {"112", "6436", "6442"} | set(
+        pd.read_csv(builder_inputs["xenium_paths_csv"], dtype=str).donor_id.map(layer.norm_donor)
+    )
+    assert set(DONOR_EXCLUSIONS) & named, "fixture must name an excluded donor or this is vacuous"
+    assert set(result.index) == named - set(DONOR_EXCLUSIONS)
     assert result.loc["6436", "state"] == "measured"
     assert result.loc["6436", "n_xenium_cells"] == result.loc["6436", "n_xenium_warped_to_if"] == 4
     assert result.loc["6436", "n"] == 3
     assert result.loc["6436", "n_without_nucleus"] == 1
     assert result.loc["6436", "n_measured_if_INS"] == result.loc["6436", "n_measured_if_GCG"] == 2
-    assert result.loc[["112", "6442"], "state"].eq("unavailable").all()
-    assert result.loc[["112", "6442"], "reason"].eq("no_restain_pairing").all()
-    assert result.loc[["112", "6442"], "n"].isna().all()
+    unpaired = sorted(set(result.index) - {"6436"})
+    assert set(unpaired) >= {"112", "6442"}
+    assert result.loc[unpaired, "state"].eq("unavailable").all()
+    assert result.loc[unpaired, "reason"].eq("no_restain_pairing").all()
+    assert result.loc[unpaired, "n"].isna().all()
     path = builder_inputs["layers_dir"] / "restain/cells/6436.parquet"
     overlay = pq.ParquetFile(path).read().to_pandas().set_index("cell_id")
     assert set(overlay.frame) == {"if_um:6436:panc"}
@@ -289,8 +306,13 @@ def test_validation_does_not_invent_hormone_calls():
 
 
 def test_source_inventory_uses_columns_and_handles_large_string(tmp_path):
-    for name, donor in [("misleading-9999", "0112"), ("included", "6436"),
-                        ("excluded-1", "06457"), ("excluded-2", "6579")]:
+    # The excluded donors come from the central list, padded and unpadded, so reinstating one
+    # (6579, 2026-09-17) does not read as a source-inventory regression.
+    excluded = sorted(DONOR_EXCLUSIONS)
+    cases = [("misleading-9999", "0112"), ("included", "6436")]
+    cases += [(f"excluded-{i}", ("0" + d) if i == 1 else d)
+              for i, d in enumerate(excluded, start=1)]
+    for name, donor in cases:
         p = tmp_path / name / "donor_id=9999" / "data.parquet"
         p.parent.mkdir(parents=True)
         pq.write_table(pa.table({"donor_id": pa.array([donor], type=pa.large_string()),

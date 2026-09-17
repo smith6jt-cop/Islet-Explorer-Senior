@@ -100,9 +100,10 @@ def test_environment_overrides(monkeypatch, tmp_path):
 
 def test_discover_donors_keeps_central_fail_closed_exclusions(tmp_path):
     cfg = load_config(data_dir=tmp_path)
-    for donor in ("6579", "6539", "6457", "6450"):
+    eligible = ["6450", "6539"]
+    for donor in sorted(set(eligible) | set(DONOR_EXCLUSIONS)):
         (cfg.cells_dir / f"donor_id={donor}").mkdir(parents=True)
-    assert cfg.discover_donors() == ["6450", "6539"]
+    assert cfg.discover_donors() == eligible
     for donor in DONOR_EXCLUSIONS:
         with pytest.raises(ValueError, match=rf"excluded donor.*{donor}"):
             ensure_eligible_donors(["6539", donor], context="test")

@@ -286,17 +286,29 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
     for (p in c("shiny", "ggplot2", "arrow", "scales")) {
       if (!requireNamespace(p, quietly = TRUE)) stop("Missing test dependency: ", p)
     }
-    # Read the real navigation keys without loading the app's data and packages.
+    # Read the real navigation keys and the real card registry without loading the
+    # app's data and packages.
     navigation <- new.env(parent = baseenv())
     navigation$SHOW_INFLAMMATION_TAB <- FALSE
-    for (expr in parse("apps/islet/R/00_globals.R")) {
-      if (is.call(expr) && identical(expr[[1]], as.name("<-")) &&
-          is.symbol(expr[[2]]) &&
-          as.character(expr[[2]]) %in% c("IE_PIPELINE", "IE_REFERENCE", "IE_TAB_KEYS")) {
-        eval(expr, navigation)
+    take <- function(file, names) {
+      for (expr in parse(file)) {
+        if (is.call(expr) && identical(expr[[1]], as.name("<-")) &&
+            is.symbol(expr[[2]]) && as.character(expr[[2]]) %in% names) {
+          eval(expr, navigation)
+        }
       }
     }
-    stopifnot("Plot" %in% navigation$IE_TAB_KEYS)
+    take("apps/islet/R/00_globals.R", c("IE_PIPELINE", "IE_REFERENCE", "IE_TAB_KEYS"))
+    take("apps/islet/R/mod_crossmodal_ui.R", c("IE_CROSSMODAL_TAB", "IE_CROSSMODAL_CARDS"))
+    # The card does not guess its own tab key -- the registry that mounts it supplies one.
+    # Take the key from that registry instead of restating a tab name here, which is how
+    # this card previously shipped pointing at a tab it was not mounted on.
+    mount <- navigation$IE_CROSSMODAL_TAB
+    others <- setdiff(navigation$IE_TAB_KEYS, mount)
+    stopifnot("s1_size_composition" %in%
+                vapply(navigation$IE_CROSSMODAL_CARDS, `[[`, "", "id"),
+              mount %in% navigation$IE_TAB_KEYS,
+              length(others) > 0L)
     missing <- card_s1_size_composition_read(file.path(args[1], "absent"), args[2])
     stopifnot(inherits(missing$note, "ie_guard_note"),
               grepl("islet_summary_not_built", format(missing$note)),
@@ -305,12 +317,13 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
     stopifnot(grepl("different_domain", format(wrong_domain$note)))
     shiny::testServer(function(input, output, session) {
       card <- card_s1_size_composition_server(input, output, session,
-                    active_tab = shiny::reactive(input$tabs),
+                    active_tab = shiny::reactive(input$tabs), tab_key = mount,
                     layers_dir = args[1], active_domain_root = args[2])
     }, {
-      session$setInputs(tabs = "Plot", s1_stratum = "large")
+      session$setInputs(tabs = mount, s1_stratum = "large")
+      stopifnot(card$active())
       tryCatch(card$layer(), shiny.silent.error = function(e) {
-        stop("S1 must render when the Plot tab is active")
+        stop("S1 must render when its own tab is active: ", mount)
       })
       stopifnot(nrow(card$sizes()) == 2L, all(card$sizes()$donor_id == "112"),
                 identical(ie_frame_of(card$sizes()), "none"),
@@ -333,18 +346,19 @@ def test_card_renders_sizes_before_composition_and_keeps_donors_separate(source,
       session$setInputs(s1_stratum = "small")
       stopifnot(nrow(card$composition()) == 0L,
                 grepl("no_composition_in_selected_size_stratum", output$s1_composition_view$html))
-      for (other_tab in setdiff(navigation$IE_TAB_KEYS, "Plot")) {
+      for (other_tab in others) {
         session$setInputs(tabs = other_tab)
-        stopifnot(inherits(tryCatch(card$layer(), error = identity), "shiny.silent.error"))
-        session$setInputs(tabs = "Plot")
+        stopifnot(!card$active(),
+                  inherits(tryCatch(card$layer(), error = identity), "shiny.silent.error"))
+        session$setInputs(tabs = mount)
         stopifnot(grepl('<option value="6539" selected>', output$s1_body$html, fixed = TRUE),
                   all(card$sizes()$donor_id == "6539"),
                   identical(card$size_plot()$labels$title, "Donor 6539"))
       }
       # Stale input from an artifact that no longer contains a donor falls back
       # to the same available donor in both the rebuilt menu and the plot.
-      session$setInputs(s1_donor = "not-an-exported-donor", tabs = "Viewer")
-      session$setInputs(tabs = "Plot")
+      session$setInputs(s1_donor = "not-an-exported-donor", tabs = others[[1L]])
+      session$setInputs(tabs = mount)
       stopifnot(grepl('<option value="112" selected>', output$s1_body$html, fixed = TRUE),
                 all(card$sizes()$donor_id == "112"))
     })

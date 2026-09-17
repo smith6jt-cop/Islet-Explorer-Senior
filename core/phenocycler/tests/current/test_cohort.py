@@ -28,8 +28,16 @@ def test_donor_of_passes_through_what_it_cannot_parse():
     assert donor_of("") == ""
 
 
-@pytest.mark.parametrize("key", ["6579", "6579pln", "6579pln2", "6579pln4",
-                                 "6579xenpln", "6457", "6457pln"])
+#: Built from DONOR_EXCLUSIONS rather than written out, so reinstating or excluding a donor
+#: needs no edit here. 6579 was excluded "until further notice" and reinstated 2026-09-17; the
+#: rule this file defends -- every SECTION of an excluded donor is refused, not just the bare id
+#: -- is unchanged by that, and hardcoding the donor made a cohort decision look like a
+#: regression in twelve tests.
+EXCLUDED_KEYS = [k for d in DONOR_EXCLUSIONS
+                 for k in (d, f"{d}pln", f"{d}pln2", f"{d}pln4", f"{d}xenpln")]
+
+
+@pytest.mark.parametrize("key", EXCLUDED_KEYS)
 def test_every_section_of_an_excluded_donor_is_refused(key):
     """The regression this file exists for.
 
@@ -43,12 +51,14 @@ def test_every_section_of_an_excluded_donor_is_refused(key):
 
 
 def test_the_error_names_both_the_key_and_the_donor():
-    """`6579pln2` does not look like `6579` at a glance; the message has to bridge that."""
+    """`<donor>pln2` does not look like `<donor>` at a glance; the message has to bridge that."""
+    donor = sorted(DONOR_EXCLUSIONS)[0]
+    key = f"{donor}pln2"
     with pytest.raises(ValueError) as excinfo:
-        ensure_eligible_donors(["6579pln2"], context="test")
+        ensure_eligible_donors([key], context="test")
     message = str(excinfo.value)
-    assert "6579pln2" in message and "6579" in message
-    assert DONOR_EXCLUSIONS["6579"].split(":")[0] in message
+    assert key in message and donor in message
+    assert DONOR_EXCLUSIONS[donor].split(":")[0] in message
 
 
 def test_eligible_sections_survive():
@@ -58,7 +68,8 @@ def test_eligible_sections_survive():
 
 
 def test_a_mixed_cohort_reports_only_the_excluded_sections():
+    bad = f"{sorted(DONOR_EXCLUSIONS)[0]}pln"
     with pytest.raises(ValueError) as excinfo:
-        ensure_eligible_donors(["6539", "6539pln", "6579pln"], context="test")
-    assert "6579pln" in str(excinfo.value)
+        ensure_eligible_donors(["6539", "6539pln", bad], context="test")
+    assert bad in str(excinfo.value)
     assert "6539pln" not in str(excinfo.value)
