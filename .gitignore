@@ -99,3 +99,8 @@ logs/
 # DeepCell portal access token. Untracked AND unignored until 2026-08-24, so the
 # first `git add -A` of the DCT lane would have committed a live credential.
 /deepcellToken
+
+# Worker scratch from the parallel build; never committed.
+NEEDS.md
+FIX.md
+BRIEF.md

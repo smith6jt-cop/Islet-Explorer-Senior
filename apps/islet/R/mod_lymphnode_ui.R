@@ -14,6 +14,9 @@
 #' `id` names the pair of functions `card_<id>_ui` / `card_<id>_server`.
 #' `title` is what the card shows when it cannot render -- so the note has a
 #' subject even before the builder exists.
+#' The nav_panel_hidden value this registry mounts into. See mod_crossmodal_ui.R.
+IE_LYMPHNODE_TAB <- "LymphNode"
+
 IE_LYMPHNODE_CARDS <- list(
   list(id = "n1_sections",     title = "Donor 112 · two sections, two frames"),
   list(id = "s3_compartments", title = "Immune cells: islet · exocrine · pLN")

@@ -9,6 +9,14 @@
 #
 # Adding a card is one line in the registry plus one new file. Nothing else.
 
+#' The nav_panel_hidden value this registry mounts into.
+#'
+#' Passed to every card server, so a card never hardcodes a tab key of its own. A card that
+#' guessed its own key is how card_s1_size_composition shipped with `tab_key = "spatial"` --
+#' which matches nothing in IE_TAB_KEYS, so `req(identical(active_tab(), tab_key))` was never
+#' true and the card could not draw. One source, checked at startup against IE_TAB_KEYS.
+IE_CROSSMODAL_TAB <- "CrossModal"
+
 #' Cards mounted on the Cross-Modal tab, in display order.
 #'
 #' `id` names the pair of functions `card_<id>_ui` / `card_<id>_server`.
@@ -18,7 +26,12 @@ IE_CROSSMODAL_CARDS <- list(
   list(id = "ledger",   title = "Donor × capability"),
   list(id = "x1_gradient", title = "Peri-islet immune gradient"),
   list(id = "x2_overlay",  title = "Post-Xenium IF overlay"),
-  list(id = "x3_identity", title = "IF hormone identity")
+  list(id = "x3_identity", title = "IF hormone identity"),
+  # S1 and S2 existed as card_*.R files but were listed in NO registry, so they were dead
+  # code: six cards on disk, four mounted. Found by worker I-islet, which filed NEEDS.md
+  # rather than edit a registry it did not own.
+  list(id = "s1_size_composition", title = "Islet size · composition"),
+  list(id = "s2_trajectory",       title = "Within-donor islet trajectory")
 )
 
 #' Cross-Modal tab UI.
