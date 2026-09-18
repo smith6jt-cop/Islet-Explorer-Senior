@@ -10,6 +10,11 @@ Tiers
 2  superseded but the replacement is NARROWER. Carve-out first, then quarantined (moved), not deleted.
 3  proposed for retirement and OVERTURNED by the still-read / narrower adversarial passes. Untouched.
 4  maintainer's call. Untouched.
+
+Two KINDS of entry live here. Everything down to TIER4 is DATA. Everything below the CODE TIER
+banner is CODE (and two artifacts that have no entrypoint on either side), added 2026-09-18; its
+own tier meanings are written at that banner. `build_manifest.py` writes a `kind` column so the two
+never get counted together, and `retire.py --kind` selects one.
 """
 from __future__ import annotations
 
@@ -232,4 +237,390 @@ TIER4 = [
     ("/data/QP_Xenium", "two repo statements conflict and neither settles it"),
     ("/data/islet_ome_tiff/6457.ome.tiff", "centrally excluded donor"),
     ("/data/islet_ome_tiff/6579.ome.tiff", "centrally excluded donor"),
+]
+
+
+# ============================================================================
+# CODE TIER -- added 2026-09-18 (Lane U)
+# ============================================================================
+# Root CLAUDE.md: "When replacing a workflow, remove the obsolete entrypoint rather than
+# leaving two runnable ones." The tiers above cover DATA. These cover CODE, with the same
+# fail-closed contract: `build_manifest.py` runs each entry's CHECK now and `retire.py`
+# refuses anything that did not PASS.
+#
+# Code tiers
+# ----------
+# c1  verified orphan. No import, source() or subprocess call reaches it from outside the
+#     retiring set, AND it names no output that still exists under a live domain root.
+#     Quarantined (moved). Deletion is a second, reviewable commit.
+# c2  verified orphan, but a NAMED PRODUCER of an artifact that still exists under a live
+#     domain root with no current replacement producer. Quarantine ONLY -- never deleted by
+#     this lane, because deleting it makes a live artifact producerless, which is the exact
+#     failure `typing/umap/refinement_log.json` is already in.
+# c3  proposed and OVERTURNED: a live importer outside the retiring set still reaches it.
+#     Untouched. The importer is named in `evidence`.
+# c4  maintainer's call. Untouched.
+#
+# check kinds (code)
+#   code_orphan          : no import / source() / subprocess reference from outside
+#                          CODE_RETIRING (the union of c1 and c2) and outside the file itself
+#   no_reference_anywhere: the basename appears nowhere in tracked code, config or docs
+#   protected            : the path exists and is on KEEP_BESIDE_CODE (asserted, never acted on)
+
+# --- the HiPerGator exclusion, encoded so a future run cannot retire it by accident -------
+#
+# `merge/hpg-sameslide` is the branch the VS Code tunnel session is developing on RIGHT NOW
+# (approved plan, Context section 5). Measured 2026-09-18 with
+#   git diff --name-only stage0/groundwork...merge/hpg-sameslide
+# which named 21 files, plus the modules those files import (read out of the branch's own
+# copies), plus the three trees the plan names wholesale. `retire.py` refuses every path on
+# this list outright, the same way it refuses TIER3 and TIER4.
+HPG_BRANCH = "merge/hpg-sameslide"
+
+#: Whole trees the plan takes off the list. A candidate under any of these is refused.
+KEEP_BESIDE_CODE_TREES = [
+    f"{REPO}/core/phenocycler/scripts/sameslide",
+    f"{REPO}/core/phenocycler/scripts/xenium_celltype",
+]
+
+KEEP_BESIDE_CODE = [
+    # -- named wholesale by the plan --------------------------------------------------
+    (f"{REPO}/core/phenocycler/scripts/sameslide",
+     f"{HPG_BRANCH} develops it (lift_calls.py changed on the branch); whole tree off the list"),
+    (f"{REPO}/core/phenocycler/scripts/xenium_celltype",
+     f"{HPG_BRANCH} develops context.py, eval_detection.py, hpg/verify_run.py and "
+     "tests/test_verify_run.py; whole tree including hpg/ off the list"),
+    (f"{REPO}/core/phenocycler/scripts/restain/run_field_refine.py",
+     f"{HPG_BRANCH} adds it (398 lines)"),
+    # -- the rest of the branch's own diff ---------------------------------------------
+    (f"{REPO}/core/phenocycler/scripts/celltype/panel.py", f"changed on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/run_step1.py", f"changed on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/run_step3.py", f"changed on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/run_sameslide_protein.py",
+     f"added by {HPG_BRANCH} (601 lines)"),
+    (f"{REPO}/analysis/xenium/scripts/tissue_markers/pancreas.py", f"changed on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/tests/current/test_no_duplicate_tracked_data.py",
+     f"added by {HPG_BRANCH}"),
+    (f"{REPO}/docs/XENIUM_PIPELINE.md", f"changed on {HPG_BRANCH}"),
+    # -- what those files import, read out of the branch's own copies -------------------
+    (f"{REPO}/core/phenocycler/scripts/celltype/rules.py",
+     f"imported by run_sameslide_protein.py and eval_detection.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/run_islet.py",
+     f"imported by run_sameslide_protein.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/score.py",
+     f"imported by run_sameslide_protein.py and run_step3.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/celltype/usability.py",
+     f"imported by run_sameslide_protein.py and run_step1.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/restain/align.py",
+     f"imported by run_field_refine.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/restain/registration_inputs.py",
+     f"imported by run_field_refine.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/restain/run_align.py",
+     f"imported by run_field_refine.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/restain/run_intensity_refine.py",
+     f"imported by run_field_refine.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/scripts/restain/run_register.py",
+     f"imported by run_field_refine.py on {HPG_BRANCH}"),
+    (f"{REPO}/core/phenocycler/phenocycler/integration/transform.py",
+     f"imported by lift_calls.py and run_field_refine.py on {HPG_BRANCH}"),
+]
+
+
+def _c(path, tier, produces=(), superseded_by="-", evidence="", check="code_orphan", prereq="",
+       blocked_by=()):
+    """One code disposition.
+
+    `blocked_by` names entries that must move in the SAME invocation. The direction is
+    importer-first: if A imports B, moving B alone breaks A, so B is blocked_by A. `retire.py`
+    refuses an entry whose blocker is not also being acted on, which is what keeps a
+    within-set dependency from becoming a broken import halfway through.
+    """
+    return dict(path=path, tier=tier, produces=tuple(produces), superseded_by=superseded_by,
+                evidence=evidence, check=check, prereq=prereq, blocked_by=tuple(blocked_by))
+
+
+TYPING = f"{REPO}/core/phenocycler/scripts/typing"
+XSCRIPTS = f"{REPO}/analysis/xenium/scripts"
+SENIOR = f"{REPO}/scripts/senior"
+ROOTS = f"{REPO}/scripts"
+
+#: The two live domain roots (apps/islet/config/{islet_default,run20_default}.yml). An entry that
+#: names an output which still EXISTS under one of these is c2, not c1.
+LIVE_DOMAIN_ROOTS = (f"{REPO}/data/app_data", f"{REPO}/data/development/typing/app")
+
+# --- code tier 1: verified orphan, no surviving output ----------------------------------
+CODE_TIER1 = [
+    # -- the retired typing chain (root CLAUDE.md: "Retired, and not to be revived as fallbacks")
+    _c(f"{TYPING}/substrate.py", 1,
+       superseded_by=f"{TYPING}/subpanel.py",
+       evidence="Zero importers. Its only mention in the tree is a historical line in "
+                "docs/HANDOFF_2026-09-08_TYPING_REBUILD.md:115. Its output tree "
+                "data/development/typing/substrate is already TIER2 above."),
+    _c(f"{TYPING}/positivity.py", 1,
+       superseded_by=f"{TYPING}/subpanel.py",
+       evidence="Zero references of any kind in the tree. Output tree "
+                "data/development/typing/positivity is already TIER2 above."),
+    _c(f"{TYPING}/run_astir.py", 1,
+       superseded_by=f"{TYPING}/subpanel.py",
+       evidence="Zero references. Withdrawn producer comparison; data/development/typing/astir "
+                "is already TIER2 above."),
+    _c(f"{TYPING}/run_tacit.py", 1,
+       superseded_by=f"{TYPING}/subpanel.py",
+       evidence="Zero references. Line 44 drives broadtype/arms/tacit_run.R, which STAYS (broadtype "
+                "is overturned below), so retiring this file takes nothing else with it. "
+                "data/development/typing/tacit is already TIER2 above."),
+    _c(f"{TYPING}/tacit_run.R", 1,
+       superseded_by=f"{REPO}/core/phenocycler/scripts/broadtype/arms/tacit_run.R",
+       evidence="An unused second copy. run_tacit.py:44 points at broadtype/arms/tacit_run.R, not "
+                "at this one, and the two differ (md5 b97f0254... vs 512d8147...). Nothing in the "
+                "tree names this path."),
+    # -- superseded pLN Xenium typers -------------------------------------------------------
+    _c(f"{XSCRIPTS}/pln_typing.py", 1,
+       superseded_by=f"{XSCRIPTS}/pln_immune_typing_v3.py",
+       evidence="Zero references outside its own usage block. docs/PLN_IMMUNE_XENIUM_2026-09-17.md "
+                "names _v3 as the release producer."),
+    _c(f"{XSCRIPTS}/pln_immune_typing.py", 1,
+       superseded_by=f"{XSCRIPTS}/pln_immune_typing_v3.py",
+       evidence="Zero references outside its own usage block. _v3 does not import it (its only "
+                "cross-module import is core/phenocycler/scripts/pln/partial_run_guard.py)."),
+    _c(f"{XSCRIPTS}/pln_immune_typing_v2.py", 1,
+       superseded_by=f"{XSCRIPTS}/pln_immune_typing_v3.py",
+       evidence="Zero references outside its own usage block. build_compartment_gradient.py:101 "
+                "pinned its RELEASE TREE (release_pln_immune_v2), which is Lane X's repin, not an "
+                "import of this file."),
+    # -- legacy CODEX app chain, root scripts/, no surviving output ------------------------
+    _c(f"{ROOTS}/recompute_viz_umap.py", 1,
+       superseded_by=f"{ROOTS}/rebuild_adata_ins_root.py",
+       evidence="Zero importers. Reads and rewrites data/adata_ins_root.h5ad IN PLACE; it produces "
+                "nothing of its own. Both that path and its input data/islet_explorer.h5ad are "
+                "absent from this checkout."),
+    _c(f"{ROOTS}/compile_donors.py", 1,
+       evidence="Zero references of any kind in the tree, including README.md and "
+                "data/app_data/DATA_PROVENANCE.md. Names no output that exists."),
+    _c(f"{ROOTS}/fix_tcell_subtypes.py", 1,
+       evidence="Zero references. Its only input and output is "
+                "single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad, which is absent "
+                "(single_cell_analysis/ holds one unexecuted notebook)."),
+    _c(f"{ROOTS}/retrain_scvi_no_covariates.py", 1,
+       evidence="Zero references. Reads the absent CODEX h5ad and data/islet_explorer.h5ad; a "
+                "one-off retraining experiment that names no surviving output."),
+    _c(f"{ROOTS}/plot_scvi_comparison.py", 1,
+       evidence="Zero references. Reads data/islet_explorer.h5ad (absent) and writes figures."),
+    _c(f"{ROOTS}/compute_pseudotime.R", 1,
+       superseded_by=f"{TYPING}/trajectory_singlecell.R",
+       evidence="Zero references. Writes data/pseudotime_results.rds, which does not exist here "
+                "and is not read by the app under either domain."),
+    # -- orphaned scripts/senior/, no surviving output ------------------------------------
+    _c(f"{SENIOR}/build_app_h5ad.py", 1,
+       evidence="Zero importers. Writes data/islet_explorer_senior.h5ad from "
+                "islets_{core,peri}_senior.h5ad, islet_targets.parquet, islet_composition.parquet "
+                "and neighborhood_metrics.csv -- none of those five paths exists in this checkout."),
+    _c(f"{SENIOR}/build_phenotyped_h5ad.py", 1,
+       evidence="Zero importers. In data/singlecell_protein.h5ad -> out "
+                "data/singlecell_protein_phenotyped.h5ad; neither exists."),
+    _c(f"{SENIOR}/build_singlecell_anndata.py", 1,
+       evidence="Zero importers. Writes data/singlecell_protein.h5ad, which does not exist."),
+    _c(f"{SENIOR}/compute_islet_targets.py", 1,
+       evidence="Zero importers. Writes data/islet_targets.parquet, absent here and absent under "
+                "both live domain roots."),
+    _c(f"{SENIOR}/aggregate_islets.py", 1,
+       prereq="line 22 imports create_islet_dataset_fixed from fixed_islet_aggregation.py, which "
+              "is on this list; both move together or neither does",
+       evidence="Zero importers. Writes data/islets_{core,peri}_senior.h5ad, neither of which "
+                "exists. NOT the same file as "
+                "core/phenocycler/scripts/typing/aggregate_islets.py, which build_layers.py:269 "
+                "runs and which stays."),
+    _c(f"{SENIOR}/compute_islet_markers.py", 1,
+       evidence="Zero importers; the only mentions are docstring cross-references in two other "
+                "entries on this list. Reads islets_{core,peri}_senior.h5ad, both absent."),
+    _c(f"{SENIOR}/fixed_islet_aggregation.py", 1,
+       blocked_by=(f"{SENIOR}/aggregate_islets.py", f"{ROOTS}/reaggregate_islets.py"),
+       prereq="moving this alone breaks its two importers, both on this list -- "
+              "scripts/senior/aggregate_islets.py (c1) and scripts/reaggregate_islets.py (c2), so "
+              "the c2 pass runs first",
+       evidence="Importers are scripts/reaggregate_islets.py:46 and "
+                "scripts/senior/aggregate_islets.py:22 -- both on this list, so the reference is "
+                "internal to the retiring set. Reads the absent CODEX h5ad."),
+    _c(f"{SENIOR}/compute_trajectory_senior.py", 1,
+       superseded_by=f"{TYPING}/trajectory_islet.py",
+       evidence="Zero importers; mod_trajectory_server.R:587 and the trajectory audits name it in "
+                "prose only. Reads islets_{core,peri}_senior.h5ad, both absent. Root CLAUDE.md "
+                "forbids its gate shape: it rejects a build unless pseudotime anti-correlates "
+                "with INS and orders ND<T1D, which is a result used as a verification target."),
+    _c(f"{SENIOR}/train_scvi_senior.py", 1,
+       evidence="Zero importers. Reads data/singlecell_protein_phenotyped.h5ad, which is absent; "
+                "docs/EXTERNAL_PACKAGES.md:44 already records this lane as input-starved."),
+    # -- the hold framework with no instance -------------------------------------------------
+    _c(f"{REPO}/apps/R/ieCore/R/ie_holds.R", 1,
+       prereq="TWO EDITS FIRST, neither in this lane's files: drop "
+              "\"apps/R/ieCore/R/ie_holds.R\" from ALLOWLISTED_FILES in "
+              "apps/islet/tests/testthat/test-guards.R:20 and "
+              "apps/islet/tests/testthat/test-no-domain-pixel.R:15 (both read the file by path), "
+              "and regenerate apps/R/ieCore/NAMESPACE with roxygen so ie_assert_hold_lifted and "
+              "ie_hold_is_lifted stop being exported -- Lane G2 owns NAMESPACE",
+       evidence="ie_assert_hold_lifted() and ie_hold_is_lifted() have ZERO callers: grep over "
+                "every .R, .py and .md in the tree returns only their own definition. There is "
+                "also no INSTANCE of the contract -- no file in the repo reads 'HOLD LIFTED' and "
+                "no path is registered as a retired_pin. Not wired to the restain gate on "
+                "purpose: that gate refuses by MEASUREMENT (build_restain_layer.py's five states, "
+                "e.g. auroc_below_preregistered_bar, and donor 115's 7.198 um residual against "
+                "3.67), and putting a hand-edited text file in front of it would let an edit "
+                "override a measurement -- the opposite of the NO_VERIFIED_TYPING latch it says "
+                "it borrows from, which is code no file can lift."),
+]
+
+# --- code tier 2: verified orphan, but a named producer of a LIVE artifact ----------------
+# Quarantine only. Never deleted here: data/app_data is the CODEX domain's live root
+# (apps/islet/config/islet_default.yml) and these are the only scripts in the tree that name its
+# contents as output. Retiring them is honest -- every one is already unrunnable, because the
+# chain's root input single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad and every
+# intermediate it names under data/ are absent -- but DELETING them would leave a live domain with
+# no recorded producer at all.
+CODE_TIER2 = [
+    _c(f"{ROOTS}/reaggregate_islets.py", 2,
+       produces=("data/app_data/adata_ins_root.h5ad",),
+       superseded_by=f"{ROOTS}/rebuild_adata_ins_root.py (run20 domain only)",
+       evidence="Zero importers. Named producer of adata_ins_root.h5ad (line 40); the CODEX "
+                "domain's copy exists at data/app_data/adata_ins_root.h5ad (2026-04-25). Its own "
+                "declared output path data/adata_ins_root.h5ad does not exist, and its input "
+                "single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad is absent, so it "
+                "cannot be re-run."),
+    _c(f"{ROOTS}/build_h5ad_for_app.py", 2,
+       produces=("data/app_data/islet_explorer.h5ad",),
+       evidence="Zero importers. Sole named producer of islet_explorer.h5ad, which exists at "
+                "data/app_data/islet_explorer.h5ad (2026-04-25, 65.6 MB) and is loaded by "
+                "apps/islet/R/data_loading.R:406. Unrunnable: data/adata_ins_root.h5ad absent."),
+    _c(f"{ROOTS}/convert_h5ad_to_parquet.py", 2,
+       prereq="apps/islet/R/00_globals.R:167 tells the operator to run this script by name when "
+              "islets.parquet is missing; that message must name a producer that exists",
+       produces=("data/app_data/parquet/islets.parquet",
+                 "data/app_data/parquet/uns_composition.parquet",
+                 "data/app_data/parquet/uns_markers.parquet",
+                 "data/app_data/parquet/uns_targets.parquet",
+                 "data/app_data/parquet/tissue"),
+       evidence="Zero importers, but apps/islet/R/00_globals.R:167 tells the operator to run it by "
+                "name when islets.parquet is missing, and all five outputs exist under "
+                "data/app_data/parquet (2026-06-02). Unrunnable: its input "
+                "data/islet_explorer.h5ad is absent."),
+    _c(f"{ROOTS}/compute_neighborhood_metrics.py", 2,
+       produces=("data/app_data/neighborhood_metrics.csv",),
+       blocked_by=(f"{SENIOR}/compute_neighborhood_senior.py",),
+       prereq="moving this alone breaks compute_neighborhood_senior.py:15, which is on this list",
+       evidence="Imported only by scripts/senior/compute_neighborhood_senior.py:15, which is on "
+                "this same list. apps/islet/R/mod_inflammation_server.R:62 names it by name in an "
+                "operator message and apps/islet/docs/spatial.md:18,26 documents its two constants "
+                "as the definition of 'immune' for those columns. Output exists at "
+                "data/app_data/neighborhood_metrics.csv (2026-07-02). Unrunnable: reads the absent "
+                "CODEX h5ad."),
+    _c(f"{ROOTS}/extract_per_islet_cells.py", 2,
+       produces=("data/app_data/cells",),
+       evidence="Zero importers. One of two named producers of the CODEX drill-down cells/ "
+                "directory, which exists with 5,214 files (2026-03-05). Unrunnable: reads the "
+                "absent CODEX h5ad."),
+    _c(f"{ROOTS}/extract_per_donor_tissue.py", 2,
+       produces=("data/app_data/donors",),
+       evidence="Zero importers. Sole named producer of the CODEX donors/ directory, which exists "
+                "with 15 files (2026-02-20) and is the input convert_h5ad_to_parquet.py's tissue "
+                "partitions are built from. Unrunnable: reads the absent CODEX h5ad."),
+    _c(f"{SENIOR}/compute_neighborhood_senior.py", 2,
+       produces=("data/app_data/neighborhood_metrics.csv",),
+       prereq="line 15 imports scripts/compute_neighborhood_metrics.py as cnm; that file is on "
+              "this list and the two move together",
+       evidence="Zero importers. A second named producer of neighborhood_metrics.csv, whose CODEX "
+                "copy exists. Reads data/singlecell_protein_phenotyped.h5ad, which is absent."),
+    _c(f"{SENIOR}/extract_islet_cells.py", 2,
+       produces=("data/app_data/cells",),
+       evidence="Zero importers. The second named producer of data/app_data/cells (line 24 writes "
+                "there directly). Reads data/singlecell_protein_phenotyped.h5ad, which is absent."),
+    _c(f"{SENIOR}/build_composition_and_tissue.py", 2,
+       produces=("data/app_data/parquet/tissue",),
+       evidence="Zero importers. A second named producer of parquet/tissue/, which the Spatial tab "
+                "reads through apps/islet/R/00_globals.R:165 and spatial_helpers.R:6, and which "
+                "exists (2026-06-02). Reads data/singlecell_protein_phenotyped.h5ad, absent."),
+    _c(f"{SENIOR}/build_viewer_assets.py", 2,
+       produces=("data/app_data/islet_spatial_lookup.csv", "data/app_data/json"),
+       evidence="Zero importers, but it is the SOLE named producer of islet_spatial_lookup.csv, "
+                "which exists (2025-09-30) and which apps/islet/R/segmentation_helpers.R:229-230 "
+                "loads through domain_data_root() to resolve a clicked islet to a centroid. It is "
+                "also the declared source of <case>_structures.geojson, the DEFAULT --structures "
+                "argument of the live scripts/senior/build_all_tissuumaps_projects.py:154 (that "
+                "directory does not currently exist). Unrunnable: its input "
+                "data/islet_targets.parquet is absent."),
+]
+
+# --- code tier 3: proposed and OVERTURNED. Untouched. -------------------------------------
+CODE_TIER3 = [
+    (f"{REPO}/core/phenocycler/scripts/broadtype",
+     "STILL IMPORTED BY LIVE CODE, measured 2026-09-18. "
+     "core/phenocycler/scripts/kronos2_doc/run.py:35-40 puts scripts/broadtype and "
+     "scripts/broadtype/arms on sys.path and imports declarations, pins, kronos2_coral and "
+     "kronos_clusters. kronos2_doc is not a closed lane: its output "
+     "data/development/kronos2_documented/ is read by core/phenocycler/scripts/report/"
+     "kronos2_doc_fig.py:33, which run_report.py:83-84 renders as a report section. "
+     "The approved plan lists broadtype as 6 dead entrypoints; measured, it is 47 files, 20 with "
+     "a __main__ block, and one of them is a live dependency. NOTE the near miss: "
+     "scripts/report/{bakeoff,identity_io}.py also `import pins`, but they insert their own "
+     "directory first and mean scripts/report/pins.py -- three lanes carry a pins.py, and a "
+     "basename match would have read those as broadtype importers too."),
+    (f"{REPO}/core/phenocycler/scripts/dct",
+     "OVERTURNED BY THE ABOVE. dct/regions.py is imported by "
+     "core/phenocycler/scripts/broadtype/frame.py:34 (`import regions as dct_regions`) and "
+     "broadtype/pins.py:20 puts scripts/dct on sys.path; with broadtype staying, dct is imported "
+     "by code that stays. Everything else about it is clear: 22 files, 7 with a __main__ block, "
+     "no importer outside dct/ and broadtype/, and the prerequisite in scripts/CLAUDE.md:42-43 is "
+     "ALREADY SATISFIED -- gates.py and tiff_window.py live only in "
+     "core/phenocycler/scripts/common/ (dct/ holds neither), and dct/{arms,concordance_gate,"
+     "feasibility_tile,plane_identity}.py already resolve them by putting scripts/common on "
+     "sys.path. So the move scripts/CLAUDE.md asks for is done; what blocks dct now is broadtype."),
+    (f"{TYPING}/call.py",
+     "STILL IMPORTED BY LIVE CODE: core/phenocycler/scripts/typing/compare_clustering.py:98 does "
+     "`from call import TOP_N, _statistic, name_clusters`, and compare_clustering.py is on no "
+     "retirement list -- it is the lane's Leiden/LDA/KODAMA method comparison. Retiring call.py "
+     "would break it. Off the list until compare_clustering.py's own disposition is settled."),
+    (f"{TYPING}/export_qupath.py",
+     "Imported at four sites in core/phenocycler/scripts/typing/tests/test_typing.py (203, 214, "
+     "257, 617). That file is a single suite that also covers compartments.py, lineages.py, "
+     "metacluster.py and call.py, which are NOT retiring, so it cannot move with the module. "
+     "Prerequisite before this can be promoted to c1: split those four tests out of test_typing.py."),
+    (f"{TYPING}/validate.py",
+     "Imported at two sites in core/phenocycler/scripts/typing/tests/test_typing.py (457, 467); "
+     "same prerequisite as export_qupath.py. NOTE: the six `import validate as VAL` lines under "
+     "core/phenocycler/scripts/restain/ resolve to restain/validate.py, a DIFFERENT module, and "
+     "are not evidence about this file."),
+]
+
+# --- code tier 4: maintainer's call. Untouched. -------------------------------------------
+CODE_TIER4 = [
+    (f"{TYPING}/compare_clustering.py",
+     "57 KB, the only importer of call.py, and itself referenced by nothing but "
+     "cluster_leiden.py's docstring. Retiring it would unblock call.py; keeping it keeps call.py. "
+     "Either way it is a ruling about the clustering comparison, not an orphan finding."),
+    (f"{REPO}/scripts/build_master_excel.py",
+     "Named producer of data/app_data/master_results.xlsx (2025-09-17), which exists. Not on the "
+     "plan's list; recorded here only so the next pass does not have to rediscover it."),
+]
+
+#: Every code path this lane proposes to move. The `code_orphan` check treats a reference from
+#: inside this set as internal, so a within-set import (broadtype -> dct/regions.py,
+#: aggregate_islets -> fixed_islet_aggregation, compute_neighborhood_senior ->
+#: compute_neighborhood_metrics) does not block the group.
+CODE_RETIRING = [e["path"] for e in CODE_TIER1 + CODE_TIER2]
+
+# --- producerless AND consumerless artifacts ----------------------------------------------
+# Not code; listed here because they are the same finding: a file with no entrypoint on either
+# side. Quarantine only -- nothing in this lane deletes them.
+ARTIFACT_TIER2 = [
+    _c(f"{REPO}/data/development/typing/app/master_results_run20.xlsx", 2,
+       check="no_reference_anywhere",
+       evidence="No producer and no consumer. build_workbook.py:192 writes "
+                "master_results_run10.xlsx, not this name, and grep over every .py/.R/.md/.yml/.sh "
+                "in the tree finds the string 'master_results_run20' nowhere. Written 2026-09-11 "
+                "17:15, the same minute as the file below, by something no longer in the tree."),
+    _c(f"{REPO}/data/development/typing/app/islet_celltype_proportions_run20.csv", 2,
+       check="no_reference_anywhere",
+       superseded_by=f"{REPO}/data/development/typing/app/islet_celltype_proportions.csv",
+       evidence="No producer and no consumer. build_workbook.py:196 writes "
+                "islet_celltype_proportions.csv (which exists, 2026-09-17 18:00, and is what "
+                "trajectory_islet.py:112 reads); nothing names the _run20 spelling. Written "
+                "2026-09-11 17:15."),
 ]

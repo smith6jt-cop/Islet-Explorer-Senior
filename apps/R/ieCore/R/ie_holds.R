@@ -1,3 +1,15 @@
+# LISTED FOR RETIREMENT, 2026-09-18 (scripts/retire/dispositions.py, code tier 1). Both functions
+# below have ZERO callers -- grep over every .R, .py and .md in the repo returns only their own
+# definition -- and the contract has no instance: no file in this repo reads "HOLD LIFTED" and no
+# path is registered as a retired_pin. It was NOT wired to the restain gate, which was the
+# alternative: that gate refuses by MEASUREMENT (build_restain_layer.py's five states, e.g.
+# auroc_below_preregistered_bar; donor 115's 7.198 um residual against a 3.67 bar), and putting a
+# hand-edited text file in front of a measurement would let an edit override it -- the opposite of
+# the NO_VERIFIED_TYPING latch this file says it borrows from, which is code that no file can lift.
+# Nothing is removed yet: the move is held until apps/islet/tests/testthat/test-guards.R:20 and
+# test-no-domain-pixel.R:15 drop this path from their ALLOWLISTED_FILES, and until NAMESPACE is
+# regenerated without the two exports.
+#
 # Holds -- a hand-written file whose exact content gates whether a blocked stage is allowed
 # to run. `core/phenocycler`'s NO_VERIFIED_TYPING latch is the model this borrows from: a
 # blocked stage stays blocked until something says otherwise, and "something says otherwise"

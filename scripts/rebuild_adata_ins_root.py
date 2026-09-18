@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """Rebuild the Trajectory tab's H5AD on the WITHIN-DONOR ordering, for every donor it covers.
 
-WHY THIS SCRIPT EXISTS AT ALL, and why it is not one of the two scripts that look like its
-producer. `scripts/reaggregate_islets.py` and `scripts/recompute_viz_umap.py` both name a file
-called `adata_ins_root.h5ad`, and neither one produces the file the run-cohort app loads: both
-write `<repo>/data/adata_ins_root.h5ad` from `islet_analysis/` and
-`single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad`, and none of those three paths
-exists in this checkout. They are the legacy CODEX lane's entrypoints. The run cohort's file is
-written by `core/phenocycler/scripts/typing/trajectory_islet.py`, which belongs to the islet-level
-UMAP lane, and which on 2026-09-17 REFUSED to write it: its pooled twenty-donor islet-composition
-DPT failed its own `pseudotime_is_not_mostly_donor` check (donor eta-squared 0.444 within T1D,
-0.314 within Aab+, against a 0.15 ceiling), so it wrote `adata_ins_root.rejected.h5ad` and left
-the deployed ten-donor file in place. That is the behaviour it was built to have.
+THE SINGLE PRODUCER of `<app>/adata_ins_root.h5ad`, as of 2026-09-18. Nothing else writes that
+path. Four scripts in this tree name a file by that name and this is the only one that owns it:
 
-So the deployed file was stuck at ten donors, two disease statuses and a superseded typing
-generation, while the ordering the maintainer decided to ship -- the WITHIN-DONOR single-cell
-trajectory, one destiny/slingshot fit per donor, no pooled embedding -- had been rebuilt for all
-twenty. This script joins the two: it takes the twenty-donor FRAME out of the rejected file
+* `scripts/reaggregate_islets.py` and `scripts/recompute_viz_umap.py` write
+  `<repo>/data/adata_ins_root.h5ad` from `islet_analysis/` and
+  `single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad` -- the legacy CODEX lane, and
+  none of those three paths exists in this checkout, so neither can run.
+* `core/phenocycler/scripts/typing/trajectory_islet.py` used to target it and no longer does. It
+  fits the POOLED islet-composition ordering, and on 2026-09-17 it REFUSED to write the deployed
+  file: that ordering failed its own `pseudotime_is_not_mostly_donor` check (donor eta-squared
+  0.444 within T1D, 0.314 within Aab+, against a 0.15 ceiling). It is the behaviour that script
+  was built to have, so the split follows it -- trajectory_islet.py keeps `islet_leiden.parquet`
+  and writes its own `islet_composition.h5ad` / `.rejected.h5ad`, and THIS script reads that
+  rejected frame and writes the deployed file.
+
+Before that split the deployed file was stuck at ten donors, two disease statuses and a superseded
+typing generation, while the ordering the maintainer decided to ship -- the WITHIN-DONOR
+single-cell trajectory, one destiny/slingshot fit per donor, no pooled embedding -- had been
+rebuilt for all twenty. This script joins the two: it takes the twenty-donor FRAME out of the rejected file
 (composition, ALR, the islet-composition UMAP) and replaces the one quantity that was rejected --
 the pooled ordering -- with the within-donor one, summarised per islet.
 
@@ -69,6 +72,31 @@ MIN_SAMPLED_CELLS = 5
 
 #: Donor status order. ND < Aab+ < T1D, everywhere, including the categorical written to disk.
 STATUS_ORDER = ("ND", "Aab+", "T1D")
+
+#: Where the rejected pooled frame is looked for, in THIS order. An explicit list, not a glob and
+#: not the newest mtime: `touch` must not be able to choose which frame the deployed file is built
+#: from. The first name is what trajectory_islet.py writes now; the second is what it wrote before
+#: 2026-09-18 and is the file currently on disk.
+FRAME_CANDIDATES = (
+    TYPING / "umap_rebuild_2026-09-17" / "islet_composition.rejected.h5ad",
+    TYPING / "umap_rebuild_2026-09-17" / "adata_ins_root.rejected.h5ad",
+)
+
+#: The one path this script writes. Named here so the refusal below can check it.
+OUT_NAME = "adata_ins_root.h5ad"
+
+
+def resolve_frame() -> Path:
+    """The first FRAME_CANDIDATES entry that exists, or a refusal naming all of them."""
+    for candidate in FRAME_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    raise SystemExit(
+        "no rejected pooled frame found. Looked, in order, at:\n  "
+        + "\n  ".join(str(c) for c in FRAME_CANDIDATES)
+        + "\nRun core/phenocycler/scripts/typing/trajectory_islet.py --out-dir "
+        + str(FRAME_CANDIDATES[0].parent) + " first, or pass --frame."
+    )
 
 
 def _norm_donor(value) -> str:
@@ -145,18 +173,20 @@ def unavailable_reason(row) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--frame", type=Path,
-                        default=TYPING / "umap_rebuild_2026-09-17" / "adata_ins_root.rejected.h5ad",
-                        help="the 20-donor islet frame whose pooled ordering is being replaced")
+    parser.add_argument("--frame", type=Path, default=None,
+                        help="the 20-donor islet frame whose pooled ordering is being replaced "
+                             "(default: the first of FRAME_CANDIDATES that exists)")
     parser.add_argument("--summary", type=Path, default=TRAJ / "singlecell_islet_summary.parquet")
     parser.add_argument("--cells", type=Path, default=TRAJ / "singlecell_pseudotime.parquet")
     parser.add_argument("--fit", type=Path, default=TRAJ / "singlecell_trajectory.json")
     parser.add_argument("--relation", type=Path, default=TRAJ / "crossdonor_relation.json")
     parser.add_argument("--marker-means", type=Path, default=APP / "islet_marker_means.parquet")
-    parser.add_argument("--out", type=Path, default=APP / "adata_ins_root.h5ad")
+    parser.add_argument("--out", type=Path, default=APP / OUT_NAME)
     parser.add_argument("--no-backup", action="store_true",
                         help="do not copy the existing output aside first")
     args = parser.parse_args()
+    if args.frame is None:
+        args.frame = resolve_frame()
 
     fit = json.loads(args.fit.read_text())
     if fit.get("fit_scope") != "within_donor":

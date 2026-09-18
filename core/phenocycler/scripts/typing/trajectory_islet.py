@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Islet-level trajectory on composition -- the Trajectory tab's H5AD.
+"""Islet-level trajectory on composition -- the pooled islet-composition ordering and its H5AD.
 
 The ordering is over **what an islet is made of**, not over marker averages.  For islet *i* and
 class *t*, in region *r*:
@@ -40,6 +40,27 @@ they kept asserting "eight ND donors, two T1D, no Aab+" beside a ``within_status
 ``{ND 8, Aab+ 3, T1D 9}`` in the same dict.  A cohort fact written as a literal is a leak whether
 it sits in the app or in the producer that feeds it.
 
+**WHAT THIS SCRIPT DOES NOT WRITE, since 2026-09-18: ``adata_ins_root.h5ad``.**  That path -- the
+one the Trajectory tab loads -- has a single producer, ``scripts/rebuild_adata_ins_root.py``, and
+it is not this file.  Both used to target it, which is the duplicate-entrypoint state root
+``CLAUDE.md`` forbids, and which one won depended on execution order rather than on a decision.
+The split is not arbitrary: this script fits a POOLED islet-composition ordering, and on the
+twenty-donor cohort that ordering fails its own ``pseudotime_is_not_mostly_donor`` check (donor
+eta-squared 0.444 within T1D, 0.314 within Aab+, against ``DONOR_ETA2_CEILING`` = 0.15), so it
+refuses and writes its rejected frame instead.  The deployed file is the WITHIN-DONOR ordering,
+which `rebuild_adata_ins_root.py` builds by taking this script's rejected frame and replacing the
+one quantity that was rejected.
+
+So what this script owns is:
+
+* ``islet_leiden.parquet`` -- the islet-level clustering, written at the ``--leiden-name`` basename
+  BEFORE the gate, because the gate does not judge it;
+* ``islet_composition.h5ad`` / ``islet_composition.rejected.h5ad`` -- its own H5AD, under its own
+  name, which `rebuild_adata_ins_root.py` reads as its frame.
+
+``--h5ad-name`` moves that name, and ``adata_ins_root`` is refused for it: a flag is not a place to
+decide which script owns a deployed path.
+
     python core/phenocycler/scripts/typing/trajectory_islet.py
 """
 from __future__ import annotations
@@ -59,6 +80,12 @@ import cohort as COHORT
 import subpanel_io as S
 
 APP = S.OUT / "app"
+
+#: This script's own H5AD. NOT ``adata_ins_root.h5ad`` -- see the note in the module docstring;
+#: ``scripts/rebuild_adata_ins_root.py`` is the single producer of that path and reads this one.
+H5AD_NAME = "islet_composition.h5ad"
+#: The names this script refuses to write under, whatever ``--h5ad-name`` says.
+REFUSED_H5AD_STEMS = ("adata_ins_root",)
 
 ALR_PSEUDOCOUNT = 0.5          #: declared, recorded in uns -- never silently tuned
 #: Euclidean, not cosine. An ALR vector's entries are log-ratios against a denominator that is
@@ -216,7 +243,19 @@ def main() -> int:
     parser.add_argument("--leiden-name", default="islet_leiden.parquet",
                         help="basename for the islet-level clustering, so a rebuild can sit "
                              "beside the deployed file instead of replacing it")
+    parser.add_argument("--h5ad-name", default=H5AD_NAME,
+                        help=f"basename for this script's own H5AD (default: {H5AD_NAME}). "
+                             "adata_ins_root is refused: scripts/rebuild_adata_ins_root.py is the "
+                             "single producer of that path")
     args = parser.parse_args()
+    stem = pathlib.Path(args.h5ad_name).name
+    for refused in REFUSED_H5AD_STEMS:
+        if stem == f"{refused}.h5ad" or stem.startswith(f"{refused}."):
+            raise SystemExit(
+                f"refusing --h5ad-name {args.h5ad_name!r}: {refused}.h5ad has a single producer, "
+                "scripts/rebuild_adata_ins_root.py, and this script is not it. This script fits a "
+                "POOLED ordering; the deployed file carries the WITHIN-DONOR one. Leave the "
+                f"default ({H5AD_NAME}) or pick a name of your own.")
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
     out_dir = args.out_dir or APP
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -595,9 +634,9 @@ def main() -> int:
     adata.obs = _string_array_encoding(adata.obs)
     adata.var = _string_array_encoding(adata.var)
 
-    target = out_dir / "adata_ins_root.h5ad"
+    target = out_dir / stem
     if not all(gates.values()):
-        rejected = out_dir / "adata_ins_root.rejected.h5ad"
+        rejected = out_dir / f"{pathlib.Path(stem).stem}.rejected.h5ad"
         adata.write_h5ad(rejected)
         print(f"\nMETHOD CHECK FAILED -> {rejected} (the deployed file is untouched)")
         return 1

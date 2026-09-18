@@ -11,10 +11,13 @@ only on entries whose check PASSED, so a table that has drifted from disk fails 
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
+import functools
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -167,8 +170,254 @@ def check_sibling_name_under(p: Path, arg):
     return True, f"{p.name} present at {hit[0]} ({hit[0].stat().st_size:,} B)"
 
 
+# ------------------------------------------------------- code-tier checks ----
+#
+# A code entry is retired only when NOTHING outside the retiring set reaches it. "Reaches" is
+# split three ways, deliberately:
+#
+#   HARD   a call path or a path literal: a Python `import`/`from` of the module (read with
+#          `ast`, so a mention inside a string or a comment cannot masquerade as one), an R
+#          `source()`/`sys.source()`, an interpreter invocation, or a path-qualified occurrence
+#          in a non-Markdown file -- a test that does readLines("apps/R/ieCore/R/ie_holds.R")
+#          breaks when the file moves just as surely as an import does. One hard hit FAILS the
+#          check and `retire.py` refuses the entry.
+#   DOCS   an occurrence in a .md file. Reported with file:line so the retiring commit fixes the
+#          instruction, never blocking: prose is not a caller.
+#   SOFT   a bare basename with no path in front of it, in a file where that basename is not
+#          unique in the repo, or an occurrence on a comment line. Reported, never blocking.
+#
+# Resolution is by PATH, not by basename. `scripts/senior/aggregate_islets.py` and
+# `core/phenocycler/scripts/typing/aggregate_islets.py` are different files, and the second is a
+# live node in `scripts/senior/build_layers.py`'s DAG; a basename match would have retired the
+# wrong one.
+#
+# `data/` and `scripts/retire/` are not scanned: a provenance note under data/app_data records how
+# a file was made, which is history, and this table naming a path is not a caller either.
+SCAN_EXTS = {".py", ".R", ".r", ".sh", ".ini", ".toml", ".yml", ".yaml", ".json",
+             ".cfg", ".Rmd", ".groovy", ".md"}
+SCAN_SKIP = {".git", ".venv", "external", "node_modules", "__pycache__", "data",
+             "renv", ".Rproj.user", "site-packages", ".pytest_cache"}
+#: This lane's own table names every candidate by path; it is a declaration, not a call site.
+SCAN_SKIP_PATHS = (f"{D.REPO}/scripts/retire",)
+EXEC_MARK = ("subprocess", "Popen", "check_call", "check_output", "os.system",
+             "Rscript ", "python ", "python3 ", "bash ", "sh ")
+
+
+@functools.lru_cache(maxsize=1)
+def scan_files() -> tuple[Path, ...]:
+    """Every file in the repo that could hold a reference, walked once."""
+    root = Path(D.REPO)
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SCAN_SKIP and not d.endswith(".egg-info")]
+        if any(dirpath == s or dirpath.startswith(s + "/") for s in SCAN_SKIP_PATHS):
+            continue
+        for name in filenames:
+            if Path(name).suffix in SCAN_EXTS:
+                out.append(Path(dirpath) / name)
+    return tuple(sorted(out))
+
+
+@functools.lru_cache(maxsize=1)
+def basename_index() -> dict:
+    """basename -> how many files in the repo carry it. A bare mention of a name that is not
+    unique cannot be attributed, so it is reported rather than acted on."""
+    counts: dict[str, int] = {}
+    root = Path(D.REPO)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SCAN_SKIP and not d.endswith(".egg-info")]
+        for name in filenames:
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _relrepo(p: Path) -> str:
+    return str(p).replace(D.REPO + "/", "")
+
+
+def _targets(p: Path) -> tuple[set[str], dict]:
+    """(python module stems this path removes, {token -> repo-relative path that owns it})."""
+    stems: set[str] = set()
+    owner: dict[str, str] = {}
+    files = [p] if p.is_file() else [f for f in walk(p) if f.suffix in SCAN_EXTS]
+    for f in files:
+        owner.setdefault(f.name, _relrepo(f))
+        if f.suffix == ".py" and f.name != "__init__.py":
+            stems.add(f.stem)
+    if p.is_dir():
+        owner[p.name] = _relrepo(p)
+    return stems, owner
+
+
+@functools.lru_cache(maxsize=None)
+def _py_doc_lines(f: Path) -> frozenset:
+    """Line numbers covered by module/class/function docstrings.
+
+    A docstring that names a path is documentation, not a call site. Without this, this very
+    lane's own `rebuild_adata_ins_root.py` -- whose opening paragraph explains WHY the two legacy
+    producers are not its ancestors -- would read as a live caller of both of them.
+    """
+    try:
+        tree = ast.parse(f.read_text(errors="replace"))
+    except (SyntaxError, ValueError, OSError):
+        return frozenset()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        doc = node.body[0] if node.body else None
+        if (isinstance(doc, ast.Expr) and isinstance(doc.value, ast.Constant)
+                and isinstance(doc.value.value, str)):
+            lines.update(range(doc.lineno, (doc.end_lineno or doc.lineno) + 1))
+    return frozenset(lines)
+
+
+@functools.lru_cache(maxsize=None)
+def _sys_path_text(f: Path) -> str:
+    """The raw text of every `sys.path` line in `f` -- how the file says where its modules live."""
+    try:
+        return "\n".join(ln for ln in f.read_text(errors="replace").splitlines()
+                          if "sys.path" in ln)
+    except OSError:
+        return ""
+
+
+def _import_resolves_here(f: Path, stem: str, module_dir: Path) -> bool:
+    """Does `f`'s `import <stem>` reach THIS module, or another file of the same name?
+
+    Three lanes carry a `pins.py` (broadtype, report, xenium_typing) and two carry an
+    `aggregate_islets.py`. An import matched on the stem alone retires the wrong one, so the
+    import is resolved the way the file itself resolves it: same directory, or a `sys.path` line
+    that names the module's directory, or a stem that is unique in the repo.
+    """
+    if f.parent == module_dir:
+        return True
+    text = _sys_path_text(f)
+    name = module_dir.name
+    if name and (f'"{name}"' in text or f"'{name}'" in text or f"/{name}" in text):
+        return True
+    if _relrepo(module_dir) in text:
+        return True
+    return basename_index().get(stem + ".py", 0) == 1
+
+
+@functools.lru_cache(maxsize=None)
+def _py_imports(f: Path) -> frozenset:
+    """Top-level module names `f` imports, from the AST -- never from the raw text."""
+    try:
+        tree = ast.parse(f.read_text(errors="replace"))
+    except (SyntaxError, ValueError, OSError):
+        return frozenset()
+    found = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            found.add(node.module.split(".")[0])
+    return frozenset(found)
+
+
+def _inside(f: Path, roots) -> bool:
+    s = str(f)
+    return any(s == r or s.startswith(r.rstrip("/") + "/") for r in roots)
+
+
+@functools.lru_cache(maxsize=None)
+def _token_re(name: str):
+    return re.compile(r"(?P<pre>[\w./{}$-]*/)?" + re.escape(name) + r"(?![\w])")
+
+
+def check_code_orphan(p: Path, arg):
+    if not p.exists():
+        return False, "MISSING"
+    stems, owner = _targets(p)
+    if not owner:
+        return False, "no scannable file under it"
+    counts = basename_index()
+    hard, docs, soft = [], [], []
+    for f in scan_files():
+        if _inside(f, [str(p)]) or _inside(f, D.CODE_RETIRING):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        shared = stems & _py_imports(f)
+        if f.suffix == ".py" and shared:
+            resolved = sorted(s for s in shared
+                              if _import_resolves_here(f, s, Path(D.REPO) / Path(owner[s + ".py"]).parent))
+            if resolved:
+                hard.append(f"{_relrepo(f)}: imports {resolved}")
+                continue
+            soft.append(f"{_relrepo(f)}: imports {sorted(shared)} -- resolves to another lane's "
+                        f"module of the same name")
+            continue
+        if not any(tok in text for tok in owner):
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            for tok, tok_owner in owner.items():
+                for m in _token_re(tok).finditer(line):
+                    pre = m.group("pre") or ""
+                    if pre:
+                        if not tok_owner.endswith(pre + tok):
+                            continue          # a different file that shares the basename
+                        qualified = True
+                    else:
+                        if counts.get(tok, 0) != 1:
+                            soft.append(f"{_relrepo(f)}:{i} (bare '{tok}', not unique)")
+                            continue
+                        qualified = False
+                    where = f"{_relrepo(f)}:{i}: {line.strip()[:100]}"
+                    if f.suffix == ".md" or (f.suffix == ".py" and i in _py_doc_lines(f)):
+                        docs.append(where)
+                    elif line.lstrip().startswith("#"):
+                        soft.append(f"{_relrepo(f)}:{i} (comment)")
+                    elif qualified or any(k in line for k in EXEC_MARK) or "source(" in line:
+                        hard.append(where)
+                    else:
+                        soft.append(f"{_relrepo(f)}:{i}")
+    tail = (f"; {len(docs)} doc instruction(s) to update: {docs[:3]}" if docs else "") + \
+           (f"; {len(soft)} prose mention(s)" if soft else "")
+    if hard:
+        return False, f"{len(hard)} LIVE reference(s): {hard[:3]}{tail}"
+    return True, f"no live import, source(), exec or path literal{tail}"
+
+
+def check_no_reference_anywhere(p: Path, arg):
+    if not p.exists():
+        return False, "MISSING"
+    hits = []
+    for f in scan_files():
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        if p.name in text or p.stem in text:
+            hits.append(_relrepo(f))
+    if hits:
+        return False, f"referenced by {len(hits)} file(s): {hits[:4]}"
+    return True, f"'{p.stem}' appears in no scanned file -- no producer and no consumer"
+
+
+def check_protected(p: Path, arg):
+    """A keep-beside entry. Asserted so the guard is real, never acted on.
+
+    Absence is NOT a failure: three of these paths (run_field_refine.py,
+    run_sameslide_protein.py, tests/test_no_duplicate_tracked_data.py) are ADDED by
+    merge/hpg-sameslide and do not exist on this branch yet. A guard for a path that has not
+    landed is still a guard, and it is the one that matters after the merge.
+    """
+    if not p.exists():
+        return True, f"not on this branch; added by {D.HPG_BRANCH} -- guarded in advance"
+    n = 1 if p.is_file() else sum(1 for _ in walk(p))
+    return True, f"present, {n} file(s)"
+
+
 CHECKS = {
     "plain": check_plain,
+    "code_orphan": check_code_orphan,
+    "no_reference_anywhere": check_no_reference_anywhere,
+    "protected": check_protected,
     "sibling_name_under": check_sibling_name_under,
     "orphan_temp": check_orphan_temp,
     "subset_dir": check_subset_dir,
@@ -178,11 +427,13 @@ CHECKS = {
     "identical_keys_subset": check_identical_keys_subset,
 }
 
-FIELDS = ["tier", "path", "exists", "bytes", "n_files", "mtime_utc", "sha256", "check",
-          "check_arg", "verified", "verify_detail", "superseded_by", "evidence"]
+FIELDS = ["kind", "tier", "path", "exists", "bytes", "n_files", "mtime_utc", "sha256", "check",
+          "check_arg", "verified", "verify_detail", "superseded_by", "evidence", "produces",
+          "prereq", "blocked_by"]
 
 
-def row(tier, path, check=None, arg=None, superseded_by="", evidence=""):
+def row(tier, path, check=None, arg=None, superseded_by="", evidence="", kind="data",
+        produces=(), prereq="", blocked_by=()):
     p = Path(path)
     b, n, m = measure(p)
     verified, detail = ("", "not checked (untouched tier)")
@@ -190,18 +441,15 @@ def row(tier, path, check=None, arg=None, superseded_by="", evidence=""):
         fn = CHECKS[check]
         ok, detail = fn(p, arg)
         verified = "PASS" if ok else "FAIL"
-    return dict(tier=tier, path=str(p), exists=p.exists(), bytes=b, n_files=n, mtime_utc=m,
-                sha256=sha256(p) if p.is_file() else "dir", check=check or "",
+    return dict(kind=kind, tier=tier, path=str(p), exists=p.exists(), bytes=b, n_files=n,
+                mtime_utc=m, sha256=sha256(p) if p.is_file() else "dir", check=check or "",
                 check_arg=arg or "", verified=verified, verify_detail=detail,
-                superseded_by=superseded_by, evidence=evidence)
+                superseded_by=superseded_by, evidence=evidence,
+                produces=" ".join(produces), prereq=prereq,
+                blocked_by=" ".join(blocked_by))
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--quiet", action="store_true")
-    a = ap.parse_args()
-
-    ARCHIVE.mkdir(parents=True, exist_ok=True)
+def data_rows() -> list[dict]:
     rows = []
     for e in D.TIER1:
         rows.append(row(1, e["path"], e["check"], e.get("arg"), e["superseded_by"], e["evidence"]))
@@ -215,8 +463,49 @@ def main() -> int:
         rows.append(row(3, p, None, None, "-", why))
     for p, why in D.TIER4:
         rows.append(row(4, p, None, None, "-", why))
+    return rows
 
-    out = ARCHIVE / "MANIFEST.csv"
+
+def code_rows() -> list[dict]:
+    """The 2026-09-18 code tier. `kind` keeps it out of the data totals."""
+    rows = []
+    for e in D.CODE_TIER1 + D.CODE_TIER2:
+        rows.append(row(e["tier"], e["path"], e["check"], None, e["superseded_by"],
+                        e["evidence"], kind="code", produces=e["produces"], prereq=e["prereq"],
+                        blocked_by=e["blocked_by"]))
+    for p, why in D.KEEP_BESIDE_CODE:
+        rows.append(row("KEEP", p, "protected", None,
+                        f"protected: {D.HPG_BRANCH} is developing on it", why, kind="code"))
+    for p, why in D.CODE_TIER3:
+        rows.append(row(3, p, None, None, "-", why, kind="code"))
+    for p, why in D.CODE_TIER4:
+        rows.append(row(4, p, None, None, "-", why, kind="code"))
+    for e in D.ARTIFACT_TIER2:
+        rows.append(row(e["tier"], e["path"], e["check"], None, e["superseded_by"],
+                        e["evidence"], kind="artifact", produces=e["produces"],
+                        prereq=e["prereq"], blocked_by=e["blocked_by"]))
+    return rows
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--kind", choices=("data", "code", "all"), default="all",
+                    help="which half of the table to verify (default: all)")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="where to write MANIFEST.csv. Defaults to "
+                         "data/ARCHIVE_2026-09-15/MANIFEST.csv; point it elsewhere to verify "
+                         "without writing under data/.")
+    a = ap.parse_args()
+
+    rows = []
+    if a.kind in ("data", "all"):
+        rows += data_rows()
+    if a.kind in ("code", "all"):
+        rows += code_rows()
+
+    out = a.out if a.out is not None else ARCHIVE / "MANIFEST.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=FIELDS)
         w.writeheader()
@@ -224,16 +513,29 @@ def main() -> int:
 
     if not a.quiet:
         fails = [r for r in rows if r["verified"] == "FAIL"]
-        for t in (1, "1-KEEP", 2, 3, 4):
-            sel = [r for r in rows if r["tier"] == t]
-            gb = sum(r["bytes"] for r in sel) / 1e9
-            print(f"tier {str(t):<7} {len(sel):>3} entries  {gb:>8.2f} GB")
+        for kind in ("data", "code", "artifact"):
+            sel_kind = [r for r in rows if r["kind"] == kind]
+            if not sel_kind:
+                continue
+            print(f"--- {kind} ---")
+            for t in (1, "1-KEEP", "KEEP", 2, 3, 4):
+                sel = [r for r in sel_kind if r["tier"] == t]
+                if not sel:
+                    continue
+                gb = sum(r["bytes"] for r in sel) / 1e9
+                print(f"  tier {str(t):<7} {len(sel):>3} entries  {gb:>8.3f} GB")
         print()
         for r in rows:
-            if r["tier"] in (1, "1-KEEP"):
-                flag = {"PASS": "ok  ", "FAIL": "FAIL"}.get(r["verified"], "    ")
-                print(f"  [{flag}] {r['bytes']/1e9:8.3f} GB  {r['path'].replace(D.REPO + '/', '')}")
-                print(f"            {r['verify_detail']}")
+            if r["tier"] not in (1, "1-KEEP", "KEEP", 2):
+                continue
+            if r["kind"] == "data" and r["tier"] == 2:
+                continue          # data tier 2 is checked by carve.py, not here
+            flag = {"PASS": "ok  ", "FAIL": "FAIL"}.get(r["verified"], "    ")
+            print(f"  [{flag}] {r['kind']:<8} t{str(r['tier']):<6} "
+                  f"{r['path'].replace(D.REPO + '/', '')}")
+            print(f"            {r['verify_detail']}")
+            if r["prereq"]:
+                print(f"            PREREQ: {r['prereq']}")
         if fails:
             print(f"\n{len(fails)} CHECK(S) FAILED -- retire.py will refuse these.")
         print(f"\nwrote {out}")
