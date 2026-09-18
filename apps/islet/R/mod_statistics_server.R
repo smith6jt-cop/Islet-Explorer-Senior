@@ -2007,7 +2007,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
         )
       }
 
-      tags$div(style = "padding: 10px",
+        ieCore::ie_explain(
         tags$p(style = paste0("background: #eef6ee; border-left: 3px solid #2e7d32; ",
                               "padding: 8px 12px; border-radius: 4px;"),
           tags$strong("Design safeguards against p-hacking. "),
@@ -2153,7 +2153,8 @@ statistics_server <- function(id, raw_df, get_selection_description,
                                               collapse = ", "), " donors")
                   })),
           "Effect sizes (Cohen's d) provide magnitude information independent of sample size."
-        )
+        ),
+          label = "How these statistics are computed, and the safeguards"
       )
     })
 
