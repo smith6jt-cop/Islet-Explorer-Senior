@@ -55,6 +55,7 @@ import subprocess
 import sys
 from collections import Counter
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -66,14 +67,31 @@ sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED  # noqa: E402
 
+sys.path.insert(0, str(REPO))
+
+from scripts.senior import xenium_release  # noqa: E402
+
 # --------------------------------------------------------------------------
 # Inputs.  Every one is a call tree that already exists; nothing is re-typed.
 # --------------------------------------------------------------------------
 CELLS = REPO / "data" / "development" / "typing" / "cells"
 IMMUNE_FINE = REPO / "data" / "development" / "typing" / "immune"
-XEN_PANC = Path("/data/xenium_typing/panc_2026-09-17/release")
 PLN_PHENO = REPO / "data" / "development" / "typing" / "pln" / "pheno"
-XEN_PLN = REPO / "data" / "development" / "xenium_typing" / "release_pln_immune_v3"
+
+
+@lru_cache(maxsize=None)
+def xenium_source(tissue: str):
+    """The current Xenium release for a tissue -- resolved, never typed in here.
+
+    Both releases used to be pinned as literals in this file, one of them an
+    absolute path outside the repository.  Five builders each held their own pin
+    and only this one held the current pair.  ``scripts/senior/xenium_release.py``
+    now selects on the release's own declared ``release_id``, write time and
+    tissue -- never a directory mtime -- and the pins are gone from here.  It
+    returns a NAMED unavailable rather than None, so an absent release cannot
+    reach a count as a zero.
+    """
+    return xenium_release.resolve(tissue)
 
 CROSSWALK = REPO / "core" / "phenocycler" / "data" / "integration" / "vocab_crosswalk.csv"
 DONOR_META = REPO / "data" / "development" / "typing" / "app" / "donor_metadata.csv"
@@ -219,8 +237,12 @@ def load_status() -> pd.DataFrame:
             ["donor_id", "disease_status"]
         ].assign(source=str(DONOR_META), is_domain_roster=True)
     )
-    for path in (XEN_PANC / "per_donor_summary.csv", XEN_PLN / "controls.csv"):
-        if not path.exists():
+    for tissue, name in (("panc", "per_donor_summary.csv"), ("pln", "controls.csv")):
+        release = xenium_source(tissue)
+        if not release.available:
+            continue
+        path = release.sidecar(name)
+        if path is None:
             continue
         tab = pd.read_csv(path, dtype=str)
         if "disease_status" not in tab.columns:
@@ -277,8 +299,9 @@ def load_batch() -> pd.DataFrame:
         .assign(tissue="pancreas", modality="protein")
     )
     frames = [panc_protein]
-    summary = XEN_PANC / "per_donor_summary.csv"
-    if summary.exists():
+    panc = xenium_source("panc")
+    summary = panc.sidecar("per_donor_summary.csv") if panc.available else None
+    if summary is not None:
         tab = pd.read_csv(summary, dtype=str)
         if "batch" in tab.columns:
             frames.append(
@@ -515,16 +538,34 @@ def eta_with_null(values, groups, n_perm: int, seed: int = 0) -> dict:
 # --------------------------------------------------------------------------
 # Build.
 # --------------------------------------------------------------------------
+def _xenium_entry(tissue: str, grid_tissue: str, method: str) -> dict:
+    """One RNA grid cell, carrying the resolved release rather than a pinned path.
+
+    An unresolved release is carried as the resolver's own named absence: the
+    entry still exists, its donors are empty, and every presence row for it says
+    which roots were searched and why each candidate lost.  It never becomes a
+    path that silently globs to nothing.
+    """
+    release = xenium_source(tissue)
+    return {
+        "tissue": grid_tissue, "modality": "RNA", "release": release,
+        "root": release.root if release.available else None,
+        "source": (str(release.root) if release.available
+                   else f"no current Xenium {tissue} release: {release.reason}"),
+        "calls": "calls", "reader": read_xenium, "method": method,
+    }
+
+
 def sources_table() -> list[dict]:
     return [
-        {"tissue": "pancreas", "modality": "protein", "root": CELLS, "calls": "",
+        {"tissue": "pancreas", "modality": "protein", "root": CELLS, "source": str(CELLS),
+         "release": None, "calls": "",
          "reader": read_pheno_pancreas, "method": "subpanel classification"},
-        {"tissue": "pancreas", "modality": "RNA", "root": XEN_PANC, "calls": "calls",
-         "reader": read_xenium, "method": "within-donor cluster naming"},
-        {"tissue": "pln", "modality": "protein", "root": PLN_PHENO, "calls": "",
+        _xenium_entry("panc", "pancreas", "within-donor cluster naming"),
+        {"tissue": "pln", "modality": "protein", "root": PLN_PHENO, "source": str(PLN_PHENO),
+         "release": None, "calls": "",
          "reader": read_pheno_pln, "method": "cluster-named immune classes"},
-        {"tissue": "pln", "modality": "RNA", "root": XEN_PLN, "calls": "calls",
-         "reader": read_xenium, "method": "immune partition with a T/NK split"},
+        _xenium_entry("pln", "pln", "immune partition with a T/NK split"),
     ]
 
 
@@ -540,9 +581,14 @@ def build(n_perm: int, out: Path) -> dict:
     sources = sources_table()
     donors_by_source = {}
     for src in sources:
-        donors_by_source[(src["tissue"], src["modality"])] = partition_donors(
-            src["root"], src["calls"]
-        )
+        release = src["release"]
+        if release is None:
+            parts = partition_donors(src["root"], src["calls"])
+        elif release.available:
+            parts = release.donor_partitions()
+        else:
+            parts = {}
+        donors_by_source[(src["tissue"], src["modality"])] = parts
     universe = eligible(
         {d for parts in donors_by_source.values() for d in parts}
         | set(status["donor_id"])
@@ -563,15 +609,25 @@ def build(n_perm: int, out: Path) -> dict:
             files = parts.get(donor, [])
             key = dict(tissue=tissue, modality=modality, donor_id=donor)
             if not files:
-                state, reason = absence_reason(
-                    tissue, modality, donor,
-                    set(donors_by_source[("pancreas", "protein")]),
-                    pln_status, node_rows, status,
-                )
+                release = src["release"]
+                if release is not None and not release.available:
+                    # The absence is the RELEASE, not the donor. Saying "the lane
+                    # was not run on this donor" when no release resolved at all
+                    # would name the wrong absence.
+                    state, reason = STATE_UNAVAILABLE, (
+                        f"no current Xenium {release.tissue} release: {release.reason}. "
+                        f"Roots searched: {[str(r) for r in release.roots]}"
+                    )
+                else:
+                    state, reason = absence_reason(
+                        tissue, modality, donor,
+                        set(donors_by_source[("pancreas", "protein")]),
+                        pln_status, node_rows, status,
+                    )
                 presence_rows.append({
                     **key, "state": state, "reason": reason, "n_cells_assessed": pd.NA,
                     "n_no_nucleus_excluded": pd.NA, "n_nucleus_not_measured": pd.NA,
-                    "n_files": 0, "source": str(src["root"]), "method": src["method"],
+                    "n_files": 0, "source": src["source"], "method": src["method"],
                 })
                 continue
             broad, fine, no_nucleus, extras = src["reader"](files)
@@ -588,7 +644,7 @@ def build(n_perm: int, out: Path) -> dict:
             assessed = sum(broad.values())
             book = {"n_no_nucleus_excluded": no_nucleus,
                     "n_nucleus_not_measured": not_measured,
-                    "n_files": len(files), "source": str(src["root"]),
+                    "n_files": len(files), "source": src["source"],
                     "method": src["method"]}
             if assessed <= 0:
                 if not_measured > 0:
@@ -613,7 +669,7 @@ def build(n_perm: int, out: Path) -> dict:
                     "n_cells": int(n), "denom_assessed": assessed,
                     "frac_of_assessed": n / assessed,
                     "state": STATE_MEASURED, "reason": reason,
-                    "source": str(src["root"]),
+                    "source": src["source"],
                 })
             for _, cw in crosswalk.iterrows():
                 label = cw["common"]
@@ -624,13 +680,13 @@ def build(n_perm: int, out: Path) -> dict:
                     **key, "bucket_kind": BK_LINEAGE, "lineage_common": label,
                     "n_cells": pd.NA, "denom_assessed": assessed,
                     "frac_of_assessed": np.nan, "state": state, "reason": reason,
-                    "source": str(src["root"]),
+                    "source": src["source"],
                 })
             for (common, label, level), n in sorted(fine.items()):
                 fine_rows.append({
                     **key, "lineage_common": common, "lineage_fine": label,
                     "fine_level": level, "n_cells": int(n),
-                    "source": str(src["root"]),
+                    "source": src["source"],
                 })
 
     comp = pd.DataFrame(comp_rows)
@@ -705,11 +761,20 @@ def build(n_perm: int, out: Path) -> dict:
         "crosswalk_note": "generated by run_vocab in phenocycler/integration/vocab.py; read, never hand-edited",
         "cohort_exclusions": dict(DONOR_EXCLUSIONS),
         "cohort_reinstated": dict(REINSTATED),
+        "xenium_releases": {
+            tissue: xenium_source(tissue).describe()
+            for tissue in xenium_release.TISSUES
+        },
+        "xenium_release_rule": (
+            "resolved by scripts/senior/xenium_release.py from each release's own declared "
+            "release_id, write time and tissue, honouring a declared supersedes; never from a "
+            "directory mtime, which a touch reorders"
+        ),
         "n_donors_in_universe": int(len(universe)),
         "grid": [
             {
                 "tissue": s["tissue"], "modality": s["modality"],
-                "root": str(s["root"]), "method": s["method"],
+                "root": s["source"], "method": s["method"],
                 "n_donors_measured": int(
                     ((presence["tissue"] == s["tissue"])
                      & (presence["modality"] == s["modality"])

@@ -85,6 +85,7 @@ import argparse
 import json
 import sys
 import os
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -95,10 +96,24 @@ sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
+sys.path.insert(0, str(REPO))
+
+from scripts.senior import xenium_release  # noqa: E402
+
+
+@lru_cache(maxsize=None)
+def xenium_source(tissue: str):
+    """The current Xenium release for a tissue, resolved from its own declaration.
+
+    This file used to pin ``release_pln_immune_v2``.  v2's own successor records
+    ``supersedes: .../release_pln_immune_v2`` in its ``release.json``, so the pin
+    outlived the release it named; the resolver honours that declaration.
+    """
+    return xenium_release.resolve(tissue)
+
 CELLS = REPO / "data" / "development" / "typing" / "cells"
 MEMBERSHIP = REPO / "data" / "development" / "typing" / "islet_membership"
 PLN_PHENO = REPO / "data" / "development" / "typing" / "pln" / "pheno"
-PLN_XENIUM = REPO / "data" / "development" / "xenium_typing" / "release_pln_immune_v2"
 DONOR_META = REPO / "data" / "development" / "typing" / "app" / "donor_metadata.csv"
 ACQ_RUNS = REPO / "data" / "donor_acquisition_runs.csv"
 CROSSWALK = REPO / "core" / "phenocycler" / "data" / "integration" / "vocab_crosswalk.csv"
@@ -450,17 +465,32 @@ def pln_xenium() -> tuple[list[dict], dict]:
     Cell ids do not cross: a QuPath UUID and a 10x cell_id share no namespace,
     so nothing here joins on a cell.
     """
-    path = PLN_XENIUM / "per_donor_summary.csv"
-    if not path.exists():
-        return [], {"state": "unavailable", "reason": "no Xenium pLN release on disk"}
+    release = xenium_source("pln")
+    if not release.available:
+        return [], {"state": "unavailable", "reason": str(release),
+                    "roots_searched": [str(r) for r in release.roots],
+                    "candidates_rejected": list(release.rejected)}
+    path = release.sidecar("per_donor_summary.csv")
+    if path is None:
+        return [], {"state": "unavailable",
+                    "reason": f"{release.release_id} writes no per_donor_summary.csv at "
+                              f"{release.root}",
+                    "release": release.describe()}
     s = read_csv_retrying(path)
     s["donor_id"] = s["donor_id"].astype(str)
     rows = []
+    # Each lineage names ALTERNATIVE column groups, newest spelling first, and the
+    # first group whose columns are ALL present wins.  Two releases spell the same
+    # quantity differently -- the superseding one writes `T_NK_compartment` and
+    # `Myeloid`, its predecessor wrote `s2__Immune_T` + `s2__Immune_NK_ILC` and
+    # `s2__Myeloid` -- and reading a spelling that is not there would have printed
+    # every lineage as unavailable rather than as the number the release carries.
+    # Groups are all-or-nothing so a half-present group can never half-count.
     col_map = {
-        "T_NK": ["s2__Immune_T", "s2__Immune_NK_ILC"],
-        "B_Plasma": ["s2__Immune_B_Plasma"],
-        "Myeloid": ["s2__Myeloid"],
-        "Granulocyte": ["s2__Granulocyte"],
+        "T_NK": [["T_NK_compartment"], ["s2__Immune_T", "s2__Immune_NK_ILC"]],
+        "B_Plasma": [["Immune_B_Plasma"], ["s2__Immune_B_Plasma"]],
+        "Myeloid": [["Myeloid"], ["s2__Myeloid"]],
+        "Granulocyte": [["Granulocyte"], ["s2__Granulocyte"]],
     }
     for _, r in s.iterrows():
         # The denominator excludes cells with no nucleus, which are not cells we
@@ -476,9 +506,9 @@ def pln_xenium() -> tuple[list[dict], dict]:
             "fraction_of_immune": 1.0 if n_immune else float("nan"),
             "state": "measured", "reason": "",
         })
-        for lineage, cols in col_map.items():
-            have = [c for c in cols if c in s.columns]
-            if not have:
+        for lineage, groups in col_map.items():
+            have = next((g for g in groups if all(c in s.columns for c in g)), None)
+            if have is None:
                 rows.append({
                     "donor_id": r["donor_id"], "tissue": "pancreatic_lymph_node",
                     "modality": "xenium", "compartment": "pln",
@@ -487,7 +517,8 @@ def pln_xenium() -> tuple[list[dict], dict]:
                     "fraction_of_compartment": float("nan"),
                     "fraction_of_immune": float("nan"),
                     "state": "unavailable",
-                    "reason": f"{lineage} has no column in the Xenium pLN release",
+                    "reason": f"{lineage} has no column in {release.release_id}; that "
+                              f"release writes {sorted(s.columns)}",
                 })
                 continue
             k = int(sum(int(r[c] or 0) for c in have))
@@ -500,7 +531,9 @@ def pln_xenium() -> tuple[list[dict], dict]:
                 "fraction_of_immune": k / n_immune if n_immune else float("nan"),
                 "state": "measured", "reason": "",
             })
-    return rows, {"state": "measured", "n_donors": int(s["donor_id"].nunique())}
+    return rows, {"state": "measured", "n_donors": int(s["donor_id"].nunique()),
+                  "release": release.describe(),
+                  "per_donor_summary": str(path)}
 
 
 def read_csv_retrying(path: Path, attempts: int = 5) -> pd.DataFrame:

@@ -31,6 +31,7 @@ import pyarrow.parquet as pq
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
+from scripts.senior import xenium_release  # noqa: E402
 from scripts.senior.build_sections_layer import (
     add_common_arguments,
     filter_eligible_donors,
@@ -39,6 +40,9 @@ from scripts.senior.build_sections_layer import (
     section_inventories,
     write_layer,
 )
+
+#: Which capability each tissue of the Xenium releases answers for.
+XENIUM_CAPABILITY = {"panc": "xenium_panc", "pln": "xenium_pln"}
 
 STATES = ("measured", "blank", "unavailable", "withheld", "failed")
 CAPABILITIES = (
@@ -99,20 +103,52 @@ def typing_availability(root: Path) -> dict[str, dict]:
     ) for donor, n in counts.items()}
 
 
-def xenium_availability(root: Path) -> tuple[dict[tuple[str, str], dict], Counter]:
-    counts = defaultdict(Counter)
+def paired_if_counts(root: Path) -> Counter:
+    """Cells of a pancreas section carrying BOTH post-Xenium IF intensities.
+
+    This stays on the integration ingest, which is the only tree that carries the
+    ``feat__if_*`` columns at all: a Xenium typing release types transcripts and
+    has no IF intensity in it.  A cell is paired only where both intensities are
+    finite -- a missing intensity is unavailable, never zero and never negative.
+    """
     paired_if = Counter()
+    features = ("feat__if_INS", "feat__if_GCG")
     for path in parquet_files(root):
         schema = pq.ParquetFile(path).schema_arrow
-        columns = ("donor_id", "roi", "lineage_native")
-        features = ("feat__if_INS", "feat__if_GCG")
-        has_if = set(features).issubset(schema.names)
-        for batch in batches(path, columns + (features if has_if else ())):
+        if not set(features).issubset(schema.names):
+            continue
+        for batch in batches(path, ("donor_id", "roi") + features):
+            table = pa.Table.from_batches([batch])
+            table = table.append_column("row_count", pa.repeat(pa.scalar(1, pa.int64()), len(table)))
+            valid = pc.fill_null(pc.and_(pc.is_finite(table[features[0]]),
+                                         pc.is_finite(table[features[1]])), False)
+            paired = table.filter(valid).group_by(["donor_id", "roi"]).aggregate([
+                ("row_count", "sum")])
+            for row in paired.to_pylist():
+                donor = donor_id(row["donor_id"])
+                if row["roi"] == "panc" and filter_eligible_donors([donor]):
+                    paired_if[donor] += row["row_count_sum"]
+    return paired_if
+
+
+def xenium_ingest_availability(root: Path, capabilities: set[str]) -> dict[tuple[str, str], dict]:
+    """The UNTYPED ingest, read only for a capability no release answered.
+
+    A typed release supersedes the ingest -- the same contract
+    ``build_distance_profiles.py`` states for its ``--xenium-cells`` argument.
+    This is the fallback for a checkout that has no release tree at all, and the
+    reason on every row it writes says which source answered, so an ingest count
+    is never mistaken for a release count.
+    """
+    counts = defaultdict(Counter)
+    for path in parquet_files(root):
+        for batch in batches(path, ("donor_id", "roi", "lineage_native")):
             table = pa.Table.from_batches([batch])
             # Count physical rows, including null native identities, rather than
             # count(lineage_native), which would discard untyped nulls.
             table = table.append_column("row_count", pa.repeat(pa.scalar(1, pa.int64()), len(table)))
-            grouped = table.group_by(list(columns)).aggregate([("row_count", "sum")])
+            grouped = table.group_by(["donor_id", "roi", "lineage_native"]).aggregate(
+                [("row_count", "sum")])
             for row in grouped.to_pylist():
                 donor = donor_id(row["donor_id"])
                 if not filter_eligible_donors([donor]):
@@ -121,19 +157,12 @@ def xenium_availability(root: Path) -> tuple[dict[tuple[str, str], dict], Counte
                 if roi != "panc" and not (isinstance(roi, str) and roi.startswith("pln_")):
                     raise ValueError(f"{path}: unrecognised recorded ROI {roi!r}")
                 capability = "xenium_panc" if roi == "panc" else "xenium_pln"
+                if capability not in capabilities:
+                    continue
                 native = row["lineage_native"]
                 state = "blank" if native is None or native == "" else (
                     "unavailable" if native == "Unavailable" else "measured")
                 counts[donor, capability][state] += row["row_count_sum"]
-            if has_if:
-                valid = pc.fill_null(pc.and_(pc.is_finite(table[features[0]]),
-                                            pc.is_finite(table[features[1]])), False)
-                paired = table.filter(valid).group_by(["donor_id", "roi"]).aggregate([
-                    ("row_count", "sum")])
-                for row in paired.to_pylist():
-                    donor = donor_id(row["donor_id"])
-                    if row["roi"] == "panc" and filter_eligible_donors([donor]):
-                        paired_if[donor] += row["row_count_sum"]
     result = {}
     for (donor, capability), count in counts.items():
         reason = (f"lineage_native: measured={count['measured']}; "
@@ -144,7 +173,57 @@ def xenium_availability(root: Path) -> tuple[dict[tuple[str, str], dict], Counte
             donor, capability, state, root, reason=reason,
             n=count["measured"] if state == "measured" else None,
         )
-    return result, paired_if
+    return result
+
+
+def xenium_availability(releases: dict) -> dict[tuple[str, str], dict]:
+    """Xenium availability from the TYPED RELEASES, one per tissue.
+
+    This used to read ``core/phenocycler/data/integration/cells_xen`` -- the
+    UNTYPED ingest, whose ``lineage_native`` was filled for two donors by a
+    2026-09-07 tree.  Measured 2026-09-17, that made the layer report
+    ``xenium_panc`` blank on 18 of 20 donors and ``xenium_pln`` blank on 13 of 13
+    while a 21-donor pancreas release and a 20-donor pLN release carried calls for
+    every one of them.  The release is what was asked; the ingest is not an answer
+    to it.
+
+    THE TWO ABSENCES STAY APART.  A donor whose partition holds calls is
+    ``measured``.  A donor whose every cell had NO NUCLEUS MEASUREMENT is
+    ``unavailable`` -- the nucleus rule never applied to those cells, so they are
+    not a measured absence of nuclei and their count is not a zero.  A donor
+    looked at and left uncalled is ``blank``.  All three carry the tally that
+    produced them.
+    """
+    result: dict[tuple[str, str], dict] = {}
+    for tissue, capability in XENIUM_CAPABILITY.items():
+        release = releases.get(tissue)
+        if release is None or not release.available:
+            continue
+        for donor, tally in xenium_release.donor_tallies(release).items():
+            donor = donor_id(donor)
+            if not filter_eligible_donors([donor]):
+                continue
+            reason = f"{release.release_id}: {tally.reason()}"
+            if tally.n_called:
+                row = availability(donor, capability, "measured", release.root,
+                                   reason=reason, n=tally.n_called)
+            elif tally.n_nucleus_not_measured:
+                row = availability(
+                    donor, capability, "unavailable", release.root,
+                    reason=("no cell of this partition carries a nucleus measurement, so "
+                            "the nucleus rule could not be applied to any of them and no "
+                            "count from it may enter a calculation. This is a missing "
+                            f"measurement, not an absence of nuclei. {reason}"))
+            elif tally.n_label_unavailable:
+                row = availability(donor, capability, "unavailable", release.root,
+                                   reason=reason)
+            elif tally.n_rows:
+                row = availability(donor, capability, "blank", release.root, reason=reason)
+            else:
+                row = availability(donor, capability, "unavailable", release.root,
+                                   reason=f"{release.release_id}: partition holds no row")
+            result[donor, capability] = row
+    return result
 
 
 def outline_availability(root: Path) -> dict[str, dict]:
@@ -274,7 +353,8 @@ def default_phenocycler_data(repo: Path) -> Path:
 
 
 def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = None,
-                       phenocycler_data: Path | None = None) -> pa.Table:
+                       phenocycler_data: Path | None = None,
+                       xenium_roots: list[Path] | None = None) -> pa.Table:
     repo_root = Path(repo_root)
     inventory = inventory_dir or repo_root / "core/phenocycler/data/integration"
     core_data = phenocycler_data or default_phenocycler_data(repo_root)
@@ -283,7 +363,16 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
     cells = core_data / "integration/cells_xen"
     nodes = inventory / "pln_node_annotations.csv"
     summaries = typing / "trajectory/singlecell_islet_summary.parquet"
-    observed, paired_if = xenium_availability(cells)
+    # The typed releases answer the two Xenium capabilities; the ingest answers
+    # only the IF pairing, because it is the only tree that carries an IF column.
+    releases = {tissue: xenium_release.resolve(tissue, roots=xenium_roots, repo=repo_root)
+                for tissue in xenium_release.TISSUES}
+    paired_if = paired_if_counts(cells)
+    observed = xenium_availability(releases)
+    unanswered = {capability for tissue, capability in XENIUM_CAPABILITY.items()
+                  if not releases[tissue].available}
+    if unanswered:
+        observed.update(xenium_ingest_availability(cells, unanswered))
     observed.update(pln_availability(nodes))
     for capability, records in (
         ("phenocycler_panc", typing_availability(typing / "cells")),
@@ -297,11 +386,30 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
         {r["donor_id"] for r in restain + xenium} | {key[0] for key in observed}))
     if not donors:
         raise ValueError("No eligible donors discovered")
+    # A capability with no observed row still names WHICH source was asked and
+    # what it said. For the Xenium pair that is the resolved release when there is
+    # one, and the resolver's own named absence when there is not -- never a path
+    # that silently globbed to nothing.
+    xenium_missing = {}
+    for tissue, capability in XENIUM_CAPABILITY.items():
+        release = releases[tissue]
+        if release.available:
+            xenium_missing[capability] = (
+                release.root,
+                f"no partition for this donor in {release.release_id}")
+        else:
+            # No release resolved, so the ingest answered for the donors it has.
+            # This row is for a donor NEITHER of them has, and it names both.
+            xenium_missing[capability] = (
+                cells,
+                f"no_current_xenium_{tissue}_release ({release.reason}; roots searched: "
+                f"{[str(r) for r in release.roots]}), and the untyped ingest holds no "
+                "row for this donor and roi either")
     missing = {
         "phenocycler_panc": (typing / "cells", "no_typing_cells_exported"),
         "phenocycler_pln": (nodes, "no_pheno_pln_section_recorded"),
-        "xenium_panc": (cells, "no_xenium_cells_exported_for_roi"),
-        "xenium_pln": (cells, "no_xenium_cells_exported_for_roi"),
+        "xenium_panc": xenium_missing["xenium_panc"],
+        "xenium_pln": xenium_missing["xenium_pln"],
         "restain_if": (cells, "no_restain_pairing"),
         "islet_outline": (typing / "geometry", "no_islet_outline_exported"),
         "trajectory": (summaries, "no_islet_trajectory_exported"),
@@ -329,9 +437,14 @@ def main(argv: list[str] | None = None) -> int:
     add_common_arguments(parser)
     parser.add_argument("--phenocycler-data", type=Path,
                         help="Source data tree, separate from the tracked section inventories")
+    parser.add_argument("--xenium-root", type=Path, action="append", dest="xenium_roots",
+                        help=("Repeatable root to search for Xenium releases. Overrides "
+                              f"${xenium_release.ROOTS_ENV} and the defaults, which are the "
+                              "repo tree and the external one the pancreas release lives in."))
     args = parser.parse_args(argv)
     table = build_availability(args.repo_root, inventory_dir=args.inventory_dir,
-                               phenocycler_data=args.phenocycler_data)
+                               phenocycler_data=args.phenocycler_data,
+                               xenium_roots=args.xenium_roots)
     path = write_layer(table, args.layers_dir, "availability")
     print(json.dumps({"artifact": str(path), "rows": table.num_rows,
                       "donors": len(set(table["donor_id"].to_pylist())),

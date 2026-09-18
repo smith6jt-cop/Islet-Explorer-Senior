@@ -26,6 +26,7 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -36,17 +37,45 @@ sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
+sys.path.insert(0, str(REPO))
+
+from scripts.senior import xenium_release  # noqa: E402
+
 CROSSWALK = REPO / "core/phenocycler/data/integration/vocab_crosswalk.csv"
 ACQ_RUNS = REPO / "data/donor_acquisition_runs.csv"
 DONOR_META = REPO / "data/development/typing/app/donor_metadata.csv"
 
 PLN_PHENO = REPO / "data/development/typing/pln/pheno"
-PLN_XEN = REPO / "data/development/xenium_typing/release_pln_immune_v2"
 PANC_PHENO = REPO / "data/development/typing/cells"
-PANC_XEN_CANDIDATES = [
-    REPO / "data/development/xenium_typing/release_panc_v1",   # fill-panc-rna track
-    REPO / "data/development/xenium_typing/release",           # what exists today
-]
+
+
+@lru_cache(maxsize=None)
+def xenium_source(tissue: str):
+    """The current Xenium release for a tissue, from its own declared metadata.
+
+    THIS FILE HELD THREE PINS, and the pancreas one was the damaging kind: it
+    named ``release_panc_v1`` first and ``release`` as the fallback.
+    ``release_panc_v1`` holds only ``_work/6539.*`` -- no ``calls/`` and no
+    ``release.json`` -- so the pancreas comparison fell silently through to the
+    two-donor 2026-09-07 tree and every lineage read INSUFFICIENT DONORS FOR A
+    VERDICT while a 21-donor release sat on disk.  A fallback chain of literals
+    cannot tell "the newer one is not here yet" from "the newer one is not a
+    release"; the resolver says which, by name.
+    """
+    return xenium_release.resolve(tissue)
+
+
+def display_path(path: Path) -> str:
+    """Repo-relative where that is meaningful, absolute where it is not.
+
+    The pancreas release is written OUTSIDE the repository, so ``relative_to(REPO)``
+    raises on it.  A provenance field that crashes on the current release is worse
+    than one that prints an absolute path.
+    """
+    try:
+        return str(Path(path).relative_to(REPO))
+    except ValueError:
+        return str(path)
 
 OUT = REPO / "data/development/integration/concordance"
 
@@ -223,21 +252,45 @@ def pln_protein_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, dict]:
     return pd.DataFrame(rows), states
 
 
+def release_columns(release, *roles: str) -> list[str]:
+    """The columns that fill these roles in THIS release, skipping the absent ones.
+
+    A release that does not carry an optional column is not a release with a zero
+    in it, so the column is simply not read and the quantity it fed is reported as
+    unavailable further down.
+    """
+    out = []
+    for role in roles:
+        name = release.column(role)
+        if name is not None and name not in out:
+            out.append(name)
+    return out
+
+
 def pln_rna_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, dict]:
+    release = xenium_source("pln")
+    if not release.available:
+        # Named absence, not an empty comparison that reads as agreement.
+        log(f"  RNA pLN: {release}")
+        return pd.DataFrame(), {}
+    lineage_col = release.require_column("common_lineage")
+    wanted = release_columns(release, "cell_key", "common_lineage", "label",
+                             "nucleus_count", "nucleus_measured", "depth")
+    if "y_probe_detected" in release.calls_schema().names:
+        wanted.append("y_probe_detected")
     rows, states = [], {}
-    for dd in sorted((PLN_XEN / "calls").glob("donor_id=*")):
-        d = dd.name.split("=", 1)[1]
+    for d, files in sorted(release.donor_partitions().items(),
+                           key=lambda kv: (len(kv[0]), kv[0])):
         if d in donors_excluded:
             states[d] = "donor centrally excluded"
             continue
-        p = dd / "roi=pln_1" / "data.parquet"
-        if not p.exists():
-            states[d] = "no roi=pln_1 partition"
+        if not files:
+            states[d] = f"no partition under {release.release_id}"
             continue
-        df = read_parquet_retry(
-            p, columns=["cell_id", "common_lineage", "lineage", "nucleus_count",
-                        "nucleus_measured", "depth", "y_probe_detected"]
-        )
+        df = pd.concat([read_parquet_retry(f, columns=wanted) for f in files],
+                       ignore_index=True)
+        if lineage_col != "common_lineage":
+            df = df.rename(columns={lineage_col: "common_lineage"})
         n_raw = len(df)
         # A cell with a MEASURED absent nucleus is excluded from every calculation.
         # A cell whose nucleus was never measured is a missing measurement -- not a
@@ -246,23 +299,33 @@ def pln_rna_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, dict]:
         # cell); dropping those would discard whole sections on the strength of an
         # absent measurement.  Those cells are kept and the section is flagged, and
         # the flag is carried into every downstream table.
-        measured = df["nucleus_measured"].fillna(False)
-        no_nuc = int((measured & (df["nucleus_count"] <= 0)).sum())
-        unmeasured = int((~measured).sum())
-        df = df[~(measured & (df["nucleus_count"] <= 0))]
+        if {"nucleus_measured", "nucleus_count"} <= set(df.columns):
+            measured = df["nucleus_measured"].fillna(False)
+            no_nuc = int((measured & (df["nucleus_count"] <= 0)).sum())
+            unmeasured = int((~measured).sum())
+            df = df[~(measured & (df["nucleus_count"] <= 0))]
+        else:
+            # The nucleus rule is UNMEASURABLE here; recorded as such, never as passed.
+            measured = pd.Series(np.nan, index=df.index, dtype=float)
+            no_nuc = unmeasured = 0
         vc = df["common_lineage"].replace("", np.nan).value_counts(dropna=True)
         rec = {
             "donor_id": d, "n_cells": n_raw, "n_retained": len(df),
             "n_no_nucleus_excluded": no_nuc, "n_nucleus_unmeasured": unmeasured,
             "nucleus_measured_frac": float(measured.mean()) if n_raw else np.nan,
-            "median_depth": float(df["depth"].median()) if len(df) else np.nan,
-            "y_probe_rate": float(df["y_probe_detected"].mean()) if len(df) else np.nan,
+            "median_depth": (float(df["depth"].median())
+                             if len(df) and "depth" in df.columns else np.nan),
+            "y_probe_rate": (float(df["y_probe_detected"].mean())
+                             if len(df) and "y_probe_detected" in df.columns else np.nan),
         }
         for k, v in vc.items():
             rec[f"n_{k}"] = int(v)
         rows.append(rec)
         states[d] = "called"
-        log(f"  RNA pLN {d}: {n_raw:,} cells, {len(df):,} retained, nucleus measured on {100*float(measured.mean()):.0f}%")
+        frac = float(measured.mean()) if n_raw else float("nan")
+        log(f"  RNA pLN {d}: {n_raw:,} cells, {len(df):,} retained, "
+            + (f"nucleus measured on {100*frac:.0f}%" if frac == frac
+               else "nucleus rule UNMEASURABLE in this release"))
     return pd.DataFrame(rows), states
 
 
@@ -293,34 +356,46 @@ def panc_protein_counts(donors: set[str], donors_excluded: set[str]) -> pd.DataF
 
 
 def panc_rna_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, Path | None, list[str]]:
-    notes = []
-    root = None
-    for cand in PANC_XEN_CANDIDATES:
-        if (cand / "calls").exists():
-            root = cand
-            break
-    if root is None:
-        return pd.DataFrame(), None, ["no pancreas Xenium calls tree present at all"]
-    if root != PANC_XEN_CANDIDATES[0]:
-        notes.append(
-            f"release_panc_v1 (the fill-panc-rna track) was not present when this ran; "
-            f"measured instead on {root.relative_to(REPO)}"
-        )
-    rel = json.loads((root / "release.json").read_text())
-    notes.append(f"pancreas RNA release_id = {rel.get('release_id')}, lane = {rel.get('producer', {}).get('lane')}")
+    release = xenium_source("panc")
+    if not release.available:
+        return pd.DataFrame(), None, [
+            str(release),
+            f"roots searched: {[str(r) for r in release.roots]}",
+            f"candidates rejected: {list(release.rejected)}",
+        ]
+    notes = [
+        f"pancreas RNA release_id = {release.release_id}, lane = {release.lane}, "
+        f"declared {release.generated_at_field} = {release.generated_at.isoformat()}, "
+        f"root = {display_path(release.root)}",
+        "resolved by scripts/senior/xenium_release.py from the release's own declaration; "
+        "never from a directory mtime, and a tree with no calls/ is rejected by name rather "
+        "than silently losing the comparison to an older one",
+    ]
+    lineage_col = release.require_column("common_lineage")
+    wanted = release_columns(release, "common_lineage", "nucleus_count", "nucleus_measured")
     rows = []
-    for dd in sorted((root / "calls").glob("donor_id=*")):
-        d = dd.name.split("=", 1)[1]
+    for d, files in sorted(release.donor_partitions().items(),
+                           key=lambda kv: (len(kv[0]), kv[0])):
         if d in donors_excluded:
             continue
-        parts = list(dd.glob("roi=*/data.parquet"))
-        if not parts:
+        if not files:
             continue
-        df = pd.concat([read_parquet_retry(p) for p in parts], ignore_index=True)
+        df = pd.concat([read_parquet_retry(f, columns=wanted) for f in files],
+                       ignore_index=True)
+        if lineage_col != "common_lineage":
+            df = df.rename(columns={lineage_col: "common_lineage"})
         cols = set(df.columns)
         if "nucleus_count" in cols and "nucleus_measured" in cols:
-            df = df[df["nucleus_measured"] & (df["nucleus_count"] > 0)]
-            nuc = "nucleus filter applied"
+            measured = df["nucleus_measured"].fillna(False)
+            n_unmeasured = int((~measured).sum())
+            # Two different absences. A MEASURED absent nucleus excludes the cell.
+            # A never-measured nucleus is a missing measurement: the rule never
+            # applied to that cell, so dropping it would discard whole donors on
+            # the strength of a measurement nobody made. Measured 2026-09-17 in
+            # this release: every cell of 6347, 6579 and 6580.
+            df = df[~(measured & (df["nucleus_count"] <= 0))]
+            nuc = (f"nucleus filter applied; {n_unmeasured} cells had no nucleus "
+                   "measurement at all and are retained and flagged")
         else:
             nuc = "NO nucleus column in this release; nucleated-only filter could NOT be applied"
         vc = df["common_lineage"].replace("", np.nan).value_counts(dropna=True)
@@ -329,7 +404,7 @@ def panc_rna_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, Path | Non
             rec[f"n_{k}"] = int(v)
         rows.append(rec)
         log(f"  RNA panc {d}: {len(df):,} cells ({nuc})")
-    return pd.DataFrame(rows), root, notes
+    return pd.DataFrame(rows), release.root, notes
 
 
 # ---------------------------------------------------------------------------
@@ -585,8 +660,10 @@ def main() -> int:
             "comparable_lineages": pln_lin,
             "excluded_lineages": pln_dropped,
             "asymmetries": asymmetry_notes(cw, pln_lin),
-            "protein_source": str(PLN_PHENO.relative_to(REPO)),
-            "rna_source": str(PLN_XEN.relative_to(REPO)),
+            "protein_source": display_path(PLN_PHENO),
+            "rna_source": display_path(xenium_source("pln").root)
+                          if xenium_source("pln").available else None,
+            "rna_release": xenium_source("pln").describe(),
             "protein_donor_state": pln_p_state,
             "rna_donor_state": pln_r_state,
             "donors_compared": sorted(set(pln_long.donor_id)) if not pln_long.empty else [],
@@ -595,8 +672,9 @@ def main() -> int:
             "comparable_lineages": panc_lin_eff,
             "excluded_lineages": {**panc_dropped, **panc_unavail},
             "asymmetries": asymmetry_notes(cw, panc_lin_eff),
-            "protein_source": str(PANC_PHENO.relative_to(REPO)),
-            "rna_source": str(panc_root.relative_to(REPO)) if panc_root else None,
+            "protein_source": display_path(PANC_PHENO),
+            "rna_source": display_path(panc_root) if panc_root else None,
+            "rna_release": xenium_source("panc").describe(),
             "rna_notes": panc_notes,
             "donors_compared": sorted(set(panc_long.donor_id)) if not panc_long.empty else [],
         },

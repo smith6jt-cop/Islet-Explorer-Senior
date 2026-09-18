@@ -17,6 +17,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from scripts.senior import xenium_release
+
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO))
 
@@ -27,8 +29,34 @@ from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 AVAILABILITY_COLUMNS = ["donor_id", "capability", "state", "reason", "n", "source"]
 SECTION_COLUMNS = ["donor_id", "roi", "modality", "image_file", "xenium_serial",
-                   "pixel_size_um", "frame"]
+                   "pixel_size_um", "frame",
+                   # Derived from the per-image annotation census; see
+                   # test_section_relationship.py for what each value has to be evidenced by.
+                   "section_relationship", "section_relationship_basis"]
 
+
+
+def _release_called_cells(donor: str) -> int | None:
+    """Cells the current pancreas Xenium release carries a LINEAGE for, from its own summary.
+
+    Read from `lineage_counts.csv` rather than from `calls/`, so that this expectation and the
+    builder do not both come from the same file. Returns None when no release is resolvable, so
+    the caller skips rather than asserting against an absence.
+    """
+    release = xenium_release.resolve("pancreas")
+    if not getattr(release, "is_measured", lambda: bool(getattr(release, "root", None)))():
+        return None
+    counts = Path(release.root) / "lineage_counts.csv"
+    if not counts.exists():
+        return None
+    with counts.open() as handle:
+        for row in csv.DictReader(handle):
+            if str(row.get("donor_id")) != str(donor):
+                continue
+            return sum(int(float(v)) for k, v in row.items()
+                       if k != "donor_id" and v not in (None, "")
+                       and not k.startswith(("Uncalled_", "Unavailable_")))
+    return None
 
 def write_csv(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -234,14 +262,30 @@ def test_both_builders_run_against_real_trees(tmp_path):
                        cwd=tmp_path, env=environment, check=True, capture_output=True, text=True)
     table = pq.ParquetFile(layers / "availability/data.parquet").read()
     assert_ledger_contract(table)
-    assert set(table["state"].to_pylist()) == set(ledger.STATES)
+    # SUBSET, not equality. Every state the builder emits must be in the vocabulary, but the
+    # vocabulary does not have to be exercised on the real trees. `blank` was only ever produced
+    # by reading the UNTYPED cells_xen ingest, whose lineage column is empty on every row. Now
+    # that the Xenium arms resolve through xenium_release, a donor the release carries a call for
+    # is `measured`, and requiring `blank` to appear here would assert that the defect is still
+    # present. `blank` stays in ledger.STATES because a never-typed section is a real state and
+    # the app renders it -- test_five_states_and_null_counts_survive_parquet still pins all five
+    # against a fixture that constructs them.
+    assert set(table["state"].to_pylist()) <= set(ledger.STATES)
+    assert table.num_rows > 0, "the builder emitted no rows at all"
     row_map = {(r["donor_id"], r["capability"]): r for r in table.to_pylist()}
     for donor in ("6436", "6442"):
         assert row_map[donor, "restain_if"]["state"] == "withheld"
-        parquet = core_data / f"integration/cells_xen/donor_id={donor}/roi=panc/data_0.parquet"
-        native = pq.ParquetFile(parquet).read(columns=["lineage_native"])["lineage_native"].to_pylist()
-        assert row_map[donor, "xenium_panc"]["n"] == sum(
-            value is not None and value not in ("", "Unavailable") for value in native)
+        # The xenium_panc count is pinned to the RELEASE, not to cells_xen. The untyped ingest
+        # carries no call on any row, so counting its non-empty lineage_native counted cells that
+        # were never typed -- which is what the builder used to report as `blank`. The expectation
+        # here is read from the release's own published per-donor summary, a different file from
+        # the calls/ tree the builder reads, so the check is not circular. A call is a lineage that
+        # is neither Uncalled_* (no naming evidence, no enrichment, below cluster QC) nor
+        # Unavailable_no_nucleus, which is the nucleus rule this repo applies everywhere.
+        expected = _release_called_cells(donor)
+        if expected is None:
+            pytest.skip(f"no current pancreas Xenium release to pin {donor} against")
+        assert row_map[donor, "xenium_panc"]["n"] == expected
     assert row_map["115", "restain_if"]["state"] == "failed"
     assert row_map["6380", "pln_nodes"]["n"] == 1  # Its Tissue annotation is the one node.
     output = pq.ParquetFile(layers / "sections/data.parquet").read()
