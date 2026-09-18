@@ -3,7 +3,7 @@
 
 WHY A REDUCED TABLE AND NOT A FULL INGEST INTO THE SOURCE WORKFLOW
 ------------------------------------------------------------------
-`/data/IO60pLN/results/IO60pLN_cells.tsv` is a QuPath measurement export with exactly the
+The pLN export (`data/pLN/IO60pLN_cells.tsv`) is a QuPath measurement export with exactly the
 same shape as a pancreas export -- 4 compartments x 4 statistics per marker -- so
 `phenocycler.cells_parquet` would parse it happily.  It must not be pointed at it:
 
@@ -54,13 +54,38 @@ particular slides.  A donor is written only when both admit it; one that either 
 counted in the census and refused at write, so the refusal is a measured number rather than an
 absence.
 
-As of 2026-09-17 they disagree about 6579: the working tree reinstated it in `cohort.py`
-while the tracked pLN manifest still records `excluded=True`.  This script withholds it and
-says so on stdout and in the report.  Resolving that belongs in whichever file should carry
-the decision, not in a builder that happens to read both.
+They disagreed about 6579 on 2026-09-17 -- `cohort.py` reinstated it at 14:16, the tracked pLN
+manifest still said `excluded=True`, and the 13:31 run withheld it. The manifest was corrected
+the same day, so both now admit 6579 and a re-run writes its 1,231,818 cells. The rule that
+produced the withholding is unchanged and deliberately so; what changed is that the withholding
+is now printed as a named donor in a ledger rather than being visible only as a partition that
+is not there.
+
+A DONOR THE AUTHORITIES ADMIT AND THE EXPORT DOES NOT CONTAIN IS ALSO NAMED. The per-image
+census can only report images the scan saw, so a donor whose `Image` value never appears makes
+no row anywhere -- indistinguishable, in a per-image listing, from a donor nobody asked about.
+The ledger is built from the manifest's donor list instead, and prints one line per donor:
+ingested with its counts, refused with which authority withheld it, or absent with the fact
+that it was admitted and still produced nothing.
+
+WHAT "NO INTENSITY MEASUREMENT" MEANS, AND WHY IT IS RE-MEASURED EVERY RUN
+-------------------------------------------------------------------------
+Four images -- 6551, 6566, 6593, 6623 -- carried no measurement of any kind when this was last
+measured (2026-09-17 13:31, against the 43.76 GB export of 2026-09-16 13:29: `n_no_measurements`
+equal to `n_rows` on all four, 2,786,845 cells). That verdict is about COLUMNS, and repeating it
+would be inheriting it. So each run counts, per image, how many of the kept measurement columns
+have no finite value anywhere, names them, and reports `columns_state` beside the row-level
+`measurements_state`. When the two disagree the run says so and neither may be quoted. Nothing
+is imputed for an empty column: a missing measurement is unavailable, not zero.
+
+THERE ARE TWO COPIES OF THE EXPORT on this machine, `data/pLN/IO60pLN_cells.tsv` and
+`/data/IO60pLN/results/IO60pLN_cells.tsv` -- different inodes, identical size and mtime. The run
+picks the newest, prints every candidate, and records the choice in the report, because "which
+file did that number come from" is otherwise unanswerable.
 
     core/phenocycler/scripts/pln/ingest_pln_cells.py            # full ingest
     core/phenocycler/scripts/pln/ingest_pln_cells.py --census-only
+    core/phenocycler/scripts/pln/ingest_pln_cells.py --source data/pLN/IO60pLN_cells.tsv
     core/phenocycler/scripts/pln/ingest_pln_cells.py --limit 200000 --out /tmp/probe
 """
 from __future__ import annotations
@@ -81,7 +106,16 @@ from phenocycler.cells_parquet import sanitize  # noqa: E402
 from phenocycler.cohort import DONOR_EXCLUSIONS, filter_eligible_donors  # noqa: E402
 from phenocycler.marker_registry import load_registry  # noqa: E402
 
-SOURCE = pathlib.Path("/data/IO60pLN/results/IO60pLN_cells.tsv")
+#: Where the pLN export may be, newest first at equal standing. Two copies of the 43.76 GB
+#: re-export exist on this machine -- `data/pLN/IO60pLN_cells.tsv` and
+#: `/data/IO60pLN/results/IO60pLN_cells.tsv`, different inodes, identical size and mtime
+#: (2026-09-16 13:29). Which one a run read is not recoverable from the report unless the run
+#: says so, so `resolve_source()` picks the newest, prints every candidate it saw with its size
+#: and mtime, and records the choice. `--source` overrides it.
+SOURCE_CANDIDATES = (
+    REPO / "data/pLN/IO60pLN_cells.tsv",
+    pathlib.Path("/data/IO60pLN/results/IO60pLN_cells.tsv"),
+)
 NODES = REPO / "core/phenocycler/data/integration/pln_node_annotations.csv"
 OUT_ROOT = REPO / "core/phenocycler/data/integration/cells_pln"
 REPORT = REPO / "core/phenocycler/data/integration/cells_pln_ingest_report.json"
@@ -113,6 +147,29 @@ SHAPE = {
     "Nucleus/Cell area ratio": "nucleus_cell_area_ratio",
 }
 NUMERIC_CONTEXT = ("X_centroid", "Y_centroid")
+
+
+def resolve_source(override: str | None = None) -> tuple[pathlib.Path, list[dict]]:
+    """(the export this run reads, every candidate that exists).
+
+    The newest candidate wins; ties keep SOURCE_CANDIDATES order. Nothing is inferred from a
+    path looking canonical -- the choice and the alternatives are both printed and both recorded,
+    because a second copy of a 43.76 GB file is exactly the kind of thing that makes two runs
+    disagree with no way to tell which read what.
+    """
+    seen = []
+    for candidate in ((pathlib.Path(override),) if override else SOURCE_CANDIDATES):
+        if candidate.exists():
+            stat = candidate.stat()
+            seen.append({"path": str(candidate), "size_bytes": stat.st_size,
+                         "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                    time.gmtime(stat.st_mtime)),
+                         "mtime": stat.st_mtime})
+    if not seen:
+        tried = ", ".join(str(c) for c in ((override,) if override else SOURCE_CANDIDATES))
+        raise SystemExit(f"[err] pLN export not found; tried {tried}")
+    chosen = max(seen, key=lambda entry: entry["mtime"])
+    return pathlib.Path(chosen["path"]), seen
 
 
 def read_header(path: pathlib.Path) -> list[str]:
@@ -234,9 +291,14 @@ def reason_sql(thr: dict[str, float], *, estimation: bool) -> str:
 def build(args) -> int:
     import duckdb
 
-    if not SOURCE.exists():
-        raise SystemExit(f"[err] pLN export not found: {SOURCE}")
-    header = read_header(SOURCE)
+    source, candidates = resolve_source(args.source)
+    for entry in candidates:
+        mark = "->" if entry["path"] == str(source) else "  "
+        print(f"[info] {mark} candidate {entry['path']}  "
+              f"{entry['size_bytes'] / 1e9:.2f} GB  {entry['mtime_utc']}")
+    if len(candidates) > 1:
+        print(f"[warn] {len(candidates)} copies of the pLN export exist; reading the newest")
+    header = read_header(source)
     missing = [c for c in list(CONTEXT) + list(SHAPE) if c not in header]
     if missing:
         raise SystemExit(f"[err] pLN export is missing required columns: {missing}")
@@ -302,7 +364,7 @@ def build(args) -> int:
                 for orig, name in nucleus_mm.items()]
 
     read = (
-        f"read_csv({sql_string(str(SOURCE))}, header=true, delim='\\t', all_varchar=true, "
+        f"read_csv({sql_string(str(source))}, header=true, delim='\\t', all_varchar=true, "
         "ignore_errors=true, store_rejects=true, rejects_table='pln_rejects', "
         "rejects_scan='pln_reject_scans', rejects_limit=10000)"
     )
@@ -316,7 +378,7 @@ def build(args) -> int:
     con.execute(f"PRAGMA temp_directory={sql_string(args.temp_dir)}")
 
     started = time.time()
-    print(f"[info] scanning {SOURCE} ({SOURCE.stat().st_size / 1e9:.2f} GB, {len(header)} columns)")
+    print(f"[info] scanning {source} ({source.stat().st_size / 1e9:.2f} GB, {len(header)} columns)")
     print(f"[info] keeping {len(selects)} columns: {len(cell_mm)} Cell means + "
           f"{len(nucleus_mm)} Nucleus means + {len(CONTEXT) + len(SHAPE)} context/geometry")
     con.execute(f"CREATE TABLE pln_cells AS {inner}")
@@ -344,6 +406,31 @@ def build(args) -> int:
     unmapped = [row for row in census if row[0] not in mapping]
     print(f"[info] {len(census)} distinct Image values; {len(unmapped)} unmapped")
 
+    # WHICH COLUMNS THIS EXPORT ACTUALLY FILLED, PER IMAGE, MEASURED HERE.
+    #
+    # The row-level rule above answers "does this row carry any measurement". It cannot answer
+    # "did this re-export fix the donors that carried none", because a verdict like
+    # `no intensity measurement` is a statement about columns, and repeating an earlier run's
+    # statement is inheriting it rather than measuring it. So every kept measurement column is
+    # counted per image, and a column with no finite value anywhere on that image is named.
+    # Nothing is imputed for an empty column: absent is unavailable, not zero.
+    measurement_columns = (
+        list(SHAPE.values()) + list(cell_mm.values())
+        + [f"Nucleus__{name}" for name in nucleus_mm.values()]
+    )
+    finite_sql = ", ".join(
+        f'count(*) FILTER (WHERE isfinite("{column}")) AS "n_{index}"'
+        for index, column in enumerate(measurement_columns)
+    )
+    finite_rows = con.execute(
+        f"SELECT image, {finite_sql} FROM pln_cells GROUP BY image ORDER BY image"
+    ).fetchall()
+    all_null: dict[str, list[str]] = {}
+    for row in finite_rows:
+        all_null[row[0]] = [
+            column for column, count in zip(measurement_columns, row[1:], strict=True)
+            if not count]
+
     # Eligibility.  Same rules, same order, same reason names as
     # scripts/typing/rebuild_donor_from_revised_export.eligibility(), minus the raster and
     # duplicate rules that need artifacts pLN does not have in this checkout.
@@ -355,7 +442,9 @@ def build(args) -> int:
     analysis_reason = reason_sql(thr, estimation=False)
     estimation_reason = reason_sql(thr, estimation=True)
 
-    allowed = ", ".join(sql_string(image) for image in eligible_images)
+    # `IN ()` is a syntax error, and an empty eligible set is a real state (every donor
+    # withheld). It becomes a predicate that selects nothing, so the run still reports.
+    allowed = ", ".join(sql_string(image) for image in eligible_images) or "NULL"
     write_sql = (
         "SELECT "
         f"{image_case(mapping, column='c.image')} AS donor_id, "
@@ -380,9 +469,15 @@ def build(args) -> int:
         )
         print(f"[info] wrote {out_root}")
 
-    written = con.execute(
-        f"SELECT count(*), count(*) FILTER (WHERE qc_analysis_eligible) FROM ({write_sql})"
-    ).fetchone()
+    # One pass for both the totals and the per-donor counts: write_sql re-derives the whole
+    # eligibility ladder, so it is evaluated once rather than once per question.
+    per_donor_written = con.execute(
+        "SELECT donor_id, count(*), count(*) FILTER (WHERE qc_analysis_eligible) "
+        f"FROM ({write_sql}) GROUP BY donor_id"
+    ).fetchall()
+    rows_by_donor = {row[0]: int(row[1]) for row in per_donor_written}
+    written = (sum(int(row[1]) for row in per_donor_written),
+               sum(int(row[2]) for row in per_donor_written))
 
     report_per_image = [
         {
@@ -396,6 +491,19 @@ def build(args) -> int:
                 else "measured" if row[3] == 0
                 else "partial"
             ),
+            # Measured on this export, column by column. `columns_state` and
+            # `measurements_state` answer different questions and are reported separately:
+            # one is "every row is empty", the other is "this column is empty on every row".
+            "n_measurement_columns": len(measurement_columns),
+            "n_all_null_measurement_columns": len(all_null.get(row[0], [])),
+            "all_null_measurement_columns": all_null.get(row[0], []),
+            "columns_state": (
+                "unavailable(every_measurement_column_all_null)"
+                if len(all_null.get(row[0], [])) == len(measurement_columns)
+                else "measured" if not all_null.get(row[0])
+                else f"partial({len(all_null.get(row[0], []))}"
+                     f"_of_{len(measurement_columns)}_columns_all_null)"
+            ),
             "median_cell_area_um2": None if row[4] is None else round(float(row[4]), 4),
             "n_cells_recorded_in_manifest": (
                 int(manifest_rows[row[0].removesuffix(RESOLUTION_SUFFIX)]["n_cells"])
@@ -406,12 +514,59 @@ def build(args) -> int:
         for row in census
     ]
 
+    # The row rule and the column census must agree about a donor that carries nothing. When
+    # they do not, the export changed under one of them and neither verdict may be repeated.
+    for entry in report_per_image:
+        row_empty = entry["measurements_state"].startswith("unavailable")
+        column_empty = entry["columns_state"].startswith("unavailable")
+        if row_empty != column_empty:
+            print(f"[warn] {entry['donor_id']}: rows say "
+                  f"{entry['measurements_state']} and columns say {entry['columns_state']}; "
+                  "re-measure before either is quoted")
+
+    # ONE LINE PER DONOR THE MANIFEST NAMES, INGESTED OR NOT. A donor that never reaches the
+    # export produces no census row at all, so a per-image loop cannot say it is missing -- and
+    # that silence is how 6579 went unnoticed for a day. The ledger is built from the manifest's
+    # donors, not from what happened to be scanned.
+    by_donor_image = {}
+    for entry in report_per_image:
+        by_donor_image.setdefault(entry["donor_id"], []).append(entry)
+    ledger = []
+    for donor in all_donors:
+        images = by_donor_image.get(donor, [])
+        if donor not in by_cohort:
+            outcome, why = "refused", DONOR_EXCLUSIONS.get(
+                donor, "withheld by phenocycler.cohort")
+        elif donor not in by_manifest:
+            outcome, why = "refused", f"withheld by {NODES.name} (excluded=True)"
+        elif not images:
+            outcome, why = "absent", (
+                "admitted by both authorities and carries no row in this export; its Image "
+                f"value is not one of the {len(census)} the scan saw")
+        elif not rows_by_donor.get(donor):
+            outcome, why = "absent", "admitted, matched an image, and wrote no row"
+        else:
+            outcome = "ingested"
+            why = "; ".join(f"{e['image']}: {e['columns_state']}" for e in images)
+        ledger.append({
+            "donor_id": donor,
+            "outcome": outcome,
+            "reason": why,
+            "n_rows_in_export": sum(e["n_rows_in_export"] for e in images) or None,
+            "n_rows_written": int(rows_by_donor.get(donor, 0)) or None,
+            "n_cells_recorded_in_manifest": sum(
+                e["n_cells_recorded_in_manifest"] or 0 for e in images) or None,
+        })
+
     report = {
         "probe_only_limit": args.limit,
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "source": {
-            "path": str(SOURCE),
-            "size_bytes": SOURCE.stat().st_size,
+            "path": str(source),
+            "size_bytes": source.stat().st_size,
+            "candidates_seen": [
+                {k: v for k, v in entry.items() if k != "mtime"} for entry in candidates
+            ],
             "columns": len(header),
             "rows": int(n_rows),
             "csv_rejected_rows": int(rejects),
@@ -496,6 +651,26 @@ def build(args) -> int:
             "median_cell_area_is_per_image": True,
         },
         "per_image": report_per_image,
+        "per_donor": ledger,
+        "columns_measured_on_this_export": {
+            "rule": (
+                "a measurement column with no finite value on an image is named for that image. "
+                "It is measured here, on this export, and never carried over from an earlier "
+                "run's verdict -- a re-export can fill a column that was empty before, and the "
+                "only way to know is to look"
+            ),
+            "n_measurement_columns": len(measurement_columns),
+            "donors_with_every_column_all_null": sorted(
+                e["donor_id"] for e in report_per_image
+                if e["columns_state"].startswith("unavailable")
+            ),
+            "donors_with_some_columns_all_null": {
+                e["donor_id"]: e["all_null_measurement_columns"]
+                for e in report_per_image
+                if e["all_null_measurement_columns"]
+                and not e["columns_state"].startswith("unavailable")
+            },
+        },
         "measurement_availability": {
             "rule": (
                 "a row whose cell area, nucleus area and Cell DAPI mean are all absent carries "
@@ -531,13 +706,28 @@ def build(args) -> int:
         flag = "  EXCLUDED" if entry["excluded_donor"] else ""
         print(f"  {entry['donor_id']:>8}  {entry['n_rows_in_export']:>10,} rows"
               f"  no_nucleus={entry['n_no_nucleus']:>8,}"
-              f"  no_measurements={entry['n_no_measurements_exported']:>9,}{delta}{flag}")
+              f"  no_measurements={entry['n_no_measurements_exported']:>9,}"
+              f"  all_null_cols={entry['n_all_null_measurement_columns']:>3}"
+              f"/{entry['n_measurement_columns']}{delta}{flag}")
+
+    print(f"\n[info] per donor ({len(ledger)} in {NODES.name}) -- ingested, or why not:")
+    for entry in ledger:
+        wrote = "-" if entry["n_rows_written"] is None else f"{entry['n_rows_written']:,}"
+        print(f"  {entry['donor_id']:>8}  {entry['outcome']:<9} wrote={wrote:>11}  "
+              f"{entry['reason']}")
+    for outcome in ("refused", "absent"):
+        named = [e["donor_id"] for e in ledger if e["outcome"] == outcome]
+        if named:
+            print(f"[warn] {outcome}: {' '.join(named)}")
     return 0
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--source", default=None,
+                   help="the pLN export to read; default is the newest of "
+                        + ", ".join(str(c) for c in SOURCE_CANDIDATES))
     p.add_argument("--out", default=None, help="output root (default: cells_pln beside cells_pheno)")
     p.add_argument("--limit", type=int, default=None, help="stop after N source rows (probe)")
     p.add_argument("--census-only", action="store_true", help="measure, write no parquet")

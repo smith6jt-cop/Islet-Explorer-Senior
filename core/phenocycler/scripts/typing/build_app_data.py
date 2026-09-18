@@ -13,6 +13,16 @@ have got wrong:
   * A drill-down CSV with a header and no rows makes ``load_islet_cells()`` return NULL and the
     panel falls back to boundaries silently, so an empty islet gets no file at all.
 
+``object_id`` IS THE FIRST COLUMN OF ``cells/`` AND ``donors/``.  It was absent from both until
+2026-09-18, which meant a drill-down cell traced back to nothing: the app could draw it and never
+say which QuPath detection it was.  The repo rule is that the UUID is preserved throughout and is
+never stood in for by centroid matching, row order or a filename, so it is written, and it is
+asserted unique and non-null within the donor before either writer emits a row.
+
+``parquet/tissue/`` and ``parquet/cell_distance/`` still carry no ``object_id``: they are the
+DuckDB aggregate views, the app selects their columns by name, and nothing has asked to trace a
+bin back to a cell.  Stated here so its absence reads as a decision rather than an oversight.
+
     python core/phenocycler/scripts/typing/build_app_data.py [--only tissue donors cells outlines]
 """
 from __future__ import annotations
@@ -42,14 +52,44 @@ def _cells(donor: str, columns: list[str]) -> pd.DataFrame:
                          columns=columns).to_pandas()
 
 
-def _app_frame(donor: str) -> pd.DataFrame:
-    """The five columns every per-cell app artifact shares, in the app's vocabulary."""
-    frame = _cells(donor, ["X_centroid", "Y_centroid", "phenotype", "cell_region_20um",
-                           "islet_key", "cell_class"])
+def check_object_ids(donor: str, ids: pd.Series, artifact: str) -> None:
+    """Refuse to write a per-cell artifact whose UUIDs cannot identify a cell.
+
+    Two separate failures, reported separately because they have different causes.  A null
+    ``object_id`` means the upstream table lost the UUID for that row; a duplicated one means
+    two rows claim the same QuPath detection, and a reader joining on it would silently
+    multiply cells.  Either makes the column useless as the join key it exists to be, so the
+    writer stops rather than emitting a file that looks traceable and is not.
+    """
+    missing = int(ids.isna().sum()) + int((ids.astype("string").fillna("") == "").sum())
+    if missing:
+        raise ValueError(f"{donor}: {missing:,} of {len(ids):,} {artifact} rows carry no "
+                         "object_id; the UUID is the only handle back to the QuPath detection")
+    duplicated = int(ids.duplicated().sum())
+    if duplicated:
+        example = ids[ids.duplicated(keep=False)].iloc[0]
+        raise ValueError(f"{donor}: {duplicated:,} duplicated object_id in {artifact} "
+                         f"(e.g. {example!r}); one UUID must name one cell")
+
+
+def _app_frame(donor: str, *, with_object_id: bool = False) -> pd.DataFrame:
+    """The columns every per-cell app artifact shares, in the app's vocabulary.
+
+    ``with_object_id`` puts the QuPath UUID first.  It is checked here, on the frame that is
+    actually written, rather than on the source table: the ``Excluded`` filter runs first, and
+    a duplicate that both rows survive is a different fact from one where only one row does.
+    """
+    columns = ["X_centroid", "Y_centroid", "phenotype", "cell_region_20um",
+               "islet_key", "cell_class"]
+    frame = _cells(donor, (["object_id"] if with_object_id else []) + columns)
     frame = frame[frame["cell_class"] != "Excluded"].copy()
     frame["cell_region"] = frame["cell_region_20um"].map(REGION_TO_APP)
     frame["islet_name"] = frame["islet_key"]
-    return frame[["X_centroid", "Y_centroid", "phenotype", "cell_region", "islet_name"]]
+    keep = ["X_centroid", "Y_centroid", "phenotype", "cell_region", "islet_name"]
+    if with_object_id:
+        check_object_ids(donor, frame["object_id"], "donors")
+        keep = ["object_id"] + keep
+    return frame[keep]
 
 
 def write_tissue_parquet(donors: list[str]) -> None:
@@ -69,8 +109,9 @@ def write_donor_csv(donors: list[str]) -> None:
     root = APP / "donors"
     root.mkdir(parents=True, exist_ok=True)
     for donor in donors:
-        _app_frame(donor).to_csv(root / f"{donor}.csv", index=False)
-        print(f"  donors  {donor}: written", flush=True)
+        frame = _app_frame(donor, with_object_id=True)
+        frame.to_csv(root / f"{donor}.csv", index=False)
+        print(f"  donors  {donor}: {len(frame):>9,} cells, object_id unique", flush=True)
 
 
 def write_drilldown_cells(donors: list[str]) -> None:
@@ -86,13 +127,16 @@ def write_drilldown_cells(donors: list[str]) -> None:
                       & frame["cell_region_20um"].isin(["core", "expansion"])]
         if frame.empty:
             continue
+        # Before the merge, not after: `validate="one_to_one"` would raise on a duplicated
+        # UUID first, and its message says nothing about which donor or how many.
+        check_object_ids(donor, frame["object_id"], "cells")
         have = [m for m in markers
                 if m in pq.ParquetFile(S.ALIGNED / f"donor_id={donor}/data.parquet").schema_arrow.names]
         values = pq.read_table(S.ALIGNED / f"donor_id={donor}/data.parquet",
                                columns=["object_id"] + have).to_pandas()
         frame = frame.merge(values, on="object_id", how="left", validate="one_to_one")
         frame["cell_region"] = frame["cell_region_20um"].map(REGION_TO_APP)
-        keep = ["X_centroid", "Y_centroid", "phenotype", "cell_region"] + have
+        keep = ["object_id", "X_centroid", "Y_centroid", "phenotype", "cell_region"] + have
         for islet, group in frame.groupby("islet_key"):
             if group.empty:            # a header-only file reads back as NULL, so write none
                 skipped += 1
