@@ -333,6 +333,26 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
     })
 
     # ---------- Main data pipeline ----------
+    # Fill the donor dropdown from the data. Never a literal: a donor id written into this file
+    # would be a cohort fact, and the two domains share five donors and no vocabulary. It shares a
+    # reactive dependency with the data it describes, so it cannot race a renderUI mount and leave
+    # the menu empty.
+    observe({
+      tr <- traj_with_pseudotime()
+      if (is.null(tr) || !is.null(tr$error)) return(NULL)
+      obs <- tryCatch(tr$adata$obs, error = function(e) NULL)
+      col <- if (!is.null(obs)) {
+        if ("donor_id" %in% names(obs)) "donor_id" else if ("imageid" %in% names(obs)) "imageid" else NULL
+      }
+      if (is.null(col)) return(NULL)
+      donors <- sort(unique(as.character(obs[[col]])))
+      donors <- donors[nzchar(donors) & !is.na(donors)]
+      if (!length(donors)) return(NULL)
+      updateSelectInput(session, "traj_donor",
+                        choices = c("All donors" = "__all__", stats::setNames(donors, donors)),
+                        selected = isolate(input$traj_donor) %||% "__all__")
+    })
+
     traj_data_clean <- reactive({
       ms <- traj_validate()
       if (is.null(ms)) return(NULL)
@@ -513,6 +533,17 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       }
 
       # Rank-transform pseudotime for visualization (eliminates DPT compression artifacts)
+      # Single-donor view. Filtered BEFORE the rank percentile below, deliberately: the ordering
+      # is fitted within donor, so a donor's islets should be ranked against that donor's own
+      # axis. Ranking the cohort and then filtering would show one donor's islets spread over
+      # whatever slice of the pooled ranks they happened to occupy.
+      donor_pick <- input$traj_donor
+      if (!is.null(donor_pick) && nzchar(donor_pick) && !identical(donor_pick, "__all__") &&
+          "donor_id" %in% names(result_df)) {
+        result_df <- result_df[as.character(result_df$donor_id) == donor_pick, , drop = FALSE]
+        if (!nrow(result_df)) return(NULL)
+      }
+
       # Raw DPT compresses 95% of data between 0.25-0.70 due to diffusion manifold geometry.
       # Rank percentile preserves ordering while spreading points uniformly.
       result_df$pt_raw <- result_df$pt
@@ -1585,9 +1616,14 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       pretty <- sub("^marker_mean_", "", core)
       choices <- stats::setNames(core, pretty)
       keep <- setdiff(pretty, EXCLUDED_MARKERS)
+      # Six by default, one per major lineage -- see HEATMAP_DEFAULT_MARKERS. Checking all ~50
+      # made the heatmap tall enough to push the rest of the tab off screen. Every marker the
+      # dataset carries is still listed; this only decides what is ticked on arrival.
+      default <- intersect(HEATMAP_DEFAULT_MARKERS, keep)
+      if (!length(default)) default <- utils::head(keep, 6L)
       checkboxGroupInput(ns("multi_heatmap_markers"), "Select markers:",
                          choices = choices,
-                         selected = unname(choices[pretty %in% keep]), inline = TRUE)
+                         selected = unname(choices[pretty %in% default]), inline = TRUE)
     })
 
     # Multi-feature data reactive

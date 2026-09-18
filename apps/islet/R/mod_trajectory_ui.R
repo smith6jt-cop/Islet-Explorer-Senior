@@ -58,7 +58,15 @@ trajectory_ui <- function(id) {
               selectInput(ns("pt_mode"), "Pseudotime mode:",
                          choices = c("Core only" = "core",
                                      "Core + Peri" = "combined"),
-                         selected = "core")
+                         selected = "core"),
+              # Single-donor view of the top plot. The ordering is fitted WITHIN donor -- one
+              # diffusion map and one curve per donor -- so a single donor is the scope the
+              # pseudotime is actually comparable on. Choices are filled from the loaded data by
+              # updateSelectInput, never written here: a donor id in this file would be a cohort
+              # fact hardcoded, and the two domains share five donors and no vocabulary.
+              selectInput(ns("traj_donor"), "Donor:",
+                         choices = c("All donors" = "__all__"),
+                         selected = "__all__")
             ),
             column(3,
               selectInput(ns("traj_color_by"), "Color points by:",

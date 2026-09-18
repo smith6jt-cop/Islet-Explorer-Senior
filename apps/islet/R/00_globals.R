@@ -270,6 +270,23 @@ if (isTRUE(USE_MIRAI)) {
 # Markers hidden from every app selector/plot (redundant epithelial keratins +
 # nuclear stain + failed marker; mirrors scripts/senior/marker_taxonomy.py EXCLUDED).
 # Pan_Cytokeratin is deliberately RETAINED (epithelial identity marker).
+#' The six markers checked in the heatmap by default -- one per major lineage.
+#'
+#' The selector used to check EVERY non-excluded marker, which is 50-odd boxes and a heatmap tall
+#' enough to push everything else off the screen. Six, chosen as the most specific marker of each
+#' major lineage the pancreas panel resolves at broad level (core/phenocycler/scripts/typing/
+#' lineages.py::LINEAGE_MARKERS, first entry of each):
+#'
+#'   INS              Endocrine        Pan_Cytokeratin  Exocrine
+#'   CD3e             T_NK             CD68             Myeloid
+#'   CD31             Vascular         SMA              Stromal
+#'
+#' B_Plasma (CD20), Granulocyte (MPO) and Neural (B3TUBB) are left unchecked rather than dropped --
+#' every marker the dataset carries is still in the list, one click away. Change this line to
+#' change the default; it is intersected with what the loaded dataset actually has, so a marker
+#' absent from a domain simply does not appear.
+HEATMAP_DEFAULT_MARKERS <- c("INS", "Pan_Cytokeratin", "CD3e", "CD68", "CD31", "SMA")
+
 EXCLUDED_MARKERS <- c("DAPI", "IAPP", "Ker8_18", "Keratin_5")
 
 # --- Make scaling globals visible to helpers that look them up in globalenv() ---
@@ -281,7 +298,8 @@ EXCLUDED_MARKERS <- c("DAPI", "IAPP", "Ker8_18", "Keratin_5")
 # Export the finalised values into the real global environment.
 local({
   ge <- globalenv()
-  for (nm in c("USE_DUCKDB", "USE_MIRAI", "con", "DONOR_COLORS", "EXCLUDED_MARKERS")) {
+  for (nm in c("USE_DUCKDB", "USE_MIRAI", "con", "DONOR_COLORS", "EXCLUDED_MARKERS",
+                "HEATMAP_DEFAULT_MARKERS")) {
     if (exists(nm, inherits = TRUE)) assign(nm, get(nm, inherits = TRUE), envir = ge)
   }
 })

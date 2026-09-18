@@ -328,6 +328,7 @@ def test_r_cards_parse_and_missing_artifact_is_a_named_note(tmp_path):
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
     source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_selectable.R")
     source("apps/islet/R/card_x2_overlay.R")
     source("apps/islet/R/card_x3_identity.R")
     index <- ie_restain_index()
@@ -392,6 +393,7 @@ def test_r_cards_render_artifacts_and_refuse_wrong_frames(builder_inputs):
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
     source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_selectable.R")
     source("apps/islet/R/card_x2_overlay.R")
     source("apps/islet/R/card_x3_identity.R")
     theme_islet <- function(...) ggplot2::theme_minimal()

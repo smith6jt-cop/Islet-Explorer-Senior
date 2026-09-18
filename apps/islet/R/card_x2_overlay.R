@@ -111,11 +111,20 @@ ie_restain_reactives <- function(input, output, session, id, cohort, active) {
   choices <- shiny::reactive({
     d <- index()$data
     if (is.null(d)) return(character())
-    ids <- as.character(d$donor_id)
+    # Only donors this card can actually draw. It used to offer every row of the availability
+    # layer -- all 25 -- and then render a named note for 23 of them. An unavailable state is the
+    # right thing to record and the wrong thing to put in a dropdown; what was left out is stated
+    # once, beside the control, by ie_selectable_note().
+    ids <- ie_selectable_donors(d, cohort = NULL)
     if (!is.null(cohort) && is.function(cohort$donor_ids)) {
       ids <- intersect(ids, ie_restain_normalize_donor(cohort$donor_ids()))
     }
     ids
+  })
+  output[[paste0(id, "_not_offered")]] <- shiny::renderUI({
+    d <- index()$data
+    if (is.null(d)) return(NULL)
+    ie_selectable_note(d, choices())
   })
   shiny::observeEvent(choices(), {
     ids <- choices()
@@ -138,6 +147,9 @@ card_x2_overlay_ui <- function(ns) {
   shiny::tags$div(class = "ie-card", style = "overflow: visible;",
     shiny::tags$h3(class = "ie-card-title", "Post-Xenium IF overlay"),
     shiny::selectInput(ns("x2_overlay_donor"), "Donor", choices = character()),
+    # What the dropdown leaves out, stated once. Narrowing the choices without this would hide
+    # the absence rather than record it, which is the opposite of what the five states are for.
+    shiny::uiOutput(ns("x2_overlay_not_offered")),
     shiny::selectInput(ns("x2_overlay_marker"), "IF intensity", choices = c("INS", "GCG")),
     shiny::uiOutput(ns("x2_overlay_content")))
 }
