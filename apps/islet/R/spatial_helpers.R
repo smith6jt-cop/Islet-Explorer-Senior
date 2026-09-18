@@ -153,6 +153,77 @@ cell_distance_markers <- function() {
 #' where the columns exist, rather than presenting an empty control.
 cell_distance_has_markers <- function() length(cell_distance_markers()) > 0
 
+# ── Whole-view load, for the cards that aggregate per donor ───────────────
+# Cache environment for the one table `load_cell_distance()` returns. Separate
+# from .donor_tissue_cache because it is keyed on the DOMAIN root rather than on
+# a donor: the two domains register different cells under the same view name, so
+# a cache that ignored the root would hand one domain's cells to the other.
+.cell_distance_cache <- new.env(parent = emptyenv())
+
+#' The whole `cell_distance` view, one row per cell.
+#'
+#' THIS FUNCTION WAS CALLED AND NEVER DEFINED. mod_inflammation_server.R:60
+#' calls it and its own header said it lived in this file; it did not, so the
+#' Inflammation tab threw "could not find function" the moment it was mounted.
+#' It was latent only because SHOW_INFLAMMATION_TAB defaults to 0
+#' (R/00_globals.R). Defined here, where that header always said it was.
+#'
+#' Same view, same connection and same columns as the query_cell_distance_*
+#' helpers above -- it differs only in pulling rows into R rather than
+#' aggregating in SQL, because its callers count cells per donor x phenotype and
+#' sum a per-cell weight instead of binning a distance.
+#'
+#' `dist_islet` is returned under the name its callers read it by,
+#' `signed_dist`, and stays SIGNED (negative inside the islet). A row whose
+#' distance is missing stays NA and is never coerced: zero here means exactly "on
+#' the islet edge", so a cell whose distance was never measured must not arrive
+#' as a cell sitting on the edge. The columns are returned as character rather
+#' than as the view's categories, because `table()` over a factor emits a zero
+#' for every level the subset does not contain -- a phenotype that is absent
+#' would come back indistinguishable from one that was counted and found zero.
+#'
+#' @return data.frame(case_id, donor_status, cell_region, phenotype,
+#'   signed_dist), or NULL when the active domain registers no `cell_distance`
+#'   view or the view lacks a column this frame promises. NULL and a zero-row
+#'   frame are different statements and the caller reports them differently, so
+#'   a missing view is never turned into an empty answer.
+load_cell_distance <- function() {
+  key <- tryCatch(as.character(domain_data_root()), error = function(e) NA_character_)
+  if (is.na(key) || !nzchar(key)) key <- "<no-domain>"
+  if (exists(key, envir = .cell_distance_cache)) {
+    return(get(key, envir = .cell_distance_cache))
+  }
+  if (!cell_distance_view_ready()) return(NULL)
+
+  wanted <- c("case_id", "donor_status", "cell_region", "phenotype", "dist_islet")
+  absent <- setdiff(wanted, .cd_columns())
+  if (length(absent)) {
+    # Name the columns rather than return a frame with holes in it: a caller
+    # that receives `signed_dist` full of NA cannot tell a view without the
+    # column from cells whose distance was not measured.
+    message("event=cell_distance_columns_absent columns=", paste(absent, collapse = ","))
+    return(NULL)
+  }
+
+  df <- tryCatch(
+    DBI::dbGetQuery(.cd_con(),
+      "SELECT case_id, donor_status, cell_region, phenotype,
+              dist_islet AS signed_dist
+         FROM cell_distance"),
+    error = function(e) {
+      message("event=cell_distance_load_failed")
+      NULL
+    })
+  if (is.null(df) || nrow(df) == 0) return(df)
+
+  for (col in c("case_id", "donor_status", "cell_region", "phenotype")) {
+    df[[col]] <- as.character(df[[col]])
+  }
+  df$signed_dist <- as.numeric(df$signed_dist)
+  assign(key, df, envir = .cell_distance_cache)
+  df
+}
+
 # Distinct colours for the composition stack (Tableau-10; keyed by marker).
 CELL_DIST_MARKER_COLORS <- c(
   INS = "#4E79A7", GCG = "#F28E2B", SST = "#E15759", CD3e = "#76B7B2",

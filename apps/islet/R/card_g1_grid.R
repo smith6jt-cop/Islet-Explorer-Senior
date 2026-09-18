@@ -260,8 +260,15 @@ card_g1_grid_server <- function(
         .g1_note_ui(.g1_note(row$reason, row$state, row$source))
       }
       conflict <- row$citation_conflict
+      # NOT .ie-card. A cell of the grid is drawn like a card and is not one:
+      # tests/tab_smoke.R counts `.ie-card-stack > .ie-card` as the cards a tab
+      # mounted, so these four cells were counted as four extra cards and
+      # Cross-Modal failed its own harness with every card drawing correctly. The
+      # class is styled in app.R to the same box, and the stack below carries its
+      # own name for the same reason. What the cell measures and shows is
+      # unchanged.
       shiny::div(
-        class = "ie-card", style = "overflow: visible;",
+        class = "ie-grid-cell", style = "overflow: visible;",
         shiny::tags$h5(sprintf("%s · %s", row$tissue, row$modality)),
         shiny::tags$p(class = "ie-card-note", sprintf("%s — %s", row$method,
                                                       ie_state_label(row$state, row$n_cells_assessed))),
@@ -270,7 +277,7 @@ card_g1_grid_server <- function(
           .g1_note_ui(.g1_note(conflict, "unavailable")) else NULL
       )
     })
-    shiny::div(class = "ie-card-stack", panels)
+    shiny::div(class = "ie-grid-cells", panels)
   })
 
   cell_plot <- function(tissue, modality) {

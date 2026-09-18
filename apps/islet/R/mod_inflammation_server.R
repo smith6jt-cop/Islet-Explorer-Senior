@@ -5,7 +5,9 @@
 # bioRxiv 2025.03.05.641526), plus the nPOD donor table they need for context.
 #
 # Dependencies (auto-sourced):
-#   load_cell_distance()                   -- spatial_helpers.R (cached, 2.65M cells)
+#   load_cell_distance()                   -- spatial_helpers.R; the whole
+#       `cell_distance` DuckDB view, cached per domain root. It was named here
+#       and defined nowhere until 2026-09-18, so this tab could not be enabled.
 #   PHENOTYPE_COLORS                       -- drilldown_helpers.R
 #   theme_islet, plotly_islet_*, ISLET_*   -- 00_globals.R
 #   write_islet_csv, islet_csv_header      -- 00_globals.R
@@ -58,8 +60,16 @@ inflammation_server <- function(id, prepared, donor_colors = reactive(DONOR_COLO
     # Tissue-wide single-cell table with the signed distance to the islet edge.
     cells <- reactive({
       df <- load_cell_distance()
+      # NAME THE SOURCE THAT EXISTS. This said "data/cell_distance.csv not found
+      # -- run scripts/compute_neighborhood_metrics.py", and neither the file nor
+      # that output has been the source since the view moved to parquet: it is
+      # <domain root>/parquet/cell_distance/, built by
+      # scripts/senior/build_cell_distance_parquet.py and registered as the
+      # `cell_distance` DuckDB view in R/00_globals.R.
       shiny::validate(shiny::need(!is.null(df) && nrow(df) > 0,
-                    "data/cell_distance.csv not found — run scripts/compute_neighborhood_metrics.py"))
+                    paste("No cell_distance view for this domain -- build",
+                          "parquet/cell_distance under the active domain\u2019s data root",
+                          "with scripts/senior/build_cell_distance_parquet.py.")))
       df$donor_status <- factor(as.character(df$donor_status), levels = status_levels)
       df <- df[!is.na(df$donor_status), , drop = FALSE]
       # A CELL-level frame: it carries case_id and donor_status but no age, sex,

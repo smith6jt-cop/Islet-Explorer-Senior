@@ -293,9 +293,21 @@ def test_card_single_donor_guards_caption_and_server(inputs):
     one <- data[data$donor_id == "112", , drop = FALSE]
     one$n_ordered_cells <- 49999L
     one$n_population_cells <- 800562L
-    caption <- .s2_trajectory_caption(one)
+    # .s2_trajectory_caption() HAS NOT EXISTED since the card split it in two, and this
+    # test had called it ever since -- it is the known red the app lane inherited. The two
+    # functions that do exist are checked instead: the PNG caption, which travels with a
+    # figure that has no modal, and the one-line on-screen claim.
+    caption <- .s2_trajectory_plot_caption(one)
     stopifnot(grepl("49,999 of 800,562", caption, fixed = TRUE),
-              grepl("Within-status batch", caption, fixed = TRUE))
+              grepl("fit within donor", caption, fixed = TRUE),
+              # No batch eta-squared, deliberately: .s2_trajectory_modal() states why --
+              # every donor is rank-uniform on its own axis, so a pooled figure beside the
+              # word "batch" would be arithmetic about the construction, and a zero there
+              # would read as "batch was removed".
+              !grepl("batch", caption, ignore.case = TRUE))
+    claim <- paste(as.character(.s2_trajectory_claim(one, "s2_trajectory_method")), collapse = "")
+    stopifnot(grepl("49,999 of 800,562", claim, fixed = TRUE),
+              grepl("how this is measured", claim, fixed = TRUE))
     stopifnot(is.null(.s2_trajectory_domain_note(data)))
     stopifnot(inherits(.s2_trajectory_domain_note(data, "/different/domain"), "ie_guard_note"))
     stopifnot(inherits(.s2_trajectory_read("/absent/trajectory/test", "trajectory", character())$note,

@@ -22,7 +22,12 @@ CARD_IDS <- setNames(list(
   vapply(registries$IE_CROSSMODAL_CARDS, `[[`, "", "id"),
   vapply(registries$IE_LYMPHNODE_CARDS, `[[`, "", "id")
 ), c(registries$IE_CROSSMODAL_TAB, registries$IE_LYMPHNODE_TAB))
-NOT_BUILT <- c("ledger", "n1_sections")
+# NO not-built list. "ledger" (Cross-Modal) and "n1_sections" (Lymph Node) were
+# named here and allowed to render `unavailable(not_built)` with no card behind
+# them. `ledger` left its registry on 2026-09-18 and a real card_n1_sections.R
+# now exists, so the exemption could only have blessed the next unwritten entry.
+# Every registered card is now held to the same bar: it draws, or it says why in
+# a named note.
 stopifnot(all(names(CARD_IDS) %in% TABS))
 
 run_smoke <- function(out_dir) {
@@ -131,12 +136,7 @@ run_smoke <- function(out_dir) {
         empty_drawings <- card$plots + card$plotly + card$tables - drawn
         named_note <- length(card$notes) > 0L
         valid <- nzchar(card$id) && nzchar(card$title) && empty_drawings == 0L &&
-          if (card$id %in% NOT_BUILT) {
-            isTRUE(card$placeholder) && named_note &&
-              any(grepl("unavailable(not_built)", unlist(card$notes), fixed = TRUE))
-          } else {
-            !isTRUE(card$placeholder) && (drawn > 0L || named_note)
-          }
+          !isTRUE(card$placeholder) && (drawn > 0L || named_note)
         if (!valid) ok <- FALSE
         cat(sprintf("  card %-22s %s | plots %d | plotly %d | tables %d | named notes %d\n",
                     card$id, if (valid) "ok" else "FAIL", card$drawn_plots,

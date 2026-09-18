@@ -162,6 +162,19 @@ a:focus-visible, button:focus-visible, input:focus-visible,
       overflow-y: auto;
       margin-top: 20px;
     }
+/* The four tissue x modality cells INSIDE the Cross-Modal grid card. They are
+   drawn like a card and they are not one: `.ie-card-stack > .ie-card` is how
+   tests/tab_smoke.R counts the cards a tab mounted, so four inner cells wearing
+   .ie-card inside their own stack were counted as four extra cards and that tab
+   failed its own harness with every card drawing correctly. Same box, its own
+   name -- so the count is of registry cards only and the cells still read as
+   cells. Kept here rather than in www/modernist-shiny.css only because this
+   change did not own that sheet; it belongs beside .ie-card. */
+    .ie-grid-cell {
+      background: var(--color-bg);
+      border: 2px solid var(--color-neutral-300);
+      padding: 18px 20px 20px;
+    }
 "))),
   # The layout jQuery that lived here is GONE with the shell it served. It read
   # `$('#tabs li.active a').text()` -- the Bootstrap-3 tab bar, which no longer
@@ -307,6 +320,130 @@ stopifnot(setequal(
     "CrossModal", "LymphNode", "Viewer",
     if (SHOW_INFLAMMATION_TAB) "Inflammation")
 ))
+
+# ---------- The rail's "Tips for this tab" modal ----------
+#
+# `ie_tab_tips_modal()` was CALLED at the bottom of this file and defined
+# nowhere: it and IE_TAB_TIPS were dropped from R/00_globals.R by 4335647 -- a
+# commit about TissUUmaps layer opacity -- while this call site stayed. The
+# rail's second Help entry therefore threw `could not find function
+# "ie_tab_tips_modal"` from EVERY tab, and tests/parse_check.R could not see it,
+# because parsing a call proves nothing about the callee. Restored here, beside
+# its only caller; test-card-registry.R now drives the rail's Help observers, so
+# a second deletion fails a test instead of reaching a reader.
+#
+# NOTHING IN THIS MODAL DESCRIBES THE DATA. Every section is read back from
+# something the app already declares, so none of it can drift into a claim about
+# the cohort, the donors or the markers:
+#
+#   what the tab is         the rail's own `sub`, from IE_PIPELINE / IE_REFERENCE
+#   what is mounted on it   that tab's card registry, where it has one
+#   how its controls work   IE_TAB_TIPS below -- one line per control that exists
+#                           in the module source, cited above each entry
+#   what an absence means   IE_STATES and ie_state_label(), from ieCore
+#
+# A tab with no IE_TAB_TIPS entry still gets the other three sections, so the
+# Help row never opens an empty modal and never invents a fourth.
+
+IE_TAB_TIPS <- list(
+  # checkboxInput(ns("show_points"), "Show individual points") -- R/mod_plot_ui.R;
+  # the plotly_click observer and its own nudge message -- R/mod_plot_server.R;
+  # selectInput(ns("plot_color_by"), "Color points by:", "Donor ID") -- R/mod_plot_ui.R.
+  Plot = list(
+    paste("Tick “Show individual points”, then click a point on the islet-size",
+          "scatter to open that islet's segmentation map below. Without points shown",
+          "there is nothing to click."),
+    paste("With points shown, set “Color points by” to Donor ID; clicking a donor",
+          "in the legend hides or shows that donor."),
+    paste("The cards do not resize themselves. Use browser zoom (Ctrl +/−), and",
+          "scroll inside a card to reach controls below its fold.")
+  ),
+  # observeEvent(event_data("plotly_click", source = ns("traj_scatter"))) -- R/mod_trajectory_server.R.
+  Trajectory = list(
+    paste("Click a point on the pseudotime scatter to open the segmentation map for",
+          "that islet.")
+  ),
+  # plotOutput(dblclick = ns("scatter_dblclick"), brush = brushOpts(ns("scatter_brush")))
+  # -- R/mod_spatial_ui.R; both handlers -- R/mod_spatial_server.R.
+  Spatial = list(
+    paste("Drag on the tissue scatter to zoom into the brushed region; double-click",
+          "anywhere on it to go back to the whole section.")
+  )
+)
+
+#' The titles of the cards a registry mounts on `key`, in display order.
+#'
+#' Read from the registries themselves rather than restated, so a card added to
+#' or removed from a registry changes this modal with no edit here -- which is
+#' the same rule tab_smoke.R and test-card-registry.R follow. A tab with no
+#' registry gets character(0), not an empty bullet list.
+.ie_tab_card_titles <- function(key) {
+  registries <- list(
+    list(tab = get0("IE_CROSSMODAL_TAB", ifnotfound = NULL),
+         cards = get0("IE_CROSSMODAL_CARDS", ifnotfound = NULL)),
+    list(tab = get0("IE_LYMPHNODE_TAB", ifnotfound = NULL),
+         cards = get0("IE_LYMPHNODE_CARDS", ifnotfound = NULL))
+  )
+  for (reg in registries) {
+    if (!is.null(reg$tab) && identical(reg$tab, key) && length(reg$cards)) {
+      return(vapply(reg$cards, `[[`, "", "title"))
+    }
+  }
+  character(0)
+}
+
+#' What every card on every tab means by a state it cannot draw.
+#'
+#' The five states and their labels come from ieCore (IE_STATES,
+#' ie_state_label()), so this list cannot fall out of step with the notes the
+#' cards actually render. The closing line is the repo's rule, not a reading of
+#' any artifact: an absence is not a zero.
+.ie_tab_states_ui <- function() {
+  states <- get0("IE_STATES", ifnotfound = NULL)
+  label <- get0("ie_state_label", mode = "function", ifnotfound = NULL)
+  if (is.null(states) || is.null(label)) return(NULL)
+  shiny::tagList(
+    shiny::tags$p(shiny::tags$strong("When a card cannot show something"),
+      " it names the state and the reason it carries, in the place the figure",
+      " would have been:"),
+    shiny::tags$ul(lapply(states, function(s)
+      shiny::tags$li(shiny::tags$code(s), " — ", label(s)))),
+    shiny::tags$p(style = "font-size: 12px",
+      "A missing measurement is unavailable. It is not a zero, and a card will",
+      " not draw one in its place.")
+  )
+}
+
+#' The Help > "Tips for this tab" modal, for whichever tab is active.
+#'
+#' @param tab one of IE_TAB_KEYS, or NULL/"" before a tab has been selected.
+ie_tab_tips_modal <- function(tab) {
+  key <- if (is.null(tab) || !length(tab)) "" else as.character(tab)[1]
+  if (is.na(key)) key <- ""
+  entry <- Filter(function(d) identical(d$key, key), c(IE_PIPELINE, IE_REFERENCE))
+  entry <- if (length(entry)) entry[[1]] else NULL
+  label <- if (is.null(entry)) "This tab" else entry$label
+  cards <- .ie_tab_card_titles(key)
+  tips <- IE_TAB_TIPS[[key]]
+
+  shiny::modalDialog(
+    title = paste0(label, " — how to read it"),
+    easyClose = TRUE, footer = shiny::modalButton("Close"),
+    if (!is.null(entry))
+      shiny::tags$p(shiny::tags$strong("This tab: "), entry$sub),
+    if (length(cards)) shiny::tagList(
+      shiny::tags$p(shiny::tags$strong("Cards on this tab, in order:")),
+      shiny::tags$ul(lapply(cards, shiny::tags$li))
+    ),
+    if (length(tips)) shiny::tagList(
+      shiny::tags$p(shiny::tags$strong("Working the controls:")),
+      shiny::tags$ul(lapply(tips, shiny::tags$li))
+    ),
+    .ie_tab_states_ui(),
+    shiny::tags$p(style = "font-size: 12px",
+      "The marker rules behind every phenotype are in the Help entry above this one.")
+  )
+}
 
 
 # ---------- Server ----------
