@@ -286,12 +286,20 @@ def test_a_channel_that_names_no_lineage_is_refused_on_the_taxonomy_and_not_on_a
 # --------------------------------------------------------------------------------------------
 # Stage 1 and stage 2: the decision itself, on clusters.
 # --------------------------------------------------------------------------------------------
-def _call(rows, markers, members=None):
-    """Drive `call_clusters` from a hand-written (cluster x marker) standout table."""
+def _call(rows, markers, members=None, magnitude=None):
+    """Drive `call_clusters` from a hand-written (cluster x marker) standout table.
+
+    A magnitude has to be supplied because the arbitration reads it.  Unless a test writes one
+    itself, it is `1 + S`: a magnitude is a ratio of medians so it is positive, and `1` is the
+    value it takes for a cluster that reads exactly the section's median, which is what S 0 says
+    too -- so the hand-written tables order the same way under both statistics and a test that
+    means to exercise the ORDER is not quietly exercising the change of statistic."""
     rel = np.array([[r.get(m, np.nan) for m in markers] for r in rows], dtype=float)
     enr = np.isfinite(rel) & (rel > 0)
+    mag = (1.0 + rel) if magnitude is None else np.array(
+        [[r.get(m, np.nan) for m in markers] for r in magnitude], dtype=float)
     st = {"markers": markers, "auc": rel + 0.5, "rel": rel, "enriched": enr,
-          "offset": np.zeros(len(rows))}
+          "magnitude": mag, "offset": np.zeros(len(rows))}
     members = members or builder.subpanel_membership(markers)
     ids = [f"c{i}" for i in range(len(rows))]
     return builder.call_clusters("T", ids, np.full(len(rows), 100), st, members)
@@ -306,14 +314,14 @@ MARKERS = ["CD3e", "CD4", "CD8", "CD20", "CD79a", "CD68", "Iba1", "CD163", "CD20
 def test_a_cluster_is_immune_when_its_canonical_stands_out_over_the_structural_evidence():
     calls = _call([{"CD3e": 0.4, "SMA": 0.1}], MARKERS)
     assert bool(calls.loc[0, "is_immune"]) is True
-    assert calls.loc[0, "stage1_rule"] == "immune_canonical_stands_out_over_structural"
+    assert calls.loc[0, "stage1_rule"] == "immune_canonical_carries_more_magnitude_than_structural"
     assert calls.loc[0, "immune_class"] == "T_cell"
 
 
 def test_a_cluster_whose_structural_evidence_wins_is_not_immune_and_gets_no_lineage():
     calls = _call([{"CD3e": 0.1, "Caveolin": 0.5}], MARKERS)
     assert bool(calls.loc[0, "is_immune"]) is False
-    assert calls.loc[0, "stage1_rule"] == "structural_stands_out_over_immune"
+    assert calls.loc[0, "stage1_rule"] == "structural_carries_more_magnitude_than_immune"
     # This lane names no non-immune lineage at all: the structural markers arbitrate and never
     # become a label.  A node has no exocrine and the panel could not split one anyway.
     assert calls.loc[0, "immune_class"] == ""
@@ -324,6 +332,170 @@ def test_a_cluster_where_nothing_stands_out_is_uncalled_and_is_never_folded_into
     assert calls.loc[0, "is_immune"] is None
     assert calls.loc[0, "stage1_rule"] == "no_lineage_marker_stands_out_on_this_section"
     assert calls.loc[0, "immune_class"] == ""
+
+
+# --------------------------------------------------------------------------------------------
+# The arbitration.  Corrected 2026-09-18: the rank statistic admits the evidence, the MAGNITUDE
+# decides between two channels of one cluster.  These tests are about the mechanism; none of them
+# passes by reproducing a count, a share or any previous result.
+# --------------------------------------------------------------------------------------------
+def _section(seed=7, n=600):
+    """Two clusters on one synthetic section, built so that the two statistics DISAGREE.
+
+    `CD3e` separates cluster 0 from cluster 1 by a factor of three, with the two distributions
+    overlapping.  `EpCAM` is background on both -- 3 % apart -- but it is background with no
+    overlap at all, so its rank separation is the CLEANER of the two.  That is the whole of the
+    defect in one section: a channel with no population outranks a channel with one, because a
+    rank cannot see that 1.03x and 3x are different things.
+    """
+    rng = np.random.default_rng(seed)
+    codes = np.array([0] * n + [1] * n)
+    values = {
+        "CD3e": np.concatenate([rng.normal(30.0, 9.0, n), rng.normal(10.0, 3.0, n)]),
+        "EpCAM": np.concatenate([rng.uniform(10.3, 10.4, n), rng.uniform(10.0, 10.1, n)]),
+    }
+    for filler in ("CD68", "CD20", "SMA", "CD31", "Caveolin", "CD34"):
+        values[filler] = rng.uniform(1.0, 2.0, 2 * n)
+    return values, codes, list(values)
+
+
+def test_a_rank_and_a_magnitude_disagree_and_the_arbitration_reads_the_magnitude():
+    values, codes, markers = _section()
+    st = _standout(values, codes, 2, markers, offset_over=markers)
+    st["magnitude"] = builder.magnitude(pd.DataFrame(values), codes, 2, markers)
+    j = {m: i for i, m in enumerate(markers)}
+    # the disagreement is REAL on this section and is asserted rather than assumed
+    assert st["auc"][0, j["EpCAM"]] > st["auc"][0, j["CD3e"]], "the rank must favour the background"
+    assert st["magnitude"][0, j["CD3e"]] > st["magnitude"][0, j["EpCAM"]]
+    assert st["enriched"][0, j["CD3e"]] and st["enriched"][0, j["EpCAM"]]
+
+    calls = builder.call_clusters("T", ["c0", "c1"], np.array([len(codes) // 2] * 2), st,
+                                  builder.subpanel_membership(markers))
+    assert bool(calls.loc[0, "is_immune"]) is True
+    assert calls.loc[0, "top_immune_marker"] == "CD3e"
+    assert calls.loc[0, "stage1_rule"] == "immune_canonical_carries_more_magnitude_than_structural"
+    # and the statistic that was read is on the row, beside the one that was not
+    assert calls.loc[0, "magnitude_margin"] > 0 > calls.loc[0, "separation_margin"]
+
+
+def test_the_panel_offset_never_protected_the_arbitration():
+    """Stated because the generation before this one believed it did.  S is AUC minus a
+    per-cluster constant, so it cannot change which of two channels of THAT cluster is larger --
+    the arbitration was on raw AUC all along, and subtracting the offset was never going to fix
+    it."""
+    values, codes, markers = _section()
+    st = _standout(values, codes, 2, markers, offset_over=markers)
+    j = {m: i for i, m in enumerate(markers)}
+    for row in (0, 1):
+        assert (np.argsort(st["auc"][row]) == np.argsort(st["rel"][row])).all()
+    assert st["rel"][0, j["EpCAM"]] > st["rel"][0, j["CD3e"]]
+
+
+def test_the_magnitude_is_a_ratio_inside_one_channel_and_survives_a_change_of_scale():
+    """Two sections acquired at different exposures must give the same answer, which is the one
+    thing a level could not do.  Each channel is scaled by a DIFFERENT constant, so nothing is
+    preserved by accident."""
+    values, codes, markers = _section()
+    mag = builder.magnitude(pd.DataFrame(values), codes, 2, markers)
+    scaled = {m: v * (3.0 + 2.0 * i) for i, (m, v) in enumerate(values.items())}
+    mag2 = builder.magnitude(pd.DataFrame(scaled), codes, 2, markers)
+    assert np.allclose(mag, mag2, equal_nan=True)
+
+    st = _standout(values, codes, 2, markers, offset_over=markers)
+    st["magnitude"] = mag
+    members = builder.subpanel_membership(markers)
+    a = builder.call_clusters("T", ["c0", "c1"], np.array([600, 600]), st, members)
+    st2 = _standout(scaled, codes, 2, markers, offset_over=markers)
+    st2["magnitude"] = mag2
+    b = builder.call_clusters("T", ["c0", "c1"], np.array([600, 600]), st2, members)
+    for col in ("is_immune", "stage1_rule", "immune_class", "top_immune_marker",
+                "top_structural_marker"):
+        assert list(a[col]) == list(b[col]), col
+
+
+def test_a_channel_with_no_positive_section_median_has_no_magnitude_and_cannot_arbitrate():
+    """`Ker8_18` and `Keratin_5` are on the structural list and absent from this export.  A
+    missing magnitude is unavailable -- never zero, which would make the channel the quietest on
+    the section, and never large, which would let it decide."""
+    values, codes, markers = _section()
+    values["Ker8_18"] = np.zeros(len(codes))
+    markers = list(values)
+    mag = builder.magnitude(pd.DataFrame(values), codes, 2, markers)
+    assert np.isnan(mag[:, markers.index("Ker8_18")]).all()
+    st = _standout(values, codes, 2, markers, offset_over=markers)
+    st["magnitude"] = mag
+    calls = builder.call_clusters("T", ["c0", "c1"], np.array([600, 600]), st,
+                                  builder.subpanel_membership(markers))
+    assert "Ker8_18" not in set(calls["top_structural_marker"])
+
+
+def test_dynamic_range_is_the_per_channel_maximum_of_the_magnitude():
+    """One definition backs the number the veto accounting reports and the number the arbitration
+    reads, so the two can never drift apart."""
+    values, codes, markers = _section()
+    mag = builder.magnitude(pd.DataFrame(values), codes, 2, markers)
+    dyn = builder.dynamic_range(pd.DataFrame(values), codes, 2, markers)
+    for i, m in enumerate(markers):
+        assert dyn[m] == pytest.approx(float(np.nanmax(mag[:, i])))
+
+
+# --------------------------------------------------------------------------------------------
+# Stage 2: the winner is held to its own rule-table requirement.
+# --------------------------------------------------------------------------------------------
+def test_the_requirement_is_the_all_of_clause_of_the_lane_s_own_rule_table():
+    """Nothing is written by hand: each subpanel is mapped to a phenotype by name and the markers
+    come from `subpanel.immune_rules()`.  `Imm-macrophage` requires nothing, and an empty
+    requirement stays empty rather than being filled in."""
+    table = SP.immune_rules()
+    need = builder.subpanel_requirements()
+    for name, rule in builder.SUBPANEL_RULE.items():
+        assert need[name] == tuple(table[rule][0])
+    assert need["T_cell"] == ("CD3e",)
+    assert need["Myeloid"] == ()
+    assert "NK_ILC" not in builder.SUBPANEL_RULE, \
+        "NK reaches stage 2 through nk_licence(), which reads the whole rule and not all_of alone"
+
+
+def test_no_cluster_is_named_t_on_cd4_or_cd8_without_cd3e():
+    """The rule table says `Imm-T-cell` is `all_of ['CD3e']` and every T subtype in it repeats
+    CD3e.  A cluster whose T evidence is CD4 or CD8 alone is UNCALLED with the missing marker
+    named, and it is never handed to the runner-up."""
+    calls = _call([{"CD4": 0.5, "CD8": 0.4, "CD68": 0.1, "SMA": 0.05}], MARKERS)
+    assert bool(calls.loc[0, "is_immune"]) is True
+    assert calls.loc[0, "immune_class"] == "Uncalled"
+    assert "CD3e" in calls.loc[0, "stage2_reason"]
+    assert "not reassigned" in calls.loc[0, "stage2_reason"]
+    # and with CD3e enriched the same cluster is named
+    named = _call([{"CD3e": 0.2, "CD4": 0.5, "CD8": 0.4, "SMA": 0.05}], MARKERS)
+    assert named.loc[0, "immune_class"] == "T_cell"
+
+
+def test_the_epithelial_negatives_of_the_rule_table_are_not_carried_over_as_enrichment():
+    """Every immune phenotype in that table lists the epithelial channels as `none_of`, evaluated
+    there against a LEVEL.  This lane has no level, and "above this cluster's own median channel"
+    is a different statement -- carrying it across is what put 429,278 cells of a lymph node
+    behind an epithelial veto.  The requirement is carried; the negatives are not."""
+    for rule in builder.SUBPANEL_RULE.values():
+        assert "EpCAM" in SP.immune_rules()[rule][2]
+    calls = _call([{"CD3e": 0.4, "EpCAM": 0.9, "SMA": 0.05}],
+                  MARKERS, magnitude=[{"CD3e": 3.0, "EpCAM": 1.05, "SMA": 1.0}])
+    assert bool(calls.loc[0, "is_immune"]) is True
+    assert calls.loc[0, "immune_class"] == "T_cell"
+
+
+def test_the_per_cell_evidence_reads_the_magnitude_and_not_the_rank():
+    """A cross-channel comparison INSIDE one cell has the same defect one level down: a cell's
+    place in a channel that is background everywhere is still a place."""
+    values, codes, markers = _section()
+    st = _standout(values, codes, 2, markers, offset_over=markers)
+    ev = builder.cell_evidence(st, builder.subpanel_membership(markers), len(codes))
+    assert set(ev) == {"immune_magnitude", "structural_magnitude", "top_immune_marker"}
+    # cluster 0 reads 3x on CD3e and 1.03x on EpCAM, so its cells lean immune on the magnitude
+    assert np.nanmean(ev["immune_magnitude"][:600] > ev["structural_magnitude"][:600]) > 0.9
+    # on the rank the same cells would not, which is the measurement this replaces
+    rank_imm = np.vstack([st["unit_rank"][m] for m in ("CD3e", "CD20", "CD68")]).max(axis=0)
+    rank_str = np.vstack([st["unit_rank"][m] for m in ("EpCAM", "SMA", "CD31")]).max(axis=0)
+    assert np.nanmean(rank_imm[:600] > rank_str[:600]) < 0.9
 
 
 def test_the_winning_subpanel_must_carry_an_enriched_canonical_of_its_own_lineage():
@@ -447,7 +619,7 @@ def test_the_per_cell_subpanel_argmax_uses_one_marker_per_subpanel():
             "Iba1": np.array([0.7, 0.95], dtype=np.float32)}
     calls = pd.DataFrame([{"cluster_id": "c0", "marker_T_cell": "CD3e", "marker_Myeloid": "CD68",
                            "marker_B_Plasma": "", "marker_NK_ILC": "", "marker_Granulocyte": ""}])
-    got = builder.per_cell_subpanel(calls, ["c0"], np.array([0, 0]), {"unit_rank": unit})
+    got = builder.per_cell_subpanel(calls, ["c0"], np.array([0, 0]), {"unit_magnitude": unit})
     # Iba1 is the louder myeloid channel on cell 1 but it is not the marker that spoke for the
     # myeloid subpanel on this cluster, so it does not enter the comparison.
     assert list(got) == ["T_cell", "Myeloid"]
@@ -607,10 +779,35 @@ def test_the_separation_each_donor_actually_got_is_reported():
     assert (sep["panel_offset_spread"] > 0).all()
 
 
+def test_the_veto_accounting_carries_both_statistics_and_the_channel_s_span():
+    """The table on which the defect was visible for a generation.  It must carry the number the
+    arbitration READ (the magnitude), the number that admitted the channel (the rank), and the
+    deciding channel's whole span on that section -- all three, so that an exclusion can be
+    judged from the row instead of taken on trust."""
+    calls = pd.DataFrame([
+        {"cluster_id": "c0", "n_cells": 100, "is_immune": False,
+         "top_structural_marker": "Caveolin", "structural_magnitude": 8.0,
+         "immune_magnitude": 1.1, "structural_standout": 0.3, "immune_standout": 0.1},
+        {"cluster_id": "c1", "n_cells": 40, "is_immune": True,
+         "top_structural_marker": "EpCAM", "structural_magnitude": 1.3,
+         "immune_magnitude": 2.4, "structural_standout": 0.4, "immune_standout": 0.2},
+    ])
+    rows = builder.structural_veto_rows("T", calls, {"Caveolin": 20.3, "EpCAM": 1.3})
+    assert len(rows) == 1, "only an exclusion is accounted for here"
+    row = rows[0]
+    assert row["structural_marker"] == "Caveolin" and row["n_cells_excluded"] == 100
+    assert row["median_structural_magnitude"] == 8.0
+    assert row["median_immune_magnitude_of_those_clusters"] == 1.1
+    assert row["median_structural_standout"] == 0.3
+    assert row["marker_dynamic_range_on_this_section"] == 20.3
+
+
 def test_every_exclusion_a_structural_marker_caused_is_accounted_for_with_its_span():
-    """AUC is scale-free, so the magnitude it discards is reported beside every exclusion rather
-    than left for a reader to assume.  Measured: EpCAM decides 5 exclusions over 5 donors at a
-    median span of 1.60x, against 20.3x for Caveolin and 8.4x for CD34."""
+    """Every excluded cluster appears exactly once, and the cell counts reconcile with the calls.
+
+    Before the 2026-09-18 correction this table said, on the cohort it was built from, that
+    429,278 of 1,669,194 excluded cells were decided by an epithelial channel in a tissue with no
+    epithelium -- EpCAM at a median span of 1.60x against 20.3x for Caveolin."""
     path = OUT / "structural_veto_accounting.csv"
     if not path.exists():
         pytest.skip("pLN immune pheno has not been built in this checkout")

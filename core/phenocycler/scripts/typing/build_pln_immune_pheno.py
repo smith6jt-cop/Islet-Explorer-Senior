@@ -74,6 +74,54 @@ WHAT "STANDS OUT" MEANS, and why this statistic.
   every (cluster x marker) test on that section.  Direction plus an internal significance; no
   intensity threshold anywhere.
 
+WHAT THE RANK STATISTIC CANNOT DO, AND WHAT ARBITRATES INSTEAD.  Corrected 2026-09-18.
+
+  Enrichment is a statement about ONE channel: does this cluster read higher on it than the rest
+  of this section.  AUC answers that well and still does.  The immune-vs-structural arbitration
+  is a different question -- of TWO CHANNELS of the same cluster, which one is saying more -- and
+  AUC cannot answer it, because it is scale-free BY DESIGN: the ordering of pure background is
+  still an ordering, so a channel with no target on the section competes on equal terms with a
+  channel that marks a population.  `dynamic_range` below has always computed the magnitude AUC
+  discards; the generation before this one reported that number beside every exclusion and
+  declined to read it, on the ground that reading it would be an absolute threshold.  It is not:
+  a comparison between two channels of the same cluster is the comparison this file already makes
+  everywhere else, and nothing is compared against a constant.
+
+  MEASURED ON ALL FOURTEEN SECTIONS, with the arbitration on the rank statistic:
+
+    * 1,669,194 of 5,122,269 cells -- 32.6 % of a cohort of lymph nodes -- were excluded as
+      non-immune, per donor 20.0 % to 45.8 %.
+    * 429,278 of those exclusions (25.7 %) were decided by an EPITHELIAL channel -- EpCAM,
+      Pan_Cytokeratin or E_cadherin -- in a tissue with no epithelium, and 155,721 more by
+      B3TUBB.
+    * On 115 the deciding channel for the largest cluster on the section (115_c12, 35,251 cells)
+      was EpCAM at raw AUC 0.936 against CD3e at 0.906.  That cluster's magnitudes are CD8 2.42,
+      CD3e 2.05, CD4 1.79 against EpCAM 1.30 -- below its own DAPI, 1.34.  EpCAM's span on that
+      whole section is 1.30x, and its median span over the five sections it decided on is 1.60x,
+      against 20.3x for Caveolin.  Four more sections repeat it: 6521_c06 (39,676 cells, CD8
+      20.5), 6482_c11 (27,890, CD8 6.7), 6505_c05 (27,060, CD3e 6.0) and 6476_c14 (45,864, CD3e
+      4.5), each losing to an epithelial or B3TUBB channel under 2.4.
+    * The arbitration was in fact on RAW AUC and not on S: the panel offset is a per-cluster
+      constant and cancels in a comparison between two markers of one cluster.  Checked on all
+      293 clusters -- the markers chosen and the sign of the margin are identical on S and on raw
+      AUC -- so the offset never protected the arbitration and was never asked to.
+
+  TWO REFERENCES THAT WERE TESTED AND DO NOT EXPLAIN IT, recorded so they are not retried.
+  Recomputing the statistic against the OTHER CLUSTERS of the section, one unit per cluster, the
+  way the Xenium pLN lane does, moves 17 of 293 clusters and the cohort's non-immune share from
+  32.6 % to 31.1 %; on 115 the non-immune share does not move at all and 115_c12 stays excluded,
+  its CD3e AUC RISING from 0.906 to 0.917 under that reference.  Adopting that lane's
+  stage-1 rule as well -- at least two of a set enriched, then the larger FRACTION of its own set
+  wins -- moves the non-immune share the WRONG WAY, to 47.8 %.  The abundance structure of a node
+  is not what breaks this; discarding the magnitude is.
+
+  SO THE ARBITRATION READS THE MAGNITUDE, and the rank statistic keeps the job it can do:
+  `enriched` still says which of a set's markers are saying anything about this cluster, and
+  `magnitude` -- the cluster's median over the section's median on that channel -- decides which
+  of them is saying the most.  It is a ratio inside one channel and one section, so it survives
+  any change of that channel's scale; it is dimensionless, so two channels of one cluster can be
+  compared; and it is unavailable, never zero, where the section median is not positive.
+
 WHAT THIS FILE DOES NOT LICENSE.  No spatial claim across tissues: pancreas and pLN are different
 blocks on one slide and nothing here joins them at all, not even by donor.  No non-immune lineage
 beyond what stage 1 must exclude -- the structural markers arbitrate and never become a label.
@@ -344,6 +392,7 @@ def standout(values: pd.DataFrame, codes: np.ndarray, n_clusters: int, markers: 
     p = np.full((n_clusters, len(markers)), np.nan)
     n_fin = np.zeros((n_clusters, len(markers)), dtype=np.int64)
     unit: dict[str, np.ndarray] = {}
+    unit_mag: dict[str, np.ndarray] = {}
 
     for j, marker in enumerate(markers):
         v = values[marker].to_numpy(dtype=float)
@@ -352,10 +401,21 @@ def standout(values: pd.DataFrame, codes: np.ndarray, n_clusters: int, markers: 
         u = np.full(n, np.nan, dtype=np.float32)
         if total < 2:
             unit[marker] = u
+            unit_mag[marker] = np.full(n, np.nan, dtype=np.float32)
             continue
         ranks = rankdata(v[finite])                      # average ranks, 1..total
         u[finite] = (ranks / total).astype(np.float32)   # the cell's own place on this section
         unit[marker] = u
+        # The cell's own magnitude on this channel, on the same footing as the cluster's: its
+        # value over the section's median for that channel.  A cross-channel comparison inside
+        # ONE cell reads this, never `unit[marker]`, for the reason stage 1 does -- a rank is
+        # scale-free, so a cell's place in a channel that is all background is still a place, and
+        # comparing it against its place in a channel that marks something compares nothing.
+        med = float(np.median(v[finite]))
+        um = np.full(n, np.nan, dtype=np.float32)
+        if med > 0:
+            um[finite] = (v[finite] / med).astype(np.float32)
+        unit_mag[marker] = um
 
         c = codes[finite]
         rank_sum = np.bincount(c, weights=ranks, minlength=n_clusters)
@@ -412,35 +472,63 @@ def standout(values: pd.DataFrame, codes: np.ndarray, n_clusters: int, markers: 
                 & np.isfinite(rel) & (rel > 0.0))
     return {"auc": auc, "rel": rel, "offset": offset, "offset_over": over, "z": z, "p": p,
             "n_finite": n_fin, "enriched": enriched, "alpha": alpha, "n_tests": tested,
-            "unit_rank": unit, "cell_offset": cell_offset, "markers": markers}
+            "unit_rank": unit, "unit_magnitude": unit_mag, "cell_offset": cell_offset,
+            "markers": markers}
 
 
 # --------------------------------------------------------------------------------------------
 # Stage 2 -- subpanel membership, from core/panels and nowhere else.
 # --------------------------------------------------------------------------------------------
+def magnitude(values: pd.DataFrame, codes: np.ndarray, n_clusters: int,
+              markers: list[str]) -> np.ndarray:
+    """Per (cluster, marker) on ONE section: the cluster's median over the section's median.
+
+    THIS IS THE MAGNITUDE AUC DISCARDS, AND STAGE 1 ARBITRATES ON IT.  See the module docstring
+    for the measurement that put it there.  The statistic is:
+
+      * a ratio inside ONE channel and ONE section, so multiplying that channel by any constant
+        leaves it unchanged -- two sections acquired at different exposures give the same number,
+        which is the whole of what "no level that has to mean the same thing on two slides" asks;
+      * dimensionless, so two channels of the same cluster can be compared -- which is the only
+        comparison stage 1 makes;
+      * unavailable, never zero, wherever the section median is not positive: a channel whose
+        section median is 0 or absent (``Ker8_18``, ``Keratin_5`` on this export) has no
+        magnitude here and therefore cannot arbitrate at all.
+
+    It is NOT invariant to an additive background, and that is the point rather than a defect: a
+    channel whose whole section is background lands every cluster near 1 and stops deciding, which
+    is exactly what a rank statistic cannot see.
+    """
+    out = np.full((n_clusters, len(markers)), np.nan)
+    for j, marker in enumerate(markers):
+        v = values[marker].to_numpy(dtype=float)
+        finite = np.isfinite(v)
+        if finite.sum() < 2:
+            continue
+        section = float(np.median(v[finite]))
+        if not (section > 0):
+            continue
+        per = pd.Series(v[finite]).groupby(codes[finite]).median()
+        for code, med in per.items():
+            if 0 <= int(code) < n_clusters:
+                out[int(code), j] = float(med) / section
+    return out
+
+
 def dynamic_range(values: pd.DataFrame, codes: np.ndarray, n_clusters: int,
                   markers: list[str]) -> dict[str, float]:
     """Per channel on ONE section: the brightest cluster's median over the section's median.
 
-    AUC is scale-free -- it reads ranks and ignores magnitude entirely -- so a channel that is
-    nearly flat across the section can still separate a cluster from the rest at AUC 0.9, because
-    the ordering of background is still an ordering.  This number is the magnitude AUC discards,
-    and it is reported beside every exclusion a structural marker causes so that a reader can see
-    what the deciding channel's span on that section actually was.  It gates nothing: it is
-    reported, not applied, because turning it into a gate would be an absolute threshold and the
-    method has none.
+    The per-channel maximum of :func:`magnitude`, kept because the structural-veto accounting
+    reports the deciding channel's whole span on the section beside every exclusion it caused --
+    a reader needs the channel's span as well as the one cluster's lift to judge it.  ONE
+    definition backs both: this function computes nothing of its own.
     """
-    out: dict[str, float] = {}
-    for marker in markers:
-        v = values[marker].to_numpy(dtype=float)
-        finite = np.isfinite(v)
-        if finite.sum() < 2:
-            out[marker] = float("nan")
-            continue
-        section = float(np.median(v[finite]))
-        per = pd.Series(v[finite]).groupby(codes[finite]).median()
-        out[marker] = float(per.max() / section) if section > 0 else float("nan")
-    return out
+    mag = magnitude(values, codes, n_clusters, markers)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        top = np.nanmax(mag, axis=0)
+    return {m: float(top[j]) for j, m in enumerate(markers)}
 
 
 def subpanel_membership(panel_markers: list[str]) -> dict[str, dict[str, str]]:
@@ -487,6 +575,42 @@ def naming_markers(members: dict[str, dict[str, str]]) -> dict[str, list[str]]:
             for name, hints in members.items()}
 
 
+#: Which phenotype of `subpanel.immune_rules()` each identity_core subpanel is the coarse form of.
+#: The mapping is by NAME, one line, so that a reader can check it against the table in one look;
+#: nothing about which markers a phenotype requires is written here.  `NK_ILC` is deliberately
+#: absent: it has no naming marker on this panel and reaches stage 2 only through `nk_licence()`,
+#: which reads the same table's whole rule rather than its `all_of` clause alone.
+SUBPANEL_RULE = {
+    "T_cell": "Imm-T-cell",
+    "B_Plasma": "Imm-B-cell",
+    "Myeloid": "Imm-macrophage",
+    "Granulocyte": "Imm-neutrophil",
+}
+
+
+def subpanel_requirements() -> dict[str, tuple[str, ...]]:
+    """Per subpanel, the markers its own rule-table phenotype REQUIRES -- the `all_of` clause.
+
+    Read from `subpanel.immune_rules()` and never written by hand.  On this panel the table gives
+    `Imm-T-cell` `['CD3e']`, `Imm-B-cell` `['CD20', 'CD79a']`, `Imm-neutrophil` `['CD66']` and
+    `Imm-macrophage` `[]` -- macrophage requires nothing because the table carries its evidence in
+    an `any_of` group instead, and an empty requirement is an empty requirement, not a licence to
+    invent one.
+
+    WHY THE `all_of` CLAUSE AND NOT THE WHOLE RULE.  The `none_of` clause of every immune
+    phenotype in that table is the four epithelial channels, and it is evaluated there against a
+    LEVEL (`subpanel.IMMUNE_REQUIRE_MIN` on scaled values) -- "this marker is actually present".
+    This lane has no level, and "enriched relative to this cluster's own median channel" is not
+    the same statement: a cluster can sit above its own median on a channel that marks nothing
+    anywhere on the section.  Carrying the negatives across on enrichment is exactly the
+    substitution that put 429,278 cells of a lymph node behind an epithelial veto, so the
+    negatives are NOT carried; what is carried is the requirement, which is a statement about
+    evidence that must be present and which enrichment can express.
+    """
+    table = SP.immune_rules()
+    return {name: tuple(table[rule][0]) for name, rule in SUBPANEL_RULE.items() if rule in table}
+
+
 def nk_licence() -> tuple[list[str], list[list[str]], list[str]]:
     """NK_ILC's licence, taken from `subpanel.immune_rules()` and not written by hand.
 
@@ -516,22 +640,29 @@ def nk_licence() -> tuple[list[str], list[list[str]], list[str]]:
 # --------------------------------------------------------------------------------------------
 # Stage 1 and stage 2, ON CLUSTERS.
 # --------------------------------------------------------------------------------------------
-def _best(rel_row: np.ndarray, enr_row: np.ndarray, index: dict[str, int],
+def _best(score_row: np.ndarray, enr_row: np.ndarray, index: dict[str, int],
           markers: list[str]) -> tuple[float, str, bool]:
-    """The strongest of a marker set for one cluster, on S, preferring an ENRICHED marker.
+    """The strongest of a marker set for one cluster on `score_row`, preferring ENRICHED.
 
-    Returns (S, marker, enriched).  When no member of the set is enriched, the strongest member is
-    still reported -- so a reader sees how close the cluster came -- with `enriched` False, and it
-    cannot carry a call.  The ranking is on S and never on raw AUC, because raw AUC carries the
-    cluster's panel-wide offset and would let that offset arbitrate.
+    Returns (score, marker, enriched).  When no member of the set is enriched, the strongest
+    member is still reported -- so a reader sees how close the cluster came -- with `enriched`
+    False, and it cannot carry a call.
+
+    TWO STATISTICS, EACH DOING THE JOB IT CAN DO.  `enr_row` is the rank statistic's verdict: it
+    says which of the set's markers are saying anything about this cluster at all, direction and
+    internal null and the cluster's own panel level, exactly as before.  `score_row` is the
+    MAGNITUDE, and it decides which of those markers is saying the most.  A rank cannot make that
+    second comparison -- it is scale-free by construction, so it cannot tell a channel that marks
+    a population from a channel that is background, and the measurement in the module docstring
+    is what happens when it is asked to.
     """
-    present = [m for m in markers if m in index and np.isfinite(rel_row[index[m]])]
+    present = [m for m in markers if m in index and np.isfinite(score_row[index[m]])]
     if not present:
         return float("nan"), "", False
     enriched = [m for m in present if enr_row[index[m]]]
     pool = enriched or present
-    top = max(pool, key=lambda m: rel_row[index[m]])
-    return float(rel_row[index[top]]), top, bool(enriched)
+    top = max(pool, key=lambda m: score_row[index[m]])
+    return float(score_row[index[top]]), top, bool(enriched)
 
 
 def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
@@ -539,54 +670,76 @@ def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
     """The two stages, per cluster, on one section.
 
     STAGE 1.  A cluster is immune when a canonical immune marker is ENRICHED against the other
-    cells of this same section and reads higher than any enriched structural marker does.  It is
-    non-immune when a structural marker is enriched and the immune evidence does not beat it.  A
-    cluster where nothing is enriched is UNCALLED -- a real category.  In the pancreas such a cell
-    falls through to Exocrine because exocrine is the background there; a node has no such
-    default, and inventing one would manufacture a majority class out of nothing.
+    cells of this same section and carries MORE MAGNITUDE on this cluster than any enriched
+    structural marker does.  It is non-immune when a structural marker is enriched and the immune
+    evidence does not beat it on that magnitude.  A cluster where nothing is enriched is
+    UNCALLED -- a real category.  In the pancreas such a cell falls through to Exocrine because
+    exocrine is the background there; a node has no such default, and inventing one would
+    manufacture a majority class out of nothing.
+
+    WHY THE MAGNITUDE AND NOT THE RANK.  The arbitration is a comparison between TWO CHANNELS of
+    the same cluster, and a within-section rank cannot make it: see the module docstring for the
+    measurement.  The rank statistic still decides which markers are admitted as evidence
+    (`enriched`); the magnitude decides which of the admitted markers wins.
 
     STAGE 2.  Within the immune clusters only, the five identity_core subpanels compete on the
-    strongest of THEIR OWN naming markers.  The winner is then required to have an enriched
-    canonical of its own lineage; if it has none the cluster is UNCALLED with that named reason
-    and is NEVER reassigned to the runner-up.  That is the failure the Xenium draft made -- 55.4 %
-    of its Granulocyte calls detected none of the granulocyte canonicals -- and the requirement is
-    written so it cannot recur here.
+    strongest of THEIR OWN naming markers, on the same magnitude.  The winner is then held to TWO
+    requirements, and fails to `Uncalled` rather than to the runner-up:
+
+      * it must have an ENRICHED canonical of its own lineage.  That is the failure the Xenium
+        draft made -- 55.4 % of its Granulocyte calls detected none of the granulocyte
+        canonicals -- and the requirement is written so it cannot recur here.
+      * every marker in its `all_of` clause in `subpanel.immune_rules()` must be enriched.  That
+        table is the maintainer's statement of what each phenotype REQUIRES, it is the same table
+        `nk_licence()` already reads, and it is taken whole rather than marker by marker: it is
+        why no cluster is named T on CD4 or CD8 without CD3e -- `Imm-T-cell` is `all_of ['CD3e']`
+        and every T subtype in that table repeats it.  A cluster whose winner fails its own
+        clause is Uncalled WITH THE MISSING MARKERS NAMED.
     """
     index = {m: j for j, m in enumerate(st["markers"])}
     auc, rel, enr = st["auc"], st["rel"], st["enriched"]
+    mag = st["magnitude"]
     primaries = sorted({m for lin in IMMUNE_LINEAGES for m in PRIMARY_IMMUNE[lin]})
     naming = naming_markers(members)
     nk_all, nk_any, nk_none = nk_licence()
+    required = subpanel_requirements()
 
     rows = []
     for i, cid in enumerate(cluster_ids):
-        imm_auc, imm_marker, imm_enr = _best(rel[i], enr[i], index, primaries)
-        str_auc, str_marker, str_enr = _best(rel[i], enr[i], index, list(STRUCTURAL))
+        imm_mag, imm_marker, imm_enr = _best(mag[i], enr[i], index, primaries)
+        str_mag, str_marker, str_enr = _best(mag[i], enr[i], index, list(STRUCTURAL))
 
-        if imm_enr and (not str_enr or imm_auc > str_auc):
-            is_immune, stage1 = True, "immune_canonical_stands_out_over_structural"
-        elif str_enr and (not imm_enr or str_auc >= imm_auc):
-            is_immune, stage1 = False, "structural_stands_out_over_immune"
+        if not np.isfinite(imm_mag) and not np.isfinite(str_mag):
+            is_immune, stage1 = None, "no_channel_carries_a_magnitude_on_this_section"
+        elif imm_enr and (not str_enr or not np.isfinite(str_mag) or imm_mag > str_mag):
+            is_immune, stage1 = True, "immune_canonical_carries_more_magnitude_than_structural"
+        elif str_enr and (not imm_enr or not np.isfinite(imm_mag) or str_mag >= imm_mag):
+            is_immune, stage1 = False, "structural_carries_more_magnitude_than_immune"
         elif imm_enr and str_enr:
             is_immune, stage1 = None, "immune_and_structural_evidence_tie"
         else:
             is_immune, stage1 = None, "no_lineage_marker_stands_out_on_this_section"
 
+        rel_at = lambda m: (float(rel[i][index[m]]) if m in index else np.nan)   # noqa: E731
         row = {"donor_id": donor, "cluster_id": cid, "n_cells": int(sizes[i]),
                "panel_offset_auc": float(st["offset"][i]),
-               "immune_standout": imm_auc, "top_immune_marker": imm_marker,
+               "immune_magnitude": imm_mag, "top_immune_marker": imm_marker,
+               "immune_standout": rel_at(imm_marker),
                "top_immune_marker_raw_auc": (float(auc[i][index[imm_marker]])
                                              if imm_marker in index else np.nan),
                "top_structural_marker_raw_auc": (float(auc[i][index[str_marker]])
                                                  if str_marker in index else np.nan),
                "immune_marker_enriched": imm_enr,
-               "structural_standout": str_auc, "top_structural_marker": str_marker,
+               "structural_magnitude": str_mag, "top_structural_marker": str_marker,
+               "structural_standout": rel_at(str_marker),
                "structural_marker_enriched": str_enr,
-               "separation_margin": imm_auc - str_auc,
+               "magnitude_margin": imm_mag - str_mag,
+               "separation_margin": rel_at(imm_marker) - rel_at(str_marker),
                "is_immune": is_immune, "stage1_rule": stage1,
                "immune_class": "", "stage2_reason": "", "immune_subtype": ""}
         for name in SUBPANEL_FILES:
             row[f"standout_{name}"] = np.nan
+            row[f"magnitude_{name}"] = np.nan
             row[f"enriched_{name}"] = False
 
         # --- stage 2 --------------------------------------------------------------------------
@@ -594,8 +747,9 @@ def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
         for name, markers in naming.items():
             if name in SUPPORTING_ONLY_SUBPANEL:
                 continue
-            a, m, e = _best(rel[i], enr[i], index, markers)
-            row[f"standout_{name}"], row[f"enriched_{name}"] = a, e
+            a, m, e = _best(mag[i], enr[i], index, markers)
+            row[f"magnitude_{name}"], row[f"enriched_{name}"] = a, e
+            row[f"standout_{name}"] = rel_at(m)
             row[f"marker_{name}"] = m
             if np.isfinite(a):
                 scores[name] = a
@@ -604,12 +758,13 @@ def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
                     and all(any(enr[i][index[m]] for m in g if m in index) for g in nk_any)
                     and not any(enr[i][index[m]] for m in nk_none if m in index))
         row["nk_licensed_by_rule_table"] = bool(licensed)
-        if "CD56" in index and np.isfinite(rel[i][index["CD56"]]):
-            row["standout_NK_ILC"] = float(rel[i][index["CD56"]])
+        if "CD56" in index and np.isfinite(mag[i][index["CD56"]]):
+            row["magnitude_NK_ILC"] = float(mag[i][index["CD56"]])
+            row["standout_NK_ILC"] = rel_at("CD56")
             row["enriched_NK_ILC"] = bool(licensed)
             row["marker_NK_ILC"] = "CD56"
             if licensed:
-                scores["NK_ILC"] = float(rel[i][index["CD56"]])
+                scores["NK_ILC"] = float(mag[i][index["CD56"]])
 
         if is_immune is True:
             if not scores:
@@ -617,18 +772,26 @@ def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
                 row["stage2_reason"] = "no subpanel has a measurable marker on this section"
             else:
                 # The winner is the strongest subpanel WHATEVER its enrichment; it is then held to
-                # the requirement.  Taking the argmax over enriched subpanels only would quietly
+                # the requirements.  Taking the argmax over enriched subpanels only would quietly
                 # reassign the cluster to the runner-up, which is exactly what must not happen.
                 won = max(scores, key=lambda k: scores[k])
-                if row[f"enriched_{won}"]:
-                    row["immune_class"] = won
-                    row["stage2_reason"] = "subpanel_argmax_with_an_enriched_canonical"
-                    row["immune_subtype"] = members[won].get(row.get(f"marker_{won}", ""), "")
-                else:
+                missing = [m for m in required.get(won, ())
+                           if m not in index or not enr[i][index[m]]]
+                if not row[f"enriched_{won}"]:
                     row["immune_class"] = "Uncalled"
                     row["stage2_reason"] = (
                         f"winning subpanel {won} has no enriched canonical of its own lineage "
                         f"-- not reassigned to a smaller-scoring subpanel")
+                elif missing:
+                    row["immune_class"] = "Uncalled"
+                    row["stage2_reason"] = (
+                        f"winning subpanel {won} does not satisfy its own rule-table requirement "
+                        f"{'+'.join(required[won])} -- {'+'.join(missing)} is not enriched on "
+                        f"this cluster; not reassigned to a smaller-scoring subpanel")
+                else:
+                    row["immune_class"] = won
+                    row["stage2_reason"] = "subpanel_argmax_with_an_enriched_canonical"
+                    row["immune_subtype"] = members[won].get(row.get(f"marker_{won}", ""), "")
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -636,17 +799,55 @@ def call_clusters(donor: str, cluster_ids: list[str], sizes: np.ndarray,
 # --------------------------------------------------------------------------------------------
 # Per-cluster heterogeneity, measured at the cell level and threshold-free.
 # --------------------------------------------------------------------------------------------
-def cell_evidence(st: dict, members: dict, n: int) -> dict[str, np.ndarray]:
-    """Each cell's OWN evidence, on the same within-section ranks the clusters were named on.
+def structural_veto_rows(donor: str, calls: pd.DataFrame,
+                         dyn: dict[str, float]) -> list[dict]:
+    """Every exclusion a structural channel caused on one section, with the numbers behind it.
 
-    Nothing here is a threshold.  `immune_rank` is the cell's highest place on this section among
-    the immune canonicals, `structural_rank` the same among the structural markers, and
-    `argmax_subpanel` the subpanel whose own naming markers the cell reads highest on.  They exist
-    so that a cluster's call can be checked against the cells inside it: a cluster whose cells
-    mostly disagree with its own label is a mixed cluster, and this is how it becomes visible
-    instead of hiding behind a majority.
+    Both statistics are on the row, and so is the deciding channel's whole span on that section:
+    the arbitration reads the MAGNITUDE, the rank is what admitted the channel as evidence, and a
+    reader needs all three to judge an exclusion rather than take it on trust.  This is also the
+    table on which the defect corrected on 2026-09-18 was visible for a generation -- EpCAM
+    deciding 35,251 cells on donor 115 at a span of 1.30x was printed here and read as a
+    curiosity.
     """
-    unit = st["unit_rank"]
+    rows = []
+    vetoed = calls.loc[calls["is_immune"] == False]                              # noqa: E712
+    for marker, group in vetoed.groupby("top_structural_marker"):
+        rows.append({
+            "donor_id": donor, "structural_marker": str(marker),
+            "n_clusters_excluded": len(group),
+            "n_cells_excluded": int(group["n_cells"].sum()),
+            "median_structural_magnitude": float(group["structural_magnitude"].median()),
+            "median_immune_magnitude_of_those_clusters":
+                float(group["immune_magnitude"].median()),
+            "median_structural_standout": float(group["structural_standout"].median()),
+            "median_immune_standout_of_those_clusters":
+                float(group["immune_standout"].median()),
+            "marker_dynamic_range_on_this_section": dyn.get(str(marker), float("nan")),
+        })
+    return rows
+
+
+def cell_evidence(st: dict, members: dict, n: int) -> dict[str, np.ndarray]:
+    """Each cell's OWN evidence, on the same statistic the clusters were named on.
+
+    Nothing here is a threshold.  `immune_magnitude` is the cell's largest value-over-section-
+    median among the immune canonicals, `structural_magnitude` the same among the structural
+    markers, and `argmax_subpanel` the subpanel whose own naming marker the cell reads highest on.
+    They exist so that a cluster's call can be checked against the cells inside it: a cluster
+    whose cells mostly disagree with its own label is a mixed cluster, and this is how it becomes
+    visible instead of hiding behind a majority.
+
+    THE STATISTIC IS THE MAGNITUDE, FOR THE REASON STAGE 1 USES IT.  These are comparisons
+    BETWEEN CHANNELS inside one cell, so a within-section rank cannot make them: a cell's place in
+    a channel that is background everywhere is still a place.  Measured on the fourteen sections,
+    the share of cells called immune that agree with their own cluster's class is 0.747 after this
+    correction against 0.662 before it, up on thirteen of the fourteen donors and down on 6505.
+    That number is a diagnostic and gates nothing -- it is reported, not aimed at -- and it moves
+    for two reasons at once, this statistic and the stage-1 change, which is why it is quoted
+    across the correction rather than attributed to either half.
+    """
+    unit = st["unit_magnitude"]
 
     def top(markers):
         present = [unit[m] for m in markers if m in unit]
@@ -662,7 +863,7 @@ def cell_evidence(st: dict, members: dict, n: int) -> dict[str, np.ndarray]:
     imm, imm_i = top(primaries)
     stc, _ = top(list(STRUCTURAL))
     marker_names = np.array(primaries, dtype=object)
-    return {"immune_rank": imm, "structural_rank": stc,
+    return {"immune_magnitude": imm, "structural_magnitude": stc,
             "top_immune_marker": np.where(imm_i >= 0, marker_names[np.clip(imm_i, 0, None)], "")}
 
 
@@ -677,7 +878,7 @@ def per_cell_subpanel(calls: pd.DataFrame, cluster_ids: list[str], codes: np.nda
     for it ON THIS CLUSTER -- the one `call_clusters` recorded -- so the per-cell comparison is one
     marker against one marker and the statistic is not a restatement of the panel's shape.
     """
-    unit = st["unit_rank"]
+    unit = st["unit_magnitude"]
     names = list(SUBPANEL_FILES)
     by_cluster = calls.set_index("cluster_id")
     out = np.full(len(codes), "", dtype=object)
@@ -715,8 +916,8 @@ def heterogeneity(calls: pd.DataFrame, cluster_ids: list[str], codes: np.ndarray
                                cluster, normalised by log(5).  0 is one population, 1 is an even
                                mixture of all five.
     """
-    lean = np.where(np.isfinite(ev["immune_rank"]) & np.isfinite(ev["structural_rank"]),
-                    ev["immune_rank"] > ev["structural_rank"], np.nan)
+    lean = np.where(np.isfinite(ev["immune_magnitude"]) & np.isfinite(ev["structural_magnitude"]),
+                    ev["immune_magnitude"] > ev["structural_magnitude"], np.nan)
     names = list(SUBPANEL_FILES)
     rows = []
     for i, cid in enumerate(cluster_ids):
@@ -802,10 +1003,10 @@ def coherence(donor: str, calls: pd.DataFrame, cluster_ids: list[str], codes: np
         t for t in tags if out[f"cd4_or_cd8_pct_of_T_at_{t}"] > 100.0 + 1e-9)
     out["t_cd20_pct_of_T_at_p1"] = pct(pos("CD20", 0.10), in_t)
     out["b_cd3e_pct_of_B_at_p1"] = pct(pos("CD3e", 0.10), in_b)
-    imm_rank = st["_cell_immune_rank"]
-    str_rank = st["_cell_structural_rank"]
-    beaten = np.isfinite(imm_rank) & np.isfinite(str_rank) & (str_rank > imm_rank)
-    out["immune_cells_whose_own_structural_rank_wins_pct"] = pct(beaten, in_imm)
+    imm_mag = st["_cell_immune_magnitude"]
+    str_mag = st["_cell_structural_magnitude"]
+    beaten = np.isfinite(imm_mag) & np.isfinite(str_mag) & (str_mag > imm_mag)
+    out["immune_cells_whose_own_structural_magnitude_wins_pct"] = pct(beaten, in_imm)
     return out
 
 
@@ -1369,8 +1570,16 @@ def main() -> int:
               + (f"   [licensed by {lic}: {nk_all} + any{nk_any} - {nk_none}]" if lic else ""))
     print(f"\nENRICHED  AUC > {AUC_NULL}, rank-sum p < {ALPHA} Bonferroni-corrected over every "
           f"cluster x marker test on that\n          section, AND above the cluster's own median "
-          f"AUC over all {len(channels)} channels.  The\n          arbitration reads S = AUC minus "
-          f"that median, never raw AUC.\n")
+          f"AUC over all {len(channels)} channels.\n")
+    print("ARBITRATION  between two channels of ONE cluster, on the MAGNITUDE -- that cluster's "
+          "median over\n             the section's median on the channel.  The rank statistic "
+          "admits the evidence; it\n             cannot compare two channels, because it is "
+          "scale-free and the ordering of background\n             is still an ordering.  See "
+          "the module docstring for the measurement.\n")
+    print("STAGE-2 REQUIREMENT  from subpanel.immune_rules(), the same table nk_licence() reads:")
+    for name, need in subpanel_requirements().items():
+        print(f"   {name:12s} {' + '.join(need) or '(the table requires nothing of it)'}")
+    print()
 
     donors = args.donors or have_clusters
 
@@ -1448,11 +1657,15 @@ def main() -> int:
         markers = [m for m in described if m in merged.columns]
         st = standout(merged[markers], codes, len(cluster_ids), markers,
                       offset_over=[m for m in channels if m in markers])
+        # The magnitude the rank statistic discards, on the same clusters and the same cells.
+        # Stage 1 and stage 2 arbitrate on it; `dynamic_range` is its per-channel maximum and is
+        # reported beside every exclusion a structural marker causes.
+        st["magnitude"] = magnitude(merged[markers], codes, len(cluster_ids), markers)
         dyn = dynamic_range(merged[[m for m in decision if m in markers]], codes,
                             len(cluster_ids), [m for m in decision if m in markers])
         ev = cell_evidence(st, members, len(merged))
-        st["_cell_immune_rank"] = ev["immune_rank"]
-        st["_cell_structural_rank"] = ev["structural_rank"]
+        st["_cell_immune_magnitude"] = ev["immune_magnitude"]
+        st["_cell_structural_magnitude"] = ev["structural_magnitude"]
 
         index = {m: j for j, m in enumerate(markers)}
         n_enriched_canonical = int(sum(
@@ -1500,22 +1713,14 @@ def main() -> int:
             "median_separation_margin": float(np.nanmedian(calls["separation_margin"])),
             "max_separation_margin": float(np.nanmax(calls["separation_margin"])),
             "min_separation_margin": float(np.nanmin(calls["separation_margin"])),
+            # The margin the arbitration actually read.  `separation_margin` above is the same two
+            # markers on the rank statistic, kept so a reader can see both of them at once.
+            "median_magnitude_margin": float(np.nanmedian(calls["magnitude_margin"])),
+            "max_magnitude_margin": float(np.nanmax(calls["magnitude_margin"])),
+            "min_magnitude_margin": float(np.nanmin(calls["magnitude_margin"])),
         })
 
-        # Every exclusion a structural marker caused, with that marker's measured span on this
-        # section beside it.  Reported, never applied: it is the magnitude the rank statistic
-        # discards, and a reader needs it to judge an exclusion rather than take it on trust.
-        vetoed = calls.loc[calls["is_immune"] == False]                          # noqa: E712
-        for marker, group in vetoed.groupby("top_structural_marker"):
-            veto_rows.append({
-                "donor_id": donor, "structural_marker": str(marker),
-                "n_clusters_excluded": len(group),
-                "n_cells_excluded": int(group["n_cells"].sum()),
-                "median_structural_standout": float(group["structural_standout"].median()),
-                "median_immune_standout_of_those_clusters":
-                    float(group["immune_standout"].median()),
-                "marker_dynamic_range_on_this_section": dyn.get(str(marker), float("nan")),
-            })
+        veto_rows.extend(structural_veto_rows(donor, calls, dyn))
 
         # --- cells inherit their cluster's call -------------------------------------------------
         by_cluster = calls.set_index("cluster_id")
@@ -1532,8 +1737,8 @@ def main() -> int:
             "stage2_reason": pd.Categorical(take("stage2_reason").astype(str)),
             "cluster_immune_standout": take("immune_standout").astype(float),
             "cluster_structural_standout": take("structural_standout").astype(float),
-            "cell_immune_rank": ev["immune_rank"],
-            "cell_structural_rank": ev["structural_rank"],
+            "cell_immune_magnitude": ev["immune_magnitude"],
+            "cell_structural_magnitude": ev["structural_magnitude"],
             "cell_top_immune_marker": pd.Categorical(ev["top_immune_marker"].astype(str)),
             "cell_argmax_subpanel": pd.Categorical(argmax_subpanel.astype(str)),
             # Stage 3.  Empty outside the T_NK compartment -- it is a refinement OF that
@@ -1641,10 +1846,12 @@ def main() -> int:
 
     (COHORT / "manifest.json").write_text(json.dumps({
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "method": "clusters from the clustering track are named by canonical enrichment against "
-                  "the OTHER CLUSTERS OF THE SAME SECTION (stage 1), then resolved within immune "
-                  "by the core/panels identity_core subpanels (stage 2); cells inherit their "
-                  "cluster's call",
+        "method": "clusters from the clustering track are named on their own section: the rank "
+                  "statistic admits a marker as evidence (ENRICHED against the rest of that "
+                  "section) and the MAGNITUDE arbitrates between the admitted markers (stage 1), "
+                  "then the core/panels identity_core subpanels resolve within immune on the same "
+                  "magnitude and are held to their own rule-table requirement (stage 2); cells "
+                  "inherit their cluster's call",
         "clustering_consumed_from": str(CLUSTERS.relative_to(REPO)),
         "no_pancreas_input": "no pancreas cell, level, threshold, scale or quantile is read by "
                              "this script; the pancreas transfer of 2026-09-17 is WITHDRAWN",
@@ -1659,6 +1866,27 @@ def main() -> int:
                      "tie-corrected rank-sum p",
         "enriched_at": {"auc_above": AUC_NULL, "alpha": ALPHA,
                         "correction": "Bonferroni over every cluster x marker test on the section"},
+        "arbitration_statistic": "the cluster's median over the section's median on that channel "
+                                 "-- the magnitude the rank statistic discards.  A ratio inside "
+                                 "one channel and one section: invariant to that channel's scale, "
+                                 "dimensionless so two channels of one cluster can be compared, "
+                                 "and unavailable (never zero) where the section median is not "
+                                 "positive",
+        "why_not_the_rank": "AUC is scale-free by design, so a channel with no target on the "
+                            "section competes on equal terms with one that marks a population.  "
+                            "Measured on the 14 sections before this correction: 1,669,194 of "
+                            "5,122,269 cells excluded as non-immune, 429,278 of them decided by "
+                            "an epithelial channel in a tissue with no epithelium",
+        "references_tested_and_rejected": {
+            "cluster_as_the_unit": "recomputing the statistic against the other CLUSTERS of the "
+                                   "section, one unit per cluster, moves 17 of 293 clusters and "
+                                   "the non-immune share from 32.6% to 31.1%; on donor 115 it "
+                                   "moves nothing",
+            "fraction_of_set_standing_out": "the Xenium pLN lane's stage-1 rule (>=2 of a set "
+                                            "enriched, larger fraction wins) moves the non-immune "
+                                            "share to 47.8%"},
+        "subpanel_rule_table_requirement": {k: list(v) for k, v in
+                                            subpanel_requirements().items()},
         "primary_immune": {k: list(v) for k, v in PRIMARY_IMMUNE.items()},
         "supporting_immune": list(SUPPORTING_IMMUNE),
         "structural": list(STRUCTURAL), "structural_dropped": STRUCTURAL_DROPPED,
