@@ -10,6 +10,13 @@ from `cohort.resolve()` rather than naming it. A test that pins the cohort as a 
 edited every time a donor joins, which is the same failure in a different file -- the number would
 be updated to match whatever was built, and would then agree with a stale build forever.
 
+Covering the cohort is necessary and not sufficient: an artifact can carry every donor and still
+have been built before an input it reads, in which case it carries the previous generation's
+numbers for all twenty of them.  So the coverage assertions below are joined by a staleness one,
+measured against the graph `scripts/senior/build_layers.py` declares -- for the same artifacts,
+found through the declaration rather than through a second list kept here.  The layers and the
+column families get the same treatment in `test_layer_staleness.py`.
+
 Marked `data`: these are built artifacts, not fixtures, so the suite skips when they are absent
 rather than failing a synthetic CI run.
 
@@ -18,7 +25,10 @@ rather than failing a synthetic CI run.
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +37,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[4]
 TYPING = REPO / "data/development/typing"
 APP = TYPING / "app"
+DRIVER = REPO / "scripts/senior/build_layers.py"
 
 sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
 
@@ -166,3 +177,82 @@ def test_proportions_are_over_a_denominator_that_is_present_not_assumed():
             continue
         assert empty[columns].isna().all().all(), (
             f"{prefix}* is filled in on {len(empty)} islet(s) with no cells in that region")
+
+
+# ---------------------------------------------------------------------------------------------
+# Staleness: covering the cohort is not the same as having been built from what is on disk now
+# ---------------------------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def driver():
+    """`scripts/senior/build_layers.py`, loaded by path -- it is a script, not a package module."""
+    if not DRIVER.is_file():
+        pytest.skip(f"{DRIVER} is not present; there is no declared graph to check against")
+    spec = importlib.util.spec_from_file_location("build_layers", DRIVER)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def builders(driver):
+    """artifact path -> the node(s) declared to write it, and one measured status per node.
+
+    Derived from the declaration, so an artifact that changes builder, or gains one, is followed
+    here without an edit. Nothing in this fixture opens an artifact; it reads mtimes only.
+    """
+    if not APP.is_dir():
+        pytest.skip(f"{APP} is not built")
+    layers = Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers"))
+    nodes = driver.build_graph(REPO, layers)
+    statuses = {status.name: status for status in driver.check(nodes)}
+    return driver.producers(nodes), statuses
+
+
+def _when(mtime):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime)) if mtime else "unknown"
+
+
+def _relative(path):
+    try:
+        return str(Path(path).relative_to(REPO))
+    except (ValueError, TypeError):
+        return str(path)
+
+
+@pytest.mark.parametrize("name", sorted(ARTIFACTS) + ["islet_geometry.parquet"])
+def test_artifact_was_built_after_every_input_its_builder_reads(name, driver, builders):
+    """An artifact older than an input it reads describes a generation that is no longer there.
+
+    This is the check that was missing while five layers and three column families sat hours
+    behind their own sources and every other test passed. It asserts nothing about the numbers in
+    the artifact -- only that they were computed from the files that are on disk now.
+    """
+    if not (APP / name).exists():
+        pytest.skip(f"{APP / name} is not built")
+    by_output, statuses = builders
+    path = os.path.normpath(str(APP / name))
+    writers = by_output.get(path)
+    assert writers, (
+        f"{name} is covered by this suite but no node in {_relative(DRIVER)} declares it as an "
+        f"output, so nothing can tell whether it is stale. Declare its builder there.")
+
+    offenders = []
+    for writer in writers:
+        status = statuses[writer]
+        if status.state == driver.FRESH:
+            continue
+        if status.state == driver.MISSING_INPUT:
+            offenders.append(f"{writer} declares inputs that do not exist: "
+                             + ", ".join(_relative(p) for p in status.missing))
+        elif status.state == driver.MISSING_OUTPUT:
+            offenders.append(f"{writer} has not written: "
+                             + ", ".join(_relative(p) for p in status.missing))
+        else:
+            offenders.append(
+                f"{writer} wrote {_relative(status.oldest_output)} "
+                f"({_when(status.oldest_output_mtime)}) BEFORE it read "
+                f"{_relative(status.newest_input)} ({_when(status.newest_input_mtime)})")
+    assert not offenders, f"{name} is stale:\n  " + "\n  ".join(offenders)
