@@ -768,10 +768,14 @@ def test_registration_selection_enforces_central_exclusions():
             provenance_source="test",
         )
 
-    records = {donor: record(donor) for donor in ("6436", "6457", "6579")}
+    # Derived, not named: 6579 was reinstated on 2026-09-17 and this list had restated it.
+    from phenocycler.cohort import DONOR_EXCLUSIONS
+    excluded = sorted(DONOR_EXCLUSIONS)
+    records = {donor: record(donor) for donor in ["6436", *excluded]}
     assert [item.donor_id for item in RI.select_registration_inputs(records, None)] == ["6436"]
-    with pytest.raises(ValueError, match="6457"):
-        RI.select_registration_inputs(records, ["6457"])
+    for donor in excluded:
+        with pytest.raises(ValueError, match=donor):
+            RI.select_registration_inputs(records, [donor])
 
 
 def test_the_pyramid_factor_is_the_integer_not_the_shape_ratio():

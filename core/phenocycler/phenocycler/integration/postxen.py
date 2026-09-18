@@ -128,9 +128,12 @@ IF_MARKERS = ("INS", "GCG")
 
 
 def restain_if_dir(cfg: PipelineConfig) -> Path:
-    """Where scripts/restain/protein_rna.py wrote the per-cell IF arrays (repo-root data/development)."""
-    return Path(cfg.repo_root) / "data" / "development" / "restain" / "protein_rna" \
-        if hasattr(cfg, "repo_root") else Path(__file__).resolve().parents[4] / "data" / "development" / "restain" / "protein_rna"
+    """Where scripts/restain/protein_rna.py wrote the per-cell IF arrays (repo-root data/development).
+
+    `PipelineConfig` has no `repo_root`, so the `hasattr` branch this used to carry was dead and the
+    parents[4] fallback was always what ran. Stating the one live path is not a behaviour change.
+    """
+    return Path(__file__).resolve().parents[4] / "data" / "development" / "restain" / "protein_rna"
 
 
 def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Optional[Path] = None,
@@ -163,12 +166,20 @@ def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Option
         return out
     order = pd.read_parquet(bundle_cells, columns=["cell_id"])["cell_id"].astype(str).to_numpy()
     df = xen.df
-    stamped = 0
+    stamped: dict[str, int] = {}
+    missing: list[str] = []
     for m in IF_MARKERS:
-        cands = sorted(if_dir.glob(f"{donor}_{serial}_cell_{m}.npy")) if serial else sorted(if_dir.glob(f"{donor}_*_cell_{m}.npy"))
+        pattern = f"{donor}_{serial}_cell_{m}.npy" if serial else f"{donor}_*_cell_{m}.npy"
+        cands = sorted(if_dir.glob(pattern))
         col = f"feat__if_{m}"
         if not cands:
+            # Absent arrays are a fact about the re-stain lane, not about this donor's geometry.
+            # This used to set NaN and `continue` with nothing recorded and nothing printed, so a
+            # donor whose registration had PASSED looked identical to one that had never been
+            # registered -- which is how 6539 read as a registration failure for a week when all it
+            # needed was this step re-running. Record the pattern that found nothing.
             df[col] = np.nan
+            missing.append(str(if_dir / pattern))
             continue
         v = np.load(cands[0]).astype(np.float32)
         if len(v) != len(order):
@@ -176,8 +187,15 @@ def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Option
         s_ = pd.Series(v, index=order)
         df[col] = s_.reindex(df["cell_id"].astype(str)).to_numpy(dtype=np.float32)
         out["markers"].append(m)
-        stamped = int(np.isfinite(df[col].to_numpy(dtype=float)).sum())
-    out["n_stamped"] = stamped
+        # Per marker, not overwritten: `stamped` used to be ASSIGNED inside this loop, so
+        # `n_stamped` reported the finite count of the last marker (GCG) alone.
+        stamped[m] = int(np.isfinite(df[col].to_numpy(dtype=float)).sum())
+    out["n_stamped_by_marker"] = stamped
+    out["n_stamped"] = int(sum(stamped.values()))
+    if missing:
+        out["missing_arrays"] = missing
+        out["skipped_reason"] = (f"no per-cell IF arrays for {donor}: "
+                                 f"{len(missing)} of {len(IF_MARKERS)} markers absent")
     if out["markers"]:
         write_cell_table(df, partition_path(cfg.cells_xen_dir, donor, roi))
     return out

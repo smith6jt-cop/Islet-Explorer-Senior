@@ -404,14 +404,52 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
     return rec
 
 
+def registered_serials(roi: str = "panc") -> dict[str, str]:
+    """serial -> donor, for every donor whose registration PASSED its gate.
+
+    This is what the module actually needs: a refined transform that cleared the release gate.
+    It used to enumerate from the QuPath GeoJSON directory -- three files -- while stating in three
+    places that it reads no annotation, so ten donors with a PASS gate were skipped in silence and
+    the lane looked like a registration failure. The gate verdict is the honest predicate, and it
+    lives in the donor directory next to the transform it certifies.
+    """
+    import json as _json
+    out: dict[str, str] = {}
+    root = OUT / "valis"
+    if not root.is_dir():
+        return out
+    for donor_dir in sorted(root.glob("donor_id=*")):
+        donor = donor_dir.name.split("=", 1)[1]
+        if not (donor_dir / "refined.json").exists():
+            continue
+        verdicts = []
+        for gate in sorted(donor_dir.glob("alignment_*.json")):
+            try:
+                j = _json.loads(gate.read_text())
+            except (OSError, ValueError):
+                continue
+            v = j.get("verdict") or (j.get("alignment") or {}).get("verdict")
+            if v:
+                verdicts.append(str(v))
+        if "PASS" not in verdicts:
+            continue
+        try:
+            export = _json.loads((donor_dir / "export.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if export.get("roi") != roi:
+            continue
+        serial = str(export.get("serial") or "")
+        if serial:
+            out[serial] = donor
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--roi", default="panc")
-    ap.add_argument("--geojson-dir", type=Path, default=GEOJSON_DIR,
-                    help="only used to enumerate which sections have a refined transform; no "
-                         "annotation inside these files is read")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--um-per-px", type=float, default=PROTEIN_UM_PER_PX)
     args = ap.parse_args(argv)
@@ -419,8 +457,7 @@ def main(argv=None) -> int:
     sections = HZ.load_section_map(SECTIONS)
     (args.out / "protein_rna").mkdir(parents=True, exist_ok=True)
     recs = {}
-    for serial, _gj in discover(args.geojson_dir).items():
-        donor = donor_of(serial, XENIUM_PATHS)
+    for serial, donor in sorted(registered_serials(args.roi).items()):
         if args.donors and donor not in args.donors:
             continue
         rec = measure_one(serial, sections, roi=args.roi, out_dir=args.out,

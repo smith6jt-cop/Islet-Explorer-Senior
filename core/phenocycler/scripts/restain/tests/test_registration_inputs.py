@@ -7,6 +7,8 @@ import sys
 import pandas as pd
 import pytest
 
+from phenocycler.cohort import DONOR_EXCLUSIONS
+
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -67,24 +69,28 @@ def test_missing_geojson_is_valid_for_registration(tmp_path, monkeypatch):
 
 
 def test_automatic_selection_filters_central_exclusions(tmp_path, monkeypatch):
-    rows = [
-        {"image_file": f"{donor}.qptiff", "donor_id": donor, "roi": "panc",
-         "xenium_serial": serial, "provenance_source": "audited fixture"}
-        for donor, serial in (("6436", "0059907"), ("6457", "0037637"),
-                              ("6579", "0041035"))
-    ]
+    # Derived from the authority, never named here. This test asserted the pair {6457, 6579} and
+    # so failed when 6579's exclusion was lifted on 2026-09-17 -- a correct change breaking a test
+    # that had restated the list, which is the failure mode "no lane may restate it" prevents.
+    excluded = sorted(DONOR_EXCLUSIONS)
+    assert excluded, "the cohort must carry at least one exclusion for this test to mean anything"
+    keep = "6436"
+    rows = [{"image_file": f"{keep}.qptiff", "donor_id": keep, "roi": "panc",
+             "xenium_serial": "0059907", "provenance_source": "audited fixture"}]
+    rows += [{"image_file": f"{d}.qptiff", "donor_id": d, "roi": "panc",
+              "xenium_serial": f"00000{i:02d}", "provenance_source": "audited fixture"}
+             for i, d in enumerate(excluded)]
     records = _inventory(tmp_path, monkeypatch, rows)
-    assert [record.donor_id for record in RI.select_registration_inputs(records, None)] == ["6436"]
+    assert [record.donor_id for record in RI.select_registration_inputs(records, None)] == [keep]
 
 
-@pytest.mark.parametrize("donor", ["6457", "6579"])
-def test_explicit_excluded_donor_is_refused(tmp_path, monkeypatch, donor):
-    rows = [{"image_file": f"{donor}.qptiff", "donor_id": donor, "roi": "panc",
-             "xenium_serial": "0037637" if donor == "6457" else "0041035",
-             "provenance_source": "audited fixture"}]
-    records = _inventory(tmp_path, monkeypatch, rows)
-    with pytest.raises(ValueError, match="excluded donor"):
-        RI.select_registration_inputs(records, [donor], context="test registration")
+def test_explicit_excluded_donor_is_refused(tmp_path, monkeypatch):
+    for donor in sorted(DONOR_EXCLUSIONS):
+        rows = [{"image_file": f"{donor}.qptiff", "donor_id": donor, "roi": "panc",
+                 "xenium_serial": "0037637", "provenance_source": "audited fixture"}]
+        records = _inventory(tmp_path, monkeypatch, rows)
+        with pytest.raises(ValueError, match="excluded donor"):
+            RI.select_registration_inputs(records, [donor], context="test registration")
 
 
 def test_xenium_donor_disagreement_is_refused(tmp_path, monkeypatch):

@@ -562,11 +562,20 @@ def run_import_xenium(
         # feat__if_<marker>; no identity and no positivity is implied (plan Q4).
         from .postxen import stamp_if_values
         ifres = stamp_if_values(cfg, r["donor_id"], r["roi"])
+        # One line per donor EITHER WAY. The skip branch used to print nothing at all, so a donor
+        # whose registration had passed and whose arrays simply had not been produced yet was
+        # indistinguishable from one that was never registered.
+        tag = f"[import_xenium] {r['donor_id']}/{r['roi']}"
         if ifres.get("error"):
-            print(f"[import_xenium] {r['donor_id']}/{r['roi']}: IF values not stamped -- {ifres['error']}", flush=True)
+            print(f"{tag}: IF values not stamped -- {ifres['error']}", flush=True)
         elif ifres["markers"]:
-            print(f"[import_xenium] {r['donor_id']}/{r['roi']}: feat__if_{{{','.join(ifres['markers'])}}} "
-                  f"stamped on {ifres['n_stamped']:,} cells (NaN where unmeasured)", flush=True)
+            per = ", ".join(f"{m} {n:,}" for m, n in (ifres.get("n_stamped_by_marker") or {}).items())
+            print(f"{tag}: feat__if_{{{','.join(ifres['markers'])}}} stamped -- {per} "
+                  f"(NaN where unmeasured)", flush=True)
+        else:
+            print(f"{tag}: IF values not stamped -- {ifres.get('skipped_reason', 'no markers')}; "
+                  f"looked for {'; '.join(ifres.get('missing_arrays', [])) or '(no pattern recorded)'}",
+                  flush=True)
         rows.append({"donor_id": r["donor_id"], "roi": r["roi"], "tissue": row_tissue,
                      "n_cells": len(df), "source": str(src),
                      "identity": "attached" if section_covered else "geometry only"})
