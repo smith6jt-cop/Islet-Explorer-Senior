@@ -17,8 +17,9 @@ IE_LYMPHNODE_TAB <- "LymphNode"
 #' `id` names the pair of functions `card_<id>_ui` / `card_<id>_server`.
 #' `title` is what the card shows when it cannot render -- so the note has a
 #' subject even before the builder exists.
+# `n1_sections` was registered with no card_n1_sections.R and no server, so the first card on this
+# tab rendered unavailable on every donor -- the same defect the Cross-Modal `ledger` entry had.
 IE_LYMPHNODE_CARDS <- list(
-  list(id = "n1_sections",     title = "Donor 112 · two sections, two frames"),
   list(id = "s3_compartments", title = "Immune cells: islet · exocrine · pLN")
 )
 

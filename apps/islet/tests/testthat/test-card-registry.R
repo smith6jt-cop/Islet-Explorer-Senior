@@ -24,13 +24,13 @@ skip_if_not_installed("shiny")
 }
 
 .card_registry_outputs <- c(
-  s1_size_composition = "s1_body", s2_trajectory = "s2_trajectory_note",
+  s1_size_composition = "s1_body",
   s3_compartments = "s3_compartments_body", x1_gradient = "x1_gradient_body",
   x2_overlay = "x2_overlay_content", x3_identity = "x3_identity_content",
   g1_grid = "g1_body"
 )
 .card_registry_probes <- c(
-  s1_size_composition = "layer", s2_trajectory = "data", s3_compartments = "selected",
+  s1_size_composition = "layer", s3_compartments = "selected",
   x1_gradient = "selected", x2_overlay = "selection", x3_identity = "selection",
   g1_grid = "layer"
 )
@@ -49,7 +49,7 @@ skip_if_not_installed("shiny")
   expect_match(html, "Artifact:", fixed = TRUE, info = paste(id, "names its missing input"))
 }
 
-test_that("every card is registered once and only the two unbuilt cards use placeholders", {
+test_that("every registered card is registered once and is actually implemented", {
   env <- .card_registry_sources()
   ids <- character()
   for (registry in .card_registries(env)) {
@@ -77,12 +77,20 @@ test_that("every card is registered once and only the two unbuilt cards use plac
     }
   }
   expect_false(anyDuplicated(ids) > 0L)
-  expect_setequal(ids, c(names(.card_registry_outputs), "ledger", "n1_sections"))
-  expect_identical(vapply(env$IE_CROSSMODAL_CARDS, `[[`, "", "id"),
-                   c("ledger", "x1_gradient", "x2_overlay", "x3_identity",
-                     "s1_size_composition", "s2_trajectory", "g1_grid"))
-  expect_identical(vapply(env$IE_LYMPHNODE_CARDS, `[[`, "", "id"),
-                   c("n1_sections", "s3_compartments"))
+
+  # EVERY REGISTERED CARD MUST BE BUILT. This test used to allow two placeholders by name --
+  # "ledger" and "n1_sections" -- and so blessed the thing it should have caught: both were the
+  # FIRST card on their tab, neither had a card_*.R file or a server anywhere, and both rendered
+  # unavailable on every donor. A registry entry is a promise that a card exists. Unregistered is
+  # honest; "unavailable" over a card nobody wrote is not. Derived, so a new placeholder fails
+  # here rather than in front of a reader.
+  for (id in ids) {
+    expect_true(is.function(env[[paste0("card_", id, "_ui")]]),
+                info = paste0("card_", id, "_ui is registered but not implemented"))
+    expect_true(is.function(env[[paste0("card_", id, "_server")]]),
+                info = paste0("card_", id, "_server is registered but not implemented"))
+  }
+  expect_setequal(ids, names(.card_registry_outputs))
 })
 
 test_that("both registries reach every implemented server and gate its actual output on their tab", {
@@ -156,4 +164,25 @@ test_that("standalone cards render with optional activation args and obey an arb
       })
     }
   }
+})
+
+test_that("the within-donor trajectory card is mounted on the Trajectory tab, not a registry", {
+  env <- .card_registry_sources()
+  # Moved 2026-09-18: it is a within-donor islet ordering, not a cross-modality comparison, and it
+  # was on Cross-Modal only because that was the registry that first carried it. It is now wired
+  # directly by trajectory_server, so it appears in NEITHER registry -- and this test is what stops
+  # it being quietly re-added to one, or dropped from the tab it moved to.
+  for (registry in .card_registries(env)) {
+    expect_false("s2_trajectory" %in% vapply(registry, `[[`, "", "id"))
+  }
+  expect_true(is.function(env$card_s2_trajectory_ui))
+  expect_true(is.function(env$card_s2_trajectory_server))
+
+  ui <- paste(readLines("../../R/mod_trajectory_ui.R"), collapse = " ")
+  expect_true(grepl("card_s2_trajectory_ui(ns)", ui, fixed = TRUE))
+  server <- paste(readLines("../../R/mod_trajectory_server.R"), collapse = " ")
+  expect_true(grepl("card_s2_trajectory_server(", server, fixed = TRUE))
+  # It must take its tab key rather than guess one: card_s1 shipped with tab_key = "spatial",
+  # which matches nothing in IE_TAB_KEYS, so its gate was never true and it could not draw.
+  expect_true(grepl('tab_key = "Trajectory"', server, fixed = TRUE))
 })

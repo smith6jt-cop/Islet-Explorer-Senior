@@ -216,6 +216,7 @@ def test_cards_render_measured_and_absent_states_and_refuse_mixed_frames(sources
                DISTANCE_TEST_DOMAIN=str(sources["metadata"].parent))
     code = r'''
 source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
 source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 source("apps/islet/R/card_s3_compartments.R")
@@ -247,7 +248,18 @@ shiny::testServer(function(input, output, session) {
   plot <- result$plot()
   stopifnot(inherits(ggplot2::ggplot_build(plot), "ggplot_built"))
   stopifnot(0 %in% plot$data$distance_bin_um)
-  stopifnot(identical(plot$scales$get_scales("x")$trans$name, "pseudo_log"))
+  # LINEAR in micrometres, not pseudo_log. The card no longer draws past X1_MAX_DIST_UM, and
+  # pseudo_log spent most of the panel on distances it now excludes while compressing the
+  # peri-islet band -- the part being read -- into the left third. Zero stays visible on a linear
+  # axis on its own, which is the only thing pseudo_log was buying here.
+  stopifnot(identical(plot$scales$get_scales("x")$trans$name, "identity"))
+  # The cap is a hard ceiling, and the slider may only narrow it.
+  stopifnot(X1_MAX_DIST_UM == 500)
+  stopifnot(all(abs(plot$data$distance_bin_um) <= X1_MAX_DIST_UM))
+  # No counts table under the plot: it restated the plotted data row for row.
+  stopifnot(!grepl("x1_gradient_counts",
+                   paste(as.character(output$x1_gradient_body$html), collapse = " "),
+                   fixed = TRUE))
 })
 shiny::testServer(function(input, output, session) {
   result <- card_s3_compartments_server(input, output, session, active_tab = shiny::reactive("LymphNode"))
@@ -628,6 +640,7 @@ def test_cards_validate_every_source_path_not_only_the_domain_root(
                DISTANCE_TEST_CASES=json.dumps(cases))
     code = r'''
 source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
 source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 source("apps/islet/R/card_s3_compartments.R")
@@ -684,6 +697,7 @@ def test_the_pln_column_names_the_donor_it_will_not_show(sources, pln_two_donors
     env = dict(os.environ, ISLET_LAYERS_DIR=str(root), DISTANCE_TEST_DOMAIN=DOMAIN_ROOT)
     code = r'''
 source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
 source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 source("apps/islet/R/card_s3_compartments.R")
@@ -751,6 +765,7 @@ def test_a_shared_source_is_required_only_where_a_number_depended_on_it(
                DISTANCE_TEST_DOMAIN=DOMAIN_ROOT, DISTANCE_TEST_CASES=json.dumps(cases))
     code = r'''
 source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
 source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 domain_data_root <- function() Sys.getenv("DISTANCE_TEST_DOMAIN")
@@ -957,6 +972,7 @@ def test_the_card_shows_both_modalities_without_conflating_them(sources, tmp_pat
     env = dict(os.environ, ISLET_LAYERS_DIR=str(root), DISTANCE_TEST_DOMAIN=DOMAIN_ROOT)
     code = r'''
 source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
 source("apps/R/ieCore/R/ie_frames.R")
 source("apps/islet/R/card_x1_gradient.R")
 source("apps/islet/R/card_s3_compartments.R")

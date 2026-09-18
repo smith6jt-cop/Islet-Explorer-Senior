@@ -18,6 +18,13 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
                               outlier_threshold = reactive(3.0),
                               cohort = NULL) {
   moduleServer(id, function(input, output, session) {
+    # The within-donor islet trajectory card, moved here from Cross-Modal on 2026-09-18. It is a
+    # thin card server of the same shape the registry tabs use, so it takes its tab key rather
+    # than guessing one -- card_s1 shipped with tab_key = "spatial", which matches nothing in
+    # IE_TAB_KEYS, and could therefore never draw.
+    card_s2_trajectory_server(input, output, session, prepared = prepared,
+                              active_tab = active_tab, tab_key = "Trajectory")
+
     ns <- session$ns
 
     # Min cells/islet, from the cohort panel when it is mounted. This tab bound

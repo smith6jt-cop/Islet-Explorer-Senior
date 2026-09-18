@@ -144,6 +144,10 @@ trajectory_ui <- function(id) {
         uiOutput(ns("segmentation_viewer_panel"))
       )
     ),
-    fluidRow(column(12, uiOutput(ns("traj_outlier_info"))))
+    fluidRow(column(12, uiOutput(ns("traj_outlier_info")))),
+    # The within-donor islet ordering. It was mounted on the Cross-Modal tab, which is where the
+    # registry that first carried it happened to be; it is a trajectory, not a cross-modality
+    # comparison, so it belongs here. Moved 2026-09-18 at the maintainer's instruction.
+    fluidRow(column(12, card_s2_trajectory_ui(ns)))
   )
 }

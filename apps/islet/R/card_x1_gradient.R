@@ -286,6 +286,12 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
   list(value = ie_avail("measured"), data = data, provenance = provenance)
 }
 
+#: Past this the gradient is reporting the rest of the section, not the peri-islet environment.
+#: The maintainer set 500 um on 2026-09-18; the slider only narrows it, never widens it, so no
+#: reading of this card can reach a distance the cohort was not asked about.
+X1_MAX_DIST_UM <- 500
+
+
 .ie_distance_framed <- function(data) {
   frames <- unique(data$frame)
   if (length(frames) != 1L || is.na(frames) || !nzchar(frames)) {
@@ -342,13 +348,20 @@ card_x1_gradient_server <- function(input, output, session, prepared = NULL,
     value <- selected()
     if (!ie_is_measured(value$value)) return(.ie_distance_note(value$value, "guard_x1_gradient"))
     shiny::tagList(
+      shiny::sliderInput(session$ns("x1_max_dist"), "Maximum distance from islet edge (\u00b5m)",
+                         min = 50, max = X1_MAX_DIST_UM, value = X1_MAX_DIST_UM,
+                         step = 50, width = "320px"),
       shiny::plotOutput(session$ns("x1_gradient_plot")),
-      shiny::tags$p("Existing immune calls / all QC-eligible, non-excluded cells in each bin. ",
-                    "Signed distance is negative inside the islet and positive outside; zero is retained. ",
-                    "Resolved by: ", if (length(value$provenance)) paste(value$provenance, collapse = ", ")
+      shiny::tags$p(class = "ie-card-note", style = "font-size: 12px",
+                    "Resolved by: ",
+                    if (length(value$provenance)) paste(value$provenance, collapse = ", ")
                     else "no immune calls observed", "."),
-      shiny::downloadButton(session$ns("x1_gradient_download"), "Download plot"),
-      shiny::tableOutput(session$ns("x1_gradient_counts"))
+      ie_explain(
+        shiny::tags$p("Existing immune calls / all QC-eligible, non-excluded cells in each bin. ",
+                      "Signed distance is negative inside the islet and positive outside; zero is ",
+                      "retained and has its own bin."),
+        label = "How the gradient is measured"),
+      shiny::downloadButton(session$ns("x1_gradient_download"), "Download plot")
     )
   })
   plot_data <- shiny::reactive({
@@ -360,6 +373,12 @@ card_x1_gradient_server <- function(input, output, session, prepared = NULL,
     data <- stats::aggregate(cbind(n_cells, n_immune) ~ donor_id + donor_status + distance_bin_um,
                              data = source, FUN = sum)
     data$immune_fraction <- data$n_immune / data$n_cells
+    # Clip BEFORE the fraction is read, not with xlim afterwards: a scale limit drops rows
+    # silently and ggplot would still draw a line across the gap.
+    cap <- suppressWarnings(as.numeric(input$x1_max_dist))
+    if (!length(cap) || !is.finite(cap)) cap <- X1_MAX_DIST_UM
+    cap <- min(cap, X1_MAX_DIST_UM)
+    data <- data[is.finite(data$distance_bin_um) & abs(data$distance_bin_um) <= cap, , drop = FALSE]
     ie_attach_frame(data[order(data$distance_bin_um), ], ie_frame_of(source))
   })
   plot <- shiny::reactive({
@@ -369,7 +388,14 @@ card_x1_gradient_server <- function(input, output, session, prepared = NULL,
     ggplot2::ggplot(data, ggplot2::aes(distance_bin_um, immune_fraction)) +
       ggplot2::geom_vline(xintercept = 0, colour = "grey65", linetype = "dashed") +
       ggplot2::geom_line() + ggplot2::geom_point() +
-      ggplot2::scale_x_continuous(trans = scales::pseudo_log_trans(base = 10)) +
+      # Linear in micrometres. pseudo_log compressed 0-500 um into the left third of the panel
+      # and spent the rest on distances this card no longer shows, so the peri-islet band --
+      # the thing being read -- was the part that was squashed.
+      ggplot2::scale_x_continuous(
+        breaks = scales::breaks_width(100),
+        limits = c(min(data$distance_bin_um, na.rm = TRUE),
+                   max(data$distance_bin_um, na.rm = TRUE)),
+        expand = ggplot2::expansion(mult = 0.02)) +
       ggplot2::scale_y_continuous(labels = scales::label_percent()) +
       ggplot2::labs(x = "Signed distance to islet edge (µm)", y = "Immune fraction of eligible cells",
                     title = paste("Donor", data$donor_id[[1L]], "—", data$donor_status[[1L]]),
@@ -379,7 +405,6 @@ card_x1_gradient_server <- function(input, output, session, prepared = NULL,
       .ie_distance_theme()
   })
   output$x1_gradient_plot <- shiny::renderPlot(plot())
-  output$x1_gradient_counts <- shiny::renderTable(plot_data(), digits = 6)
   output$x1_gradient_download <- shiny::downloadHandler(
     filename = function() "peri-islet-immune-gradient.pdf",
     content = function(file) ggplot2::ggsave(file, plot = plot(), width = 8, height = 5)

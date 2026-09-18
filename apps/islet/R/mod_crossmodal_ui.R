@@ -22,8 +22,15 @@ IE_CROSSMODAL_TAB <- "CrossModal"
 #' `id` names the pair of functions `card_<id>_ui` / `card_<id>_server`.
 #' `title` is what the card shows when it cannot render -- so the note has a
 #' subject even before the builder exists.
+# `ledger` was registered here with no card_ledger.R and no card_ledger_server anywhere, so the
+# first card on the tab rendered unavailable on every donor. A registry entry is a promise that a
+# card exists; unregistered is honest, "unavailable" is not. Removed 2026-09-18 -- rebuild the
+# entry when the card is written, not before.
+#
+# `s2_trajectory` moved to the Trajectory tab, where a trajectory belongs. It is a within-donor
+# islet ordering, not a cross-modality comparison, and it was on this tab only because the
+# registry that first mounted it was this one.
 IE_CROSSMODAL_CARDS <- list(
-  list(id = "ledger",   title = "Donor × capability"),
   list(id = "x1_gradient", title = "Peri-islet immune gradient"),
   list(id = "x2_overlay",  title = "Post-Xenium IF overlay"),
   list(id = "x3_identity", title = "IF hormone identity"),
@@ -31,7 +38,6 @@ IE_CROSSMODAL_CARDS <- list(
   # code: six cards on disk, four mounted. Found by worker I-islet, which filed NEEDS.md
   # rather than edit a registry it did not own.
   list(id = "s1_size_composition", title = "Islet size · composition"),
-  list(id = "s2_trajectory",       title = "Within-donor islet trajectory"),
   # The four-cell grid -- pancreas and pLN, protein and RNA. The app reads one
   # of the four; this card reads the layer that presents all four at donor
   # level, and names the state of every cell it cannot show.

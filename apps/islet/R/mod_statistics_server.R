@@ -2007,7 +2007,7 @@ statistics_server <- function(id, raw_df, get_selection_description,
         )
       }
 
-        ieCore::ie_explain(
+        ie_explain(
         tags$p(style = paste0("background: #eef6ee; border-left: 3px solid #2e7d32; ",
                               "padding: 8px 12px; border-radius: 4px;"),
           tags$strong("Design safeguards against p-hacking. "),
