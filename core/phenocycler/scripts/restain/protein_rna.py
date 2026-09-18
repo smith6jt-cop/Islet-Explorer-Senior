@@ -16,6 +16,13 @@ DAPI the registration was fitted on -- so a cell's protein and a cell's RNA are 
 by construction, and no annotation, no islet call and no third party's polygon enters the path.
 A disc also straddles neighbours at 9 um spacing; a polygon does not.
 
+**The QuPath project is read for CHANNEL NAMES and nothing else.** Which Opal carried INS and
+which carried GCG is recorded in no image -- the qptiff XML names only the instrument's channels
+-- so the assignment lives in ``PostXeniumIHC/data/<entry>/server.json``, where the maintainer's
+rename writes it, with ``restain_sections.csv``'s five hand-recorded rows as the fallback. That
+is a name, not an object: no annotation, no classification and no QuPath-derived geometry enters
+this lane, and the instruction of 2026-09-01 is unchanged. See :func:`channel_roles`.
+
 **Scored against the subpanel, not the whole panel.** ``core/panels``' 18-gene pancreas
 endocrine identity core is the authority, and most of the 5,101-gene panel is not expressed in
 pancreas at all. An earlier version ranked every gene and reported the top 25; that list was
@@ -43,8 +50,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable, Iterable, Mapping
 
 import numpy as np
 import pandas as pd
@@ -57,8 +67,10 @@ sys.path.insert(0, str(HERE.parents[1] / "scripts" / "xenium_celltype"))
 import hormone as HZ                                             # noqa: E402
 import xenio                                                     # noqa: E402
 from run_hormone import IMAGES, SECTIONS                         # noqa: E402
-from run_register import OUT, XENIUM_PATHS, discover, donor_of    # noqa: E402
-from run_register import GEOJSON_DIR                             # noqa: E402
+from run_register import OUT, XENIUM_PATHS, donor_of              # noqa: E402
+# `discover` and `GEOJSON_DIR` are deliberately NOT imported. Enumerating from the QuPath GeoJSON
+# directory is what skipped ten donors with a PASS gate in silence (f54e5ce); the import outlived
+# the call and is removed so nothing reaches for it again.
 
 #: Resolution the protein is read at, in microns per pixel. 0.5 um/px puts ~280 pixels inside a
 #: 9 um cell and ~110 inside a 6 um nucleus, which is a mean over a cell rather than over a
@@ -74,6 +86,395 @@ SUBPANEL = "identity_core/pancreas/01_pancreas_endocrine.csv"
 
 class ProteinRnaError(RuntimeError):
     """The per-cell comparison cannot be made as asked -- never approximated."""
+
+
+#: The QuPath project whose ``server.json`` files carry the CURRENT channel assignment.
+#: ``restain_sections.csv`` hand-records five of the twenty images. The maintainer is renaming
+#: the Opal channels in QuPath, and that rename is written into
+#: ``PostXeniumIHC/data/<entry>/server.json`` -- so for every image beyond those five the
+#: assignment exists there and nowhere else. The qptiff's own XML never learns it: read today,
+#: all twenty images still name their channels ``DAPI / Opal 520 / Opal 570 / Opal 690 /
+#: Sample AF`` in their ``<Name>`` tags.
+QUPATH_PROJECT = IMAGES.parent
+
+#: Image -> donor / serial for ALL twenty images. ``restain_sections.csv`` has five data rows,
+#: which is why ``.iloc[0]`` on it raised ``IndexError`` for eleven of the thirteen donors whose
+#: registration passes its gate.
+REGISTRATION_INPUTS = HERE.parents[1] / "data" / "integration" / "restain_registration_inputs.csv"
+
+#: The two markers this lane measures.
+MARKERS = ("INS", "GCG")
+
+#: Spellings accepted as a marker, after lowercasing and dropping non-alphanumerics. A rename
+#: this file does not recognise is REPORTED under its own name rather than read as absence:
+#: entry 15 (``0037502_Scan1.qptiff``, donor 6380, a PASS donor) spells glucagon ``CGC``, and a
+#: name-matching reader that merely failed to match it would drop a registered donor for a
+#: transposition nobody had been told about.
+MARKER_ALIASES: dict[str, tuple[str, ...]] = {
+    "INS": ("ins", "insulin"),
+    "GCG": ("gcg", "glucagon"),
+}
+
+#: A channel still carrying the instrument's own name has not been assigned a marker yet.
+INSTRUMENT_NAME = re.compile(r"^(dapi|opal\d+|sampleaf|autofluorescence|af)$")
+
+#: Named states a resolution can be unavailable in. Each is a fact about the QuPath pass or the
+#: inventory, never about the donor's biology, and each is emitted by name so ``measure_one``
+#: skips that donor out loud instead of raising.
+CHANNELS_NOT_YET_ASSIGNED = "channels_not_yet_assigned"
+CHANNEL_NAME_UNRECOGNISED = "channel_name_unrecognised"
+
+
+def _norm(name) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
+
+@dataclass(frozen=True)
+class ChannelRoles:
+    """Which page of one qptiff carries which marker, and at what pixel size.
+
+    ``channels`` maps marker -> PAGE INDEX, resolved by NAME. Never by position: the INS/GCG
+    index differs between images in this cohort -- measured 2026-09-18 over the twenty QuPath
+    entries, INS/GCG sit at pages (2,3) on six entries, (1,2) on six, (1,3) on two and (3,1) on
+    donor 6579 -- so a reader that took a fixed index would return another antibody's channel
+    on most of the cohort with no error at all.
+    """
+
+    serial: str
+    donor_id: str
+    image_file: str
+    source: str
+    channels: dict[str, int] = field(default_factory=dict)
+    names: dict[str, str] = field(default_factory=dict)
+    qptiff_names: tuple[str, ...] = ()
+    qupath_entry: str | None = None
+    pixel_size_um: float | None = None
+    pixel_size_source: str = ""
+    unavailable: str | None = None
+    detail: str = ""
+    missing_markers: tuple[str, ...] = ()
+    unrecognised_names: tuple[str, ...] = ()
+    csv_conflict: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return self.unavailable is None
+
+    def as_record(self) -> dict:
+        return {"donor_id": self.donor_id, "xenium_serial": self.serial,
+                "image_file": self.image_file, "qupath_entry": self.qupath_entry,
+                "channel_source": self.source, "channels": dict(self.channels),
+                "channel_names": dict(self.names),
+                "qptiff_channel_names": list(self.qptiff_names),
+                "pixel_size_um": self.pixel_size_um,
+                "pixel_size_source": self.pixel_size_source,
+                "unavailable": self.unavailable, "detail": self.detail,
+                "missing_markers": list(self.missing_markers),
+                "unrecognised_names": list(self.unrecognised_names),
+                "csv_conflict": list(self.csv_conflict)}
+
+
+def unavailable(reason: str, detail: str, **kw) -> ChannelRoles:
+    """A NAMED absence. ``measure_one`` skips on it; nothing downstream guesses past it."""
+    kw.setdefault("serial", "")
+    kw.setdefault("donor_id", "")
+    kw.setdefault("image_file", "")
+    kw.setdefault("source", "")
+    return ChannelRoles(unavailable=reason, detail=detail, **kw)
+
+
+def qptiff_facts(qptiff: Path) -> dict:
+    """Channel names in page order and ``<PixelSizeMicrons>``, from the image's own XML.
+
+    **The pixel size comes from the image, not from the CSV.** Measured 2026-09-18 over all
+    twenty post-Xenium IF images: every 20x image's XML reads 0.25 um/px and both 10x images
+    (``HDL115_Scan1.qptiff``, ``npod6591_Scan1.qptiff``) read 0.5, with no exceptions.
+    ``restain_sections.csv`` declares 0.2505 for all five of its rows -- within 0.2 % of the XML
+    for the three 20x ones and HALF the XML's value for the two 10x ones. 6591 passes its
+    registration gate, so reading its image at 0.2505 selects the wrong pyramid level and puts
+    every measurement on a grid at twice the intended scale.
+
+    The TIFF resolution rational is deliberately not read: both carry numerator 4294967295
+    (uint32 max, a saturated value), so the trailing digits of 0.25047 / 0.50139 are an artifact
+    of that clamp rather than a measurement -- the same reading ``registration_inputs.py`` makes.
+    """
+    import tifffile
+
+    qptiff = Path(qptiff)
+    with tifffile.TiffFile(str(qptiff)) as tif:
+        series = tif.series[0]
+        level = list(getattr(series, "levels", [series]))[0]
+        names, pixels = [], []
+        for page in level.pages:
+            description = page.description or ""
+            match = re.search(r"<Name>([^<]*)</Name>", description)
+            names.append(match.group(1).strip() if match else "")
+            pixels.extend(float(v) for v in re.findall(
+                r"<PixelSizeMicrons>\s*([^<]+?)\s*</PixelSizeMicrons>", description))
+    distinct = sorted({p for p in pixels if np.isfinite(p) and p > 0})
+    return {"channel_names": tuple(names),
+            "pixel_size_um": distinct[0] if len(distinct) == 1 else None,
+            "pixel_size_detail": ("qptiff_xml_PixelSizeMicrons" if len(distinct) == 1
+                                  else f"expected one positive PixelSizeMicrons, found {distinct}")}
+
+
+def qupath_entries(project_dir: Path = QUPATH_PROJECT) -> dict[str, list[dict]]:
+    """image file name -> the QuPath entries that hold it, with their CURRENT channel names.
+
+    Keyed by the basename of each ``server.json``'s ``uri`` rather than by its ``metadata.name``:
+    the metadata name carries a donor token and a ``- resolution #1`` suffix that the inventory
+    CSV does not, and matching on a decorated string is how a rename becomes a silent miss.
+    """
+    project_dir = Path(project_dir)
+    out: dict[str, list[dict]] = {}
+    data_dir = project_dir / "data"
+    if not data_dir.is_dir():
+        return out
+    for entry_dir in sorted(data_dir.iterdir(), key=lambda p: p.name):
+        server = entry_dir / "server.json"
+        if not server.is_file():
+            continue
+        try:
+            j = json.loads(server.read_text())
+        except (OSError, ValueError):
+            continue
+        uri = str(j.get("uri") or "")
+        image_file = uri.rsplit("/", 1)[-1]
+        if not image_file:
+            continue
+        metadata = j.get("metadata") or {}
+        names = tuple(str(c.get("name") or "") for c in (metadata.get("channels") or []))
+        out.setdefault(image_file, []).append(
+            {"entry": entry_dir.name, "server_json": str(server), "channel_names": names})
+    return out
+
+
+def _match_by_name(names: Iterable[str]) -> tuple[dict[str, int], dict[str, str], list[str], list[str]]:
+    """``(marker -> page, marker -> name as spelled, missing markers, unrecognised names)``."""
+    names = list(names)
+    found: dict[str, list[int]] = {}
+    for i, name in enumerate(names):
+        key = _norm(name)
+        for marker, aliases in MARKER_ALIASES.items():
+            if key in aliases:
+                found.setdefault(marker, []).append(i)
+    ambiguous = sorted(m for m, pages in found.items() if len(pages) > 1)
+    if ambiguous:
+        raise ProteinRnaError(
+            f"channel roles are ambiguous: {ambiguous} each name more than one channel in "
+            f"{names}. A hand-made assignment with two channels for one marker is refused, "
+            "never picked.")
+    channels = {m: pages[0] for m, pages in found.items()}
+    spelled = {m: names[p] for m, p in channels.items()}
+    missing = [m for m in MARKERS if m not in channels]
+    known = {a for aliases in MARKER_ALIASES.values() for a in aliases}
+    unrecognised = [name for name in names
+                    if name and _norm(name) not in known
+                    and not INSTRUMENT_NAME.match(_norm(name))]
+    return channels, spelled, missing, unrecognised
+
+
+def _csv_channels(row: pd.Series, qptiff_names: Iterable[str]) -> tuple[dict[str, int], dict[str, str]]:
+    """The five-row CSV's assignment, resolved against the image's own ``<Name>`` XML.
+
+    Same rule as the QuPath path and as ``hormone.channel_index``: the CSV names an INSTRUMENT
+    channel (``channel_opal690``) and the page is found by matching that name in the file, never
+    by the column's position in the header.
+    """
+    qptiff_names = list(qptiff_names)
+    pages = {_norm(name): i for i, name in enumerate(qptiff_names)}
+    channels: dict[str, int] = {}
+    spelled: dict[str, str] = {}
+    for column, value in row.items():
+        if not (isinstance(column, str) and column.startswith("channel_")):
+            continue
+        marker = str(value).strip().upper()
+        if marker not in MARKERS or marker in channels:
+            continue
+        page = pages.get(column[len("channel_"):])
+        if page is None:
+            continue
+        channels[marker] = page
+        spelled[marker] = qptiff_names[page]
+    return channels, spelled
+
+
+def channel_roles(serial: str, *, sections: pd.DataFrame | None = None,
+                  project_dir: Path = QUPATH_PROJECT,
+                  inputs_csv: Path = REGISTRATION_INPUTS,
+                  images_dir: Path = IMAGES,
+                  facts_reader: Callable[[Path], dict] = qptiff_facts,
+                  expect_donor: str | None = None) -> ChannelRoles:
+    """Which page carries INS and which carries GCG, for one Xenium serial.
+
+    Resolution order, and why it is that way round:
+
+    1. **The QuPath project.** The maintainer is assigning the roles there now, one image at a
+       time, and that is the only place fifteen of the twenty images carry them. Matched BY
+       NAME against the entry's ``server.json`` channel list.
+    2. **``restain_sections.csv``**, for an image QuPath has not been through. It covers five
+       images and is hand-recorded; it is a fallback, not the authority, and it is the file that
+       ``.iloc[0]`` used to index into for donors it has no row for.
+    3. Otherwise a NAMED unavailable, so the donor is skipped with a printed reason rather than
+       raising ``IndexError`` eleven times out of thirteen.
+
+    Where both sources resolve and DISAGREE, the QuPath assignment is used and the disagreement
+    is recorded in ``csv_conflict`` and printed -- it is not averaged, not silently preferred,
+    and not swallowed. Measured 2026-09-18, the two 10x images disagree: QuPath names ``Opal
+    570`` INS and ``Opal 690`` GCG on both, while the CSV records ``Opal 690`` INS, ``Opal 520``
+    GCG and ``Opal 570`` FAILED for every one of its five rows.
+    """
+    inventory = pd.read_csv(inputs_csv, comment="#", dtype=str)
+    hits = inventory[inventory["xenium_serial"].astype(str).str.strip() == str(serial).strip()]
+    if len(hits) != 1:
+        return unavailable(
+            "serial_not_in_registration_inputs",
+            f"{serial} has {len(hits)} rows in {inputs_csv}; expected one",
+            serial=str(serial), donor_id=str(expect_donor or ""))
+    row = hits.iloc[0]
+    image_file = str(row["image_file"]).strip()
+    donor = str(row["donor_id"]).strip()
+    base = dict(serial=str(serial), donor_id=donor, image_file=image_file)
+    if expect_donor is not None and str(expect_donor).strip() != donor:
+        return unavailable(
+            "donor_disagrees_with_registration_inputs",
+            f"serial {serial}: the registration export says donor {expect_donor}, "
+            f"{inputs_csv.name} says {donor}", **base)
+
+    qptiff = Path(images_dir) / image_file
+    qptiff_names: tuple[str, ...] = ()
+    pixel_um: float | None = None
+    pixel_source = ""
+    if qptiff.is_file():
+        facts = facts_reader(qptiff)
+        qptiff_names = tuple(facts["channel_names"])
+        pixel_um = facts["pixel_size_um"]
+        pixel_source = facts["pixel_size_detail"]
+
+    csv_row = None
+    if sections is not None and len(sections):
+        csv_hits = sections[sections["xenium_serial"].astype(str).str.strip() == str(serial).strip()]
+        if len(csv_hits) == 1:
+            csv_row = csv_hits.iloc[0]
+    if pixel_um is None and csv_row is not None:
+        declared = str(csv_row.get("pixel_size_um", "")).strip()
+        try:
+            candidate = float(declared)
+        except ValueError:
+            candidate = float("nan")
+        if np.isfinite(candidate) and candidate > 0:
+            pixel_um, pixel_source = candidate, "restain_sections.csv (image unreadable)"
+
+    entries = qupath_entries(project_dir).get(image_file, [])
+    if len(entries) > 1:
+        return unavailable(
+            "duplicate_qupath_entries",
+            f"{image_file} is held by {len(entries)} QuPath entries "
+            f"({[e['entry'] for e in entries]}); an ambiguous project is refused, never picked",
+            qptiff_names=qptiff_names, **base)
+
+    entry = entries[0] if entries else None
+    q_channels: dict[str, int] = {}
+    q_names: dict[str, str] = {}
+    missing: list[str] = list(MARKERS)
+    unrecognised: list[str] = []
+    if entry is not None:
+        q_channels, q_names, missing, unrecognised = _match_by_name(entry["channel_names"])
+
+    csv_channels: dict[str, int] = {}
+    csv_names: dict[str, str] = {}
+    if csv_row is not None and qptiff_names:
+        csv_channels, csv_names = _csv_channels(csv_row, qptiff_names)
+
+    # Recorded, never reconciled. Two hand-made authorities that disagree about which
+    # antibody a channel carries is a fact for the maintainer, not an average to take.
+    conflict = tuple(
+        f"{m}: QuPath names page {q_channels[m]} ({q_names[m]}), "
+        f"restain_sections.csv names page {csv_channels[m]} ({csv_names[m]})"
+        for m in MARKERS if m in q_channels and m in csv_channels
+        and q_channels[m] != csv_channels[m])
+
+    if not missing:
+        channels, names, source = q_channels, q_names, "qupath_project"
+    elif all(m in csv_channels for m in MARKERS):
+        channels, names, source = csv_channels, csv_names, "restain_sections.csv"
+    else:
+        reason = CHANNEL_NAME_UNRECOGNISED if unrecognised else CHANNELS_NOT_YET_ASSIGNED
+        detail = (f"{image_file}: QuPath entry "
+                  f"{entry['entry'] if entry else '(none)'} names "
+                  f"{list(entry['channel_names']) if entry else []}; "
+                  f"{', '.join(missing)} not assigned")
+        if unrecognised:
+            detail += (f"; unrecognised channel name(s) {unrecognised} -- a rename this reader "
+                       f"does not know, not an absence")
+        return unavailable(reason, detail, qupath_entry=entry["entry"] if entry else None,
+                           qptiff_names=qptiff_names, missing_markers=tuple(missing),
+                           unrecognised_names=tuple(unrecognised),
+                           pixel_size_um=pixel_um, pixel_size_source=pixel_source, **base)
+
+    if pixel_um is None:
+        return unavailable(
+            "pixel_size_unavailable",
+            f"{image_file}: {pixel_source or 'the image is not on this machine'} and no usable "
+            f"pixel_size_um is recorded for {serial}. A pixel size is never guessed: it chooses "
+            f"the pyramid level every measurement is read from.",
+            qupath_entry=entry["entry"] if entry else None, qptiff_names=qptiff_names,
+            csv_conflict=conflict, **base)
+
+    return ChannelRoles(source=source, channels=channels, names=names,
+                        qptiff_names=qptiff_names,
+                        qupath_entry=entry["entry"] if entry else None,
+                        pixel_size_um=float(pixel_um), pixel_size_source=pixel_source,
+                        csv_conflict=conflict,
+                        unrecognised_names=tuple(unrecognised),
+                        serial=str(serial), donor_id=donor, image_file=image_file)
+
+
+def resolve_all(serials: Mapping[str, str], **kw) -> dict[str, ChannelRoles]:
+    """``serial -> ChannelRoles`` for every registered serial. Never raises on one bad row."""
+    out: dict[str, ChannelRoles] = {}
+    for serial, donor in sorted(serials.items()):
+        try:
+            out[serial] = channel_roles(serial, expect_donor=donor, **kw)
+        except (ProteinRnaError, OSError, ValueError) as exc:
+            out[serial] = unavailable("channel_resolution_failed", f"{type(exc).__name__}: {exc}",
+                                      serial=str(serial), donor_id=str(donor))
+    return out
+
+
+def channel_assignment_report(resolved: Mapping[str, ChannelRoles], *, roi: str = "panc",
+                              project_dir: Path = QUPATH_PROJECT) -> dict:
+    """What the QuPath renaming pass has and has not reached, as a build artifact.
+
+    Emitted every run so the not-yet-assigned list is a file somebody can act on rather than a
+    line that scrolled past. The unavailable donors are grouped BY NAMED REASON, because
+    ``channels_not_yet_assigned`` (nobody has been through that image) and
+    ``channel_name_unrecognised`` (somebody has, and spelled it ``CGC``) need different actions.
+    """
+    resolved_rows, blocked = [], []
+    for serial in sorted(resolved):
+        roles = resolved[serial]
+        (resolved_rows if roles.ok else blocked).append(roles.as_record())
+    by_reason: dict[str, list[str]] = {}
+    for record in blocked:
+        by_reason.setdefault(str(record["unavailable"]), []).append(str(record["donor_id"]))
+    return {"roi": roi, "qupath_project": str(project_dir),
+            "registration_inputs": str(REGISTRATION_INPUTS),
+            "n_registered": len(resolved), "n_resolved": len(resolved_rows),
+            "n_unavailable": len(blocked),
+            "resolved": resolved_rows, "unavailable": blocked,
+            "donors_by_reason": {k: sorted(v) for k, v in sorted(by_reason.items())},
+            "note": ("channel roles are matched BY NAME, never by index -- the INS/GCG page "
+                     "differs between images in this cohort; pixel size is read from each "
+                     "image's own XML, never from the sections CSV, which declares one value "
+                     "for images that differ by a factor of two")}
+
+
+def write_channel_assignment(report: dict, out_dir: Path = OUT) -> Path:
+    path = Path(out_dir) / "protein_rna" / "channel_assignment.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, allow_nan=False))
+    return path
 
 
 def warp_polygons(polys, transform):
@@ -295,7 +696,15 @@ def polygons_per_cell(bundle: Path, compartment: str, cell_ids) -> list:
 
 
 def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
-                out_dir: Path = OUT, um_per_px: float = PROTEIN_UM_PER_PX) -> dict:
+                out_dir: Path = OUT, um_per_px: float = PROTEIN_UM_PER_PX,
+                roles: ChannelRoles | None = None) -> dict:
+    """One section measured. ``roles`` is resolved here when the caller has not resolved it.
+
+    The channel assignment and the pixel size used to come from ``restain_sections.csv`` through
+    ``sections[sections.xenium_serial == serial].iloc[0]``. That CSV has five data rows and
+    ``registered_serials()`` returns thirteen, so eleven of thirteen donors raised ``IndexError``
+    on that one line. Both facts now come from :func:`channel_roles`.
+    """
     import tifffile
     import zarr
 
@@ -306,13 +715,18 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
     from run_align import _refined_transform
     from run_register import SUBPANELS
 
-    _core, by_hint = VAL.endocrine_core(SUBPANELS)
     donor = donor_of(serial, XENIUM_PATHS)
-    row = sections[sections.xenium_serial == serial].iloc[0]
-    qptiff = IMAGES / row.image_file
+    if roles is None:
+        roles = channel_roles(serial, sections=sections, expect_donor=donor)
+    if not roles.ok:
+        # Refused before any work is done. A named absence is a fact about the QuPath pass, and
+        # it belongs at the top of this function rather than halfway through a section.
+        raise ProteinRnaError(f"{donor}/{serial}: {roles.unavailable}: {roles.detail}")
+    _core, by_hint = VAL.endocrine_core(SUBPANELS)
+    qptiff = IMAGES / roles.image_file
     if not qptiff.exists():
         raise ProteinRnaError(f"{qptiff} is absent")
-    base_um = float(row.pixel_size_um)
+    base_um = float(roles.pixel_size_um)
     transform = _refined_transform(donor, roi, out_dir)
 
     dd = xenio.load_donor(donor, XENIUM_PATHS, roi=roi, prefer="bundle")
@@ -333,16 +747,31 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
            "qptiff": str(qptiff), "xenium_bundle": str(bundle),
            "transform_source": "refined", "protein_um_per_px": um_per_px,
            "pyramid_level": lvl, "pyramid_factor": factor,
+           # Recorded PER ROW, because it is not one value across the cohort: the 20x images
+           # read 0.25 um/px and the two 10x ones read 0.5, and the CSV declares 0.2505 for all.
+           "image_pixel_size_um": base_um, "pixel_size_source": roles.pixel_size_source,
+           "channel_source": roles.source, "qupath_entry": roles.qupath_entry,
            "n_cells": int(len(dd.cell_id)), "n_genes": int(len(dd.genes)),
            "uses_qupath_annotations": False, "subpanel": SUBPANEL,
            "note": ("no QuPath annotation of any class is read here; every object is Xenium's "
-                    "own segmentation, per the maintainer's instruction of 2026-09-01"),
+                    "own segmentation, per the maintainer's instruction of 2026-09-01. The "
+                    "QuPath project is read for CHANNEL NAMES only -- no object, class or "
+                    "annotation of any kind is read from it"),
            "compartments": {}}
-
-    channels = {}
-    for marker in ("INS", "GCG"):
-        page = HZ.channel_index(qptiff, marker, row)
-        channels[marker] = (page, HZ.channel_names(qptiff)[page])
+    if roles.csv_conflict:
+        rec["channel_assignment_conflict"] = list(roles.csv_conflict)
+        print(f"[protein-rna] {donor}: channel assignment DISAGREES between sources -- "
+              + "; ".join(roles.csv_conflict)
+              + f". Used {roles.source}.", flush=True)
+    names = roles.qptiff_names or tuple(HZ.channel_names(qptiff))
+    channels = {marker: (roles.channels[marker],
+                         names[roles.channels[marker]] if roles.channels[marker] < len(names)
+                         else roles.names[marker])
+                for marker in MARKERS}
+    print(f"[protein-rna] {donor}: channels from {roles.source} -- "
+          + ", ".join(f"{m}=page {p} ({roles.names[m]!r} on {names[p] if p < len(names) else '?'})"
+                      for m, (p, _n) in sorted(channels.items()))
+          + f"; pixel size {base_um} um/px ({roles.pixel_size_source})", flush=True)
 
     for compartment in ("cell", "nucleus"):
         geoms = polygons_per_cell(bundle, compartment, dd.cell_id)
@@ -383,6 +812,8 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
             entry["values_npy"] = str(vp)
             if name in channels:
                 entry.update({"qptiff_channel": channels[name][1],
+                              "assigned_name": roles.names[name],
+                              "channel_source": roles.source,
                               "channel_page": int(channels[name][0]),
                               "recorded_role": name,
                               "median": float(np.nanmedian(vals)),
@@ -456,17 +887,39 @@ def main(argv=None) -> int:
 
     sections = HZ.load_section_map(SECTIONS)
     (args.out / "protein_rna").mkdir(parents=True, exist_ok=True)
+
+    serials = registered_serials(args.roi)
+    resolved = resolve_all(serials, sections=sections)
+    report = channel_assignment_report(resolved, roi=args.roi)
+    report_path = write_channel_assignment(report, args.out)
+    print(f"[protein-rna] channel assignment: {report['n_resolved']} of "
+          f"{report['n_registered']} registered sections resolve; wrote {report_path}",
+          flush=True)
+    for reason, donors in report["donors_by_reason"].items():
+        print(f"[protein-rna]   {reason}: {', '.join(donors)}", flush=True)
+
     recs = {}
-    for serial, donor in sorted(registered_serials(args.roi).items()):
+    skipped: list[str] = []
+    for serial, donor in sorted(serials.items()):
         if args.donors and donor not in args.donors:
             continue
+        roles = resolved[serial]
+        if not roles.ok:
+            # SKIP BY NAME, out loud. This used to be an IndexError on `.iloc[0]` against a
+            # five-row CSV, which stopped the whole run on the first donor the CSV had never
+            # heard of -- eleven of the thirteen that pass their registration gate.
+            print(f"[protein-rna] {donor}: SKIPPED -- {roles.unavailable}: {roles.detail}",
+                  flush=True)
+            skipped.append(donor)
+            continue
         rec = measure_one(serial, sections, roi=args.roi, out_dir=args.out,
-                          um_per_px=args.um_per_px)
+                          um_per_px=args.um_per_px, roles=roles)
         rec.setdefault("serial", serial)
         rec.setdefault("donor", donor)
         recs[serial] = rec
     if not recs:
-        print("no donor matched", file=sys.stderr)
+        print(f"no donor measured; {len(skipped)} skipped for a named reason "
+              f"({', '.join(skipped) or 'none'}) -- see {report_path}", file=sys.stderr)
         return 1
     p = args.out / f"protein_rna_{args.roi}.json"
     # MERGE, never replace. `--donors 6539` used to rewrite this file with that one record and

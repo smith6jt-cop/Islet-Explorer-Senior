@@ -51,7 +51,19 @@ ie_restain_ledger <- function(donor, root = ie_restain_root()) {
                                                  conditionMessage(e))))
 }
 
-ie_restain_selection <- function(index, donor, root = ie_restain_root()) {
+# The hormone gate belongs to ONE card. `ie_restain_ledger()` reads the donor capability
+# ledger, whose `restain_if` row carries a hormone-AUROC withholding: a donor whose INS/GCG
+# AUROC did not clear the prerecorded bar is `withheld` there, whatever its IF intensity.
+# Applying that to card_x2_overlay withheld an INTENSITY overlay for a HORMONE-CALL reason --
+# on a card whose own caption ends "Hormone calls are reported separately". Measured 2026-09-18
+# against the layers on this machine, it is why all three donors the card offered drew a note:
+# 6436 and 6442 `withheld: hormone_calls_withheld` (INS AUROC 0.514 / 0.657 against a 0.75 bar)
+# and 6539 `unavailable: no_restain_pairing` from a ledger built before its arrays were stamped.
+#
+# The gate stays TRUE by default so card_x3_identity.R -- which reports the hormone calls and is
+# the card the withholding is about -- keeps it without being touched.
+ie_restain_selection <- function(index, donor, root = ie_restain_root(),
+                                 hormone_gate = TRUE) {
   if (!ie_is_measured(index$availability)) return(index)
   if (is.null(donor) || length(donor) != 1L || !nzchar(donor)) {
     return(ie_restain_failure("no_donor_selected"))
@@ -59,8 +71,12 @@ ie_restain_selection <- function(index, donor, root = ie_restain_root()) {
   donor <- ie_restain_normalize_donor(donor)
   row <- index$data[index$data$donor_id == donor, , drop = FALSE]
   if (nrow(row) != 1L) return(ie_restain_failure("no_restain_pairing"))
+  # The intensity layer's own state for this donor. It is the artifact the overlay draws from,
+  # so it is the artifact that says whether the overlay can be drawn.
   available <- ie_avail(row$state[[1]], reason = row$reason[[1]], n = row$n[[1]])
-  if (ie_is_measured(available)) available <- ie_restain_ledger(donor, root)
+  if (isTRUE(hormone_gate) && ie_is_measured(available)) {
+    available <- ie_restain_ledger(donor, root)
+  }
   list(availability = available, data = row)
 }
 
@@ -103,7 +119,8 @@ ie_restain_cells <- function(row, root = ie_restain_root()) {
   ie_attach_frame(d, expected)
 }
 
-ie_restain_reactives <- function(input, output, session, id, cohort, active) {
+ie_restain_reactives <- function(input, output, session, id, cohort, active,
+                                 hormone_gate = TRUE) {
   index <- shiny::reactive({
     shiny::req(active())
     ie_restain_index()
@@ -139,7 +156,7 @@ ie_restain_reactives <- function(input, output, session, id, cohort, active) {
     if (is.null(selected) || !selected %in% choices()) {
       return(ie_restain_failure("no_donor_selected_in_cohort"))
     }
-    ie_restain_selection(current, selected)
+    ie_restain_selection(current, selected, hormone_gate = hormone_gate)
   })
 }
 
@@ -158,7 +175,11 @@ card_x2_overlay_server <- function(input, output, session, prepared = NULL, coho
                                    active_tab = NULL, tab_key = NULL, ...) {
   active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
                              identical(active_tab(), tab_key))
-  selection <- ie_restain_reactives(input, output, session, "x2_overlay", cohort, active)
+  # This card draws MEASURED IF INTENSITY. Hormone positivity is card_x3_identity's subject and
+  # is reported there; withholding an intensity overlay because a hormone AUROC did not clear a
+  # bar answers a question this card does not ask.
+  selection <- ie_restain_reactives(input, output, session, "x2_overlay", cohort, active,
+                                    hormone_gate = FALSE)
   cells <- shiny::reactive({
     selected <- selection()
     if (!ie_is_measured(selected$availability)) return(selected)

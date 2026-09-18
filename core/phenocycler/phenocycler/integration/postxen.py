@@ -136,34 +136,74 @@ def restain_if_dir(cfg: PipelineConfig) -> Path:
     return Path(__file__).resolve().parents[4] / "data" / "development" / "restain" / "protein_rna"
 
 
+def describe_stamp(out: dict) -> str:
+    """One line saying what happened to one donor, whichever way it went.
+
+    Every branch of :func:`stamp_if_values` ends here, including the ones that return early.
+    The absent-arrays branch used to set NaN, ``continue`` and return with ``markers`` empty and
+    nothing printed, so a donor whose registration had PASSED and whose arrays simply had not
+    been produced yet was indistinguishable from one that was never registered -- which is how
+    6539 read as a registration failure for a week when all it needed was this step re-running.
+    """
+    tag = f"[postxen] {out.get('donor_id')}/{out.get('roi')}"
+    looked = "; ".join(out.get("missing_arrays") or []) or out.get("looked_in") or ""
+    where = f" -- looked for {looked}" if looked else ""
+    if out.get("error"):
+        return f"{tag}: IF values not stamped -- {out['error']}{where}"
+    if not out.get("markers"):
+        return (f"{tag}: IF values not stamped -- "
+                f"{out.get('skipped_reason', 'no markers')}{where}")
+    per = ", ".join(f"{m} {n:,}" for m, n in (out.get("n_stamped_by_marker") or {}).items())
+    partial = (f"; {', '.join(m for m in IF_MARKERS if m not in out['markers'])} absent{where}"
+               if len(out["markers"]) < len(IF_MARKERS) else "")
+    return (f"{tag}: feat__if_{{{','.join(out['markers'])}}} stamped -- {per} "
+            f"(NaN where unmeasured){partial}")
+
+
 def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Optional[Path] = None,
-                    bundle_cells: Optional[Path] = None) -> dict:
+                    bundle_cells: Optional[Path] = None, announce: bool = True) -> dict:
     """Write the re-stain lane's per-cell IF INS / GCG values onto the Xenium cell table.
 
     The arrays are in the bundle's ``cells.parquet`` order (the lane measures Xenium's own cell
     polygons), so they are joined to the geometry table by ``cell_id`` through that order -- never
     by position in the geometry table, whose order is the import's.  A length mismatch is refused,
     not padded.  Values are protein evidence (``feat__if_<marker>``); NaN stays NaN.
+
+    **One line per donor, either way, from here rather than from a caller.**  ``announce`` prints
+    :func:`describe_stamp` on every exit, so the function is honest about a skip no matter who
+    called it -- including the partial case a caller cannot see, where one marker's array exists
+    and the other's does not and ``markers`` is non-empty regardless.  ``import_xenium`` still
+    prints its own ``[import_xenium]`` line; the two tags are distinguishable and that
+    duplication is deliberate until that caller is changed.
     """
     if_dir = Path(if_dir) if if_dir is not None else restain_if_dir(cfg)
-    out = {"donor_id": donor, "roi": roi, "n_stamped": 0, "markers": []}
+    out = {"donor_id": donor, "roi": roi, "n_stamped": 0, "markers": [],
+           "n_stamped_by_marker": {}, "looked_in": str(if_dir)}
+
+    def done(result: dict) -> dict:
+        if announce:
+            print(describe_stamp(result), flush=True)
+        return result
+
     try:
         xen = read_cell_table(cfg.cells_xen_dir, donor, roi, modality="xenium")
     except FileNotFoundError:
         out["error"] = "no Xenium geometry table"
-        return out
+        out["looked_in"] = str(cfg.cells_xen_dir)
+        return done(out)
     serial = ""
     if bundle_cells is None:
         man = paired_rows(load_manifest(cfg), roi=roi)
         row = man[man["donor_id"].astype(str) == str(donor)]
         if row.empty or not str(row.iloc[0].get("xenium_bundle", "")):
             out["error"] = "no Xenium bundle in the manifest"
-            return out
+            return done(out)
         bundle_cells = Path(str(row.iloc[0]["xenium_bundle"])) / "cells.parquet"
         serial = str(row.iloc[0].get("xenium_serial", ""))
     if not Path(bundle_cells).exists():
         out["error"] = f"bundle cells.parquet missing: {bundle_cells}"
-        return out
+        out["looked_in"] = str(bundle_cells)
+        return done(out)
     order = pd.read_parquet(bundle_cells, columns=["cell_id"])["cell_id"].astype(str).to_numpy()
     df = xen.df
     stamped: dict[str, int] = {}
@@ -198,7 +238,7 @@ def stamp_if_values(cfg: PipelineConfig, donor: str, roi: str, *, if_dir: Option
                                  f"{len(missing)} of {len(IF_MARKERS)} markers absent")
     if out["markers"]:
         write_cell_table(df, partition_path(cfg.cells_xen_dir, donor, roi))
-    return out
+    return done(out)
 
 
 def pair_restain(

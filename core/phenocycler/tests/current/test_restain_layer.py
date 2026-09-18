@@ -387,8 +387,15 @@ def test_r_cards_render_artifacts_and_refuse_wrong_frames(builder_inputs):
     layer.build_restain_layer(**builder_inputs)
     layers = builder_inputs["layers_dir"]
     (layers / "availability").mkdir()
+    # The ledger row this donor really carries: the hormone AUROC did not clear the recorded
+    # bar, so `restain_if` is WITHHELD. The intensity layer built above says `measured` for the
+    # same donor, and the two are answering different questions -- which is the whole point of
+    # the split below.
     pq.write_table(pa.table({"donor_id": ["6436"], "capability": ["restain_if"],
-                            "state": ["measured"], "reason": [""], "n": [3]}),
+                            "state": ["withheld"],
+                            "reason": ["hormone_calls_withheld: INS_auroc=0.5143; "
+                                       "GCG_auroc=0.5220; recorded_auroc_bar=0.75"],
+                            "n": [3]}),
                    layers / "availability/data.parquet")
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
@@ -410,12 +417,16 @@ source("apps/R/ieCore/R/ie_selectable.R")
       session$setInputs(x2_overlay_donor = "112")
       stopifnot(!ie_is_measured(card$drawing()$availability))
     })
+    # The hormone withholding still reaches the card the hormone calls belong to.
     shiny::testServer(function(input, output, session) {
       card <- card_x3_identity_server(input, output, session)
     }, {
       session$setInputs(x3_identity_donor = "6436")
-      d <- card$identity()$data
-      stopifnot(all(grepl("Withheld", d$State)), identical(d$AUROC, c("0.5143", "0.5220")))
+      stopifnot(!ie_is_measured(card$selection()$availability))
+      stopifnot(card$selection()$availability$state == "withheld")
+      stopifnot(grepl("hormone_calls_withheld", card$selection()$availability$reason))
+      note <- as.character(ie_restain_note(card$identity()$availability, "x3_identity"))
+      stopifnot(grepl("x3_identity", note))
     })
     row <- ie_restain_index()$data
     row <- row[row$donor_id == "6436", , drop = FALSE]
