@@ -21,11 +21,14 @@ read. Membership files are read with partitioning=None and joined on object_id
 alone, including when their optional donor column is absent. Root-level audit
 files such as membership_diff.parquet are not cell partitions.
 
-Two arms, and they are not the same kind of measurement
--------------------------------------------------------
-* The **pancreas arm** (``roi=panc``, ``modality=phenocycler``) is spatial. It
-  reads ``data/development/typing/cells`` and ``typing/islet_membership`` and
-  carries ``frame=signed_distance_um``.
+Three arms, and they are not the same kind of measurement
+---------------------------------------------------------
+* The **pancreas PhenoCycler arm** (``roi=panc``, ``modality=phenocycler``) is
+  spatial. It reads ``data/development/typing/cells`` and
+  ``typing/islet_membership`` and carries ``frame=signed_distance_um``.
+* The **pancreas Xenium arm** (``roi=panc``, ``modality=xenium``) is the same
+  tissue in the other modality, and it is spatial ONLY where the four links
+  below all hold. See "How a Xenium pancreas cell acquires a signed distance".
 * The **pLN arm** (``roi=pln_*``, ``modality=xenium``) is **compositional only**
   and carries ``frame=none`` with a null ``distance_bin_um``. The pancreas and
   pLN sections mounted on one slide come from **different blocks**: they share a
@@ -47,6 +50,52 @@ Two arms, and they are not the same kind of measurement
   their cell_id namespaces are disjoint, and the typer has to be run on the pLN
   cells. A lineage the crosswalk does not classify is withheld by name; it is
   never defaulted to non-immune.
+
+How a Xenium pancreas cell acquires a signed distance to an islet border
+------------------------------------------------------------------------
+It does not get one by being in the pancreas. Four links are required, each one
+READ off disk rather than assumed, and the arm names the first one that is
+missing instead of emitting a zero or a shorter artifact:
+
+1. **A call for the cell.** From the current pancreas release, resolved by
+   ``scripts/senior/xenium_release.py`` -- the release's own ``release_id``,
+   declared write time and tissue, never a directory mtime. The release is keyed
+   by ``cell_id`` and carries the call plus the nucleus columns. Measured on this
+   checkout 2026-09-18, its calls schema is ``cell_id, section_key, cluster_id,
+   subcluster_id, lineage, common_lineage, reason, ... nucleus_count,
+   nucleus_measured, depth ...`` -- **no coordinate column at all**. A release
+   alone can never reach a distance axis.
+2. **Coordinates for that ``cell_id``.** The Xenium ingest
+   ``core/phenocycler/data/integration/cells_xen/donor_id=<d>/roi=panc`` carries
+   ``cell_id``, ``x_um`` and ``y_um`` in the **Xenium frame**. The join is on
+   ``cell_id`` and on nothing else -- never row order, never a centroid match,
+   never a filename. Measured on 6374: 1,012,696 of 1,012,696 release rows found
+   their coordinates.
+3. **An islet border expressed in the frame those coordinates live in.** The
+   islet borders this cohort has are the QuPath ``Islet_N`` annotations, drawn on
+   the **PhenoCycler** image. There is no islet outline in the Xenium frame
+   anywhere in this checkout: ``integration/structures/xenium/donor_id=*/
+   roi=panc/islets.parquet`` exists for two donors and carries ``x_um, y_um,
+   n_cells, area_um2, eccentricity`` -- a centroid and an area, no geometry. A
+   centroid plus an area is not a border, and turning one into a radius would be
+   drawing the border rather than measuring against it.
+4. **An acquisition design that licenses a per-cell claim between 2 and 3.**
+   Reaching the PhenoCycler border from a Xenium cell means the two images are of
+   ONE physical section. That is an acquisition fact, declared with evidence in
+   ``core/phenocycler/data/integration/section_modes.csv`` and read here through
+   ``phenocycler.integration.modes`` -- the one authority for it. A pair absent
+   from that file is ``sequential``: two different physical sections from one
+   block. Mapping a cell off one section onto a border drawn on another and
+   calling the result that cell's distance to that border is the fabrication
+   ``modes.py`` exists to prevent, so this arm refuses it by name.
+
+Measured 2026-09-18 across the 21-donor pancreas release: link 3 fails for every
+donor, and link 4 holds for exactly one declared pair (6533/panc/0080870), which
+has no registration transform on disk here and whose lane is being developed
+elsewhere. So every donor is a NAMED unavailable today and none is a zero. When a
+same-slide pair does arrive with its border transported into the Xenium frame,
+``panc_xenium_border_loader`` is where it enters and the arm measures without
+another change here.
 """
 
 from __future__ import annotations
@@ -58,6 +107,7 @@ import math
 import os
 import sys
 from pathlib import Path
+from typing import Callable, Sequence
 
 import duckdb
 import pyarrow as pa
@@ -66,6 +116,7 @@ import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from scripts.senior import xenium_release
 from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 TYPING = REPO / "data" / "development" / "typing"
@@ -82,19 +133,29 @@ MANIFEST = INTEGRATION / "manifest.csv"
 # produces nothing but "not called", so the Xenium pLN arm reads a typed release
 # instead. The panc and pLN bundles are segmented separately, so labels could
 # never have been copied across in any case.
-XEN_TYPING = REPO / "data" / "development" / "xenium_typing"
+#
+# WHICH release is no longer answered here. Until 2026-09-18 this file scanned
+# ``data/development/xenium_typing`` and took the newest ``release.json`` by
+# DIRECTORY MTIME -- a `touch` could reorder it, and the pancreas release could
+# not be seen at all because it is written OUTSIDE the repository. Both roots and
+# the selection rule now live once, in ``scripts/senior/xenium_release.py``,
+# which selects on the release's own declared release_id, write time and tissue.
 PLN_PHENO_CALLS = TYPING / "pln" / "pheno"
+
+# Where the pancreas Xenium arm reads the three things the release does not carry.
+REGISTRATION = INTEGRATION / "registration"
+SECTION_MODES = INTEGRATION / "section_modes.csv"
+XEN_STRUCTURES = INTEGRATION / "structures" / "xenium"
 # The PhenoCycler pLN ingest. Used only to learn WHICH donors have a pLN section
 # when the calls are absent, so the refusal names real donors rather than a
 # hardcoded cohort list.
 PLN_INGEST = INTEGRATION / "cells_pln"
 
-# Hive partition values are read as strings, always. Every pLN donor id is all
-# digits, so inferred partitioning turns '0112' into the integer 112 and the id
-# stops joining against the string donor_id everywhere else.
-PLN_PARTITIONING = ds.partitioning(
-    pa.schema([("donor_id", pa.string()), ("roi", pa.string())]), flavor="hive"
-)
+# Hive partition values are read as strings, always -- every donor id in this
+# cohort is all digits, so an inferring reader turns '0112' into the integer 112
+# and it stops joining against the string donor_id everywhere else. That rule is
+# now stated once, in xenium_release.Release.partitioning(), and the copy that
+# used to sit here (defined, never called) is gone rather than left to drift.
 
 PLN_TISSUE = "pancreatic_lymph_node"
 # The release's own tissue tag, which is not the crosswalk's vocabulary.
@@ -112,6 +173,46 @@ PANCREAS_ROI = "panc"
 PANCREAS_TISSUE = "pancreas"
 # The Xenium lineage column carried by cells_xen. An empty string is not a call.
 XEN_LINEAGE = "lineage_common"
+
+# --------------------------------------------------------------------------
+# The pancreas Xenium arm's named absences. Each one is the FIRST missing link
+# of the four in the module docstring, so the reason says what to supply next.
+# None of them is ever a zero, and none is ever left off the artifact.
+# --------------------------------------------------------------------------
+NO_XEN_PANC_RELEASE = "xenium_panc_release_absent"
+#: A section exists in the Xenium ingest and the release carries no call for it.
+#: Measured 2026-09-18: 6450, 6505, 6534 and 6623 -- four cohort donors whose
+#: pancreas was imaged and is not in the 21-donor release. Named here rather than
+#: left off, because a donor with no row reads as a donor with no section.
+XEN_PANC_NOT_IN_RELEASE = "xenium_panc_release_has_no_calls_for_donor"
+#: The release declares the donor but its partition holds no row.
+XEN_PANC_EMPTY = "xenium_panc_release_partition_empty"
+#: The nucleus was never measured on these cells. A missing measurement is not an
+#: absent nucleus: the rule "a cell with no nucleus is excluded" never applied to
+#: them, and counting them either way would invent the answer. Measured
+#: 2026-09-18: every cell of 6347, 6579 and 6580 in the current release.
+XEN_PANC_NUCLEUS_NOT_MEASURED = "xenium_panc_nucleus_not_measured:{missing}_of_{total}"
+XEN_PANC_NOT_CALLED = "xenium_panc_lineage_not_called:{uncalled}_of_{total}"
+#: Link 2. The release carries no coordinate column, so without the ingest
+#: partition there is no position for the cell at all.
+XEN_PANC_NO_COORDINATES = "xenium_panc_cell_coordinates_absent"
+XEN_PANC_COORDINATES_PARTIAL = "xenium_panc_cell_coordinates_missing_cell_id:{missing}_of_{total}"
+#: Link 3/4. The only islet borders this cohort has are drawn on the PhenoCycler
+#: section, and this pair is two different physical sections.
+XEN_PANC_BORDER_ON_ANOTHER_SECTION = "xenium_panc_islet_border_is_on_another_physical_section:{mode}"
+#: Link 4, same-slide branch: the pair is one section imaged twice, but nothing
+#: on disk maps between the two frames.
+XEN_PANC_NO_REGISTRATION = "xenium_panc_registration_to_the_border_frame_absent"
+#: Link 4, same-slide branch: the transport of the PhenoCycler outline into the
+#: Xenium frame belongs to the same-slide lane, which owns that geometry. This
+#: builder takes it as ``panc_xenium_border_loader`` and never invents one.
+XEN_PANC_NO_BORDER_TRANSPORT = "xenium_panc_same_slide_border_transport_not_supplied"
+#: The structures lane wrote an islets table for this section but it holds
+#: centroids and areas, not outlines. Named rather than treated as no file.
+XEN_PANC_STRUCTURES_WITHOUT_OUTLINE = "xenium_panc_islet_structures_carry_no_outline:{columns}"
+#: Every spelling the Xenium structures lane might use for an outline. A
+#: centroid column is deliberately NOT here: a point is not a border.
+XEN_BORDER_COLUMNS = ("wkb", "geometry", "outline_wkb", "border_wkb")
 
 SUPERSEDED = (
     "Refusing superseded typing/subpanel/subpanel_calls.parquet: "
@@ -336,31 +437,22 @@ def _absence(donor: str, status: str | None, reason: str) -> dict:
     return _row(donor, status, state="unavailable", reason=reason)
 
 
-def find_pln_release(root: Path) -> Path | None:
-    """The newest Xenium release under ``root`` that declares a pLN tissue.
+def resolve_release(tissue: str, roots: Sequence[Path] | None):
+    """The current Xenium release for a tissue, or a named ``Unavailable``.
 
-    Releases are siblings: the pancreas release declares roi=panc, and the pLN
-    one declares a pLN tissue and roi=pln_*. Picking by the release's own
-    declaration beats picking by directory name, and a tree with no pLN release
-    returns None so the caller names the absence.
+    One line, because the whole selection belongs to
+    ``scripts/senior/xenium_release.py`` and not to five builders: it reads both
+    roots -- the repository one and the one outside it that the pancreas release
+    is written to -- and selects on the release's OWN declared ``release_id``,
+    write time and tissue. Nothing here reads a directory mtime, which is what
+    this function replaced: a ``touch`` could reorder the previous scan, and a
+    repo-relative scan could not see the pancreas release at all.
+
+    It never returns ``None``. An absence comes back as ``Unavailable`` carrying
+    its reason and every candidate it rejected, because a ``None`` that reaches a
+    count reads as a zero and a missing measurement is unavailable, not zero.
     """
-    if not root.is_dir():
-        return None
-    candidates: list[tuple[float, Path]] = []
-    for manifest in sorted(root.glob("*/release.json")):
-        try:
-            declared = json.loads(manifest.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        tissue = str(declared.get("tissue", "")).strip().lower()
-        if RELEASE_TISSUE_ALIAS.get(tissue) != PLN_TISSUE:
-            continue
-        calls = manifest.parent / str(declared.get("calls_dir") or "calls")
-        if calls.is_dir():
-            candidates.append((manifest.stat().st_mtime, manifest.parent))
-    if not candidates:
-        return None
-    return max(candidates)[1]
+    return xenium_release.resolve(tissue, roots=roots)
 
 
 def _release_lineage_column(names: set[str]) -> str | None:
@@ -488,42 +580,53 @@ def _pln_composition(
     return rows, audit
 
 
+def _release_tissue(release) -> str | None:
+    """The pLN tissue a release declares, in the crosswalk's vocabulary.
+
+    Read from the release's own ``tissue`` key, falling back to the canonical
+    tissue the resolver derived from its declared ``roi``. Never the directory
+    name: a release named ``anything_at_all`` that declares a pLN tissue is the
+    pLN release, and one named ``release_pln_immune`` that declares pancreas is not.
+    """
+    declared = RELEASE_TISSUE_ALIAS.get(str(release.metadata.get("tissue", "")).strip().lower())
+    if declared is not None:
+        return declared
+    return PLN_TISSUE if release.tissue == xenium_release.PLN else None
+
+
 def _pln_xenium_release_arm(
-    release_root: Path,
+    release,
     statuses: dict[str, str],
     donors: set[str] | None,
     vocabulary: dict | None = None,
 ) -> tuple[list[dict], dict]:
     """Compositional rows from a typed Xenium pLN release. Nothing spatial.
 
-    The release declares its own tissue and calls directory; both are read from
-    release.json rather than assumed from the directory name.
+    ``release`` is a ``xenium_release.Release``: it has already been selected on
+    its own declared release_id, write time and tissue, and it carries its calls
+    directory and the hive keys read as STRINGS. A donor id that becomes an
+    integer stops matching the donor it names, which is why nothing here infers a
+    partition type.
     """
     rows: list[dict] = []
     audit: dict[str, dict] = {}
-    declared = json.loads((release_root / "release.json").read_text())
-    calls = release_root / str(declared.get("calls_dir") or "calls")
-    tissue = RELEASE_TISSUE_ALIAS.get(str(declared.get("tissue", "")).strip().lower())
+    tissue = _release_tissue(release)
 
+    # `partition_files` handles BOTH declared layouts in one place: the
+    # donor_id=/roi= tree, and the A.4 DONOR-LEVEL one with shards directly below
+    # donor_id= and no roi directory. A roi-only scan would resolve a donor-level
+    # release, record it as the source, and then emit ZERO rows from it -- the
+    # card would read "not typed for this donor" while a release full of calls
+    # sat on disk. A shard with no roi segment takes the release's own declared
+    # roi, and only when that is not a pancreas one.
+    declared_roi = next((norm_roi(value) for value in release.declared_roi
+                         if value and not is_pancreas_roi(value)), "")
     partitions: dict[tuple[str, str], list[Path]] = {}
-    for path in sorted(calls.glob("donor_id=*/roi=*/*.parquet")):
-        roi = norm_roi(path.parent.name.removeprefix("roi="))
-        if is_pancreas_roi(roi):
+    for donor, roi, path in release.partition_files():
+        roi = norm_roi(roi) if roi else declared_roi
+        if not roi or is_pancreas_roi(roi):
             continue
-        donor = norm_donor(path.parents[1].name.removeprefix("donor_id="))
-        partitions.setdefault((donor, roi), []).append(path)
-
-    # A release may also use the declared A.4 DONOR-LEVEL layout, with shards directly below
-    # donor_id=<d>/ and no roi= directory. `Release.calls_for` supports it (phenospace.py:128-130)
-    # and donor-level releases exist in this codebase, so a roi-only scan would resolve such a
-    # release, record it in `source_pln_by_modality`, and then emit ZERO rows from it -- the card
-    # would read "not typed for this donor" while a release full of calls sat on disk. Take the
-    # release's own declared roi for those shards, and only when it is not a pancreas one.
-    declared_roi = norm_roi(str(declared.get("roi", "") or ""))
-    if declared_roi and not is_pancreas_roi(declared_roi):
-        for path in sorted(calls.glob("donor_id=*/*.parquet")):
-            donor = norm_donor(path.parent.name.removeprefix("donor_id="))
-            partitions.setdefault((donor, declared_roi), []).append(path)
+        partitions.setdefault((norm_donor(donor), roi), []).append(path)
 
     eligible = set(filter_eligible_donors({donor for donor, _ in partitions}))
     with duckdb.connect(config={"threads": 2, "memory_limit": "2GB"}) as con:
@@ -537,7 +640,7 @@ def _pln_xenium_release_arm(
                 donor, roi, statuses.get(donor),
                 tissue=tissue, modality="xenium", vocabulary=vocabulary)
             rows.extend(section)
-            section_audit["release"] = release_root.name
+            section_audit["release"] = release.release_id
             audit[f"{donor}/{roi}"] = section_audit
     return rows, audit
 
@@ -745,6 +848,408 @@ def _pln_arm(
     return rows, audit
 
 
+# --------------------------------------------------------------------------
+# The pancreas Xenium arm
+# --------------------------------------------------------------------------
+def _xenium_serial(con: "duckdb.DuckDBPyConnection", paths: list[str],
+                   names: set[str]) -> str:
+    """The Xenium serial this section was acquired on, read off the ingest.
+
+    ``section_modes.csv`` is keyed on donor + roi + SERIAL, because one donor+roi
+    can hold both designs -- 6533/panc is a serial pair on 0041393 and a
+    same-slide pair on 0080870. Asking without a serial gets the wildcard, which
+    is the fail-safe (``sequential``) answer and would silently deny a same-slide
+    pair its own row. So the serial is read from the ingest's own
+    ``xenium_sample_key`` (measured: ``0041032__panc``), never parsed from a
+    directory name and never guessed.
+    """
+    if "xenium_sample_key" not in names:
+        return ""
+    values = sorted({
+        str(value).strip()
+        for (value,) in con.execute(
+            "SELECT DISTINCT xenium_sample_key FROM read_parquet(?) "
+            "WHERE xenium_sample_key IS NOT NULL", [paths]).fetchall()
+        if str(value).strip()
+    })
+    if len(values) != 1:
+        return ""
+    return values[0].split("__", 1)[0]
+
+
+def _donor_partition(root: Path, donor: str, roi: str = PANCREAS_ROI) -> Path | None:
+    """The ``donor_id=<d>/roi=<roi>`` directory for ``donor``, matched on the id.
+
+    The hive segment is compared through ``norm_donor``, not as text, because
+    ``0112`` and ``112`` are one donor and a tree that spells it the other way
+    would otherwise read as an absent partition -- a named absence standing in
+    for a donor whose data is on disk.
+    """
+    root = Path(root)
+    if not root.is_dir():
+        return None
+    for path in sorted(root.glob("donor_id=*")):
+        if norm_donor(path.name.removeprefix("donor_id=")) != donor:
+            continue
+        section = path / f"roi={roi}"
+        if section.is_dir():
+            return section
+    return None
+
+
+def _section_mode(donor: str, serial: str, section_modes_csv: Path) -> str:
+    """The declared acquisition design for this pair, from the one authority.
+
+    ``phenocycler.integration.modes`` owns this question; restating its rules
+    here would be a second copy of a manifest that exists precisely so a flag
+    cannot invent an acquisition fact. The global fallback is pinned to
+    ``sequential`` -- the fail-safe direction -- because this builder has no
+    config.ini and must never be the thing that promotes a pair to same_slide.
+    """
+    from types import SimpleNamespace
+
+    from phenocycler.integration import modes  # imported here: only this arm needs it
+
+    cfg = SimpleNamespace(section_modes_csv=Path(section_modes_csv),
+                          integration_mode="sequential")
+    return modes.mode_for(cfg, donor, PANCREAS_ROI, serial or None)
+
+
+def xenium_frame_islet_border(
+    donor: str,
+    *,
+    serial: str,
+    structures_root: Path,
+    registration_root: Path,
+    section_modes_csv: Path,
+    border_loader: Callable[..., object] | None = None,
+) -> tuple[list | None, str, dict]:
+    """(border geometries in the XENIUM micron frame, reason, audit).
+
+    Link 3 of the four in the module docstring, and link 4 where it is needed.
+    Two routes, and no third:
+
+    * **The Xenium section's own outlines.** ``structures/xenium/donor_id=<d>/
+      roi=panc/islets.parquet`` is where a structure segmented on the Xenium
+      section lands. Measured 2026-09-18 it exists for two donors and carries
+      ``x_um, y_um, n_cells, area_um2, eccentricity`` -- a centroid and an area.
+      That is named, not read as an absent file, and it is not turned into a
+      circle: an equivalent radius would be a border this builder drew itself.
+    * **A same-slide pair's PhenoCycler outline, transported.** One physical
+      section imaged twice means the QuPath ``Islet_N`` border IS a border on the
+      Xenium tissue, and the registration transform expresses it in the Xenium
+      frame. Both prerequisites are checked here -- the ``same_slide``
+      declaration and the transform on disk -- and the transport itself is the
+      same-slide lane's geometry, taken as ``border_loader`` rather than
+      reimplemented. A sequential pair never reaches this route.
+
+    Returns ``(None, reason, audit)`` when no border exists, so the caller emits
+    a named unavailable. It never returns an empty border list as if it were one.
+    """
+    audit: dict = {}
+    section = _donor_partition(structures_root, donor)
+    structures = (section / "islets.parquet") if section is not None else None
+    audit["xenium_structures"] = str(structures) if structures else ""
+    if structures is not None and structures.is_file():
+        columns = list(pq.read_schema(structures).names)
+        audit["xenium_structures_columns"] = columns
+        outline = next((c for c in XEN_BORDER_COLUMNS if c in columns), None)
+        if outline is not None:
+            from shapely import wkb as shapely_wkb  # only when a border is really there
+
+            table = pq.read_table(structures, columns=[outline])
+            border = [shapely_wkb.loads(bytes(value)) for value in table[outline].to_pylist()
+                      if value is not None]
+            audit["border_source"] = f"{structures}:{outline}"
+            audit["n_border_outlines"] = len(border)
+            if border:
+                return border, "", audit
+        else:
+            audit["xenium_structures_state"] = "no outline column"
+
+    mode = _section_mode(donor, serial, section_modes_csv)
+    audit["section_mode"] = mode
+    audit["xenium_serial"] = serial
+    if mode != "same_slide":
+        reason = XEN_PANC_BORDER_ON_ANOTHER_SECTION.format(mode=mode)
+        if "xenium_structures_state" in audit:
+            reason = XEN_PANC_STRUCTURES_WITHOUT_OUTLINE.format(
+                columns="|".join(audit["xenium_structures_columns"]))
+        return None, reason, audit
+
+    registered = _donor_partition(registration_root, donor)
+    transform = (registered / "transform.json") if registered is not None else None
+    audit["transform"] = str(transform) if transform else ""
+    if transform is None or not transform.is_file():
+        return None, XEN_PANC_NO_REGISTRATION, audit
+    if border_loader is None:
+        return None, XEN_PANC_NO_BORDER_TRANSPORT, audit
+    border = list(border_loader(donor=donor, transform=transform, serial=serial) or [])
+    audit["border_source"] = "same_slide_transport"
+    audit["n_border_outlines"] = len(border)
+    if not border:
+        return None, XEN_PANC_NO_BORDER_TRANSPORT, audit
+    return border, "", audit
+
+
+def signed_distance_to_border_um(border: list, x, y):
+    """Signed distance to the nearest islet border: negative inside, positive out.
+
+    Containment decides the sign, the distance to the BOUNDARY gives the
+    magnitude, and a point exactly on the border keeps its own zero. This is the
+    same decision order ``typing/islet_membership.py`` uses on the PhenoCycler
+    side -- membership from the outline, distance as the magnitude -- so the two
+    modalities mean the same thing by "inside".
+    """
+    import numpy as np
+    from shapely import STRtree, points
+
+    coordinates = np.column_stack([np.asarray(x, dtype=float), np.asarray(y, dtype=float)])
+    pts = points(coordinates)
+    boundaries = [geometry.boundary for geometry in border]
+    nearest = STRtree(boundaries).nearest(pts)
+    magnitude = np.array([boundaries[int(j)].distance(p) for p, j in zip(pts, nearest)],
+                         dtype=float)
+    inside = np.zeros(len(pts), dtype=bool)
+    point_index, _ = STRtree(border).query(pts, predicate="within")
+    inside[point_index] = True
+    return np.where(inside, -magnitude, magnitude), inside
+
+
+def _panc_xenium_measure(
+    con: "duckdb.DuckDBPyConnection",
+    call_paths: list[str],
+    coordinate_paths: list[str],
+    lineage_column: str,
+    nucleated: str,
+) -> tuple[list[str], list[str], list[float], list[float], int, int]:
+    """(cell_id, lineage, x, y, release rows kept, rows with no coordinate).
+
+    The join is ``cell_id`` to ``cell_id`` and nothing else. Row order, file
+    order and a centroid match are all excluded by construction: an inner join on
+    the key either finds the cell or does not, and the ones it does not find are
+    counted and named rather than dropped.
+    """
+    kept, missing = con.execute(
+        f"SELECT count(*), count(*) FILTER (WHERE x.cell_id IS NULL) "
+        f"FROM read_parquet(?) r LEFT JOIN read_parquet(?) x ON r.cell_id = x.cell_id "
+        f"WHERE {nucleated}", [call_paths, coordinate_paths]).fetchone()
+    rows = con.execute(
+        f"SELECT r.cell_id, trim(coalesce(r.{lineage_column}, '')) AS lineage, "
+        f"       x.x_um, x.y_um "
+        f"FROM read_parquet(?) r JOIN read_parquet(?) x ON r.cell_id = x.cell_id "
+        f"WHERE {nucleated}", [call_paths, coordinate_paths]).fetchall()
+    return ([r[0] for r in rows], [r[1] for r in rows],
+            [r[2] for r in rows], [r[3] for r in rows], int(kept), int(missing))
+
+
+def _panc_xenium_arm(
+    release,
+    xen_cells_root: Path,
+    statuses: dict[str, str],
+    donors: set[str] | None,
+    vocabulary: dict | None,
+    *,
+    bin_width_um: float,
+    structures_root: Path,
+    registration_root: Path,
+    section_modes_csv: Path,
+    border_loader: Callable[..., object] | None = None,
+) -> tuple[list[dict], dict]:
+    """The pancreas in the OTHER modality: spatial where the four links hold.
+
+    Every donor the release carries gets a row, whatever state it is in. A donor
+    the arm cannot place on the distance axis is a named unavailable carrying the
+    first missing link; it is never a zero, never omitted, and never quietly
+    given the PhenoCycler donor's number.
+
+    These rows are ``roi=panc`` because they ARE the pancreas. Keeping them there
+    is what leaves ``refuse_cross_tissue_distance`` meaning what it says -- a
+    tissue boundary, not a modality one. They carry ``modality=xenium`` and are
+    never pooled with the PhenoCycler arm: the two sections are segmented
+    separately, typed by different lanes against different panels, and their
+    denominators are not interchangeable.
+    """
+    rows: list[dict] = []
+    audit: dict[str, dict] = {}
+    tallies = xenium_release.donor_tallies(release)
+    partitions = release.donor_partitions()
+    eligible = set(filter_eligible_donors({norm_donor(d) for d in partitions}))
+    label_column = release.require_column("common_lineage")
+
+    def absent(donor, status, reason, **extra):
+        return _row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                    modality="xenium", frame="none", state="unavailable",
+                    reason=reason, **extra)
+
+    with duckdb.connect(config={"threads": 2, "memory_limit": "2GB"}) as con:
+        for raw_donor, files in sorted(partitions.items()):
+            donor = norm_donor(raw_donor)
+            if donor not in eligible:
+                continue
+            if donors is not None and donor not in donors:
+                continue
+            tally = tallies[raw_donor]
+            status = statuses.get(donor)
+            entry: dict = {"release": release.release_id, "donor_status": status,
+                           "cells": tally.n_rows, "called": tally.n_called,
+                           "uncalled": tally.n_uncalled,
+                           "label_unavailable": tally.n_label_unavailable,
+                           "no_nucleus_excluded": tally.n_no_nucleus_excluded,
+                           "nucleus_not_measured": tally.n_nucleus_not_measured}
+            audit[f"{donor}/{PANCREAS_ROI}"] = entry
+
+            if not status:
+                rows.append(absent(donor, None, "donor_status_not_recorded"))
+                continue
+            if not tally.n_rows:
+                rows.append(absent(donor, status, XEN_PANC_EMPTY))
+                continue
+            # The nucleus rule and a missing nucleus measurement are two different
+            # things and are never collapsed. A section where the nucleus was
+            # never measured cannot have the rule applied to it at all.
+            if tally.nucleus_rule_applied and tally.n_nucleus_not_measured >= tally.n_rows:
+                rows.append(_row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                                 modality="xenium", frame="none", state="blank",
+                                 reason=XEN_PANC_NUCLEUS_NOT_MEASURED.format(
+                                     missing=tally.n_nucleus_not_measured, total=tally.n_rows)))
+                continue
+            if not tally.n_called:
+                rows.append(_row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                                 modality="xenium", frame="none", state="blank",
+                                 reason=XEN_PANC_NOT_CALLED.format(
+                                     uncalled=tally.n_rows, total=tally.n_rows)))
+                continue
+
+            section = _donor_partition(xen_cells_root, donor)
+            coordinates = sorted(section.glob("*.parquet")) if section is not None else []
+            entry["coordinates"] = [str(p) for p in coordinates]
+            if not coordinates:
+                rows.append(absent(donor, status, XEN_PANC_NO_COORDINATES))
+                continue
+            coordinate_names = set(pq.read_schema(coordinates[0]).names)
+            if not {"cell_id", "x_um", "y_um"} <= coordinate_names:
+                rows.append(absent(donor, status, XEN_PANC_NO_COORDINATES))
+                continue
+            coordinate_paths = [str(p) for p in coordinates]
+            serial = _xenium_serial(con, coordinate_paths, coordinate_names)
+
+            border, reason, border_audit = xenium_frame_islet_border(
+                donor, serial=serial, structures_root=structures_root,
+                registration_root=registration_root,
+                section_modes_csv=section_modes_csv, border_loader=border_loader)
+            entry.update(border_audit)
+            if border is None:
+                rows.append(absent(donor, status, reason))
+                continue
+            if vocabulary is None:
+                rows.append(_row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                                 modality="xenium", frame="none", state="withheld",
+                                 reason=NO_IMMUNE_VOCAB))
+                continue
+            if PANCREAS_TISSUE not in vocabulary["scope"]:
+                rows.append(_row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                                 modality="xenium", frame="none", state="withheld",
+                                 reason=f"{OUT_OF_SCOPE_TISSUE}:{PANCREAS_TISSUE}"))
+                continue
+
+            call_paths = [str(p) for p in files]
+            nucleus_count = release.column("nucleus_count")
+            nucleus_measured = release.column("nucleus_measured")
+            if nucleus_count is None:
+                nucleated = "TRUE"
+            elif nucleus_measured is None:
+                nucleated = f"r.{nucleus_count} IS NOT NULL AND r.{nucleus_count} > 0"
+            else:
+                nucleated = (f"coalesce(r.{nucleus_measured}, FALSE) "
+                             f"AND r.{nucleus_count} IS NOT NULL AND r.{nucleus_count} > 0")
+            _ids, lineages, xs, ys, kept, missing = _panc_xenium_measure(
+                con, call_paths, coordinate_paths, label_column, nucleated)
+            entry["nucleated_release_rows"] = kept
+            entry["coordinates_missing"] = missing
+            if missing:
+                rows.append(absent(donor, status, XEN_PANC_COORDINATES_PARTIAL.format(
+                    missing=missing, total=kept)))
+                continue
+            if not xs:
+                rows.append(absent(donor, status, XEN_PANC_EMPTY))
+                continue
+            unrecorded = sorted({lin for lin in lineages
+                                 if lin and lin not in vocabulary["is_immune"]})
+            if unrecorded:
+                rows.append(_row(donor, status, roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE,
+                                 modality="xenium", frame="none", state="withheld",
+                                 reason=f"{UNRECORDED_LINEAGE}:{'|'.join(unrecorded)}"))
+                continue
+            rows.extend(_panc_xenium_rows(donor, status, lineages, xs, ys, border,
+                                          vocabulary, bin_width_um, entry))
+
+    # Sections the ingest has and the release does not call. The donor list comes
+    # from the data on both sides, never from a written-down cohort, so a section
+    # the release has not reached yet is named instead of silently absent -- and
+    # the set stays right as the typing lane fills in.
+    called = {norm_donor(d) for d in partitions}
+    ingested = sorted({norm_donor(path.name.removeprefix("donor_id="))
+                       for path in Path(xen_cells_root).glob("donor_id=*")
+                       if (path / f"roi={PANCREAS_ROI}").is_dir()})
+    for donor in filter_eligible_donors([d for d in ingested if d not in called]):
+        if donors is not None and donor not in donors:
+            continue
+        audit[f"{donor}/{PANCREAS_ROI}"] = {"release": release.release_id,
+                                            "state": XEN_PANC_NOT_IN_RELEASE}
+        rows.append(_row(donor, statuses.get(donor), roi=PANCREAS_ROI,
+                         tissue=PANCREAS_TISSUE, modality="xenium", frame="none",
+                         state="unavailable", reason=XEN_PANC_NOT_IN_RELEASE))
+    return rows, audit
+
+
+def _panc_xenium_rows(donor, status, lineages, xs, ys, border, vocabulary,
+                      bin_width_um: float, entry: dict) -> list[dict]:
+    """One donor's measured spatial rows, on the same axis and cut as the protein arm."""
+    import math as _math
+
+    distance, inside = signed_distance_to_border_um(border, xs, ys)
+    entry["measured_cells"] = len(lineages)
+    entry["frame"] = "signed_distance_um"
+
+    denominators: dict[tuple[float, str], int] = {}
+    numerators: dict[tuple[float, str, str], int] = {}
+    totals: dict[tuple[float, str], int] = {}
+    for lineage, signed, is_inside in zip(lineages, distance.tolist(), inside.tolist()):
+        # The protein arm's SQL: sign(d) * ceil(|d|/w) * w. Exact zero keeps its
+        # own bin and does not acquire a sign from which side it was reached on.
+        edge = (0.0 if signed == 0 else
+                _math.copysign(_math.ceil(abs(signed) / bin_width_um) * bin_width_um, signed))
+        if is_inside:
+            compartment = "islet_core"
+        elif 0 < signed <= 20:
+            compartment = "peri_islet"
+        else:
+            compartment = "other_pancreas"
+        key = (edge, compartment)
+        denominators[key] = denominators.get(key, 0) + 1
+        if lineage and vocabulary["is_immune"].get(lineage) == IMMUNE_YES:
+            totals[key] = totals.get(key, 0) + 1
+            numerators[(edge, compartment, lineage)] = \
+                numerators.get((edge, compartment, lineage), 0) + 1
+
+    subtypes = sorted({lineage for (_edge, _compartment, lineage) in numerators})
+    rows: list[dict] = []
+    for (edge, compartment), n_cells in sorted(denominators.items()):
+        base = dict(roi=PANCREAS_ROI, tissue=PANCREAS_TISSUE, modality="xenium",
+                    frame="signed_distance_um", distance_bin_um=edge,
+                    compartment=compartment, n_cells=n_cells, state="measured", reason="")
+        n_immune = totals.get((edge, compartment), 0)
+        rows.append(_row(donor, status, n_immune=n_immune,
+                         immune_fraction=n_immune / n_cells,
+                         immune_subtype="Immune", resolved_by="all", **base))
+        for lineage in subtypes:
+            count = numerators.get((edge, compartment, lineage), 0)
+            rows.append(_row(donor, status, n_immune=count, immune_fraction=count / n_cells,
+                             immune_subtype=lineage, resolved_by="common_lineage", **base))
+    return rows
+
+
 def build_distance_profiles(
     cells_root: str | Path = TYPING / "cells",
     membership_root: str | Path = TYPING / "islet_membership",
@@ -753,13 +1258,26 @@ def build_distance_profiles(
     bin_width_um: float = 10.0,
     donors: list[str] | None = None,
     xen_cells_root: str | Path | None = None,
-    xen_typing_root: str | Path | None = None,
+    xenium_roots: Sequence[str | Path] | None = None,
     pln_pheno_root: str | Path | None = None,
     pln_ingest_root: str | Path | None = None,
     integration_manifest: str | Path | None = None,
     vocab_crosswalk: str | Path | None = VOCAB_CROSSWALK,
+    pln: bool = True,
+    panc_xenium: bool = True,
+    panc_xenium_border_loader: Callable[..., object] | None = None,
+    registration_root: str | Path = REGISTRATION,
+    section_modes_csv: str | Path = SECTION_MODES,
+    xenium_structures_root: str | Path = XEN_STRUCTURES,
 ) -> pa.Table:
-    """Build a small artifact in memory; no source or output file is modified."""
+    """Build a small artifact in memory; no source or output file is modified.
+
+    ``xenium_roots`` is the list of roots the Xenium releases are searched under,
+    and passing ``None`` builds no Xenium arm at all. That is deliberate: the
+    resolver's own default reaches ``/data/xenium_typing``, so a caller that says
+    nothing would read real releases. The CLI names the default roots explicitly;
+    a caller handing in its own tree gets that tree and nothing else.
+    """
     for path in (cells_root, membership_root, donor_metadata):
         refuse_superseded(path)
     if not math.isfinite(bin_width_um) or bin_width_um <= 0:
@@ -903,8 +1421,15 @@ def build_distance_profiles(
 
     pln_audit: dict[str, dict] = {}
     pln_sources: dict[str, str] = {}
-    build_pln = any(root is not None for root in
-                    (xen_cells_root, xen_typing_root, pln_pheno_root))
+    panc_xenium_audit: dict[str, dict] = {}
+    panc_xenium_source = ""
+    if xen_cells_root is not None:
+        xen_cells_root = Path(xen_cells_root)
+        refuse_superseded(xen_cells_root)
+    xenium_roots = ([Path(root) for root in xenium_roots]
+                    if xenium_roots is not None else None)
+    build_pln = pln and any(root is not None for root in
+                            (xen_cells_root, xenium_roots, pln_pheno_root))
     if build_pln:
         pln_statuses = dict(statuses)
         pln_statuses.update({
@@ -920,23 +1445,25 @@ def build_distance_profiles(
         # roi=pln_1 carries no call on any row, so reading it can only ever say
         # "not called". The ingest is still read when no release exists, so the
         # arm degrades to a named absence instead of vanishing.
-        release = find_pln_release(Path(xen_typing_root)) if xen_typing_root else None
-        if release is not None:
-            pln_sources["xenium"] = str(release.resolve())
+        release = resolve_release(xenium_release.PLN, xenium_roots) if xenium_roots else None
+        if release is not None and release.available:
+            pln_sources["xenium"] = str(release.root.resolve())
             release_rows, release_audit = _pln_xenium_release_arm(
                 release, pln_statuses, wanted, vocabulary)
             rows.extend(release_rows)
             pln_audit.update(release_audit)
+            pln_audit["xenium_release"] = release.describe()
         elif xen_cells_root is not None:
-            xen_cells_root = Path(xen_cells_root)
-            refuse_superseded(xen_cells_root)
             pln_sources["xenium"] = str(xen_cells_root.resolve())
             ingest_rows, ingest_audit = _pln_arm(
                 xen_cells_root, pln_statuses, wanted, vocabulary)
             rows.extend(ingest_rows)
             pln_audit.update(ingest_audit)
-        elif xen_typing_root is not None:
+            if release is not None:
+                pln_audit["xenium_release"] = release.describe()
+        elif release is not None:
             pln_sources["xenium"] = NO_XEN_PLN_RELEASE
+            pln_audit["xenium_release"] = release.describe()
 
         # PhenoCycler, kept distinct. The two modalities are not interchangeable
         # and are never pooled into one fraction.
@@ -948,6 +1475,39 @@ def build_distance_profiles(
             rows.extend(pheno_rows)
             pln_audit["phenocycler"] = pheno_audit
             pln_sources["phenocycler"] = str(Path(pln_pheno_root).resolve())
+
+    # The pancreas in the other modality. It is its own arm because it is the
+    # same tissue and a different measurement, and it runs whether or not the pLN
+    # arm produced anything: a donor with no pLN section still has a pancreas.
+    if panc_xenium and xenium_roots is not None:
+        panc_release = resolve_release(xenium_release.PANC, xenium_roots)
+        panc_xenium_audit["release"] = panc_release.describe()
+        if not panc_release.available:
+            panc_xenium_source = NO_XEN_PANC_RELEASE
+        elif xen_cells_root is None:
+            # Link 2 for the whole arm, not one donor: without the ingest there
+            # is no coordinate anywhere, and the release carries none.
+            panc_xenium_source = XEN_PANC_NO_COORDINATES
+        else:
+            panc_xenium_source = str(panc_release.root.resolve())
+            panc_statuses = dict(statuses)
+            panc_statuses.update({
+                donor: status
+                for donor, status in _manifest_statuses(integration_manifest, statuses).items()
+                if donor not in panc_statuses
+            })
+            panc_rows, donor_audit = _panc_xenium_arm(
+                panc_release, xen_cells_root, panc_statuses,
+                {norm_donor(d) for d in donors} if donors is not None else None,
+                (load_immune_vocabulary(vocab_crosswalk)
+                 if vocab_crosswalk is not None else None),
+                bin_width_um=bin_width_um,
+                structures_root=Path(xenium_structures_root),
+                registration_root=Path(registration_root),
+                section_modes_csv=Path(section_modes_csv),
+                border_loader=panc_xenium_border_loader)
+            rows.extend(panc_rows)
+            panc_xenium_audit.update(donor_audit)
 
     metadata = {
         "source_cells": str(cells_root.resolve()),
@@ -970,8 +1530,18 @@ def build_distance_profiles(
             "frame=none, distance_bin_um is null, and no compartment is assigned. "
             "Different block from the pancreas section: no spatial relation crosses it."
         ),
+        "source_xenium_panc": panc_xenium_source,
+        "panc_xenium_semantics": (
+            "roi=panc, modality=xenium is the pancreas in the RNA modality. It is "
+            "spatial only where the section's own islet border exists in the frame "
+            "its coordinates live in; a serial pair's PhenoCycler border is on "
+            "another physical section and is refused by name, never mapped across. "
+            "Its counts are never pooled with the PhenoCycler pancreas arm: the two "
+            "sections are segmented separately and their denominators differ."
+        ),
         "audit": json.dumps(audit, sort_keys=True),
         "pln_audit": json.dumps(pln_audit, sort_keys=True),
+        "panc_xenium_audit": json.dumps(panc_xenium_audit, sort_keys=True, default=str),
     }
     table = pa.Table.from_pylist(rows, schema=SCHEMA)
     _assert_no_cross_tissue_distance(table)
@@ -1002,16 +1572,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--membership-root", type=Path, default=TYPING / "islet_membership")
     parser.add_argument("--donor-metadata", type=Path, default=TYPING / "app" / "donor_metadata.csv")
     parser.add_argument("--xen-cells-root", type=Path, default=XEN_CELLS,
-                        help="cells_xen INGEST, read only when no typed pLN release exists")
-    parser.add_argument("--xen-typing-root", type=Path, default=XEN_TYPING,
-                        help="tree of Xenium releases; the pLN one supersedes cells_xen")
+                        help="cells_xen INGEST: the pLN fallback when no typed pLN release "
+                             "exists, and the only source of a pancreas cell's coordinates")
+    parser.add_argument("--xenium-root", type=Path, action="append", dest="xenium_roots",
+                        help="repeatable root to search for Xenium releases; the default is "
+                             "both roots from scripts/senior/xenium_release.py, which selects "
+                             "on each release's own declared id, write time and tissue")
+    parser.add_argument("--no-panc-xenium", action="store_true",
+                        help="Drop the pancreas Xenium arm. Its rows say per donor why the "
+                             "release cannot reach the distance axis, so dropping it removes "
+                             "named absences rather than adding anything")
     parser.add_argument("--pln-pheno-root", type=Path, default=PLN_PHENO_CALLS,
                         help="PhenoCycler pLN calls; absent yields a named unavailable")
     parser.add_argument("--pln-ingest-root", type=Path, default=PLN_INGEST,
                         help="PhenoCycler pLN ingest, used only to name the donors that have a section")
     parser.add_argument("--no-pln", action="store_true",
-                        help="Build the pancreas arm alone")
+                        help="Drop both pLN arms. The pancreas arms, in both modalities, "
+                             "are unaffected")
     parser.add_argument("--integration-manifest", type=Path, default=MANIFEST)
+    parser.add_argument("--registration-root", type=Path, default=REGISTRATION,
+                        help="per-pair registration transforms, read only for a same-slide pair")
+    parser.add_argument("--section-modes", type=Path, default=SECTION_MODES,
+                        help="the acquisition-design manifest; a pair absent from it is serial")
+    parser.add_argument("--xenium-structures-root", type=Path, default=XEN_STRUCTURES,
+                        help="structures segmented on the Xenium section, where an islet "
+                             "outline in the Xenium frame would live")
     parser.add_argument("--vocab-crosswalk", type=Path, default=VOCAB_CROSSWALK,
                         help="crosswalk recording is_immune per common lineage")
     parser.add_argument("--layers-dir", type=Path,
@@ -1020,28 +1605,52 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--donors", nargs="+")
     parser.add_argument("--dry-run", action="store_true", help="Measure without writing an artifact")
     args = parser.parse_args(argv)
+    # Named explicitly rather than left to the resolver's own default, so the
+    # roots this build read are in the artifact's provenance and a caller that
+    # hands in its own tree gets that tree and nothing else.
+    roots = args.xenium_roots or list(xenium_release.default_roots(REPO))
     table = build_distance_profiles(
         args.cells_root, args.membership_root, args.donor_metadata,
         bin_width_um=args.bin_width_um, donors=args.donors,
-        xen_cells_root=None if args.no_pln else args.xen_cells_root,
-        xen_typing_root=None if args.no_pln else args.xen_typing_root,
+        xen_cells_root=args.xen_cells_root,
+        xenium_roots=roots,
         pln_pheno_root=None if args.no_pln else args.pln_pheno_root,
         pln_ingest_root=None if args.no_pln else args.pln_ingest_root,
         integration_manifest=args.integration_manifest,
         vocab_crosswalk=args.vocab_crosswalk,
+        pln=not args.no_pln,
+        panc_xenium=not args.no_panc_xenium,
+        registration_root=args.registration_root,
+        section_modes_csv=args.section_modes,
+        xenium_structures_root=args.xenium_structures_root,
     )
     measured = table.filter(pa.compute.equal(table["state"], "measured"))
     totals = measured.filter(pa.compute.equal(measured["resolved_by"], "all"))
     print(f"{len(set(measured['donor_id'].to_pylist()))} measured donors; "
           f"{sum(totals['n_cells'].to_pylist()):,} cells; "
           f"{sum(totals['n_immune'].to_pylist()):,} immune; {table.num_rows:,} artifact rows")
-    for roi in sorted(set(table["roi"].to_pylist())):
-        subset = table.filter(pa.compute.equal(table["roi"], roi))
-        print(f"  roi={roi}: {subset.num_rows:,} rows; "
+    # Broken out by roi AND modality. The pancreas now carries two, and they are
+    # two measurements of one tissue, not one measurement: a summary that added
+    # them would be the first place the two got pooled.
+    keys = sorted(set(zip(table["roi"].to_pylist(), table["modality"].to_pylist())))
+    for roi, modality in keys:
+        subset = table.filter(pa.compute.and_(pa.compute.equal(table["roi"], roi),
+                                              pa.compute.equal(table["modality"], modality)))
+        print(f"  roi={roi} modality={modality}: {subset.num_rows:,} rows; "
               f"{len(set(subset['donor_id'].to_pylist()))} donors; "
               f"frames {sorted(set(subset['frame'].to_pylist()))}")
     for row in table.filter(pa.compute.not_equal(table["state"], "measured")).to_pylist():
-        print(f"{row['donor_id']}/{row['roi']}: {row['state']}({row['reason']})")
+        print(f"{row['donor_id']}/{row['roi']}/{row['modality']}: "
+              f"{row['state']}({row['reason']})")
+    # The reader contract, said out loud, because the pancreas arm now carries
+    # two modalities and a reader that filters it by donor alone will read one
+    # modality's absence as the other modality's.
+    panc = table.filter(pa.compute.equal(table["roi"], PANCREAS_ROI))
+    modalities = sorted(set(panc["modality"].to_pylist()))
+    if len(modalities) > 1:
+        print(f"NOTE: roi=panc carries {modalities}. A reader of this arm must select a "
+              f"modality before it selects a donor; the two are separate measurements of "
+              f"one tissue and are never pooled or substituted for one another.")
     if not args.dry_run:
         target = args.layers_dir / "distance_profiles" / "data.parquet"
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 import shutil
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -795,14 +796,25 @@ cat("R shared-source dependence checks passed\n")
 # --------------------------------------------------------------------------- #
 
 def write_release(root, donors, *, tissue="pln", lineage_column="common_lineage",
-                  calls_dir="calls"):
-    """A Xenium pLN release fixture. {donor: [(stage1, lineage, nucleus_count)]}."""
+                  calls_dir="calls", release_id=None, generated_at="2026-09-17T20:52:22+00:00",
+                  roi="pln_1", supersedes=None):
+    """A Xenium pLN release fixture. {donor: [(stage1, lineage, nucleus_count)]}.
+
+    It declares a ``release_id`` and a write time because that is what the shared
+    resolver selects on. A release that declares neither is not a candidate, which
+    is deliberate: a directory mtime is not a release's own word for when it was
+    written, and a ``touch`` must not be able to reorder the cohort's sources.
+    """
     root.mkdir(parents=True, exist_ok=True)
-    (root / "release.json").write_text(json.dumps(
-        {"schema_version": 1, "modality": "xenium", "tissue": tissue,
-         "calls_dir": calls_dir, "cell_key": "cell_id", "roi": ["pln_1"]}))
+    declared = {"schema_version": 1, "modality": "xenium", "tissue": tissue,
+                "calls_dir": calls_dir, "cell_key": "cell_id", "roi": [roi],
+                "release_id": release_id or f"fixture-{root.name}",
+                "generated_at_utc": generated_at}
+    if supersedes is not None:
+        declared["producer"] = {"supersedes": supersedes}
+    (root / "release.json").write_text(json.dumps(declared))
     for donor, cells in donors.items():
-        write_rows(root / calls_dir / f"donor_id={donor}" / "roi=pln_1" / "data.parquet",
+        write_rows(root / calls_dir / f"donor_id={donor}" / f"roi={roi}" / "data.parquet",
                    [{"cell_id": f"{donor}-{i}", "stage1": stage1,
                      lineage_column: lineage, "nucleus_count": nucleus}
                     for i, (stage1, lineage, nucleus) in enumerate(cells)])
@@ -824,7 +836,7 @@ def test_the_xenium_pln_arm_reads_a_typed_release_not_the_untyped_ingest(
     # A pancreas release beside it must not be mistaken for the pLN one.
     write_release(typing_root / "release", {"0112": SECTION}, tissue="pancreas")
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xen_typing_root=typing_root, vocab_crosswalk=crosswalk)
+    table = build(sources, xenium_roots=[typing_root], vocab_crosswalk=crosswalk)
     rows = [r for r in table.to_pylist() if r["roi"] != "panc"]
     assert rows and all(r["modality"] == "xenium" for r in rows)
 
@@ -864,7 +876,7 @@ def test_a_release_supersedes_the_ingest_and_the_ingest_is_the_fallback(
     typing_root = tmp_path / "xenium_typing"
     release = write_release(typing_root / "release_pln_immune", {"0112": SECTION})
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xen_typing_root=typing_root, xen_cells_root=pln["root"],
+    table = build(sources, xenium_roots=[typing_root], xen_cells_root=pln["root"],
                   vocab_crosswalk=crosswalk)
     rows = [r for r in table.to_pylist() if r["roi"] != "panc"]
     total = [r for r in rows if r["resolved_by"] == "all"][0]
@@ -874,7 +886,7 @@ def test_a_release_supersedes_the_ingest_and_the_ingest_is_the_fallback(
     assert sources_by_modality["xenium"] == str(release.resolve())
 
     # With no release present, the ingest is read and named as the source.
-    fallback = build(sources, xen_typing_root=tmp_path / "empty",
+    fallback = build(sources, xenium_roots=[tmp_path / "empty"],
                      xen_cells_root=pln["root"], vocab_crosswalk=crosswalk)
     fallback_rows = [r for r in fallback.to_pylist() if r["roi"] != "panc"]
     assert [r for r in fallback_rows if r["resolved_by"] == "all"][0]["n_cells"] == 10
@@ -898,7 +910,7 @@ def test_the_two_pln_modalities_stay_distinct_and_are_never_pooled(sources, tmp_
     for donor in ("0112", "6539"):
         (ingest / f"donor_id={donor}").mkdir(parents=True)
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xen_typing_root=typing_root, pln_pheno_root=pheno,
+    table = build(sources, xenium_roots=[typing_root], pln_pheno_root=pheno,
                   pln_ingest_root=ingest, vocab_crosswalk=crosswalk)
     rows = [r for r in table.to_pylist() if r["roi"] != "panc"]
 
@@ -934,20 +946,76 @@ def test_an_absent_phenocycler_lane_names_every_donor_that_has_a_section(
     assert all(r["state"] == "unavailable" and r["n_cells"] is None for r in rows)
 
 
-def test_hive_partitions_keep_donor_ids_as_strings():
-    """Every pLN donor id is all digits, so inferred partitioning makes them ints."""
-    schema = builder.PLN_PARTITIONING.schema
-    assert schema.field("donor_id").type == pa.string()
-    assert schema.field("roi").type == pa.string()
+def test_hive_partitions_keep_donor_ids_as_strings(tmp_path):
+    """Every donor id here is all digits, so an inferring reader makes them ints.
+
+    The rule lives in the shared resolver now; the builder's own copy of it was
+    defined and never called, so it is gone rather than left to drift out of step
+    with the one the releases are actually read through.
+    """
+    assert not hasattr(builder, "PLN_PARTITIONING")
+    root = write_release(tmp_path / "xenium_typing" / "release_pln", {"0112": SECTION})
+    release = builder.resolve_release("pln", [root.parent])
+    schema = release.partitioning().schema
+    for key in ("donor_id", "roi"):
+        assert pa.types.is_string(schema.field(key).type) or \
+               pa.types.is_large_string(schema.field(key).type)
+
+    # And the donors come back as the text they were written as, not as integers.
+    assert [donor for donor, _roi, _path in release.partition_files()] == ["0112"]
 
 
 def test_a_release_is_chosen_by_its_declared_tissue_not_its_directory_name(tmp_path):
+    """The selection moved to scripts/senior/xenium_release.py; the rule did not."""
     root = tmp_path / "xenium_typing"
-    write_release(root / "release", {"0112": SECTION}, tissue="pancreas")
-    assert builder.find_pln_release(root) is None
+    write_release(root / "release", {"0112": SECTION}, tissue="pancreas", roi="panc")
+    missing = builder.resolve_release("pln", [root])
+    assert missing.available is False
+    assert "declares this tissue" in missing.reason
+
     pln_release = write_release(root / "anything_at_all", {"0112": SECTION}, tissue="pln")
-    assert builder.find_pln_release(root) == pln_release
-    assert builder.find_pln_release(tmp_path / "does_not_exist") is None
+    found = builder.resolve_release("pln", [root])
+    assert found.available is True and found.root == pln_release
+
+    absent = builder.resolve_release("pln", [tmp_path / "does_not_exist"])
+    assert absent.available is False
+    # Never None: a None that reaches a count reads as a zero.
+    assert absent is not None and absent.reason
+
+
+def test_the_release_is_chosen_by_its_declared_time_not_a_directory_mtime(tmp_path):
+    """The defect this replaced: a `touch` could reorder which release was read."""
+    root = tmp_path / "xenium_typing"
+    older = write_release(root / "v1", {"0112": SECTION}, release_id="fixture-v1",
+                          generated_at="2026-09-16T00:00:00+00:00")
+    newer = write_release(root / "v2", {"0112": SECTION}, release_id="fixture-v2",
+                          generated_at="2026-09-17T00:00:00+00:00")
+    assert builder.resolve_release("pln", [root]).root == newer
+
+    # Make the SUPERSEDED one the newest thing on the filesystem. The answer
+    # must not move, because a file's mtime is not a release's own word.
+    future = time.time() + 10_000
+    os.utime(older / "release.json", (future, future))
+    os.utime(older, (future, future))
+    assert builder.resolve_release("pln", [root]).root == newer
+
+    # And a release that declares it supersedes another retires it whatever the
+    # timestamps say. v3 is the OLDEST declaration here, so it does not win by
+    # being newest -- what it does is take v2 out, leaving v1 current. Superseded
+    # means not current, not "current unless something newer exists".
+    write_release(root / "v3", {"0112": SECTION}, release_id="fixture-v3",
+                  generated_at="2026-09-15T00:00:00+00:00", supersedes="fixture-v2")
+    current = builder.resolve_release("pln", [root])
+    assert current.release_id != "fixture-v2"
+    assert current.root == older
+
+
+def test_the_pln_release_is_searched_under_every_root_it_is_given(tmp_path):
+    """The pancreas release lives OUTSIDE the repository; one root can never see both."""
+    inside, outside = tmp_path / "repo_tree", tmp_path / "external_tree"
+    write_release(outside / "release_pln", {"0112": SECTION})
+    assert builder.resolve_release("pln", [inside]).available is False
+    assert builder.resolve_release("pln", [inside, outside]).available is True
 
 
 def test_the_card_shows_both_modalities_without_conflating_them(sources, tmp_path):
@@ -963,7 +1031,7 @@ def test_the_card_shows_both_modalities_without_conflating_them(sources, tmp_pat
                     [("Immune", "Myeloid", 1)] * 3 + [("Non_immune", "", 1)])])
     ingest = tmp_path / "cells_pln"
     (ingest / "donor_id=0112").mkdir(parents=True)
-    table = build(sources, xen_typing_root=typing_root, pln_pheno_root=pheno,
+    table = build(sources, xenium_roots=[typing_root], pln_pheno_root=pheno,
                   pln_ingest_root=ingest,
                   vocab_crosswalk=write_crosswalk(tmp_path / "vocab.csv", RECORDED))
     root = layers_dir(tmp_path, "both", patch_metadata(
@@ -1011,6 +1079,428 @@ shiny::testServer(function(input, output, session) {
   }
 })
 cat("R two-modality pLN column checks passed\n")
+'''
+    result = subprocess.run([str(rscript), "--vanilla", "-"], input=code, cwd=REPO,
+                            env=env, capture_output=True, text=True, check=False, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+# --------------------------------------------------------------------------- #
+# The pancreas Xenium arm: the same tissue, the other modality
+#
+# Four links have to hold before a Xenium pancreas cell has a signed distance to
+# an islet border (see the builder's module docstring). These fixtures supply
+# them one at a time so each refusal is the FIRST missing link and nothing is
+# ever a zero standing in for an absence.
+# --------------------------------------------------------------------------- #
+
+#: (native lineage, common lineage, nucleus_count, nucleus_measured)
+PANC_CELL = ("Immune_T", "T_NK", 1, True)
+
+
+def write_panc_release(root, donors, *, release_id="fixture-panc",
+                       generated_at="2026-09-17T20:36:54+00:00"):
+    """A Xenium pancreas release fixture: {donor: [(native, common, count, measured)]}.
+
+    It carries NO coordinate column, which is the fact the whole arm turns on:
+    the release says what a cell is, never where it is. The measured release does
+    the same -- schema read 2026-09-18.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "release.json").write_text(json.dumps(
+        {"schema_version": 1, "modality": "xenium", "roi": "panc", "calls_dir": "calls",
+         "cell_key": "cell_id", "release_id": release_id, "written_utc": generated_at,
+         "columns": {"label": "lineage", "common_lineage": "common_lineage"}}))
+    for donor, cells in donors.items():
+        write_rows(root / "calls" / f"donor_id={donor}" / "roi=panc" / "data.parquet",
+                   [{"cell_id": f"{donor}-{i}", "lineage": native,
+                     "common_lineage": common, "nucleus_count": count,
+                     "nucleus_measured": measured}
+                    for i, (native, common, count, measured) in enumerate(cells)])
+    return root
+
+
+def write_panc_coordinates(root, donor, positions, *, sample_key="0041032__panc",
+                           first_index=0):
+    """cells_xen for one pancreas section: the Xenium-frame coordinates, by cell_id."""
+    write_rows(root / f"donor_id={donor}" / "roi=panc" / "data.parquet",
+               [{"cell_id": f"{donor}-{i + first_index}", "x_um": float(x), "y_um": float(y),
+                 "xenium_sample_key": sample_key, "tissue": "pancreas"}
+                for i, (x, y) in enumerate(positions)])
+    return root
+
+
+def write_section_modes(path, rows=()):
+    """The acquisition-design manifest. A pair absent from it is serial."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["donor_id,roi,xenium_serial,mode,evidence,note\n"]
+    for donor, roi, serial, mode, evidence in rows:
+        lines.append(f"{donor},{roi},{serial},{mode},{evidence},\n")
+    path.write_text("".join(lines))
+    return path
+
+
+def write_square_border(root, donor, squares):
+    """Islet outlines in the XENIUM frame, as the structures lane would write them."""
+    shapely_wkb = pytest.importorskip("shapely.wkb")
+    from shapely.geometry import box
+    write_rows(root / f"donor_id={donor}" / "roi=panc" / "islets.parquet",
+               [{"structure_id": f"islet_{i}", "kind": "islet", "x_um": (x0 + x1) / 2,
+                 "y_um": (y0 + y1) / 2, "area_um2": (x1 - x0) * (y1 - y0),
+                 "wkb": shapely_wkb.dumps(box(x0, y0, x1, y1))}
+                for i, (x0, y0, x1, y1) in enumerate(squares)])
+    return root
+
+
+@pytest.fixture
+def panc_xenium(tmp_path):
+    """Every input the pancreas Xenium arm reads, each one switchable on its own."""
+    return dict(
+        releases=tmp_path / "xenium_releases",
+        cells=tmp_path / "cells_xen",
+        structures=tmp_path / "structures_xenium",
+        registration=tmp_path / "registration",
+        modes=write_section_modes(tmp_path / "section_modes.csv"),
+        crosswalk=write_crosswalk(tmp_path / "vocab.csv", RECORDED),
+    )
+
+
+def build_panc(sources, panc_xenium, **kwargs):
+    return build(sources, xenium_roots=[panc_xenium["releases"]],
+                 xen_cells_root=panc_xenium["cells"],
+                 xenium_structures_root=panc_xenium["structures"],
+                 registration_root=panc_xenium["registration"],
+                 section_modes_csv=panc_xenium["modes"],
+                 vocab_crosswalk=panc_xenium["crosswalk"], **kwargs)
+
+
+def panc_xenium_rows(table):
+    return [r for r in table.to_pylist()
+            if r["roi"] == "panc" and r["modality"] == "xenium"]
+
+
+def test_no_xenium_arm_is_built_unless_a_root_is_named(sources):
+    """A build that names no root must not reach a release on this machine."""
+    table = build(sources)
+    assert panc_xenium_rows(table) == []
+    metadata = table.schema.metadata
+    assert metadata[b"source_xenium_panc"].decode() == ""
+
+
+def test_the_release_alone_can_never_reach_the_distance_axis(sources, panc_xenium):
+    """Link 2: the release carries no coordinate column, so without the ingest
+    there is no position for any cell -- and that is named, not counted as zero."""
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 4})
+    assert "x_um" not in set(pq.read_schema(
+        panc_xenium["releases"] / "panc_release" / "calls" / "donor_id=0112" /
+        "roi=panc" / "data.parquet").names)
+
+    table = build(sources, xenium_roots=[panc_xenium["releases"]],
+                  vocab_crosswalk=panc_xenium["crosswalk"])
+    assert panc_xenium_rows(table) == []
+    assert (table.schema.metadata[b"source_xenium_panc"].decode()
+            == builder.XEN_PANC_NO_COORDINATES)
+
+
+def test_the_arm_names_the_first_missing_link_for_each_donor(sources, panc_xenium):
+    write_panc_release(panc_xenium["releases"] / "panc_release", {
+        "0112": [PANC_CELL] * 4,                          # has coordinates below
+        "6347": [("Immune_T", "T_NK", None, False)] * 3,  # nucleus never measured
+        "6380": [PANC_CELL] * 2,                          # no ingest partition
+    })
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2), (3, 3), (4, 4)])
+    # The Xenium cohort is not the PhenoCycler cohort: these two donors have an
+    # RNA section and no pancreas partition here, and they still get a row.
+    with sources["metadata"].open("a") as handle:
+        handle.write("6347,ND\n6380,T1D\n")
+    table = build_panc(sources, panc_xenium)
+    by_donor = {r["donor_id"]: r for r in panc_xenium_rows(table)}
+    assert set(by_donor) == {"112", "6347", "6380"}
+
+    # A nucleus that was never measured is a MISSING MEASUREMENT: the rule "a
+    # cell with no nucleus is excluded" never applied to these cells, and the
+    # count is named rather than folded into an absent-nucleus tally.
+    assert by_donor["6347"]["state"] == "blank"
+    assert by_donor["6347"]["reason"] == "xenium_panc_nucleus_not_measured:3_of_3"
+    # Link 2 for one donor.
+    assert by_donor["6380"]["reason"] == builder.XEN_PANC_NO_COORDINATES
+    # Link 3/4: coordinates exist, and the only islet border is on another section.
+    assert by_donor["112"]["reason"] == (
+        "xenium_panc_islet_border_is_on_another_physical_section:sequential")
+    for row in by_donor.values():
+        assert row["state"] != "measured"
+        assert row["reason"]
+        for column in ("n_cells", "n_immune", "immune_fraction", "distance_bin_um",
+                       "compartment"):
+            assert row[column] is None
+
+
+def test_a_section_the_release_does_not_call_is_named_not_left_off(sources, panc_xenium):
+    """A donor with no row reads as a donor with no section, and it has one.
+
+    Measured 2026-09-18: 6450, 6505, 6534 and 6623 have a pancreas Xenium
+    partition in the ingest and no call in the 21-donor release.
+    """
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 2})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2)])
+    write_panc_coordinates(panc_xenium["cells"], "6450", [(1, 1)])
+    with sources["metadata"].open("a") as handle:
+        handle.write("6450,T1D\n")
+    by_donor = {r["donor_id"]: r for r in panc_xenium_rows(build_panc(sources, panc_xenium))}
+    assert set(by_donor) == {"112", "6450"}
+    assert by_donor["6450"]["reason"] == builder.XEN_PANC_NOT_IN_RELEASE
+    assert by_donor["6450"]["state"] == "unavailable"
+    assert by_donor["6450"]["donor_status"] == "T1D"
+    assert by_donor["6450"]["n_cells"] is None
+
+
+def test_a_serial_pair_is_refused_by_the_declared_design_not_by_a_guess(
+        sources, panc_xenium):
+    """The acquisition design is read from the manifest that owns it.
+
+    Declaring the pair same_slide does NOT produce a number. It moves the refusal
+    to the next missing link, which is the point: the declaration is what makes a
+    per-cell claim admissible, and the geometry still has to exist.
+    """
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 4})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2), (3, 3), (4, 4)],
+                           sample_key="0080870__panc")
+    serial = build_panc(sources, panc_xenium)
+    assert panc_xenium_rows(serial)[0]["reason"].endswith(":sequential")
+
+    write_section_modes(panc_xenium["modes"], [
+        ("112", "panc", "0080870", "same_slide",
+         "one physical section imaged twice; fixture")])
+    declared = build_panc(sources, panc_xenium)
+    row = panc_xenium_rows(declared)[0]
+    assert row["reason"] == builder.XEN_PANC_NO_REGISTRATION
+    assert row["state"] == "unavailable" and row["n_cells"] is None
+
+    # With the transform on disk the transport is still not this builder's to
+    # invent: it belongs to the same-slide lane and arrives as a loader.
+    transform = (panc_xenium["registration"] / "donor_id=112" / "roi=panc" / "transform.json")
+    transform.parent.mkdir(parents=True)
+    transform.write_text(json.dumps({"affine": [[1, 0, 0], [0, 1, 0]]}))
+    assert panc_xenium_rows(build_panc(sources, panc_xenium))[0]["reason"] == (
+        builder.XEN_PANC_NO_BORDER_TRANSPORT)
+
+
+def test_a_structures_table_without_an_outline_is_named_not_read_as_absent(
+        sources, panc_xenium):
+    """A centroid and an area are not a border, and nothing turns one into a radius."""
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 4})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2), (3, 3), (4, 4)])
+    write_rows(panc_xenium["structures"] / "donor_id=112" / "roi=panc" / "islets.parquet",
+               [{"structure_id": "islet_0", "x_um": 5.0, "y_um": 5.0, "area_um2": 100.0,
+                 "eccentricity": 0.1}])
+    row = panc_xenium_rows(build_panc(sources, panc_xenium))[0]
+    assert row["state"] == "unavailable"
+    assert row["reason"].startswith("xenium_panc_islet_structures_carry_no_outline:")
+    assert "area_um2" in row["reason"] and "x_um" in row["reason"]
+
+
+def test_a_border_in_the_xenium_frame_is_measured_on_the_protein_arm_axis(
+        sources, panc_xenium):
+    """The one route that measures today: an outline segmented on the Xenium section.
+
+    Distances are checked against the geometry, not against any previous result.
+    """
+    pytest.importorskip("shapely")
+    # An islet occupying (0,0)-(10,10). Cell positions are chosen so each signed
+    # distance is exact: -5 at the centre, +2 just outside, +30 well away.
+    cells = [("Immune_T", "T_NK", 1, True), ("Exocrine", "Exocrine", 1, True),
+             ("Immune_T", "T_NK", 1, True), ("Immune_B", "B_Plasma", 1, True),
+             ("Immune_T", "T_NK", 0, True)]
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": cells})
+    write_panc_coordinates(panc_xenium["cells"], "0112",
+                           [(5, 5), (5, 5), (5, 12), (5, 40), (5, 5)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+
+    rows = panc_xenium_rows(build_panc(sources, panc_xenium))
+    assert rows and all(r["state"] == "measured" for r in rows)
+    assert {r["frame"] for r in rows} == {"signed_distance_um"}
+
+    totals = {(r["distance_bin_um"], r["compartment"]): (r["n_cells"], r["n_immune"])
+              for r in rows if r["resolved_by"] == "all"}
+    # The cell with no nucleus is excluded from every calculation, so the core
+    # bin holds two cells, not three.
+    assert totals == {(-10.0, "islet_core"): (2, 1),
+                      (10.0, "peri_islet"): (1, 1),
+                      (30.0, "other_pancreas"): (1, 1)}
+
+    # The lineage rows read the crosswalk's common vocabulary, not the release's
+    # native label: nothing in the crosswalk records "Immune_T".
+    subtypes = {(r["distance_bin_um"], r["immune_subtype"]): r["n_immune"]
+                for r in rows if r["resolved_by"] == "common_lineage"}
+    assert subtypes[(-10.0, "T_NK")] == 1
+    assert subtypes[(30.0, "B_Plasma")] == 1
+    assert subtypes[(-10.0, "B_Plasma")] == 0     # a measured zero, in a real bin
+    for row in rows:
+        assert abs(row["immune_fraction"] - row["n_immune"] / row["n_cells"]) < 1e-12
+
+
+def test_a_cell_on_the_border_is_cut_the_same_way_in_both_modalities(
+        sources, panc_xenium):
+    """Zero keeps its own bin, and it does not take a sign from either side.
+
+    Containment decides the core in both arms, and a centroid exactly on the
+    outline is not within it -- the same answer `typing/islet_membership.py`
+    gives on the protein side. The two arms are not made to agree by a rule
+    written here; they agree because both read containment.
+    """
+    pytest.importorskip("shapely")
+    write_panc_release(panc_xenium["releases"] / "panc_release",
+                       {"0112": [PANC_CELL, ("Exocrine", "Exocrine", 1, True)]})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(0, 5), (0, 5)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+    rows = [r for r in panc_xenium_rows(build_panc(sources, panc_xenium))
+            if r["resolved_by"] == "all"]
+    assert len(rows) == 1
+    assert rows[0]["distance_bin_um"] == 0.0
+    assert str(rows[0]["distance_bin_um"]) != "-0.0"
+    assert rows[0]["compartment"] == "other_pancreas"
+    assert (rows[0]["n_cells"], rows[0]["n_immune"]) == (2, 1)
+
+
+def test_the_two_pancreas_modalities_are_never_pooled(sources, panc_xenium):
+    """One tissue, two measurements. Their denominators are not interchangeable."""
+    pytest.importorskip("shapely")
+    write_panc_release(panc_xenium["releases"] / "panc_release",
+                       {"0112": [PANC_CELL] * 3})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(5, 5), (5, 5), (5, 40)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+    table = build_panc(sources, panc_xenium)
+
+    panc = [r for r in table.to_pylist() if r["roi"] == "panc"]
+    assert {r["modality"] for r in panc} == {"phenocycler", "xenium"}
+    # 3 Xenium cells; 7 QC-eligible, non-excluded PhenoCycler cells of the 10 in
+    # the fixture. Neither denominator is the other's, and neither is 10.
+    for modality, expected in (("xenium", 3), ("phenocycler", 7)):
+        totals = [r for r in panc if r["modality"] == modality
+                  and r["resolved_by"] == "all" and r["state"] == "measured"]
+        assert sum(r["n_cells"] for r in totals) == expected
+    # Nothing in the artifact carries both modalities' cells in one row.
+    assert not any(r["n_cells"] == 10 for r in panc if r["n_cells"] is not None)
+
+
+def test_the_cell_id_join_is_the_only_join_and_a_miss_is_named(sources, panc_xenium):
+    """Row order, file order and a centroid match are excluded by construction."""
+    pytest.importorskip("shapely")
+    write_panc_release(panc_xenium["releases"] / "panc_release",
+                       {"0112": [PANC_CELL] * 4})
+    # Three of the four release cells have coordinates, and they are written in
+    # the opposite order: only the key can match them.
+    write_rows(panc_xenium["cells"] / "donor_id=0112" / "roi=panc" / "data.parquet",
+               [{"cell_id": f"0112-{i}", "x_um": 5.0, "y_um": 5.0,
+                 "xenium_sample_key": "0041032__panc"} for i in (2, 1, 0)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+    row = panc_xenium_rows(build_panc(sources, panc_xenium))[0]
+    assert row["state"] == "unavailable"
+    assert row["reason"] == "xenium_panc_cell_coordinates_missing_cell_id:1_of_4"
+    assert row["n_cells"] is None
+
+    # Supply the fourth and the same three still match by key, not by position.
+    write_rows(panc_xenium["cells"] / "donor_id=0112" / "roi=panc" / "data.parquet",
+               [{"cell_id": f"0112-{i}", "x_um": 5.0, "y_um": 5.0,
+                 "xenium_sample_key": "0041032__panc"} for i in (3, 2, 1, 0)])
+    measured = panc_xenium_rows(build_panc(sources, panc_xenium))
+    assert all(r["state"] == "measured" for r in measured)
+    assert sum(r["n_cells"] for r in measured if r["resolved_by"] == "all") == 4
+
+
+def test_an_unrecorded_lineage_is_withheld_by_name_in_the_pancreas_arm(
+        sources, panc_xenium):
+    """Never defaulted to non-immune, exactly as in the pLN arm."""
+    pytest.importorskip("shapely")
+    write_panc_release(panc_xenium["releases"] / "panc_release",
+                       {"0112": [("Immune_T", "T_NK", 1, True),
+                                 ("Something_New", "Tuft", 1, True)]})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(5, 5), (5, 5)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+    row = panc_xenium_rows(build_panc(sources, panc_xenium))[0]
+    assert row["state"] == "withheld"
+    assert row["reason"] == "xenium_immune_lineage_not_recorded:Tuft"
+    assert row["n_cells"] is None and row["n_immune"] is None
+
+
+def test_the_pancreas_xenium_rows_reach_the_final_cross_tissue_gate_unchanged(
+        sources, panc_xenium):
+    """(c): the gate judges the TISSUE, and a pancreas row is a pancreas row.
+
+    The arm's rows are roi=panc because they are the pancreas. Had they been
+    given a different roi to dodge a reader, `refuse_cross_tissue_distance` would
+    have started meaning "a different modality" instead of "a different tissue".
+    """
+    pytest.importorskip("shapely")
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 2})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(5, 5), (5, 40)])
+    write_square_border(panc_xenium["structures"], "112", [(0, 0, 10, 10)])
+    table = build_panc(sources, panc_xenium)
+    builder._assert_no_cross_tissue_distance(table)      # does not raise
+    assert {r["tissue"] for r in panc_xenium_rows(table)} == {"pancreas"}
+    with pytest.raises(ValueError, match="different blocks"):
+        builder.refuse_cross_tissue_distance("pln_1", "pancreatic_lymph_node")
+
+
+def test_the_arm_records_what_it_read_and_what_each_donor_held(sources, panc_xenium):
+    """The refusal carries the counts, so a reader is not left with only a verdict."""
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 4})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2), (3, 3), (4, 4)])
+    table = build_panc(sources, panc_xenium)
+    audit = json.loads(table.schema.metadata[b"panc_xenium_audit"].decode())
+    assert audit["release"]["release_id"] == "fixture-panc"
+    assert audit["release"]["selected_by"].endswith("never a directory mtime")
+    entry = audit["112/panc"]
+    assert (entry["cells"], entry["called"]) == (4, 4)
+    assert entry["section_mode"] == "sequential"
+    assert entry["xenium_serial"] == "0041032"
+
+
+# --------------------------------------------------------------------------- #
+# The reader contract the second pancreas modality creates
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.xfail(
+    strict=False,
+    reason="card_x1_gradient.R:.ie_distance_select selects the pancreas arm by donor "
+           "alone, so it reads the Xenium row's absence as the PhenoCycler gradient's. "
+           "Measured 2026-09-18: donor 112 with 7 measured PhenoCycler rows and one "
+           "unavailable Xenium row returns unavailable(xenium_panc_islet_border_is_on_"
+           "another_physical_section:sequential). The card must filter on modality "
+           "before donor. That file is outside this lane; this test is the request.")
+def test_a_donors_protein_gradient_survives_the_other_modalitys_absence(
+        sources, panc_xenium, tmp_path):
+    """One tissue, two measurements: one modality's hole is not the other's.
+
+    The pancreas arm now carries both modalities, and a reader that narrows it to
+    a donor without first narrowing it to a modality will report the RNA
+    section's refusal as though the protein section had none.
+    """
+    rscript = r_or_skip()
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"0112": [PANC_CELL] * 4})
+    write_panc_coordinates(panc_xenium["cells"], "0112", [(1, 1), (2, 2), (3, 3), (4, 4)])
+    table = build_panc(sources, panc_xenium)
+    panc = [r for r in table.to_pylist() if r["roi"] == "panc"]
+    assert any(r["modality"] == "phenocycler" and r["state"] == "measured" for r in panc)
+    assert any(r["modality"] == "xenium" and r["state"] != "measured" for r in panc)
+
+    root = layers_dir(tmp_path, "two_modalities", patch_metadata(table))
+    env = dict(os.environ, ISLET_LAYERS_DIR=str(root), DISTANCE_TEST_DOMAIN=DOMAIN_ROOT)
+    code = r'''
+source("apps/R/ieCore/R/ie_availability.R")
+source("apps/R/ieCore/R/ie_explain.R")
+source("apps/R/ieCore/R/ie_frames.R")
+source("apps/islet/R/card_x1_gradient.R")
+domain_data_root <- function() Sys.getenv("DISTANCE_TEST_DOMAIN")
+layer <- .ie_distance_read()
+stopifnot(ie_is_measured(layer$value))
+selected <- .ie_distance_select(layer, "112", "Immune | all")
+if (!ie_is_measured(selected$value)) {
+  stop(sprintf("the protein gradient was withheld over the RNA section: %s(%s)",
+               selected$value$state, selected$value$reason))
+}
+stopifnot(all(selected$data$modality == "phenocycler"))
+cat("R two-pancreas-modality selection check passed\n")
 '''
     result = subprocess.run([str(rscript), "--vanilla", "-"], input=code, cwd=REPO,
                             env=env, capture_output=True, text=True, check=False, timeout=180)
