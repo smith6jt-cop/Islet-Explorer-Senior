@@ -1156,6 +1156,36 @@ def main() -> int:
                          "compared on the real slide without a re-extraction")
     args = ap.parse_args()
 
+    # Turn the libvips OPERATION CACHE off for the whole run.
+    #
+    # This is a memory fix, not a rendering change, and it is the difference
+    # between finishing a donor and being killed part-way through one. libvips
+    # caches completed operations so an identical call can be reused; nothing in
+    # this script ever repeats a call, because every channel is a different page
+    # of a different image, so the cache never hits. It only retains each
+    # channel's decoded page and intermediates after that channel is finished
+    # with, and on a whole-slide page that is gigabytes apiece.
+    #
+    # Measured on donor 6539, four channels, VIPS_CONCURRENCY=8: peak RSS
+    # 2.4 -> 6.5 -> 9.9 -> 12.4 GB with the cache on, climbing by about a page
+    # per channel and never falling; 2.1 -> 4.6 -> 4.8 -> 4.8 GB with it off,
+    # flat from the second channel. Extrapolated over 59 channels of a large
+    # slide that is the difference between ~5 GB and several hundred, and it is
+    # what it looked like in practice: three concurrent builders on the larger
+    # slides reached 120-123 GB anon RSS each and were killed together by the
+    # global OOM killer at 18:41:53 on 2026-09-17 (6436, 6461 and 6442, part-way
+    # through, rc=137), taking the machine's memory with them.
+    #
+    # Verified NOT to change a pixel before being adopted: for each of those four
+    # channels the output was compared against the tile 6539 already ships, at
+    # every pyramid level, and is identical (max |a-b| = 0 at levels 0-3). The
+    # cut points are unchanged too, so EXTRACTION_VERSION does NOT move and no
+    # already-extracted channel is invalidated by this.
+    import pyvips
+
+    pyvips.cache_set_max(0)
+    pyvips.cache_set_max_mem(0)
+
     image = args.image.resolve()
     if not image.is_file():
         log(f"ERROR: no such image: {image}")

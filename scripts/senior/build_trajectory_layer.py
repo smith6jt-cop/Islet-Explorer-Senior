@@ -12,6 +12,15 @@ cell-weighted stain_group effect, computed separately inside each donor_status o
 sampled-cell pseudotime, never an acceptance gate or a correction. It is not the historical
 0.988 diagnostic of the deployed cohort trajectory.
 
+WHEN THE SOURCE FIT IS WITHIN DONOR (2026-09-17), that batch diagnostic stops being a
+diagnostic and is reported Unavailable with its reason instead of a number. The producer now
+fits one diffusion map per donor and hands over the WITHIN-DONOR QUANTILE, so every donor is
+rank-uniform on (0, 1) by construction; pooling donors inside a status then gives every stain
+group the same mean and an eta squared of 0. A zero that arithmetic forces is not evidence
+that batch was removed, and printing it beside the word "batch" would read as exactly that.
+The cross-donor relation is measured where it can be measured, with a permutation null, by
+core/phenocycler/scripts/typing/trajectory_crossdonor_relation.py.
+
 Run with .venv/bin/python. --check builds and round-trips the artifact in memory without
 creating files. Otherwise only $ISLET_LAYERS_DIR/trajectory/data.parquet is written.
 """
@@ -93,15 +102,28 @@ def _unavailable(reason: str, *, source: str, domain_root: str) -> dict:
     }
 
 
-def batch_eta_sq_within_status(cells: pd.DataFrame) -> dict[str, dict]:
+def batch_eta_sq_within_status(cells: pd.DataFrame, *, fit_scope: str | None = None) -> dict[str, dict]:
     """SS_between(stain_group) / SS_total, independently within each status.
 
     A single observed batch or constant pseudotime cannot estimate this diagnostic.
     Nonfinite pseudotime is not measured; missing batch labels invalidate the audit
     rather than silently dropping that batch. Disease labels are audit context only.
+
+    A within-donor fit hands over a per-donor quantile, which makes this quantity zero by
+    arithmetic rather than by measurement, so it is refused rather than reported. See the
+    module docstring.
     """
+    within_donor = fit_scope == "within_donor"
     result = {}
     for status, group in cells.groupby("donor_status", observed=True, sort=True):
+        if within_donor:
+            result[str(status)] = {
+                "batch_eta_sq_within_status": None, "batch_eta_sq_state": "unavailable",
+                "batch_eta_sq_reason": "within_donor_fit_makes_pooled_batch_eta_sq_arithmetic"
+                                       "(each_donor_is_rank_uniform_on_its_own_axis)",
+                "batch_n_cells": int(len(group)), "batch_n_groups": None,
+            }
+            continue
         group = group.loc[np.isfinite(group["pseudotime"])].copy()
         diagnostic = {
             "batch_eta_sq_within_status": None, "batch_eta_sq_state": "unavailable",
@@ -200,7 +222,8 @@ def trajectory_table(
         if len(labels) > 1:
             raise ValueError(f"donor {donor} has conflicting donor_status values")
         statuses[donor] = labels[0] if len(labels) and labels[0] else None
-    diagnostics = batch_eta_sq_within_status(cells)
+    diagnostics = batch_eta_sq_within_status(
+        cells, fit_scope=(metadata or {}).get("fit_scope"))
     rows = []
     base = _unavailable("donor_status_not_recorded", source=source, domain_root=domain_root)
     for donor in sorted(eligible):

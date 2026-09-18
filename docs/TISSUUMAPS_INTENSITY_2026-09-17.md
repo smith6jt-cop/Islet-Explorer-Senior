@@ -352,6 +352,13 @@ separable from its own background tail at these settings.
 parameter it is computed from is tuning to the verdict; the guard has been blind since it was
 written and its first honest reading belongs in front of the maintainer, not smoothed away.
 
+How many channels the guard flags varies by donor, and it is not a small spread. Counted from the
+build logs of the five donors whose whole panel was extracted in one pass (the other five resumed
+and reuse cached channels, which report no statistics, so their counts would be floors rather than
+totals): **115 flags 2 of 59, 6539 10, 6493 11, 6482 16, 6374 18.** These are display readings, not
+statements about a marker or a donor — but a range of 2 to 18 across the same panel is worth someone
+looking at before the parameter is moved for any of them.
+
 ## 8. Two other things found in the same file
 
 **A live bug in commit 4335647** (`Enhance layer opacity management`, 2026-09-15). In
@@ -403,13 +410,72 @@ pointing it at the already-scaled copy would scale it twice. The builder then em
 and the islets keep auto-loading. Pre-rebuild copies of all ten `.tmap` files are in the session
 scratchpad.
 
-Cost, measured: about 27 s per channel on an idle machine and about 2 min per channel under load,
-so 30 min to 2 h per donor, and roughly 18 GB per donor on disk. The rebuilt files are *smaller*
-than the ones they replace (6436 CD3e 446 MB -> 304 MB; 6539 DAPI 346 MB -> 258 MB), because less
-background noise is being encoded.
-
 Nothing under `/data/tissuumaps/channels/` is deleted: each channel is written to `<name>.tif.part`
-and moved into place.
+and moved into place, and a channel already recorded at `version: 5` in `extraction.json` is skipped,
+so an interrupted donor resumes where it stopped instead of starting over.
+
+### The `.tmap` files were rewritten first, for all ten donors
+
+The project file carries no part of the stretch, so it is independent of the pyramids and landed
+ahead of them. Every one of the ten was rebuilt from the corrected builder and the result checked
+against the shipped copy field by field: **the only difference on any donor is two layer names**
+(`IAPP` and `CD11b`, section 8). `layerOpacities`, `layerVisibilities`, `layerFilters`, `mpp`,
+`compositeMode`, `regionFiles` and every `tileSource` are unchanged, and all ten validate against
+tissuumaps-schema 1.3. The DAPI opacity bug in section 8 would have shown up here as a third
+difference; that it does not is the check that the fix is right.
+
+### Run one donor at a time, and keep the operation cache off
+
+A first attempt ran three donors in parallel. At 18:41:53 the **global OOM killer took all three**
+— 6436, 6461 and 6442, each at 120-123 GB anon RSS, part-way through (`rc=137`). Memory grew by
+about a decoded page per channel and was never released: measured on 6539 at four channels, peak RSS
+2.4 -> 6.5 -> 9.9 -> 12.4 GB. The libvips operation cache was holding every finished channel, and it
+can never hit here, because no two calls in this script are the same. `main()` now turns it off
+(`pyvips.cache_set_max(0)`, `cache_set_max_mem(0)`); the same four channels then run at
+2.1 -> 4.6 -> 4.8 -> 4.8 GB, and a resumed 6436 — the largest page in the cohort at 1.41 Gpx per
+channel — sat flat at **7.0 GB** through 24 channels. Output is unaffected: before adopting it, all
+four channels were compared against the tiles 6539 already ships, at every pyramid level, and are
+identical (max |a - b| = 0). `EXTRACTION_VERSION` therefore does not move.
+
+Throughput is bound by the disk, not the CPU: `/data` served ~114 MB/s at 69% utilisation with 36 ms
+average wait while three builders read, on a 64-core machine that was 88% idle. Parallel lanes buy
+nothing and cost the machine's memory, so the remaining donors run one at a time.
+
+Cost, measured: 12 min (6539, the smallest slide, alone) to 35 min (6374, the largest) per donor,
+13-26 min for the six run sequentially with the cache off.
+
+### What was rebuilt
+
+**All ten projects in `/data/tissuumaps`, every channel of every one.** `extraction.json` records
+`version: 5` for 59 of 59 channels on each, no `.tif.part` is left anywhere, and all ten `.tmap`
+files validate, carry the two exclusion labels, open on DAPI/INS/SST/GCG at 0.35/0.70/0.70/0.70, and
+keep their `regions/<case>.geojson` auto-loading.
+
+| donor | finished | donor | finished |
+|---|---|---|---|
+| 6539 | 17:51 | 6461 | 19:17 |
+| 6482 | 18:23 | 6442 | 19:34 |
+| 115 | 18:27 | 6593 | 19:59 |
+| 6493 | 18:31 | 6476 | 20:25 |
+| 6436 | 19:04 | 6374 | 21:00 |
+
+The rebuilt pyramids are **smaller** than the ones they replace, because less background noise is
+being encoded. Where a clean before and after exists (the donor was untouched when its sizes were
+recorded): 6374 65.0 -> 46.2 GB, 6476 54.0 -> 41.6 GB, 6593 45.4 -> 33.2 GB — about a quarter less.
+The ten together now occupy 310.5 GB.
+
+Served and checked over the running TissUUmaps server on 127.0.0.1:5100 for four of them: `.tmap`,
+`.dzi`, a rendered tile and the region file all return 200, and the `.dzi` reports the slide's own
+dimensions.
+
+### The pixels on disk are the ones this code specifies
+
+The strongest available check, and it is the one that makes every number above a measurement: for
+each channel, run today's LUT over the 16-bit source histogram and compare the predicted 8-bit
+histogram against the rebuilt tile's own. **6539: 59 of 59 identical** (section 5). **6374,
+spot-checked on DAPI, IAPP, INS, CD3e and CD209: 5 of 5 identical.** The same check against the v4
+LUT reproduced all 59 shipped tiles of 6436 before any of this was touched, so the method is
+confirmed on both sides of the change.
 
 ## 10. Left for the maintainer
 

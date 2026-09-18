@@ -75,9 +75,21 @@ suppressMessages({
   library(arrow); library(destiny); library(slingshot)
 })
 
+# A REPLICATE PASS, and why one exists. A second argument is a seed offset: the same fit over an
+# independently drawn subsample of the same donor's cells, written beside the first rather than
+# over it. `trajectory_reproducibility.py` then measures, per donor, whether the two passes order
+# the cells the same way. That is internal coherence -- does this build reproduce itself -- and not
+# a biological check; it gates nothing, and a donor whose two passes disagree keeps its ordering
+# and carries the number. It was added because on the first twenty-donor build two of three donors
+# probed disagreed with their own replicate, which nothing in the artifact would otherwise say.
+#
+#   Rscript core/phenocycler/scripts/typing/trajectory_singlecell.R 25000 99001
+
 args <- commandArgs(trailingOnly = TRUE)
 #: Cells ordered per donor. A donor with fewer eligible cells contributes all of them.
 N_FIT_PER_DONOR <- if (length(args) >= 1) as.integer(args[[1]]) else 15000L
+REPLICATE <- if (length(args) >= 2) as.integer(args[[2]]) else NA_integer_
+SUFFIX <- if (is.na(REPLICATE)) "" else "_replicate"
 N_DCS <- 20L                # diffusion components carried into slingshot
 #: Below this a donor gets no ordering at all and carries the reason. A diffusion map over a few
 #: hundred cells is not an ordering of anything; the value is declared, not tuned to an outcome.
@@ -130,7 +142,9 @@ for (d in donors) {
     next
   }
 
-  set.seed(BASE_SEED + as.integer(sub("^0+", "", gsub("[^0-9]", "", d))))
+  seed <- BASE_SEED + as.integer(sub("^0+", "", gsub("[^0-9]", "", d)))
+  if (!is.na(REPLICATE)) seed <- seed + REPLICATE
+  set.seed(seed)
   take <- if (length(complete) > N_FIT_PER_DONOR) sort(sample(complete, N_FIT_PER_DONOR)) else complete
   idx <- rows[take]
   Xfit <- Xd[take, , drop = FALSE]
@@ -179,6 +193,7 @@ for (d in donors) {
   entry$n_nonfinite_pseudotime <- sum(!finite)
   entry$eigenvalues <- unname(eigenvalues(dm)[seq_len(N_DCS)])
   entry$fit_minutes <- round(mins, 2)
+  entry$seed <- seed
   entry$state <- "measured"
   entry$reason <- ""
   report[[d]] <- entry
@@ -229,7 +244,8 @@ cat("   rank-uniform on its own axis. It is not evidence that batch was removed.
 cat("   relation is measured separately, with a permutation null, by\n")
 cat("   trajectory_crossdonor_relation.py.)\n")
 
-write_parquet(all_out, file.path(DIR, "singlecell_pseudotime.parquet"), compression = "zstd")
+write_parquet(all_out, file.path(DIR, sprintf("singlecell_pseudotime%s.parquet", SUFFIX)),
+              compression = "zstd")
 jsonlite::write_json(list(
   fit_scope = "within_donor",
   algorithm = paste("destiny DiffusionMap -> slingshot, default parameters, no start/leaf nodes,",
@@ -255,8 +271,11 @@ jsonlite::write_json(list(
                       "measurement; its spread across islets is not."),
   min_cells_fit = MIN_CELLS_FIT,
   n_markers = length(markers), markers = markers, n_dcs = N_DCS,
-  per_donor = unname(report)
-), file.path(DIR, "singlecell_trajectory.json"), auto_unbox = TRUE, pretty = TRUE, digits = 8)
+  per_donor = unname(report),
+  replicate_seed_offset = if (is.na(REPLICATE)) NULL else REPLICATE,
+  is_replicate = !is.na(REPLICATE)
+), file.path(DIR, sprintf("singlecell_trajectory%s.json", SUFFIX)),
+   auto_unbox = TRUE, pretty = TRUE, digits = 8)
 
 cat(sprintf("\n%s cells over %d donors -> %s\n", format(n_ordered, big.mark = ","),
-            length(pieces), file.path(DIR, "singlecell_pseudotime.parquet")))
+            length(pieces), file.path(DIR, sprintf("singlecell_pseudotime%s.parquet", SUFFIX))))
