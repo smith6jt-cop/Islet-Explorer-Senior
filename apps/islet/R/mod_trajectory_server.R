@@ -562,13 +562,13 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       if (!is.null(tv)) {
         nested <- !is.null(tv[["core"]])
         cm <- if (nested) tv[["core"]] else tv
-        # A file that records no verdict gets no badge. Defaulting a missing `hard_pass` to
-        # FALSE would print "check gates" over a build whose gates were never written down,
-        # which is an assertion about the build rather than a reading of it.
-        has_verdict <- !is.null(cm[["hard_pass"]])
-        hard <- isTRUE(as.logical(cm[["hard_pass"]])[1])
-        badge_col <- if (hard) "#228833" else "#CC6633"
-        badge_txt <- if (hard) "gates pass" else "check gates"
+        # NO PASS BADGE. Removed 2026-09-18 at the maintainer's instruction, and the
+        # measurement says the same thing: the within-donor ordering reproduces on 1 of 20
+        # donors (data/development/typing/trajectory/reproducibility.json, median rho between
+        # two passes -0.004), so a green "gates pass" over it asserted something the artifact
+        # does not support. The gates `trajectory_islet.py` writes are about the producer's own
+        # checks, not about whether the axis is stable, and a coloured badge does not carry that
+        # distinction. Gates that were NOT met are still reported below, in words.
 
         # Per-status donor eta-squared, in whatever form this producer wrote it.
         eta_bits <- if (nested) {
@@ -600,9 +600,6 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
         failed <- failed[vapply(failed, function(k) !isTRUE(as.logical(cm[[k]])[1]), logical(1))]
         valid_caption <- tags$div(
           style = "font-size:12px; margin-top:4px",
-          if (has_verdict) tags$span(
-            style = sprintf("background:%s;color:#fff;border-radius:3px;padding:1px 6px;margin-right:6px;font-weight:bold;", badge_col),
-            badge_txt),
           paste(c("Pseudotime:", parts), collapse = " "),
           if (length(failed)) tags$div(
             style = "font-size:11px; color:#B2182B; margin-top:2px",
