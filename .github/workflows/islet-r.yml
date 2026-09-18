@@ -3,10 +3,11 @@ name: Islet app (R)
 # SCOPE, stated plainly: this is a syntax gate, an install check for ieCore,
 # and data-independent unit/contract tests. It is not full browser coverage.
 #
-# The app needs shiny, bslib, duckdb, rdeck and reticulate. Installing that stack in CI is a
-# ~20-minute job and rdeck does not install cleanly from CRAN, so nothing here loads the app.
-# scripts/test_viewer_helpers.R is the one real test that can run unattended: its own header
-# says "base R only; no Shiny needed", and it works by parse()ing viewer_helpers.R and
+# Nothing here LAUNCHES the app: that still wants rdeck, reticulate, anndata and sf plus the
+# gitignored data/, and rdeck does not install cleanly from CRAN. But "does not launch the app"
+# had quietly become "does not run the tests either" -- see the package list below.
+# scripts/test_viewer_helpers.R is the one real test that can run without any of that: its own
+# header says "base R only; no Shiny needed", and it works by parse()ing viewer_helpers.R and
 # eval'ing five named functions.
 #
 # parse() catches exactly what it says -- syntax errors, and any file that stopped being
@@ -47,9 +48,57 @@ jobs:
 
       # Ubuntu's precompiled r-cran-* debs bundle their system dependencies
       # (BLAS/LAPACK, gfortran runtime, etc.), so there is no compilation and no binary
-      # lookup to go wrong. Only what tests/testthat needs is installed: the full app also
-      # wants sf / reticulate / anndata / shiny plus the gitignored data/, which is why this
-      # workflow parse-checks the app rather than sourcing it.
+      # lookup to go wrong. The full app also wants sf / reticulate / anndata / rdeck plus the
+      # gitignored data/, which is why this workflow parse-checks the app rather than sourcing it.
+      #
+      # WHAT THE SECOND AND THIRD LINES BUY, measured 2026-09-18 by running tests/testthat
+      # against a library restricted to this deb closure (Ubuntu 24.04, the ubuntu-latest image):
+      #
+      #   the old list (through r-cran-readxl)    349 assertions pass, 14 test_that blocks skip,
+      #                                           and test-card-registry.R is not even LISTED --
+      #                                           its skip_if_not_installed("shiny") is at FILE
+      #                                           scope, so testthat drops the file without
+      #                                           reporting it. 13 files of 14.
+      #   with the packages added below         1,119 assertions pass,  5 blocks skip, 14 files.
+      #   with every package present (the       1,172 assertions pass,  0 blocks skip, 83 blocks.
+      #     maintainer's workstation)
+      #
+      #   shiny      test-card-registry.R (the whole file), test-selectable-donors.R,
+      #              test-viewer-cohort.R, test-pln-cards.R. Ubuntu ships r-cran-shiny 1.8.0 and it
+      #              pulls bslib + htmltools + httpuv as Depends -- no compilation anywhere here.
+      #   writexl    the workbook-membership test in test-viewer-cohort.R.
+      #   htmltools  a direct htmltools:: call site, and an explicit guard in test-pln-cards.R.
+      #   withr      24 direct withr:: call sites. Both already arrive as an r-cran-testthat
+      #   jsonlite   9 direct jsonlite:: call sites.  Depends -- named so that a future testthat
+      #              repackaging cannot remove them silently.
+      #   shinyjs    None of these four is called by the suite. They are what
+      #   plotly     `.app_attached_packages()` reads out of apps/islet/R/00_globals.R, and
+      #   broom      test-card-registry.R's "every function the app calls has a definition
+      #   sf         somewhere" requires ALL of them before it will run -- deliberately, since a
+      #              missing package makes its functions look undefined. That block is the one
+      #              that catches a function called and defined nowhere, which is a defect this
+      #              app has had more than once. It was skipped in CI for want of four debs.
+      #              r-cran-sf is the expensive one: prebuilt, no compilation, but it pulls the
+      #              GDAL/GEOS/PROJ shared libraries. That is an apt download, not a build. If
+      #              that cost is ever judged too high, remove all four together and say so here
+      #              -- removing one silently re-skips the block.
+      #
+      # DELIBERATELY NOT INSTALLED, so that this is a stated absence and not a silent skip.
+      # The "Optional-package inventory" step below prints both, by name, on every run.
+      #
+      #   duckdb  NOT in the Ubuntu 24.04 archive (there is no r-cran-duckdb deb). The CRAN
+      #           package builds the whole DuckDB C++ amalgamation from source, which is a
+      #           different order of cost from every apt line above. Measured cost of leaving it
+      #           out: 2 test_that blocks in test-viewer-cohort.R, the two that write a Parquet
+      #           cohort through DBI. (DBI itself IS present -- r-cran-sf Depends on it.)
+      #   arrow   NOT in the Ubuntu 24.04 archive either, and the CRAN install downloads a
+      #           prebuilt libarrow at install time, so it is a build plus a network fetch.
+      #           Measured cost: 2 test_that blocks in test-pln-cards.R. Note this changed during
+      #           2026-09-18 -- there was no arrow:: call site in the suite that morning and
+      #           there were two by the afternoon. Re-measure before trusting this line.
+      #
+      # Together duckdb and arrow are the difference between the 1,119 above and the 1,172, less
+      # the lmerTest block, which this job does install.
       - name: Install R and test packages
         run: |
           export DEBIAN_FRONTEND=noninteractive
@@ -58,22 +107,110 @@ jobs:
             r-base-core \
             r-cran-testthat r-cran-dplyr r-cran-tidyr \
             r-cran-tibble r-cran-lme4 r-cran-lmertest \
-            r-cran-ggplot2 r-cran-stringr r-cran-yaml r-cran-readxl
+            r-cran-ggplot2 r-cran-stringr r-cran-yaml r-cran-readxl \
+            r-cran-shiny r-cran-writexl r-cran-htmltools \
+            r-cran-withr r-cran-jsonlite \
+            r-cran-shinyjs r-cran-plotly r-cran-broom r-cran-sf
+
+      # A skip that nobody can see is the thing this step exists to stop.
+      #
+      # EXPECTED names must be present or the job fails here, with the name, rather than
+      # thinning the suite by a few hundred assertions and still printing a green tick.
+      # STATED_ABSENT names are reported, by name and with what they disable, and do not fail.
+      # If a STATED_ABSENT package ever becomes available, that is reported too -- the list is
+      # a decision, and a decision that stopped being true should be revisited, not inherited.
+      - name: Optional-package inventory
+        run: |
+          Rscript -e '
+            expected <- c("testthat", "dplyr", "tidyr", "tibble", "lme4", "lmerTest",
+                          "ggplot2", "stringr", "yaml", "readxl",
+                          "shiny", "writexl", "htmltools", "withr", "jsonlite",
+                          "shinyjs", "plotly", "broom", "sf")
+            stated_absent <- c(
+              duckdb = "2 test_that blocks in test-viewer-cohort.R (no deb; source build too heavy)",
+              arrow  = "2 test_that blocks in test-pln-cards.R (no deb; build plus a network fetch)")
+            have <- vapply(expected, requireNamespace, logical(1), quietly = TRUE)
+            for (p in expected) cat(sprintf("  %-12s %s\n", p, if (have[[p]]) "present" else "ABSENT"))
+            for (p in names(stated_absent)) {
+              got <- requireNamespace(p, quietly = TRUE)
+              cat(sprintf("  %-12s %s  -- disables: %s\n", p,
+                          if (got) "present (stated absent; revisit the list)" else "absent, by decision",
+                          stated_absent[[p]]))
+            }
+            if (!all(have)) {
+              cat("\nThese are required for the suite to run whole:",
+                  paste(expected[!have], collapse = ", "), "\n")
+              cat("Every test they guard would otherwise skip without failing.\n")
+              quit(status = 1)
+            }'
 
       - name: Every R source parses
         run: Rscript apps/islet/tests/parse_check.R
 
+      # THE PACKAGE CONTRACT, which only a real install can see.
+      #
+      # apps/islet/R/00_00_iecore.R sys.source()s every ieCore file into globalenv, so the
+      # app works whether or not NAMESPACE exports a name and whether or not DESCRIPTION
+      # declares a dependency. The `library(ieCore)` path CI uses does not. On 2026-09-18,
+      # twelve names carried roxygen @export and were absent from NAMESPACE -- all of
+      # ie_layer_io.R, both of ie_holds.R, all six of ie_cohort.R -- and shiny (9 call sites)
+      # and jsonlite (1) were used and undeclared. The install step below passed throughout.
+      # These two checks are what would have failed instead.
       - name: Shared ieCore package installs
         run: |
+          cat > /tmp/iecore_contract.R <<'RSCRIPT'
+          pkg <- "apps/R/ieCore"
+          src <- list.files(file.path(pkg, "R"), pattern = "[.]R$", full.names = TRUE)
+          lines <- unlist(lapply(src, readLines, warn = FALSE))
+          tagged <- character()
+          for (f in src) {
+            L <- readLines(f, warn = FALSE)
+            for (i in which(grepl("^\\s*#'\\s*@export\\s*$", L))) {
+              j <- i + 1L
+              while (j <= length(L) && grepl("^\\s*#'", L[j])) j <- j + 1L
+              if (j <= length(L)) {
+                m <- regmatches(L[j], regexec("^\\s*(`[^`]+`|[A-Za-z._][A-Za-z0-9._]*)\\s*(<-|=)", L[j]))[[1]]
+                if (length(m) >= 2L) tagged <- c(tagged, gsub("`", "", m[2]))
+              }
+            }
+          }
+          ns <- readLines(file.path(pkg, "NAMESPACE"), warn = FALSE)
+          exported <- gsub("\"", "", sub("^export\\(", "", sub("\\)$", "", grep("^export\\(", ns, value = TRUE))))
+          s3 <- sub("^S3method\\(([^,]+),(.+)\\)$", "\\1.\\2", grep("^S3method\\(", ns, value = TRUE))
+          missing <- setdiff(unique(tagged), c(exported, s3))
+          if (length(missing)) {
+            cat("@export with no NAMESPACE entry:\n  ", paste(missing, collapse = "\n  "), "\n", sep = "")
+            cat("library(ieCore) would not expose these; sys.source() into globalenv hides it.\n")
+            quit(status = 1)
+          }
+          used <- unique(gsub("::$", "", unlist(regmatches(lines, gregexpr("\\b[A-Za-z][A-Za-z0-9.]*::", lines)))))
+          d <- read.dcf(file.path(pkg, "DESCRIPTION"))
+          fields <- intersect(c("Depends", "Imports", "Suggests", "LinkingTo"), colnames(d))
+          declared <- unlist(strsplit(paste(d[1, fields], collapse = ","), ","))
+          declared <- trimws(sub("\\(.*", "", declared))
+          undeclared <- setdiff(used, c(declared, rownames(installed.packages(priority = "base"))))
+          if (length(undeclared)) {
+            cat("used via :: in R/ but not in DESCRIPTION:\n  ", paste(undeclared, collapse = "\n  "), "\n", sep = "")
+            quit(status = 1)
+          }
+          cat("ieCore contract OK:", length(unique(tagged)), "@export names all in NAMESPACE;",
+              length(used), "namespaces used, all declared\n")
+          RSCRIPT
+          Rscript /tmp/iecore_contract.R
           mkdir -p /tmp/iecore-library
           R CMD INSTALL --library=/tmp/iecore-library apps/R/ieCore
           Rscript -e '.libPaths(c("/tmp/iecore-library", .libPaths())); library(ieCore); d <- ie_load_domain("apps/islet/config/islet_default.yml"); stopifnot(domain_pixel_size(d) == 0.5078)'
 
       - name: Unit tests (testthat)
         # Inherited from the Junior app lane in the 2026-08-16 merge, along with the
-        # utilities they exercise. The 188 assertions now also check both domain
-        # configs, every tab's wiring, the synthetic lymph data contract, and the
+        # utilities they exercise. The assertions now also check both domain configs, every
+        # tab's wiring, the card registry, the synthetic lymph data contract, and the
         # production security boundaries reconciled from Junior.
+        #
+        # Measured 2026-09-18: 1,172 assertions across 83 test_that blocks with every package
+        # present; 1,119 with this job's package set, the difference being the duckdb and arrow
+        # blocks named in the inventory step above. Before that step's package list was added,
+        # this same command reported green on 349.
         run: |
           cd apps/islet
           Rscript tests/run_tests.R

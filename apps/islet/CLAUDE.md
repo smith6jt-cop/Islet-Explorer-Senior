@@ -27,10 +27,15 @@ as a measurement of whichever dataset is loaded. Every path resolved and every c
 from the loaded data or the DOMAIN; never write a cohort's size, its donor ids or its typing method
 into a string.
 
-`tests/testthat/tab_smoke.R` is what catches them: it drives Chrome through all five tabs and
-reports per tab the R output errors, the JS console errors, and how many outputs exist but drew
-nothing. Run it whenever a tab's data changes — it needs `NOT_CRAN=true`, or `AppDriver$new()`
-skips with "Reason: On CRAN", which reads like a failure and is really a refusal to run.
+`tests/tab_smoke.R` is what catches them — **`tests/`, not `tests/testthat/`**: it is a standalone
+shinytest2 driver, not part of the testthat suite, and `test_dir()` never picks it up. It drives
+Chrome through the eight tabs named in its own `TABS` vector (`tab_smoke.R:14`) and reports per tab
+the R output errors, the JS console errors, and how many outputs exist but drew nothing. For a
+registry card it requires a loaded plot or table, or a named guard note; a heading is not proof the
+card's server ran. It reads `IE_CROSSMODAL_CARDS` and `IE_LYMPHNODE_CARDS` directly, so a newly
+registered card is checked without editing the smoke test. Run it whenever a tab's data changes —
+it needs `NOT_CRAN=true`, or `AppDriver$new()` skips with "Reason: On CRAN", which reads like a
+failure and is really a refusal to run.
 
 ```bash
 NOT_CRAN=true ISLET_DOMAIN_CONFIG=config/run20_default.yml Rscript tests/tab_smoke.R /tmp/tabshots
@@ -38,9 +43,38 @@ NOT_CRAN=true ISLET_DOMAIN_CONFIG=config/run20_default.yml Rscript tests/tab_smo
 
 ## Tabs
 
-Plot, Trajectory, Viewer, Statistics, Spatial — plus Inflammation, hidden unless
-`SHOW_INFLAMMATION_TAB=1`, and the AI panel inside Plot, off unless `ISLET_ENABLE_AI=TRUE` and
-hard-blocked in production regardless.
+`app.R` registers nine `nav_panel_hidden` panels: **Plot, Trajectory, Statistics, Spatial,
+Neighborhoods, CrossModal, LymphNode, Viewer**, plus **Inflammation**, hidden unless
+`SHOW_INFLAMMATION_TAB=1`. `tests/tab_smoke.R` drives the eight that are not gated. The AI panel
+lives inside Plot and is off unless `ISLET_ENABLE_AI=TRUE`, hard-blocked in production regardless.
+A rail key that drifts from a `nav_panel_hidden` value fails loudly at startup (`app.R`), and
+`tests/testthat/test-tab-parity.R` asserts the same pairing.
+
+### Card registries — CrossModal and LymphNode
+
+Those two tabs are **thin registries**, and their modules must stay thin: a registry file holds the
+list, and each card is one `card_<id>.R` declaring the pair `card_<id>_ui(ns)` /
+`card_<id>_server(input, output, session, ...)`. The tab's server loops the registry and dispatches
+by name. Adding a card is one line in the registry plus one new file — nothing else, and no card
+logic in the module.
+
+| registry | file | mounts into |
+|---|---|---|
+| `IE_CROSSMODAL_CARDS` / `IE_CROSSMODAL_TAB` | `R/mod_crossmodal_ui.R` | `CrossModal` |
+| `IE_LYMPHNODE_CARDS` / `IE_LYMPHNODE_TAB` | `R/mod_lymphnode_ui.R` | `LymphNode` |
+
+Read the current card list from those two files; it is not repeated here, because a second copy
+would be the thing that goes stale.
+
+Two rules the registries enforce, both learned from a defect:
+
+- **A registry entry is a promise that the card exists.** An entry with no `card_<id>.R` renders
+  `unavailable` on every donor, which reads as a measurement and is not one. Unregistered is
+  honest; a registered card nobody wrote is not. Both `ledger` and `n1_sections` shipped that way.
+- **A card never hardcodes its own tab key.** `tab_key` is passed in from `IE_*_TAB`.
+  `card_s1_size_composition` shipped with `tab_key = "spatial"`, which matches nothing in
+  `IE_TAB_KEYS`, so `req(identical(active_tab(), tab_key))` was never true and the card could not
+  draw. `tests/testthat/test-card-registry.R` checks every registered key against `IE_TAB_KEYS`.
 
 **Plot.** Cell-population proportions (`prop_*`, `peri_prop_*`, and a combined form computed on the
 fly), hormone fractions, and Microenvironment. Labels are unit-explicit — never the bare word

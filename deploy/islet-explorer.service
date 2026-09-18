@@ -21,7 +21,27 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=5
+
+# WorkingDirectory is what ISLET_DOMAIN_CONFIG's relative path resolves against, so these
+# two lines are one setting. Moving the app out of apps/islet changes both.
 WorkingDirectory=/pubapps/<project>/prod/islet-explorer/apps/islet
+
+# WHICH DATASET THIS UNIT SERVES.
+#
+# Repeated here from deploy/env.sh.example on purpose. systemd applies EnvironmentFile=
+# after Environment=, so deploy/env.sh is authoritative and these are the fallback for a
+# unit copied onto a host before env.sh was filled in. KEEP THE TWO IN AGREEMENT: a unit
+# saying run20 and an env.sh saying CODEX is not an error, it is the CODEX dataset served
+# under a unit that claims otherwise.
+#
+# Without either, apps/islet/R/00_00_iecore.R:23 falls back to config/islet_default.yml --
+# the legacy 15-donor CODEX domain -- because the file that selects the run cohort on the
+# maintainer's workstation, apps/islet/.Rprofile, is gitignored and does not travel with a
+# clone. What that costs, and the layer artifacts' domain stamp, is written out in
+# deploy/env.sh.example; do not re-derive it here.
+Environment=ISLET_DOMAIN_CONFIG=config/run20_default.yml
+Environment=ISLET_LAYERS_DIR=/pubapps/<project>/islet_layers
+
 EnvironmentFile=/pubapps/<project>/prod/islet-explorer/deploy/env.sh
 ExecStart=/pubapps/<project>/prod/conda/bin/R --no-echo --no-restore --file=/pubapps/<project>/prod/islet-explorer/deploy/run.R
 StandardOutput=file:/pubapps/<project>/prod/logs/app.log

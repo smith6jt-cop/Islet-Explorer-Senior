@@ -11,15 +11,64 @@ Where a level is needed, it comes from a reference population that a lane alread
 ## The boundary that still binds
 
 The app's aggregation, trajectory and spatial scripts were written against a legacy single-cell
-H5AD. They are not yet a consumer of the content-addressed run, and must not be presented as an
-end-to-end rebuild of it.
+H5AD. They are not an end-to-end rebuild of the source workflow and must not be presented as one.
 
-The adapter that closes the gap reads the run's own stages, joins on **`(donor_id, object_id)`**,
-preserves uncertainty, and records the run id and the manifest content ids. Existing H5AD phenotype
-columns are never calibration or typing inputs.
+The adapter that closes the gap reads the pipeline's own stages and joins on
+**`(donor_id, object_id)`**, preserving uncertainty. Existing H5AD phenotype columns are never
+calibration or typing inputs.
 
 Join by exact `object_id`. Never row order, rounded centroids, filenames, or a provisional
 `classification`. A missing or invalid measurement stays unavailable.
+
+**There is no run id and no content id to record.** The content-addressed run framework was removed
+on 2026-09-16. Stages write to stable roots — `data/cells`, `data/geometry_qc`, `data/redsea`,
+`data/expression` — and a donor is done when its partition has content; a stage whose output is
+already present is skipped, and `--force` reruns it. `core/phenocycler/data/qupath_manifest.json`
+still records a `content_id` and per-file sha256, but nothing validates them: it is a description,
+not a check, and it can be hand-edited when a source file moves. Runs made before 2026-09-16 remain
+under `core/phenocycler/data/runs/<run_id>/`; that tree is historical and nothing writes to it. An
+earlier version of this section told you to record the run id and the manifest content ids — do not
+add either back, and do not write a script that reads one.
+
+## The layer builders
+
+Nine builders write the **layer artifacts** the app's cards read: small, pre-aggregated files under
+`$ISLET_LAYERS_DIR` (default `/data/islet_layers`). A card never scans a source tree at render
+time; it reads one layer root and, if it is absent, renders a named note. The contract every one of
+them is written against is [`docs/ISLET_LAYERS_SPEC.md`](../docs/ISLET_LAYERS_SPEC.md).
+
+| layer root | builder |
+|---|---|
+| `availability/` | `senior/build_availability.py` |
+| `sections/` | `senior/build_sections_layer.py` |
+| `distance_profiles/` | `senior/build_distance_profiles.py` |
+| `restain/` | `senior/build_restain_layer.py` |
+| `islet_summary/` | `senior/build_islet_summary.py` |
+| `trajectory/` | `senior/build_trajectory_layer.py` |
+| `compartments/` | `senior/build_compartment_gradient.py` |
+| `grid_composition/` | `senior/build_grid_composition.py` |
+| `pln/` | `core/phenocycler/scripts/pln/build_pln_layer.py` — the one that does not live here |
+
+`senior/derive_pln_node_membership.py` writes into `pln/` as well; it derives node membership
+geometrically and is upstream of the layer, not a tenth layer.
+
+**Do not invoke these by hand in an order you remember.** `senior/build_layers.py` declares the
+graph — `(name, command, inputs, outputs)` per node, covering these nine and the `typing/app`
+artifacts — and is the only thing that knows the order:
+
+```bash
+.venv/bin/python scripts/senior/build_layers.py --check   # stale/fresh table; non-zero if stale
+.venv/bin/python scripts/senior/build_layers.py --plan    # the ordered commands, runs nothing
+.venv/bin/python scripts/senior/build_layers.py --run     # executes in dependency order
+```
+
+`--check` compares each node's oldest output against its newest input, and **a builder's own source
+file is one of its inputs**: a builder edited after its artifact was written means the artifact no
+longer describes that builder. Five of the nine layers were stale against their own inputs on
+2026-09-17 and nothing said so, which is what this driver exists to stop.
+
+Each builder still runs standalone, and should, when you are working on one. What it must not do is
+be the thing that decides the order.
 
 ## Environments
 

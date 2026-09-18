@@ -69,7 +69,8 @@ means Range is not being served and Avivator will render a blank canvas with no 
   `lmerTest` is unavailable, so the Statistics tab's primary test fails.
 - **Sets `ISLET_DOMAIN_CONFIG` only when unset**, so an explicit value still wins. The only change
   is the unset default: it was `islet_default.yml`, it is now `run20_default.yml`. The testthat
-  suite sets its domain per test and still passes 238/0.
+  suite sets its domain per test and is unaffected — measured 2026-09-18, `tests/testthat` runs
+  737 assertions over 69 `test_that` blocks with one known error, `test-card-registry.R:176`.
 
 This is `.Rprofile` and not `.Renviron` on purpose — Junior uses the same pattern, and both
 alternatives were tried and rejected:
@@ -85,6 +86,18 @@ alternatives were tried and rejected:
 Junior's own `.Renviron` is mode `0600` and therefore unreadable by `shiny` — it is inert. **Do not
 "fix" it while you are in here**: that would change Junior's running configuration, which is the
 one thing this exercise is meant not to do.
+
+**`ISLET_LAYERS_DIR` is NOT set here, and does not need to be on this host.** The code default is
+the absolute `/data/islet_layers` (`ieCore::ie_layers_dir()`), which is where the nine layer
+directories actually are on this workstation — 430 MB, `drwxrwxr-x smith6jt`, world-readable
+through a world-traversable `/data`, so uid `shiny` reaches them. A host where that path does not
+exist must set the variable; `deploy/env.sh.example` and `deploy/islet-explorer.service` carry it
+for exactly that reason.
+
+**Neither variable travels with a clone.** `.Rprofile` is gitignored (`.gitignore:31`), so this
+section describes THIS workstation and nothing else. On any other host the two settings come from
+`deploy/env.sh`, which is also gitignored — its template is `deploy/env.sh.example`, and since
+2026-09-18 the template names both.
 
 ## Known, not fixed here
 

@@ -15,6 +15,8 @@ Depends: R (>= 4.2)
 Imports:
     dplyr,
     ggplot2,
+    jsonlite,
+    shiny,
     stringr,
     tibble,
     yaml

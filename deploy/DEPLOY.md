@@ -26,6 +26,14 @@ Podman sidecar** serves them.
 - **Viewer: ON**, images hosted on PubApps → requires purchased storage + the nginx sidecar.
 - **Shared code: monorepo-local `apps/R/ieCore`** → deploy the full clone, not an isolated
   copy of `apps/islet`; `r-yaml` loads the validated islet DOMAIN at startup.
+- **Which dataset: an explicit choice, made in `deploy/env.sh`** (`ISLET_DOMAIN_CONFIG`) and
+  repeated in the unit. It is not a default and must not be left to one. Until 2026-09-18 neither
+  file named it, so a clean checkout got the code fallback — `config/islet_default.yml`, the legacy
+  CODEX domain — because the file that selects the run cohort on the maintainer's workstation,
+  `apps/islet/.Rprofile`, is gitignored and does not travel with a clone. Phase 2's staging and
+  this setting are one decision: stage the domain you are going to name.
+- **Layer artifacts: an explicit path** (`ISLET_LAYERS_DIR`). The code default is the absolute
+  `/data/islet_layers`, which exists on the maintainer's workstation and on no PubApps VM.
 
 ## What's in this directory
 
@@ -77,27 +85,49 @@ R CMD INSTALL apps/R/ieCore   # package/install contract check; the app sources 
 Stage data (nothing is in git; PubApps can't see /blue, so copy from the source machine, e.g. via a
 HiPerGator hop or Globus):
 
-- **Core app data (~1.9 GB)** → `/pubapps/<project>/prod/islet-explorer/data/`: copy
-  `data/app_data/` as a plain directory of real files (it was symlink-based historically;
-  since 2026-08-16 it is a self-contained copy, so there is no symlink layout to preserve).
-  `../../data/app_data/…` then resolves from `apps/islet/`, which is exactly 2 levels below
-  the repo root. Do **not** copy the ~113 GB of pipeline scratch (`redsea_scratch/`,
-  `cells_redsea/`, top-level `cells/`, `phenotype/`, `restore*`, `singlecell_protein.h5ad`, …)
-  — the app never reads it.
+**Stage the data root of the domain you named in `deploy/env.sh`, and only that one.** The two
+domains are separate datasets sharing five donors and no vocabulary; staging both invites serving
+one under the other's labels.
+
+- **Run cohort (`config/run20_default.yml`, the value in `env.sh.example`) — 4.6 GB, measured
+  2026-09-18** → `/pubapps/<project>/prod/islet-explorer/data/development/typing/app/`.
+  `../../data/development/typing/app/…` resolves from `apps/islet/`, which is exactly 2 levels
+  below the repo root. It holds `parquet/` (the DuckDB views, 18,384 islets over 20 donors),
+  `cells/`, `donors/`, `gson/`, `json/`, the trajectory `adata_ins_root.h5ad` and the workbooks.
+  The `*.superseded-*.h5ad` files are history and need not travel.
+- **Legacy CODEX cohort (`config/islet_default.yml`) — ~1.9 GB** →
+  `/pubapps/<project>/prod/islet-explorer/data/`: copy `data/app_data/` as a plain directory of
+  real files (it was symlink-based historically; since 2026-08-16 it is a self-contained copy, so
+  there is no symlink layout to preserve). `../../data/app_data/…` resolves the same way.
 
   > **`data/app_data/cells/` and top-level `data/cells/` are different things.** The former is
   > 5,214 per-islet CSVs the drill-down reads; the latter is 13 GB of hive-partitioned
   > `donor_id=…` pipeline output. Same basename, unrelated content — never merge them. This is
   > why the app keeps the `app_data/` segment rather than reading `data/` flat.
+- **Layer artifacts (430 MB, measured 2026-09-18)** → whatever you set `ISLET_LAYERS_DIR` to,
+  e.g. `/pubapps/<project>/islet_layers/`. Nine directories: `availability`, `compartments`,
+  `distance_profiles`, `grid_composition`, `islet_summary` (143 MB), `pln` (240 MB), `restain`
+  (47 MB), `sections`, `trajectory`. These are stamped with the domain they were built from, and
+  five of the app's nine cards compare the artifact's recorded `source_domain_root` against the
+  active domain root and refuse, by its own named reason, rather than draw (measured 2026-09-18;
+  the exact five and their reasons are listed in `deploy/env.sh.example`). Every artifact carrying
+  that field on 2026-09-18 records the run-cohort root, so they pair with `run20_default.yml`.
 - **OME-TIFFs (~1.2 TB)** → `/pubapps/<project>/islet_ome_tiff/`: Globus-transfer every
   `<case>.ome.tiff` **and** its `<case>.offsets.json` sidecar.
+
+Whichever domain you staged, do **not** copy the ~113 GB of pipeline scratch (`redsea_scratch/`,
+`cells_redsea/`, top-level `cells/`, `phenotype/`, `restore*`, `singlecell_protein.h5ad`, …) — the
+app never reads it.
 
 ## Phase 3 — Configure + start services
 
 ```bash
 cd /pubapps/<project>/prod/islet-explorer
 cp deploy/env.sh.example deploy/env.sh && chmod 600 deploy/env.sh
-# edit deploy/env.sh: set <project> and <APP_PORT>
+# edit deploy/env.sh: set <project> and <APP_PORT>, and CONFIRM the two dataset settings --
+#   ISLET_DOMAIN_CONFIG  must name the domain whose data root you staged in Phase 2
+#   ISLET_LAYERS_DIR     must be where you staged the nine layer directories
+# Neither errors when wrong; see the comments in env.sh.example for what each one costs.
 
 mkdir -p ~/.config/systemd/user ~/.config/containers/systemd
 cp deploy/islet-explorer.service ~/.config/systemd/user/
@@ -118,6 +148,15 @@ curl -s http://localhost:<APP_PORT>/ | head
 # image server honors Range (must be 206 + Accept-Ranges, NOT 200):
 curl -I -H "Range: bytes=0-1" http://localhost:<IMG_PORT>/local_images/115.ome.tiff
 tail -f /pubapps/<project>/prod/logs/app.log      # watch R startup
+
+# THE DATASET IS THE ONE YOU MEANT. 00_00_iecore.R prints one line at startup:
+#   [DOMAIN] Loaded <app.name> from <resolved config path>
+# Read it from the log. A blank ISLET_DOMAIN_CONFIG does not warn -- it falls back.
+grep '^\[DOMAIN\]' /pubapps/<project>/prod/logs/app.log
+
+# The layer root is the one you staged, and is not empty:
+systemctl --user show islet-explorer -p Environment | tr ' ' '\n' | grep ISLET_
+ls "$ISLET_LAYERS_DIR"      # expect the nine directories from Phase 2, none empty
 ```
 Then browse `https://islet-explorer.rc.ufl.edu` and exercise each tab:
 **Plot** (DuckDB load; confirm no AI panel) · **Trajectory** (the reticulate→`anndata::read_h5ad`
@@ -229,9 +268,14 @@ does not travel with a clone. Optional: `SHOW_INFLAMMATION_TAB=1` to surface the
 `ISLET_ENABLE_AI=TRUE` for the AI panel (keep it off on anything public — it needs a UF Navigator
 key).
 
-Verified before this was written: the merged app boots against the staged data (DuckDB views
-registered, mirai pool up, 10,736 islet spatial records, 59 channels, 15 viewer images), serves
-HTTP 200, and renders all five tabs. Run it directly with:
+Verified 2026-08-16, against the CODEX domain and the state of the app on that date: the merged
+app boots against the staged data (DuckDB views registered, mirai pool up, 10,736 islet spatial
+records, 59 channels, 15 viewer images), serves HTTP 200, and renders all five tabs it had then.
+That tab count is no longer current — `app.R` now registers nine `nav_panel_hidden` panels (Plot,
+Trajectory, Statistics, Spatial, Neighborhoods, CrossModal, LymphNode, Viewer, plus Inflammation
+behind `SHOW_INFLAMMATION_TAB=1`) and `tests/tab_smoke.R` drives eight of them. Nothing above has
+been re-verified against the run cohort; treat the 2026-08-16 line as history, not as a current
+check. Run it directly with:
 
 ```bash
 cd apps/islet && Rscript -e 'shiny::runApp(".", port = 7788)'

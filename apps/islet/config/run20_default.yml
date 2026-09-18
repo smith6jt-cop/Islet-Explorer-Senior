@@ -5,11 +5,30 @@
 # share only five donors (6450, 6505, 6521, 6534, 6551) and do not share a vocabulary, so they
 # are never merged -- a cross-donor comparison spanning both would compare methods, not biology.
 #
-# COHORT: the ten donors with zero missed islets under every detection setting tested and zero
-# duplicated islet detections -- 115, 6374, 6436, 6442, 6461, 6476, 6482, 6493, 6539, 6593.
-# They are 8 ND + 2 T1D and contain NO Aab+ donor, because all three Aab+ donors are either in
-# batch 2 or carry an islet deficit. This dataset therefore supports ND vs T1D and no
-# disease-progression comparison. See core/phenocycler/scripts/typing/cohort.py.
+# COHORT: 20 donors -- `cohort.CLEAN` (17) + `cohort.MARGINAL` (3), the two lists in
+# core/phenocycler/scripts/typing/cohort.py, which is the authority. Do not restate them here.
+#
+#   CLEAN (17)     zero missed islets under all six detection settings swept, and zero duplicated
+#                  islet-core detections: 115, 6374, 6436, 6442, 6450, 6461, 6476, 6482, 6493,
+#                  6505, 6523, 6534, 6539, 6566, 6591, 6593, 6623. Seven of these are batch-2
+#                  donors that joined on 2026-09-15, once the re-export was rebuilt and the
+#                  missed-islet sweep was re-run against the new annotations.
+#   MARGINAL (3)   a small, real islet deficit -- includable at a STATED cost, not clean. The
+#                  cost is the measurement, not the label:
+#                    6380  6 missed islets of 67 (9.0%), and 13% of its islet-core cells
+#                    6551  2-3 missed islets of 424 (0.5-0.7%)
+#                    6521  1-2 missed islets of 395 (0.3-0.5%); the only Aab+ donor outside
+#                          batch 2, which is the only reason it is in at all
+#
+# An earlier version of this header named ten donors and asserted "NO Aab+ donor". That was true
+# of the pre-2026-09-15 build and is not true of this one. Measured in
+# data/development/typing/app/parquet/islets.parquet on 2026-09-18: 18,384 islets over 20 donors,
+# 3,966 of them Aab+ across three donors (6450, 6505, 6521); 8 ND / 3 Aab+ / 9 T1D. The
+# ND-vs-T1D-only restriction the old header described no longer applies.
+#
+# What still does not follow from this cohort: acquisition batch remains aliased with disease
+# status at the coarse level. Correct on stain_group or acq_run, never on batch, and stratify
+# where correction is not warranted. See cohort.COHORT_LIMITS.
 #
 # The class list is deliberately coarse. This panel carries no acinar-specific and no
 # ductal-specific marker, so Exocrine is one label; immune subsets are not resolved, so Immune
@@ -17,7 +36,7 @@
 
 app:
   name: Islet Explorer Senior — Run Cohort
-  title: Islet Explorer Senior — PhenoCycler run cohort (10 verified donors)
+  title: Islet Explorer Senior — PhenoCycler run cohort (20 donors — 17 clean, 3 marginal)
   url_path: islet-explorer-run20
 
 unit:
