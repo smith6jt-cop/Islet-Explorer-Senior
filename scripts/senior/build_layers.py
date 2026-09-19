@@ -87,6 +87,19 @@ REPO = Path(__file__).resolve().parents[2]
 #: The repo venv, never a bare `python`: /usr/bin/python3 lacks pyarrow and duckdb here.
 VENV_PYTHON = REPO / ".venv" / "bin" / "python"
 
+#: The historical content-addressed run tree, spelled ONCE and taken from the one table that
+#: knows it is historical -- core/phenocycler/scripts/typing/superseded.py -- rather than typed
+#: out again here. `build_islet_geometry.py` really does read it (the 20-donor cohort output
+#: lives nowhere else), so it is a declared input of `islet_geometry` and has to stay one; what
+#: it must NOT be is a second, unattributed spelling of a path this repository has already
+#: recorded as superseded, drifting from it.
+sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+from superseded import REGISTRY as _SUPERSEDED_REGISTRY  # noqa: E402
+
+_RUNS_ROOT = next(r for r in _SUPERSEDED_REGISTRY if r.key == "content_addressed_runs").fragments[0]
+#: The single run directory on disk, and the only stage of it any node here declares.
+HISTORICAL_RUN_CELLS = f"{_RUNS_ROOT}/30f6689e4d27d295f890/cells"
+
 FRESH = "fresh"
 STALE = "stale"
 MISSING_OUTPUT = "missing_output"
@@ -141,9 +154,10 @@ SOURCE_PRODUCERS = {
         "subpanel_io.load_scale()",
     "data/redsea_scratch/geojson":
         "the REDSEA scratch per-cell outline export -- the only cell outlines in this checkout",
-    "core/phenocycler/data/runs/30f6689e4d27d295f890/cells":
+    HISTORICAL_RUN_CELLS:
         "the historical content-addressed run tree; nothing has written to it since the run "
-        "framework was removed 2026-09-16",
+        "framework was removed 2026-09-16, and reading it announces itself through "
+        "core/phenocycler/scripts/typing/superseded.py",
     "results/Geojson/Islets":
         "exported from QuPath",
     "results/AnnotationsMeasurements.csv":
@@ -254,7 +268,7 @@ def _declaration() -> list[dict]:
                 "{typing}/cells",
                 "{typing}/geometry/endocrine_union_*.parquet",
                 "{repo}/core/phenocycler/data/qupath_manifest.json",
-                "{repo}/core/phenocycler/data/runs/30f6689e4d27d295f890/cells",
+                "{repo}/" + HISTORICAL_RUN_CELLS,
                 "{qupath_results}/Geojson/Islets",
             ),
             outputs=(

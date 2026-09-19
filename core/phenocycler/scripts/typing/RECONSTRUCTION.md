@@ -421,7 +421,7 @@ donor  structure       in object   clears level   called   passed through
 6534   Lymphatic           6,206            108      100        98.3 %
 ```
 
-## The refinement pass  [CHAIN NOW — see REFINEMENT.md]
+## The refinement pass  [CHAIN NOW — WRITTEN AND NOT WIRED; see REFINEMENT.md]
 
 Recovered 2026-09-18 from the 2026-09-11 session and made maintainable as `refine.py`.
 
@@ -437,25 +437,244 @@ in full here;
 decisions. What a reader of this file needs:
 
 * **The rule.** `concordance(cell)` = share of its K=30 marker-space neighbours carrying the same
-  label (`pynndescent`, `random_state=0`, self dropped, `LOW = 0.40`). `bound_X` = 5th percentile of
+  label (`pynndescent`, `random_state=0`, self dropped, `LOW = 0.40`), measured on the matrix
+  `to_Z` returns — standardised arcsinh, in SD of each marker, from a cohort-wide cofactor /
+  centre / spread table. `to_Z` **refuses** a marker it has no parameters for and **refuses** a
+  non-finite value rather than substituting one: a missing measurement is unavailable, and its
+  cell is dropped and counted, never filled in. `bound_X` = 5th percentile of
   max(own markers of X) over the concordant members of X. A cell of X below `bound_X` is **demoted**:
   a demoted Exocrine cell becomes `Unresolved (no lineage evidence)`; anything else becomes `Immune`
-  if it satisfies an immune leaf combination, else `Exocrine`.
+  if its `immune_leaf` flag is true, else `Exocrine`.
 * **Why.** Object membership and the islet prior are evidence of WHERE a cell is, not that it IS
   that thing when its own marker is absent.
 * **The same reference-level ruling applies**: `bound_X` is fitted per donor **and** per size
-  stratum, over `subpanel_io.SIZE_STRATA`, with no bound at all for a group of fewer than 50
-  concordant members. Neighbours are drawn **within one donor**.
+  stratum, over `subpanel_io.SIZE_STRATA`, with no bound at all for a group of fewer than
+  `MIN_CLEAR` = 50 concordant members — UNAVAILABLE, not borrowed from another stratum, not
+  replaced by the donor's and not defaulted, because demotion needs positive evidence that a cell
+  falls below its own class's clear members and an unfittable group supplies none. `MIN_CLEAR` is
+  the recovered run's own guard and is deliberately **not** `subpanel_io`'s 500; the log reports
+  `n_groups_under_500` as well, so a group that clears 50 but not 500 is visible rather than
+  assumed adequate. Neighbours are drawn **within one donor**.
 * **It is applied once**, and that is encoded rather than documented: there is no step or iteration
   argument, and re-refining already-refined labels raises.
-* **It writes a sidecar keyed on `object_id`** and does not rewrite `typing/cells/`.
+* **It writes a sidecar keyed on `object_id`** (`donor_id=<d>/data.parquet` under `--out`, plus
+  `refine_log.json`) and does not rewrite `typing/cells/`.
+* **What it READS, so a reader can tell a live input from a refused one.** `typing/cells/` for the
+  classification; the donor's aligned expression table; the frozen cohort scale; and
+  `data/development/celltype/shifts.json`, from which `derive_markers()` **derives** the marker
+  set — 54 markers, dropping CD38 and b_Catenin1 by name as panel variants and CD57 by its
+  `refused_reagent_change` provenance, never by name. The one artifact it **REFUSES** is
+  `data/development/typing/umap/refinement_log.json` — see the note below.
 * **The 5th-percentile bound demotes about 5 % of every class by construction**, which is
   `REFINEMENT.md` section 6 and is an **OPEN question, not a decision**. Do not read a demotion
   count as evidence about the cells it removed until that is ruled on.
 * **`Unresolved (no lineage evidence)` is a new class value.** `build_cells.py`'s display map and
-  the app's domain configuration have been told (2026-09-18);
-  `trajectory_singlecell_features.py` has **not** — it still reads the 2026-09-11
-  `umap/refinement_log.json` for its own-marker table, not `refine.py`'s `refine_log.json`.
+  the app's domain configuration were told on 2026-09-18. `trajectory_singlecell_features.py` was
+  the last reader still taking its own-marker table from the 2026-09-11 `umap/refinement_log.json`;
+  **corrected 2026-09-19** — it now loads `refine.OWN_MARKERS` by path, with no fallback, and
+  importing `refine` installs the process-wide refusal of that orphan. Being told is still not
+  being wired: no cell carries the value, because the pass has not been joined into a build.
+
+### `immune_leaf` — the per-cell flag the routing turns on  [CHAIN NOW — in `refine.py` only]
+
+The routing bullet above says "if its `immune_leaf` flag is true". That flag is a quantity of the
+refinement and of nothing else: `subpanel.py` has no `immune_leaf`, no cell in `typing/cells/`
+carries the column, and the classification on disk never asked the question.
+
+**What it is.** A per-cell boolean, one per `object_id`: *does this cell satisfy AT LEAST ONE immune
+leaf phenotype?* `refine.immune_leaf(donor, markers)` returns `object_id -> immune_leaf` and nothing
+else; `refine_donor` joins it on `object_id`, never on position or row order, and a cell with no row
+in the join is `False`.
+
+**Which phenotypes.** `immune_leaves()` reads them off the rule table rather than listing them —
+`rules.requirements(raw, with_negatives=True)`, then every row whose phenotype name starts `Imm-`,
+`T-` or `Mac-` and survives into `requirements`. A table that gains a leaf gains it here. Derived
+2026-09-19, that is **15 leaves**: `Imm-plasma-cell`, `Imm-neutrophil`, `Imm-NK-cell`,
+`Imm-dendritic-cell`, `Imm-macrophage`, `Imm-B-cell`, `Imm-T-cell`, `T-regulatory`, `T-exhausted`,
+`T-progenitor-memory`, `T-CD8-cytotoxic`, `T-CD8`, `T-CD4-helper`, `Mac-M1-like`, `Mac-M2-like`.
+
+**What satisfying one means.** `score.meets_requirements(Xs, have, reqs, leaves, require_min)`, then
+`.any(axis=1)`. A leaf is satisfied when every `all_of` marker sits at or above `require_min`, every
+`any_of` group has at least one member there, **and every `none_of` marker sits strictly below it**.
+The negatives are the reason `with_negatives=True` is passed: a cell bright in a forbidden marker
+does not get the leaf. `require_min` is `run_step3.REQUIRE_MIN` = **0.10**, imported and not
+restated, so it cannot drift from the value the classification's own immune tier uses — 0.10 of the
+way above that marker's own measured background, which is a statement about background and not
+about how common immune cells are.
+
+**A marker that was not measured fails the leaf closed.** In `meets_requirements`, NaN is neither
+hot nor cold: an unmeasured `all_of` marker makes the leaf unverifiable, and an unmeasured `none_of`
+marker fails the cell rather than passing on a constraint nobody checked. A missing measurement is
+unavailable, not negative.
+
+**Scope.** Per donor, over `qc_analysis_eligible` cells only, against the **frozen** cohort scale
+(`subpanel_io.load_scale`) — the scale these classes were called against, not a recomputed one.
+
+**What it routes.** In `route`, only demoted **non-Exocrine** cells consult it: true → `Immune`,
+false → `Exocrine`. A demoted Exocrine cell becomes `Unresolved (no lineage evidence)` whatever the
+flag says, because the flag cannot supply a complement that is not there.
+
+**The 5,131.**  [RECOVERED RUN, 2026-09-11 — 320,000-cell subsample, NOT the cohort]
+`refine.py` and `REFINEMENT.md` both record that adding `immune_leaf` "moved 5,131 cells". It is
+recomputable from the arithmetic the 2026-09-11 record carries, and was recomputed on 2026-09-19:
+
+    step-1 input                        320,000 cells (the eight class counts sum to it exactly)
+    demoted Exocrine                     14,191  -> Unresolved   (= the log's Unresolved n)
+    demoted non-Exocrine                 15,060  -> routed by the flag
+    Immune kept (26,433 - 3,193)         23,240
+    Immune after (logged)                28,371
+    => routed to Immune by immune_leaf    5,131
+    Exocrine: 222,736 + (15,060 - 5,131) = 232,665  = the log's Exocrine n
+
+So on that subsample the flag is what stood between 5,131 cells and Exocrine; without it every
+demoted region cell went to Exocrine and none could fall back to Immune. It is a subsample figure
+from the recovered run — it is **not** a cohort number, and no cohort run of the pass exists.
+
+> **The record those figures come from is refused as an input.**
+> `data/development/typing/umap/refinement_log.json` was written 2026-09-11 13:38, **has no
+> producer** anywhere in this repository, carries a step 2 marked `"accepted": false`, and counts a
+> 320,000-cell subsample against the cohort's 25,230,109. `refine.py` installs a process-wide guard
+> that raises `SupersededRefinementLog` on any read of it. Nothing is deleted — it stays on disk as
+> the only surviving record of that run and of the step-2 rejection. **The committed authority for
+> the defining-marker table is `refine.OWN_MARKERS`**, which is identical to the table that file
+> carries (checked 2026-09-19, both steps, all eight classes). Quote the record as history; never
+> parameterise anything from it.
+
+**The routing is a no-op for some of them.** `route` excludes nothing that was already `Immune`, so
+an Immune cell demoted for carrying none of its own nine markers above its bound, but carrying a
+leaf, is relabelled `Immune`. Those rows keep `demoted = True` with an unchanged `refined_class`, so
+they are countable — 267 cells on 6539, 2,930 on 6450, 34,163 on 6505 (23 % of everything demoted
+there). Whether such a cell should instead fall to `Unresolved` is an **OPEN** decision
+(`REFINEMENT.md` section 7), not one this file settles.
+
+**Prevalence varies 3x across donors** — 6.4 % of measured cells on 6450, 7.0 % on 6539, 20.9 % on
+6505 — and so does the share of demoted region cells it rescues: 5.8 %, 37.9 %, 57.1 %. Read no
+cohort-wide rescue rate off one donor.
+
+### The defining-marker table, and how it is not the subpanels  [CHAIN NOW]
+
+The refinement rests on a per-class table of **own defining markers** — `refine.OWN_MARKERS`. It is
+verbatim the recovered run's: checked 2026-09-19, `refine.OWN_MARKERS` and the `own_markers` block
+in `umap/refinement_log.json` are **equal**, key for key.
+
+| class | own defining markers |
+|---|---|
+| Nerve | B3TUBB, CD56 |
+| Lymphatic | Podoplanin |
+| Blood vessel | **CD31**, Caveolin, CD34 |
+| Beta / Alpha / Delta | INS / GCG / SST |
+| Immune | CD3e, CD68, Iba1, CD20, CD79a, MPO, CD66, CD11c, CD209 |
+| Exocrine | Ker8_18, E_cadherin, Pan_Cytokeratin |
+
+`bound_X` is the 5th percentile of **max over that row** among the concordant members of X, and a
+cell of X below it is demoted. It is a "does this cell carry any of its own evidence" test, not a
+signature match: one marker reaching the bound keeps the cell.
+
+**This is the third marker table in the lane, and the three answer three different questions.** Do
+not substitute one for another:
+
+| table | question |
+|---|---|
+| `subpanel.CLASSIFIER_MARKER` | what **drew the object** the cell sits in |
+| `subpanel_io.SUBPANEL` | which markers **answer that context's question** once a cell is in it |
+| `refine.OWN_MARKERS` | does the cell **carry its own evidence at all**, whatever put it in the class |
+
+Two differences from `SUBPANEL` matter, and one of the two things commonly said about them is
+wrong. Both were checked against the code on 2026-09-19:
+
+* **Blood vessel gains CD31 — true.** `SUBPANEL["Blood vessel"]` is `("Caveolin", "CD34")` and
+  deliberately **not** CD31: the objects were drawn by `Cavdil1200` / `CD34dil1430`, so CD31 never
+  drew anything and cannot answer "is this object's cell what the object is made of".
+  `OWN_MARKERS["Blood vessel"]` is `("CD31", "Caveolin", "CD34")`. The refinement is not asking what
+  drew the object — it is asking whether the cell carries vessel evidence — and CD31 is vessel
+  evidence whether or not a pixel classifier was built on it. The two tables disagree because the
+  questions differ, not because one is stale.
+
+* **Exocrine does NOT acquire defining markers it lacked — the markers are the same, the
+  DIRECTION reverses.** `SUBPANEL["exocrine"]` is already
+  `("Ker8_18", "E_cadherin", "Pan_Cytokeratin")` — set-identical to `OWN_MARKERS["Exocrine"]`,
+  verified. What changes is how they are read:
+  * **In the chain  [ON DISK]** those three are a **veto only**. At `subpanel.py:929-934` the
+    supporting immune tier refuses a cell that `speaks_exocrine` (max over the three at or above
+    `SUPPORTING_LEVEL = 0.8715`). The class itself is then assigned at `subpanel.py:939` as
+    `cell_class[unclaimed] = "Exocrine"` with `resolved_by = "fallthrough"`. **No cell on disk is
+    Exocrine because those markers are up**; it is Exocrine because nothing else claimed it.
+  * **In the refinement  [CHAIN NOW]** the same three become a **positive keep-test**: an Exocrine
+    cell whose max over them falls below `bound_Exocrine` is demoted to
+    `Unresolved (no lineage evidence)`.
+
+  That reversal is exactly why the Exocrine floor of `REFINEMENT.md` section 6 bites hardest here.
+  Exocrine's members were never selected for showing these markers, so taking a 5th percentile of
+  them removes about 5 % of a population that was never required to carry any — and Exocrine's
+  measured excess over the floor is only 0.2-0.5 percentage points, meaning essentially the whole
+  Exocrine demotion is the percentile relabelling a fixed share by construction. **OPEN, not
+  decided.**
+
+Two more properties of the table, so it is not misread:
+
+* **CD99 is not a defining marker of anything.** The islet subpanel is `("INS","GCG","SST","CD99")`
+  read together, but `OWN_MARKERS` splits the hormones one per class and CD99 appears in no row —
+  consistent with the chain's own rule that **CD99 decides *whether*, never *which***. The
+  refinement cannot demote a cell for want of CD99.
+* **Immune has nine defining markers and no `SUBPANEL` entry at all.** There is no `"Immune"` key in
+  `SUBPANEL`; the chain's immune tier comes from the rule table. The nine are the refinement's own,
+  and they are not the 15 leaf phenotypes above — a cell can carry a leaf and still fall below
+  `bound_Immune`, which is how the no-op demotion of section 7 arises.
+
+### `scatter` — what step 1 was accepted on, and step 2 rejected on  [RECOVERED RUN, 2026-09-11]
+
+A cell is **scattered** when its concordance is below `LOW = 0.40`: fewer than 40 % of its 30
+marker-space neighbours carry its label. `scattered_pct_before` / `scattered_pct_after` in
+`refine_log.json` are the share of measured cells below that line.
+
+**Scatter is a diagnostic and was never the target.** From the recovered script's own docstring:
+
+> Scatter is DETECTED in the embedding (that is where it is visible) but every cell is CHARACTERISED
+> and acted on in marker space, so a rule is a statement about measurements and the tidier picture
+> is a consequence, never the target.
+
+`refine.py` builds **no embedding at all** — nothing downstream of it needs one. The only surviving
+trace of the UMAP is the directory the recovered log sits in.
+
+**Step 1 was accepted at 11.51 % → 10.44 %.** Sourcing, because the two numbers do not come from the
+same place: the 2026-09-11 record carries step 1 as `total_scattered_pct: 10.44` with
+`accepted: true`. It has **no step-0 entry**, so the 11.51 % pre-pass figure is not in it — that one
+is the recovered run's own record, carried in `REFINEMENT.md` section 7. (Both are quoted here as
+history; that file is refused as an input — see the note above.)
+
+**Step 2 was run, rejected and rolled back at 10.32 %.** The record carries it with
+`accepted: false` and the reason verbatim:
+
+> Re-applying the step-1 rule to an already-cleaned population is a ratchet, not a new cause. The
+> cells it removes carry 3+ SD of their own defining marker and lie above the Exocrine 95th
+> percentile in 91-100% of cases (Nerve +3.00 SD 100%, Delta +3.52 100%, Alpha +3.31 100%, Beta
+> +3.60 100%, Blood vessel +1.37 91%), for a 0.12 percentage-point gain in scatter (10.44% ->
+> 10.32%). Only Lymphatic's removed cells were genuinely marginal (median Podoplanin +0.86 SD, 0%
+> above Exocrine p95). Rolling back; the refinement converged at step 1.
+
+Section 6's floor is the mechanism behind that record: a percentile bound cuts about 5 % of a class
+every time it is applied, so iteration converges on nothing and keeps cutting. The module **encodes**
+the single pass rather than documenting it — no `step`, `passes`, `iterations` or `prev` argument
+exists on any public function, and `apply_once` / `refine_donor` raise `RefinementAlreadyApplied`
+when handed labels already carrying `Unresolved (no lineage evidence)` or a frame already carrying
+`refined_class` / `refine_pass`.
+
+**Do not read 11.51 → 10.44 as a property the pass must reproduce.**  [measured 2026-09-18]
+At cohort scale the total can rise: 4.90 → 4.87 % on 6539, but **4.05 → 4.68 %** on 6450 and
+**5.05 → 5.69 %** on 6505. Per class on 6539 every class improves (Immune 29.9 → 21.3 %, Lymphatic
+31.0 → 21.5 %, Blood vessel 10.6 → 6.1 %, Alpha 14.8 → 9.4 %) while Exocrine worsens (1.1 → 1.8 %)
+because demoted cells from other classes land in it, and `Unresolved` is 26.6 % scattered by
+construction — it is by definition the cells with the least evidence. A rising total is not a
+failure of the rule, and a falling one is not a verification of it. **No result here is a
+verification target.**
+
+---
+
+**Documenting the refinement is not applying it.** Everything in these three subsections describes
+`refine.py` and the 2026-09-11 recovered run. `refined_class` still has **zero consumers**, no cell
+in `typing/cells/` carries `Unresolved (no lineage evidence)` or any `refined_*` column,
+`immune_leaf` exists on no cell on disk, and `build_cells.py --refine <dir>` has not been run. What
+is on disk is the 2026-09-15 build: eight classes plus `Excluded`.
 
 ## The gate, 2026-09-15  [ON DISK]
 

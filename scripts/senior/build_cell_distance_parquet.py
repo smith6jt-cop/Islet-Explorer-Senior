@@ -56,10 +56,19 @@ import h5py
 import numpy as np
 import pandas as pd
 
-DATA = Path(__file__).resolve().parents[2] / "data"
+REPO = Path(__file__).resolve().parents[2]
+DATA = REPO / "data"
+
+# The correction banner above says this lane is retired; a banner is prose and prose does not
+# stop a read. The gated root it joins its ten `_pos` booleans from is still on disk, so this
+# file could still be run and would still write an artifact out of a convention this project
+# retired on 2026-08-14. The registry refuses it by name, with the measured counts and what to
+# build instead.
+sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+from superseded import refuse_if_superseded  # noqa: E402
+
 CELLS_ROOT = DATA / "cells"                          # donor_id=<case>/*.parquet (dist + object_id)
 TISSUE_ROOT = DATA / "parquet" / "tissue"            # case_id=<case>/*.parquet (phenotype)
-GATED_ROOT = DATA / "restore_gated_redsea"           # donor_id=<case>/*.parquet ({m}_pos)
 OUT_ROOT = DATA / "parquet" / "cell_distance"        # case_id=<case>/part-0.parquet (this script)
 STATUS_H5AD = DATA / "islets_core_senior.h5ad"       # imageid -> donor_status map (tiny, per-islet)
 
@@ -69,6 +78,20 @@ POS_COLS = [f"{m}_pos" for m in POS_MARKERS]
 
 COORD_TOL_UM = 1.0        # per-row |Δ| tolerance between cells/tissue coordinates
 MIN_AGREE_FRAC = 0.999    # abort a donor if fewer rows than this agree within COORD_TOL_UM
+
+
+def refuse_the_retired_restore_root() -> Path:
+    """Raise, naming the retired flat root this lane joined its `_pos` booleans from.
+
+    The name of that root appears in this file ONCE, here, inside a function that cannot return.
+    That is deliberate: a module-level constant holding it is a loaded gun, because everything
+    downstream then only has to spell the constant. Every former use of it now calls this, so
+    the read cannot be reached at all, and the message carries the measured counts and names
+    what to build instead. Nothing on disk is deleted; it is refused.
+    """
+    root = DATA / "restore_gated_redsea"
+    refuse_if_superseded(root)
+    raise AssertionError(f"unreachable: {root} is registered as superseded")  # pragma: no cover
 
 
 def read_obs_series(f: h5py.File, key: str) -> np.ndarray:
@@ -127,17 +150,14 @@ def process_donor(case: str, status: str) -> tuple[int, int, pd.DataFrame]:
         sys.exit(f"[cell_distance][{case}] COORD AGREEMENT {agree:.4f} < {MIN_AGREE_FRAC} — cells/tissue no longer row-aligned; aborting")
     cells["phenotype"] = tissue["phenotype"].to_numpy()   # positional attach (order preserved)
 
-    # RESTORE _pos by object_id (unique key → merge preserves cells order).
-    gdir = GATED_ROOT / f"donor_id={case}"
-    if gdir.exists():
-        gated = read_parquet_ordered(gdir, ["object_id"] + POS_COLS)
-        merged = cells.merge(gated, on="object_id", how="left")
-        n_pos_matched = int(merged[POS_COLS[0]].notna().sum())
-    else:
-        merged = cells.copy()
-        for c in POS_COLS:
-            merged[c] = False
-        n_pos_matched = 0
+    # RESTORE _pos by object_id (unique key → merge preserves cells order). Refused before the
+    # join. The branch that used to stand here filled all ten `_pos` columns with False when the
+    # root was missing, which reads an unmeasured cell as a negative one -- a missing measurement
+    # is unavailable, not zero -- so it is gone rather than left behind a refusal that hides it.
+    gdir = refuse_the_retired_restore_root() / f"donor_id={case}"
+    gated = read_parquet_ordered(gdir, ["object_id"] + POS_COLS)
+    merged = cells.merge(gated, on="object_id", how="left")
+    n_pos_matched = int(merged[POS_COLS[0]].notna().sum())
 
     out = pd.DataFrame({
         "donor_status": pd.Categorical([status] * len(merged)),
@@ -155,10 +175,11 @@ def main() -> None:
     ap.add_argument("--donor", action="append", help="limit to these case ids (repeatable)")
     args = ap.parse_args()
 
-    if not CELLS_ROOT.exists() or not TISSUE_ROOT.exists():
+    # Before the existence checks, before the status map, before anything is written.
+    refuse_the_retired_restore_root()
+
+    if not CELLS_ROOT.exists() or not TISSUE_ROOT.exists():  # pragma: no cover - unreachable
         sys.exit(f"[cell_distance] need both {CELLS_ROOT} and {TISSUE_ROOT}")
-    if not GATED_ROOT.exists():
-        print(f"[cell_distance] WARNING: {GATED_ROOT} missing — all _pos will be FALSE (marker modes empty)")
 
     status_map = build_status_map()
     cells_cases = {p.name.split("=", 1)[1] for p in CELLS_ROOT.glob("donor_id=*")}

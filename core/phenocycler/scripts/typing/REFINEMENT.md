@@ -299,9 +299,15 @@ Cells the pass does not act on, and why:
 4. **`Unresolved (no lineage evidence)` is a new class value.** Two of the three consumers have
    since been told, on 2026-09-18: `build_cells.py`'s `DISPLAY` map carries it (→ `Unresolved`)
    and the app's `run20_default.yml` enumerates it as a ninth entry that is an absence of a call,
-   not a ninth cell type. **`trajectory_singlecell_features.py` has not been told** — it still
-   reads the 2026-09-11 `umap/refinement_log.json` for its `own_markers` table, not `refine.py`'s
-   `refine_log.json`. None of those files belongs to this module.
+   not a ninth cell type. **`trajectory_singlecell_features.py` HAS now been told, 2026-09-19** —
+   it loads `refine.OWN_MARKERS` by file path and no longer reads the 2026-09-11
+   `umap/refinement_log.json` at all; that file now refuses to be read. Verified at runtime that
+   the two names are the same object, so the table cannot drift into a copy.
+
+   What is NOT closed, and is reported rather than fixed: 13 of that module's 38 markers still
+   come only from `subpanel/subpanel_log.json`, which has no producer either — 688 bytes, written
+   2026-09-11 14:10, 32 minutes after the orphan just closed. None of those files belongs to
+   this module.
 
    Being told is not being wired: no cell carries the value today, because the pass has not been
    joined into a build. See the status banner at the top of this file.

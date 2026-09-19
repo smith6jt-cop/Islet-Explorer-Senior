@@ -57,7 +57,13 @@ Run in the `scvi-env` conda env (scvi-tools 1.4, torch+cuda). GPU: RTX 4000 Ada.
     python scripts/senior/train_scvi_senior.py           # full 23.28M-cell, 400-epoch run
 """
 import argparse
+import sys
 from pathlib import Path
+
+# The banner above records this lane as retired; a banner does not stop a read. The registry
+# does, by name and with the measured counts -- core/phenocycler/scripts/typing/superseded.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core/phenocycler/scripts/typing"))
+from superseded import refuse_if_superseded  # noqa: E402
 
 import anndata as ad
 import h5py
@@ -87,6 +93,9 @@ def _overlay_corrected_mfi(a, obj_ids, corrected_dir, markers):
     object_id from data/cells_redsea/donor_id=*/*.parquet. Off unless requested;
     raises loudly on any misalignment so a bad join can never silently ship."""
     corrected_dir = Path(corrected_dir)
+    # `--corrected-mfi-dir data/cells_redsea` is what the docstring above still recommends.
+    # That root is retired; the refusal names it and says what replaced it.
+    refuse_if_superseded(corrected_dir)
     files = sorted(corrected_dir.glob("donor_id=*/*.parquet"))
     if not files:
         raise FileNotFoundError(f"--corrected-mfi-dir {corrected_dir} has no donor_id=*/*.parquet")

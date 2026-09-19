@@ -133,6 +133,18 @@ sys.path.insert(0, str(REPO))
 from scripts.senior import xenium_release
 from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
+# The refusal below is no longer this builder's own. It comes from the one table that knows
+# which artifacts are superseded -- core/phenocycler/scripts/typing/superseded.py -- so that a
+# path this builder has never heard of is still refused by the same measured counts, and so
+# that a second reader does not have to copy the message to get it right.
+sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+from superseded import (  # noqa: E402
+    SupersededArtifactError,
+    refuse_if_superseded,
+)
+from superseded import notice as superseded_notice  # noqa: E402
+from superseded import match as superseded_match  # noqa: E402
+
 TYPING = REPO / "data" / "development" / "typing"
 INTEGRATION = REPO / "core" / "phenocycler" / "data" / "integration"
 XEN_CELLS = INTEGRATION / "cells_xen"
@@ -228,11 +240,13 @@ XEN_PANC_STRUCTURES_WITHOUT_OUTLINE = "xenium_panc_islet_structures_carry_no_out
 #: centroid column is deliberately NOT here: a point is not a border.
 XEN_BORDER_COLUMNS = ("wkb", "geometry", "outline_wkb", "border_wkb")
 
-SUPERSEDED = (
-    "Refusing superseded typing/subpanel/subpanel_calls.parquet: "
-    "Beta 191,485 / Alpha 246,055 / Delta 62,797; "
-    "current typing/cells has Beta 226,183 / Alpha 279,686 / Delta 90,658. "
-    "Use typing/cells and typing/islet_membership."
+#: Kept as a name, but the text is now DERIVED from the shared registry rather than restated
+#: here. The counts in it -- 25,150,537 rows against 25,230,109, endocrine
+#: Beta 191,485 / Alpha 246,055 / Delta 62,797 against Beta 226,183 / Alpha 279,686 / Delta 90,658
+#: -- live in exactly one place, so they cannot drift between the two readers that quote them.
+SUPERSEDED = superseded_notice(
+    superseded_match("data/development/typing/subpanel/subpanel_calls.parquet"),
+    "data/development/typing/subpanel/subpanel_calls.parquet",
 )
 CROSS_TISSUE = (
     "Refusing a signed distance to an islet for roi={roi!r}{tissue}: the pancreas "
@@ -313,10 +327,15 @@ STATUS_ALIAS = {"ND": "ND", "AAB": "Aab+", "AAB+": "Aab+", "AAB_PLUS": "Aab+",
 
 
 def refuse_superseded(path: str | Path) -> None:
-    """Reject the old input before any existence, schema, or output checks."""
-    path = Path(path)
-    if any(p.name == "subpanel_calls.parquet" for p in (path, path.resolve())):
-        raise ValueError(SUPERSEDED)
+    """Reject a superseded input before any existence, schema, or output checks.
+
+    Delegates to the shared registry, which matches by full path, by basename and by what a
+    symlink resolves to, and which raises ``SupersededArtifactError`` -- a ``ValueError``, so
+    every existing caller and test keeps working. This used to know about exactly one filename;
+    it now knows about all of them, including the ``cells_redsea*`` / ``restore*`` roots and the
+    historical ``data/runs/`` tree, without this file listing any of them.
+    """
+    refuse_if_superseded(path)
 
 
 def refuse_cross_tissue_distance(roi: str, tissue: str | None = None) -> None:

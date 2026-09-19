@@ -43,16 +43,36 @@ Run in `scvi-env` (or `scimap`).
 from __future__ import annotations
 import argparse
 import glob
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import anndata as ad
 
-SD = Path(__file__).resolve().parents[2] / "data"
+REPO = Path(__file__).resolve().parents[2]
+SD = REPO / "data"
+
+# The banner above records this lane as retired; a banner does not stop a read. The registry
+# does, by name and with the measured counts -- core/phenocycler/scripts/typing/superseded.py.
+sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+from superseded import refuse_if_superseded  # noqa: E402
+
 IN = SD / "singlecell_protein.h5ad"
 BROAD = SD / "phenotype" / "broad"
 OUT = SD / "singlecell_protein_phenotyped.h5ad"
+
+
+def refuse_the_retired_redsea_root() -> Path:
+    """Raise, naming the retired flat root this lane joined its corrected MFI from.
+
+    The name appears in this file ONCE, here, inside a function that cannot return, so nothing
+    downstream can reach it by spelling a constant. The message carries the measured counts and
+    names what to read instead; nothing on disk is deleted.
+    """
+    root = SD / "cells_redsea"
+    refuse_if_superseded(root)
+    raise AssertionError(f"unreachable: {root} is registered as superseded")  # pragma: no cover
 
 
 def load_broad(broad_dir: Path) -> pd.DataFrame:
@@ -71,6 +91,12 @@ def main(argv=None):
     ap.add_argument("--broad", type=Path, default=BROAD)
     ap.add_argument("--out", type=Path, default=OUT)
     a = ap.parse_args(argv)
+
+    # Before the h5ad is opened, before any existence check. This producer's whole job is to
+    # bake the corrected MFI in from a retired flat root, so it cannot run at all -- and a
+    # refusal that arrives after a FileNotFoundError about a different input is a refusal the
+    # reader never sees.
+    refuse_the_retired_redsea_root()
 
     adata = ad.read_h5ad(a.inp)
     oid = (adata.obs["Object ID"].astype(str).to_numpy() if "Object ID" in adata.obs
@@ -97,10 +123,13 @@ def main(argv=None):
     # the scVI input (raw/X), the per-cell latent, and aggregate_islets' row-order attach all key
     # off exactly these rows. train_scvi_senior.py / extract_islet_cells.py read raw/X + raw/var
     # (neither build set .raw before) and aggregate_islets reads a.raw.X — all now = corrected MFI.
-    markers = list(adata.var_names)                       # 58 common; identical in cells_redsea
-    red_files = sorted(glob.glob(str(SD / "cells_redsea" / "donor_id=*" / "data_0.parquet")))
-    if not red_files:
-        raise FileNotFoundError(f"no cells_redsea parquet under {SD/'cells_redsea'} — run redsea_full.py")
+    markers = list(adata.var_names)                       # 58 common; identical in the old root
+    # Refused before the glob. The FileNotFoundError that used to stand here said "run
+    # redsea_full.py", which would have sent the reader off to REBUILD the retired root.
+    red_dir = refuse_the_retired_redsea_root()
+    red_files = sorted(glob.glob(str(red_dir / "donor_id=*" / "data_0.parquet")))
+    if not red_files:  # pragma: no cover - unreachable
+        raise FileNotFoundError(f"no corrected-MFI parquet under {red_dir}")
     cor = pd.concat([pd.read_parquet(f, columns=["object_id", *markers]) for f in red_files],
                     ignore_index=True)
     cor["object_id"] = cor["object_id"].astype(str)

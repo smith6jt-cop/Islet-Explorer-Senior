@@ -16,6 +16,17 @@ Exocrine demotion is the percentile relabelling a fixed share of the class by co
 That is an OPEN QUESTION for the maintainer, not a decision this module makes; it implements
 the recovered rule and reports the floor in every log.
 
+THE ORPHAN IT REPLACES IS CLOSED (2026-09-19).  The recovered run's outcome was written to
+``data/development/typing/umap/refinement_log.json``, a file NOTHING in this repository
+produces, and until 2026-09-19 ``trajectory_singlecell_features.py`` parameterised its entire
+feature set from it -- superseded work used as a live input.  That file is now refused: this
+module installs a process-wide guard at import, so any read of it from any code raises
+:class:`SupersededRefinementLog` naming its date, the absence of a producer, the rejected step
+2 it carries, its subsample counts against the cohort's, and what to read instead.  Nothing is
+deleted; the record stays on disk and stops being an input.  :data:`OWN_MARKERS` here is the
+committed authority for the defining-marker table, and it is identical to the one that file
+carries (checked 2026-09-19, both steps, all eight classes).
+
 RECOVERED, NOT REDESIGNED.  This module is the 2026-09-11 refinement pass made maintainable.
 The rule, the constants and the routing are the code as it ran; what is new here is the scale
 it runs at (the cohort, not a 320,000-cell subsample), the per-donor / per-stratum fitting the
@@ -98,6 +109,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 import time
@@ -167,6 +179,155 @@ DROP_PROVENANCE = "refused_reagent_change"
 
 SHIFTS = S.REPO / "data/development/celltype/shifts.json"
 CELLS = S.OUT / "cells"
+
+# --------------------------------------------------- the 2026-09-11 orphan, made unreadable
+#
+# THE ARTIFACT :data:`OWN_MARKERS` WAS RECOVERED FROM, AND WHY IT IS NOT AN INPUT.
+#
+# ``data/development/typing/umap/refinement_log.json`` was written 2026-09-11 13:38 by the
+# recovered run, at a time when NO PRODUCER for it existed anywhere in the repository -- that
+# is the failure this module was written to end.  It is kept on disk because it is the only
+# surviving record of that run and of the step-2 rejection, and this lane deletes no data.  It
+# is a RECORD.  It is not a parameter table, and until 2026-09-19 it was being read as one:
+# ``trajectory_singlecell_features.py`` parameterised its whole feature set from it.
+#
+# Three separate reasons it may not be read as an input, each measured:
+#
+#   1. No producer.  Nothing in the repository writes it, so nothing can rebuild it, and a
+#      parameter you cannot rebuild is not a parameter.  ``refine.py --out <dir>`` writes
+#      ``refine_log.json``; that is a run's outcome and it has a producer.
+#   2. It carries TWO steps and step 2 is ``"accepted": false`` -- rejected on the recovered
+#      run, with the reason recorded in the file itself.  A reader that iterates its steps
+#      reads the rejected one, and the old reader did exactly that.
+#   3. Its counts are the 2026-09-11 320,000-cell subsample (Exocrine n=236,927, Immune
+#      n=26,433, Blood vessel n=34,684, Nerve n=2,073).  The cohort is 25,230,109 cells over
+#      20 donors in ``typing/cells/``, written 2026-09-15.  Quoting the file's numbers as
+#      cohort numbers is off by two orders of magnitude.
+#
+# The defining-marker table it carries is identical to :data:`OWN_MARKERS` (checked
+# 2026-09-19, both steps, all eight classes, marker for marker).  That is why closing this
+# read changes no feature and no call -- and it is exactly why the read had to be closed while
+# it still changes nothing, rather than after ``OWN_MARKERS`` moves.
+#
+# TWO GUARDS, NEITHER REDUNDANT.  Since 2026-09-19 ``subpanel_io`` hands out ``OUT`` and
+# ``RUN`` as ``superseded.GuardedPath``, so every path this lane BUILDS from them refuses the
+# registered artifacts, this file among them.  The hook below is the other half: it catches a
+# literal path -- ``Path("/home/.../umap/refinement_log.json").read_text()``, a hard-coded
+# string, a path from a config -- which never passes through a ``GuardedPath`` at all.  The
+# two cover different routes to the same file and are deliberately kept separate.
+SUPERSEDED_REFINEMENT_LOG = S.OUT / "umap/refinement_log.json"
+
+SUPERSEDED_REFINEMENT_LOG_REFUSAL = (
+    "Refusing data/development/typing/umap/refinement_log.json. "
+    "WRITTEN 2026-09-11 13:38, and it HAS NO PRODUCER in this repository: nothing writes it, "
+    "so nothing can rebuild it. It is a record of the recovered run, never an input. "
+    "It also carries two steps and step 2 is \"accepted\": false -- rejected on that run -- so "
+    "a reader that walks its steps reads a rejected step. Its counts are the 320,000-cell "
+    "subsample (Exocrine n=236,927, Immune n=26,433, Blood vessel n=34,684, Nerve n=2,073); "
+    "the cohort is 25,230,109 cells over 20 donors in data/development/typing/cells/, written "
+    "2026-09-15. "
+    "READ INSTEAD: core/phenocycler/scripts/typing/refine.py -- OWN_MARKERS is the committed "
+    "defining-marker table (identical to this file's, checked 2026-09-19) and "
+    "UNRESOLVED/UNTOUCHED are the committed class vocabulary; "
+    "core/phenocycler/scripts/typing/REFINEMENT.md for what the pass does, what it measured at "
+    "cohort scale and which decisions are still open; and the refine_log.json that "
+    "`refine.py --out <dir>` writes for a run's outcome. "
+    "The file stays on disk. It is not readable as an input."
+)
+
+
+class SupersededRefinementLog(RuntimeError):
+    """Raised on any attempt to read the 2026-09-11 orphan refinement log.
+
+    Carries :data:`SUPERSEDED_REFINEMENT_LOG_REFUSAL`, which names the file, its date, the
+    fact that it has no producer, the rejected step it carries, its subsample counts against
+    the cohort's, and what to read instead.  A silent fallback to the orphan is the defect
+    this class exists to convert into a loud failure.
+    """
+
+
+def _is_superseded_refinement_log(path: object) -> bool:
+    """True for the orphan log, however it is spelled -- str, bytes, Path, relative.
+
+    Matched by SHAPE (``<anything>/umap/refinement_log.json``) rather than by one absolute
+    path, so a copy of the file refuses too; a relative open is resolved against the working
+    directory first, because ``open("refinement_log.json")`` from inside ``umap/`` is the same
+    read.  The basename test is the only cost an unrelated ``open`` pays.
+    """
+    if isinstance(path, int):            # an already-open fd; nothing to match on
+        return False
+    try:
+        text = os.fsdecode(path)
+    except TypeError:
+        return False
+    if not text.replace("\\", "/").endswith("refinement_log.json"):
+        return False
+    p = pathlib.Path(text)
+    if not p.is_absolute():
+        p = pathlib.Path.cwd() / p
+    return p.parent.name == "umap"
+
+
+def refuse_superseded_refinement_log(path: object) -> None:
+    """Refuse, by name, to read the 2026-09-11 orphan refinement log.
+
+    The named authority for that refusal.  Other lanes import THIS rather than restating the
+    path or the reason, so there is one place that knows why the file is closed.
+    """
+    if _is_superseded_refinement_log(path):
+        raise SupersededRefinementLog(SUPERSEDED_REFINEMENT_LOG_REFUSAL)
+
+
+#: `open` modes that only READ.  The audit hook refuses these and nothing else.
+_READ_MODES = frozenset({"r", "rb", "rt", "br", "tr"})
+
+
+def _refusal_audit_hook(event: str, args: tuple) -> None:
+    """Refuse a READ of the orphan.  Never a write, and this is not a detail.
+
+    The refusal's own premise is that the file HAS NO PRODUCER, and the remedy superseded.py
+    names is "either commit the producer, or make the read refuse".  A hook that refused every
+    mode made the first remedy impossible from any process that imports this module: measured
+    2026-09-19, modes 'w', 'a', 'x' and 'r+' all raised and no file was created.  A guard that
+    blocks the fix it demands is not a guard.
+    """
+    if event != "open":                  # one string compare on every other audited event
+        return
+    mode = args[1] if len(args) > 1 else "r"
+    if mode is None:                     # os.open and friends pass no textual mode
+        mode = "r"
+    if isinstance(mode, str) and mode not in _READ_MODES:
+        return                           # a write, an append or an update -- let it through
+    refuse_superseded_refinement_log(args[0])
+
+
+def install_refusal_hook() -> bool:
+    """Make the orphan refuse to be read ANYWHERE in this process, not just here.
+
+    A guard only the callers who remember to call it reach is not a closed door.  This adds a
+    process-wide audit hook, so ``open()``, ``os.open()`` and ``pathlib.Path.read_text()`` on
+    ``umap/refinement_log.json`` raise :class:`SupersededRefinementLog` from whatever code
+    attempts them -- including code written later that never heard of this module.
+
+    Installed at import, once, and NOT removable: an escape hatch is how the file would come
+    back as an input.  Anything that genuinely needs the bytes (an archive, a forensic read of
+    the recovered run) copies them outside Python or from a process that does not import this
+    lane; the hook's blast radius is exactly the refinement lane, on purpose.
+
+    Cost, measured 2026-09-19 on this machine: 3.1 % over 20,000 ``open()`` calls (0.187 s ->
+    0.193 s), about 0.3 us per audited event.  Bulk reads here go through pyarrow's C++ IO and
+    raise no ``open`` event at all.
+    """
+    global _HOOK_INSTALLED
+    if _HOOK_INSTALLED:
+        return False
+    sys.addaudithook(_refusal_audit_hook)
+    _HOOK_INSTALLED = True
+    return True
+
+
+_HOOK_INSTALLED = False
+install_refusal_hook()
 
 
 class RefinementAlreadyApplied(RuntimeError):

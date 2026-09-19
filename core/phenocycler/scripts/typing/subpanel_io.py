@@ -29,9 +29,27 @@ from the values the classification was made on.
 from __future__ import annotations
 
 import pathlib
+import sys
 
 import numpy as np
 import pandas as pd
+
+# The one table of superseded artifacts, and the refusal that comes with it.  It is imported
+# here, rather than by each of the thirty-three modules that read through this one, because the
+# paths below are what those modules compose everything else from: publishing OUT and RUN as
+# guarded paths attaches the refusal to the ARTIFACT instead of to the readers, and a reader
+# added tomorrow is covered without knowing this module exists.  See superseded.py's own
+# docstring for the two severities and the single allowed reader.
+_HERE = str(pathlib.Path(__file__).resolve().parent)
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+import superseded as SUPERSEDED  # noqa: E402
+from superseded import (  # noqa: E402  -- re-exported so `S.refuse_if_superseded(p)` works
+    SupersededArtifactError,
+    guarded,
+    is_superseded,
+    refuse_if_superseded,
+)
 
 REPO = pathlib.Path(__file__).resolve().parents[4]
 
@@ -42,10 +60,25 @@ REPO = pathlib.Path(__file__).resolve().parents[4]
 #: through :func:`cell_source` instead.
 RUN_ID = "30f6689e4d27d295f890"
 
-RUN = REPO / "core/phenocycler/data/runs" / RUN_ID
+#: GUARDED.  Reading anything under the historical run tree prints the full superseded notice
+#: to stderr once per process -- what it is, when the run framework was removed, what replaced
+#: it, and what to read instead.  It ANNOUNCES rather than refuses because the 20-donor cohort
+#: expression output exists nowhere else; refusing it would stop the typing lane, which is a
+#: method decision and not this module's to make.  Loud, not silent, is the requirement.
+RUN = guarded(REPO / "core/phenocycler/data/runs" / RUN_ID)
 ALIGNED = REPO / "data/development/celltype/uniform"
+#: NOT superseded, though it sits inside the withdrawn producer comparison's tree: this is the
+#: cohort floor/top per marker that the classification on disk was made on, and
+#: `superseded.EXEMPT` names it so no prefix can sweep it up.
 SCALE_CSV = REPO / "data/development/broadtype/scratch/cosine_scale.parquet"
-OUT = REPO / "data/development/typing"
+
+#: GUARDED, and this is the one that matters.  Every module in this lane composes its paths from
+#: `S.OUT`, so every one of them now refuses the superseded artifacts under it without calling
+#: anything: `S.OUT / "umap/refinement_log.json"` raises on open, naming the 2026-09-11 file, the
+#: fact that nothing in the repo produces it, and what to read instead.  `S.OUT / "cells"`,
+#: `S.OUT / "subpanel/subpanel_log.json"` and the rest are untouched -- the registry names
+#: artifacts, not directories it happens to be able to reach.
+OUT = guarded(REPO / "data/development/typing")
 GEOJSON = pathlib.Path.home() / "IO60panc2nd/results/Geojson"
 
 #: Islet outlines, read from the QuPath export where they LAND -- the same place every other
