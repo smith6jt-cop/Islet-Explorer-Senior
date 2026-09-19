@@ -17,8 +17,11 @@ same `results/Geojson/` objects the classification used, so the intersection is 
 QuPath itself drew. Both are in pixels; the ratio is dimensionless, so no conversion is needed --
 but `cell_um2` is converted, as a cross-check against QuPath's own reported area.
 
-Scope: islet-core and peri-islet cells, the population the study question is about. Extending to
-the whole tissue is the same code over ~13.4 M cells instead of 800 k.
+Scope: EVERY admitted cell in the tissue. This is an input to the structure call, which is asked
+of every cell -- a vessel runs where it runs -- so a scope that stopped at the islet expansion
+left most of the tissue with no overlap measurement and made the majority-area test unanswerable
+there. It was islet-core and peri-islet until 2026-09-19; that was a limit of this producer's run,
+never a property of the rule.
 
     python core/phenocycler/scripts/typing/build_crossed_fraction.py [--donors 6539]
 """
@@ -122,14 +125,23 @@ def covered_fraction(tree, geoms: list, outline, cell_area: float) -> float:
     return float(unary_union(pieces).area) / cell_area
 
 
-def islet_cells(donor: str) -> pd.DataFrame:
+def measured_cells(donor: str) -> pd.DataFrame:
+    """EVERY cell of this donor the analysis admits -- not only the islet-associated ones.
+
+    The overlap fraction is an input to the STRUCTURE CALL, which is asked of every cell in the
+    tissue: a blood vessel, nerve or lymphatic runs wherever it runs, and whether the majority of
+    a cell's area lies inside one is a question about that cell, not about its distance from an
+    islet.  Restricting this to islet core and expansion left every other cell with NO overlap
+    measurement, and a cell with no measurement cannot be asked the majority question at all --
+    so the rule could not be applied where most of the tissue is.
+
+    `Excluded` cells stay out: they are excluded from every calculation.
+    """
     cells = pq.read_table(
         S.OUT / f"cells/donor_id={donor}/data.parquet",
         columns=["object_id", "cell_class", "cell_region_20um", "islet_key", "phenotype"],
     ).to_pandas()
-    return cells[(cells["cell_class"] != "Excluded")
-                 & cells["cell_region_20um"].isin(["core", "expansion"])
-                 & cells["islet_key"].notna()]
+    return cells[cells["cell_class"] != "Excluded"]
 
 
 def main() -> int:
@@ -148,7 +160,7 @@ def main() -> int:
     for donor in donors:
         started = time.time()
         target = OUT / f"crossed_{donor}.parquet"
-        cells = islet_cells(donor)
+        cells = measured_cells(donor)
         wanted = set(cells["object_id"])
         if target.exists() and not args.force:
             # A present file is left alone only if it measures THE CELLS THAT ARE THERE NOW.

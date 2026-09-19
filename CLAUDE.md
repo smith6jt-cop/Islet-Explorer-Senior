@@ -82,7 +82,52 @@ under the repo-root `data/development/` — a level above `core/`.
 
 The current typing is the **subpanel classification**: context from QuPath objects, then one
 question per context answered by the markers that can answer it, against reference levels drawn from
-the ordinary tissue. **25,230,109 cells, all 20 donors, in `data/development/typing/cells/`.**
+the ordinary tissue.
+
+A **reference level** is the p99 of that marker set's max over the reference population — that
+donor's cells in no pixel-classified object and outside every islet — and it is **fitted per
+donor**. Pooling was measured wrong on 2026-09-15: the hormone level spreads 19.5x across donors
+and separates by acquisition batch (batch 1 median 0.0418, batch 2 0.3167). The four pooled levels
+(hormone 0.1010, Nerve 0.2272, Lymphatic 0.1776, Blood vessel 0.3073) belong to the OLD table and
+survive only so `subpanel.py --gate` can reproduce it.
+
+**The islet chain**, for a cell inside an islet outline, after the maintainer's ruling of
+2026-09-18:
+
+1. **Structure** — four steps, in order, none sufficient alone. (a) the cell's centroid is exactly
+   inside the object's bounds; (b) **the whole cell is then checked — the majority of the cell's
+   area must lie within the object**, which is what makes it a candidate; (c) the marker that
+   *created* the object is simply higher than all the rest (`Nerve → B3TUBB`, `Lymphatic →
+   Podoplanin`, `Blood vessel → Caveolin, CD34` — three objects, four markers); (d) otherwise
+   **passthrough, carrying the fraction of the cell's area the object covers**, not a boolean.
+   A vessel crossing a cell does not make the cell a vessel. Step (b) is the test that separates
+   the two and it was absent from the code until 2026-09-19. Do not re-derive this rule or restate
+   it as a choice — it is settled, and `structure-call-rule` in memory has the maintainer's words.
+2. **Exocrine inside an islet is an annotation error** — `Excluded`, with the reason on the row.
+3. **CD99 is the key differentiator**, at a level fitted **per donor and per size stratum** (1 /
+   2–3 / 4–10 / >10 admitted cells per islet) from that donor-and-stratum's hormone-confirmed
+   cells. A **floor guard** refuses a level at or below the feature's own floor (0.0 for a scaled
+   marker, 1.0 for an elongation that is a diameter ratio) and returns it UNAVAILABLE, because
+   `apply_scale` clips at background and a low quantile of a population sitting there returns 0.0,
+   which admits every measured cell while looking fitted. The donor's ordinary-tissue CD99 level is
+   carried alongside as `donor_reference_level` and **reported, never substituted** for the
+   per-stratum level.
+4. **Elongation is a second route and can only add** — a cell CD99 does not reach can still be
+   endocrine if its nucleus is as elongated as that stratum's confirmed endocrine cells. Large
+   stratum only (strictly more than 10 admitted cells), barred below it. It is
+   `nucleus_elongation`, not a cell-boundary feature: cell circularity runs 0.514–0.523 across every
+   class, a tessellation artefact.
+5. **CD99 decides *whether*, never *which*.** The name is the hormone argmax over INS/GCG/SST, and
+   at least one hormone must have been READ before anything may name a cell — an argmax over three
+   NaNs returns index 0, "Beta", every time.
+6. **Not endocrine** takes the ordinary chain: immune definitions, the supporting tier, then
+   Exocrine.
+
+**What is on disk is older than that chain.** `data/development/typing/cells/` is the 2026-09-15
+build — **25,230,109 cells, all 20 donors**, eight classes plus `Excluded`, no CD99 question and no
+`Unresolved`. The chain above is proven on three donors (115, 6442, 6534) and **no donor has been
+re-run with it**. `RECONSTRUCTION.md` marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the
+mark before quoting it.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation and must not
 be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against `typing/cells/`'s
@@ -94,6 +139,25 @@ counts in the error.
 
 - **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
+- **Immune subtyping is a second pass over the `Immune` class only**
+  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898 Immune cells). It
+  never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
+  outcome, distinct from "no rule fired"; reduced rules are reported on every donor and never
+  written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No app
+  artifact reads `typing/immune`** — the four app builders contain no reference to it, and coverage
+  comes from each builder's own `COHORT.resolve`.
+- **The refinement pass is written and not wired.** `scripts/typing/refine.py`
+  (concordance / demotion / immune leaf, documented in `REFINEMENT.md`) writes a keyed sidecar;
+  `refined_class` has zero consumers. Its marker set is 54, not 21, and its 5th-percentile bound
+  demotes about 5% of every class by construction. That is an **open question, not a decision**.
+- **The ninth class is declared and nothing produces it.** `Unresolved (no lineage evidence)` is in
+  `apps/islet/config/run20_default.yml`; its only producer would be `refine.py`, which is not wired,
+  so no cell on disk carries it.
+- Still open, and not to be resolved in prose: the refinement, elongation's weight, and the size
+  stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
+  outputs under `data/development/typing/islet_identity/`); in the large stratum 14 of 20 donors
+  were testable, and CD99 is the strongest feature at 5 of 10 donors firing. That is evidence about
+  the question, not an answer to it.
 - It is a **development lane**. Nothing here is a release, and the latch stays down.
 - Retired, and not to be revived as fallbacks: RESTORE pair webs, hierarchical / simultaneous /
   probabilistic typing, marker-debug and Otsu lanes, the Gate 2–5 apparatus, the broad-typing
@@ -101,8 +165,9 @@ counts in the error.
 - **Never claim acinar or ductal.** The 60-plex carries no amylase, trypsin, CPA1 or elastase, and
   no CK19, CA19-9, SOX9, HNF1B, CFTR or MUC1. Exocrine is one label.
 
-Authoritative documentation: `core/phenocycler/README.md`, `docs/WORKFLOW.md`, `DATA_README.md`,
-`docs/METHOD_HISTORY.md`; and at repo level `docs/WORKFLOW_2026-09-02_MAP.md` (what runs today),
+Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `DATA_README.md`,
+`docs/WORKFLOW.md`, `docs/METHOD_HISTORY.md`; and at repo level `docs/WORKFLOW_2026-09-02_MAP.md`
+(what runs today),
 `docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`, `docs/EXTERNAL_PACKAGES.md`.
 
 ## The app

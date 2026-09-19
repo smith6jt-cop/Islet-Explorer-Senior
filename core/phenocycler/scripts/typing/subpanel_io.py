@@ -5,12 +5,20 @@ module was written, so it is a reconstruction rather than a reimplementation:
 
     celltype/uniform/donor_id=<d>/data.parquet      UniFORM-aligned per-cell values
       -> apply_scale(floor, span)                   broadtype/scratch/cosine_scale.parquet
-      -> reference level = pooled p99 of max(subpanel) over cells in NO classified object
+      -> reference level = p99 of max(subpanel) over cells in NO classified object
                            and outside every islet
 
-Checked 2026-09-12 against ``subpanel/subpanel_log.json``, all four to four decimals:
+POOLED IS NOT THE METHOD.  Those four levels reproduce to four decimals when the reference
+population is pooled over all 20 donors, which is how the OLD table was built, and pooling
+survives only so ``subpanel.py --gate`` can reproduce it.  Checked 2026-09-12 against
+``subpanel/subpanel_log.json``:
 
     hormone 0.1010 · Nerve 0.2272 · Lymphatic 0.1776 · Blood vessel 0.3073
+
+Fitted PER DONOR -- the default, and the method -- the same reference population moves the
+hormone level 19.5x across the cohort and separates almost perfectly by acquisition batch
+(batch 1 median 0.0418, batch 2 0.3167), which is aliased with disease status.  See
+``subpanel.fit_levels``.
 
 The scale is cohort-wide by the celltype lane's own design (``run_step3.build_scale``):
 one floor per marker at the aligned background mode, one top at the cohort p99.9.  The
@@ -26,6 +34,12 @@ import numpy as np
 import pandas as pd
 
 REPO = pathlib.Path(__file__).resolve().parents[4]
+
+#: The HISTORICAL run directory, not a live run key.  The content-addressed run framework was
+#: removed on 2026-09-16 -- there is no ``run_id`` any more, and the pipeline writes to stable
+#: roots.  This particular tree is kept because the 20-donor cohort output still lives ONLY
+#: there; nothing writes to it, and a donor re-exported since is served by :data:`REVISED`
+#: through :func:`cell_source` instead.
 RUN_ID = "30f6689e4d27d295f890"
 
 RUN = REPO / "core/phenocycler/data/runs" / RUN_ID
@@ -45,8 +59,8 @@ GEOJSON = pathlib.Path.home() / "IO60panc2nd/results/Geojson"
 #: share the directory but not the `Islets__` naming.
 ISLETS = GEOJSON / "Islets"
 
-#: The rebuild of the re-exported batch-2 donors. Authoritative for them: the content-addressed
-#: run still holds the defective export whose islet detections were duplicated.
+#: The rebuild of the re-exported batch-2 donors. Authoritative for them: the historical run tree
+#: still holds the defective export whose islet detections were duplicated.
 REVISED = OUT / "revised_cells"
 
 #: Where the corrected typing is written.
@@ -85,6 +99,56 @@ HORMONES: tuple[str, ...] = ("INS", "GCG", "SST")
 #: The quantile of the reference population that sets every structure's level.
 REFERENCE_QUANTILE = 99.0
 
+#: Islets of STRICTLY MORE than this many cells are "the larger islets" the maintainer's
+#: CD99/size/shape rule is scoped to.  Not a second definition: it is the same boundary
+#: ``islet_identity_mixture.py`` takes as ``--min-islet-cells`` (default 10, strictly greater),
+#: and that module's own reason for it is quoted there -- a two-cell classifier fragment has no
+#: architecture to impose a shape on its cells.
+LARGE_ISLET_MIN_CELLS = 10
+
+#: The size strata, named exactly as the 20-donor measurement of 2026-09-18 reported them.  The
+#: measurement is the reason they exist: nucleus elongation's mixture signature runs
+#: 1.519 / 1.139 / 1.657 / 2.089 across these four and is unanimous across donors only in the
+#: last, while CD99 carries no mixture signature in any of them and a 2.07 / 2.63 / 2.34 / 3.85x
+#: median ratio instead.  So the strata are what tells a shape criterion where it may fire.
+SIZE_STRATA: tuple[str, ...] = ("1", "2-3", "4-10", ">10")
+LARGE_STRATUM = ">10"
+
+
+def size_stratum(islet_cells) -> np.ndarray:
+    """Stratum label per cell, from the number of cells its islet contributes to the analysis.
+
+    ``islet_cells`` must be counted over the cells the analysis ADMITS -- islet core,
+    non-structural, not ``Excluded`` -- which is the count ``islet_identity.load`` already
+    derives and says why.  A cell outside every islet has no stratum and is given ``""``;
+    an islet that contributes nothing lands in the smallest stratum rather than a fifth one,
+    because a size of zero is a size, not a separate kind of thing.
+    """
+    n = np.asarray(islet_cells, dtype=float)
+    out = np.full(n.shape, "", dtype=object)
+    known = np.isfinite(n)
+    out[known] = SIZE_STRATA[0]
+    out[known & (n >= 2) & (n <= 3)] = SIZE_STRATA[1]
+    out[known & (n >= 4) & (n <= LARGE_ISLET_MIN_CELLS)] = SIZE_STRATA[2]
+    out[known & (n > LARGE_ISLET_MIN_CELLS)] = LARGE_STRATUM
+    return out
+
+
+#: The mirror of :data:`REFERENCE_QUANTILE`, and derived from it rather than chosen again.
+#:
+#: A structure's level is the 99th percentile of a population that CANNOT contain the structure:
+#: "1 % of ordinary tissue reaches this".  Endocrine identity inside an islet is the same
+#: statement upside down -- the reference population IS the thing being detected, so the level
+#: is the 1st percentile of it: "1 % of confirmed endocrine cells fall this low".  Same 1 %
+#: convention, same direction of error, no second threshold to defend.
+ENDOCRINE_QUANTILE = 100.0 - REFERENCE_QUANTILE
+
+#: Fewest hormone-confirmed cells a donor x stratum must contribute before a level is fitted
+#: from them.  Taken from ``islet_identity.main``'s existing reference guard (``len(ref) < 500``)
+#: rather than invented here.  Below it the level is UNAVAILABLE -- not defaulted, not borrowed
+#: from another stratum, and not silently replaced by the cohort's.
+MIN_REFERENCE_CELLS = 500
+
 
 def load_scale() -> pd.DataFrame:
     """The cohort floor/top/span per marker, as the classification decided on it."""
@@ -113,4 +177,47 @@ def reference_level(pooled: np.ndarray, quantile: float = REFERENCE_QUANTILE) ->
     level = float(np.nanpercentile(pooled, quantile))
     if not np.isfinite(level):
         raise ValueError(f"reference level is not finite ({level!r}) -- refusing to classify")
+    return level
+
+
+def endocrine_level(values: np.ndarray, quantile: float = ENDOCRINE_QUANTILE,
+                    min_cells: int = MIN_REFERENCE_CELLS,
+                    floor: float = 0.0) -> float | None:
+    """The level a cell must CLEAR to be endocrine, fitted from cells that already are.
+
+    The argument is the hormone-confirmed cells of ONE donor and ONE size stratum -- never the
+    cohort, never a donor pooled across strata.  Pooling was measured to be the wrong thing on
+    both axes: the same reference population fitted per donor moves the hormone level 19.5x
+    across the cohort and separates almost perfectly by acquisition batch (see
+    :func:`subpanel.fit_levels`), and the 2026-09-18 measurement puts CD99's confirmed/undecided
+    median ratio at 2.07x in one-cell islets against 3.85x above ten, so one level for both
+    strata is a blend of two populations exactly as the pooled hormone level was.
+
+    Returns ``None`` -- unavailable -- in three cases, and an unfittable stratum has to be
+    visible as one, because a level that does not exist must not be invented:
+
+      * fewer than ``min_cells`` confirmed cells are on hand;
+      * none of them carries the measurement;
+      * the level lands AT the feature's floor.
+
+    The third is not hypothetical and it is the more dangerous.  ``apply_scale`` clips at the
+    measured background, so a marker at or below background reads exactly 0.0, and on donor 6534
+    20.3 % of islet cells sit there -- which puts the 1st percentile of its confirmed endocrine
+    cells at 0.0 too.  ``value >= 0.0`` is then true of every cell that was measured at all, so
+    the "level" admits the entire islet while looking like a fitted number.  That is the same
+    failure as the eight NaN cells that disabled a whole tier and left every downstream number
+    plausible, so it fails the same way: refused, named, and handed back to the caller.
+
+    ``floor`` is the feature's own lower bound -- 0.0 for a scaled marker, 1.0 for an elongation
+    that is a ratio of diameters.
+    """
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size < min_cells:
+        return None
+    level = float(np.percentile(finite, quantile))
+    if not np.isfinite(level):
+        raise ValueError(f"endocrine level is not finite ({level!r}) -- refusing to classify")
+    if level <= floor:
+        return None
     return level
