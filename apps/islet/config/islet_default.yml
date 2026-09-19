@@ -1,5 +1,18 @@
 # Islet Explorer display/domain contract. This config controls UI vocabulary
 # and coordinate conversion only; it does not define upstream cell identities.
+#
+# THIS IS THE LEGACY CODEX DOMAIN -- 15 donors, `data/app_data`. It is a SEPARATE DATASET from
+# the PhenoCycler run cohort in run20_default.yml, which carries 20 donors and its own eight-class
+# vocabulary. The two share five donors and no vocabulary and are never merged. `ISLET_DOMAIN_CONFIG`
+# selects which one the app loads.
+#
+# The `phenotypes` block below is this build's OWN display compatibility vocabulary: the 21-label
+# names and the Senior/scimap names present in the CODEX app data, produced upstream by scVI (see
+# ieCore::domain_classifier_label()'s default). `Acinar` and `Ductal` are two of those upstream CODEX
+# labels and belong to this domain alone. They are NOT available to the PhenoCycler run cohort: the
+# 60-plex panel carries no amylase, trypsin, CPA1, elastase, CK19, CA19-9, SOX9, HNF1B, CFTR or MUC1,
+# so for that panel exocrine is one label and no acinar or ductal claim may be made. Nothing here may
+# be copied into run20_default.yml on the strength of a shared spelling.
 
 app:
   name: Islet Explorer Senior

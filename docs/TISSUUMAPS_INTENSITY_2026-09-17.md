@@ -288,10 +288,13 @@ background model, so both columns score the same population) rendered flat white
 | PDPN | 45.4 | 0 -> 21 | 1 -> 15 | 3 -> 65 | 306 -> 3784 | 7 -> 0 | 117 -> 5 | 7.89 -> 0.02 | 100.0 -> 2.4 |
 | CD11b | 30.6 | 0 -> 57 | 1 -> 18 | 3 -> 110 | 5935 -> 8256 | 2 -> 0 | 45 -> 29 | 3.61 -> 1.86 | 5.5 -> 1.6 |
 | CD206 | 35.8 | 0 -> 24 | 1 -> 15 | 3 -> 68 | 2065 -> 6142 | 4 -> 0 | 60 -> 18 | 0.91 -> 0.43 | 15.3 -> 6.6 |
+| TP63 | 30.7 | 0 -> 60 | 1 -> 21 | 3 -> 122 | 442 -> 1390 | 34 -> 0 | 177 -> 37 | 22.61 -> 0.03 | 100.0 -> 24.9 |
+
+*(Formatting corrected 2026-09-18: the TP63 row had fallen below the "Summary" heading, where it
+rendered as a one-row table of its own and left the per-channel table at 58 of 59 rows. No value
+was changed.)*
 
 Summary over the 59 channels:
-
-| TP63 | 30.7 | 0 -> 60 | 1 -> 21 | 3 -> 122 | 442 -> 1390 | 34 -> 0 | 177 -> 37 | 22.61 -> 0.03 | 100.0 -> 24.9 |
 
 | | shipped (v4) | rebuilt (v5) |
 |---|---|---|

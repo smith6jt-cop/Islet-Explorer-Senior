@@ -232,6 +232,29 @@ The first two notebooks remain useful for upstream inspection. Calibration,
 typing, refinement, probabilistic-promotion, marker-debug, and Otsu notebooks
 or scripts are historical and do not define a current execution path.
 
+## The typing development lane (outside this package's outputs)
+
+The statement above — that the workflow creates no cell types — is about **this package's
+pipeline**, which is latched. A separate development lane under
+[`scripts/typing/`](scripts/typing/) does classify cells, and it writes **outside this tree**, to
+the repo-root `data/development/typing/`. It is not a release, it does not move
+`NO_VERIFIED_TYPING`, and nothing in `data/` here reads it.
+
+- What it does and how it was recovered: [`scripts/typing/RECONSTRUCTION.md`](scripts/typing/RECONSTRUCTION.md).
+  Every statement in that file is marked `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting
+  a number.
+- What is on disk: `data/development/typing/cells/` — the build of **2026-09-15**, 25,230,109 cells,
+  20 donors, eight classes plus `Excluded`. The islet chain the maintainer ruled on 2026-09-18
+  (structure, then exocrine-inside-an-islet excluded, then CD99 at a level fitted per donor **and per
+  size stratum**, with nucleus elongation as a second route in the large stratum only) is proven on
+  three donors and **no donor has been re-run with it**.
+- `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation (25,150,537
+  rows) and is not current. The refinement pass
+  ([`scripts/typing/REFINEMENT.md`](scripts/typing/REFINEMENT.md), `refine.py`) is written and **not
+  wired**; `refined_class` has no consumer, and whether that pass should run is open.
+- Reference levels are fitted **per donor**. Pooling was measured wrong on 2026-09-15; the four
+  pooled levels survive only so `subpanel.py --gate` can reproduce the older table.
+
 ## Outputs
 
 **The content-addressed run framework was removed on 2026-09-16.** Each
@@ -257,8 +280,9 @@ path now that there is no locked run state to re-enter.
 Runs made before 2026-09-16 remain, untouched, under
 `data/runs/<run_id>/manifests/` and the corresponding stage directories; that
 tree is historical and nothing writes to it going forward, but the full
-20-donor cohort output still lives only there. Donors 6533 and 112 were added
-on 2026-09-16 and exist only in the flat `data/<stage>/` tree above.
+20-donor cohort output still lives only there. Donors 6533 and `0112` were added
+on 2026-09-16 and exist only in the flat `data/<stage>/` tree above (the partitions are
+`donor_id=6533` and `donor_id=0112`).
 
 See [DATA_README.md](DATA_README.md#run-layout) for the full tree and schemas.
 

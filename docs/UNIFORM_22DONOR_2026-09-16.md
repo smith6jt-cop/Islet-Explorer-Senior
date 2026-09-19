@@ -1,5 +1,21 @@
 # UniFORM 22-donor alignment — 2026-09-16
 
+> **CORRECTED 2026-09-18.** "Donors 6457 and 6579 are excluded" was true when this ran and is not
+> now: **only 6457 is centrally excluded**. **6579's exclusion was lifted 2026-09-17** and it is
+> recorded in `REINSTATED` in `core/phenocycler/phenocycler/cohort.py`; the pancreatitis it was
+> excluded for is still a disease context, so stratify or report it separately rather than pooling
+> it. This run predates that, so 6579 contributes no histogram, no mode and no scale to any number
+> below, and a re-run under the current cohort would not reproduce this shift record.
+> 6579 also has no `expression` partition in either root today, so it could not enter regardless
+> — `docs/DONOR_6579_REENTRY_2026-09-17.md`.
+>
+> One further path note: the "retired root" this run reads,
+> `core/phenocycler/data/runs/30f6689e4d27d295f890/expression/`, is retired in a stronger sense
+> since **2026-09-16 removed the content-addressed run framework entirely**. Stages write to the
+> stable `core/phenocycler/data/expression/` and that run tree is historical, though the 20-donor
+> cohort output still lives only there.
+
+
 **The full cohort run completed, but neither new donor has a complete 59-marker alignment.** Donors 6533 and 112 each have 58 markers with finite QC-eligible measurements. `Ker8_18` is acquired and present in both parquet schemas, but its expression is unavailable: every QC-eligible value is missing. The final shift record explicitly marks its scale unavailable for both donors and estimates that marker from the 20 measured donors only.
 
 For each new donor, 46 measured markers pass the declared background-mode SD bar of 0.10. Eleven other measured markers remain above it; these retain their residual flags and cannot support a common cutoff on this criterion. `CD57` remains `refused_reagent_change` and is left unshifted. The outputs are usable for the measured markers subject to these restrictions; they are not ready for a downstream analysis that requires all 59 aligned markers. The cause of the missing upstream `Ker8_18` values is unavailable: this task measured the supplied expression and did not modify the expression pipeline or input files.

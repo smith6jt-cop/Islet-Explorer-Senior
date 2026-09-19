@@ -5,6 +5,31 @@
 > longer current — that framework was removed on 2026-09-16. See
 > `core/phenocycler/docs/INTEGRATION.md` for the current state. The body of this file is left
 > unchanged as a record of what was true when written.
+>
+> **Further corrections, 2026-09-18 — the body is still unchanged; these are the claims not to
+> carry forward.**
+>
+> * **The broad-typing producer comparison named in §9 is withdrawn and retired.** The producer
+>   choice was withdrawn 2026-09-08 (`docs/BROADTYPE_PROTOCOL_2026-09.md` §4.9) and the lane is now
+>   on the root `CLAUDE.md` never-revive list. `data/development/broadtype/release/` is on disk and
+>   is not a verified typing. Its vocabulary — "bake-off", per-method "arm" — is rejected here; say
+>   *method*, or *the comparison*.
+> * **The PhenoCycler typing that stands today is the subpanel classification**, not the cosine,
+>   SOM or broad-typing lanes mapped in §2: context from QuPath objects, then one question per
+>   context, against reference levels fitted **per donor** on that donor's cells in no classified
+>   object and outside every islet. **25,230,109 cells, 20 donors,
+>   `data/development/typing/cells/`**; mechanics in
+>   `core/phenocycler/scripts/typing/RECONSTRUCTION.md`. It is a development lane and
+>   `NO_VERIFIED_TYPING` has not moved.
+> * **§1's `status`/`adopt`/`resume`/`recover` row, the `run_id` arithmetic and the `data/runs/<id>/`
+>   paths throughout describe machinery that no longer exists** (removed 2026-09-16), and §4's
+>   "immutable run `30f6689e4d27d295f890`" reads the same way. Stages write to stable roots; a
+>   donor is done when its partition has content; `--force` reruns a stage.
+> * **Only 6457 is centrally excluded.** 6579's exclusion was lifted 2026-09-17 and is recorded in
+>   `REINSTATED` in `core/phenocycler/phenocycler/cohort.py`; the disease context is not retracted.
+> * **Three document links in the body are wrong.** `DEEPCELL_TYPES_REVIEW_2026-08-24.md`,
+>   `REDSEA_GPU_REVIEW_2026-08-27.md` and `METHOD_HISTORY.md` live under
+>   `core/phenocycler/docs/`, not `docs/`.
 
 **Status:** written 2026-09-02 against HEAD `1a23105` (branch `feat/dct-step0-pinning`, 56 commits
 ahead of `main`, working tree clean). Every status cites a file, a command output or a commit. This

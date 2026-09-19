@@ -2,6 +2,24 @@
 
 Detailed reference for the Spatial tab. Linked from `apps/islet/CLAUDE.md`.
 
+> **SCOPE, added 2026-09-18. Everything below describes the LEGACY CODEX DOMAIN**
+> (`config/islet_default.yml`, `data/app_data`, 15 donors) and was written before this app
+> carried a second dataset. It says so nowhere else, so it says so here rather than being
+> rewritten: the column counts (21 phenotypes, 20 enrichment z-scores), the row counts (5,214
+> islets, 9,130 / 9,677 spatial records, 15 per-donor CSVs, 23.3 M cells) and the marker
+> positivity are all that build's.
+>
+> **The PhenoCycler run cohort** (`config/run20_default.yml`, 20 donors) carries eight classes
+> plus one declared absence, and **no per-marker positivity at all** — its typing never asks "is
+> this cell `<marker>`-positive" as a standing question, so its `cell_distance` view has no
+> `{m}_pos` columns and `cell_distance_has_markers()` returns FALSE for it. Card C's marker mode
+> and its Composition view are therefore offered only on the CODEX domain.
+>
+> **RESTORE, which the `_pos` calls below came from, was retired for the source workflow on
+> 2026-08-14** and is on the never-revive list. The `_pos` columns are a description of a
+> CODEX-domain file already on disk, not a live method, and nothing in the run cohort reproduces
+> them.
+
 ## Spatial Neighborhood Analysis (Phase 7, Feb 2026 — extended Apr 2026)
 
 ### Peri-Islet Metrics (~100 columns, all phenotypes systematic)

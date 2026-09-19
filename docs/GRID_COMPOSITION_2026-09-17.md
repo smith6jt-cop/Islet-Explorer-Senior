@@ -7,9 +7,20 @@ Built 2026-09-17 by `scripts/senior/build_grid_composition.py` into
 
 ## What was wrong
 
-The app read one of four cells. Every app composition artifact under
+
+> **CORRECTED 2026-09-18.** The claim that the app's composition artifacts are built from
+> `data/development/typing/immune/`, and that that layer was the binding constraint on donor
+> coverage, is **false**. Grepped 2026-09-18: `build_workbook.py`, `aggregate_islets.py`,
+> `build_parquet_views.py` and `build_islet_marker_means.py` contain no reference to
+> `typing/immune` — `docs/IMMUNE_SUBTYPE_COVERAGE_2026-09-17.md` §7 states it outright ("No app
+> artifact reads this layer"). Each builder's coverage comes from its own `COHORT.resolve` at
+> build time. `typing/immune/` has covered 20 donors / 2,934,898 Immune cells since 2026-09-17.
+
+The app read one of four cells. ~~Every app composition artifact under
 `data/development/typing/app/` is built off `data/development/typing/immune/`, which covers ten
-donors, so the app showed ten. Three other cells of the grid had calls and no reader at all.
+donors, so the app showed ten.~~ — **false; see the banner above.** What stands is the rest of the
+sentence: three other cells of the grid had calls and no reader at all, which is what this layer
+fixes.
 
 ## What the data actually resolves — the ten "missing" donors were not missing
 

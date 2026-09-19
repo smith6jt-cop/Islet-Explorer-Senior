@@ -518,9 +518,19 @@ their original content-addressed layout (`run.json`, `manifests/`, and
 per-stage output nested under the run). That tree is historical: nothing
 writes to it any more, and it is not equivalent to — or interchangeable with —
 the flat roots above. The full 20-donor cohort output still lives only there;
-donors 6533 and 112 were added on 2026-09-16 and exist only in the flat tree.
+donors `6533` and `0112` were added on 2026-09-16 and exist only in the flat tree, as
+`donor_id=6533` and `donor_id=0112`.
 Discovery reads `data/expression` first and falls back to the historical
 run tree with a warning; do not hand-merge files between the two.
+
+### What is not in this tree
+
+Development typing artifacts are **not** under `data/` here. The subpanel classification and its
+downstream app artifacts live a level above `core/`, under the repo-root
+`data/development/typing/` (`cells/`, `subpanel/`, `immune/`, `pln/`, `islet_identity/`, `app/`).
+They are mutable review artifacts, not stage outputs: no contract in this file describes them, and
+nothing in the workflow above reads them. Their contract is
+[`scripts/typing/RECONSTRUCTION.md`](scripts/typing/RECONSTRUCTION.md).
 
 ## Manifest contents (historical runs only)
 

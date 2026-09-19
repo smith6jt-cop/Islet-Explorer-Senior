@@ -3,23 +3,59 @@
 This is the monorepo's modular R Shiny consumer for islet, spatial,
 trajectory, viewer, statistics, inflammation, and optional AI views.
 
-Application-wide display configuration lives in
-`config/islet_default.yml`. Shared domain, typography, safe-join, and
-statistical code lives once in `../R/ieCore`; `R/00_00_iecore.R` loads it before
-the tab modules. These are downstream display contracts and must not be used to
-define upstream marker calls or cell identities.
+## Two domains, selected by `ISLET_DOMAIN_CONFIG`
 
-The app reads external/ignored data through `../../data/app_data`. Run it from
-this directory so that path remains exact:
+The app serves **two deliberately separate datasets**. They share five donors and
+no vocabulary, so they are never merged — a cross-donor comparison spanning both
+would compare methods, not biology.
+
+| domain | config | data root |
+|---|---|---|
+| legacy CODEX, 15 donors | `config/islet_default.yml` | `../../data/app_data` |
+| PhenoCycler run cohort, 20 donors (17 clean + 3 marginal) | `config/run20_default.yml` | `../../data/development/typing/app` |
+
+`ISLET_DOMAIN_CONFIG` picks one; with it unset the app falls back to the CODEX
+contract. Every data path resolves through `ieCore::domain_data_root()` /
+`domain_data_file()`, and `tests/testthat/test-domain-data-paths.R` asserts that a
+path cannot escape the active domain's root.
+
+The run cohort's display vocabulary has **nine entries and eight cell types**: the
+eight classes the subpanel classification decides, plus `Unresolved`, which is an
+*absence* rather than a class. **Nothing produces `Unresolved` today** — the
+refinement pass that would write it is written and not wired, and the build under
+`typing/app` comes from the 2026-09-15 typing of 25,230,109 cells with eight
+classes plus `Excluded`. It is declared ahead of its data so a card meets a named
+absence instead of an unmapped value. See the header of `config/run20_default.yml`.
+
+These configs are downstream display contracts. They must not be used to define
+upstream marker calls, positivity or cell identities.
+
+## Running it
+
+Shared domain, typography, safe-join and statistical code lives once in
+`../R/ieCore`; `R/00_00_iecore.R` loads it before the tab modules. Run from this
+directory so the relative data roots above stay exact. **R 4.5.1 with the
+`~/R/…/4.5` library** — `/usr/bin/Rscript` is 4.6.1 and silently lacks the
+dependencies.
 
 ```bash
 cd apps/islet
 Rscript tests/parse_check.R
 Rscript tests/run_tests.R
+
+# run cohort
+ISLET_DOMAIN_CONFIG=config/run20_default.yml \
+  Rscript -e 'shiny::runApp(".", port = 7777)'
+
+# legacy CODEX domain, with the heavy backends off
 ISLET_USE_DUCKDB=FALSE ISLET_USE_MIRAI=FALSE ISLET_ENABLE_AI=FALSE \
   Rscript -e 'shiny::runApp(".", launch.browser = TRUE)'
 ```
 
-Deployment and the deliberately separate publication build are documented in
-`../../deploy/DEPLOY.md`. The lymphoid configuration/fixture is under
-`../lymph`; it is not a second app fork.
+The development server is not a deployment test: Avivator needs HTTP Range, which
+`runApp` does not serve.
+
+Per-tab conventions are in `CLAUDE.md`; longer write-ups in `docs/`. Deployment
+and the deliberately separate publication build are documented in
+`../../deploy/DEPLOY.md`. The lymphoid configuration/fixture is under `../lymph`;
+it is not a second app fork.

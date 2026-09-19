@@ -27,6 +27,17 @@ as a measurement of whichever dataset is loaded. Every path resolved and every c
 from the loaded data or the DOMAIN; never write a cohort's size, its donor ids or its typing method
 into a string.
 
+**The run cohort's vocabulary has nine entries and eight cell types.** `Unresolved` is the ninth
+entry in `config/run20_default.yml`, and it is an *absence*, not a class: it is what the refinement
+pass (`core/phenocycler/scripts/typing/refine.py`, producer label
+`Unresolved (no lineage evidence)`) would write on a cell demoted out of Exocrine. **Nothing
+produces it today** — that pass is written and not wired, and `data/development/typing/app` is built
+from the 2026-09-15 typing, eight classes plus `Excluded`. A tab asks
+`ieCore::ie_absence_phenotypes()` and `ieCore::ie_absence_class_color()` rather than matching the
+string; `tests/testthat/test-ninth-class.R` asserts that pairing. Do not render it as a population,
+and do not report its count as zero — it is declared ahead of its data so a card meets a named
+absence instead of an unmapped value.
+
 `tests/tab_smoke.R` is what catches them — **`tests/`, not `tests/testthat/`**: it is a standalone
 shinytest2 driver, not part of the testthat suite, and `test_dir()` never picks it up. It drives
 Chrome through the eight tabs named in its own `TABS` vector (`tab_smoke.R:14`) and reports per tab

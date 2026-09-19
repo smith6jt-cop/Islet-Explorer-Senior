@@ -5,6 +5,17 @@
 **Applies to:** the Pheno-Xeno pair — 0080870 (donor 6533) and 0081366 (donor 112).
 Both donors are **female** (confirmed by the maintainer).
 
+> **Standing note, 2026-09-18 — what happened to these two donors while stages 3-6 stayed
+> unbuilt.** Both are typed in the 21-donor pancreas release
+> `xenium-panc-cluster-name-20260917` (`docs/PANC_XENIUM_TYPING_2026-09-17.md`), produced by a
+> different method — per-section Leiden, naming-only core scoring, `lognorm >= log1p(1)` detection,
+> no raw-count floor — and **with no gDNA correction applied and no flag on the rows**. The
+> correction in §1 was never run over that release. Any call on 6533 or 112 taken from it, and any
+> cohort-pooled number that includes them, carries the §0 background silently. The cohort-wide
+> triage that partitions the rest of the cohort against this pair is
+> `docs/XENIUM_GDNA_TRIAGE_2026-09-17.md`; the pLN half, measured on λ rather than the adjusted
+> rate, is `docs/PLN_IMMUNE_TYPING_HAZARD_2026-09-17.md`.
+
 ---
 
 ## 0. Read this first: why the pipeline changed
@@ -143,7 +154,10 @@ python3 scripts/xenium_celltype/build_phenotyped_base.py \
 
 - Decision #10 unchanged: `MIN_GENES=20`, density quantile 0.98 on `counts/cell_area`
   (never an absolute counts cap — `cell_area` varies 5-10x and a cap removes large healthy
-  acinar/ductal cells).
+  exocrine cells). *(Corrected 2026-09-18: this read "acinar/ductal cells". The 5K panel carries
+  no PRSS1, CPA1, CELA3A, CTRB1, CTRB2, AMY2A or REG1A — measured per section — so **Exocrine is
+  one label and no acinar or ductal claim is made or supported here either**. The QC rationale is
+  unchanged; only the label is.)*
 - **`MIN_COUNTS=50` now applies to gDNA-corrected counts.** The number is unchanged; the
   quantity it measures is fixed.
 - Preserves the vendor `total_counts` and `genomic_control_counts` in `obs` — these are the

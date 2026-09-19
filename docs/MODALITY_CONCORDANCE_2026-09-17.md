@@ -5,6 +5,68 @@ that script; tables are in `data/development/integration/concordance/`.
 
 Development lane. Nothing here is a release, and `NO_VERIFIED_TYPING` stays down.
 
+> ## CORRECTION BANNER — 2026-09-18: every pancreas number below is off a superseded source
+>
+> **The pLN half of this document is unaffected.** What follows corrects the pancreas half only.
+>
+> **1. The 21-donor pancreas release exists and this document never reads it.** It is
+> `xenium-panc-cluster-name-20260917`, written **2026-09-17T20:36:54+00:00** to
+> **`/data/xenium_typing/panc_2026-09-17/release`** — outside the repository, which is why a
+> repo-relative search never saw it. Measured from its own `release.json`: **21 donors, 21
+> sections, 17,490,305 cells, 15,318,868 called, 775,234 excluded for no nucleus**, with 21
+> `donor_id=` partitions under `calls/`. Before this banner the string `panc_2026-09-17` appeared
+> nowhere in this file.
+>
+> **2. The run behind this document predates it by 49 minutes.**
+> `data/development/integration/concordance/manifest.json` is stamped
+> `generated_at_utc = 2026-09-17T19:47:22Z`. The release was written at 20:36:54Z. Every pancreas
+> row below — the two-donor table, the `pancreas_*.csv` files, the empty eta-squared table — came
+> out of that earlier run and describes `xenium-typing-scanvi-per-donor-dev-20260907`, the
+> **superseded** lane, which the manifest names in `pancreas.rna_notes`. Read the two-donor table
+> as a record of what a superseded lane said, not as the state of the pancreas comparison.
+>
+> **3. `release_panc_v1` will never land, so "re-run once it lands" is not a plan.** Measured:
+> `data/development/xenium_typing/release_panc_v1` contains exactly four files —
+> `_work/6539.calls.parquet`, `_work/6539.clusters.parquet`, `_work/6539.gene_stats.parquet` and
+> `_work/6539.report.json`. One donor's scratch. **No `calls/` tree and no `release.json`**, so it
+> declares no release id, no tissue and no write time; it cannot be selected by anything that
+> reads a release's own metadata, and nothing is writing to it. The two sentences below that wait
+> on it are waiting on something that is not coming.
+>
+> **4. The script has already changed, so "the script needs no change" is also wrong.** The
+> pancreas pin was removed in commit `b57b48e` (2026-09-18). `modality_concordance.py` no longer
+> holds a literal fallback chain; it calls `scripts/senior/xenium_release.resolve(tissue)`, which
+> searches both roots and selects on each release's **own declared metadata** — never a filesystem
+> mtime — and honours a declared `supersedes`. Run today it resolves:
+>
+> | tissue | resolver returns |
+> |---|---|
+> | `panc` | `xenium-panc-cluster-name-20260917` at `/data/xenium_typing/panc_2026-09-17/release` |
+> | `pln` | `xenium-pln-immune-tnk-split-dev-20260917` at `data/development/xenium_typing/release_pln_immune_v3` |
+>
+> Note the second row: the pLN source named in this document, `release_pln_immune_v2`, has **also**
+> been superseded, by `release_pln_immune_v3`. The pLN numbers below were correct for v2 when they
+> were taken; they are not a reading of the current pLN release either.
+>
+> **5. What a re-run would have to work with, measured — and what it is not.** The protein
+> pancreas side (`data/development/typing/cells`) holds 20 donors; the RNA release holds 21;
+> **16 are in both**: 115, 6374, 6380, 6436, 6442, 6461, 6476, 6482, 6493, 6521, 6523, 6539,
+> 6551, 6566, 6591, 6593. Protein-only: 6450, 6505, 6534, 6623. RNA-only: 112, 6347, 6533, 6579,
+> 6580. 16 is past the four-donor floor, so the "fewer than 4 donors → no verdict at all" rule
+> would no longer fire on the pancreas. **That licenses nothing.** No pancreas quantity has been
+> recomputed here, no threshold has been applied to the new release, and **no pancreas lineage may
+> be read as carrying or as refused a cross-modality claim on the strength of this banner.** The
+> pancreas verdict is *unmeasured*, which is not the same as the "undetermined on two donors"
+> stated below and is certainly not concordance.
+>
+> One thing a re-run inherits, recorded here so it is not discovered late:
+> `docs/XENIUM_GDNA_TRIAGE_2026-09-17.md` measures `0080870` panc (donor **6533**) at 0.26100,
+> **57.5x** the tuned rate, and `0081366` panc (donor **112**) at 0.30600, **67.4x**; both are
+> typed in the 21-donor release with no gDNA correction applied and no flag on the rows
+> (`docs/PANC_XENIUM_TYPING_2026-09-17.md` §Depth). Neither donor is on the protein pancreas side,
+> so neither would enter the 16-donor comparable set — but both are inside any cohort-pooled RNA
+> number taken off that release.
+
 ## What this is and what it is not
 
 PhenoCycler and Xenium are **different measurements of different sections of different blocks**.
@@ -79,7 +141,9 @@ position in both modalities), and **both** numbers are in the summary CSV —
 | pLN protein | `data/development/typing/pln/pheno` | 14 typed |
 | pLN RNA | `data/development/xenium_typing/release_pln_immune_v2` | 20 called |
 | pancreas protein | `data/development/typing/cells` | 20 |
-| pancreas RNA | `data/development/xenium_typing/release` | **2** |
+| pancreas RNA | `data/development/xenium_typing/release` — **superseded; see the banner** | **2** |
+| pancreas RNA, current | `/data/xenium_typing/panc_2026-09-17/release` — **not read by this run** | 21 called |
+| pLN RNA, current | `data/development/xenium_typing/release_pln_immune_v3` — **not read by this run** | see banner |
 
 **pLN: 11 donors are in both** — 115, 6380, 6436, 6442, 6461, 6476, 6482, 6493, 6521, 6523, 6539.
 Not 18. The protein side has 14 typed sections: 6551, 6566, 6593 and 6623 are **unavailable** (their
@@ -88,11 +152,18 @@ cells) and 6579's node is **withheld** by `pln_node_annotations.csv`. Of the 14 
 and 6534 have no Xenium pLN bundle in the v2 tree. 6457 is centrally excluded, read from
 `DONOR_EXCLUSIONS` in `core/phenocycler/phenocycler/cohort.py` rather than from a literal.
 
-**Pancreas: 2 donors, 6436 and 6442.** `release_panc_v1` — the fill-panc-rna track — did not exist
-when this ran. The only pancreas Xenium calls present are
-`xenium-typing-scanvi-per-donor-dev-20260907`, a **superseded lane**. The script probes
-`release_panc_v1` first and will use it without modification once it lands. The pancreas numbers
-below are observations on two donors from an old lane and carry **no verdict**.
+**Pancreas: 2 donors, 6436 and 6442.** The only pancreas Xenium calls this run read are
+`xenium-typing-scanvi-per-donor-dev-20260907`, a **superseded lane**. The pancreas numbers below
+are observations on two donors from an old lane and carry **no verdict**.
+
+> **CORRECTED 2026-09-18.** Two sentences stood here: "`release_panc_v1` — the fill-panc-rna track
+> — did not exist when this ran" and "The script probes `release_panc_v1` first and will use it
+> without modification once it lands." Both are wrong now, in opposite directions.
+> `release_panc_v1` **does** exist — as `_work/6539.*` and nothing else, no `calls/` and no
+> `release.json` — and it will not fill. And the script no longer probes it: the literal pin was
+> removed in `b57b48e` and replaced by `scripts/senior/xenium_release.resolve()`. What did exist
+> when this ran, 49 minutes later on the same day, is the 21-donor release at
+> `/data/xenium_typing/panc_2026-09-17/release`. See the banner at the top.
 
 ### Nucleus handling
 
@@ -173,11 +244,16 @@ measurement that the node holds no NK cells. That asymmetry pushes T_NK **up** o
 which is the direction observed. And donor 6461 has 10,155 protein cells that are immune but
 unnamed; they are outside the comparable denominator on that donor, on that side only.
 
-## The pancreas result — 2 donors, no verdict
+## The pancreas result — 2 donors from a superseded lane, off a superseded source
 
-`release_panc_v1` was absent; these are `xenium-typing-scanvi-per-donor-dev-20260907`, a superseded
-lane, on 6436 and 6442 only. **Observations, not a verdict** — the fewer-than-4-donor rule fires on
-every row.
+> **SUPERSEDED 2026-09-18 — read the banner at the top before this section.** Every number in this
+> section is off `xenium-typing-scanvi-per-donor-dev-20260907`. The current pancreas release,
+> `xenium-panc-cluster-name-20260917`, covers **21 donors** and **16 of them are shared with the
+> protein side**; it has not been compared here. These rows are a record of a superseded lane, not
+> a statement about the pancreas.
+
+These are `xenium-typing-scanvi-per-donor-dev-20260907`, a superseded lane, on 6436 and 6442 only.
+**Observations, not a verdict** — the fewer-than-4-donor rule fires on every row.
 
 | lineage | prot 6436 | RNA 6436 | Δ | prot 6442 | RNA 6442 | Δ |
 |---|---|---|---|---|---|---|
@@ -189,8 +265,12 @@ every row.
 | Myeloid | 7.65 | 6.02 | +1.64 | 10.81 | 11.62 | −0.82 |
 
 The differences are an order of magnitude smaller than on the pLN — every one inside 10 pp — but
-that comparison is between two donors from a withdrawn lane and eleven donors from the current one,
-and it means nothing until `release_panc_v1` fills. Note also that 6442's protein T_NK and RNA T_NK
+that comparison is between two donors from a withdrawn lane and eleven donors from the pLN lane
+current at the time, and it means nothing. **Corrected 2026-09-18:** this sentence used to end "it
+means nothing until `release_panc_v1` fills". `release_panc_v1` is not going to fill (banner, point
+3). What would make this table mean something is a re-run against
+`/data/xenium_typing/panc_2026-09-17/release`, which is 21 donors and 16 shared with the protein
+side, and which has not been run. Note also that 6442's protein T_NK and RNA T_NK
 agree to 0.01 pp while 6436's differ by 6.78 pp; with two donors there is no way to tell which is
 the ordinary case.
 
@@ -244,9 +324,20 @@ be defined at all. That is unavailable, not zero.
 | Granulocyte | **Not comparable** | `xenium_resolution = fine_only`; no broad RNA class, so it is not the same quantity |
 | NK, alone | **Not comparable** | unreachable on the 60-plex protein side; a zero there is a panel property |
 
-**Pancreas — undetermined, on two donors from a superseded lane.** No lineage may carry a pancreas
-cross-modality claim today, not because the numbers disagree (they do not) but because two donors
-cannot establish that they agree. Re-run once `release_panc_v1` lands; the script needs no change.
+**Pancreas — unmeasured against the current release.** No lineage may carry a pancreas
+cross-modality claim today. As this run stood, the reason was arithmetic: two donors cannot
+establish that two compositions agree, whatever their differences look like. **As of 2026-09-18 the
+reason is different and stronger — the comparison has not been run against the release that
+exists.**
+
+> **CORRECTED 2026-09-18.** This paragraph used to end "Re-run once `release_panc_v1` lands; the
+> script needs no change." Neither half holds. `release_panc_v1` holds one donor's `_work/` scratch
+> and no `calls/` or `release.json`; it is not going to land. And the script was changed on
+> 2026-09-18 (`b57b48e`) — its three literal pins were replaced by
+> `scripts/senior/xenium_release.resolve()`, which now names
+> `/data/xenium_typing/panc_2026-09-17/release` for the pancreas and `release_pln_immune_v3` for
+> the pLN. The re-run is a re-run of **both** halves against sources neither half of this document
+> read.
 
 **What this forbids downstream.** Any statement of the form "the myeloid fraction of the node is X"
 that mixes or substitutes modalities is refused by this measurement. Any statement that a Xenium

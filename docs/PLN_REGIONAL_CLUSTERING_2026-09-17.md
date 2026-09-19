@@ -79,7 +79,7 @@ count.** A cell with no nucleus is excluded from every calculation here, which i
 intensity measurements in the export, so they cannot be clustered. That is an absent measurement,
 **not zero immune cells**, and they need re-running in QuPath. Three of the four (6551, 6566, 6593)
 are covered by the Xenium lane, so only 6623 is absent from both. 6579 is absent from the
-PhenoCycler pLN root because `pln_node_annotations.csv` still records `excluded=True` for it while
+PhenoCycler pLN root because `pln_node_annotations.csv` **[CORRECTED 2026-09-18: it does not — `pln_node_annotations.csv` records `excluded=False` for 6579, row 38, 1,231,818 cells, and its header documents the 2026-09-17 True -> False change. This item is CLOSED, not open.]** previously recorded `excluded=True` for it while
 `cohort.py` reinstated it on 2026-09-17; it is present in Xenium as three sections (6579a/b/c). 6457
 is refused by `phenocycler.cohort` in both.
 
@@ -412,7 +412,18 @@ every quantity in both published tables, computed by
 The inputs are the tables the lanes publish, read and not rewritten:
 `data/development/typing/pln/pheno/per_donor_counts.csv` (14 donors, 16 quantities) and
 `data/development/xenium_typing/release_pln_immune_v2/per_donor_summary.csv` (20 donors,
-21 quantities). Every quantity is a **fraction** of a stated denominator, because eta-squared on a
+21 quantities).
+
+> **CORRECTED 2026-09-18 — both inputs have moved.** The Xenium side `release_pln_immune_v2` is
+> **superseded** by `release_pln_immune_v3` (`xenium-pln-immune-tnk-split-dev-20260917`,
+> `docs/PLN_IMMUNE_XENIUM_2026-09-17.md`), which rebuilt the partition without the no-nucleus cells
+> and split the T_NK compartment. And the PhenoCycler side gained a stage 3 the same day
+> (`docs/PLN_IMMUNE_PHENOCYCLER_2026-09-17.md`), so `class_NK_ILC` is no longer constant. **The
+> η² values in this section are a reading of the tables as they stood at that hour** — the exact
+> file each was taken from is recorded in the artifact — and they have not been recomputed against
+> either successor.
+
+Every quantity is a **fraction** of a stated denominator, because eta-squared on a
 count would partly measure how many cells each node happened to yield. Both tables were checked for
 internal coherence before anything was computed on them, and both hold: PhenoCycler
 immune + non-immune + uncalled = eligible, the five `class_*` columns sum to immune, and the
@@ -495,6 +506,14 @@ because the quantity is constant, not because the batch term is absent.** The ro
 with `state` recording it. When the nk-t-subsets track lands the CD3e−/CD8+ split, rerunning
 `--stage published-eta` fills them in with no change to this lane.
 
+> **CORRECTED 2026-09-18 — that track landed, so the quantity is no longer constant.** Stage 3 of
+> `build_pln_immune_pheno.py` splits the 923,026-cell `T_NK` compartment on the CD3e-negative
+> pattern and names **`NK_ILC` on 8 of 14 donors, 25,368 cells** (115 282 · 6380 1,119 · 6476 1,808
+> · 6493 514 · 6521 5,816 · 6523 10,527 · 6534 2,794 · 6539 2,508). The remaining six return
+> `NK_ILC = 0` as a **measurement** — the gate ran and the evidence pointed the other way — with
+> `nk_ilc_state` recording it. `docs/PLN_IMMUNE_PHENOCYCLER_2026-09-17.md` §"Stage 3". Re-running
+> `--stage published-eta` would now fill those rows; it has not been run.
+
 ## 8. Coherence checks
 
 Internal consistency only. None of these passes by reproducing a biological finding, and none would
@@ -534,6 +553,9 @@ data, not a tolerance that was met.
   section's other clusters, then resolving within immune with the `core/panels` identity-core
   subpanels (`03_immune_T_cell`, `04_immune_B_plasma`, `05_immune_NK_ILC`, `06_immune_myeloid`,
   `07_immune_granulocyte`), is the next track. `naming_profiles.parquet` is built for it.
+  *(2026-09-18: that track has since run — `docs/PLN_IMMUNE_PHENOCYCLER_2026-09-17.md`, three
+  stages over 14 donors and 293 clusters. This build is still not the typing; it is the substrate
+  the typing consumed.)*
 - **The existing `data/development/typing/pln/pheno` calls are not input to anything here.**
   `cluster_immune_link.csv` records where those calls land per cluster, as description. That track's
   own manifest states its stage 1 fitted levels on "the pLN slide's OWN reference population", which
@@ -623,7 +645,7 @@ it writes are duplicated as parquet for the same reason.
 1. **6551, 6566, 6593, 6623 need re-running in QuPath.** Zero intensity measurements in the current
    pLN export — 4 of 18 donors and 2,786,845 rows. Absent measurement, not absent immune cells.
 2. **6579 disagreement is unresolved.** `cohort.py` reinstated it 2026-09-17; the tracked
-   `pln_node_annotations.csv` still records `excluded=True`. The PhenoCycler pLN root withholds it;
+   `pln_node_annotations.csv` **[CORRECTED 2026-09-18: it does not — `pln_node_annotations.csv` records `excluded=False` for 6579, row 38, 1,231,818 cells, and its header documents the 2026-09-17 True -> False change. This item is CLOSED, not open.]** previously recorded `excluded=True`. The PhenoCycler pLN root withholds it;
    Xenium includes its three sections.
 3. **No pLN acquisition manifest exists.** Until one does, every batch statement in section 7 is
    about a donor-level proxy taken from the pancreas scans.
@@ -631,7 +653,10 @@ it writes are duplicated as parquet for the same reason.
    (eta² 0.980 p 0.023 and 0.904 p 0.046). It is myeloid-marker-dominated, and that is the pattern a
    staining or exposure difference would also produce.
 5. **`class_T_cell` is the wrong name for what the panel resolves, and the rename is not mine
-   to make.** The PhenoCycler lane's column is called `class_T_cell`; `lineages.py:31` carries
+   to make.** *(2026-09-18: partially addressed. The stage-3 split landed in
+   `build_pln_immune_pheno.py` and writes `t_nk_class` per cell with `T_CD4` / `T_CD8` / `T_reg` /
+   `NK_ILC` / `T_NK_unresolved` summing to the compartment; the coarse column is still spelled
+   `class_T_cell`, so the rename itself is still open.)* The PhenoCycler lane's column is called `class_T_cell`; `lineages.py:31` carries
    the class as `T_NK: (CD3e, CD8, CD4, FOXP3, CD56)`, and `lineages.py:69` already splits it
    `{"CD8_T": (CD8,), "CD4_T": (CD4,), "NK": (CD56,)}`, and what the combination actually resolves
    is CD3e+ CD4+ → CD4 T, CD3e+ CD8+ → CD8 T, CD3e+ FOXP3+ → Treg, **CD3e− CD8+ / CD3e− CD56+ →
@@ -648,4 +673,9 @@ it writes are duplicated as parquet for the same reason.
    quantity rather than as a measured zero batch term.
 6. **The pLN typing track's stated stage 1 is withdrawn.** `data/development/typing/pln/pheno` was
    built by fitting levels on the pLN slide's own reference population; section 1 measures why there
-   is no such population. That track, not this one, has to change.
+   is no such population. That track, not this one, has to change. *(2026-09-18: it did. The lane
+   was rebuilt on the section-internal AUC contrast — no level, no quantile, no scale factor — and
+   `fit_pln_levels()` / `in_fires_units()` / `pln_context()` / `stage1_decide()` are gone from the
+   module. The superseded generation's outputs remain on disk under `_reference/`, named as
+   superseded in `_reference/SUPERSEDED_2026-09-17.json`; do not cite them.
+   `docs/PLN_IMMUNE_PHENOCYCLER_2026-09-17.md` § "Withdrawn, and gone".)*

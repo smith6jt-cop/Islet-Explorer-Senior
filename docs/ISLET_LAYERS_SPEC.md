@@ -81,8 +81,12 @@ write your own.
 
 ### 0.4 Excluded donors are filtered at the build side
 
-`6457` and `6579` are centrally excluded in `core/phenocycler/phenocycler/cohort.py`. Filter them
-in the builder, not in the card. A card must never be the thing that remembers an exclusion.
+**Only `6457`** is centrally excluded in `core/phenocycler/phenocycler/cohort.py`. **6579's
+exclusion was LIFTED 2026-09-17** and it is recorded in `REINSTATED` there — the pancreatitis it
+was excluded for is still a disease context, so stratify or report it separately, but do not
+drop it. (Corrected 2026-09-18: this line named 6579 as excluded, which line 384 of this same
+file already contradicted.) Derive from `DONOR_EXCLUSIONS`, never a literal, and filter in the
+builder, not in the card. A card must never be the thing that remembers an exclusion.
 
 ### 0.5 Every coordinate column carries a frame
 
@@ -237,13 +241,15 @@ Only 6436 and 6442 carry `feat__if_*` today. Every other donor is
 
 `build_islet_summary.py`. Islet size against composition.
 
-Reads, all of which exist:
+Reads, all of which exist (**re-measured 2026-09-18**; the figures that stood here — 31,128 /
+111,823 / 7,311 — were the 2026-09-14 ten-donor build and were superseded by the 20-donor rebuild
+of 2026-09-17, `docs/APP_COVERAGE_2026-09-17.md`):
 
 | file | rows × cols |
 |---|---|
-| `data/development/typing/app/islet_geometry.parquet` | 31,128 × 13 |
-| `data/development/typing/app/islet_composition_long.parquet` | 111,823 × 8 |
-| `data/development/typing/geometry` | 7,311 × 5, carries the `wkb` outline |
+| `data/development/typing/app/islet_geometry.parquet` | 73,616 × 13, 20 donors, 18,404 core islets |
+| `data/development/typing/app/islet_composition_long.parquet` | 255,753 × 8, 20 donors |
+| `data/development/typing/geometry` | 20 files, 17,553 rows × 5 cols in total, carries the `wkb` outline |
 
 `islet_geometry` columns: `donor_id`, `islet_key`, `combined_islet_id`, `region`, `region_um2`,
 `n_cells`, `cells_um2`, `islet_diam_um`, `centroid_x_um`, `centroid_y_um`, `area_um2_*`.
@@ -260,29 +266,41 @@ them possible:
 The card shows the size distribution *before* any composition claim.
 
 Do not use `typing/app`'s islet-level hormone composition as positivity: it is degenerate
-(`Ins_any == Ins_single`, `Multi_Pos = Triple_Neg = 0` across 7,634 rows — an argmax returns one
-winner). The genuine per-donor thresholded positivity is
+(`Ins_any == Ins_single`, `Multi_Pos = Triple_Neg = 0` across all 18,063 rows — an argmax returns
+one winner; re-measured 2026-09-18, the row count was 7,634 on the ten-donor build). The genuine per-donor thresholded positivity is
 `data/app_data/parquet/uns_composition.parquet`. They are not interchangeable.
 
 ### 1.6 `trajectory/` — worker J
 
 `build_trajectory_layer.py`. Within-donor islet ordering.
 
-Reads `data/development/typing/trajectory/singlecell_islet_summary.parquet` (7,179 × 9:
-`case_id`, `islet_key`, `sc_pseudotime_core`, `sc_pseudotime_mean_core`, `sc_n_core`,
+Reads `data/development/typing/trajectory/singlecell_islet_summary.parquet` (**18,208 × 9, 20
+donors**: `case_id`, `islet_key`, `sc_pseudotime_core`, `sc_pseudotime_mean_core`, `sc_n_core`,
 `sc_pseudotime_peri`, `sc_pseudotime_mean_peri`, `sc_n_peri`, …) and
-`singlecell_pseudotime.parquet` (49,999 × 32: `donor_id`, `object_id`, `islet_key`, `region`,
-`phenotype`, `donor_status`, `stain_group`, `X_centroid`, `pseudotime`, `DC1..DC20`, …).
+`singlecell_pseudotime.parquet` (**480,444 × 33, 20 donors**: `donor_id`, `object_id`, `islet_key`,
+`region`, `phenotype`, `donor_status`, `stain_group`, `X_centroid`, `pseudotime`, `DC1..DC20`, …).
 
-**Order islets within a donor. Never pool.** The deployed cohort pseudotime measured batch
-η² = 0.988 — it was an acquisition axis, and the cohort's batch aliases disease status. The builder
-emits `batch_eta_sq_within_status` and the card prints it.
+*(Corrected 2026-09-18. The 7,179 × 9 and 49,999 × 32 figures were the 2026-09-14 pooled ten-donor
+build. The ordering was refit **within donor** on 2026-09-17 — one destiny → slingshot fit per
+donor, no pooled embedding — see `docs/TRAJECTORY_WITHIN_DONOR_2026-09-17.md`.)*
+
+**Order islets within a donor. Never pool.** *(Corrected 2026-09-18: the η² = 0.988 that stood here
+describes **neither** artifact on disk. It comes from the 2026-07 audit in the header of
+`scripts/senior/compute_trajectory_senior.py`, of a legacy CODEX-domain trajectory that no longer
+exists; the current legacy-domain file measures 0.091 on donor, and the deployed single-cell
+ordering measures 0.0093. Measured in `docs/TRAJECTORY_WITHIN_DONOR_2026-09-17.md` §1. The rule
+stands on the batch/status alias itself — Cramér's V against `donor_status` is 0.604 on coarse
+batch, 0.716 on `stain_group`, 0.882 on `acq_run` — not on that figure.)* The builder emits
+`batch_eta_sq_within_status`; under a within-donor fit that quantity is `unavailable` with a
+reason, because every donor is rank-uniform on its own axis, and the card prints the reason
+instead.
 
 `sc_pseudotime_peri_minus_core` is the quantity that speaks to the study question directly: how far
 the peri-islet compartment has moved relative to the core, in the same islet.
 
-**State the sampling on the card.** The ordering was fit on 49,999 of 800,562 cells. That belongs
-in the caption, not a footnote.
+**State the sampling on the card.** The ordering is fit on **480,444 of 1,639,174 cells (29.3%)**
+— corrected 2026-09-18; 49,999 of 800,562 was the superseded pooled build. That belongs in the
+caption, not a footnote.
 
 ### 1.7 `pln/` — increment 9
 
@@ -297,7 +315,9 @@ single `Tissue` annotation **is** the node — it is the only entry whose whole 
 Node membership is derived **geometrically**, polygon against `Centroid X/Y µm`. Never from the
 TSV's `Parent`: the export carries `Parent = "Annotation (Tissue)"` on 100% of rows.
 
-Donor 6579 is excluded (1,231,818 cells) and its row exists so the exclusion is visible.
+Donor 6579 carries 1,231,818 cells and is **not** excluded: `pln_node_annotations.csv`
+has recorded `excluded=False` for it since 2026-09-17 14:16, following `cohort.py`'s REINSTATED
+entry of the same day. (Corrected 2026-09-18 — this line instructed an exclusion that had lapsed.)
 
 ### 1.8 `compartments/` — added 2026-09-18
 

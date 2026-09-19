@@ -4,6 +4,28 @@ Evaluation + integration notes, July 2026. Question asked: *can the Viewer tab's
 instance be replaced with the more annotation-friendly
 [TissUUmaps](https://github.com/smith6jt-cop/TissUUmaps) fork?*
 
+> **CORRECTED 2026-09-18 — three things in this July record no longer hold.** The evaluation's
+> conclusion stands; these are the parts a reader would act on and should not.
+>
+> 1. **§7's "no real channel pyramid has been extracted yet" is false.** All ten TissUUmaps
+>    projects under `/data/tissuumaps` were rebuilt on 2026-09-17, every channel of every one, at
+>    `EXTRACTION_VERSION 5`, and verified bit-identical to the LUT that produced them.
+>    `docs/TISSUUMAPS_INTENSITY_2026-09-17.md` §9. The size, ratio and timing figures below are
+>    still synthetic; the measured ones are in that document (12-35 min per donor; the ten occupy
+>    310.5 GB).
+> 2. **The robust stretch described in §2a and §3 did not estimate what it claims on a real
+>    slide.** PhenoCycler clamps its per-cycle blank at zero, so bin 0 holds 33-92% of every frame
+>    and `argmax` returned **mode = 0 on 59 of 59 channels**, with sigma at its 1.0 floor — so the
+>    black point was 3 counts on every channel of every donor regardless of background. Fixed by
+>    searching the mode over the bins that sample the background (v4 → v5). The `mode + 20σ`
+>    signal-floor convergence argument in §2a is unaffected; the σ it is expressed in was not being
+>    measured. Same document, §2-§3.
+> 3. **`--um-per-px 0.2539` in §5's coordinate table is not this cohort's slide pixel size.**
+>    Level 0 of these OME-TIFFs is **0.5078 µm/px**, the same as the QuPath GeoJSON, so the derived
+>    `--region-scale` of 2.0 is wrong here and is caught only because the geometry falsifies it. A
+>    slide whose tissue covered less than half the frame would not falsify it and the regions would
+>    come out at twice size. `docs/TISSUUMAPS_REGIONS_2026-09-17.md` §(b).
+
 **Answer: yes.** The Viewer tab is already just an `<iframe>` behind a URL builder, so the
 app-side change is small. The work is in the image-serving layer. This document records what
 was verified, what broke, and how the integration is wired.

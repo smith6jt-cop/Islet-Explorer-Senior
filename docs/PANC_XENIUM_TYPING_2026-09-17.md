@@ -388,8 +388,17 @@ reported for contrast, never used as a background estimate.
 
 ### Depth
 
-Depth, not gDNA, is the constraint on a 5K-panel call, and no section here is described as
-gDNA-hazardous. Median transcripts per cell, lowest first: 6347 161 · 6380 221 · 6523 296 ·
+Depth, not gDNA, is the constraint on a 5K-panel call for most of this cohort.
+
+> **CORRECTED 2026-09-18.** This sentence used to end "and no section here is described as
+> gDNA-hazardous". **Two sections in this release are exactly the flagged pair.**
+> `docs/XENIUM_GDNA_TRIAGE_2026-09-17.md` measures `0080870` panc (donor **6533**) at 0.26100,
+> **57.5x** the tuned rate, and `0081366` panc (donor **112**) at 0.30600, **67.4x**;
+> `docs/XENIUM_PIPELINE.md` §0 puts them at roughly **76x** the false positives per cell of the
+> sample every constant in this lane was tuned on. Both donors are typed in this release (see
+> the per-donor table above) with **no gDNA correction applied and no flag on the rows**. Any
+> call on 6533 or 112 from this release has to be read with that in front of it, and a
+> cohort-pooled number that includes them carries it silently. Median transcripts per cell, lowest first: 6347 161 · 6380 221 · 6523 296 ·
 6539 330 · 6442 377 · 6579 409 · 6591 410 · 6374 420 · 6436 420 · 6533 421 · 115 430 · 112 434 ·
 6461 438 · 6482 474 · 6493 491 · 6476 493 · 6580 509 · 6521 518 · 6593 540 · 6551 620 · 6566 707.
 
@@ -414,9 +423,48 @@ median depth 368, called Immune_B_Plasma on FKBP11 and XBP1 with a margin of 0.0
 own cells agreeing by their own core argmax. It is in the release with all six of those numbers
 attached.
 
-`n_cd3_negative_nk_redirects` is **0** across all 21 sections: no cluster this time had an
-Immune_T argmax with neither CD3E nor CD3G standing out while NK genes did. The rule is live and
-simply did not fire.
+> **CORRECTED 2026-09-18.** This passage used to read: "`n_cd3_negative_nk_redirects` is **0**
+> across all 21 sections: no cluster this time had an Immune_T argmax with neither CD3E nor CD3G
+> standing out while NK genes did. The rule is live and simply did not fire." **The rule fired.**
+> The published 0 is a counter reading the wrong partition, not a measurement of the rule.
+>
+> `analysis/xenium/scripts/panc_xenium_cluster_name.py:885` computes
+> `n_clusters_cd3_negative_nk_redirect` as `int(sum(main["redirected"]))` — the **parent-cluster**
+> decision and only that — and `panc_xenium_release.py:184` copies it into `release.json` under the
+> plural name `n_cd3_negative_nk_redirects`. The redirect is evaluated again at the **sub-cluster**
+> level (`fdec["redirected"]`, written onto every sub-cluster row at line 821), and the sub-cluster
+> partition is where it fired. Nothing in `release.json` counts that partition, so the release
+> reports 0 while carrying the redirected cells.
+
+`n_cd3_negative_nk_redirects` is **0** across all 21 sections **because it counts parent clusters
+only**, and at the parent level it is a true zero: 0 of 540 parent clusters across the 21 sections
+carry `cd3_negative_nk_redirect = True`. At the sub-cluster level the rule fired on **4 of 5,409
+sub-clusters**. Measured 2026-09-18 over every section's
+`/data/xenium_typing/panc_2026-09-17/_work/*.clusters.parquet` and `*.subclusters.parquet`:
+
+| sub-cluster | donor | cells | parent lineage | final lineage | standout naming genes | margin | median depth |
+|---|---|---|---|---|---|---|---|
+| `6482_c18_s07` | 6482 | **215** | Exocrine | **Immune_NK_ILC** (`T_NK`) | `EOMES;GATA3;KLRC1;PRF1` | 0.075 | 91 |
+| `6347_c20_s03` | 6347 | 211 | Neural | `Uncalled_no_enrichment` | — | 0.126 | 26 |
+| `6380_c11_s11` | 6380 | 763 | `Uncalled_no_enrichment` | `Uncalled_no_enrichment` | — | 0.017 | 29 |
+| `6523_c19_s04` | 6523 | 109 | Granulocyte | `Uncalled_no_enrichment` | — | 0.280 | 138 |
+
+Three of the four were redirected and then failed the enrichment gate — their winning
+`Immune_NK_ILC` score sat below the partition mean — and ended `Uncalled_no_enrichment`, so the
+redirect changed no label there. **One produced a call.** `6482_c18_s07` is 215 cells that the
+parent cluster held as Exocrine and that the redirect moved to `Immune_NK_ILC`, common lineage
+`T_NK`, on four standout NK naming genes with neither CD3E nor CD3G standing out. All 215 are in
+the release at `calls/donor_id=6482/roi=panc/data.parquet` carrying
+`reason = cd3_negative_nk_positive_redirect`; that reason string appears on **215 cells
+release-wide and on no others**.
+
+Read that call with its own decidedness attached, as §6 requires of every call: its
+`purity_cell_argmax_agrees` is **0.042** and its `cell_argmax_top_label` is **Exocrine at 0.674** —
+the sub-cluster is named NK by cluster-level enrichment while most of its cells still argmax
+Exocrine by their own cores. 215 cells is 0.028% of donor 6482's 770,667 clustered-and-called
+cells (810,102 in the h5ad, 38,146 excluded for no nucleus, 1,305 below cluster QC). Nothing
+here is a verdict on whether those cells are NK; what is corrected is the claim that the rule never
+fired.
 
 ## 7. Internal coherence — where the naming evidence actually went
 

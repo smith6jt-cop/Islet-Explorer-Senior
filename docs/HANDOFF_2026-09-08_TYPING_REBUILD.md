@@ -1,5 +1,29 @@
 # Handoff — rebuild the PhenoCycler typing comparison on a sound substrate
 
+> **DATED RECORD — this plan was not executed as written, 2026-09-18.** It is the handoff that
+> followed the withdrawal of the broad-typing producer comparison; that comparison is now retired
+> outright and on the never-revive list. What was actually built instead is the **subpanel
+> classification** — context from QuPath pixel-classifier objects, then one question per context
+> answered by the markers that can answer it, against reference levels fitted **per donor** on that
+> donor's cells in no classified object and outside every islet. **25,230,109 cells, all 20 donors,
+> in `data/development/typing/cells/`**; mechanics in
+> `core/phenocycler/scripts/typing/RECONSTRUCTION.md`. Four specifics in this document are wrong on
+> their face now:
+>
+> * **`docs/TYPING_PROTOCOL_2026-09-08.md` (Phase 0) was never written** and exists nowhere in the
+>   repository. The lane `core/phenocycler/scripts/typing/` does exist and is the current one.
+> * **`artifacts.StageManifest` and the substrate fingerprinting Phase 1 rests on are gone.** The
+>   content-addressed run framework was removed on 2026-09-16: stages write to stable roots
+>   (`data/cells`, `data/geometry_qc`, `data/redsea`, `data/expression`), there is no `run_id`, no
+>   stage manifest, no donor receipt and no fingerprint validation.
+> * **The two-donor scope was superseded.** Ruling 1's "all cells, every donor" did land, but
+>   through the subpanel lane on all 20 donors, not through the Phase 2-5 plan below.
+> * **Three document paths are wrong**: `docs/DEEPCELL_TYPES_REVIEW_2026-08-24.md` and
+>   `METHOD_HISTORY.md` live under `core/phenocycler/docs/`, not `docs/`.
+>
+> **The five maintainer rulings in §3 and the exclusion accounting in §4 stand** — they are
+> statements about the data and about what may be measured, not about this plan.
+
 **For a new session.** Written 2026-09-08 against `main` @ `b5e2ecf`. You are picking up work whose previous
 conclusion has been **withdrawn**. Read this document, then the four files in "Start here", before running
 anything. Nothing is currently running; no process needs babysitting.

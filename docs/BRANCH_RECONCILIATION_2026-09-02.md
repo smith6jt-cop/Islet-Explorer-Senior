@@ -1,5 +1,18 @@
 # Branch reconciliation ledger — 2026-09-02
 
+> **DATED LEDGER — two facts it records have moved, 2026-09-18.** The branch dispositions and the
+> safety record are provenance and stand as written. The workflow facts quoted in them do not:
+> the **content-addressed run framework was removed on 2026-09-16** (no `run_id`, no stage
+> manifest, no fingerprint validation; stages write to stable roots), so "the current immutable-run
+> workflow" under § Conflict decisions and "immutable run `30f6689e4d27d295f890`" under § Merged-tree
+> validation describe a framework that no longer exists. And the **25,150,537 analysis-eligible
+> cells** recorded there is that run's geometry export, which is not the current cell-type
+> population: `data/development/typing/cells/` holds **25,230,109 cells over 20 donors**, written
+> 2026-09-15. The same 25,150,537 is also the row count of
+> `typing/subpanel/subpanel_calls.parquet` — the **superseded** previous generation of the calls,
+> 79,572 cells short of the current tree. Neither is the number to quote for the typing.
+
+
 This ledger records the evidence and decisions used to converge the repository onto one
 persistent branch. It is deliberately separate from the workflow map: branch history is
 provenance, not workflow authority.

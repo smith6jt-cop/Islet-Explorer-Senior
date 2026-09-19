@@ -1,6 +1,7 @@
 # External and auxiliary packages — the index
 
-**Status:** written 2026-09-02. This is an index, not a second copy of the pins: each pin lives in
+**Status:** written 2026-09-02; paths corrected and the typing rows re-stated 2026-09-18. This is
+an index, not a second copy of the pins: each pin lives in
 exactly one place (a `pyproject.toml` extra, a lane README, or an adapter's import-time assertion) and
 this table points at it. The lane that changes a pin updates this row. Companion documents:
 `WORKFLOW_2026-09-02_MAP.md`, `PLAN_2026-09-02_AUXILIARY_PACKAGES.md`.
@@ -43,17 +44,27 @@ this table points at it. The lane that changes a pin updates this row. Companion
 | core/panels = XeniumPanelExplorer @ `076d1192` (Seurat 5.5 app) | the panel-taxonomy authority | subtree; snapshot stamped `git rev-parse HEAD:core/panels/data` (`0348d149…`) | renv deactivated (`renv.lock.r46-backup`) |
 | Harmony (python), scVI (app side) | the trajectory build only | `scripts/senior/compute_trajectory_senior.py`, `train_scvi_senior.py` | input-starved; the deployed pseudotime predates the fix |
 
+> **Correction 2026-09-18 — six "In use" rows are no longer in use.** Nimbus-Inference, KRONOS,
+> KRONOS2/CORAL, TACIT, CELESTA and the KINTSUGI/pyFlowSOM SOM entered the repository as methods of
+> the **broad-typing producer comparison**, whose producer choice was withdrawn 2026-09-08 and which
+> is now on the root `CLAUDE.md` never-revive list (see the row added below). Their pins, checkouts,
+> venvs and recorded findings stay as written — they are the record of what was measured and with
+> what — but no lane in the current workflow calls them. The `arm` identifiers in the role column
+> are the on-disk module names (`scripts/broadtype/arms/<name>.py`) and are left alone; in prose,
+> say *method* or *the comparison*.
+
 ## Evaluated and closed — record kept, not revived
 
 | package | verdict | what survives |
 |---|---|---|
-| DeepCellTypes — `vanvalenlab/deepcell-types @ 59d74a97…`, `deepcell-auth @ 523a4dd5…`, checkpoints `2026-06-15` and `2026-06-23-ptft` (md5 verified) | lane FAIL 2026-08-24, 0 of 5 held-out donors; excellent epithelial caller; scoped to this model at this checkpoint (`docs/DEEPCELL_TYPES_REVIEW_2026-08-24.md`) | `pyproject.toml [dct]`; `gates.py`, `tiff_window.py`, `window_mask.py`, the `label_space.py` idiom; the pre-registration discipline |
-| CuPy REDSEA GPU backend (`cupy-cuda13x` installed; the extra declares `cuda12x`) | two showstoppers (`docs/REDSEA_GPU_REVIEW_2026-08-27.md`); defect 1 reproduced live 2026-09-01 | off (`use_gpu = false`) |
+| DeepCellTypes — `vanvalenlab/deepcell-types @ 59d74a97…`, `deepcell-auth @ 523a4dd5…`, checkpoints `2026-06-15` and `2026-06-23-ptft` (md5 verified) | lane FAIL 2026-08-24, 0 of 5 held-out donors; excellent epithelial caller; scoped to this model at this checkpoint (`core/phenocycler/docs/DEEPCELL_TYPES_REVIEW_2026-08-24.md`) | `pyproject.toml [dct]`; `gates.py`, `tiff_window.py`, `window_mask.py`, the `label_space.py` idiom; the pre-registration discipline |
+| CuPy REDSEA GPU backend (`cupy-cuda13x` installed; the extra declares `cuda12x`) | two showstoppers (`core/phenocycler/docs/REDSEA_GPU_REVIEW_2026-08-27.md`); defect 1 reproduced live 2026-09-01 | off (`use_gpu = false`) |
 | MaxFuse (fork **+29, diverged**) | refused as a dependency; algorithm reimplemented in `integration/crossmodal.py`, itself dead as shipped | — |
 | SimpleITK 2.5.6, itk-elastix 0.19.2 | present in `~/.venvs/valis` / conda `image2image` only; deliberately not run (the point-set fit beats intensity refinement 1.5–2.9×) | reversible judgement |
 | rapids_singlecell | absent locally, not needed (CPU branches everywhere) | HPG only |
 | RESTORE (own copy `smith6jt-cop/RESTORE`; `literature/external/RESTORE`) | adopted 06-19, retired 07-23, replaced 07-30, reinstated 08-10, lane retired 08-14 | history only |
-| ordered-residual / simultaneous typing, Otsu floors, GMM control purification, the gold-standard lane, Gate 2–5 | measured rejections (`docs/METHOD_HISTORY.md`) | — |
+| ordered-residual / simultaneous typing, Otsu floors, GMM control purification, the gold-standard lane, Gate 2–5 | measured rejections (`core/phenocycler/docs/METHOD_HISTORY.md`) | — |
+| the broad-typing producer comparison (`scripts/broadtype/`, arms A–I incl. Nimbus, TACIT, CELESTA, KRONOS2/CORAL, the SOM and deepcell-types re-runs) | **producer choice withdrawn 2026-09-08** on twelve verified defects (`docs/BROADTYPE_PROTOCOL_2026-09.md` §4.9); on the never-revive list since. `data/development/broadtype/release/` is on disk and is **not** a verified typing | the QC figures P01–P05 / X01–X03, `verdict.py`'s recomputation from records, `gates.require_evidence`, the tiering rule |
 | scimap (fork; conda env), Astir (`astir-env`), Vitessce, Streamlit, Lamian (`compute_lamian_pseudotime` never called) | superseded or archived | the scimap env and its 25-phenotype vocabulary linger in the app |
 
 ## Dormant here

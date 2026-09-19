@@ -445,6 +445,24 @@ ISLET_LAYERS_DIR=... .venv/bin/python scripts/senior/build_trajectory_layer.py
 
 ## 9. Left for the maintainer
 
+> **CORRECTED 2026-09-18 — items 1, 2 and 3 were closed later the same day** by the app-side track,
+> `docs/TRAJECTORY_APP_2026-09-17.md`. Read them as a record of what was outstanding at the time of
+> writing, not as open work.
+>
+> * **1 (availability layer).** Rebuilt. `scripts/senior/build_availability.py` was run; `trajectory`
+>   is `measured` for 20 of the 25 roster donors, and all three Aab+ donors are visible to the card.
+> * **2 (`card_s2_trajectory.R`).** Edited. The false sentence — *"the fit was not recomputed per
+>   donor"* — was removed, and the standing prose was cut to one measured line plus a methods modal.
+> * **3 (`typing/app/adata_ins_root.h5ad`).** Rebuilt by `scripts/rebuild_adata_ins_root.py`:
+>   17,786 islets, 20 donors, three ordered statuses, carrying the within-donor ordering. The
+>   superseded ten-donor file is kept beside it as
+>   `adata_ins_root.superseded-20260914-1712.h5ad`.
+>
+> **Items 4 and 5 are still open.** The ordering's seed-dependence (§6) is unsettled and is the
+> first thing to settle before anything reads this ordering as a position in a process; and 6579
+> still has no `typing/cells/` partition, with `data/donor_acquisition_runs.csv` still recording it
+> `excluded=True` against `cohort.py` — verified on disk 2026-09-18.
+
 Five things this session could not finish, most of them because the file belongs to a concurrent
 lane this session must not write.
 

@@ -6,7 +6,11 @@
 # are never merged -- a cross-donor comparison spanning both would compare methods, not biology.
 #
 # COHORT: 20 donors -- `cohort.CLEAN` (17) + `cohort.MARGINAL` (3), the two lists in
-# core/phenocycler/scripts/typing/cohort.py, which is the authority. Do not restate them here.
+# core/phenocycler/scripts/typing/cohort.py, which is the authority. The summary below is a
+# reading aid and nothing in this app derives from it; if the two ever disagree, cohort.py is
+# right and these lines are stale. Donor exclusion is a separate question with its own single
+# authority -- core/phenocycler/phenocycler/cohort.py, where only 6457 is excluded (6579's
+# exclusion was lifted 2026-09-17) -- and no config may restate that list either.
 #
 #   CLEAN (17)     zero missed islets under all six detection settings swept, and zero duplicated
 #                  islet-core detections: 115, 6374, 6436, 6442, 6450, 6461, 6476, 6482, 6493,
@@ -33,6 +37,38 @@
 # The class list is deliberately coarse. This panel carries no acinar-specific and no
 # ductal-specific marker, so Exocrine is one label; immune subsets are not resolved, so Immune
 # is one label. Nothing here may be split further without a marker that can split it.
+#
+# THE NINTH ENTRY IS NOT A NINTH CELL TYPE. `Unresolved` is what the refinement pass
+# (core/phenocycler/scripts/typing/refine.py, label `Unresolved (no lineage evidence)`) writes
+# on a cell it demoted out of Exocrine: Exocrine is the complement class, so there is no
+# complement beneath it and the cell is left with no lineage evidence at all. That is the
+# ABSENCE of a call, not a split of one, and the rule above still holds -- nothing here has
+# been split, and nothing may be without a marker that can split it.
+#
+# It is therefore excluded from `phenotypes.display_order`'s reading as a cell-type vocabulary
+# by two declarations, not by its spelling: it is listed under `phenotypes.residuals` with
+# `absence: true` (read by ieCore::ie_absence_phenotypes(), which is what a tab asks instead of
+# matching the label), and its colour is ieCore::ie_absence_class_color() -- the `uncalled`
+# entry of the availability palette in apps/R/ieCore/R/ie_availability.R, which is achromatic
+# on purpose while every class colour below carries a hue. The hex is repeated here because
+# YAML cannot call R; apps/islet/tests/testthat/test-ninth-class.R asserts the two agree.
+#
+# STATE AS OF 2026-09-18: NO CELL CARRIES THIS LABEL YET. The refinement pass is written and is
+# NOT wired to anything -- `refined_class` has no consumer, build_cells.py still sets `phenotype`
+# from `cell_class`, and data/development/typing/cells/ is the 2026-09-15 build of 25,230,109
+# cells with eight classes plus `Excluded`. NO DONOR HAS BEEN RE-RUN with the 2026-09-18 islet
+# chain either: that build predates the CD99 question, the per-donor-and-per-stratum CD99 level,
+# the elongation second route and the structure/top-marker requirement, so nothing in this app
+# has yet been typed by the chain the method documents describe. Measured 2026-09-18 in
+# data/development/typing/app/parquet/islets.parquet: the only composition columns present are
+# `count_*` / `prop_*` / `peri_*` / `enrich_z_*` / `min_dist_*` over the eight classes -- there is
+# no `Unresolved` column of any kind. The entry is declared ahead of the data deliberately,
+# so that a card meets a named absence rather than an unmapped value the first time one appears;
+# it is not a claim that any islet number in this app currently contains one. It also remains an
+# OPEN QUESTION whether the pass should run at all: its 5th-percentile bound demotes about 5 % of
+# every class by construction, and on Exocrine -- 80 % of the tissue -- the measured demotion sits
+# 0.2-0.5 pp above that floor, which would make roughly a million cells `Unresolved` for being in
+# the bottom 5 % of the largest class rather than for any measured absence of keratin.
 
 app:
   name: Islet Explorer Senior — Run Cohort
@@ -88,15 +124,19 @@ regions:
   denominator_note: >-
     Denominator: analysis-eligible cells in the region — a detection with no nucleus is not counted
     anywhere, nor is an exocrine call inside the islet border. An islet with no cells in a region
-    has no proportion there, not a zero.
+    has no proportion there, not a zero. Where the refinement pass has run, the denominator also
+    contains cells the typing resolved no identity for (Unresolved), so the eight class
+    proportions no longer sum to 1 — the remainder is that absence, not a shortfall in any class.
 
-# The eight classes the subpanels decide, and nothing else.
+# The eight classes the subpanels decide, then the one recorded absence -- and nothing else.
 phenotypes:
   # Shown in the Plot tab's measure-group headings. Not scVI: these eight classes come from the
   # subpanel classification (core/phenocycler/scripts/typing/RECONSTRUCTION.md).
   classifier_label: subpanel classification
+  # Order: the eight classes first, in the order they were established, then the absence LAST.
+  # An absence is not a member of the vocabulary it sits beside, so it never sorts among it.
   display_order: [Beta_cell, Alpha_cell, Delta_cell, Exocrine, Blood_Vessel,
-                  Lymphatic, Neural, Immune]
+                  Lymphatic, Neural, Immune, Unresolved]
   colors:
     Beta_cell: "#E63946"
     Alpha_cell: "#F4A261"
@@ -106,6 +146,25 @@ phenotypes:
     Lymphatic: "#84A98C"
     Neural: "#B5838D"
     Immune: "#3A5A8C"
+    # ieCore::ie_absence_class_color(). Achromatic (R == G == B) while all eight above carry a
+    # hue, so "no hue" reads as "no identity" without a legend having to say so. Kept at mid
+    # grey rather than near-white because a class nobody can see on the plot is a worse lie
+    # than one in the wrong colour.
+    Unresolved: "#6E6E6E"
+  residuals:
+    # `absence: true` is the machine-readable half of the note at the top of this file. A tab
+    # asks ieCore::ie_absence_phenotypes() rather than matching the string "Unresolved".
+    - name: Unresolved
+      parent: all
+      absence: true
+      description: >-
+        NOT a cell type. The refinement pass demoted this cell out of Exocrine because none of
+        Exocrine's own markers reached the class bound among its concordant neighbours, and
+        Exocrine is the complement class, so there is no complement beneath it. The producer
+        label is `Unresolved (no lineage evidence)`. It records that the typing was run and
+        resolved no identity -- which is neither a measurement that is missing nor a cell that
+        was never typed, and never a zero of any class. Counting it as a phenotype proportion
+        beside the eight classes would report an absence as a population.
 
 # Where this dataset's files live. Read by 00_globals.R; a config without this block falls back
 # to the historical data/app_data paths, so islet_default.yml is unaffected.

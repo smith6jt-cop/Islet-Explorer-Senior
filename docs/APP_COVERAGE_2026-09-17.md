@@ -5,8 +5,19 @@ resolved, every column existed, 772 R assertions passed. The six per-islet artif
 `data/development/typing/app/` had simply been built on 2026-09-14 against the donor list of that
 day and never rebuilt, and no check compared one artifact's coverage against another's.
 
-The binding constraint was `typing/immune` at ten donors. The membership, crossed and immune
-tracks lifted their layers to twenty first; this rebuilds everything downstream of them.
+
+> **CORRECTED 2026-09-18.** The claim that the app's composition artifacts are built from
+> `data/development/typing/immune/`, and that that layer was the binding constraint on donor
+> coverage, is **false**. Grepped 2026-09-18: `build_workbook.py`, `aggregate_islets.py`,
+> `build_parquet_views.py` and `build_islet_marker_means.py` contain no reference to
+> `typing/immune` — `docs/IMMUNE_SUBTYPE_COVERAGE_2026-09-17.md` §7 states it outright ("No app
+> artifact reads this layer"). Each builder's coverage comes from its own `COHORT.resolve` at
+> build time. `typing/immune/` has covered 20 donors / 2,934,898 Immune cells since 2026-09-17.
+
+~~The binding constraint was `typing/immune` at ten donors.~~ — **false; see the banner above.**
+What the rebuild actually did stands: the membership, crossed and immune tracks lifted their layers
+to twenty first, and this rebuilds everything downstream of them. Each app builder resolved its own
+cohort at build time, and had done so all along.
 
 ## Verified on disk before rebuilding
 

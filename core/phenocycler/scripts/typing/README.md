@@ -1,28 +1,78 @@
 # PhenoCycler cell typing, and the app dataset built from it
 
 Two things live here. The **typing** is the subpanel classification — context from QuPath objects,
-then one question per context against reference levels drawn from the ordinary tissue. The **app
-build** turns those calls into the dataset `apps/islet` serves under
-`ISLET_DOMAIN_CONFIG=config/run20_default.yml`.
+then one question per context against a reference level, never a constant. **A structure's level is
+the p99 of that donor's ordinary tissue — cells in no classified object and outside every islet —
+fitted PER DONOR.** Inside an islet the question is the same statement upside down, so **CD99's
+endocrine level is the 1st percentile of that donor's AND that size stratum's own hormone-confirmed
+cells**, with a floor guard that returns the level UNAVAILABLE rather than accept one sitting on the
+scale floor. The donor's ordinary-tissue CD99 level is carried and reported beside it as
+`donor_reference_level`, never substituted for it. The shape criterion is fitted the same way and
+only in the `>10` stratum, where alone it separates — and its weight is an open question (see
+RECONSTRUCTION.md, "Elongation is not a level-able feature"). The **app build** turns those calls
+into the dataset `apps/islet` serves under `ISLET_DOMAIN_CONFIG=config/run20_default.yml`.
 
 Development lane: writes only `data/development/typing/`, never the stable
 `data/{cells,geometry_qc,redsea,expression}` roots or the historical
 `data/runs/` tree, and creates no manifest of any kind (there is no stage
 manifest left to write); does not move the `NO_VERIFIED_TYPING` latch.
 
-## The typing itself is not re-derived here
+## The typing IS re-derived here
 
-`subpanel_calls.parquet` (25,150,537 rows, 20 donors) already exists and the donors in it are
-typed. **Nothing below re-decides `cell_class`.** How it was produced is recorded in
-[`RECONSTRUCTION.md`](RECONSTRUCTION.md), recovered by reproducing the calls from their inputs and
-verified against them — read that rather than re-deriving it. The two modules carrying the parts
-verified exactly are `subpanel_io.py` (input chain, scale, reference levels) and `context.py`
-(centroid-in-object assignment, reproduced at 100.0000%).
+This section said the opposite until 2026-09-18, and it was true when it was written: the 25.15M-row
+table had no producer, so nothing could re-decide `cell_class`. Two modules changed that, and both
+are development lanes with `NO_VERIFIED_TYPING` still down.
+
+```
+celltype/uniform/  ->  subpanel.py     the classification  ->  typing/subpanel_rebuilt/
+                   ->  build_cells.py  carries + derives   ->  typing/cells/
+                   ->  refine.py       the refinement pass ->  a SIDECAR at --out, keyed on object_id
+```
+
+`subpanel.py` is the producer the table never had. `build_cells.py` reads
+`typing/subpanel_rebuilt/` (`subpanel_io.TYPING`) and **carries** — every column the producer
+writes reaches the output, `is_endocrine` is read off `resolved_by` rather than re-derived from the
+class name, `Excluded` keeps its reason, and `--audit` attaches the per-stratum level each cell was
+measured against. It decides nothing, but what it carries is whatever the last run of the producer
+wrote, so **the producer runs before the app build whenever the typing changes**. `refine.py` does
+not rewrite `typing/cells/`; it writes a sidecar beside it, joined only under
+`build_cells.py --refine`.
+
+### NO DONOR HAS BEEN RE-RUN with the 2026-09-18 islet chain
+
+Measured 2026-09-18. `typing/subpanel_rebuilt/` and `typing/cells/` both hold 25,230,109 rows over
+20 donors and were written on **2026-09-15** (12:41 and 13:16). They are the pre-chain build: nine
+`cell_class` values — the eight classes plus `Excluded` — **no CD99 question**, no `islet_cells` /
+`islet_stratum` / `islet_route` column, `resolved_by` carrying only `hormone` for endocrine cells,
+and **no `Unresolved`** anywhere. The refinement pass is **written and not wired**: `refined_class`
+has zero consumers and no cell on disk carries it. Anything read out of these tables is the
+2026-09-15 method, whatever the prose beside them describes.
+
+Read, rather than re-deriving them:
+
+* [`RECONSTRUCTION.md`](RECONSTRUCTION.md) — the classification: the input chain and context
+  reproduction (recovered by reproducing the calls from their inputs and checked against them), the
+  islet chain ruled on 2026-09-18, the measured evidence for the size strata, and three defects the
+  build found in the calls on disk.
+* [`REFINEMENT.md`](REFINEMENT.md) — the refinement pass, recovered from the 2026-09-11 session:
+  concordance, the per-donor bound, `immune_leaf`, and why it is applied once. **Not wired:
+  `refined_class` has no consumer and no cell carries `Unresolved` today.**
+
+The two modules carrying the parts verified exactly are `subpanel_io.py` (input chain, scale,
+reference levels) and `context.py` (centroid-in-object assignment, reproduced at 100.0000%).
+
+**Two generations of calls sit in this tree and nothing on disk marks which is which.**
+`typing/cells/` is current (25,230,109 rows); `typing/subpanel/subpanel_calls.parquet` is the
+previous generation (25,150,537 rows) and its endocrine counts differ materially. Check mtimes
+before citing anything here.
 
 ## The app build, in order
 
-Run from the repo root with the repo `.venv`. Ten clean batch-1 donors by default
-(`cohort.py`; batch 2 is refused until its export is corrected — see the root `CLAUDE.md`).
+Run from the repo root with the repo `.venv`. **Seventeen** clean donors by default, twenty with
+`--include-marginal` (`cohort.resolve`, measured 2026-09-18). It was ten batch-1 donors until the
+2026-09-15 re-export: the seven re-exported batch-2 donors joined `CLEAN` then, and `resolve`
+refuses a batch-2 donor only when no rebuild exists for it under `typing/revised_cells/`.
+The three MARGINAL donors (6521, 6551, 6380) carry a stated islet deficit and are opt-in.
 
 ```bash
 .venv/bin/python core/phenocycler/scripts/typing/build_cells.py                 # per-cell table

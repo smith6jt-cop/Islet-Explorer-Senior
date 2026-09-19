@@ -11,11 +11,27 @@ The big-data, multimodal successor to Islet Explorer — an interactive R Shiny 
 
 ## Overview
 
-Islet Explorer is a modular R Shiny application for analyzing **5,214 islets** from **15 nPOD donors** across three disease stages. The app loads from a single enriched H5AD file (`data/islet_explorer.h5ad`) containing 31 protein markers, pseudotime trajectory, 21 phenotype proportions, donor demographics, 62 neighborhood metrics, and Leiden clustering — with Excel fallback for reduced-feature operation.
+Islet Explorer is a modular R Shiny application serving **two deliberately separate datasets**, one
+at a time, selected by the `ISLET_DOMAIN_CONFIG` environment variable. They share five donors and no
+vocabulary, so they are **never merged**: a cross-donor comparison spanning both would compare
+methods, not biology.
+
+| domain | config | data root | cohort |
+|---|---|---|---|
+| legacy CODEX | `apps/islet/config/islet_default.yml` (the default) | `data/app_data/` | 5,214 islets, 15 nPOD donors, 31 protein markers |
+| PhenoCycler run cohort | `apps/islet/config/run20_default.yml` | `data/development/typing/app/` | 20 nPOD donors, subpanel classification |
+
+Every data path resolves through `ieCore::domain_data_root()`; a path that escapes the active
+domain's root serves the wrong cells for a right-looking islet, and the testthat suite asserts
+against exactly that. The sections below describe the **legacy CODEX domain** unless they say
+otherwise.
 
 ### Key Capabilities
 
-- **6 interactive tabs**: Plot, Trajectory, Viewer, Statistics, Spatial, AI Assistant
+- **Tabs**: `app.R` registers nine hidden nav panels — Plot, Trajectory, Statistics, Spatial,
+  Neighborhoods, CrossModal, LymphNode, Viewer, plus Inflammation, which is hidden unless
+  `SHOW_INFLAMMATION_TAB=1`. The AI panel lives inside Plot and is off unless `ISLET_ENABLE_AI=TRUE`
+  (hard-blocked in production regardless)
 - **Single-cell drill-down**: Click any islet to view segmentation boundaries and cell composition
 - **Pseudotime trajectory**: Diffusion pseudotime (DPT) with INS root, cell-count-weighted visualization
 - **Spatial neighborhood analysis**: Immune infiltration, enrichment z-scores, distance metrics
@@ -38,17 +54,24 @@ Islet Explorer is a modular R Shiny application for analyzing **5,214 islets** f
 # Install R dependencies
 Rscript scripts/install_shiny_deps.R
 
-# Run the application
-R -q -e "shiny::runApp('apps/islet', launch.browser=TRUE)"
+# Run the application — from apps/islet, which must stay exactly two directories deep
+cd apps/islet && ISLET_DOMAIN_CONFIG=config/run20_default.yml \
+  Rscript -e 'shiny::runApp(".", port = 7777)'
 ```
 
+Omit `ISLET_DOMAIN_CONFIG` for the legacy CODEX domain. Use **R 4.5.1** with the `~/R/…/4.5`
+library; `/usr/bin/Rscript` is 4.6.1 and silently lacks the dependencies.
+
 **Production URL**: `http://<server-ip>:8080/islet-explorer/`
+
+The development server is **not** a deployment test: Avivator needs HTTP Range (206), which
+`shiny::runApp` does not serve. See `deploy/DEPLOY.md`.
 
 ## Installation
 
 ### Prerequisites
 
-**R Shiny App (R >= 4.2.0):**
+**R Shiny App (R 4.5.1, library `~/R/…/4.5`):**
 
 | Package | Purpose |
 |---------|---------|
@@ -129,7 +152,15 @@ Three-panel layout with neighborhood analysis cards:
 
 ### Viewer Tab
 
-Embedded OME-TIFF viewer using Avivator/Viv for multiplex image visualization with configurable channel mappings.
+Embedded OME-TIFF viewer on either of two backends, chosen by `ISLET_VIEWER_BACKEND`
+(`avivator` default, `tissuumaps`). The cohort mixes panels, so default-on channels resolve **by
+marker name, never by index**, against each image's own OME-XML.
+
+### Neighborhoods, CrossModal and LymphNode Tabs
+
+Neighborhoods holds the spatial neighbourhood cards. CrossModal and LymphNode are **thin card
+registries** — `IE_CROSSMODAL_CARDS` / `IE_LYMPHNODE_CARDS` in `apps/islet/R/mod_*_ui.R`. Read the
+current card list from those files; see `apps/islet/CLAUDE.md`.
 
 ### AI Assistant
 
@@ -146,9 +177,9 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 
 ## Data
 
-### Primary Data File
+### Primary Data File (legacy CODEX domain)
 
-`data/islet_explorer.h5ad` (~70 MB) — single enriched file containing all app data:
+`data/app_data/islet_explorer.h5ad` — single enriched file containing all app data for that domain:
 
 - 5,214 islets from 15 nPOD donors
 - 31 protein markers (mean expression per islet)
@@ -159,20 +190,24 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 - Leiden clustering at 4 resolutions + UMAP coordinates
 - QuPath groovy data (targets, markers, composition, LGALS3)
 
-**Fallback**: `data/master_results.xlsx` (4 sheets: Islet_Markers, Islet_Targets, Islet_Composition, LGALS3) — no phenotype proportions, demographics, or neighborhood metrics.
+**Fallback**: `data/app_data/master_results.xlsx` (4 sheets: Islet_Markers, Islet_Targets, Islet_Composition, LGALS3) — no phenotype proportions, demographics, or neighborhood metrics.
 
 ### Supporting Data Files
 
+All of these live under the domain root — `data/app_data/` for legacy CODEX,
+`data/development/typing/app/` for the run cohort. Never hardcode either; resolve through
+`ieCore::domain_data_file()`.
+
 | File | Description |
 |------|-------------|
-| `data/adata_ins_root.h5ad` | Trajectory source (5,214 islets, pseudotime, UMAP) |
-| `data/cells/*.csv` | Per-islet single-cell CSVs (5,214 files, ~203 MB) |
-| `data/donors/*.csv` | Per-donor tissue CSVs for Spatial tab (15 files, ~78 MB) |
-| `data/neighborhood_metrics.csv` | Per-islet peri-islet metrics (5,214 rows, 62 columns) |
-| `data/islet_spatial_lookup.csv` | Islet centroid coordinates |
-| `data/json/*.geojson` | QuPath segmentation boundaries |
-| `data/gson/*.geojson.gz` | Compressed segmentation boundaries |
-| `data/phenotype_rules.csv` | Rules1 phenotyping (19 phenotypes, 18 markers) |
+| `adata_ins_root.h5ad` | Trajectory source (legacy: 5,214 islets, pseudotime, UMAP) |
+| `cells/*.csv` | Per-islet single-cell CSVs (legacy: 5,214 files) |
+| `donors/*.csv` | Per-donor tissue CSVs for Spatial tab (legacy: 15 files) |
+| `neighborhood_metrics.csv` | Per-islet peri-islet metrics (legacy: 5,214 rows, 62 columns) |
+| `islet_spatial_lookup.csv` | Islet centroid coordinates |
+| `json/*.geojson` | QuPath segmentation boundaries |
+| `gson/*.geojson.gz` | Compressed segmentation boundaries |
+| `phenotype_rules.csv` | Phenotype rules parsed once at startup (legacy: 19 phenotypes, 15 markers) |
 
 ### Data Conventions
 
@@ -185,6 +220,10 @@ Available from both Plot and Trajectory tabs when clicking an islet:
 **Region synthesis**: If union rows are missing — Targets: synthesize `count` only. Markers: synthesize `n_cells` and `pos_count` as sums, compute `pos_frac`.
 
 **Factor ordering**: ND < Aab+ < T1D (always).
+
+**Peri-islet expansion**: every expansion is 20 µm — derive it from the signed distance, not from
+the annotation name. Say *peri-islet expansion*, not ring or band, outside the legacy region labels
+above.
 
 ## Data Pipeline
 
@@ -214,6 +253,14 @@ no run ID, stage manifest, or fingerprint check any more (see
 [core/phenocycler/README.md](core/phenocycler/README.md#outputs)). Runs made
 before 2026-09-16 remain, untouched, in that historical `data/runs/<run_id>/`
 tree.
+
+**Cell typing is a development lane, and it is not part of that workflow.** The subpanel
+classification lives in `core/phenocycler/scripts/typing/` and writes **outside** the package, to
+the repo-root `data/development/typing/`: `typing/cells/` is the build of 2026-09-15 —
+25,230,109 cells, 20 donors, eight classes plus `Excluded`. Nothing there is a release, the
+`NO_VERIFIED_TYPING` latch is unmoved, and `typing/subpanel/subpanel_calls.parquet` is a SUPERSEDED
+earlier generation. How it works is `core/phenocycler/scripts/typing/RECONSTRUCTION.md`; read it
+rather than re-deriving it.
 
 The application aggregation below is a **separate, legacy lane**. It consumes a
 legacy single-cell H5AD and is not a supported bridge from the current
@@ -284,14 +331,17 @@ Islet-Explorer-Senior/
 │   │   └── mod_ai_assistant_*.R   # AI chat panel module
 │   └── www/                       # Static assets (logo, avivator/)
 ├── apps/lymph/                 # Lymph config + synthetic schema fixture; no app fork
-├── data/                          # Data files (see Data section)
-├── scripts/                       # Pipeline and utility scripts
+├── data/app_data/                 # Legacy CODEX domain root (gitignored)
+├── data/development/              # Mutable review artifacts, incl. typing/ and typing/app (gitignored)
+├── scripts/                       # App-data and viewer-asset scripts; see scripts/CLAUDE.md
+│   └── senior/                    # The nine layer builders + build_layers.py, which owns their order
 ├── islet_analysis/                # Generated islet-level H5ADs (gitignored)
 ├── core/phenocycler/              # Subtree: QuPath→expression workflow, development lanes, integration
-├── core/panels/                   # Subtree: XeniumPanelExplorer (panel taxonomy + its app)
+├── core/panels/                   # Subtree: XeniumPanelExplorer — the one panel-taxonomy authority
 ├── analysis/xenium/               # Xenium 5K lane (absorbed 2026-08-28)
+├── analysis/follicle/             # Spleen follicle lane (absorbed 2026-09-03)
 ├── deploy/                        # nginx, shiny-server, TissUUmaps container recipes
-├── docs/                          # Consolidation plan, handoffs, TissUUmaps evaluation
+├── docs/                          # Workflow map, handoffs, dated measurement records
 └── CLAUDE.md                      # Developer reference (architecture, conventions)
 ```
 
@@ -300,11 +350,13 @@ Islet-Explorer-Senior/
 ### Running Locally
 
 ```bash
-# From command line
-R -q -e "shiny::runApp('apps/islet', launch.browser=FALSE)"
-
-# Or use the VS Code task: "Run Shiny app to reproduce issues"
+cd apps/islet && ISLET_DOMAIN_CONFIG=config/run20_default.yml \
+  Rscript -e 'shiny::runApp(".", port = 7777)'
 ```
+
+The app must be launched from `apps/islet` — the path resolution assumes exactly two directories
+deep. Add `NOT_CRAN=true ... Rscript tests/tab_smoke.R /tmp/tabshots` for the shinytest2 tab smoke
+driver (it lives in `tests/`, not `tests/testthat/`).
 
 ### Deployment
 
@@ -374,11 +426,11 @@ Rscript scripts/install_shiny_deps.R
 
 **"Cannot find islet_explorer.h5ad" / "Cannot find master_results.xlsx":**
 - Run the data pipeline scripts (see [Data Pipeline](#data-pipeline))
-- Or ensure files exist at `data/islet_explorer.h5ad` and `data/master_results.xlsx`
+- Or ensure they exist under the active domain root — `data/app_data/` by default
 
 **Trajectory/demographics not available:**
 - Install `anndata`: `BiocManager::install('anndata')`
-- Ensure `data/islet_explorer.h5ad` exists (Excel fallback lacks these features)
+- Ensure `islet_explorer.h5ad` exists under the active domain root (the Excel fallback lacks these features)
 
 **Image viewer not loading:**
 ```bash
@@ -416,4 +468,4 @@ https://github.com/smith6jt-cop/Islet-Explorer
 ---
 
 **Version**: 2.0 (modular architecture)
-**Last Updated**: March 2026
+**Last Updated**: 2026-09-18

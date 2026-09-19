@@ -1,5 +1,12 @@
 # Handoff — Xenium data, cell typing, and the integration rework
 
+> **SUPERSEDED IN PART — read this first, 2026-09-18.** This handoff argues an acinar/ductal axis and states "The Exocrine core is already an acinar call driven by CUZD1, not a ductal one" (§2b, and again around the CUZD1/TFF1 discussion). **That claim is not supported and is not the established position.** The Xenium 5K panel carries no PRSS1, CPA1, CELA3A, CTRB1, CTRB2, AMY2A or REG1A — measured per section — so **Exocrine is ONE label and no acinar and no ductal claim is made or supported**; see `docs/PANC_XENIUM_TYPING_2026-09-17.md` §5 and the same rule for the 60-plex in the root `CLAUDE.md`. Sections written as live 2026-08-27 CORRECTIONS in this file read as current and are not. **Two
+> further places carry the same retracted axis as live work and are covered by this banner:** §4's
+> "Do not report these numbers" reason 1 ("The acinar no-axis problem (§2b) is unaddressed ... most
+> likely by `Exocrine` (the nearest, ductal)") and §6's next step 2 ("Solve the acinar no-axis
+> problem"). There is no acinar axis to solve for and no ductal reading of Exocrine; the pilot
+> numbers stay unreportable for the reasons in §2a and §2e, which are untouched.
+
 **Date:** 2026-08-26
 **Branch:** `feat/dct-step0-pinning` (HEAD `c9edcf0` at time of writing; the peer
 `marker-qc-uniform-preprocessing` session has been committing to the same branch throughout)

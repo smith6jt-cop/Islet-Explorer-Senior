@@ -20,7 +20,9 @@ already being called per cell for all of them from inside `build_cells.py` — t
 What stopped it was a **stale input on the seven re-exported donors**. `build_donor` read two
 things unconditionally:
 
-* the content-addressed run's `expression/donor_id=<d>/` partition, and
+* the run's `expression/donor_id=<d>/` partition (the content-addressed run framework it belonged
+  to was removed on 2026-09-16; that tree is historical and nothing writes to it, but it is still
+  where the 20-donor cohort output lives, which is why this lane was reading it), and
 * the `data/development/kintsugi/distance/` layer, written 2026-08-27.
 
 The islet annotations for those seven were re-exported on 2026-09-14 and 2026-09-15. Both of the
@@ -326,8 +328,17 @@ exactly what still needs work:
 ## What this does and does not unblock
 
 Membership and crossed both now cover every donor `typing/cells` covers, so neither is a cap any
-more. They do **not** by themselves make the app show 20 donors: the app's composition artifacts
-are built from `typing/immune/`, and that layer is the binding constraint. It is not this lane's.
+more. They do **not** by themselves make the app show 20 donors — each app builder resolves its
+own cohort at build time.
+
+> **CORRECTED 2026-09-18.** This paragraph said the app's composition artifacts "are built from
+> `typing/immune/`, and that layer is the binding constraint". Both halves are false. Grepped
+> 2026-09-18: `build_workbook.py`, `aggregate_islets.py`, `build_parquet_views.py` and
+> `build_islet_marker_means.py` contain no reference to `typing/immune` —
+> `docs/IMMUNE_SUBTYPE_COVERAGE_2026-09-17.md` §7 states it outright ("No app artifact reads
+> this layer"). Coverage comes from each builder's own `COHORT.resolve`. And `typing/immune/`
+> has covered 20 donors / 2,934,898 Immune cells since 2026-09-17 in any case. Two other
+> documents written the same day carry the same false causal claim and are corrected too.
 
 Nor does 20-donor coverage make a cohort-pooled number safe. Two measurements above say to
 stratify first: islet size, where 6505 sits beside 6539 with a median of 5 cells per islet core,

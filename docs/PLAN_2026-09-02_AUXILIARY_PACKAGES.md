@@ -38,6 +38,35 @@ branch convergence and completion of the seven-repository consolidation explicit
 persistent destination, and the original repositories are not considered absorbed until their unique
 work is accounted for, their replacement paths pass, and the originals can be archived read-only.
 
+> **STATUS NOTE, 2026-09-18 — four things this plan states as in force are not.** The track
+> structure and the completed R/C.1/D.1/D.2/D.4a rows stand as the execution record; these are the
+> live-reading claims not to act on.
+>
+> 1. **"Nothing writes into `data/runs/` except the pipeline; `phenocycler/**` … re-keys `run_id`
+>    whenever it is edited" no longer describes the workflow.** The content-addressed run
+>    framework, `run_id` and `StageManifest` were **removed on 2026-09-16**. Stages write to stable
+>    roots — `data/cells`, `data/geometry_qc`, `data/redsea`, `data/expression` — a donor is done
+>    when its partition has content, a stage whose output is present is skipped, and `--force`
+>    reruns it. `data/runs/<run_id>/` is historical and nothing writes to it, though the 20-donor
+>    cohort output still lives only there. **Track C.6 ("re-key once") therefore has nothing to
+>    re-key.**
+> 2. **Track A's producer comparison is withdrawn and retired.** The 2026-09-04/05 amendment
+>    admitting Nimbus, KRONOS, TACIT, CELESTA and a deepcell-types re-run under one bar ran, chose
+>    `tasp`, and the choice was **withdrawn 2026-09-08** on twelve verified defects
+>    (`docs/BROADTYPE_PROTOCOL_2026-09.md` §4.9). It is on the root `CLAUDE.md` never-revive list.
+>    A.2's "arms B/C bake-off" is that vocabulary; say *method*, or *the comparison*.
+> 3. **The PhenoCycler typing that stands today came from neither A.1 nor A.3.** It is the
+>    **subpanel classification** — context from QuPath objects, then one question per context,
+>    against reference levels fitted **per donor** on that donor's cells in no classified object and
+>    outside every islet — **25,230,109 cells over 20 donors** in `data/development/typing/cells/`,
+>    mechanics in `core/phenocycler/scripts/typing/RECONSTRUCTION.md`. It is a development lane;
+>    A.4b is not satisfied and `NO_VERIFIED_TYPING` has not moved, so everything gated on A.4b in
+>    Track D is still gated.
+> 4. **Only 6457 is centrally excluded.** 6579's exclusion was lifted 2026-09-17 and is recorded in
+>    `REINSTATED` in `core/phenocycler/phenocycler/cohort.py`; the disease context is not retracted,
+>    and 6579 is not yet a 21st donor in any stage root
+>    (`docs/DONOR_6579_REENTRY_2026-09-17.md`).
+
 ## Rules in force throughout
 
 No frequency, cross-donor-uniformity or disease-ordering tuning. No analysis that was not asked for.

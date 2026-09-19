@@ -14,6 +14,12 @@
 >
 > The earlier version of this note flagged three passages as "stale" without correcting them. Each
 > is now corrected in place instead.
+>
+> **What this file does NOT cover:** the typing itself. A tab verdict here says a card drew; it
+> says nothing about how the cells under it were named. For that, read
+> `core/phenocycler/scripts/typing/RECONSTRUCTION.md` and the header of
+> `apps/islet/config/run20_default.yml`. The one typing fact a reader of this file needs is below,
+> under "What the run cohort's cells were typed by".
 
 ## Run cohort (`config/run20_default.yml`) — assessed 2026-09-14
 
@@ -55,6 +61,40 @@ islets are Aab+, across 6450, 6505 and 6521.
 DuckDB views `islets`, `tissue`, `cell_distance`, `uns_targets`, `uns_composition`; `uns_markers`
 deliberately absent because this dataset has no per-marker positivity.
 
+**What the run cohort's cells were typed by — measured 2026-09-18.** The app data is built from
+the **subpanel classification**, not from scVI: context from the QuPath objects, then one question
+per context answered by the markers that can answer it, against reference levels drawn from the
+ordinary tissue and fitted **per donor**. `config/run20_default.yml` declares
+`classifier_label: subpanel classification` and the Plot tab's measure-group headings read it, so
+no heading in this app says "(scVI)" over this dataset.
+
+The source is `data/development/typing/cells/` — **20 donor partitions, 25,230,109 rows, written
+2026-09-15**, counted off the parquet footers. Its `cell_class` column carries eight classes plus
+`Excluded` and nothing else: Exocrine 20,064,656 · Immune 2,934,898 · Blood vessel 1,267,015 ·
+Alpha 279,686 · Beta 226,183 · Excluded 193,868 · Lymphatic 122,884 · Delta 90,658 · Nerve 50,261.
+Three things follow, and all three are easy to get wrong from older text:
+
+- **`typing/subpanel/subpanel_calls.parquet` is a PREVIOUS generation** — 25,150,537 rows, written
+  Sep 11 — and nothing in this app reads it. That tree stacks generations side by side with
+  nothing marking which is which; check mtimes before citing anything in it.
+- **No donor has been re-run with the 2026-09-18 islet chain.** The 09-15 build predates the CD99
+  question, the per-donor-and-per-size-stratum CD99 level, the elongation second route and the
+  requirement that a structure call match the cell's top identity marker. Nothing this app draws
+  has been typed by that chain yet.
+- **The ninth vocabulary entry, `Unresolved`, has no producer.** It is an *absence*, not a class —
+  what the refinement pass (`core/phenocycler/scripts/typing/refine.py`, producer label
+  `Unresolved (no lineage evidence)`) would write on a cell demoted out of Exocrine. That pass is
+  written and **not wired**: `refined_class` has zero consumers, `build_cells.py` still sets
+  `phenotype` from `cell_class`, and `parquet/islets.parquet` carries `count_*` / `prop_*` /
+  `peri_*` / `enrich_z_*` / `min_dist_*` over the eight classes with **no `Unresolved` column of
+  any kind**. Whether the pass should run at all is an OPEN question, not a decision: its
+  5th-percentile bound demotes about 5 % of every class by construction.
+
+`Exocrine` is one label here and is not divisible: the 60-plex carries no acinar-specific and no
+ductal-specific marker. `Immune` is one label for the same reason — the immune second pass
+(`scripts/typing/immune_subtype.py`) never modifies `cell_class`, and **no app builder reads
+`data/development/typing/immune`**; coverage comes from each builder's own `COHORT.resolve`.
+
 **OME-TIFFs, measured 2026-09-18:** 16 files in `/data/islet_ome_tiff` — 115, 6374, 6380, 6436,
 6442, 6450, 6457, 6461, 6476, 6482, 6493, 6521, 6539, 6551, 6579, 6593. Against the 20-donor
 cohort that is **14 of 20**: the six batch-2 slides 6505, 6523, 6534, 6566, 6591 and 6623 are not
@@ -62,9 +102,12 @@ converted. Two of the 16 (6457, 6579) are not in the cohort at all — 6457 is c
 and the Viewer's dropdown does not filter on the cohort (see `deploy/local/README.md`).
 
 **Eight cohort facts had been written into the UI as literals** and printed as measurements of
-whichever dataset was loaded — a donor id (6521) absent from this cohort, "N=15 total", "N=5 per
-group", "all fifteen", a hard-coded `c("ND","Aab+","T1D")` filter, and "(scVI)" on a dataset with no
-scVI. All now derive from the loaded data or the DOMAIN. **None of them was visible to the testthat
+whichever dataset was loaded — a donor id (6521) that the run cohort did not contain when those
+strings were written, "N=15 total", "N=5 per group", "all fifteen", a hard-coded
+`c("ND","Aab+","T1D")` filter, and "(scVI)" on a dataset with no scVI. (6521 has been in the run
+cohort since 2026-09-15, as one of the three MARGINAL donors, which is exactly why a cohort fact
+belongs nowhere but the loaded data: the literal was wrong when written and would be wrong the
+other way now.) All now derive from the loaded data or the DOMAIN. **None of them was visible to the testthat
 suite**, because every path resolved and every column existed — the suite was 238 assertions when
 that was written and is 737 over 69 `test_that` blocks as measured on 2026-09-18, and the size of
 it was never what would have caught these.
@@ -161,9 +204,15 @@ columns as the loop (same first-match semantics, same lookup columns), so it onl
 - **DuckDB backend is doing real work** — the Spatial tissue scatter (145k+ cells) comes from
   `data/parquet/tissue` via partition pruning, confirming `ISLET_USE_DUCKDB=TRUE` is engaged.
 - **OLD-vs-new phenotypes.** The Spatial phenotype list still shows the full provisional taxonomy
-  (Acinar, Ductal, CD4/CD8 T cell, M2 macrophage, NK cell, Regulatory T cell, Stromal, …). The
-  notebook's broad-lineage output (6 classes) is a separate, QC'd artifact and is not surfaced in the
-  app by design.
+  (Acinar, Ductal, CD4/CD8 T cell, M2 macrophage, NK cell, Regulatory T cell, Stromal, …) — true of
+  **this domain**, the CODEX one, whose upstream typing produced those labels. ~~The notebook's
+  broad-lineage output (6 classes) is a separate, QC'd artifact and is not surfaced in the app by
+  design.~~ **Corrected 2026-09-18:** that sentence no longer describes anything. The
+  notebook's broad-lineage lane went with RESTORE (retired 2026-08-14) and the broad-typing
+  producer comparison it fed was withdrawn 2026-09-08; neither is a fallback and neither is to be
+  revived. The run cohort is typed by the subpanel classification instead — see "What the run
+  cohort's cells were typed by" above — and `Acinar` / `Ductal` are CODEX-domain labels that the
+  60-plex panel cannot support and that no run-cohort card may show.
 
 ## Reproduce
 

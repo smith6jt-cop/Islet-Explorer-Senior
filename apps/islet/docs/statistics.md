@@ -2,6 +2,15 @@
 
 Detailed reference for the Statistics tab. Linked from `apps/islet/CLAUDE.md`.
 
+> **SCOPE, added 2026-09-18.** The *machinery* below — donor-level aggregation, the mixed-effects
+> model, the shared per-bin coverage rule, the fixed bin width and the fixed alpha — is
+> domain-independent and current. **Every NUMBER in it is the LEGACY CODEX DOMAIN's**
+> (`config/islet_default.yml`, 15 donors, 5 per group, 5,214 islets), because that was the only
+> dataset when this was written. The PhenoCycler run cohort (`config/run20_default.yml`) has 20
+> donors — 8 ND / 3 Aab+ / 9 T1D, 18,384 islets, measured 2026-09-18 — so read `N=15` and
+> `N=5,214` as examples of the shape, never as the app's cohort. The tab itself derives both from
+> the loaded data; no cohort size is written into the UI.
+
 ## Statistics Tab (Phase 6+14+16, Feb-Mar 2026)
 
 ### Pseudoreplication Fix (Phase 16)

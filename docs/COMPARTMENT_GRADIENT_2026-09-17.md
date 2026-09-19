@@ -42,7 +42,9 @@ for every other, and all of them are named `_exp20um`, so the annotation cannot 
 to mean what it is called. QuPath's `Parent` column is not read here or anywhere in this
 module — it mislabels 2.7% of islet-core cells, which fall through to Exocrine.
 
-Where `data/development/typing/islet_membership` exists (13 of 20 donors) the geometric
+Where `data/development/typing/islet_membership` exists (13 of 20 donors when this ran; **20 of 20
+since 2026-09-17**, `docs/ISLET_MEMBERSHIP_COVERAGE_2026-09-17.md` — so the audit now covers every
+donor, and the per-donor disagreements below were measured over the thirteen) the geometric
 outline membership is read back as an **audit**, not an override, and the disagreement is
 recorded per donor in `manifest.json`. Measured: on 6442, 20,671 core cells by distance
 against 20,441 by outline, 1,130 cells disagreeing; on 6539, 9,193 against 9,042, 375

@@ -1,4 +1,42 @@
-# CLAUDE.md — Build a Shiny app for Xenium pancreas panel exploration
+# CLAUDE.md — `core/panels` (XeniumPanelExplorer)
+
+## What this subtree is, in this repository
+
+**This subtree is the one authority for the panel taxonomy.** `analysis/xenium/scripts/fetch_subpanels.py`
+regenerates a gitignored snapshot from `data/` here, into
+`data/development/xenium_panels/subpanels/` with a `SOURCE.txt`. Never commit a second copy of
+these CSVs anywhere in the monorepo, and never hand-edit the snapshot — edit the source here and
+regenerate. Only the `gene` column (plus `subtype_hint` in `identity_core/`) is read downstream;
+the per-tissue "fat" detection columns are app-only.
+
+**The rest of this file is the original build spec for the Shiny app in this subtree, and that app
+is built.** `app.R`, `DESCRIPTION`, `R/` (every module named in §4 and more), `scripts/` and
+`tests/testthat/` are all present. Read §§1–3 and §§5–9 as the contract the built app is held to,
+not as work to start; §10's milestones and §13's pre-M1 questions are history. **It is not an
+instruction to build anything**, and nothing here authorizes a cell-identity claim: the app browses
+panels and clusters a loaded Xenium run — the monorepo's Xenium typing lives in `analysis/xenium/`.
+
+**Paths, corrected.** §1's tissue-aware layout is the current one. The legacy flat
+`data/panel_audit/` directory **no longer exists** (migrated by `scripts/migrate_pancreas_to_tissues.R`),
+so wherever §§2, 4, 5, 10, 11 and 13 name it or a file under it, read instead:
+
+| written below | actual |
+|---|---|
+| `data/panel_audit/` | `data/reference_5k/`, `data/subpanels_shared/`, `data/tissues/<tissue_id>/` |
+| `subpanel_summary_v2.csv` | `data/tissues/<tissue_id>/subpanel_summary.csv` (51 rows: 49 subpanels + 2 residuals) |
+| `xenium5k_in_audit.csv` | `data/tissues/<tissue_id>/audit/xenium5k_audit.csv` |
+| `custom_T1D_GWAS_panel.csv` | `data/tissues/<tissue_id>/custom_panel.csv` (100 genes) |
+| `detection_pct_0041323` / `..._0041326` | the tissue's own `reference_runs` (pancreas 0041323/0041326; thymus 0041435/0041534) |
+| `log2_detection_ratio_326_over_323` | `log2_detection_ratio` |
+| `renv.lock` (§4) | not present; the checkout carries `renv.lock.r46-backup` only |
+
+`data/reference_5k/xenium5k_genes.csv` holds **4,992** rows, which is the number §5 tab 2 means by
+"the full 5K"; §0's 5,092 is that reference plus the 100-gene custom add-on, and 4,891 is the kept
+pool after the 101 audited exclusions.
+
+---
+
+*The original build spec follows, unchanged apart from the path corrections above.*
 
 You are building a Shiny (R) application for a single-user research workflow. This file is the spec. Read it once end-to-end, ask clarifying questions only if a constraint is ambiguous, then build incrementally as described in §10. Do not over-engineer; do not invent features outside this spec; do not silently substitute different libraries when the listed ones fail — surface the failure and ask.
 

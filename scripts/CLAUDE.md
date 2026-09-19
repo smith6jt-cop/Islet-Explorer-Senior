@@ -30,6 +30,26 @@ under `core/phenocycler/data/runs/<run_id>/`; that tree is historical and nothin
 earlier version of this section told you to record the run id and the manifest content ids — do not
 add either back, and do not write a script that reads one.
 
+## What the typing lane hands these scripts
+
+`data/development/typing/cells/` is the build of **2026-09-15** — 25,230,109 cells, 20 donors,
+eight classes plus `Excluded`. **No donor has been re-run with the islet chain the maintainer ruled
+on 2026-09-18**, so nothing a root script reads carries a CD99 question or an `Unresolved` class,
+and `apps/islet/config/run20_default.yml`'s declared ninth class has no producer.
+`refined_class` has none either: `core/phenocycler/scripts/typing/refine.py` is written and **not
+wired**, and whether that pass should run at all is open.
+
+`data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation (25,150,537
+rows, written Sep 11). `senior/build_distance_profiles.py` refuses it by path with the counts in the
+error. That tree stacks generations side by side, so check mtimes before reading anything else in
+it.
+
+**No app artifact reads `data/development/typing/immune`.** That second pass
+(`core/phenocycler/scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898
+Immune cells) adds a finer subtype over the `Immune` class only and never modifies `cell_class`;
+each app builder's coverage comes from its own `COHORT.resolve`. `build_layers.py` lists that root
+with its producer as an upstream lane — that is provenance, not a layer input.
+
 ## The layer builders
 
 Nine builders write the **layer artifacts** the app's cards read: small, pre-aggregated files under

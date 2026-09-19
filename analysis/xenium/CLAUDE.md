@@ -34,6 +34,100 @@
   bundles are at `/data/xenium/HuPrime5kPanTissue/`. The *method* carries across; the sample
   ids in the tables below do not.
 
+## Standing notes, 2026-09-18 (read with the decisions below)
+
+Measured on this checkout, 2026-09-18. **No decision was renumbered, reworded or removed by this
+pass**; these notes sit beside them, per the rule at the top of this file.
+
+- **Numbering — intact.** The block between `## Critical architectural decisions` and
+  `## Tier-C policies are revisable` holds exactly 17 top-level numbered entries, `1`…`17`, in
+  order, none duplicated and none missing. Every by-number citation elsewhere still lands.
+
+- **#12 — one of the two enforcement functions it names does not exist.**
+  `build_available_markers` is live and does what #12 says: `hierarchical_phenotype.py:334`,
+  `min_fine=2`, raising `SystemExit` at 357–363 on any fine type with `0 < survivors < 2` on this
+  sample's panel. **`build_broad_markers` is defined nowhere in `analysis/xenium/`** — the only
+  occurrence of that name in the checkout is inside #12's own text. The "broad-lineage union fewer
+  than 3" gate it promises has no code behind it. The likely history is that the broad tier stopped
+  reading MARKER_DICT unions at the 2026-06-08 identity-core rewire (#16), which retired the
+  quantity that gate measured, and #12 was not annotated at the time. The nearest surviving `< 3`
+  is `sub_embed_cluster` (`hierarchical_phenotype.py:764`), a *subpanel gene-count* guard that
+  returns `None` rather than failing loud — a different check on a different quantity, not a
+  replacement. **Half of #12 is enforced.** Whether the broad half should be reinstated against
+  the identity cores, or retired in the text, is a maintainer call.
+
+- **#12 — it is not about a minimum number of *naming* genes, and three lanes are read as if it
+  were.** #12's subject is **panel size**: how many on-panel markers a type's panel carries.
+  Three later constants measure something else and one of them cites #12 by number:
+  - `pln_immune_typing.py:99` — `ANCHOR_MIN_GENES = 2  # decision #12: no single-gene call`. That
+    is a **per-cell detection floor**, not a panel-size floor. `ANCHOR_MIN_GENES = 2` is also
+    #16's own constant, live at `hierarchical_phenotype.py:213`, where it is stated as #16's.
+  - `pln_immune_typing_v2.py:137` and `pln_immune_typing_v3.py:122` — `STAGE2_MIN_NAMING_STANDOUT
+    = 1`: how many naming genes must **stand out in a sub-cluster** for its lineage call. **Neither
+    file cites #12 anywhere.** Both keep `STAGE1_MIN_STANDOUT = 2`, and v3 keeps `NK_MIN_NAMING = 2`
+    with its own written rationale, so this is one gate admitted on one gene, not a relaxation
+    across the lane.
+  - `panc_xenium_cluster_name.py:115` — `MIN_NAMING_STANDOUT = 1`, the same quantity at the same
+    value. `docs/PANC_XENIUM_TYPING_2026-09-17.md` §6 states it in the open ("admits the argmax on
+    evidence — one standout naming gene of the winning core … no margin threshold operates
+    anywhere") and carries six decidedness columns on every called cell instead.
+
+  So **#12 as written is not contradicted by `STAGE2_MIN_NAMING_STANDOUT = 1`** — it never set a
+  naming-standout floor. What contradicts #12 is its own missing `build_broad_markers`, above.
+  Whether the "no single-gene call" gloss in `pln_immune_typing.py:99` *should* bind the
+  sub-cluster naming gate as well is a scope question for the maintainer; it is not answered here
+  and no constant was changed.
+
+- **#6 — "`random_state=0` everywhere" is still true where it was written, and the 2026-09-17
+  lanes pin a different constant.** Live: `hierarchical_phenotype.py:105` `RANDOM_STATE = 0`,
+  `state_panels.py:34` `RANDOM_STATE = 0`, `insulitis_analysis.py:78` `RNG_SEED = 0`. The newer
+  lanes are deterministic but not on `0`: `pln_immune_typing_v3.py:117`
+  `CLUSTER_SEED_BASE = 20260917`, fed through `stable_seed(...)` to a per-section seed, and
+  `panc_xenium_cluster_name.py` threads a per-section `seed` into PCA, neighbours and leiden
+  (lines 323, 340, 342). #6's stated reason — reproducibility — is honoured; its literal value is
+  not what those lanes use.
+
+- **#14 — the 2026-08-28 note holds; two docstrings still name the retired path.** The live default
+  follows the note (`finalize_panel.py:54`, `DEFAULT_AUDIT_CSV = ROOT / "panel_audit.csv"`, and the
+  file is present at `analysis/xenium/panel_audit.csv`). Still pointing at the gitignored path that
+  never held it: `finalize_panel.py:10` and `audit_panel_exclusions.py:8`, both in docstrings only.
+
+- **#1 — intact.** `total_counts` appears as a scVI continuous covariate nowhere in the checkout;
+  the only `continuous_covariate_keys` are `['cell_area']` in `notebooks/02_phenotyping.ipynb` and
+  `notebooks/07_immune_islet_proximity.ipynb`.
+
+- **Exocrine is ONE label, on this panel too (maintainer's ruling, 2026-09-18).** No acinar and no
+  ductal claim is made from the Xenium 5K panel any more than from the 60-plex. The live pancreas
+  cohort lane already holds to it — `panc_xenium_cluster_name.py:69` ("02_pancreas_exocrine is ONE
+  label"), and `docs/PANC_XENIUM_TYPING_2026-09-17.md` states it in the open. The **legacy**
+  notebook lane does not: `scripts/tissue_markers/pancreas.py` still carries
+  `BROAD_TO_FINE["Exocrine"] = {"Acinar", "Ductal"}` with `MARKER_DICT` panels for both, and
+  #10/#11/#12/#16 name those two subtypes because that is what the lane they were written for did.
+  **No constant was changed by this pass.** Do not write a new acinar or ductal claim, and read
+  those four decisions as describing the legacy flat/hierarchical path.
+
+- **The "Pipeline (current…)" section below, the repo layout and "Common operations" describe the
+  0041323 / 0041326 notebook lane.** They are still accurate about that lane. They are **not** the
+  monorepo cohort lane: the pancreas cohort runs `scripts/panc_xenium_cluster_name.py` per section
+  under `scripts/panc_xenium_release.py` (a DEVELOPMENT release under `/data`; no latch moves), with
+  `panc_xenium_coherence.py` / `panc_xenium_external_check.py` beside it, and the pLN lane is
+  `pln_immune_typing_v3.py`. The write-ups are `docs/PANC_XENIUM_TYPING_2026-09-17.md`,
+  `docs/PLN_IMMUNE_XENIUM_2026-09-17.md` and `docs/XENIUM_GDNA_TRIAGE_2026-09-17.md` at repo level.
+  None of that lane appears in the tree below.
+
+- **The repo-layout tree below is out of date in five places.** `scripts/` holds 24
+  `.py` files, not "15 canonical scripts"; `run_pipeline.sh` and `env_rapids.sh` moved to `hpc/`
+  (already noted under Common operations); `scripts/slurm/` moved to `hpc/slurm/`;
+  `scripts/R/xenium_analysis.R` and `notebooks/06_xenium_phenocycler_integration.ipynb` are gone.
+  `notebooks/`, `utils/`, `scripts/benchmark/` and `scripts/tissue_markers/` are as described.
+
+- **The 2026-08-28 cohort note, made exact.** `core/phenocycler/cohort-spec.json` declares **21** expected
+  donors, not 20 — the extra is **6533**, which carries an extra panel and has **no partition
+  in `data/development/typing/cells/`**; the typed PhenoCycler cohort there is 20 donors. Donor
+  `6457` is centrally excluded in `core/phenocycler/phenocycler/cohort.py`; **`6579`'s exclusion was
+  lifted on 2026-09-17** and it is not yet a 21st donor in any stage root. Derive the list from
+  `DONOR_EXCLUSIONS` / `REINSTATED`, never from a literal here.
+
 ## Pipeline (current, GPU-accelerated post-2026-04-25)
 
 GPU annotations: **[GPU rsc]** uses `rapids_singlecell` (cuML kNN /

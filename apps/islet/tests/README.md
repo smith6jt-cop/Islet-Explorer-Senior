@@ -13,7 +13,19 @@ Automated checks for the R Shiny app (`apps/islet/`). Run in CI by
    lymph fixture, and UI/server wiring for every tab. These need no scientific
    app data and no Python bridge.
 
-3. **Statistics audit harness** — `tests/manual/stats_audit.R`. **Manual/local only**
+3. **Tab smoke driver** — `tests/tab_smoke.R`. **Manual/local only** (not in CI, and not
+   part of the testthat suite — it lives in `tests/`, not `tests/testthat/`, so `test_dir()`
+   never picks it up). It drives Chrome through the tabs named in its own `TABS` vector and
+   reports, per tab, the R output errors, the JS console errors, and how many outputs exist
+   but drew nothing. It needs `NOT_CRAN=true`, or `AppDriver$new()` skips with
+   "Reason: On CRAN", which reads like a failure and is really a refusal to run.
+
+   ```bash
+   NOT_CRAN=true ISLET_DOMAIN_CONFIG=config/run20_default.yml \
+     Rscript tests/tab_smoke.R /tmp/tabshots
+   ```
+
+4. **Statistics audit harness** — `tests/manual/stats_audit.R`. **Manual/local only**
    (not in CI): it drives the *real* `plot_server` → `statistics_server` chain
    headlessly with `shiny::testServer` against the live H5AD, and pins each of the
    six defects from the Jul 2026 correctness pass. This is the layer that catches
@@ -73,8 +85,15 @@ To launch the full app locally (with the data present):
 
 ```bash
 cd apps/islet
-Rscript -e 'shiny::runApp(".", port = 7777)'
+# ALWAYS name the domain. With ISLET_DOMAIN_CONFIG unset the app falls back to the
+# legacy CODEX contract and serves the wrong dataset under right-looking islet keys --
+# the two domains share five donors, so nothing downstream catches it.
+ISLET_DOMAIN_CONFIG=config/run20_default.yml \
+  Rscript -e 'shiny::runApp(".", port = 7777)'
 ```
+
+R **4.5.1** with the `~/R/…/4.5` library. `/usr/bin/Rscript` is 4.6.1 and silently
+lacks the dependencies.
 
 ## Adding tests
 

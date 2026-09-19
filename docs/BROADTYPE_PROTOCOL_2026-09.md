@@ -8,6 +8,19 @@ owner: smith6jt
 lane: core/phenocycler/scripts/broadtype/
 ---
 
+> **STATUS, 2026-09-18 — this comparison is retired and nothing here is live.** The producer choice
+> was withdrawn on 2026-09-08 for the twelve verified defects recorded in §4.9 below, and the
+> comparison itself is now on the never-revive list in the root `CLAUDE.md` alongside RESTORE, the
+> Gate 2-5 apparatus and the GMM/Otsu gate searches. `data/development/broadtype/release/` still
+> exists on disk and **must not be read as a verified typing**; `NO_VERIFIED_TYPING` never moved.
+> The PhenoCycler typing that stands today is the **subpanel classification** — context from QuPath
+> objects, then one question per context against per-donor reference levels drawn from the ordinary
+> tissue — in `data/development/typing/cells/`, mechanics in
+> `core/phenocycler/scripts/typing/RECONSTRUCTION.md`. Read this document as the frozen record of a
+> closed comparison. Nothing above §4's results line is edited, per its own rule; the title's
+> "bake-off" and the per-method "arm" identifiers are the vocabulary of the day and are not to be
+> carried into new writing — say *method*, or *the comparison*.
+
 # 0. What is decided here, before any result
 
 The maintainer's request (2026-09-04): systematically test and compare the cell-typing packages in the

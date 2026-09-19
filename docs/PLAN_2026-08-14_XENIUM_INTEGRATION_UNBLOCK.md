@@ -7,6 +7,18 @@ line-90 provisional root is settled; Phases 2–3 (the geometry split, registrat
 are that plan's Tracks C.1–C.2; Phase 4 (the 5-donor legacy-identity lane) is replaced by the
 declared release contract (Track A.4). Run `3bf4fc8e…` named below has been deleted; the only run
 is `30f6689e4d27d295f890`. The measurements and constraints recorded here still stand.
+**Two of the hard constraints have since changed, and are corrected here rather than in place
+(2026-09-18):** constraint 1's "Runs are immutable and content-addressed" no longer describes the
+workflow — the content-addressed run framework, `run_id` and `StageManifest` were **removed on
+2026-09-16**. Stages now write to stable roots (`data/cells`, `data/geometry_qc`, `data/redsea`,
+`data/expression`), a donor is done when its partition has content, a stage whose output is present
+is skipped and `--force` reruns it; the tree under `core/phenocycler/data/runs/<run_id>/` is
+historical and nothing writes to it. And constraint 7's "Donors 6457 and 6579 stay excluded" is
+**half lifted** — **only 6457 is centrally excluded**, and **6579's exclusion was lifted
+2026-09-17**, recorded in `REINSTATED` in `core/phenocycler/phenocycler/cohort.py`. The
+pancreatitis it was excluded for is still a disease context, so stratify or report it separately,
+but do not drop it; derive from `DONOR_EXCLUSIONS`, never from either literal.
+See `docs/DONOR_6579_REENTRY_2026-09-17.md`.
 **Date:** 2026-08-14
 **Decision owner:** maintainer (smith6jt)
 

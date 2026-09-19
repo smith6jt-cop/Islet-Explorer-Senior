@@ -1,5 +1,24 @@
 # Trajectory parameters: every one, with where it came from
 
+> **DATED RECORD — read this first, 2026-09-18.** Every "deployed file" measurement below describes
+> the artifacts as they stood on 2026-09-15, and the lane moved twice after that. Specifically:
+>
+> * **The single-cell ordering was refit WITHIN DONOR on 2026-09-17**, one destiny → slingshot fit
+>   per donor over 20 donors, 480,444 of 1,639,174 cells — not the pooled 49,999-cell fit over 10
+>   donors this audit measures. `docs/TRAJECTORY_WITHIN_DONOR_2026-09-17.md`.
+> * **`typing/app/adata_ins_root.h5ad` was rebuilt on 2026-09-17** to 17,786 islets over 20 donors
+>   with three ordered statuses. Every entry here that reads the deployed file as 7,302 islets,
+>   10 donors, `['ND','T1D']` or "zero Aab+ islets" is describing the superseded artifact.
+> * **The pooled 20-donor islet DPT failed its own `pseudotime_is_not_mostly_donor` check** and was
+>   written `.rejected.h5ad`; and the within-donor ordering was then measured to be **unstable
+>   across seeds on identical input** on 17 of 20 donors. So the parameters audited here that set
+>   an islet's *position* on the axis have a measured reproducibility problem on top of their
+>   provenance problem. `docs/TRAJECTORY_WITHIN_DONOR_2026-09-17.md` §6.
+>
+> **The provenance findings themselves stand.** Where a parameter came from, whether a claim about
+> it survived checking, and the 57 overturned claims are properties of the code and its history,
+> not of which artifact was on disk. This banner marks the numbers, not the audit.
+
 Audited 2026-09-15 on the maintainer's instruction that **no pre-existing trajectory parameter
 is used without explicit approval**. 189 parameters were extracted from the five trajectory
 sources and the app module, then every provenance claim was checked against the file, the git
