@@ -6,16 +6,42 @@ the pancreatic lymph node and in the exocrine tissue.
 
 What this builds
 ----------------
-``data/development/integration/compartments/`` holds, per donor:
+``$ISLET_LAYERS_DIR/compartments`` -- defaulting to ``/data/islet_layers`` and
+overridable with ``--out`` -- holds, per donor:
 
 * ``compartment_composition.csv`` -- immune fraction and immune-subtype
   composition for every compartment, one row per donor x compartment x subtype.
 * ``islet_size_strata.csv`` -- the same core-compartment numbers recomputed on
   islets of at least ``--min-islet-cells`` core cells, which is the stratum in
   which an islet-level statement is defensible at all.
+* ``islet_size_summary.csv`` -- per donor, the islet count, how many clear
+  ``--min-islet-cells``, the median core cells per islet, the one-cell fraction
+  and the ``fragmented_islets`` flag, so a pooled per-islet number can be read
+  against its own denominator.
 * ``batch_eta_squared.csv`` -- eta-squared of every cross-donor quantity on
-  ``stain_group`` and ``acq_run``, each against its own permutation null.
+  ``stain_group``, ``acq_run`` and ``donor_status``, each against its own
+  permutation null.
 * ``manifest.json`` -- the reasons, the denominators and the withheld donors.
+
+It is NOT written under ``data/development/integration/``.  That is where it
+used to land, and no card reads there: ``apps/islet/R/card_s3_compartments.R``
+resolves ``$ISLET_LAYERS_DIR``, and a layer nothing can read is the whole
+failure.
+
+Where the pancreas subtype comes from
+-------------------------------------
+The pancreas immune subtype is ``immune_definition`` in
+``data/development/typing/cells`` -- the per-marker immune definition, carried
+on all 20 donors of the 2026-09-15 build.  ``data/development/typing/immune`` is
+NOT read here: that second pass is a finer subtype (rewritten 2026-09-17, 20
+donors, 2,934,898 Immune cells), it never modifies ``cell_class``, and no app
+artifact reads it.  ``refined_class`` is not read either;
+``core/phenocycler/scripts/typing/refine.py`` is written and not wired, and its
+5th-percentile demotion is an open question rather than a decision.
+
+That build carries eight classes plus ``Excluded``.  No donor has been re-run
+with the 2026-09-18 islet chain, so there is no CD99 question and no
+``Unresolved`` class in anything this builder reads.
 
 Three compartments are pancreas and one is not
 ----------------------------------------------

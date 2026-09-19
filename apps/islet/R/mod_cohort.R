@@ -22,11 +22,14 @@ cohortFilterUI <- function(id) {
   ns <- NS(id)
   tagList(
     # RENDERED, not static: the domain declares the vocabulary but the loaded
-    # dataset decides which of it exists. run20 declares ND / Aab+ / T1D and
-    # today's build carries ND and T1D, so a static control would invite the
-    # reader to filter on a category whose box can never contain an islet -- and
-    # with this filter that is worse than cosmetic, because unticking every
-    # PRESENT group empties every panel while a phantom stays ticked.
+    # dataset decides which of it exists. That is a fact about the BUILD, not about
+    # either domain -- and it has already changed once. The run cohort carried no
+    # Aab+ donor before 2026-09-15 and carries three now (6450, 6505, 6521; 3,966 of
+    # 18,384 islets, measured 2026-09-18), so a control that hardcoded either state
+    # would have been wrong on one side of that date. A static control also invites
+    # the reader to filter on a category whose box can never contain an islet, which
+    # with this filter is worse than cosmetic: unticking every PRESENT group empties
+    # every panel while a phantom stays ticked.
     uiOutput(ns("groups_field")),
     uiOutput(ns("age_field")),
     uiOutput(ns("sex_field")),

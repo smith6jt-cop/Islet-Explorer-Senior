@@ -7,6 +7,15 @@
 # DOMAIN owns these UI labels/colors. It does not define upstream identities.
 PHENOTYPE_COLORS <- domain_phenotype_colors()
 
+# The three alternate palettes below are KEYED ON THE CODEX SPELLINGS. They are display
+# preferences, not vocabularies: `complete_phenotype_palette()` fills anything a palette does not
+# name from `PHENOTYPE_COLORS`, which is the ACTIVE DOMAIN's own colours, so under the run cohort
+# every one of its eight classes and its `Unresolved` absence entry comes from the domain and
+# keeps one colour across all four palettes. `Acinar` and `Ductal` appear here only because the
+# CODEX app data carries those upstream labels; the 60-plex panel resolves neither, and a key in
+# this file is never evidence that a class exists. tests/testthat/test-ninth-class.R asserts the
+# coverage and the single absence colour.
+
 # ── High Contrast palette: immune spread across purple/cyan/magenta/indigo ──
 PHENOTYPE_COLORS_HIGH_CONTRAST <- c(
   "Beta cell"     = "#D32F2F",  # deep red

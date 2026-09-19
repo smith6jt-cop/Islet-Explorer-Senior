@@ -13,9 +13,9 @@ and channel-at-a-time qptiff reads:
 
 The mandatory output resolves that same operator into
 Nucleus/Cytoplasm/Membrane/Cell means. Nucleus and Cytoplasm conserve the
-whole-cell result exactly before non-negativity clipping. The content-addressed
-pipeline is the production entry point; this module contains the numerical
-implementation and a thin stage-only command.
+whole-cell result exactly before non-negativity clipping. ``phenocycler.pipeline``
+is the production entry point; this module contains the numerical implementation
+and a thin stage-only command.
 """
 
 from __future__ import annotations
@@ -1070,7 +1070,7 @@ def run_redsea(cfg: PipelineConfig, donors: list[str], params: RedseaParams,
 def main(argv=None):
     """Run only the manifest-controlled REDSEA stage.
 
-    Scientific parameters come from the content-addressed pipeline config; the
+    Scientific parameters come from ``phenocycler.pipeline``'s config; the
     numerical module no longer exposes an independent experimental CLI.
     """
 

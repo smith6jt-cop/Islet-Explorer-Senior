@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Cell typing with ASTIR -- a probabilistic marker-based typer, run in ``astir-env``.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  The probabilistic typers are on the never-revive list: this module
+did not produce the calls on disk, and the current typing is the subpanel classification in
+``subpanel.py``.  See ``README.md``, "Retired, and not to be revived as fallbacks".  What follows
+is kept as a record of what was measured and why.
+
 WHY THIS AND NOT A HAND-BUILT RULE.  High background and nonspecific staining is a routine problem
 in multiplex imaging, and ASTIR is built for it: it models, per marker, both a background level and
 a cell-type-specific level, and infers per-cell type probabilities by variational inference with a

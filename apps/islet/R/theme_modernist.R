@@ -45,9 +45,12 @@ IE_ACCENT_700 <- "#800c21"
 # literal c("ND", "Aab+", "T1D") across the module servers.
 # NOTE: Junior's copy defines domain_group_levels() <- c("ND", "Aab+", "T1D") here and uses it as the
 # `limits` and `breaks` of both donor scales. That literal is NOT ported. The two datasets declare
-# their own levels, and the run cohort has no Aab+ donor at all -- a fixed `limits` with
-# drop = FALSE would paint an empty Aab+ entry into every donor legend. The scales resolve
-# domain_group_levels() at CALL time, not load time, so one running app can serve either domain.
+# their own levels, and which levels a BUILD actually carries is a separate question that has
+# already changed once: the run cohort had no Aab+ donor before 2026-09-15 and has three now
+# (6450, 6505, 6521, measured 2026-09-18). A fixed `limits` with drop = FALSE would have painted
+# an empty Aab+ entry into every donor legend on the old build, and would be a different kind of
+# wrong on any future build that loses a level. The scales resolve domain_group_levels() at CALL
+# time, not load time, so one running app can serve either domain.
 
 # ---- Palette aliases -------------------------------------------------------
 # The delivered file hardcoded its own palettes. These point at the canonical

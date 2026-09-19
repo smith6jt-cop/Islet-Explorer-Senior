@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Leiden communities on a k-nearest-neighbour graph of the Nimbus confidences.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the broad-typing producer comparison
+WITHDRAWN 2026-09-08 (``cluster_leiden.py`` / ``cluster_lda.py`` / ``cluster_kodama.py`` scored by
+``compare_clustering.py``).  It did not produce the calls on disk, and the current typing is the
+subpanel classification in ``subpanel.py``; see ``README.md``, "Retired, and not to be revived as
+fallbacks".  What follows is kept as a record of what was measured and why.
+
 One of the three clustering methods ``compare_clustering.py`` scores against each other.  Leiden
 is the one that is not told how many groups to look for: it reads local density on a kNN graph,
 so an exocrine community of several thousand cells and a delta-cell community of fifty can both

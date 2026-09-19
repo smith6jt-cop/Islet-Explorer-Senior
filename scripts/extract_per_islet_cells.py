@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""
+"""LEGACY LANE, NOT RUNNABLE HERE -- recorded 2026-09-18.
+
+``scripts/retire/dispositions.py`` records this file as a verified orphan that is also the
+NAMED PRODUCER of a live artifact under ``data/app_data`` (code tier 2), which is why it is
+kept rather than deleted. It cannot be re-run: the inputs named below are absent from this
+checkout.
+
+The current PhenoCycler typing is the subpanel classification under
+``core/phenocycler/scripts/typing/`` -- context from QuPath objects, then one question per
+context against reference levels drawn from the ordinary tissue, fitted PER DONOR.
+``data/development/typing/cells/`` holds 25,230,109 cells over 20 donors (2026-09-15 build,
+eight classes plus ``Excluded``). Nothing below describes that method, and ``data/app_data``
+is the OTHER app domain: the two datasets share five donors and no vocabulary.
+
 Extract per-islet single-cell data for the Shiny drill-down viewer.
 
 For each qualified islet (≥20 core cells), outputs a CSV file containing all

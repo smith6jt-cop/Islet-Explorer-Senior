@@ -11,9 +11,12 @@ two of those columns are load-bearing for work the plan asks for:
                        the run.  The maintainer confirms these calls are unchanged by the
                        re-export, so they come from the FIRST export for every donor.
   13 morphometry cols  nucleus and cell area, length, circularity, solidity, max/min diameter,
-                       and the nucleus/cell area ratio.  Phase 1 decides endocrine-vs-not inside
-                       an islet on CD99 **and cell shape**; with only area and solidity there is
-                       no shape basis to speak of.
+                       and the nucleus/cell area ratio.  The islet chain decides endocrine-vs-not
+                       on CD99 and, in the large stratum only, on **NUCLEUS** shape --
+                       ``nucleus_elongation``, never a cell-boundary feature, because cell
+                       circularity runs 0.514-0.523 across every class and is a tessellation
+                       artefact.  With only area and solidity there is no shape basis at all.
+                       (Corrected 2026-09-18: this said "cell shape".)
 
 Everything is keyed by ``Object ID`` -- the QuPath UUID -- so it joins to the run by ``object_id``
 with no centroid matching anywhere.  Verified on 6505: 2,863,277 of the revised export's

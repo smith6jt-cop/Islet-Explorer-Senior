@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""Two-stage immune typing of the pLN Xenium sections (maintainer's method, 2026-09-17).
+"""SUPERSEDED 2026-09-18. This is v1 of the pLN Xenium immune typer. The current one is
+``analysis/xenium/scripts/pln_immune_typing_v3.py`` (v2 is superseded too), and the release it
+writes is what ``scripts/senior/xenium_release.py`` resolves. Recorded as a verified orphan in
+``scripts/retire/dispositions.py`` (code tier 1). Kept as the record of the detection predicate
+and the Y-probe control below; do not read it as the current method.
+
+Two-stage immune typing of the pLN Xenium sections (maintainer's method, 2026-09-17).
 
     STAGE 1  separate immune from non-immune with CANONICAL genes.
     STAGE 2  within the immune compartment, resolve identity with the core/panels SUBPANELS.

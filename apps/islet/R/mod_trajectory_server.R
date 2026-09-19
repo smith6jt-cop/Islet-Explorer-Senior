@@ -224,8 +224,15 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       ad  <- tr$adata
 
       # Switch pseudotime mode based on user selection.
-      # "core" uses dpt_pseudotime (core scVI features).
-      # "combined" uses dpt_pseudotime_combined (core + peri-islet scVI features).
+      #   "core"     -> dpt_pseudotime           (core features)
+      #   "combined" -> dpt_pseudotime_combined  (core + peri-islet features)
+      # WHAT THOSE FEATURES ARE depends on the domain, and only the COLUMN NAMES are shared.
+      # The legacy CODEX H5AD was fitted on scVI features. The run cohort's is not: its
+      # producer is core/phenocycler/scripts/typing/trajectory_islet.py, which runs a diffusion
+      # pseudotime over the islet COMPOSITION in additive-log-ratio form -- obsm
+      # "X_composition_alr" for core and "X_composition_alr_combined" for core + peri. So this
+      # toggle switches which representation the ordering came from, not scVI-versus-scVI, and
+      # nothing here may describe either build's features as the other's.
       # Falls back to whichever column is available if the requested one isn't.
       mode <- validated_pt_mode()
       if (mode == "combined" && "dpt_pseudotime_combined" %in% names(obs)) {

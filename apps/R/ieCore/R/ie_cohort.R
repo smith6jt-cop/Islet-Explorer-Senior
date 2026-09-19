@@ -9,6 +9,14 @@
 # `donor_id` is a string and is NOT normalised across trees: `0112` and `112` are one donor
 # (docs/ISLET_LAYERS_SPEC.md ss 0.3). Every donor id this file writes or compares is normalised
 # with `ie_cohort_norm_donor()` first.
+#
+# WHAT THIS ROSTER IS, AND WHAT IT IS NOT. `eligible_donors` is the acquisition roster minus the
+# central exclusions -- nothing more. It is NOT the typed cohort, and the two differ. Measured
+# 2026-09-18: the built `cohort.json` carries 23 candidates and 22 eligible (only 6457 excluded;
+# 6579's exclusion was lifted 2026-09-17), while `data/development/typing/cells/` holds 20 donor
+# partitions -- 6533 and 6579 are eligible and have no typed partition at all. So a card that
+# needs "donors this build can show" must ask the loaded data or its own artifact, and use this
+# only to REMOVE an excluded donor from a list it already has.
 
 #' Default location of the built cohort roster, relative to a repo root.
 #' @export

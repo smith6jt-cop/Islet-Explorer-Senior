@@ -155,8 +155,9 @@ _CELL_COLUMNS = ["object_id", "X_centroid", "Y_centroid", "islet_num", "cell_reg
 def cells_with_distance(donor: str) -> tuple[pd.DataFrame, str, str]:
     """(cells, which cell source, which distance source) for one donor.
 
-    WHY THE SOURCE IS NOT FIXED. This lane read the content-addressed run's expression partition
-    and the 2026-08-27 ``kintsugi/distance`` layer unconditionally, and on the seven re-exported
+    WHY THE SOURCE IS NOT FIXED. This lane read the historical run tree's expression partition
+    (``data/runs/<run_id>/expression``, where the 20-donor cohort output still lives) and the
+    2026-08-27 ``kintsugi/distance`` layer unconditionally, and on the seven re-exported
     donors both predate the re-export -- the annotations they were computed against are not the
     annotations `outlines()` now reads. Measured on 6450 (2026-09-17): against the run plus
     kintsugi the containment and the signed distance disagree on 12,232 cells at a median

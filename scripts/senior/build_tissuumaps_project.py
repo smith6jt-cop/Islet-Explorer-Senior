@@ -33,7 +33,15 @@ Usage
         --image /data/islet_ome_tiff/6539.ome.tiff \
         --out-dir /data/tissuumaps/projects \
         --regions data/Islets \
-        --markers data/app_data/cells/6539_tissue.csv
+        --markers data/tissuumaps_inputs/markers/6539.csv
+
+``--markers`` takes ONE whole-slide per-cell CSV, written by
+``scripts/senior/export_viewer_cell_markers.py`` into
+``data/tissuumaps_inputs/markers/<case>.csv``. It is deliberately NOT under
+``data/app_data/cells/``, which is the per-ISLET drill-down namespace that
+``drilldown_helpers.R::drilldown_available()`` globs to decide whether the
+drill-down exists at all. (The older examples here named
+``data/app_data/cells/<case>_tissue.csv``; no script has ever written that file.)
 
 ``--regions`` takes either a GeoJSON file or the directory the exports live in
 (``data/Islets``), in which case the donor's file is found by case id; ``.gz`` is

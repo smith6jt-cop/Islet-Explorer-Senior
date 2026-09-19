@@ -8,7 +8,11 @@
 # STATS_BIN_WIDTH_UM. Do not reintroduce a cross-tab data dependency.
 #
 # Phase 16: Donor-level aggregation to fix pseudoreplication.
-# Tests use donor-level means (N~15) instead of islet-level (N~5,214).
+# Tests use donor-level means instead of islet-level. N is counted off the loaded frame and is
+# never written in: it was ~15 donors / ~5,214 islets on the legacy CODEX domain this pass was
+# written against, and is 20 donors / 18,384 islets on the PhenoCycler run cohort. Every cohort
+# figure quoted in a comment below is the CODEX one, kept because it is the measurement that
+# motivated the change.
 # Mixed-effects model (lmerTest) as sensitivity analysis.
 #
 # Dependencies (auto-sourced):

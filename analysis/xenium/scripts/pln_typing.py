@@ -1,5 +1,13 @@
 #!/usr/bin/env python
-"""Run the pancreas Xenium typing lane on the pLN sections (ruling 2026-09-17).
+"""SUPERSEDED 2026-09-18. The current pLN Xenium typer is
+``analysis/xenium/scripts/pln_immune_typing_v3.py``, which writes the release
+``data/development/xenium_typing/release_pln_immune_v3``; that release declares it supersedes
+``release_pln_immune_v2``, and ``scripts/senior/xenium_release.py`` honours the declaration, so
+no builder resolves anything this file produced. Recorded as a verified orphan in
+``scripts/retire/dispositions.py`` (code tier 1). Kept as the record of the ROI-rebinding and
+the two guards below; do not read it as the current method.
+
+Run the pancreas Xenium typing lane on the pLN sections (ruling 2026-09-17).
 
 The maintainer's ruling: *all immune cell calls from pancreas can be applied to pLN*.  The
 immune lineage vocabulary and the typing METHOD carry over; the labels themselves do not, and

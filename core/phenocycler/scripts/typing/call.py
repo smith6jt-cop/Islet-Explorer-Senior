@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Name every cell, from Nimbus per-marker positivity.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the Nimbus/Leiden chain
+(``substrate.py`` -> ``positivity.py`` -> ``call.py`` -> ``validate.py`` -> ``export_qupath.py``,
+with ``metacluster.py``) that the typing README used to describe.  It did not produce the calls on
+disk.  The current typing is the subpanel classification in ``subpanel.py`` / ``build_cells.py``;
+see ``README.md``, "Retired, and not to be revived as fallbacks".  What follows is kept as a record
+of what was measured and why, not as a lane to fall back to.
+
 Two steps kept apart on purpose: **find structure, then name it.**  Cells are clustered on their
 marker confidences with no reference to the lineage table, so the groups are whatever the data
 contains.  Only then is each cluster named, by asking which lineage's markers stand out in it --

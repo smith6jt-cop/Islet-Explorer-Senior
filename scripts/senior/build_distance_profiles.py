@@ -16,6 +16,20 @@ including supporting-tier cells whose subtype was not resolved. No typing or
 marker threshold is fitted here. Missing UUID coverage withholds the whole
 donor's profile instead of silently changing its denominator.
 
+The PhenoCycler pancreas subtype is ``immune_definition`` as it stands in
+``typing/cells`` -- the per-marker immune definition, on all 20 donors. This
+builder does NOT read ``data/development/typing/immune``: that second pass is a
+finer subtype (rewritten 2026-09-17, 20 donors, 2,934,898 Immune cells), it
+never modifies ``cell_class``, and no app artifact reads it. An Immune cell whose definition is empty is emitted as
+``Immune (subtype unresolved)``, which is a named absence of a subtype and not a
+zero.
+
+``typing/cells`` here is the 2026-09-15 build: eight classes plus ``Excluded``.
+It carries no CD99 question and no ``Unresolved`` class, because no donor has
+been re-run with the 2026-09-18 islet chain. ``refined_class`` is not read --
+``core/phenocycler/scripts/typing/refine.py`` is written and not wired, and
+its 5th-percentile demotion is an open question rather than a decision.
+
 Cell files have no donor column: only their explicit donor_id= partition is
 read. Membership files are read with partitioning=None and joined on object_id
 alone, including when their optional donor column is absent. Root-level audit

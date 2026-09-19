@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Cell typing with TACIT -- learns one threshold per cell type from the data, in R 4.5.1.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  The probabilistic typers are on the never-revive list: this module
+did not produce the calls on disk, and the current typing is the subpanel classification in
+``subpanel.py``.  See ``README.md``, "Retired, and not to be revived as fallbacks".  What follows
+is kept as a record of what was measured and why.
+
 WHY THIS TOOL FOR THIS PROBLEM.  High background is routine in multiplexed imaging and TACIT is
 built to derive the cut rather than be handed one: it CLR-normalises, builds microclusters, scores
 each cell against the declared TYPE x MARKER signature, then fits a segmented model over the

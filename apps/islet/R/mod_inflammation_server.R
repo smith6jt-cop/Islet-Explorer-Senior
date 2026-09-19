@@ -36,6 +36,15 @@
 # Phenotypes outside this list can still be displayed, but they are reported
 # UNCORRECTED and flagged as exploratory rather than being folded into the
 # family after the fact.
+#
+# EVERY NAME IN IT IS THE LEGACY CODEX VOCABULARY, and so are the cohort numbers above -- 5
+# donors per stage, 15 in total, 21 phenotypes. The PhenoCycler run cohort resolves immune as ONE
+# label: its eight classes contain `Immune` and no subset of it, because no lane has established
+# an immune subtyping for release (the second pass in core/phenocycler/scripts/typing/
+# immune_subtype.py never modifies cell_class, and no app artifact reads its output). Under that
+# domain six of these seven names match nothing, the family collapses to `Immune` alone, and the
+# floor figures quoted above do not apply. Do not restate this list as though it were a
+# cross-domain immune vocabulary.
 INFLAM_FDR_FAMILY <- c("CD8a Tcell", "CD4 Tcell", "B cell",
                        "T cell", "Macrophage", "APCs", "Immune")
 INFLAM_DEFAULT_PHENOTYPES <- INFLAM_FDR_FAMILY

@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """One driver for the layer artifacts, and the staleness gate that was missing.
 
-Nine layer builders under ``scripts/senior/`` and the ``typing/app`` artifact builders under
-``core/phenocycler/scripts/typing/`` were each invoked by hand, in an order that existed only in
-prose.  Every artifact therefore sat at whatever donor set and whatever input generation it
+Nine layer builders -- eight under ``scripts/senior/`` and ``pln``, which is
+``core/phenocycler/scripts/pln/build_pln_layer.py`` -- and the ``typing/app`` artifact builders
+under ``core/phenocycler/scripts/typing/`` were each invoked by hand, in an order that existed
+only in prose.  Every artifact therefore sat at whatever donor set and whatever input generation it
 happened to be built against, and nothing compared the two.  This file declares the graph once --
 ``(name, command, inputs, outputs)`` per node -- so the comparison can be made by a command rather
 than by remembering.
@@ -490,9 +491,12 @@ def _declaration() -> list[dict]:
                 "{repo}/data/development/restain",
             ),
             outputs=("{layers}/availability/data.parquet",),
-            why="The table every other card consults. It reads cells_xen, the UNTYPED Xenium "
-                "ingest, at build_availability.py:283 -- Lane X repoints it at the release "
-                "resolver, which will change this node's inputs.",
+            why="The table every other card consults. Since 2026-09-18 it answers the two Xenium "
+                "capabilities from the typed releases, resolved by scripts/senior/xenium_release.py; "
+                "cells_xen, the UNTYPED ingest, is read only for the IF pairing and as the fallback "
+                "when no release resolves. The declared inputs below still name only cells_xen and "
+                "do not name the release roots, so this node's staleness check does not see a new "
+                "release. Reported, not edited here.",
         ),
         dict(
             name="distance_profiles",
@@ -597,8 +601,11 @@ def _declaration() -> list[dict]:
                 "{layers}/compartments/batch_eta_squared.csv",
                 "{layers}/compartments/manifest.json",
             ),
-            why="Pinned at release_pln_immune_v2, which _v3 supersedes -- Lane X repoints it. Not "
-                "in docs/ISLET_LAYERS_SPEC.md; it exists anyway.",
+            why="No longer pinned: since 2026-09-18 it resolves the pLN release through "
+                "scripts/senior/xenium_release.py, which honours _v3's declaration that it "
+                "supersedes _v2. The declared input below is still the superseded _v2 path, so "
+                "the staleness check watches the wrong tree. Reported, not edited here. Not in "
+                "docs/ISLET_LAYERS_SPEC.md; it exists anyway.",
         ),
         dict(
             name="grid_composition",

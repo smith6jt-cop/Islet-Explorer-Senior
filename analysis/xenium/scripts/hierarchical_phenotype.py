@@ -72,6 +72,19 @@ every API this script calls.
 `rapids_singlecell` is ABSENT here and is not needed: `try_import_rsc()` returns None with a
 warning and every call site has a complete CPU branch.  `scripts/env_rapids.sh` and its
 LD_PRELOAD recipe are HiPerGator-only and now live in `hpc/`.
+
+ACINAR AND DUCTAL ARE NOT CLAIMABLE, 2026-09-18
+-----------------------------------------------
+This file still emits `Acinar` and `Ductal` as Tier-2 fine labels inside Exocrine, and the
+`DOMINANT_CANARY_FLOOR` / Acinar->Ductal refinement above is about them.  The maintainer's
+ruling is that EXOCRINE IS ONE LABEL: no acinar and no ductal claim may be made, for the
+PhenoCycler 60-plex or for the Xenium 5K panel.  So those two fine labels are a partition of
+this lane's own clustering, not a statement about exocrine identity, and nothing downstream
+may report them as one.  The current pancreas release (`panc_xenium_cluster_name.py` ->
+`panc_xenium_release.py`) carries a single `Exocrine` lineage and makes no such split.
+
+The behaviour is left exactly as it is: a method decision is the maintainer's, and this note
+records the ruling rather than acting on it.
 """
 from __future__ import annotations
 

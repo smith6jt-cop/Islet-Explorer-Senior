@@ -17,10 +17,14 @@ Two choices this cohort forces, both stated rather than silent:
   per-donor one.  The formula is untouched; only the population the expectation comes from is.
 
 * **The named immune sub-metrics are not written.**  ``cd8_to_macro_ratio`` and
-  ``tcell_density_peri`` count phenotypes (``CD8a Tcell``, ``CD4 Tcell``, ``Macrophage``) that this
-  typing does not yet name -- immune subtyping is a later phase.  Writing them would put all-NaN
-  columns behind app controls that look live.  ``immune_*`` is written, because ``Immune`` is a
-  phenotype here.
+  ``tcell_density_peri`` count phenotypes (``CD8a Tcell``, ``CD4 Tcell``, ``Macrophage``) that the
+  per-cell table this file reads does not name.  Writing them would put all-NaN columns behind app
+  controls that look live.  ``immune_*`` is written, because ``Immune`` is a phenotype here.
+
+  Corrected 2026-09-18: a second pass DOES name them -- ``immune_subtype.py``, over the ``Immune``
+  class only, 20 donors -- but it writes to ``typing/immune/`` and **never modifies
+  ``cell_class``**, and no app artifact reads that tree.  So the sub-metrics stay unwritten until
+  something rules on how a subtype reaches an app artifact; the absence is a decision, not a gap.
 
 A cell with no nucleus is already absent from the per-cell table's eligible rows; ``Excluded`` is
 dropped here too so the denominator is the same one every other artifact uses.
@@ -42,8 +46,25 @@ import subpanel_io as S
 
 APP = S.OUT / "app"
 
-#: The phenotypes this typing calls immune.  One, today -- the subtypes are a later phase.
+#: The phenotypes the per-cell table calls immune.  One: ``immune_subtype.py``'s finer names live
+#: in ``typing/immune/`` and are not joined into any app artifact.
 IMMUNE_TYPES = ("Immune",)
+
+# A CLASS WITH NO CELLS IN THIS COHORT, NAMED RATHER THAN DROPPED BY DEFAULT.
+#
+# ``Unresolved (no lineage evidence)`` is the ninth class.  ``refine.py`` would produce it, it is
+# declared in ``run20_default.yml``, and no cell on disk carries it today -- so the vocabulary
+# ``main()`` derives below, which is the classes actually OBSERVED in the cohort, has no entry
+# for it and this file writes no ``peri_count_Unresolved`` / ``peri_prop_Unresolved`` /
+# ``enrich_z_Unresolved`` / ``min_dist_Unresolved``.
+#
+# That absence is a DECISION, stated here, not pandas' default: the counts below now keep their
+# null group (``dropna=False``), so nothing leaves a denominator silently, and the day the
+# refinement is wired the class appears in the observed vocabulary and gets its four columns.
+# Writing them NOW would add an all-null ``enrich_z_`` and ``min_dist_`` family for a class with
+# no cells -- the same all-NaN-column-behind-a-live-looking-control this file already refuses
+# for ``cd8_to_macro_ratio`` (see the module docstring).  Which of the two an artifact should
+# carry is a question for whoever wires the pass, not a default to be picked here.
 
 #: The app's word for the 20 um zone.
 REGION_TO_APP = {"core": "core", "expansion": "peri", "tissue": "tissue"}
@@ -69,7 +90,14 @@ def donor_metrics(donor: str, phenotypes: list[str]) -> pd.DataFrame:
     cells = _donor_cells(donor)
 
     # The baseline: this donor's whole tissue, every eligible cell in it.
-    tissue_props = cells["phenotype"].value_counts(normalize=True).to_dict()
+    # ``dropna=False`` because this is a DENOMINATOR.  A cell whose phenotype did not map is
+    # still a cell of this donor's tissue; dropping it would renormalise every other class
+    # upward and inflate ``enrich_z`` for all of them.  Its null key is never fetched by the
+    # ``.get(pheno, 0.0)`` below, so it raises no class's expectation -- it only keeps the total
+    # honest.  A class with no cells in this donor gets ``0.0`` from that ``.get`` and then an
+    # UNAVAILABLE z (``expected > 0`` is false), never a zero z: no expectation is not "expected
+    # none".
+    tissue_props = cells["phenotype"].value_counts(normalize=True, dropna=False).to_dict()
 
     islet_cells = cells[cells["islet_key"].notna()]
     peri = islet_cells[islet_cells["cell_region"] == "peri"]
@@ -81,8 +109,13 @@ def donor_metrics(donor: str, phenotypes: list[str]) -> pd.DataFrame:
     for islet in sorted(set(peri_by_islet) | set(core_by_islet)):
         p = peri_by_islet.get(islet, peri.iloc[:0])
         c = core_by_islet.get(islet, core.iloc[:0])
-        p_counts = p["phenotype"].value_counts()
-        c_counts = c["phenotype"].value_counts()
+        # ``dropna=False`` again: ``p_total``/``c_total`` are ``len()``, so a dropped null
+        # phenotype would leave the per-class counts no longer summing to the total they are
+        # divided by.  Each class is then read with ``.get(pheno, 0)`` -- a class this islet has
+        # none of is a printed 0, which is a measurement, and is kept distinct from
+        # ``peri_prop_`` being NaN where the islet has no peri cell to be a proportion of.
+        p_counts = p["phenotype"].value_counts(dropna=False)
+        c_counts = c["phenotype"].value_counts(dropna=False)
         p_total, c_total = len(p), len(c)
 
         rec: dict[str, object] = {"case_id": int(donor), "islet_key": islet,

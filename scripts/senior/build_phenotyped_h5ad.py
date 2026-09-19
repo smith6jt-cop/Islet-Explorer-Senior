@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""
+"""LEGACY LANE, NOT RUNNABLE HERE -- recorded 2026-09-18.
+
+``scripts/retire/dispositions.py`` records this file as a verified orphan (code tier 1):
+nothing in the tree imports it, and the inputs named below are absent from this checkout.
+It is kept as the record of how that artifact was built, not as a description of anything
+current.
+
+The current PhenoCycler typing is the subpanel classification under
+``core/phenocycler/scripts/typing/`` -- context from QuPath objects, then one question per
+context against reference levels drawn from the ordinary tissue, fitted PER DONOR.
+``data/development/typing/cells/`` holds 25,230,109 cells over 20 donors (2026-09-15 build,
+eight classes plus ``Excluded``). Nothing below describes that method.
+
+RESTORE WAS RETIRED 2026-08-14 and is on the never-revive list, together with the flat
+``cells_redsea*`` / ``restore*`` roots. Every RESTORE ``_pos`` / positivity statement below is
+part of that retired lane. The current typing never asks "is this cell <marker>-positive" as a
+standalone question.
+
 Merge broad-lineage cell types into the single-cell AnnData (2026-07 gap-fill).
 
 No current script produced `data/singlecell_protein_phenotyped.h5ad`, yet every Phase-2
@@ -103,7 +120,17 @@ def main(argv=None):
     a.out.parent.mkdir(parents=True, exist_ok=True)
     adata.write_h5ad(a.out)
     print("[done]", a.out, adata.shape)
-    print("phenotype:", adata.obs["phenotype"].value_counts().to_dict())
+    # dropna=False so a cell with NO phenotype is a printed line rather than a silent omission.
+    # The line below claims "0 Unassigned -- every cell typed" off ``n_missing``; a null
+    # phenotype that value_counts had dropped would let that claim stand over cells the count
+    # never showed.  A null key here is "this cell's class is unavailable", which is not the
+    # same as a class with 0 cells -- ``Unassigned`` is the latter and is named, this is not.
+    #
+    # This is the LEGACY CODEX lane and its vocabulary is the 7 broad classes, NOT the
+    # PhenoCycler run cohort's -- so it is not reindexed over that cohort's declared classes
+    # (``Unresolved (no lineage evidence)`` among them).  The two datasets are never merged, and
+    # importing one's class list into the other would be that merge.
+    print("phenotype:", adata.obs["phenotype"].value_counts(dropna=False).to_dict())
     print("[ok] 0 Unassigned — every cell typed" if n_missing == 0
           else f"[check] {n_missing} Unassigned")
     return 0

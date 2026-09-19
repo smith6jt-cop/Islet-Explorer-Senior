@@ -30,10 +30,18 @@ CURRENT = {
         "    Beta 226,183 | Alpha 279,686 | Delta 90,658 | is_endocrine 596,527\n"
         "    resolved_by: fallthrough 20,258,524 | definition 2,779,374 | structure 1,440,160 |\n"
         "                 hormone 596,527 | supporting 155,524\n"
-        "    Built Fri 2026-09-11 -> 09-14 -> 09-15. The islet decision is CD99 AND SHAPE\n"
-        "    (approved-plan decision 1); hormone argmax names the subtype only afterwards.\n"
-        "    Supporting: subpanel_rebuilt/ qupath_fundamentals/ (20) | islet_membership/ (13) |\n"
-        "    crossed/ (10) | immune/ geometry/ trajectory/ (10) | revised_cells/ (7, batch-2)."),
+        "    Built Fri 2026-09-11 -> 09-14 -> 09-15. Eight classes plus Excluded. It carries\n"
+        "    NO CD99 question and no Unresolved class: the 2026-09-18 islet chain (structure,\n"
+        "    exocrine-inside-an-islet excluded, CD99 fitted PER DONOR AND PER SIZE STRATUM with\n"
+        "    a floor guard, nucleus_elongation as a SECOND ROUTE that can only ADD and only in\n"
+        "    the >10-cell stratum, then hormone argmax over INS/GCG/SST) is the decided method\n"
+        "    and NO DONOR HAS BEEN RE-RUN with it. Do not read this build as carrying it.\n"
+        "    refined_class does not exist here either: scripts/typing/refine.py is written and\n"
+        "    not wired, and its 5th-percentile demotion is an open question, not a decision.\n"
+        "    Supporting, measured 2026-09-18: subpanel_rebuilt/ qupath_fundamentals/\n"
+        "    islet_membership/ crossed/ immune/ geometry/ trajectory/ all 20 donors |\n"
+        "    revised_cells/ (7, batch-2). immune/ was rewritten 2026-09-17: 20 donors,\n"
+        "    2,934,898 Immune cells, a second pass that never modifies cell_class."),
     "data/development/restain": (
         "valis/donor_id=<d>/  -- the donor-local files are the resumable authority.\n"
         "    Per the lane README: 'The resumable authority is the donor directory\n"

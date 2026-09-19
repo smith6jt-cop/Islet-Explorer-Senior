@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""pLN Xenium immune typing, v2: cluster-then-name.
+"""SUPERSEDED 2026-09-18. ``analysis/xenium/scripts/pln_immune_typing_v3.py`` replaces this
+file, and its ``release.json`` declares that ``release_pln_immune_v3`` supersedes the
+``release_pln_immune_v2`` tree written here. ``scripts/senior/xenium_release.py`` honours that
+declaration, so no builder reads the v2 tree any more -- the pins that named it in
+``build_compartment_gradient.py`` and ``modality_concordance.py`` are gone. Recorded as a
+verified orphan in ``scripts/retire/dispositions.py`` (code tier 1). Kept as the record of the
+cluster-then-name method below; do not read it as the current one.
+
+pLN Xenium immune typing, v2: cluster-then-name.
 
 THE METHOD, AND WHY IT IS NOT THE PANCREAS METHOD
 -------------------------------------------------

@@ -149,8 +149,10 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
     }
 
     # Offer only the disease statuses this dataset actually has. Both status filters were
-    # hard-coded c("ND", "Aab+", "T1D"); under the run cohort, which has no Aab+ donor, that
-    # invites the reader to filter on a category whose box can never contain a point. These
+    # hard-coded c("ND", "Aab+", "T1D"), which invites the reader to filter on a category whose
+    # box can never contain a point on whichever build does not have it. Which statuses are
+    # present is a fact about the BUILD and it has already changed: the run cohort had no Aab+
+    # donor before 2026-09-15 and has three now (6450, 6505, 6521, measured 2026-09-18). These
     # update statically-mounted inputs, so they cannot race a renderUI mount.
     statuses_present <- reactive({
       pd <- prepared()
@@ -1468,7 +1470,9 @@ spatial_server <- function(id, prepared, palette = reactive(PHENOTYPE_COLORS),
 
       dcols <- donor_colors_reactive()
 
-      # Kruskal-Wallis on donor-level means (N=15)
+      # Kruskal-Wallis on donor-level means. N is whatever the loaded build has -- 15 donors
+      # on the legacy CODEX domain, 20 on the run cohort -- and is counted from the frame, never
+      # written in.
       kw_p <- tryCatch({
         kt <- kruskal.test(value ~ status, data = donor_df)
         kt$p.value

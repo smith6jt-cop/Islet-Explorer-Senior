@@ -22,10 +22,20 @@ declared:
 ``same_block``   the donor's PhenoCycler pancreas image carries a pLN annotation beside the
                  pancreas tissue annotation. Read from the per-image annotation census
                  ``data/development/typing/revised_cells/section_parents.json``, which
-                 ``scripts/typing/rebuild_donor_from_revised_export.py`` writes from the
-                 export's own ``Parent`` column. Measured on 6533: ``Annotation (pLN)``
-                 34,841 cells beside ``Annotation (Tissue)`` 931,910 in
-                 ``0080870_6533_pLNpanc_Scan3.er.qptiff``.
+                 ``core/phenocycler/scripts/typing/rebuild_donor_from_revised_export.py``
+                 writes from the export's own ``Parent`` column. Measured on 6533:
+                 ``Annotation (pLN)`` 34,841 cells beside ``Annotation (Tissue)`` 931,910
+                 in ``0080870_6533_pLNpanc_Scan3.er.qptiff``.
+
+                 THAT CENSUS IS NOT IN THIS CHECKOUT (measured 2026-09-18:
+                 ``revised_cells/`` holds the seven rebuilt batch-2 donor partitions and
+                 no ``section_parents.json``). ``read_parent_evidence`` therefore returns
+                 an empty mapping and NO row is assigned ``same_block`` today. A row with
+                 no other measured relationship gets a null ``section_relationship`` and
+                 ``section_relationship_basis = unavailable(annotation_census_not_built)``;
+                 ``same_slide`` is unaffected, since it comes from this table's own
+                 serials. The manifest's ``parent_evidence_present`` says so on every run.
+                 Absent evidence is not evidence of ``different_block``.
 ``same_slide``   this section is one physical section imaged twice: a ``restain_if`` row and
                  a ``xenium`` row sharing ``(donor_id, roi, xenium_serial)``. The post-Xenium
                  IF is a restain of the section Xenium ran on, and the recorded serial is

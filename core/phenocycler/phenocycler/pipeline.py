@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Content-addressed QuPath → REDSEA → expression → cell-type workflow."""
+"""QuPath → ingest → geometry QC → REDSEA → expression workflow.
+
+NOT CONTENT-ADDRESSED ANY MORE.  The content-addressed run framework was REMOVED on 2026-09-16.
+There is no ``run_id``, no stage manifest, no donor receipt and no fingerprint validation.  Each
+stage writes to a stable root (``data/cells``, ``data/geometry_qc``, ``data/redsea``,
+``data/expression``) and a donor is done when its partition has content; a stage whose output is
+already present is skipped and ``--force`` reruns it (see :func:`run_stage`).  The QuPath cohort
+manifest still records a ``content_id`` and per-file sha256, but nothing validates them -- it is a
+description, so it can be hand-edited when a source file moves.
+
+Ordinary execution stops after ``expression``.  ``controls``, ``calibrate``, ``type`` and the
+QuPath assignment export are blocked by ``NO_VERIFIED_TYPING``, and that latch has not moved.
+"""
 
 from __future__ import annotations
 

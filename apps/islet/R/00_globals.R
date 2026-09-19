@@ -647,6 +647,46 @@ PHENOTYPE_RESIDUALS <- local({
   kept
 })
 
+# ---- Display classes that are an ABSENCE, not a cell type -------------------------------
+#
+# The run cohort's vocabulary gained `Unresolved` on 2026-09-18 -- the refinement pass's
+# `Unresolved (no lineage evidence)`, written on a cell demoted out of Exocrine with no
+# complement beneath it. It sits in `phenotypes.display_order` because it has to be drawn and
+# coloured like anything else on the page, and that is exactly the trap: every consumer that
+# walks `domain_phenotype_order()` treats what it finds there as a cell type, so an absence
+# silently becomes a ninth population with a proportion, a mean and a comparison.
+#
+# DECLARED, NEVER INFERRED. The answer comes from the DOMAIN's own `phenotypes.residuals`
+# entries carrying `absence: true`, read through ieCore. Matching on the spelling would be
+# wrong in the other direction too: the legacy CODEX vocabulary's `Unknown` is a real upstream
+# residual class, not a recorded non-call, and a string match would bucket a measurement with
+# a hole. A domain that declares none gets `character(0)` and nothing changes for it.
+PHENOTYPE_ABSENCE_CLASSES <- local({
+  declared <- tryCatch(domain_phenotype_residuals(), error = function(e) list())
+  absences <- tryCatch(ie_absence_phenotypes(declared), error = function(e) character())
+  vocabulary <- tryCatch(domain_phenotype_order(), error = function(e) character())
+  # An absence the domain never displays is not in play, the same rule PHENOTYPE_RESIDUALS uses.
+  intersect(absences, vocabulary)
+})
+
+#' Is this display class an absence of a call rather than a cell type?
+#'
+#' Vectorised and total: anything not declared an absence is a cell type, so a caller that
+#' forgets to guard gets the old behaviour rather than a silent reclassification.
+is_absence_phenotype <- function(x) {
+  as.character(x) %in% PHENOTYPE_ABSENCE_CLASSES
+}
+
+#' The display classes that ARE cell types, in DOMAIN order
+#'
+#' What a composition, a proportion or a cell-type legend should walk. `domain_phenotype_order()`
+#' remains the full display vocabulary -- palettes and selectors still need every entry, because
+#' an absence you cannot see is worse than one in the wrong colour.
+phenotype_cell_type_order <- function() {
+  vocabulary <- tryCatch(domain_phenotype_order(), error = function(e) character())
+  vocabulary[!is_absence_phenotype(vocabulary)]
+}
+
 # Parse the CSV into a named list of rule records keyed by phenotype name.
 # Returns NULL if the file is missing — callers should guard.
 .parse_phenotype_rules_csv <- function(path) {
@@ -818,6 +858,13 @@ format_phenotype_rule <- function(name, style = c("inline", "html", "plain")) {
 # the whole order for a domain that declares none. Unqualified, this CODEX-shaped literal
 # shares four spellings with the run cohort and sorted its other four alphabetically, so the
 # modal opened on Exocrine with the endocrine classes scattered below.
+#
+# IT IS AN ORDER, NOT A VOCABULARY. Several names below exist only in the legacy CODEX display
+# vocabulary and no producer in this repository can emit them for the PhenoCycler run cohort --
+# `Acinar` and `Ductal` above all: the 60-plex carries no acinar-specific and no ductal-specific
+# marker, so exocrine is ONE label there and neither claim may be made. A name listed here that
+# the active domain does not declare simply never appears in the modal; it must never be read as
+# a class this app could show.
 PHENOTYPE_DISPLAY_ORDER <- c(
   "Beta cell", "Alpha cell", "Delta cell", "Endocrine",
   "Acinar", "Ductal", "Exocrine",

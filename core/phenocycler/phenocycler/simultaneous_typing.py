@@ -1,12 +1,19 @@
 """Simultaneous broad typing from RESTORE tri-state marker evidence.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  Simultaneous / hierarchical / probabilistic broad typing over
+RESTORE evidence is on the never-revive list (root ``CLAUDE.md``), RESTORE itself was retired on
+2026-08-14, and the ``type`` stage is blocked by ``NO_VERIFIED_TYPING``.  The typing that exists is
+the subpanel classification under ``core/phenocycler/scripts/typing/``.  Kept as a record.
+
 Every broad gate is evaluated against the same evidence and no gate has
 precedence over another.  This is the difference that matters: the ordered
 residual hierarchy it replaces awarded a cell supported by several gates to
 whichever gate was listed first, and on this cohort that single choice moved the
 Immune fraction from 20.50% (Immune first) to 3.31% (Immune last) over the same
-25,150,537 cells, because only 16.2% of Immune-gate-positive cells are positive
-for no other gate.  A number that swings six-fold on a list ordering is set by
+25,150,537 cells -- that count is the SUPERSEDED ``subpanel_calls.parquet``
+population, not the current 25,230,109 -- because only 16.2% of
+Immune-gate-positive cells are positive for no other gate.  A number that swings six-fold on a list ordering is set by
 the ordering, not by the evidence.
 
 Dispositions, per cell:

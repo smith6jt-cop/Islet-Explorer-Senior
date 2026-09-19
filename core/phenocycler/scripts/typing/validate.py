@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Checks on a finished call set, none of which the workflow can tune itself against.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the Nimbus/Leiden chain
+(``substrate.py`` -> ``positivity.py`` -> ``call.py`` -> ``validate.py`` -> ``export_qupath.py``,
+with ``metacluster.py``) that the typing README used to describe.  It did not produce the calls on
+disk.  The current typing is the subpanel classification in ``subpanel.py`` / ``build_cells.py``;
+see ``README.md``, "Retired, and not to be revived as fallbacks".  What follows is kept as a record
+of what was measured and why, not as a lane to fall back to.
+
 Every check here compares the calls to something the typing never saw: the QuPath islet polygons
 (geometry, drawn by hand), and each cell's spatial neighbours.  None of them is a threshold the
 workflow optimises, and none compares a donor to an expected frequency -- the numbers are reported

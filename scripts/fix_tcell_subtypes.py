@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""
+"""LEGACY LANE, NOT RUNNABLE HERE -- recorded 2026-09-18.
+
+``scripts/retire/dispositions.py`` records this file as a verified orphan (code tier 1):
+nothing in the tree imports it, and the inputs named below are absent from this checkout.
+It is kept as the record of how that artifact was built, not as a description of anything
+current.
+
+The current PhenoCycler typing is the subpanel classification under
+``core/phenocycler/scripts/typing/`` -- context from QuPath objects, then one question per
+context against reference levels drawn from the ordinary tissue, fitted PER DONOR.
+``data/development/typing/cells/`` holds 25,230,109 cells over 20 donors (2026-09-15 build,
+eight classes plus ``Excluded``). Nothing below describes that method.
+
 Fix CD4/CD8 T cell subtype phenotyping in canonical single-cell H5AD.
 
 Reclassifies T cell lineage cells (CD8a Tcell, CD4 Tcell, T cell) based on

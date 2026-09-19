@@ -51,6 +51,20 @@ a large islet's endocrine cells are the only fair yardstick for a large islet's 
 The small stratum is not discarded: it is the contrast that says whether a positive result in
 the large one is about islet architecture or about the whole cohort.
 
+RUN FOR THE FIRST TIME 2026-09-18, over 20 donors, to `data/development/typing/islet_identity/`
+(`mixture_test.parquet`, `mixture_test_per_feature.parquet`, `undecided_posterior.parquet`).
+In the LARGE stratum, of the 20 donor rows: 10 `displaced subpopulation`, 3 `two populations`,
+1 `one population`, 5 UNFIT because the CONTROL rejected, 1 too few cells -- so 14 testable.  Per
+feature, against a Bonferroni bar of 0.0083 over the six features, CD99 separates more strongly
+than any shape feature and `nucleus_elongation` is well behind it.
+
+WHAT THAT DOES AND DOES NOT SETTLE.  It is evidence about ONE threshold against a cohort-pooled
+null within each stratum.  The maintainer's standing point is that a single stratification is not
+expected to hold across donors whose islets differ in shape by disease, so this is not the last
+word on the elongation route in `subpanel.py`, whose weight remains OPEN.  Five donors' large
+strata are UNFIT because their own control rejected, and a statistic that fires on its own
+control discriminates nothing -- those five are not evidence either way.
+
     python core/phenocycler/scripts/typing/islet_identity_mixture.py [--donors 115] [--null 300]
 """
 from __future__ import annotations

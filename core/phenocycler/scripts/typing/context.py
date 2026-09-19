@@ -62,13 +62,30 @@ def assign(x_um: np.ndarray, y_um: np.ndarray, in_islet: np.ndarray,
     cell is never asked the islet question at all, 11,556 islet-core cells cohort-wide fell
     through to Exocrine -- 5,250 of them hormone-positive. Do not reinstate it.
     """
+    context = object_label(x_um, y_um, image_stem, pixel_size_um)
+    context[np.asarray(in_islet)] = "islet"
+    return context
+
+
+def object_label(x_um: np.ndarray, y_um: np.ndarray, image_stem: str,
+                 pixel_size_um: float) -> np.ndarray:
+    """Which classified object each centroid is in, by precedence -- islets not consulted.
+
+    This is what :func:`assign` then overwrites wherever the cell is in an islet, and it exists
+    as its own function because the classification has to KEEP it.  The overwrite is not a
+    correction, it is a loss: every islet-core cell reads ``context = islet`` and nothing
+    downstream can see that 6,116 of donor 115's islet cells sit inside a blood-vessel object.
+    An analysis of this lane went wrong on exactly that gap, so the object answer is recorded
+    beside the context answer rather than reconstructed later from coordinates.
+
+    Callers wanting per-class membership, not the collapsed label, use :func:`memberships`.
+    """
     inside = memberships(x_um, y_um, image_stem, pixel_size_um)
-    context = np.where(np.asarray(in_islet), "islet", "tissue").astype(object)
-    candidate = ~np.asarray(in_islet)
+    label = np.full(len(np.asarray(x_um)), "tissue", dtype=object)
     # Weakest first, so a stronger class overwrites it -- one pass, no tie-breaking logic.
     for name in reversed(PRECEDENCE):
-        context[candidate & inside[name]] = name
-    return context
+        label[inside[name]] = name
+    return label
 
 
 def memberships(x_um: np.ndarray, y_um: np.ndarray, image_stem: str,

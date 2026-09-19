@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""
+"""LEGACY LANE, NOT RUNNABLE HERE -- recorded 2026-09-18.
+
+``scripts/retire/dispositions.py`` records this file as a verified orphan (code tier 1):
+nothing in the tree imports it, and the inputs named below are absent from this checkout.
+It is kept as the record of how that artifact was built, not as a description of anything
+current.
+
+The current PhenoCycler typing is the subpanel classification under
+``core/phenocycler/scripts/typing/`` -- context from QuPath objects, then one question per
+context against reference levels drawn from the ordinary tissue, fitted PER DONOR.
+``data/development/typing/cells/`` holds 25,230,109 cells over 20 donors (2026-09-15 build,
+eight classes plus ``Excluded``). Nothing below describes that method.
+
 Build the single-cell AnnData for scimap phenotyping (run in the `scimap` conda env).
 
 Reads the donor-partitioned cells parquet (~23.3M cells: 59 whole-cell marker

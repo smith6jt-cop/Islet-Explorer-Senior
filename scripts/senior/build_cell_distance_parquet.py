@@ -1,5 +1,26 @@
 #!/usr/bin/env python3
 """
+CORRECTION BANNER, 2026-09-18. THIS IS THE LEGACY CODEX-DOMAIN PRODUCER AND IT
+CANNOT RUN HERE. Everything below it describes a lane that no longer exists:
+
+  * RESTORE was RETIRED 2026-08-14 and is on the never-revive list, along with
+    the flat ``cells_redsea*`` / ``restore*`` roots this file reads. The ten
+    ``<marker>_pos`` booleans are not a positivity convention this project still
+    holds. The current typing asks one question per context against reference
+    levels drawn from the ordinary tissue; it never asks "is this cell
+    CD31-positive" as a standalone question, so there is no per-marker
+    positivity call to write.
+  * Three of its four inputs are absent from this checkout, measured today:
+    ``data/cells``, ``data/parquet/tissue`` and ``data/islets_core_senior.h5ad``.
+    Only ``data/restore_gated_redsea`` is still on disk.
+  * The run-cohort domain's ``parquet/cell_distance`` is written by
+    ``core/phenocycler/scripts/typing/build_app_data.py::write_cell_distance_parquet``,
+    which deliberately omits the ``_pos`` columns for the reason above. The
+    CODEX domain has no ``parquet/cell_distance`` at all.
+
+Nothing below is edited; it is kept as the record of how the CODEX-domain
+artifact was built. Do not read it as the current method.
+
 Build the per-cell "cell_distance" parquet that powers the Spatial-tab Card C
 right-hand distance plots (per-cell signed distance to nearest islet, selectable
 by phenotype OR RESTORE-positive marker, split by disease status; plus a

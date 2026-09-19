@@ -1,4 +1,10 @@
-"""Cohort eligibility rules shared by every phenocycler analysis stage."""
+"""Cohort eligibility rules shared by every phenocycler analysis stage.
+
+THIS MODULE IS THE ONLY AUTHORITY FOR THE EXCLUSION LIST.  Derive from
+:data:`DONOR_EXCLUSIONS`; no lane may restate it from a literal, and configuration
+must not bypass it.  As of 2026-09-18 exactly ONE donor is centrally excluded --
+6457, for a technical reason -- and :data:`REINSTATED` records 6579's lifting.
+"""
 
 from __future__ import annotations
 

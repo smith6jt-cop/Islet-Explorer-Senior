@@ -17,7 +17,7 @@ Run it two ways:
     python scripts/senior/tissuumaps_smoke_test.py \
         --image /data/islet_ome_tiff/6539.ome.tiff \
         --regions data/Islets \
-        --markers data/app_data/cells/6539_tissue.csv
+        --markers data/tissuumaps_inputs/markers/6539.csv
 
 Requires: tissuumaps, pyvips, tifffile (+ playwright for --browser).
 """

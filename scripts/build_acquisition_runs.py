@@ -22,6 +22,14 @@ makes correction possible at all:
 
 Reads only each qptiff's first page (no pixel data), so it is safe to run against /data.
 
+THE SHIPPED CSV IS STALE ON ONE DONOR, measured 2026-09-18.  ``excluded`` is derived here from
+``phenocycler.cohort.DONOR_EXCLUSIONS`` and is never a literal, but ``data/donor_acquisition_runs.csv``
+was last written 2026-09-12 and records ``6579,...,True``.  6579's exclusion was LIFTED
+2026-09-17 -- ``cohort.py`` now carries it in ``REINSTATED`` -- so the file disagrees with the
+authority until this generator reruns against the images.  The pancreatitis it was excluded for
+is a disease context, not a reason to drop it.  Only 6457 is centrally excluded today.  A reader
+that needs the exclusion state should ask ``phenocycler.cohort``, not this column.
+
     python scripts/build_acquisition_runs.py --images ~/IO60panc2nd/Images
     -> data/donor_acquisition_runs.csv
 """

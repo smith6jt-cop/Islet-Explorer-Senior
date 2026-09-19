@@ -37,7 +37,7 @@ HOW IT IS TESTED -- dispersion and mixture, not location:
 
 SHAPE IS NUCLEUS-FIRST. Cell-boundary features were measured across six donors and every class
 -- immune, exocrine, alpha, beta, delta -- sat at cell circularity 0.514-0.523, a 1% spread.
-Real immune and acinar cells are not the same shape; that is the signature of boundaries cut
+Real immune and real exocrine cells are not the same shape; that is the signature of boundaries cut
 against neighbours in packed tissue, so the cell outline is a tessellation artefact and carries
 little morphology. Nuclei are segmented from DAPI directly and are not tessellated, so they lead.
 Cell features are still reported, marked, so the claim stays checkable.

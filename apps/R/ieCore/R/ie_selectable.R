@@ -16,7 +16,8 @@
 #' The donors a card can actually draw, from its own availability table.
 #'
 #' @param data a data.frame with a donor column and a state column.
-#' @param state_col the column carrying the five-state availability value. Defaults to `"state"`.
+#' @param state_col the column carrying the availability value, one of [IE_STATES]. Defaults to
+#'   `"state"`. (Five states until 2026-09-18, six since: `uncalled` was appended.)
 #' @param donor_col the donor identifier column. Defaults to `"donor_id"`.
 #' @param states which states count as showable. Defaults to `"measured"` alone -- `blank` means the
 #'   lane ran and found nothing, which is a result worth recording and not something to plot.
@@ -44,7 +45,7 @@ ie_selectable_donors <- function(data, state_col = "state", donor_col = "donor_i
 #' One line saying what was left out of a selector, and why.
 #'
 #' Rendered once beside the control. Without it, narrowing the choices would hide the absence
-#' rather than state it -- which is the opposite of what the five-state vocabulary is for.
+#' rather than state it -- which is the opposite of what the [IE_STATES] vocabulary is for.
 #'
 #' @param data the same table passed to `ie_selectable_donors()`.
 #' @param offered the ids that survived.

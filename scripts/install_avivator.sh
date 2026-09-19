@@ -3,6 +3,11 @@ set -euo pipefail
 
 # Install a local static Avivator under shiny/www/avivator.
 # Prefers building from a local source tree if present; otherwise mirrors the public site.
+#
+# NOTE 2026-09-18: there is no `shiny/` directory in this repository. The app lives at
+# `apps/islet/` and its static root is `apps/islet/www/`, so WWW_DIR below points at a path that
+# does not exist and the install lands outside the app. Recorded as a finding; the path is not
+# changed here.
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WWW_DIR="$APP_DIR/shiny/www"

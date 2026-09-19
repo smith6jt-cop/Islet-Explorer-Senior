@@ -4,8 +4,19 @@
 ``build_tissuumaps_project.py --markers`` wants a single CSV of every cell on a
 slide. Every usage example in this repo names ``<case>_tissue.csv`` — and no
 script has ever written it. Whole-slide per-cell data exists only as the Parquet
-tissue partitions (`build_composition_and_tissue.py`) and, for the older 15-donor
-set, as `data/app_data/donors/<case>.csv`. This closes that gap.
+tissue partitions and, for the older 15-donor set, as
+`data/app_data/donors/<case>.csv`. This closes that gap.
+
+WHICH PARQUET ROOT, measured 2026-09-18. ``--data-dir`` defaults to ``<repo>/data``
+and the parquet root is ``<data-dir>/parquet/tissue``. That path DOES NOT EXIST in
+this checkout: the legacy producer named in the old text here,
+``scripts/senior/build_composition_and_tissue.py``, is a recorded orphan whose own
+input is gone, so with the default ``--data-dir`` every donor falls through to the
+legacy CSVs. The run-cohort domain's tissue partitions are written by
+``core/phenocycler/scripts/typing/build_app_data.py`` and live at
+``data/development/typing/app/parquet/tissue``; pass
+``--data-dir data/development/typing/app`` to read them. The two domains are never
+merged — they share five donors and no vocabulary — so pick one per run.
 
 Output goes to ``data/tissuumaps_inputs/markers/<case>.csv``, NOT to
 ``data/app_data/cells/``. That directory is the per-ISLET drill-down namespace,
@@ -52,10 +63,12 @@ def log(msg: str) -> None:
 def read_parquet_tissue(parquet_root: Path, case_id: str):
     """Rows from the canonical Parquet tissue partition, or None if absent.
 
-    This is the same source `spatial_helpers.R::load_donor_tissue()` prefers, and
-    it is written with exactly these columns by
-    `scripts/senior/build_composition_and_tissue.py`. pandas is imported lazily so
-    the legacy path and the coverage logic stay usable without it.
+    This is the same source `spatial_helpers.R::load_donor_tissue()` prefers. For
+    the run-cohort domain it is written with exactly these columns by
+    `core/phenocycler/scripts/typing/build_app_data.py`; the legacy CODEX copy came
+    from `scripts/senior/build_composition_and_tissue.py`, which is a recorded
+    orphan and cannot be re-run. pandas is imported lazily so the legacy path and
+    the coverage logic stay usable without it.
     """
     part = parquet_root / f"case_id={case_id}"
     if not part.is_dir() or not any(part.glob("*.parquet")):

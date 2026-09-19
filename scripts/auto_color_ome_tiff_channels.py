@@ -13,6 +13,11 @@ Usage:
             [--fallback-root /path/to/original_tifs] [--qupath-root /path/to/qupath] \
             [--channel-names-file shiny/Channel_names]
 
+NOTE 2026-09-18: there is no `shiny/` directory in this repository -- the app lives at
+`apps/islet/` and the channel-name list is `apps/islet/Channel_names`. The `--channel-names-file`
+DEFAULT below still reads `shiny/Channel_names`, so it silently resolves to nothing unless the
+path is passed explicitly. Recorded as a finding; the default is not changed here.
+
 Dependencies: tifftools, lxml
 """
 import argparse

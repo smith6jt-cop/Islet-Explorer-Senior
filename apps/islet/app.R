@@ -394,10 +394,11 @@ IE_TAB_TIPS <- list(
 
 #' What every card on every tab means by a state it cannot draw.
 #'
-#' The five states and their labels come from ieCore (IE_STATES,
-#' ie_state_label()), so this list cannot fall out of step with the notes the
-#' cards actually render. The closing line is the repo's rule, not a reading of
-#' any artifact: an absence is not a zero.
+#' The states and their labels come from ieCore (IE_STATES, ie_state_label()) and are walked in
+#' whatever order that vector declares, so this list cannot fall out of step with the notes the
+#' cards actually render -- it picked up the sixth state, `uncalled`, on 2026-09-18 without an
+#' edit here. The closing line is the repo's rule, not a reading of any artifact: an absence is
+#' not a zero.
 .ie_tab_states_ui <- function() {
   states <- get0("IE_STATES", ifnotfound = NULL)
   label <- get0("ie_state_label", mode = "function", ifnotfound = NULL)

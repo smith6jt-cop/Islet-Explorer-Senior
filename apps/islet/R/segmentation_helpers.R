@@ -1,12 +1,17 @@
 # ===== Islet Segmentation Viewer Helper Functions =====
 
 # The outline classes the viewer draws, from the ACTIVE DOMAIN rather than a literal: each
-# region's `geojson_class`, the expansion's, and each structure's. Both domains resolve to the
-# same five today (`Islet`, `IsletExpanded`, `Nerve`, `Capillary`, `Lymphatic` -- note
-# `IsletExpanded`, not "ExpandedIslet", which matched nothing), so this is behaviour-identical;
-# what it buys is that the run cohort's non-endocrine region (correction E) appears by declaring
-# it in that config alone. The list had been a literal in five separate functions, and a class
-# added to four of the five renders in some views and silently vanishes in others.
+# region's `geojson_class`, the expansion's, and each structure's. The two domains no longer
+# resolve to the same list, which is the point of deriving it:
+#
+#   CODEX (islet_default.yml)   five  -- Islet, IsletExpanded, Nerve, Capillary, Lymphatic
+#   run cohort (run20_default)  six   -- the five above plus IsletNonEndocrine, the
+#                                        non-endocrine region (correction E), declared in that
+#                                        config alone so the CODEX build is unchanged
+#
+# Note `IsletExpanded`, not "ExpandedIslet", which matched nothing. The list had been a literal
+# in five separate functions, and a class added to four of the five renders in some views and
+# silently vanishes in others.
 SEGMENTATION_CLASSES <- local({
   items <- vapply(domain_region_items(),
                   function(r) r[["geojson_class"]] %||% NA_character_, character(1))

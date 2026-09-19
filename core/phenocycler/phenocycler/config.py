@@ -1,4 +1,7 @@
-"""Compact configuration for the content-addressed workflow.
+"""Compact configuration for the QuPath → REDSEA → expression workflow.
+
+("the content-addressed workflow" until 2026-09-18: that framework was removed on 2026-09-16 and
+the roots below are now plain stage roots, not run-keyed ones.)
 
 Biological marker meaning lives in ``marker_registry.json`` and production
 gate membership lives in ``broad_gates.json``. Raw input identity lives in the

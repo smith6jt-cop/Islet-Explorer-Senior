@@ -1,5 +1,13 @@
 """Explicit donor-local reference-positive seeds (pipeline stage ``controls``).
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  RESTORE was retired on 2026-08-14 and is on the never-revive list
+(root ``CLAUDE.md``): the RESTORE pair webs, the Gate 2-5 apparatus and the GMM/Otsu gate searches
+do not come back as fallbacks.  Nothing in this module produced the typing on disk -- that is the
+subpanel classification under ``core/phenocycler/scripts/typing/`` -- and the pipeline stages that
+would call it (``controls``, ``calibrate``, ``type``) are blocked by ``NO_VERIFIED_TYPING``, a
+latch that has not moved.  Kept as a record of what was implemented and measured.
+
 For every distinct reference in the validated marker registry this module
 selects a fixed-size, high-rank seed set using only:
 

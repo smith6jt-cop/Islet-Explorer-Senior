@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Write the QuPath import package so the calls can be reviewed on the images.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the Nimbus/Leiden chain
+(``substrate.py`` -> ``positivity.py`` -> ``call.py`` -> ``validate.py`` -> ``export_qupath.py``,
+with ``metacluster.py``) that the typing README used to describe.  It did not produce the calls on
+disk.  The current typing is the subpanel classification in ``subpanel.py`` / ``build_cells.py``;
+see ``README.md``, "Retired, and not to be revived as fallbacks".  What follows is kept as a record
+of what was measured and why, not as a lane to fall back to.
+
 QuPath is the only place these calls can actually be judged, so this is the deliverable.  The
 format is the repo's existing contract, read by ``scripts/groovy/import_cell_assignments.groovy``:
 one ``cell_assignments_<image>.csv`` per image, matched to detections by the QuPath UUID and the

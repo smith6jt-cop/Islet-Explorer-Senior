@@ -1,4 +1,16 @@
-"""
+"""LEGACY LANE, NOT RUNNABLE HERE -- recorded 2026-09-18.
+
+``scripts/retire/dispositions.py`` records this file as a verified orphan (code tier 1):
+nothing in the tree imports it, and the inputs named below are absent from this checkout.
+It is kept as the record of how that artifact was built, not as a description of anything
+current.
+
+The current PhenoCycler typing is the subpanel classification under
+``core/phenocycler/scripts/typing/`` -- context from QuPath objects, then one question per
+context against reference levels drawn from the ordinary tissue, fitted PER DONOR.
+``data/development/typing/cells/`` holds 25,230,109 cells over 20 donors (2026-09-15 build,
+eight classes plus ``Excluded``). Nothing below describes that method.
+
 Fixed islet aggregation functions for CODEX pancreas analysis.
 
 Key fixes:
@@ -148,7 +160,17 @@ def create_islet_dataset_fixed(adata_subset, region='islet_only', min_cells=0,
 
         # Check if phenotype column exists and what values it has
         if 'phenotype' in adata_subset.obs.columns:
-            pheno_counts = adata_subset.obs['phenotype'].value_counts()
+            # dropna=False on every phenotype count in this file.  These are DIAGNOSTICS a
+            # reader checks a filter against, and a cell whose phenotype is null is a cell that
+            # was not typed -- an unavailable class, not zero of a named one.  Dropped by
+            # default it would leave no line at all, and the printed percentages (which divide
+            # by n_obs, the full count) would not sum to what the reader is told they cover.
+            #
+            # LEGACY CODEX LANE: the vocabulary here is the broad-lineage classes, not the
+            # PhenoCycler run cohort's, so nothing is reindexed over that cohort's declared
+            # class list (``Unresolved (no lineage evidence)`` included).  The two datasets
+            # are never merged; importing one's classes into the other would be that merge.
+            pheno_counts = adata_subset.obs['phenotype'].value_counts(dropna=False)
             print(f"\nTotal phenotype distribution (ALL cells in input):")
             for pheno, count in pheno_counts.head(10).items():
                 print(f"  {pheno}: {count:,} ({count/adata_subset.n_obs:.1%})")
@@ -178,19 +200,19 @@ def create_islet_dataset_fixed(adata_subset, region='islet_only', min_cells=0,
             print(f"\n=== Phenotype distribution BY FILTER CATEGORY ===")
 
             if n_core > 0:
-                core_phenos = adata_subset.obs.loc[is_core, 'phenotype'].value_counts()
+                core_phenos = adata_subset.obs.loc[is_core, 'phenotype'].value_counts(dropna=False)
                 print(f"\nCORE ISLET cells ({n_core:,} cells):")
                 for pheno, count in core_phenos.head(8).items():
                     print(f"  {pheno}: {count:,} ({count/n_core:.1%})")
 
             if n_peri > 0:
-                peri_phenos = adata_subset.obs.loc[is_peri, 'phenotype'].value_counts()
+                peri_phenos = adata_subset.obs.loc[is_peri, 'phenotype'].value_counts(dropna=False)
                 print(f"\nPERI-ISLET cells ({n_peri:,} cells):")
                 for pheno, count in peri_phenos.head(8).items():
                     print(f"  {pheno}: {count:,} ({count/n_peri:.1%})")
 
             if n_other > 0:
-                other_phenos = adata_subset.obs.loc[is_other, 'phenotype'].value_counts()
+                other_phenos = adata_subset.obs.loc[is_other, 'phenotype'].value_counts(dropna=False)
                 print(f"\nOTHER cells ({n_other:,} cells):")
                 for pheno, count in other_phenos.head(8).items():
                     print(f"  {pheno}: {count:,} ({count/n_other:.1%})")
@@ -258,7 +280,12 @@ def create_islet_dataset_fixed(adata_subset, region='islet_only', min_cells=0,
         print(f"(Calculated from filtered islet_cells with {islet_cells.n_obs:,} cells)")
 
         # Double-check: recalculate directly from islet_cells.obs
-        direct_dist = islet_cells.obs['phenotype'].astype(str).value_counts(normalize=True)
+        # ``.astype(str)`` above already turns a null into the string 'nan', so this one is a
+        # null that has been RENAMED rather than dropped; dropna=False is stated so the call
+        # cannot start dropping if that cast is ever removed.  This is a denominator
+        # (normalize=True) and nothing may leave it silently.
+        direct_dist = islet_cells.obs['phenotype'].astype(str).value_counts(
+            normalize=True, dropna=False)
         print(f"Top 10 phenotypes:")
         for pheno, prop in direct_dist.head(10).items():
             count = int(prop * islet_cells.n_obs)

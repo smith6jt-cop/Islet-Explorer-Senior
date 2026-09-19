@@ -2,10 +2,21 @@
 """
 Build the donor acquisition-batch covariate table from the qptiff headers.
 
-Acquisition batch is confounded with disease group in this cohort: no ND donor was acquired on
-Fusion 2.4.1. It cannot be corrected away, only disclosed — so it has to exist as data before Gate 5,
-and it currently exists nowhere: no schema, no model, and the composition figure runs Kruskal-Wallis
-and Mann-Whitney with no batch term.
+Acquisition batch is aliased with disease status at the COARSE level in this cohort: no ND donor
+was acquired on Fusion 2.4.1. The Fusion version therefore cannot be corrected on -- correcting
+for it would remove the effect being measured -- it can only be disclosed, and it has to exist as
+data to be disclosed at all. That is what this table is for.
+
+Correction, where it is warranted, happens on the FINER variables instead: ``stain_group`` and
+``acq_run`` in ``data/donor_acquisition_runs.csv``, which ``scripts/build_acquisition_runs.py``
+recovers from the per-slide TIFF ``DateTime``. Four of its nine staining groups carry more than
+one disease status, which is what makes correction possible at all. Where correction is not
+warranted, stratify.
+
+(Corrected 2026-09-18. This paragraph used to say the table had to exist "before Gate 5". The
+Gate 2-5 apparatus is retired and on the never-revive list; the requirement is the maintainer's
+standing rule on batch, not a gate. It also said the covariate "currently exists nowhere" --
+both ``data/donor_acquisition_batch.csv`` and ``data/donor_acquisition_runs.csv`` exist now.)
 
 Reads ONLY each qptiff's first-page description (no pixel data), so it is safe to run against /data.
 

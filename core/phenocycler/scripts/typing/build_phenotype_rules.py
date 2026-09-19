@@ -15,6 +15,13 @@ columns still say which channels are involved.
 
 Every number here comes from ``RECONSTRUCTION.md``, which was verified against the calls on disk.
 
+WHAT THIS FILE DESCRIBES IS THE TABLE ON DISK, NOT THE 2026-09-18 ISLET CHAIN.  The descriptions
+below state the hormone level 0.1010 and say CD99 "gates nothing", and both are true of
+``typing/cells`` as written on 2026-09-15 -- which is the build the app serves, because no donor
+has been re-run.  When the chain does run, the hormone sentence becomes wrong on two counts: the
+levels are per donor rather than pooled, and CD99 at its own donor x stratum level is what decides
+whether a cell is endocrine.  Rebuild this file in the same pass as the typing.
+
     python core/phenocycler/scripts/typing/build_phenotype_rules.py
 """
 from __future__ import annotations

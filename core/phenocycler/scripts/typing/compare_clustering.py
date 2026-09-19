@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Choose the lane's clustering method on evidence the methods cannot tune.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the broad-typing producer comparison
+WITHDRAWN 2026-09-08 (``cluster_leiden.py`` / ``cluster_lda.py`` / ``cluster_kodama.py`` scored by
+``compare_clustering.py``).  It did not produce the calls on disk, and the current typing is the
+subpanel classification in ``subpanel.py``; see ``README.md``, "Retired, and not to be revived as
+fallbacks".  What follows is kept as a record of what was measured and why.
+
 The maintainer asked for the better of Leiden, Latent Dirichlet Allocation and KODAMA.  Each is a
 separate module (``cluster_leiden.py``, ``cluster_lda.py``, ``cluster_kodama.py``) exposing
 ``fit_predict(X, Z, *, seed=0, **params)``; this file runs them on the same cells and scores them.

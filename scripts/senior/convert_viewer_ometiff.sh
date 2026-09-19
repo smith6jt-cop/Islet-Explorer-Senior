@@ -31,7 +31,12 @@
 # Usage:
 #   scripts/senior/convert_viewer_ometiff.sh 6539              # one donor
 #   scripts/senior/convert_viewer_ometiff.sh 6539 6374 115     # several
-#   scripts/senior/convert_viewer_ometiff.sh all15             # all 15 app donors
+#   scripts/senior/convert_viewer_ometiff.sh all15             # the 15 batch-1 slides
+#
+# ALL15/ALL22 are SLIDE LISTS, not a cohort. They name the slides that exist, and they include
+# 6457, which phenocycler.cohort.DONOR_EXCLUSIONS excludes centrally. Nothing here restates or
+# applies the exclusions: build_all_tissuumaps_projects.py parses MAP and ALL15 out of this file
+# and subtracts phenocycler.cohort, which is the one authority for who is excluded.
 #
 # Env overrides: OUT_DIR, TMPBASE (both default to NVMe; TMPBASE MUST be SSD/NVMe),
 #                IMAGES_DIR, TILE, COMPRESSION, B2R_MAX_WORKERS, MIN_FREE_GB, LOCKFILE.

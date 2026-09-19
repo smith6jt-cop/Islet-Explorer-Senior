@@ -1,5 +1,11 @@
 """Production simultaneous broad typing over RESTORE evidence.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  Simultaneous / hierarchical / probabilistic broad typing over
+RESTORE evidence is on the never-revive list (root ``CLAUDE.md``), RESTORE itself was retired on
+2026-08-14, and the ``type`` stage is blocked by ``NO_VERIFIED_TYPING``.  The typing that exists is
+the subpanel classification under ``core/phenocycler/scripts/typing/``.  Kept as a record.
+
 The production path evaluates every broad gate against RESTORE's
 tri-state evidence: every gate is evaluated against the same evidence, and a
 cell supported by more than one gate is ``Ambiguous`` rather than awarded to

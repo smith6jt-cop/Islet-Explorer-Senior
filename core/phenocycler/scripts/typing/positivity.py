@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Whole-slide per-marker positivity from Nimbus, tile by tile.
 
+RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
+specification and is not one.  This module belongs to the Nimbus/Leiden chain
+(``substrate.py`` -> ``positivity.py`` -> ``call.py`` -> ``validate.py`` -> ``export_qupath.py``,
+with ``metacluster.py``) that the typing README used to describe.  It did not produce the calls on
+disk.  The current typing is the subpanel classification in ``subpanel.py`` / ``build_cells.py``;
+see ``README.md``, "Retired, and not to be revived as fallbacks".  What follows is kept as a record
+of what was measured and why, not as a lane to fall back to.
+
 Why a model and not a threshold: on this panel the per-cell mean intensity has no separable
 positive population for most markers -- the distributions are unimodal in log space, and the
 repo's own earlier work measured the same thing.  The information that distinguishes real

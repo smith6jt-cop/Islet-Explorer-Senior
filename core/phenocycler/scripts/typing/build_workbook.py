@@ -26,11 +26,31 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+import aggregate_islets as AGG
+import build_cells as CELLS
 import cohort as COHORT
 import subpanel_io as S
 
 APP = S.OUT / "app"
 STRUCTURES = ("Capillary", "Nerve", "Lymphatic")
+
+#: Every class that can reach ``phenotype``, in the app's spelling, taken from the ONE crosswalk
+#: ``build_cells.DISPLAY`` instead of being restated -- ``Unresolved (no lineage evidence)``
+#: included, although ``refine.py`` is not wired and no cell on disk carries it.  The columns of
+#: ``islet_celltype_proportions.csv`` ARE the app's vocabulary: a class with no cells gets no
+#: pivot column at all, and a column that is not there is not a zero, it is a control the app
+#: cannot offer and a reader who never learns the class was asked about.
+#:
+#: ``Excluded`` is not here: ``aggregate_islets`` takes those cells out of the denominator by
+#: name upstream, so they are absent from this table rather than zero in it.
+COUNTED_CLASSES = tuple(sorted(set(CELLS.DISPLAY.values()) - {CELLS.DISPLAY["Excluded"]}))
+
+
+def _full_class_columns(observed) -> list[str]:
+    """The declared classes first, then any observed class the crosswalk does not name."""
+    return list(COUNTED_CLASSES) + [c for c in observed if c not in COUNTED_CLASSES]
+
+
 #: Islet_Targets `type` per geometry region.  non_endocrine is this build's own addition.
 TYPE_OF = {"core": "islet_core", "expansion": "islet_band",
            "union": "islet_union", "non_endocrine": "islet_non_endocrine"}
@@ -87,10 +107,32 @@ def build_proportions(composition: pd.DataFrame) -> pd.DataFrame:
         here = composition[composition["region"] == region]
         if here.empty:
             continue
+        # A null phenotype is NAMED before the pivot rather than dropped by it.  ``region_total``
+        # -- and therefore ``total_cells_core`` / ``total_cells_peri`` below -- already counts
+        # those cells, so letting pivot_table drop them would leave the per-class counts no
+        # longer summing to the total they are printed beside.  ``dropna=False`` is NOT the fix
+        # here: on this three-level index pandas would also reindex the INDEX over the cartesian
+        # product of its levels and invent islets.  Measured on donors 115 and 6442: the core
+        # pivot alone goes 1,787 -> 4,646,200 rows and this function returns 4,678,752 islets
+        # instead of 1,794.  The named column says "class unavailable", which is not a class and
+        # not a zero.
+        here = here.assign(phenotype=here["phenotype"].fillna(AGG.UNMAPPED))
         counts = here.pivot_table(index=["combined_islet_id", "donor_id", "islet_key"],
                                   columns="phenotype", values="n_cells", fill_value=0)
         props = here.pivot_table(index=["combined_islet_id", "donor_id", "islet_key"],
                                  columns="phenotype", values="prop", fill_value=0.0)
+        # Reindexed over every declared class, so a class with no cells anywhere still gets its
+        # column.  These column NAMES are the app's vocabulary -- ``mod_plot_server`` greps
+        # ``^prop_`` and matches the stem against the configured phenotypes -- so a class with no
+        # column is a control the app cannot offer, which is indistinguishable from a class that
+        # was never asked about.  For an islet that HAS cells in this region the fill is a real
+        # measurement: the chain gave every eligible cell exactly one class, so "none of them is
+        # this class" is 0 cells and 0.0 of the region.  For an islet with NO cells in this
+        # region there is no row here at all -- it arrives NaN through the join below, and the
+        # block after this loop keeps the two apart: counts become 0, proportions STAY NaN,
+        # because 0 % of no cells is not a measurement.
+        counts = counts.reindex(columns=_full_class_columns(counts.columns), fill_value=0)
+        props = props.reindex(columns=_full_class_columns(props.columns), fill_value=0.0)
         totals = here.groupby(["combined_islet_id", "donor_id", "islet_key"])["region_total"].first()
         counts.columns = [f"{prefix}count_{c}" for c in counts.columns]
         props.columns = [f"{prefix}prop_{c}" for c in props.columns]

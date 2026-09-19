@@ -18,6 +18,12 @@ The consequence reached the app: ``availability/data.parquet`` reported
 ``xenium_panc`` blank on 18 of 20 donors and ``xenium_pln`` blank on 13 of 13
 while both releases carried calls for them.
 
+That list is history, not the current state: all five of those builders now call
+:func:`resolve` and none of them holds a release path of its own.  What some of
+them still carry is a stale DECLARED INPUT in
+``scripts/senior/build_layers.py``'s node graph, which is a staleness-check
+defect rather than a source they read.
+
 WHAT THIS MODULE PROMISES.
 
 * It searches BOTH roots.  The pancreas release is written outside the repo, so a

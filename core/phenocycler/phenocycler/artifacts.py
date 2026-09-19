@@ -1,21 +1,25 @@
-"""Content-derived input and artifact contracts for the Phenocycler workflow.
+"""Input contracts for the Phenocycler workflow, and the hashing helpers behind them.
 
-The existing pipeline historically treated the presence of a donor directory as
-proof that a stage was complete.  This module provides the stricter primitives a
-workflow driver can use instead:
+CORRECTED 2026-09-18.  This docstring used to describe a content-addressed regime that no longer
+exists: the run framework was REMOVED on 2026-09-16, and with it the stage and run manifests, the
+dataset snapshots and the source-code fingerprints.  Presence of output IS the completion check
+now -- see ``pipeline.run_stage``, which states that nothing validates a fingerprint or a manifest.
 
-* immutable fingerprints for files, configuration and relevant source code;
-* an explicit QuPath image contract (measurements, image, cell/nucleus geometry,
-  pixel calibration, channel map and segmentation version);
-* exact snapshots of donor-partitioned Parquet datasets, including schema and
-  object-id-universe hashes; and
-* stage/run manifests whose identifiers are derived from their content rather
-  than their creation time.
+What actually remains here:
 
-The module intentionally has no dependency on ``pipeline.py``.  It can therefore
-be introduced alongside the current pipeline and used by a replacement
-orchestrator without making the old existence checks appear more trustworthy
-than they are.
+* an explicit QuPath image and cohort contract (measurements, image, cell/nucleus geometry,
+  pixel calibration, channel map and segmentation version) -- :class:`QuPathImageManifest` and
+  :class:`QuPathCohortManifest`;
+* streaming GeoJSON inspection and the geometry/schema contract errors those raise; and
+* the hashing helpers (:func:`sha256_file`, :func:`sha256_json`, :func:`hash_identifiers`,
+  :func:`dataframe_content_sha256`) the cohort manifest is written with.
+
+The cohort manifest's ``content_id`` and per-file digests are DESCRIPTIVE.  Nothing validates
+them -- ``PanelChannelMap.verify_identity`` says so in one line and returns -- which is
+deliberate: the manifest is a description of where the raw inputs are, so it can be hand-edited
+when a source file moves.
+
+The module intentionally has no dependency on ``pipeline.py``.
 """
 
 from __future__ import annotations

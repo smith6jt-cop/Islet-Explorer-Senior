@@ -71,8 +71,9 @@ crossmodal_ui <- function(id) {
 #' A named note standing in for a card whose implementation does not exist yet.
 #'
 #' Not a blank panel: a blank panel is indistinguishable from a card that ran and
-#' found nothing, which is the confusion the five availability states exist to
-#' prevent.
+#' found nothing, which is the confusion ieCore's availability states exist to
+#' prevent. There are six of them since 2026-09-18 -- `uncalled` joined the five
+#' for a producer that looked and resolved nothing.
 ie_card_placeholder_ui <- function(id, title, expected_function) {
   div(
     class = "ie-card ie-card-placeholder",

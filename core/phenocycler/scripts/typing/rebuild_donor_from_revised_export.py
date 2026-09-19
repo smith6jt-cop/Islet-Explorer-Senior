@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """Rebuild one donor's per-cell table from a revised QuPath export, REUSING REDSEA.
 
-WHY THIS EXISTS INSTEAD OF A RE-INGEST. The pipeline is content-addressed: `run_id` is a hash
-over the whole cohort manifest, so repointing three donors at their revised exports re-keys the
-run and forces all twenty donors through ingest, geometry, REDSEA and expression again -- about
-2.3 hours to recompute byte-identical results for seventeen donors that did not change. That
-contract earns its keep for a release. It does not earn it while the lane is still being built.
+WHY THIS EXISTS INSTEAD OF A RE-INGEST. Written while the pipeline was still content-addressed:
+`run_id` was a hash over the whole cohort manifest, so repointing three donors at their revised
+exports re-keyed the run and forced all twenty donors through ingest, geometry, REDSEA and
+expression again -- about 2.3 hours to recompute byte-identical results for seventeen donors that
+did not change.
+
+CORRECTED 2026-09-18: THAT FRAMEWORK WAS REMOVED ON 2026-09-16. There is no `run_id` and no
+re-keying; stages write to stable roots and a stage whose output is present is skipped, so a
+re-ingest would now cost only the donors actually rerun. The reason this module still exists is
+the narrower one below -- the revised export did not re-segment anything, so REDSEA and the
+UniFORM alignment can be REUSED per cell rather than recomputed -- and the twenty-donor cohort
+output this lane reads still lives only under the historical `data/runs/<run_id>/` tree.
 
 THE KEY FACT THAT MAKES REUSE CORRECT: the revised export did not re-segment anything. QuPath
 scripts 0b and 1-4 re-ran against a NEW TISSUE ANNOTATION -- 0b removed the duplicate detections,

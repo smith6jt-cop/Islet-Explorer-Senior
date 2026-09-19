@@ -30,7 +30,16 @@ entirely null is a marker the slide never carried, not a marker that read zero.
 **A cell whose value is missing is undecided, not negative.** ``value >= 0.10`` is False for NaN,
 so a sparse missing measurement used to slide silently into "this rule does not fire".  Every rule
 naming a marker that is NaN *on that cell* is undecided for that cell, the cell's call is withheld
-with that reason, and the count is reported.
+with that reason, and the count is reported.  **"Undecidable" is its own outcome, distinct from
+"no rule fired"**: ``immune_class_undecided`` / ``immune_subtype_undecided`` carry the first and
+the summary counts ``(uncalled: no rule fired)`` separately, so the two can never be added
+together into one "unnamed" number.
+
+**NO APP ARTIFACT READS ``typing/immune/``.** This tree is a second pass beside the typing, not
+part of it.  The four app builders -- ``build_app_data.py``, ``build_workbook.py``,
+``neighborhood.py``, ``build_parquet_views.py`` -- contain no reference to it, and their donor
+coverage comes from each builder's own ``COHORT.resolve``.  Nothing here is on the app's path,
+and ``cell_class`` is never modified.
 
 **Multiple rules can fire.** That is not resolved by a silent precedence: every match is counted,
 the most specific rule wins (most required markers, ties broken by name for determinism), and both
