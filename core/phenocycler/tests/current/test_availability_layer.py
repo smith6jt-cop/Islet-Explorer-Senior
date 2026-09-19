@@ -170,12 +170,25 @@ def assert_ledger_contract(table):
             assert isinstance(row["n"], int) and row["n"] >= 0, row
 
 
+#: `uncalled` is declared in `IE_STATES` and mirrored into `availability_states.py`, and NO
+#: builder emits it: widening the vocabulary lets the state be carried, it does not decide which
+#: rows earn it.  That is the maintainer's question, not this test's.  Pinning the gap here rather
+#: than loosening the equality means the day a producer starts emitting `uncalled`, this test goes
+#: red and the decision gets made deliberately instead of arriving unannounced in a layer.
+STATES_WITH_NO_PRODUCER = {"uncalled"}
+
+
 def test_five_states_and_null_counts_survive_parquet(source_tree, tmp_path):
     table = ledger.build_availability(source_tree)
     path = sections.write_layer(table, tmp_path / "layers", "availability")
     table = pq.ParquetFile(path).read()
     assert_ledger_contract(table)
-    assert set(table["state"].to_pylist()) == set(ledger.STATES)
+    produced = set(table["state"].to_pylist())
+    assert produced == set(ledger.STATES) - STATES_WITH_NO_PRODUCER, (
+        "every state a builder can produce must survive the parquet round-trip, and every "
+        "state it cannot must be named in STATES_WITH_NO_PRODUCER rather than silently absent")
+    assert STATES_WITH_NO_PRODUCER < set(ledger.STATES), (
+        "STATES_WITH_NO_PRODUCER names a state that is no longer declared")
     rows = {(r["donor_id"], r["capability"]): r for r in table.to_pylist()}
     assert rows["112", "phenocycler_panc"]["n"] == 2
     assert rows["112", "xenium_panc"]["n"] == 1

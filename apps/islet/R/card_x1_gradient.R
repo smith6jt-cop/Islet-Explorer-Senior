@@ -1,14 +1,21 @@
 # Small layer artifacts only. Both cards use these readers; no cell-tree scan
 # or tissue-coordinate transform belongs in a Shiny reactive.
 #
-# The artifact carries two arms and they are not the same kind of measurement.
-# roi == "panc" is spatial: signed distance to the islet edge, in the
-# signed_distance_um frame. Every other roi is a lymph node section cut from a
+# The artifact carries two kinds of row and they are not the same kind of
+# measurement. roi == "panc" is spatial: signed distance to the islet edge, in
+# the signed_distance_um frame. Every other roi is a lymph node section cut from a
 # DIFFERENT BLOCK than the pancreas on the same slide; it shares a pixel grid
 # with the pancreas and nothing anatomically. Those rows are compositional only,
 # joined on donor_id and donor_status, and the reader rejects the whole artifact
 # if one of them arrives carrying a distance, a bin or a compartment.
 
+# WHERE `immune_subtype` COMES FROM, because the name invites the wrong guess. It is the
+# artifact's own immune DEFINITION, written by scripts/senior/build_distance_profiles.py from the
+# pancreas typing's immune definitions and the shared immune vocabulary crosswalk. It is NOT the
+# immune second pass under data/development/typing/immune: that builder states outright that it
+# does not read that tree, and no app artifact does. So `Immune | all` is the whole Immune class
+# as the subpanel classification calls it, and the finer values are the artifact's definitions --
+# never a released immune subtyping, which this repository does not have.
 IE_PANCREAS_ROI <- "panc"
 
 # Every source path the artifact records, and whether it is scoped to a domain.
@@ -38,14 +45,15 @@ IE_DISTANCE_DOMAIN_SOURCES <- c("source_cells", "source_membership")
 # for being recorded and absolute rather than for domain containment.
 #
 # Each is required exactly when something depends on it, because an empty string
-# is how the builder honestly records "this arm produced nothing":
+# is how the builder honestly records "this side produced nothing":
 #   source_xen_cells          -- required once any pLN row exists; the rows came
 #                                from there whatever state they are in.
 #   source_immune_vocabulary  -- required once a pLN row is MEASURED, which is
 #                                the only case where a number was derived from
 #                                the vocabulary. Rows that are blank or withheld
 #                                never consulted it, and demanding it then would
-#                                refuse the pancreas arm over a pLN-arm gap.
+#                                refuse the pancreas rows over a gap in the pLN
+#                                rows.
 IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
 
 .ie_path_within <- function(path, tree) {
@@ -109,7 +117,7 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
 }
 
 .ie_distance_read <- function() {
-  root <- Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers")
+  root <- ie_layers_dir()
   path <- file.path(root, "distance_profiles", "data.parquet")
   absent <- function(reason, state = "unavailable") {
     list(value = ie_avail(state, reason, source = path))
@@ -161,7 +169,7 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
       return(absent("distance_profile_pln_reason_missing", "failed"))
     }
     # Checked once the pLN rows are known, because whether a shared source has
-    # to be recorded depends on whether that arm produced anything.
+    # to be recorded depends on whether those rows exist at all.
     bad_source <- .ie_distance_check_sources(
       table$schema$metadata, domain_data_root(),
       has_pln_rows = nrow(pln) > 0L,
@@ -199,7 +207,7 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
       ledger$donor_id <- .ie_distance_norm(ledger$donor_id)
     }
     # n describes the rows these cards draw on the distance axis -- the pancreas
-    # arm -- not the artifact's row count. The two differ by the compositional
+    # rows -- not the artifact's row count. The two differ by the compositional
     # pLN rows, which share no axis with the plot and are counted separately;
     # reporting the total made the card claim measurements it never drew.
     list(value = ie_avail("measured", n = nrow(data), source = path), data = data,
@@ -209,10 +217,10 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
   }, error = function(e) absent(paste0("distance_profile_read_failed: ", conditionMessage(e)), "failed"))
 }
 
-# The donors these cards may offer: the artifact's pancreas arm, narrowed to the
+# The donors these cards may offer: the artifact's pancreas rows, narrowed to the
 # active domain's cohort.
 #
-# The pLN rows are deliberately NOT unioned in. The artifact's pLN arm reaches
+# The pLN rows are deliberately NOT unioned in. The artifact's pLN side reaches
 # donors the active domain does not contain -- it takes its donor_status from the
 # integration manifest, so a section with no pancreas in this cohort still gets a
 # row. Offering those donors here would put a donor the domain's cohort has never
@@ -250,7 +258,7 @@ IE_DISTANCE_SHARED_SOURCES <- c("source_xen_cells", "source_immune_vocabulary")
   sort(donors)
 }
 
-# The pLN rows for one donor. Never joined to the pancreas arm by anything but
+# The pLN rows for one donor. Never joined to the pancreas rows by anything but
 # donor_id and donor_status, and never given a distance.
 .ie_distance_pln_rows <- function(layer, donor) {
   if (!ie_is_measured(layer$value) || !is.data.frame(layer$pln)) return(NULL)

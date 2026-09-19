@@ -18,6 +18,44 @@ cross-modality claim and which may not.
 
 THE DISAGREEMENT THRESHOLD IS FIXED IN THIS FILE BEFORE ANY NUMBER IS COMPUTED.
 See ``THRESHOLD_*`` below and the rationale beside them.
+
+WHAT IT READS
+-------------
+* protein pancreas -- ``data/development/typing/cells``.  The lineage comes from
+  ``cell_class`` and, for the immune split, from ``immune_definition``, which the
+  crosswalk records as ``pheno_resolution=subclass``: recovered from the
+  per-marker gates, not from the broad label.  ``typing/immune`` is NOT read --
+  that second pass is a finer subtype that never modifies ``cell_class`` -- and
+  neither is ``refined_class``, which no consumer reads at all.
+* protein pLN -- ``data/development/typing/pln/pheno``.
+* RNA, both tissues -- the current release for that tissue, resolved by
+  ``scripts/senior/xenium_release.py`` from the release's own declared metadata.
+* ``core/phenocycler/data/integration/vocab_crosswalk.csv`` (generated) for which
+  lineages are comparable at all.
+
+Exocrine is ONE label on both sides.  Neither panel carries a marker or a probe
+set that separates acinar from ductal, so no such claim exists to compare.
+
+``typing/cells`` here is the 2026-09-15 build: 25,230,109 cells, 20 donors,
+eight classes plus ``Excluded``.  No donor has been re-run with the 2026-09-18
+islet chain, so nothing read here carries a CD99 question or an ``Unresolved``
+class.
+
+EVERY CLASS IS COUNTED, INCLUDING THE ONES THAT CARRY NO SHARE.  A class with no
+common lineage used to be dropped by ``value_counts(dropna=True)`` while
+``n_cells`` went on counting it: measured 2026-09-18, 316,752 of the 25,230,109
+cells -- ``Lymphatic`` 122,884 and ``Excluded`` 193,868 -- were in the total and
+in no column.  They now have a named column each, on every donor, and the reader
+refuses a donor whose parts do not sum to its ``n_cells``.  Which classes carry a
+share is unchanged: see ``PANC_PHENO_CLASS_NOT_COMPARED`` for what each one is
+and why it is out, ``Lymphatic`` among them as an open question rather than a
+decision taken here.
+
+WHAT IT WRITES
+--------------
+``--out``, defaulting to ``data/development/integration/concordance``: the
+per-donor counts, per-donor-per-lineage differences, lineage summary and batch
+eta-squared for each tissue, ``pln_rna_controls.csv``, and ``manifest.json``.
 """
 
 from __future__ import annotations
@@ -36,6 +74,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 
@@ -134,6 +173,123 @@ PANC_PHENO_CLASS_TO_COMMON = {
     "Blood vessel": "Vascular",
     "Nerve": "Neural",
 }
+
+# Pancreas `cell_class` values that get NO common lineage, and why each one gets none.
+#
+# Naming them is the whole point.  `common.value_counts(dropna=True)` drops every row that
+# mapped to nothing, so a class that is in neither table left the per-lineage counts while
+# `n_cells` went on counting it, and the parts stopped summing to the total they are reported
+# against.  Measured 2026-09-18 over `typing/cells` (25,230,109 cells, 20 donors, all
+# `qc_analysis_eligible`): 316,752 cells -- Lymphatic 122,884 and Excluded 193,868 -- were
+# counted in `n_cells` and appeared in no column at all.  They are now counted by name.
+#
+# AUTHORITY.  The class vocabulary is `core/phenocycler/scripts/typing/refine.py`
+# (`OWN_MARKERS` + `UNTOUCHED` + `UNRESOLVED`), restated here rather than imported for the
+# reason `core/phenocycler/scripts/typing/build_cells.py` gives for restating `UNRESOLVED`:
+# importing `refine` pulls in the whole celltype scoring stack.  What a non-call IS belongs to
+# `core/phenocycler/phenocycler/integration/vocab.py` (`PHENO_UNRESOLVED`, `NON_CALLS`), which
+# is imported above; `check_pancreas_class_vocabulary` checks these spellings against it and
+# refuses a non-call vocab records and this file does not name.  Together with the
+# reconciliation in `panc_protein_counts`, a class added upstream can no longer arrive unnamed:
+# it is counted as unnamed and said out loud.
+PANC_PHENO_CLASS_NOT_COMPARED = {
+    "Excluded": (
+        "excluded from every calculation. It is the exocrine-inside-an-islet annotation error "
+        "the maintainer ruled out of analysis, not a cell population, so it has no share and "
+        "may not enter a comparable total"
+    ),
+    "Lymphatic": (
+        "OPEN, and deliberately NOT folded into Vascular here. The crosswalk names one protein "
+        "Vascular label and this file feeds it from `Blood vessel` alone; whether the protein "
+        "Lymphatic class belongs in the same quantity as the Xenium broad Vascular class is a "
+        "method question about what is being compared, and answering it in this file would move "
+        "every pancreas share (`n_comparable` is the denominator of all of them). Counted by "
+        "name and left out of the comparison until that is ruled on"
+    ),
+    "Unresolved (no lineage evidence)": (
+        "a recorded NON-CALL, not a lineage: vocab.NON_CALLS reason_id `no_identity_evidence` -- "
+        "the producer looked and named no identity, so there is no share to compare. It is also "
+        "not reachable in this column: `refine.py` is the only producer, it is not wired, and "
+        "`build_cells._join_refinement` adds `refined_class` BESIDE `cell_class` without "
+        "overwriting it. So this count is UNAVAILABLE, not zero, until something writes the "
+        "class into the column this builder reads"
+    ),
+}
+
+#: The not-compared labels that NOTHING CAN WRITE into `cell_class` today, so their count is
+#: UNAVAILABLE rather than zero.
+#:
+#: `Unresolved (no lineage evidence)` is produced only by `core/phenocycler/scripts/typing/
+#: refine.py`, which is written and not wired, and `build_cells._join_refinement` adds
+#: `refined_class` BESIDE `cell_class` without overwriting it.  Printing 0 here would say "this
+#: builder looked and found none", when it did not look -- the column cannot carry the class at
+#: all.  That is the missing-measurement rule, and this file's own entry for the label states it.
+#:
+#: This is not a permanent claim.  `not_compared_count` below re-measures on every donor: the
+#: moment a producer writes the class into the column, the count stops being unavailable and
+#: becomes the real number, with no edit here.
+PANC_PHENO_CLASS_NOT_IN_COLUMN = frozenset({"Unresolved (no lineage evidence)"})
+
+#: Classes counted by a branch of their own rather than by the map: `Immune` goes through
+#: `immune_definition`, which is where the crosswalk says the protein immune split lives.
+PANC_PHENO_CLASS_COUNTED_ELSEWHERE = ("Immune",)
+
+
+def not_compared_count(cell_class, label: str):
+    """The count for one not-compared label, or ``None`` where the column cannot carry it.
+
+    A zero and an unavailable are different answers and this repo does not let one stand for the
+    other.  ``0`` means this builder asked and no cell of that class was there.  ``None`` means
+    no producer can put the class in ``cell_class``, so the question was never asked.
+
+    The reachability is re-measured, never assumed: a label declared unreachable that turns up in
+    the column is reported as the count it actually has, because the declaration is about today's
+    producers and a producer can land without this file hearing about it.
+    """
+    n = int(cell_class.eq(label).sum())
+    if n == 0 and label in PANC_PHENO_CLASS_NOT_IN_COLUMN:
+        return None
+    return n
+
+
+def not_compared_column(label: str) -> str:
+    """The per-donor column a not-compared class is counted in.
+
+    Derived from the label so the column cannot drift from the class it counts, and stripped
+    of the parenthetical reason so `Unresolved (no lineage evidence)` is a usable column name.
+    """
+    return "n_notcompared_" + label.split(" (")[0].replace(" ", "_")
+
+
+def check_pancreas_class_vocabulary() -> None:
+    """The two tables above have to agree with the authority, and cover it.
+
+    Refuses rather than absorbing: a non-call this file does not name would be counted as an
+    unnamed class, which is visible but says the wrong thing about it -- vocab already recorded
+    the producer's answer, and reporting it as an unreadable label calls that answer a defect.
+    """
+    misdeclared = sorted(l for l in PANC_PHENO_CLASS_NOT_COMPARED if l in PANC_PHENO_CLASS_TO_COMMON)
+    if misdeclared:
+        raise RuntimeError(
+            f"{misdeclared} are both mapped to a common lineage and listed as not compared. "
+            f"One class cannot be in and out of the comparison at the same time."
+        )
+    declared = {nc.phenocycler for nc in vocab.NON_CALLS if nc.phenocycler}
+    unnamed = sorted(declared - set(PANC_PHENO_CLASS_NOT_COMPARED))
+    if unnamed:
+        raise RuntimeError(
+            f"phenocycler.integration.vocab records the protein-side non-call(s) {unnamed}, "
+            f"which this file does not name. vocab.NON_CALLS is the authority on what is a "
+            f"recorded absence rather than an identity; add it to PANC_PHENO_CLASS_NOT_COMPARED "
+            f"with the reason it carries no share."
+        )
+    named_noncalls = [l for l in PANC_PHENO_CLASS_NOT_COMPARED if vocab.is_noncall(l)]
+    if not named_noncalls:
+        raise RuntimeError(
+            "no label in PANC_PHENO_CLASS_NOT_COMPARED is a non-call vocab recognises, which "
+            "means the spelling here and the spelling in vocab have drifted apart into two "
+            "classes."
+        )
 # PhenoCycler pancreas immune_definition -> common lineage.  The crosswalk records
 # T_NK / B_Plasma / Myeloid as pheno_resolution == "subclass": recovered from the
 # per-marker gates, not from the broad label, which is exactly this column.
@@ -350,9 +506,57 @@ def panc_protein_counts(donors: set[str], donors_excluded: set[str]) -> pd.DataF
                "n_immune_unnamed": int((imm & common.isna()).sum())}
         for k, v in vc.items():
             rec[f"n_{k}"] = int(v)
+
+        # Every class that gets no common lineage, counted BY NAME and on every donor -- so a
+        # class with no cells prints its zero instead of the row disappearing. The columns come
+        # from the table above rather than from this donor's data, because a count that only
+        # exists where it is non-zero cannot tell an empty class from an unasked question.
+        for label in PANC_PHENO_CLASS_NOT_COMPARED:
+            rec[not_compared_column(label)] = not_compared_count(cc, label)
+
+        # Anything in neither table. Said out loud rather than absorbed: the reconciliation
+        # below would otherwise be the only sign, and a number that does not add up is a worse
+        # report than a named class nobody has decided about yet.
+        named = (set(PANC_PHENO_CLASS_TO_COMMON) | set(PANC_PHENO_CLASS_NOT_COMPARED)
+                 | set(PANC_PHENO_CLASS_COUNTED_ELSEWHERE))
+        unnamed = sorted(set(cc.unique()) - named)
+        rec["n_class_unnamed"] = int(cc.isin(unnamed).sum())
+        rec["classes_unnamed"] = "; ".join(unnamed)
+
+        # The parts have to sum to the total they are reported against. Every eligible cell is
+        # in exactly one of: a mapped lineage, Immune with no definition, a named not-compared
+        # class, an unnamed class. If that stops holding, a class is leaving the table again.
+        # An unavailable bucket contributes nothing to the sum, and cannot: the class is not in
+        # the column, so none of these cells is in it.  That is a different statement from "its
+        # count is 0", which is why the column carries null and this line carries the 0.
+        parts = (int(vc.sum()) + rec["n_immune_unnamed"] + rec["n_class_unnamed"]
+                 + sum(rec[not_compared_column(l)] or 0
+                       for l in PANC_PHENO_CLASS_NOT_COMPARED))
+        if parts != len(df):
+            raise RuntimeError(
+                f"{d}: the per-class parts sum to {parts:,} and n_cells is {len(df):,}. Every "
+                f"cell has to be counted exactly once, in a lineage or in a named bucket; a "
+                f"difference means a class is being counted twice or dropped without a word. "
+                f"classes seen: {sorted(set(cc.unique()))}"
+            )
         rows.append(rec)
-        log(f"  protein panc {d}: {len(df):,} eligible cells")
-    return pd.DataFrame(rows)
+        not_compared = ", ".join(
+            f"{l.split(' (')[0]} "
+            + ("unavailable" if rec[not_compared_column(l)] is None
+               else f"{rec[not_compared_column(l)]:,}")
+            for l in PANC_PHENO_CLASS_NOT_COMPARED)
+        log(f"  protein panc {d}: {len(df):,} eligible cells; "
+            f"not compared: {not_compared}"
+            + (f"; UNNAMED classes {unnamed}" if unnamed else ""))
+    out = pd.DataFrame(rows)
+    # Nullable integers, so an unavailable bucket stays a MISSING COUNT rather than becoming
+    # a float NaN or an object column.  It matters the day a producer lands and some donors
+    # carry the class while others do not: the column has to hold both without either being
+    # read as the other.
+    for _label in PANC_PHENO_CLASS_NOT_COMPARED:
+        _col = not_compared_column(_label)
+        out[_col] = out[_col].astype("Int64")
+    return out
 
 
 def panc_rna_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, Path | None, list[str]]:
@@ -580,6 +784,10 @@ def main() -> int:
     excluded = set(DONOR_EXCLUSIONS)
     log(f"centrally excluded donors (from cohort.DONOR_EXCLUSIONS): {sorted(excluded) or 'none'}")
 
+    check_pancreas_class_vocabulary()
+    log("pancreas protein classes not compared (counted by name, never dropped): "
+        + ", ".join(sorted(PANC_PHENO_CLASS_NOT_COMPARED)))
+
     cw = load_crosswalk()
     pln_lin, pln_dropped = comparable_lineages(cw, immune_only=True)
     panc_lin, panc_dropped = comparable_lineages(cw, immune_only=False)
@@ -676,6 +884,13 @@ def main() -> int:
             "rna_source": display_path(panc_root) if panc_root else None,
             "rna_release": xenium_source("panc").describe(),
             "rna_notes": panc_notes,
+            "protein_classes_not_compared": PANC_PHENO_CLASS_NOT_COMPARED,
+            "protein_classes_not_compared_note":
+                "these cell_class values get no common lineage and are counted by name in "
+                "pancreas_per_donor_counts_protein.csv (n_notcompared_*), on every donor, so "
+                "an empty class prints a zero rather than vanishing. n_cells minus the "
+                "comparable lineages, n_immune_unnamed, these and n_class_unnamed is zero by "
+                "construction; the reader refuses the donor if it is not.",
             "donors_compared": sorted(set(panc_long.donor_id)) if not panc_long.empty else [],
         },
         "detection": "Xenium detection is lognorm >= log1p(1) as applied upstream by the calling "

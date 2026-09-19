@@ -2,7 +2,7 @@
 # Shared restain readers also serve card_x3_identity.R, sourced after this file.
 
 ie_restain_root <- function() {
-  file.path(Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers"), "restain")
+  file.path(ie_layers_dir(), "restain")
 }
 
 ie_restain_normalize_donor <- function(x) {
@@ -165,7 +165,7 @@ card_x2_overlay_ui <- function(ns) {
     shiny::tags$h3(class = "ie-card-title", "Post-Xenium IF overlay"),
     shiny::selectInput(ns("x2_overlay_donor"), "Donor", choices = character()),
     # What the dropdown leaves out, stated once. Narrowing the choices without this would hide
-    # the absence rather than record it, which is the opposite of what the five states are for.
+    # the absence rather than record it, which is the opposite of what IE_STATES is for.
     shiny::uiOutput(ns("x2_overlay_not_offered")),
     shiny::selectInput(ns("x2_overlay_marker"), "IF intensity", choices = c("INS", "GCG")),
     shiny::uiOutput(ns("x2_overlay_content")))

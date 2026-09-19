@@ -327,6 +327,7 @@ def test_r_cards_parse_and_missing_artifact_is_a_named_note(tmp_path):
         pytest.skip("Rscript is not installed")
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
+source("apps/R/ieCore/R/ie_layer_io.R")
     source("apps/R/ieCore/R/ie_availability.R")
 source("apps/R/ieCore/R/ie_selectable.R")
     source("apps/islet/R/card_x2_overlay.R")
@@ -399,6 +400,7 @@ def test_r_cards_render_artifacts_and_refuse_wrong_frames(builder_inputs):
                    layers / "availability/data.parquet")
     code = r'''
     source("apps/R/ieCore/R/ie_frames.R")
+source("apps/R/ieCore/R/ie_layer_io.R")
     source("apps/R/ieCore/R/ie_availability.R")
 source("apps/R/ieCore/R/ie_selectable.R")
     source("apps/islet/R/card_x2_overlay.R")

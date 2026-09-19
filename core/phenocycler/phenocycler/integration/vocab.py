@@ -153,6 +153,14 @@ RESOLVABLE: dict[str, dict[str, str]] = {
     "Unassigned":  {"phenocycler": "never", "xenium": "no"},
 }
 
+#: How a non-call row's two resolution columns read. Kept apart from `_RESOLVABLE_NOTES`
+#: because these are states of a NON-call and those are states of a lineage call.
+_NONCALL_NOTES = {
+    "noncall": "this modality records this absence, with this label and a stated reason",
+    "not_recorded": ("this modality writes no such label; the absence is either handled before "
+                     "a class is written or does not arise in this method"),
+}
+
 _RESOLVABLE_NOTES = {
     "yes": "resolved by a positive broad-level call",
     "surrogate": "no 1:1 marker; resolved via curated surrogate identity panel",
@@ -168,6 +176,227 @@ _RESOLVABLE_NOTES = {
 PHENO_ONLY_SPLITS = {
     "Stromal": ["Fibroblast (Vimentin)", "Muscle (SMA)"],
 }
+
+
+# --------------------------------------------------------------------------- #
+# Honest non-calls -- recorded, paired, and NOT lineages
+# --------------------------------------------------------------------------- #
+#
+# Both producers write labels that mean "we looked and resolved nothing". They are not
+# lineages and they must not become lineages here:
+#
+#   * `analysis/xenium/scripts/panc_xenium_release.py` declares them in a SEPARATE
+#     ``"uncalled"`` array from ``"labels"``, each with a reason, and every such row carries
+#     ``common_lineage = ""``. The release refuses to give them a lineage; so does this module.
+#   * `scripts/senior/modality_concordance.py::comparable_lineages` keeps any lineage row that
+#     names a label on both sides. A non-call added to COMMON_LINEAGES would therefore become a
+#     "comparable lineage" and be compared as though it were a cell population -- the precise
+#     failure this section exists to prevent.
+#
+# They must not silently become ``Unassigned`` either. ``Unassigned`` is THIS CROSSWALK failing
+# to map a label, which is a defect in the mapping; a non-call is the producer's own recorded
+# answer and is not a defect at all. Collapsing the two loses the difference between "we could
+# not read your label" and "you told us there was nothing there", and loses the four distinct
+# reasons the Xenium side takes the trouble to record.
+#
+# So: non-calls resolve to the EMPTY common lineage -- the release's own convention -- and the
+# pairing is carried as its own block of the crosswalk CSV, queryable through
+# :func:`noncall_for_label`.
+
+#: The protein side's one non-call, written by `core/phenocycler/scripts/typing/refine.py`
+#: (``refine.UNRESOLVED``). It does NOT follow the Xenium ``Uncalled_*`` naming convention, so
+#: it is matched by its exact spelling and nothing else.
+PHENO_UNRESOLVED = "Unresolved (no lineage evidence)"
+
+
+@dataclass(frozen=True)
+class NonCall:
+    """One recorded reason for having no identity, on one or both sides."""
+
+    reason_id: str
+    phenocycler: str   # "" where this modality records no such label
+    xenium: str        # "" where this modality records no such label
+    comparable: bool   # may a protein-vs-RNA comparison put these two side by side?
+    note: str
+
+    @property
+    def paired(self) -> bool:
+        return bool(self.phenocycler) and bool(self.xenium)
+
+
+#: The non-call vocabulary, ordered as the crosswalk CSV writes it. The first four rows keep
+#: the positions they have always had; the pLN rows were APPENDED on 2026-09-18 rather than
+#: interleaved, so nothing that already read this block moved.
+#:
+#: ONE PAIR IS COMPARABLE and six are not, and the asymmetry is the finding, not a gap to be
+#: filled: the Xenium side records WHY it did not call, in six ways across two tissues, and the
+#: protein side records one. Pairing the six against the one protein label would manufacture an
+#: agreement.
+#:
+#: TWO XENIUM PRODUCERS, NOT ONE. `analysis/xenium/scripts/panc_xenium_release.py` writes the
+#: pancreas `Uncalled_*` family; `analysis/xenium/scripts/pln_immune_typing_v3.py` writes the
+#: pLN one. Their reasons are NOT interchangeable -- the pancreas lane names a cluster against
+#: identity cores, the pLN lane first has to decide immune-vs-structural at all -- so each label
+#: carries its own row rather than being folded into a similarly-worded one.
+#:
+#: `Non_immune` IS NOT HERE, deliberately. The pLN release also writes it with
+#: `common_lineage = ""`, but it is a measured negative -- stage 1 looked and answered "not
+#: immune" -- and an answer must never be collapsed into an absence. An empty common lineage is
+#: not by itself evidence of a non-call; the producer's stated reason is.
+#:
+#: `Uncalled_not_clustered` IS NOT HERE either. Measured 2026-09-18: its only producer is
+#: `pln_immune_typing_v2.py`, which its own header declares SUPERSEDED by v3 and which
+#: `scripts/retire/dispositions.py` records as a verified orphan (code tier 1). v3 replaced it
+#: with `Uncalled_not_partitioned` below. A mapping that outlives its producer keeps advertising
+#: a capability no current release has, so the dead spelling is recorded here in prose and not
+#: in the table.
+NON_CALLS: tuple[NonCall, ...] = (
+    NonCall(
+        reason_id="no_identity_evidence",
+        phenocycler=PHENO_UNRESOLVED,
+        xenium="Uncalled_no_naming_evidence",
+        comparable=True,
+        note=("both sides looked and found no evidence that names an identity. Protein: the "
+              "refinement pass demoted the cell out of Exocrine, the complement class, because "
+              "none of Exocrine's own markers reached the class bound among its concordant "
+              "neighbours -- so there is no complement beneath it. RNA: the winning identity "
+              "core has no naming gene standing out above the cluster's own background, and the "
+              "call is never reassigned to the runner-up. Same statement, two alphabets"),
+    ),
+    NonCall(
+        reason_id="no_enrichment",
+        phenocycler="",
+        xenium="Uncalled_no_enrichment",
+        comparable=False,
+        note=("RNA only: the winning core's score is not above the section mean at all. The "
+              "protein classification has no analogue -- it scores a cell against reference "
+              "levels drawn from the ordinary tissue, not against the other clusters of its own "
+              "section -- so there is nothing on the protein side this could be compared with"),
+    ),
+    NonCall(
+        reason_id="below_cluster_qc",
+        phenocycler="",
+        xenium="Uncalled_below_cluster_qc",
+        comparable=False,
+        note=("RNA only: too little was measured on the cell to partition on. The protein side "
+              "records its own measurement QC through `qc_analysis_eligible` rather than as a "
+              "label, so the two are not the same quantity and are not paired here"),
+    ),
+    NonCall(
+        reason_id="no_nucleus",
+        phenocycler="",
+        xenium="Unavailable_no_nucleus",
+        comparable=False,
+        note=("NOT A CELL. `nucleus_count == 0`; excluded from every calculation, never a zero "
+              "and never a member of any denominator. The protein side excludes such detections "
+              "before a class is written rather than labelling them, so there is no protein "
+              "label to pair -- which is why this row exists: a consumer that pairs it with "
+              "anything has already broken the rule"),
+    ),
+    # ---- the pLN lane, `pln_immune_typing_v3.py`. Three labels that fell through as calls --
+    # measured 2026-09-18: `xenium_to_common` returned "Unassigned" for all three, which says
+    # this crosswalk could not read the label. It could; the producer had answered.
+    NonCall(
+        reason_id="ambiguous_at_stage1",
+        phenocycler="",
+        xenium="Uncalled_ambiguous",
+        comparable=False,
+        note=("RNA only, pLN: stage 1 asks immune-vs-structural on a within-section cluster and "
+              "reached NEITHER side. `stage1_decide` records which of three ways it failed -- "
+              "`no_set_reaches_two_standouts` (neither gene set reaches 2 standout genes), "
+              "`equal_standout_fractions`, or `standout_count_and_fraction_disagree` -- and the "
+              "release carries that in its own `reason` column, so this row is the label and not "
+              "the whole reason. NOT the same absence as the pancreas lane's: there the identity "
+              "cores compete, here it is not yet settled that the cell is immune at all. The "
+              "protein side never asks this question -- a pancreas cell gets its context from the "
+              "QuPath pixel classifier, not from a partition of its own section -- so there is "
+              "nothing on the protein side to compare this with"),
+    ),
+    NonCall(
+        reason_id="immune_without_lineage",
+        phenocycler="",
+        xenium="Immune_uncalled",
+        comparable=False,
+        note=("RNA only, pLN: A POSITIVE CALL THAT STOPS SHORT. Stage 1 called the cluster "
+              "Immune and that call STANDS; stage 2's winning identity core then had zero "
+              "standout naming genes, so the lineage is withheld and the cluster is never "
+              "reassigned to the runner-up. So this is an absence at the lineage level over a "
+              "measurement at the compartment level, and a consumer that counts it as "
+              "'not immune' has inverted the producer. `scripts/senior/build_grid_composition.py` "
+              "already reads it that way, into its `partial` bucket. It does not follow the "
+              "`Uncalled_*` prefix; it is the `*_uncalled` spelling, in the same release. The "
+              "protein immune pass reports its own undecidables per donor rather than on the "
+              "cell, so there is no per-cell protein label to pair"),
+    ),
+    NonCall(
+        reason_id="not_partitioned",
+        phenocycler="",
+        xenium="Uncalled_not_partitioned",
+        comparable=False,
+        note=("RNA only, pLN: the cell HAS a nucleus and still fell below the partition QC "
+              "(`nCount_Xenium < 10` or `nFeature_Xenium < 5`), so it was never inside any "
+              "cluster and inherited no cluster call -- carried as uncalled, never as 0. Reads "
+              "close to `below_cluster_qc` and is a different measurement: that one is the "
+              "pancreas lane's whole-cluster QC floor, this one is a per-cell floor in a "
+              "different release, with its own thresholds. They are kept apart rather than "
+              "merged, because one reason_id standing for two producers' floors would make the "
+              "crosswalk unable to say which release an absence came from. Its v2 predecessor "
+              "spelled this `Uncalled_not_clustered`; that producer is superseded and the "
+              "spelling is deliberately absent from this table"),
+    ),
+)
+
+_NONCALL_BY_LABEL: dict[str, NonCall] = {}
+for _nc in NON_CALLS:
+    for _label in (_nc.phenocycler, _nc.xenium):
+        if _label:
+            _NONCALL_BY_LABEL[_label] = _nc
+
+
+def noncall_for_label(label: str) -> Optional[NonCall]:
+    """The recorded non-call a producer label names, or ``None`` if it names a call.
+
+    Exact match on either side's spelling. Deliberately NOT a prefix rule: a prefix rule here
+    would claim authority over labels no release has declared, and the four reasons above are
+    read off the release declarations rather than guessed from their shape.
+    """
+    return _NONCALL_BY_LABEL.get((label or "").strip())
+
+
+def is_noncall(label: str) -> bool:
+    """True when this producer label is a recorded absence rather than an identity."""
+    return noncall_for_label(label) is not None
+
+
+def _check_noncalls_are_well_formed() -> None:
+    """Checked at import, so a malformed addition fails here and not in a released CSV."""
+    ids = [nc.reason_id for nc in NON_CALLS]
+    duplicated = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicated:
+        raise AssertionError(f"NON_CALLS reason_id repeated: {duplicated}")
+    for nc in NON_CALLS:
+        if not nc.phenocycler and not nc.xenium:
+            raise AssertionError(f"NON_CALLS {nc.reason_id!r} names no label on either side")
+        if not nc.note:
+            raise AssertionError(
+                f"NON_CALLS {nc.reason_id!r} has no note. An absence without a recorded reason "
+                "is indistinguishable from an oversight."
+            )
+        if nc.comparable and not nc.paired:
+            raise AssertionError(
+                f"NON_CALLS {nc.reason_id!r} is marked comparable but only one modality names "
+                "it; a lineage only one side can see is not evidence of a difference"
+            )
+    labels = [lab for nc in NON_CALLS for lab in (nc.phenocycler, nc.xenium) if lab]
+    repeated = sorted({lab for lab in labels if labels.count(lab) > 1})
+    if repeated:
+        raise AssertionError(f"one label carries two non-call reasons: {repeated}")
+    clash = sorted(set(labels) & (set(COMMON_LINEAGES) | set(XENIUM_TO_COMMON)))
+    if clash:
+        raise AssertionError(f"non-call label collides with a lineage name: {clash}")
+
+
+_check_noncalls_are_well_formed()
 
 
 # --------------------------------------------------------------------------- #
@@ -580,8 +809,17 @@ def pheno_to_common(
     ``space`` is positional and has no default deliberately.  An undeclared producer label
     raises in :meth:`PhenotypeSpace.common_for`; it never becomes a plausible-looking
     ``Unassigned`` call through a stale module-global dictionary.
+
+    A RECORDED NON-CALL RETURNS ``""``, checked before the space is consulted.  That is the
+    Xenium releases' own convention for these rows and it is the honest answer: the producer
+    resolved no identity, so there is no lineage, and there is also no mapping failure to
+    report.  ``noncall_for_label()`` answers which absence it was.  The non-call is NOT
+    declared in the label space, so leaving it to ``common_for`` would raise ``undeclared`` --
+    which would be the crosswalk calling the producer's honest answer a defect.
     """
 
+    if is_noncall(lineage_native):
+        return ""
     common, resolution = space.common_for(
         _declared_pheno_label(lineage_native, immune_subclass)
     )
@@ -589,11 +827,20 @@ def pheno_to_common(
 
 
 def xenium_to_common(celltype_broad: str, celltype_fine: str = "") -> str:
-    """Xenium broad (+ fine) -> common lineage. Fine wins where it is more specific."""
+    """Xenium broad (+ fine) -> common lineage. Fine wins where it is more specific.
+
+    A recorded non-call returns ``""`` rather than ``Unassigned``, on either column.  The
+    release writes ``common_lineage = ""`` on exactly these rows; ``Unassigned`` would say
+    instead that this crosswalk could not read the label, and would put an absence the
+    producer measured into the same bucket as a mapping defect.
+    """
     fine = (celltype_fine or "").strip()
+    broad = (celltype_broad or "").strip()
+    if is_noncall(broad) or is_noncall(fine):
+        return ""
     if fine in XENIUM_FINE_TO_COMMON:
         return XENIUM_FINE_TO_COMMON[fine]
-    return XENIUM_TO_COMMON.get((celltype_broad or "").strip(), "Unassigned")
+    return XENIUM_TO_COMMON.get(broad, "Unassigned")
 
 
 def map_pheno_series(
@@ -725,13 +972,21 @@ def crosswalk_frame(
 ) -> pd.DataFrame:
     """The full crosswalk as a table — this is what gets written to disk and reviewed.
 
-    Two blocks: one row per common lineage (how each modality resolves it), then one row per
-    PhenoCycler marker (its gene, or the surrogate panel standing in for it).
+    Three blocks: one row per common lineage (how each modality resolves it), one row per
+    recorded non-call (an absence each producer measured), then one row per PhenoCycler marker
+    (its gene, or the surrogate panel standing in for it).
 
     Lineage rows also carry ``is_immune`` (``yes``/``no``/``unresolvable``),
     ``immune_tissue_scope`` (the tissues that value holds in) and ``immune_note`` (why), so a
     consumer asking "is T_NK an immune lineage in the pancreatic lymph node" reads the answer
-    instead of inferring it from the label. Marker rows carry ``not_applicable``.
+    instead of inferring it from the label. Marker and non-call rows carry ``not_applicable``:
+    neither is a lineage, and an empty string there would read as "not immune".
+
+    ``kind == "noncall"`` rows sit OUTSIDE the lineage block on purpose. Both current readers
+    of this CSV -- ``build_distance_profiles.load_immune_vocabulary`` and
+    ``modality_concordance.comparable_lineages`` -- select ``kind == "lineage"``, so the
+    non-calls are visible to anyone reading the file and can never be folded into a lineage
+    comparison by a consumer that was written before they existed.
     """
     rows: list[dict] = []
     resolutions = resolvable_for(space=space)
@@ -763,6 +1018,31 @@ def crosswalk_frame(
             "is_immune": immune,
             "immune_tissue_scope": immune_tissue_scope(immune),
             "immune_note": immune_note(immune),
+        })
+
+    for nc in NON_CALLS:
+        rows.append({
+            "kind": "noncall",
+            # NOT a lineage, so it has no common name. The pairing lives in the two label
+            # columns and in `collapsed`, which names the reason both sides share.
+            "common": "",
+            "phenocycler": nc.phenocycler,
+            "xenium": nc.xenium,
+            "pheno_resolution": "noncall" if nc.phenocycler else "not_recorded",
+            "xenium_resolution": "noncall" if nc.xenium else "not_recorded",
+            "pheno_note": _NONCALL_NOTES["noncall" if nc.phenocycler else "not_recorded"],
+            "xenium_note": _NONCALL_NOTES["noncall" if nc.xenium else "not_recorded"],
+            "collapsed": nc.reason_id,
+            "identity_core_genes": "",
+            # A non-call is not a lineage. `unresolvable` is reserved for the `Unassigned`
+            # LINEAGE, so using it here would put a row that is not a lineage into a column
+            # readers scan for lineages.
+            "is_immune": IMMUNE_NOT_APPLICABLE,
+            "immune_tissue_scope": "",
+            "immune_note": ("comparable with the other side's label on this row"
+                            if nc.comparable
+                            else "one modality only -- NOT comparable across modalities")
+                           + ". " + nc.note,
         })
 
     for mp in pairs:
@@ -805,6 +1085,7 @@ def coverage_report(
         "PhenoCycler <-> Xenium vocabulary crosswalk",
         "=" * 60,
         f"common lineages      : {len(COMMON_LINEAGES) - 1} (+Unassigned)",
+        f"recorded non-calls   : {len(NON_CALLS)} (not lineages; see below)",
         f"markers with a gene  : {len(on)}/{len(pairs)}",
         f"  lineage gates      : {len(gates_on)}/{len(GATE_MARKERS)}",
         f"identity anchors     : {len(anchors)} (TYPE markers with a panel gene)",
@@ -836,6 +1117,17 @@ def coverage_report(
         elif p == "default_sink":
             note = "PhenoCycler fallback bucket — compare evidence-positive only"
         lines.append(f"  {lin:<13} {p:<15} {x:<15} {immune_status(lin):<13} {note}")
+
+    lines.append("")
+    lines.append("recorded non-calls (NOT lineages -- an absence each producer measured):")
+    lines.append(f"  {'reason':<22} {'phenocycler':<34} {'xenium':<28} comparable")
+    for nc in NON_CALLS:
+        lines.append(f"  {nc.reason_id:<22} {nc.phenocycler or '(none)':<34} "
+                     f"{nc.xenium or '(none)':<28} {'yes' if nc.comparable else 'no'}")
+    paired = [nc.reason_id for nc in NON_CALLS if nc.comparable]
+    lines.append(f"  {len(paired)} of {len(NON_CALLS)} pair across modalities: "
+                 f"{', '.join(paired) or '(none)'}. The rest are one-sided and a comparison "
+                 "must not read a difference from them.")
 
     if tax is not None:
         probs = check_panel_roles_agreement(tax)

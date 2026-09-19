@@ -2,12 +2,21 @@
 """The four-cell grid: per-donor composition for both tissues in both modalities.
 
 WHAT THIS EXISTS FOR.  The app reads ONE of the four cells of the grid
-(pancreas/protein) because every app composition artifact is built off
-``data/development/typing/immune/``, which covers ten donors.  Three other cells
-have calls and no reader at all.  This builder does not widen the pancreas
-immune lane; it reads each of the four call trees directly, harmonises their
-labels through the GENERATED vocabulary crosswalk, and writes ONE donor-level
-layer that a card can read.
+(pancreas/protein): every app composition artifact is built by a
+``core/phenocycler/scripts/typing/`` builder off ``typing/cells``, over that
+builder's own ``COHORT.resolve``.  Three other cells have calls and no reader at
+all.  This builder does not widen the pancreas immune lane; it reads each of the
+four call trees directly, harmonises their labels through the GENERATED
+vocabulary crosswalk, and writes ONE donor-level layer that a card can read.
+
+  Corrected 2026-09-18.  This paragraph used to say every app composition
+  artifact was built off ``data/development/typing/immune/`` and that that tree
+  covered ten donors.  Neither holds: NO app artifact reads ``typing/immune``
+  (the four app builders contain no reference to it), and the tree was rewritten
+  2026-09-17 and now carries all 20 donors and 2,934,898 Immune cells -- the
+  same Immune total ``typing/cells`` carries.  The consequence for this file is
+  only that ``read_immune_fine`` is no longer the narrower of the two levels;
+  the broad lineage still does not depend on it.
 
 WHERE IT WRITES.  ``$ISLET_LAYERS_DIR`` defaulting to ``/data/islet_layers``,
 because that is the root ``ieCore::ie_layers_dir()`` resolves and every card
@@ -19,15 +28,21 @@ EXHAUSTING THE DATA BEFORE DECLARING AN ABSENCE.  The pancreas protein immune
 lineage split does NOT require ``typing/immune/``.  ``typing/cells`` carries
 ``immune_definition`` on all 20 donors -- the per-marker definition gate the
 crosswalk describes as "recovered from per-marker gates, not the broad label".
-``typing/immune`` adds a FINE subtype (Mac-M2-like, T-CD4-helper, ...) on ten
-donors and is read here only for that finer level.  The broad grid is therefore
-20 donors on the protein pancreas, not ten.
+``typing/immune`` adds a FINE subtype (Mac-M2-like, T-CD4-helper, ...) and is
+read here only for that finer level; since its 2026-09-17 rewrite it covers all
+20 donors too.  It is a SECOND PASS over the Immune class that never modifies
+``cell_class``, so the broad grid does not depend on it either way, and its
+per-cell ``panel_offset`` is a diagnostic that gates nothing here.
 
 WHAT IS NEVER DONE HERE.
 * A cell with no nucleus is excluded from every calculation.  It is counted in
   the presence table and excluded from every denominator -- never zero.
 * A lineage a lane did not resolve gets a row with ``n_cells`` NULL and a named
   reason, never a zero.  A measured zero and a hole must not print the same.
+* No producer class is skipped for being unmapped.  Every ``cell_class`` value
+  either reaches a lineage, is counted by another branch of its own reader, or
+  lands in a book-keeping bucket under its own name with a reason.  A class that
+  matched no ``if`` used to leave the numerator and the denominator together.
 * No distance, adjacency, neighbourhood or KDE crosses the pancreas/pLN
   boundary.  They are different blocks.  This layer is COMPOSITIONAL and joins
   on ``donor_id`` and ``disease_status`` alone.
@@ -66,10 +81,19 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED  # noqa: E402
+from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 
 from scripts.senior import xenium_release  # noqa: E402
+from scripts.senior.availability_states import (  # noqa: E402
+    AVAILABILITY_STATES,
+    STATE_BLANK,
+    STATE_FAILED,
+    STATE_MEASURED,
+    STATE_UNAVAILABLE,
+    STATE_WITHHELD,
+)
 
 # --------------------------------------------------------------------------
 # Inputs.  Every one is a call tree that already exists; nothing is re-typed.
@@ -117,12 +141,12 @@ BK_NEGATIVE = "negative"     # a measured "not that" -- the pLN lanes' non-immun
 BK_UNASSIGNED = "unassigned"  # looked at, no call
 BK_WITHDRAWN = "withdrawn"   # called, then the call was taken back
 
-STATE_MEASURED = "measured"
-STATE_BLANK = "blank"
-STATE_UNAVAILABLE = "unavailable"
-STATE_WITHHELD = "withheld"
-STATE_FAILED = "failed"
-STATES = (STATE_MEASURED, STATE_BLANK, STATE_UNAVAILABLE, STATE_WITHHELD, STATE_FAILED)
+#: Derived, never restated. The six names and the tuple both come from
+#: `scripts/senior/availability_states.py`, which mirrors `IE_STATES` in
+#: `apps/R/ieCore/R/ie_availability.R` including order. `uncalled` is now in the vocabulary and
+#: is not yet emitted by this builder: widening the vocabulary is mechanical, deciding which
+#: rows become `uncalled` is not.
+STATES = AVAILABILITY_STATES
 
 
 class GridError(RuntimeError):
@@ -180,6 +204,33 @@ PANC_CLASS_TO_COMMON = {
     "Lymphatic": "Vascular",
     "Nerve": "Neural",
 }
+
+#: The two `cell_class` values that ARE counted, just not from this map: `Immune` is counted
+#: from `immune_definition` a few lines below the map, `Excluded` from `excluded_reason`.
+#: Named here so the fall-through branch can tell "counted elsewhere in this reader" from
+#: "nobody counts this", which is the difference the reader used to lose in silence.
+PANC_CLASS_COUNTED_ELSEWHERE = ("Immune", "Excluded")
+
+#: `cell_class` values that are NOT a lineage and must never be given one.
+#:
+#: AUTHORITY.  The class vocabulary is `core/phenocycler/scripts/typing/refine.py`
+#: (`OWN_MARKERS` + `UNTOUCHED` + `UNRESOLVED`) -- restated here rather than imported for the
+#: same reason `core/phenocycler/scripts/typing/build_cells.py` restates `UNRESOLVED`:
+#: importing `refine` pulls in the whole celltype scoring stack.  The ruling on what such a
+#: label IS belongs to `core/phenocycler/phenocycler/integration/vocab.py`, which is imported
+#: above and declares `PHENO_UNRESOLVED` in `NON_CALLS` under reason_id
+#: `no_identity_evidence`: the producer looked and resolved no identity.  vocab rules that a
+#: recorded non-call takes the EMPTY common lineage and must NOT be folded into
+#: `Unassigned` -- `Unassigned` means "this crosswalk could not read the label", which would
+#: report the producer's honest answer as a mapping defect.  So it keeps its own name in
+#: `lineage_common` and the fall-through below keeps `Unassigned` for labels nobody declared.
+#:
+#: NOTHING WRITES THIS CLASS YET.  `refine.py` is the only producer and it is not wired;
+#: `build_cells._join_refinement` adds `refined_class` BESIDE `cell_class` and never
+#: overwrites it, so the class arrives in a column this reader does not open.  It is named
+#: here so that the day that changes it is counted rather than skipped, and
+#: `validate_maps` refuses if vocab grows a protein-side non-call this file does not name.
+PANC_CLASS_NONCALL = ("Unresolved (no lineage evidence)",)
 PLN_CLASS_TO_COMMON = {
     "T_cell": "T_NK",
     "NK_ILC": "T_NK",
@@ -202,6 +253,27 @@ def validate_maps(crosswalk: pd.DataFrame) -> None:
                 f"{name} targets {unknown}, which the crosswalk does not declare as a "
                 f"common lineage. The crosswalk is generated; fix the producer, not this map."
             )
+
+    # Every label this file calls a non-call has to be one vocab records as a non-call, and
+    # every protein-side non-call vocab records has to be named here. The first half stops a
+    # spelling drifting apart from the authority's; the second stops the next non-call added
+    # upstream from arriving as a label nobody named.
+    misdeclared = sorted(l for l in PANC_CLASS_NONCALL if not vocab.is_noncall(l))
+    if misdeclared:
+        raise GridError(
+            f"PANC_CLASS_NONCALL names {misdeclared}, which phenocycler.integration.vocab does "
+            f"not record as a non-call. vocab.NON_CALLS is the authority on what is an identity "
+            f"and what is a recorded absence; a second spelling here is a second class."
+        )
+    declared = {nc.phenocycler for nc in vocab.NON_CALLS if nc.phenocycler}
+    unnamed = sorted(declared - set(PANC_CLASS_NONCALL))
+    if unnamed:
+        raise GridError(
+            f"vocab.NON_CALLS records the protein-side non-call(s) {unnamed}, which this file "
+            f"does not name. An unnamed non-call reaches the fall-through as an unreadable "
+            f"label and is reported as a mapping defect instead of as the producer's answer; "
+            f"add it to PANC_CLASS_NONCALL."
+        )
 
 
 # --------------------------------------------------------------------------
@@ -342,6 +414,21 @@ def read_pheno_pancreas(files: list[Path]):
         for value, n in cls.value_counts().items():
             if value in PANC_CLASS_TO_COMMON:
                 broad[(BK_LINEAGE, PANC_CLASS_TO_COMMON[value], "")] += int(n)
+            elif value in PANC_CLASS_COUNTED_ELSEWHERE:
+                continue                      # Immune: below, by definition. Excluded: by reason.
+            elif value in PANC_CLASS_NONCALL:
+                # A recorded non-call: the producer looked and named no identity. It keeps its
+                # own name rather than being folded into `Unassigned`, which would say this
+                # file could not read the label. vocab carries the reason; it is not restated.
+                nc = vocab.noncall_for_label(value)
+                broad[(BK_UNASSIGNED, value, f"{nc.reason_id}: {nc.note}")] += int(n)
+            else:
+                # A class nobody here declared. It used to be skipped by `if value in
+                # PANC_CLASS_TO_COMMON` with no branch and no count, which is how a class added
+                # upstream leaves both the numerator and the denominator without a word.
+                broad[(BK_UNASSIGNED, "Unassigned",
+                       f"cell_class {value!r} is named by no map in this builder; it is neither "
+                       f"a lineage here nor a non-call vocab records")] += int(n)
         immune = dfn[cls.eq("Immune")]
         for value, n in immune.value_counts().items():
             if value in PANC_DEFINITION_TO_COMMON:
@@ -451,8 +538,10 @@ def read_pheno_pln(files: list[Path]):
 def read_immune_fine(donor: str):
     """typing/immune -- the FINE pancreas protein subtype, where it exists.
 
-    This is the ten-donor tree.  It is read for the subtype level only; the
-    broad lineage above it does not depend on it.
+    Rewritten 2026-09-17 and now covering all 20 donors (it was a ten-donor tree
+    before).  It is read for the subtype level only; the broad lineage above it
+    does not depend on it, and this second pass never modifies ``cell_class``.
+    A donor with no partition still gets its broad rows.
     """
     part = IMMUNE_FINE / f"donor_id={donor}"
     files = sorted(part.rglob("*.parquet")) if part.exists() else []

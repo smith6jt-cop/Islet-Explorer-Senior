@@ -41,13 +41,17 @@ import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from scripts.senior.availability_states import AVAILABILITY_STATES  # noqa: E402
 from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 DEFAULT_SOURCE = REPO / "data/development/typing/trajectory"
 SUMMARY_FILE = "singlecell_islet_summary.parquet"
 CELLS_FILE = "singlecell_pseudotime.parquet"
 METADATA_FILE = "singlecell_trajectory.json"
-STATES = {"measured", "blank", "unavailable", "withheld", "failed"}
+#: Derived, never restated -- see `scripts/senior/availability_states.py`. Kept as a SET here
+#: because this module only ever asks membership of it; the ordered tuple is the authority and
+#: its order is not this module's to carry.
+STATES = set(AVAILABILITY_STATES)
 REGION_FIELDS = [
     f"sc_{field}_{region}"
     for region in ("core", "peri")

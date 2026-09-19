@@ -10,7 +10,7 @@
 #
 # * It never draws a blank panel and never draws a zero for an absence. Every
 #   cell of the grid that is not measured for the selected donor renders a NAMED
-#   NOTE carrying one of the five availability states and the producer's own
+#   NOTE carrying one of ieCore's availability states (six since 2026-09-18) and the producer's own
 #   reason. A measured zero is a finding; a hole is a hole; they must not print
 #   the same.
 # * It never names a donor, a cohort size, a status level or a typing method in
@@ -30,7 +30,7 @@
 # not a licence to read: a mismatch is refused by name rather than rendered.
 
 .g1_dir <- function() {
-  file.path(Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers"), "grid_composition")
+  file.path(ie_layers_dir(), "grid_composition")
 }
 
 .g1_builder <- "scripts/senior/build_grid_composition.py"
@@ -134,7 +134,7 @@ card_g1_grid_ui <- function(ns) {
 
 card_g1_grid_server <- function(
     input, output, session, prepared = NULL, cohort = NULL,
-    layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+    layers_dir = ie_layers_dir(),
     active_domain_root = NULL, active_tab = NULL, tab_key = NULL, ...) {
   ns <- session$ns
   active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||

@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
 """Measure donor x capability availability without turning missing inputs into zero.
 
-Counts have explicit units: eligible current typing cells for phenocycler_panc;
-inventoried sections for phenocycler_pln; typed cells (lineage_native only) for
-Xenium; paired IF cells whose recorded hormone release check passes for restain_if;
-nonempty exported islet outlines; finite core-or-peri islet trajectory summaries;
-and maintainer-recorded pLN nodes. pLN export cell counts are not used as a
+Counts have explicit units: ``qc_analysis_eligible`` cells of the current
+``data/development/typing/cells`` build for phenocycler_panc; inventoried
+sections for phenocycler_pln; CALLED cells of the current typed release for each
+Xenium tissue, resolved by ``xenium_release.resolve`` and tallied by
+``xenium_release.donor_tallies`` (the untyped ``cells_xen`` ingest and its
+``lineage_native`` column answer only when no release resolves at all); paired IF
+cells whose recorded hormone release check passes for restain_if; nonempty
+exported islet outlines; finite core-or-peri islet trajectory summaries; and
+maintainer-recorded pLN nodes. pLN export cell counts are not used as a
 nucleus-QC denominator. Availability does not certify cross-donor comparability.
 
-Source files are read without hive inference. Only typing/cells gets donor_id
-from its explicit donor_id= partition, because its files lack that column.
-No cell tables are joined, and no identity is inferred from coordinates or names.
-Recorded failures/withholding outrank the existence of files. All non-measured
-states carry a reason and a null int64 count.
+A cell with no nucleus is excluded from the Xenium count. A cell whose nucleus
+was NEVER MEASURED is a different absence: the rule never applied to it, so it
+is reported unavailable with that reason rather than counted or zeroed.
+
+Source files are read without hive inference. Two sources take donor_id from
+their explicit ``donor_id=`` path segment, read as text, because their files
+lack that column: ``typing/cells`` and the Xenium releases' ``calls/`` tree
+(inferred hive partitioning would type an all-digit donor as int32 and stop
+matching the donor it names). No cell tables are joined, and no identity is
+inferred from coordinates or names. Recorded failures/withholding outrank the
+existence of files. All non-measured states carry a reason and a null int64
+count.
+
+The PhenoCycler pancreas count is the 2026-09-15 typing build. No donor has been
+re-run with the 2026-09-18 islet chain, and this builder neither types nor
+re-types anything; NO_VERIFIED_TYPING remains latched.
 """
 
 from __future__ import annotations
@@ -32,6 +47,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from scripts.senior import xenium_release  # noqa: E402
+from scripts.senior.availability_states import AVAILABILITY_STATES  # noqa: E402
 from scripts.senior.build_sections_layer import (
     add_common_arguments,
     filter_eligible_donors,
@@ -44,7 +60,11 @@ from scripts.senior.build_sections_layer import (
 #: Which capability each tissue of the Xenium releases answers for.
 XENIUM_CAPABILITY = {"panc": "xenium_panc", "pln": "xenium_pln"}
 
-STATES = ("measured", "blank", "unavailable", "withheld", "failed")
+#: Derived, never restated. `scripts/senior/availability_states.py` is the one authority and
+#: mirrors `IE_STATES` in `apps/R/ieCore/R/ie_availability.R`, order included. The five-element
+#: copy that stood here could not carry `uncalled`, so a capability the producer had looked at
+#: and resolved nothing for had to be reported as one of the other five.
+STATES = AVAILABILITY_STATES
 CAPABILITIES = (
     "phenocycler_panc", "phenocycler_pln", "xenium_panc", "xenium_pln",
     "restain_if", "islet_outline", "trajectory", "pln_nodes",

@@ -18,7 +18,7 @@ IE_COMPARTMENT_LABEL <- c(core = "Islet core", peri = "Peri-islet expansion",
 IE_COMPARTMENT_LINEAGES <- c("T_NK", "B_Plasma", "Myeloid", "Granulocyte")
 
 .ie_compartment_dir <- function() {
-  file.path(Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers"), "compartments")
+  file.path(ie_layers_dir(), "compartments")
 }
 
 .ie_compartment_note <- function(value, guard, artifact = "compartments/compartment_composition.csv") {

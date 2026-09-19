@@ -10,8 +10,9 @@ intersect because none had been built.
 
     non_endocrine = (islet core U expansion) - union(the endocrine cells' own segmented outlines)
 
-**The only per-cell polygons in this checkout are in ``data/redsea_scratch/geojson/``** (61 GB).  The
-content-addressed run carries none: its ``cells``, ``expression`` and ``geometry_qc`` stages have
+**The only per-cell polygons in this checkout are in ``data/redsea_scratch/geojson/``** (61 GB).  No
+PhenoCycler stage output carries any -- neither the current flat roots nor the historical
+``data/runs/`` tree, whose ``cells``, ``expression`` and ``geometry_qc`` stages have
 129, 69 and 15 columns and not one of them is geometry.  Those files are keyed by the QuPath UUID,
 so they join to ``object_id`` directly -- and they are on the Phase 10 archive list, which is why
 this is built before that phase runs rather than after.
@@ -31,7 +32,6 @@ import ijson
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
-from shapely import STRtree
 from shapely.geometry import Polygon, shape
 from shapely.ops import unary_union
 
@@ -94,7 +94,11 @@ def main() -> int:
     pixel = {r["donor_id"]: r["pixel_size_um_x"]
              for r in json.loads((S.REPO / "core/phenocycler/data/qupath_manifest.json")
                                  .read_text())["images"]}
-    geometry = pd.read_parquet(S.OUT / "app/islet_geometry.parquet")
+    # No islet geometry is read here. The flow is one-way: this script writes
+    # endocrine_union_<donor>.parquet and build_islet_geometry.py reads it. A dead
+    # `pd.read_parquet(S.OUT / "app/islet_geometry.parquet")` stood on this line until
+    # 2026-09-18 -- assigned, never used -- making the script fail on a downstream output it
+    # does not need and reading as though the outlines were joined to islet geometry.
     OUT.mkdir(parents=True, exist_ok=True)
 
     for donor in donors:

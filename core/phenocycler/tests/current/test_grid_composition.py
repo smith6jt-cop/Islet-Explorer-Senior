@@ -315,7 +315,16 @@ def test_the_layer_root_is_the_one_the_card_resolves(grid, monkeypatch, tmp_path
     module = _load()
     assert module.OUT_DEFAULT == Path("/data/islet_layers") / "grid_composition"
     card = CARD.read_text()
-    assert 'Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers")' in card
+    # The card resolves the root through ieCore rather than restating the env var: eight cards
+    # hand-rolled this expression and eight copies of a default path is eight places for it to
+    # drift.  The guard is unchanged in intent -- the card must reach the SAME root this builder
+    # writes to -- so it now asserts the helper is called and that no hand-rolled copy came back.
+    assert "ie_layers_dir()" in card
+    assert 'Sys.getenv("ISLET_LAYERS_DIR"' not in card, (
+        "card_g1_grid.R hand-rolls the layers root; it resolves in ieCore only. Naming the "
+        "path in a comment is fine -- calling Sys.getenv for it here is the drift this forbids")
+    helper = (REPO / "apps/R/ieCore/R/ie_layer_io.R").read_text()
+    assert 'Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers")' in helper
     assert "grid_composition" in card
 
 

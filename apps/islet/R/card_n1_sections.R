@@ -37,7 +37,7 @@
 .n1_builder_sections <- "scripts/senior/build_sections_layer.py"
 .n1_record_rel <- "core/phenocycler/data/integration/pln_node_annotations.csv"
 
-.n1_layers_dir <- function() Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers")
+.n1_layers_dir <- function() ie_layers_dir()
 
 .n1_note <- function(reason, state = "unavailable", artifact = NULL, builder = .n1_builder_layer) {
   ie_require_measured(ie_avail(state, reason = reason), guard = "n1_sections",
@@ -455,7 +455,7 @@ card_n1_sections_ui <- function(ns) {
 
 card_n1_sections_server <- function(
     input, output, session, prepared = NULL, cohort = NULL,
-    layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+    layers_dir = ie_layers_dir(),
     record_path = NULL, active_domain_root = NULL, active_tab = NULL, tab_key = NULL, ...) {
   ns <- session$ns
   active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||

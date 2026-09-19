@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Within-section clustering and cluster naming for the pancreas Xenium 5K sections.
 
-This is the worker module behind ``panc_immune_typing.py``.  One section is loaded, clustered
-and named in a single pass, and the per-section artifacts are written to a work directory so
-the cohort run is resumable and can be fanned out across processes.
+This is the worker module behind ``panc_xenium_release.py``, which runs it once per section in
+its own process and then assembles the release from what it wrote.  One section is loaded,
+clustered and named in a single pass, and the per-section artifacts are written to a work
+directory so the cohort run is resumable and can be fanned out across processes.
 
 METHOD
 ------
@@ -55,7 +56,9 @@ METHOD
 
 5.  NEGATIVE EVIDENCE IS EVIDENCE.  A cluster whose argmax is Immune_T but in which neither
     CD3E nor CD3G stands out, while at least one NK naming gene does, is called
-    Immune_NK_ILC.  The move is recorded per cluster and counted in the report; it is a
+    Immune_NK_ILC.  The move is recorded on every cluster of both partitions and counted in the
+    report SEPARATELY FOR EACH, because the labels that ship come from the final subcluster
+    partition and the parent partition is a diagnostic no released label is drawn from.  It is a
     combination of measurements on hand, not a fallback.
 
 WHAT 16_epithelial_general IS AND IS NOT
@@ -174,6 +177,11 @@ EXOCRINE_ENZYMES = ["PRSS1", "CPA1", "CELA3A", "CTRB1", "CTRB2", "AMY2A", "REG1A
 #: negative-evidence redirect, T -> NK
 T_DEFINING = ["CD3E", "CD3G"]
 NK_NAMING_HINT = ["NKG7", "KLRD1", "GNLY", "KLRF1", "NCR1", "PRF1"]
+#: The reason string a cluster carries when the redirect produced its label.  One authority:
+#: ``decide`` writes it, ``redirect_counts`` counts it and panc_xenium_release.py reads it off
+#: the shipped calls.  A redirect that was APPLIED is not the same event as one that SHIPPED a
+#: label -- the moved cluster can still fail the enrichment gate below and go out uncalled.
+REDIRECT_REASON = "cd3_negative_nk_positive_redirect"
 
 CONTROL_PREFIXES = ("NegControl", "Intergenic", "Unassigned", "Deprecated", "BLANK", "antisense")
 
@@ -417,9 +425,35 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
         enriched here and the argmax is picking the least-negative of eleven negatives;
       * at least one gene that MAY NAME the winning lineage stands out (core/panels' own
         `evidence` column, values canonical or both);
-      * that naming gene is detected above the cluster's OWN background, its median detection
-        fraction over the whole measured set -- so a near-empty cluster cannot be named by a
-        gene seen in eight of its cells.
+      * that naming gene is detected above the cluster's OWN background: `bg` is the MEDIAN
+        of the cluster's detection fractions over the measured set -- the 485 identity-core
+        genes carried in this section, not the whole 5K panel -- and the gene must clear it
+        strictly, `dets > bg`.
+
+    WHERE THIS GUARD IS DEGENERATE.  `bg` is zero whenever at most half of those 485 genes are
+    detected in any cell of the cluster (measured: every zero-background cluster in the release
+    has 242 or fewer of the 485 detected, median 177).  The test then reduces to `dets > 0`, so
+    the naming gene need be seen in ONE cell -- for those clusters the guard admits exactly what
+    a background is supposed to exclude, and the claim it once carried here, that a near-empty
+    cluster cannot be named by a gene seen in eight of its cells, was false for them.
+    Recomputed 2026-09-18 from `_work/*.gene_stats.parquet` and `_work/*.subclusters.parquet`
+    of `/data/xenium_typing/panc_2026-09-17/` (21 sections; the reconstruction reproduces
+    `n_naming_above_background_of_winning_core` exactly for all 4,914 labelled subclusters):
+      * 544 of 4,914 labelled subclusters (11.1 %) have `bg == 0`, covering 53,333 called cells
+        (0.35 % of the 15,318,868 cells in labelled subclusters).  Per section the share of
+        labelled subclusters with a zero background runs 3.5 % (6593, 10 of 289) to 29.9 %
+        (6523, 61 of 204); 6539 is 22.1 % and 6380 20.3 %.
+      * they are small: median 61 cells against 1,924 for the labelled subclusters whose
+        background is above zero.
+      * 72 of the 544 (10,354 cells) were admitted on a SINGLE naming gene above that zero
+        background, and for 37 of those (4,706 cells, largest 563) the one gene was detected in
+        exactly one cell -- e.g. 6523_c19_s07, 563 cells, Neural on TH in 1 cell; 6523_c06_s01,
+        410 cells, Granulocyte on CXCR2 in 1 cell; HDL112_c10_s08, 360 cells, Granulocyte on
+        PRG2 in 1 cell.
+      * across all 544, 185 carry an admitted naming gene detected in exactly one cell, and 86
+        (11,549 cells) have no admitted naming gene detected in more than two.
+    A non-degenerate floor is a METHOD DECISION and is deliberately not taken in this function;
+    the guard as written is a no-op above zero for those 544.
     A cluster that fails is uncalled, with the reason recorded. It is NEVER reassigned to the
     runner-up and never to a larger core.
 
@@ -461,7 +495,7 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
             reasons.append(f"winning_core_{w}_score_{scores[k, j]:.3f}_not_above_partition_mean")
         elif naming_ok[k, j] >= MIN_NAMING_STANDOUT:
             calls.append(w)
-            reasons.append("cd3_negative_nk_positive_redirect" if moved else "")
+            reasons.append(REDIRECT_REASON if moved else "")
         elif naming_so[k, j] >= MIN_NAMING_STANDOUT:
             calls.append("Uncalled_no_naming_evidence")
             reasons.append(f"winning_core_{w}_naming_standouts_at_or_below_cluster_own_background")
@@ -472,6 +506,32 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
     return {"standout": so, "scores": scores, "naming_so": naming_so, "naming_ok": naming_ok,
             "win": win, "margin": margin, "calls": calls, "reasons": reasons,
             "redirected": redirected}
+
+
+def redirect_counts(dec: dict, sizes) -> dict:
+    """The negative-evidence redirect, counted over ONE partition -- the one it is given.
+
+    Two different events, and they are not interchangeable:
+
+    * APPLIED -- the argmax was Immune_T, CD3E/CD3G did not stand out, NK genes did, so the
+      winner moved.  ``dec["redirected"]``.
+    * SHIPPED -- that moved winner then cleared the enrichment gate and the admission rule, so
+      the cluster went out labelled Immune_NK_ILC with :data:`REDIRECT_REASON` as its reason.
+      A moved winner whose NK score is not above the partition mean is uncalled instead, and
+      counting only ``redirected`` would report it as a label that never existed.
+
+    ``sizes`` is that partition's own cell count per group, so the cell number belongs to the
+    same partition as the cluster numbers beside it.  Pass the parent partition and you get the
+    parent's counts; pass the final subcluster partition and you get the counts of the labels
+    that ship.  The caller must say which in the field name.
+    """
+    shipped = [j for j, why in enumerate(dec["reasons"]) if why == REDIRECT_REASON]
+    sizes = np.asarray(sizes)
+    return {
+        "clusters_applied": int(sum(bool(x) for x in dec["redirected"])),
+        "clusters_shipped": len(shipped),
+        "cells_shipped": int(sizes[shipped].sum()) if shipped else 0,
+    }
 
 
 def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Path,
@@ -852,6 +912,9 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
                              .sum()) for k in sp_.unique()},
         }
 
+    fin_redirect = redirect_counts(fdec, fsizes)
+    par_redirect = redirect_counts(main, sizes)
+
     report = {
         "donor_id": donor, "section_key": section, "h5ad": str(h5ad),
         "batch": batch, "sex": sex, "disease_status": status,
@@ -882,7 +945,20 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
         "n_parents_refined": int(sum(1 for m in refine_meta if m.get("refined"))),
         "n_subclusters": len(forder),
         "n_cells_moved_by_refinement": int(np.sum(final_call != parent_call)),
-        "n_clusters_cd3_negative_nk_redirect": int(sum(main["redirected"])),
+        # THE REDIRECT, BY THE PARTITION EACH NUMBER IS ABOUT.  The labels that ship come from
+        # the final subcluster partition; the parent partition is a diagnostic and no released
+        # label is drawn from it.  Until 2026-09-18 a single field named "n_clusters_..." carried
+        # the PARENT count and panc_xenium_release.py published it as n_cd3_negative_nk_redirects,
+        # so 6482's redirected subcluster -- 6482_c18_s07, 215 cells, Immune_NK_ILC -- was
+        # reported as 0 for every donor in the cohort.
+        "n_subclusters_cd3_negative_nk_redirect_applied": fin_redirect["clusters_applied"],
+        "n_subclusters_labelled_by_cd3_negative_nk_redirect": fin_redirect["clusters_shipped"],
+        "n_cells_labelled_by_cd3_negative_nk_redirect": fin_redirect["cells_shipped"],
+        "n_parent_clusters_cd3_negative_nk_redirect_applied": par_redirect["clusters_applied"],
+        # The parent partition carries no released label -- it reaches calls/ only as the
+        # descriptive column parent_cluster_lineage -- so this one is admitted, never shipped.
+        "n_parent_clusters_cd3_negative_nk_redirect_admitted":
+            par_redirect["clusters_shipped"],
         "called_cells_by_naming_evidence_count": {
             str(k): int(v) for k, v in
             pd.Series(naming_n_of_cluster[fcall_j[frow] >= 0]).value_counts().sort_index().items()

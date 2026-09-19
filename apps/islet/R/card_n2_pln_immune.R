@@ -39,7 +39,7 @@
 .n2_verdict_rel <- "data/development/integration/concordance/pln_lineage_summary.csv"
 .n2_verdict_manifest_rel <- "data/development/integration/concordance/manifest.json"
 
-.n2_layers_dir <- function() Sys.getenv("ISLET_LAYERS_DIR", unset = "/data/islet_layers")
+.n2_layers_dir <- function() ie_layers_dir()
 
 .n2_note <- function(reason, state = "unavailable", artifact = NULL, builder = .n2_builder) {
   ie_require_measured(ie_avail(state, reason = reason), guard = "n2_pln_immune",
@@ -156,8 +156,10 @@ card_n2_pln_immune_read <- function(layers_dir = .n2_layers_dir(), active_domain
   format(x, big.mark = ",", trim = TRUE)
 }
 
-# Disease-stage order comes from the DOMAIN, never from a literal: the two
-# datasets declare their own levels and one of them has no Aab+ donor at all.
+# Disease-stage order comes from the DOMAIN, never from a literal: the two datasets declare
+# their own levels, and which of those levels a BUILD actually carries is a separate question
+# that has already changed -- the run cohort had no Aab+ donor before 2026-09-15 and has three
+# now. A literal would have been wrong on one side of that date whichever way it was written.
 .n2_status_order <- function(values) {
   observed <- unique(as.character(values[!is.na(values) & nzchar(as.character(values))]))
   levels <- if (exists("domain_group_levels", mode = "function")) {
@@ -420,7 +422,7 @@ card_n2_pln_immune_ui <- function(ns) {
 
 card_n2_pln_immune_server <- function(
     input, output, session, prepared = NULL, cohort = NULL,
-    layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+    layers_dir = ie_layers_dir(),
     active_domain_root = NULL, verdict_path = NULL, verdict_manifest_path = NULL,
     active_tab = NULL, tab_key = NULL, ...) {
   ns <- session$ns

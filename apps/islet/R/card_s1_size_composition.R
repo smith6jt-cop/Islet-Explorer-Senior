@@ -14,7 +14,7 @@
 }
 
 card_s1_size_composition_read <- function(
-    layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+    layers_dir = ie_layers_dir(),
     active_domain_root = domain_data_root()) {
   root <- file.path(layers_dir, "islet_summary")
   receipt_path <- file.path(root, "availability.parquet")
@@ -86,7 +86,7 @@ card_s1_size_composition_ui <- function(ns) {
 
 card_s1_size_composition_server <- function(
     input, output, session, prepared = NULL, cohort = NULL,
-    layers_dir = Sys.getenv("ISLET_LAYERS_DIR", "/data/islet_layers"),
+    layers_dir = ie_layers_dir(),
     active_domain_root = NULL, active_tab = NULL, tab_key = NULL, ...) {
   active <- shiny::reactive(is.null(active_tab) || is.null(tab_key) ||
                              identical(active_tab(), tab_key))

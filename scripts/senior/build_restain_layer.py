@@ -36,8 +36,13 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 from phenocycler.cohort import filter_eligible_donors  # noqa: E402
 
+sys.path.insert(0, str(REPO))
+from scripts.senior.availability_states import AVAILABILITY_STATES  # noqa: E402
+
 MARKERS = ("INS", "GCG")
-STATES = ("measured", "blank", "unavailable", "withheld", "failed")
+#: Derived, never restated -- see `scripts/senior/availability_states.py`, which mirrors
+#: `IE_STATES` in `apps/R/ieCore/R/ie_availability.R` including order.
+STATES = AVAILABILITY_STATES
 
 
 def norm_donor(value: str) -> str:

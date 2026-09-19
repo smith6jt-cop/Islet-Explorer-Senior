@@ -1,9 +1,15 @@
 # Reading layer artifacts -- the small, pre-aggregated parquet a builder writes under
 # `$ISLET_LAYERS_DIR`, so a card never scans the big source trees at render time.
 #
-# Nothing under `$ISLET_LAYERS_DIR` exists yet (see docs/ISLET_LAYERS_SPEC.md). Every card
-# that reads a layer therefore hits the "directory not there" case on this tree today, and
-# the repo rule for a missing measurement applies here too: a card that cannot find its
+# The layer tree is NOT empty any more. Measured on this workstation 2026-09-18,
+# `/data/islet_layers` holds availability, compartments, distance_profiles, grid_composition,
+# islet_summary, pln, restain, sections and trajectory (see docs/ISLET_LAYERS_SPEC.md for what
+# each contains). The earlier note here said nothing under `$ISLET_LAYERS_DIR` existed yet;
+# that was true when it was written and is not now, and a card written against it would have
+# treated every present layer as impossible.
+#
+# What has NOT changed is the rule: a layer may still be absent on any other machine, for any
+# donor, so the repo rule for a missing measurement applies -- a card that cannot find its
 # artifact renders a NAMED NOTE, never a blank panel. This file is the one place that turns
 # "directory absent" into that note, so no card re-derives the absence logic itself.
 
