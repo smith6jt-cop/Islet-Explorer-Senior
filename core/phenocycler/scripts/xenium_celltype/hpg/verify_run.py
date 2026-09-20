@@ -159,11 +159,12 @@ def verify(run: Path, repo: Path, r: Report) -> dict:
                 if abs(s - 1.0) > 1e-6:
                     r.fail(f"(8) {key} k={k}: composition fractions sum to {s:.6f}")
             awarded = set(calls.loc[calls.lineage.notna() & (calls.lineage != ""), "lineage"])
-            claimed = set(comp.loc[comp.lineage != "Unavailable", "lineage"])
+            unavail_row = comp.lineage.astype(str).str.startswith("Unavailable")
+            claimed = set(comp.loc[~unavail_row, "lineage"])
             if claimed - awarded:
                 r.fail(f"(8) {key}: composition claims {sorted(claimed - awarded)} which no "
                        f"group was awarded")
-            unavail = comp.loc[comp.lineage == "Unavailable"].groupby("k")["frac"].sum()
+            unavail = comp.loc[unavail_row].groupby("k")["frac"].sum()
             summary[donor][arm] = {
                 "unavailable_by_k": {int(k): round(float(v), 4) for k, v in unavail.items()},
                 "kodama_seconds": (kj.get("dissimilarity_seconds", 0) or 0)
