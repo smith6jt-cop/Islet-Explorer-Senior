@@ -17,13 +17,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from scripts.senior import xenium_release
-
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO))
 
 from scripts.senior import build_availability as ledger  # noqa: E402
 from scripts.senior import build_sections_layer as sections  # noqa: E402
+from scripts.senior import xenium_release  # noqa: E402
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
