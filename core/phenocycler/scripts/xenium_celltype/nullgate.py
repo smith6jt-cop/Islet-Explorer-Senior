@@ -162,10 +162,12 @@ def _contrast(X, cols: Sequence[int], in_group: np.ndarray) -> float:
     compartment and the difference collapses however unambiguous the identity is.
 
     On donor 6539 at k=30 the nine largest Unavailable groups (2,189-3,193 cells each) carry
-    acinar (CUZD1/CTRL) z of 1.51-1.82 -- the highest in the donor bar one -- against 0.43
-    for the awarded groups and 0.99 cohort-wide. Group 29 at acinar z=1.878 was awarded
+    a CUZD1/CTRL z of 1.51-1.82 -- the highest in the donor bar one -- against 0.43 for the
+    awarded groups and 0.99 cohort-wide.  (Those two genes are the dominant pair of the ONE
+    Exocrine label and are not an acinar call; see run_donor's docstring, corrected
+    2026-09-20.) Group 29 at CUZD1/CTRL z=1.878 was awarded
     Exocrine while group 2 at 1.823 was refused: near-identical identity, opposite outcome,
-    decided by which side of the mostly-acinar remainder each happened to fall.
+    decided by which side of the mostly-exocrine remainder each happened to fall.
 
     So this gate answers "is this group ENRICHED for lineage L relative to the rest of the
     tissue?", which is a real question, and NOT "what is this group?". For minority

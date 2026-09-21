@@ -15,10 +15,11 @@ by the pooling. At 50,000 cells k=320 would have averaged 156 cells per group an
 would have started refusing groups.
 
 Unavailable is a result, and it is never redistributed across the lineages that did clear.
-Note the reason is NOT "acinar has no axis": 02_pancreas_exocrine carries CTRL and CUZD1,
-both flagged acinar in the panel file and both present, with CUZD1 detected in 65.8% of
-donor 6539's cells and supplying 57% of that core's mean. What is absent is the canonical
-zymogen set. See run_donor's module docstring for the measurement and the narrow claim.
+Note the reason is not a missing axis inside Exocrine: 02_pancreas_exocrine carries CTRL and
+CUZD1, with CUZD1 detected in 65.8% of donor 6539's cells and supplying 57% of that core's
+mean, so the core is well measured. EXOCRINE IS ONE LABEL (maintainer, 2026-09-18) and no
+acinar or ductal claim is made from it. Corrected 2026-09-20; see run_donor's module
+docstring for the measurements and what they do and do not establish.
 """
 
 from __future__ import annotations

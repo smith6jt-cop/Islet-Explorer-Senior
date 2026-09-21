@@ -27,8 +27,10 @@ underneath every cross-donor comparison the study makes.
 QC follows the Xenium lane's decision #10: absolute LOWER bounds (`min_genes`, `min_counts`)
 because those are sanity floors for noise and segmentation artifacts, and a DENSITY-based
 upper bound (`counts / cell_area` above a quantile) because in FFPE Xenium `cell_area` varies
-5-10x and an absolute counts cap predominantly removes large *healthy* cells -- acinar,
-ductal, large epithelial -- rather than doublets.
+5-10x and an absolute counts cap predominantly removes large *healthy* cells -- the large
+exocrine and epithelial ones -- rather than doublets.  (Wording corrected 2026-09-20: this
+read "acinar, ductal, large epithelial".  EXOCRINE IS ONE LABEL on this panel and no acinar
+or ductal claim is made; the QC rationale is unchanged, only the label is.)
 
     cd core/phenocycler
     ../../.venv/bin/python scripts/xenium_celltype/build_phenotyped_base.py --donors 6539

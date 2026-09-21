@@ -15,20 +15,29 @@ that already knows where the cell is makes the answer partly circular -- so ``no
 the one that may carry a spatial claim, and the difference between the arms is reported as
 the measurement of how much location leaks into identity.
 
-Known limit, stated narrowly because an earlier draft overstated it. The claim was "acinar
-cells have no axis", on the reading that ``02_pancreas_exocrine`` is ductal. **That is wrong,
-and the file says so**: of its eight genes, ``CTRL`` and ``CUZD1`` carry ``subtype_hint=acinar``
-and both are on the 5,101-gene panel. Measured on donor 6539, all 317,610 cells, CUZD1 is
-detected in 65.8% at mean count 10.69 and CTRL in 40.7%; ``CUZD1|CTRL`` covers 66.5% of cells
-and the two supply 71% of the core's mean. So the Exocrine core is already an acinar call,
-driven by CUZD1 -- not a ductal one.
+SUPERSEDED 2026-09-20 -- this docstring carried a retracted claim. It read that
+``02_pancreas_exocrine`` "is already an acinar call, driven by CUZD1 -- not a ductal one".
+**The maintainer ruled on 2026-09-18 that EXOCRINE IS ONE LABEL**, on this panel as on the
+60-plex: no acinar and no ductal claim is made or supported. The banner on
+``docs/HANDOFF_2026-08-26_XENIUM_CELLTYPE.md`` records the ruling; this module was missed by
+that pass, so anyone reading the code rather than the handoff got the retracted position.
 
-What is true is narrower: the canonical *zymogen* set is absent (PRSS1, PRSS2, CPA1, CPB1,
-CELA2A/3A, CTRB1/2, PNLIP, CLPS, AMY2A, REG1A, GP2, PTF1A, RBPJL -- checked against the panel),
-as are INS/GCG/SST/PPY. So acinar identity here rests on two genes whose acinar specificity in
-THIS data has not been measured. Measure it before leaning on the Exocrine share; do not
-report the share as an abundance estimate, and do not restate the absent-zymogen fact as a
-claim that the compartment cannot be resolved.
+The underlying measurements are kept because they are measurements, and only the claim drawn
+from them is withdrawn. On donor 6539, all 317,610 cells: CUZD1 is detected in 65.8% at mean
+count 10.69 and CTRL in 40.7%; ``CUZD1|CTRL`` covers 66.5% of cells and the two supply 71% of
+the core's mean. Both carry ``subtype_hint=acinar`` in the panel file. What that establishes
+is that two of the eight Exocrine core genes dominate the core -- not that the core resolves
+an acinar/ductal axis.
+
+Measured 2026-09-20 on the same panel, which is why it does not: of the canonical acinar and
+zymogen set only 6 of 24 are on this panel (CTRL, AMY1A, CUZD1, INSR, FOXP2, MAP3K5), every
+canonical zymogen absent (PRSS1, PRSS2, CPA1, CPB1, CELA2A/3A, CTRB1/2, PNLIP, CLPS, AMY2A,
+REG1A, GP2, PTF1A, RBPJL), while 13 of 22 ductal markers ARE present (CFTR, KRT19, MUC1,
+MUC5B, SOX9, HNF1B, PDE3A, PKHD1, CLDN1, VTCN1, EPCAM, CDH1, TP63). The evidence on this
+panel is asymmetric in the ductal direction, so an axis built from it would resolve the
+asymmetry of the panel rather than the biology of the tissue. INS/GCG/SST/PPY are likewise
+absent. Report Exocrine as one label; do not report its share as an abundance estimate; and
+do not restate the absent-zymogen fact as a claim that the compartment cannot be resolved.
 """
 
 from __future__ import annotations
