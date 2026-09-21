@@ -147,7 +147,12 @@ def build(donor: str) -> pathlib.Path | None:
     target = OUT / f"{donor}.h5ad"
     adata.write_h5ad(target, compression="gzip")
     _flatten_string_arrays(target)
-    n = obs["cell_class"].value_counts() if "cell_class" in obs else pd.Series(dtype=int)
+    # dropna=False: a class the log leaves out reads as a class the build did not
+    # produce. That matters most for the one whose whole point is to record an
+    # absence -- `Unresolved (no lineage evidence)` -- which pandas would drop by
+    # default if it ever arrives as NaN.
+    n = (obs["cell_class"].value_counts(dropna=False) if "cell_class" in obs
+         else pd.Series(dtype=int))
     print(f"  {donor}: {adata.n_obs:>9,} cells x {adata.n_vars} markers -> {target.name}"
           + ("   " + "  ".join(f"{k} {v:,}" for k, v in n.head(4).items()) if len(n) else ""),
           flush=True)
