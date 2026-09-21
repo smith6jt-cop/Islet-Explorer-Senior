@@ -118,7 +118,7 @@ def region_summary(path: Path) -> tuple[int, int]:
 def project_summary(out_dir: Path, case_id: str) -> dict:
     """What a built project actually contains, read back from its .tmap."""
     tmap = out_dir / f"{case_id}.tmap"
-    empty = {"channels": 0, "regions": {}, "markers": 0}
+    empty = {"channels": 0, "regions": {}, "markers": 0, "cell_source": "none"}
     if not tmap.is_file():
         return empty
     try:
@@ -129,15 +129,30 @@ def project_summary(out_dir: Path, case_id: str) -> dict:
     for r in p.get("regionFiles", []):
         regions[r["title"].split(" (")[0]] = region_summary(out_dir / r["path"])
     markers = 0
+    cell_source = "none"
     for mf in p.get("markerFiles", []):
         f = out_dir / mf["path"]
-        try:
-            # Streamed: a whole-slide donor is hundreds of thousands of rows.
-            with open(f) as fh:
-                markers = sum(1 for _ in fh) - 1
-        except OSError:
-            markers = -1
-    return {"channels": len(p.get("layers", [])), "regions": regions, "markers": markers}
+        if f.suffix == ".h5ad":
+            # An AnnData is binary; counting its lines returns noise, not a cell count.
+            # obsm/spatial is a plain numeric dataset under every anndata encoding, so its
+            # first dimension is the safe thing to read and costs one header seek.
+            cell_source = "h5ad"
+            try:
+                import h5py
+                with h5py.File(f, "r") as h:
+                    markers = int(h["obsm/spatial"].shape[0])
+            except Exception:  # noqa: BLE001 -- an unreadable file is reported, not guessed
+                markers = -1
+        else:
+            cell_source = "csv"
+            try:
+                # Streamed: a whole-slide donor is hundreds of thousands of rows.
+                with open(f) as fh:
+                    markers = sum(1 for _ in fh) - 1
+            except OSError:
+                markers = -1
+    return {"channels": len(p.get("layers", [])), "regions": regions,
+            "markers": markers, "cell_source": cell_source}
 
 
 def main() -> int:
@@ -155,7 +170,13 @@ def main() -> int:
                          "--structures)")
     ap.add_argument("--markers", type=Path,
                     default=REPO / "data" / "tissuumaps_inputs" / "markers",
-                    help="Directory of <case>.csv (export_viewer_cell_markers.py)")
+                    help="Directory of <case>.csv (export_viewer_cell_markers.py). Superseded "
+                         "by --h5ad where an AnnData exists; kept for donors that have only a CSV")
+    ap.add_argument("--h5ad", type=Path, default=Path("/data/tissuumaps"),
+                    help="Directory of <case>.h5ad (scripts/senior/build_tissuumaps_h5ad.py). "
+                         "One AnnData carries the call, the marker matrix and the per-object "
+                         "overlap together, so the calls can be checked by eye against the "
+                         "image; it is attached in preference to the marker CSV")
     ap.add_argument("--log-dir", type=Path, default=REPO / "logs" / "tissuumaps")
     ap.add_argument("--cases", nargs="*", default=None,
                     help="Restrict to these case ids (exclusions still apply)")
@@ -243,9 +264,15 @@ def main() -> int:
             cmd += ["--regions", str(args.regions)]
         if args.structures.exists():
             cmd += ["--structures", str(args.structures)]
-        marker_csv = args.markers / f"{case_id}.csv"
-        if marker_csv.is_file():
-            cmd += ["--markers", str(marker_csv)]
+        # An AnnData supersedes the marker CSV: it carries the same centroids plus the
+        # marker matrix and the per-object overlap, in one file the viewer reads natively.
+        h5ad = args.h5ad / f"{case_id}.h5ad" if args.h5ad else None
+        if h5ad is not None and h5ad.is_file():
+            cmd += ["--h5ad", str(h5ad)]
+        else:
+            marker_csv = args.markers / f"{case_id}.csv"
+            if marker_csv.is_file():
+                cmd += ["--markers", str(marker_csv)]
         if args.channels:
             cmd += ["--channels", args.channels]
 

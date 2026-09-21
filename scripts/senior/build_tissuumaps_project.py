@@ -65,6 +65,8 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import numpy as np
+
 # Colours for the four channels visible by default, following the Avivator
 # palette in viewer_helpers.R::build_channel_config_b64().
 #
@@ -811,6 +813,141 @@ def region_features(gj) -> list:
     return gj if isinstance(gj, list) else [gj]
 
 
+def h5ad_facts(h5ad_path: Path) -> dict | None:
+    """What the viewer needs to know about a per-donor AnnData, read from the file.
+
+    Returns the marker names in `X` column order, the categorical `obs` columns that can
+    colour the cells, and the largest spatial coordinate -- the last so the caller can
+    falsify the coordinate factor against the image the way the CSV path already does.
+
+    `None` if the file cannot be read as the shape this viewer expects; the caller then
+    declines to attach it rather than writing a project that opens empty.
+
+    Read through anndata in BACKED mode, not by walking the HDF5 tree by hand. The first
+    version of this function did the latter and broke on its own test: anndata writes a
+    string index as a plain dataset under one encoding version and as a GROUP under
+    another, so `var/<index>[:]` worked on the files already on disk (written 2026-09-19)
+    and raised `TypeError: Accessing a group is done with bytes or str` on a file written
+    today. Backed mode loads obs, var and obsm while leaving the count matrix on disk,
+    which is both correct across encodings and cheap on a million-cell donor.
+    """
+    try:
+        import anndata as ad
+        import pandas as pd
+    except ImportError as exc:
+        log(f"WARNING: cannot attach an h5ad ({exc}); is anndata installed?")
+        return None
+    adata = None
+    try:
+        adata = ad.read_h5ad(h5ad_path, backed="r")
+        if "spatial" not in adata.obsm:
+            log(f"WARNING: {h5ad_path} has no obsm['spatial']; not attaching")
+            return None
+        spatial = np.asarray(adata.obsm["spatial"])
+        if spatial.ndim != 2 or spatial.shape[1] < 2:
+            log(f"WARNING: {h5ad_path} obsm['spatial'] is {spatial.shape}, not (n, 2)")
+            return None
+        markers = [str(v) for v in adata.var_names]
+        # Only categoricals can group the cells; a float column would make one group per
+        # distinct value. Order follows the frame, so the first is the one that matters.
+        cats = [c for c in adata.obs.columns
+                if isinstance(adata.obs[c].dtype, pd.CategoricalDtype)]
+        return {"n_cells": int(spatial.shape[0]),
+                "extent": (float(spatial[:, 0].max()), float(spatial[:, 1].max())),
+                "markers": markers, "obs_categoricals": cats}
+    except Exception as exc:  # noqa: BLE001 -- report and decline, never attach blind
+        log(f"WARNING: could not read {h5ad_path}: {type(exc).__name__}: {exc}")
+        return None
+    finally:
+        if adata is not None and getattr(adata, "file", None) is not None:
+            try:
+                adata.file.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def h5ad_marker_files(rel_path: str, facts: dict, coord_factor: float) -> list[dict]:
+    """The two `markerFiles` entries TissUUmaps needs to show an AnnData.
+
+    Written to the convention in `tissuumaps/read_h5ad.py`, which addresses columns by
+    HDF5 path: `/obsm/spatial;0` and `;1` for the coordinates, `/obs/<name>` for a
+    categorical, `/X;<i>` for the i-th marker. Two entries rather than one because the
+    two colouring modes are different radio states -- group-by-category for the call, and
+    continuous-by-value for a marker -- and a dropdown switches within each.
+
+    `coord_factor` is NOT 1, and the reason is worth stating because the file's own docstring
+    claims otherwise. `obsm/spatial` is copied straight from `typing/cells` X_centroid /
+    Y_centroid, which QuPath wrote at ITS resolution #1 (`DEFAULT_REGION_UM_PER_PX`, 0.5078
+    um/px) -- not at the full-res base the DZI tiles are in (`DEFAULT_UM_PER_PX`, 0.2539).
+    Measured 2026-09-21 on five donors, image-to-cell extent ratio 1.97-2.08 in both axes,
+    tightest on 6374 where the tissue nearly fills the slide: 1.974 / 1.970. The factor is
+    derived from the two declared pixel sizes, the same way `--region-scale auto` derives the
+    GeoJSON scale, and the caller falsifies the scaled extent against the image bounds.
+
+    At `coord_factor = 1` every cell would land at half its true position -- the whole cohort
+    in the top-left quadrant. Zoomed out that reads as unremarkable, because the dots still
+    cover tissue; it only becomes visible at cell-level zoom.
+    """
+    x_path, y_path = "/obsm/spatial;0", "/obsm/spatial;1"
+    base = {"X": x_path, "Y": y_path, "coord_factor": coord_factor, "opacity": "1",
+            "scale_factor": 1, "shape_fixed": "disc", "cb_cmap": "interpolateTurbo"}
+
+    cats = facts["obs_categoricals"]
+    calls = {
+        "title": "Cell calls",
+        "name": "Cell calls",
+        "comment": "Per-cell classification and how it was reached. Switch column in the dropdown.",
+        "path": rel_path,
+        "autoLoad": False,
+        "hideSettings": True,
+        "expectedHeader": {**base, "gb_col": f"/obs/{cats[0]}" if cats else "",
+                           "cb_gr_dict": "", "cb_col": ""},
+        "expectedRadios": {"cb_col": False, "cb_gr": True, "cb_gr_dict": False,
+                           "cb_gr_rand": True, "cb_gr_key": False, "pie_check": False,
+                           "scale_check": False, "shape_col": False, "shape_fixed": True,
+                           "sortby_check": False, "shape_gr": False,
+                           "shape_gr_dict": False, "shape_gr_rand": True},
+        "dropdownOptions": [
+            {"optionName": c, "name": c,
+             "expectedHeader.gb_col": f"/obs/{c}",
+             "expectedHeader.cb_col": "",
+             "expectedRadios.cb_gr": True,
+             "expectedRadios.cb_col": False,
+             "expectedRadios.cb_gr_rand": True}
+            for c in cats
+        ],
+    }
+
+    markers = facts["markers"]
+    expression = {
+        "title": "Marker expression",
+        "name": "Marker expression",
+        "comment": "The aligned per-cell values the classification actually read.",
+        "path": rel_path,
+        "autoLoad": False,
+        "hideSettings": True,
+        "expectedHeader": {**base, "gb_col": "", "cb_gr_dict": "",
+                           "cb_col": "/X;0" if markers else "",
+                           "sortby_col": "/X;0" if markers else ""},
+        "expectedRadios": {"cb_col": True, "cb_gr": False, "cb_gr_dict": False,
+                           "cb_gr_rand": False, "cb_gr_key": False, "pie_check": False,
+                           "scale_check": False, "shape_col": False, "shape_fixed": True,
+                           "sortby_check": True, "shape_gr": False,
+                           "shape_gr_dict": False, "shape_gr_rand": True},
+        "dropdownOptions": [
+            {"optionName": m, "name": m,
+             "expectedHeader.cb_col": f"/X;{i}",
+             "expectedHeader.sortby_col": f"/X;{i}",
+             "expectedHeader.gb_col": "",
+             "expectedRadios.cb_col": True,
+             "expectedRadios.cb_gr": False,
+             "expectedRadios.sortby_check": True}
+            for i, m in enumerate(markers)
+        ],
+    }
+    return [calls, expression]
+
+
 def marker_extent(csv_path: Path, x_col: str, y_col: str) -> tuple[float, float] | None:
     """Largest X and Y in a marker CSV, or None if the columns aren't usable.
 
@@ -982,6 +1119,7 @@ def build_project(
     marker_cols: tuple[str, str, str],
     marker_coord_factor: float,
     region_specs: list[tuple[str, str, bool]],
+    h5ad_files: list[dict] | None = None,
 ) -> dict:
     layers, opacities, visibilities, filters = [], {}, {}, {}
 
@@ -1073,6 +1211,11 @@ def build_project(
         "hideNavigator": False,
     }
 
+    # An AnnData carries the call, the marker matrix and the per-object overlap together,
+    # so it replaces the marker CSV rather than sitting beside it.
+    if h5ad_files:
+        project["markerFiles"].extend(h5ad_files)
+
     if marker_rel:
         x_col, y_col, group_col = marker_cols
         project["markerFiles"].append({
@@ -1121,6 +1264,12 @@ def main() -> int:
                          "NOT auto-load: these exports run to ~200k features per donor, so a "
                          "donor whose structures are too heavy to draw still opens on its islets")
     ap.add_argument("--markers", type=Path, default=None, help="Per-cell CSV to attach")
+    ap.add_argument("--h5ad", type=Path, default=None,
+                    help="Per-donor AnnData to attach instead of a marker CSV (built by "
+                         "scripts/senior/build_tissuumaps_h5ad.py). Carries the call, the "
+                         "marker matrix and the per-object overlap in one file, so the calls "
+                         "can be checked by eye against the image. If a directory is given, "
+                         "<case>.h5ad is looked for inside it.")
     ap.add_argument("--marker-cols", default="X_centroid,Y_centroid,phenotype",
                     help="x,y,group columns in the marker CSV")
     ap.add_argument("--um-per-px", type=float, default=DEFAULT_UM_PER_PX,
@@ -1356,9 +1505,62 @@ def main() -> int:
 
     x_col, y_col, group_col = (c.strip() for c in args.marker_cols.split(","))
 
+    # ---- AnnData, the preferred cell source ----------------------------------------
+    h5ad_files = None
+    h5ad_path = args.h5ad
+    if h5ad_path and h5ad_path.is_dir():
+        candidate = h5ad_path / f"{case_id}.h5ad"
+        h5ad_path = candidate if candidate.is_file() else None
+        if h5ad_path is None:
+            log(f"no {case_id}.h5ad in {args.h5ad}; no AnnData attached")
+    if h5ad_path:
+        facts = h5ad_facts(h5ad_path)
+        if facts is None:
+            log("AnnData not attached -- see the warning above")
+        else:
+            # Same falsification the CSV path does. obsm/spatial is written in image
+            # pixels, so coord_factor is 1 and the extent must already fit the slide. If
+            # it does not, the coordinates are in some other space and every cell would
+            # land in the wrong place -- visible only at cell-level zoom.
+            img_w, img_h = read_image_size(image)
+            ex, ey = facts["extent"]
+            # Derived from the two declared pixel sizes, exactly as --region-scale auto
+            # derives the GeoJSON scale. typing/cells centroids are at QuPath resolution #1.
+            h5ad_coord_factor = round(args.region_um_per_px / args.um_per_px, 6)
+            sx, sy = ex * h5ad_coord_factor, ey * h5ad_coord_factor
+            if sx > img_w * 1.02 or sy > img_h * 1.02:
+                log(f"ERROR: AnnData cells reach {sx:.0f}x{sy:.0f} px after x{h5ad_coord_factor} "
+                    f"but the image is only {img_w}x{img_h}. The coordinates are not at "
+                    f"--region-um-per-px. NOT attaching them rather than placing every cell in "
+                    f"the wrong spot.")
+            elif sx < img_w * 0.25 and sy < img_h * 0.25:
+                # The CSV check only ever caught coordinates that were too LARGE. A factor
+                # that is too SMALL fails the same way and passes that test, which is how the
+                # 2x error this replaces went unnoticed.
+                log(f"ERROR: AnnData cells reach only {sx:.0f}x{sy:.0f} px after "
+                    f"x{h5ad_coord_factor} on a {img_w}x{img_h} image -- under a quarter of "
+                    f"the slide in both axes. That is a scale error, not a small section. "
+                    f"NOT attaching them.")
+            else:
+                # The file is hundreds of MB; reference it in place when it already sits
+                # beside the project, and link rather than copy otherwise.
+                dst = out_dir / f"{case_id}.h5ad"
+                if not dst.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        dst.symlink_to(h5ad_path.resolve())
+                    except OSError:
+                        shutil.copyfile(h5ad_path, dst)
+                h5ad_files = h5ad_marker_files(dst.name, facts, h5ad_coord_factor)
+                log(f"AnnData: {facts['n_cells']:,} cells, {len(facts['markers'])} markers, "
+                    f"{len(facts['obs_categoricals'])} groupable columns -> {dst.name} "
+                    f"(x{h5ad_coord_factor} -> {sx:.0f}x{sy:.0f} px of {img_w}x{img_h})")
+
     marker_rel = None
     markers_rejected = False
-    if args.markers:
+    if args.markers and h5ad_files:
+        log("--markers ignored: an AnnData was attached, which supersedes the marker CSV")
+    elif args.markers:
         # Falsify the coordinate factor before attaching, the way the region
         # scale is falsified against the image bounds.
         #
@@ -1397,6 +1599,7 @@ def main() -> int:
         # Marker CSVs are in µm; TissUUmaps wants image pixels.
         marker_coord_factor=round(1.0 / args.um_per_px, 6),
         region_specs=region_specs,
+        h5ad_files=h5ad_files,
     )
 
     tmap_path = out_dir / f"{case_id}.tmap"
