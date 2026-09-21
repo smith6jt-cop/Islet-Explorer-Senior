@@ -66,6 +66,27 @@ that file belongs to another lane.
 
 WHAT IS DELIBERATELY NOT A NODE
 -------------------------------
+``nonendocrine_outline`` was a node until 2026-09-21 and is no longer one.  It streams
+``data/redsea_scratch/geojson`` -- 61 GB across 22 single-line FeatureCollections, up to 5.5 GB
+each, parsed one feature at a time through ``ijson`` -- to union each islet's endocrine cell
+outlines.  It cost 987 s of a 26-node rebuild, and that cost is JSON parsing, not geometry.
+
+Running it on every rebuild buys nothing, because the numbers it feeds are already measured per
+cell:
+
+* the non-endocrine AREA never came from the polygon.  ``build_islet_geometry.py``'s own
+  docstring says so -- "its area is the summed segmented area of the non-endocrine cells in it
+  -- a measurement, not the region area minus an estimate" -- and every row it writes already
+  carries ``cells_um2 = subset["cell_area"].sum()``;
+* the STRUCTURE areas are the same evidence twice.  ``data/development/typing/crossed/
+  crossed_<donor>.parquet`` already holds ``object_id, cell_um2, crossed_frac_vessel,
+  crossed_frac_lymphatic, crossed_frac_nerve`` -- the per-cell fraction each classified object
+  covers -- so the area over any cell set is a join and a sum.
+
+The one thing only the polygon gives is the drawn outline.  The script is kept and still runs on
+demand for that; it is simply not part of the routine build, so a typing change no longer costs
+sixteen minutes of JSON parsing to re-derive what the matrix already holds.
+
 The upstream typing lane (``typing/cells``, ``typing/immune``, ``typing/crossed``,
 ``typing/islet_membership``, ``celltype/uniform``) and the two export ingests
 (``rebuild_donor_from_revised_export.py``, ``ingest_pln_cells.py``) are SOURCES here, not nodes.
@@ -123,6 +144,10 @@ SKIP_SUFFIXES = (".tmp", ".parquet.tmp")
 #: one of them is the newest input, so "stale against typing/cells" names its producer rather
 #: than leaving the reader to grep for it.
 SOURCE_PRODUCERS = {
+    "data/development/typing/geometry":
+        "core/phenocycler/scripts/typing/build_nonendocrine_outline.py -- run ON DEMAND, not as "
+        "a node: it streams 61 GB of per-cell GeoJSON for numbers the cell matrix already holds "
+        "(see WHAT IS DELIBERATELY NOT A NODE). Only the drawn outline needs it",
     "data/development/typing/cells":
         "core/phenocycler/scripts/typing/build_cells.py (the subpanel classification lane; "
         "see core/phenocycler/scripts/typing/RECONSTRUCTION.md)",
@@ -251,22 +276,9 @@ def _expand_paths(values, tokens: dict[str, str]) -> tuple[str, ...]:
 def _declaration() -> list[dict]:
     """The graph as written, before token expansion. Read this to know what runs."""
     return [
-        # -- the upstream geometry pair, which the app artifacts and two layers both read ------
-        dict(
-            name="nonendocrine_outline",
-            command=("{py}", "{typingscripts}/build_nonendocrine_outline.py", "--include-marginal"),
-            inputs=(
-                "{typingscripts}/build_nonendocrine_outline.py",
-                "{typing}/cells",
-                "{repo}/data/redsea_scratch/geojson",
-                "{repo}/core/phenocycler/data/qupath_manifest.json",
-            ),
-            outputs=("{typing}/geometry/endocrine_union_*.parquet",),
-            soft_inputs=("{app}/islet_geometry.parquet",),
-            why="Correction E's per-cell endocrine unions. Its read of islet_geometry.parquet at "
-                "line 97 is dead -- assigned, never used -- so it is a soft input and not an edge; "
-                "the real flow is nonendocrine_outline -> islet_geometry.",
-        ),
+        # ``nonendocrine_outline`` IS NOT A NODE, as of 2026-09-21 -- see the section of that
+        # name in the module docstring. It streams 61 GB of per-cell GeoJSON to derive numbers
+        # the cell matrix already carries.
         dict(
             name="islet_geometry",
             command=("{py}", "{typingscripts}/build_islet_geometry.py", "--include-marginal"),

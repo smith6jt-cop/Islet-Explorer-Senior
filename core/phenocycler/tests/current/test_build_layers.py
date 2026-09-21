@@ -134,15 +134,30 @@ def test_a_path_a_node_both_reads_and_writes_is_not_an_edge_to_the_other_writers
     assert "crossed_fraction" in dependencies["singlecell_trajectory"]
 
 
-def test_the_declared_cycle_break_is_a_soft_input_and_not_an_edge(tmp_path):
-    """build_nonendocrine_outline.py:97 reads islet_geometry.parquet and never uses it."""
+def test_nonendocrine_outline_is_not_a_node(tmp_path):
+    """It was one until 2026-09-21, and the cycle-break it needed went with it.
+
+    The node streamed `data/redsea_scratch/geojson` -- 61 GB, up to 5.5 GB per donor, parsed one
+    feature at a time -- to union each islet's endocrine cell outlines. The numbers that union
+    fed are already measured per cell: `build_islet_geometry.py` takes the non-endocrine AREA
+    from `cells_um2 = subset["cell_area"].sum()` and says so in its own docstring, and the
+    STRUCTURE areas are the same evidence as `typing/crossed`'s per-cell `crossed_frac_*`. Only
+    the drawn outline needs the polygon, so the script runs on demand instead.
+
+    The cycle break this test used to assert -- a dead read of islet_geometry.parquet declared as
+    a soft_input rather than an edge -- existed only to keep that node acyclic. With the node
+    gone there is no cycle to break, and asserting on the vanished declaration would pin the
+    scaffolding rather than the behaviour.
+    """
     nodes = bl.build_graph(REPO, tmp_path / "layers")
-    node = nodes["nonendocrine_outline"]
-    geometry = str(REPO / "data/development/typing/app/islet_geometry.parquet")
-    assert geometry in node.soft_inputs
-    assert geometry not in node.inputs
-    assert "islet_geometry" not in bl.edges(nodes)["nonendocrine_outline"]
-    assert "nonendocrine_outline" in bl.edges(nodes)["islet_geometry"]
+    assert "nonendocrine_outline" not in nodes
+    # islet_geometry still READS the unions; they are a source now, with a named producer.
+    union = str(REPO / "data/development/typing/geometry")
+    assert any(union in i for i in nodes["islet_geometry"].inputs), (
+        "islet_geometry stopped reading the endocrine unions -- if that is intended, this test "
+        "and the SOURCE_PRODUCERS entry should go too")
+    assert any("typing/geometry" in k for k in bl.SOURCE_PRODUCERS), (
+        "the unions are an input no node produces, so the check table must name what does")
 
 
 # ---------------------------------------------------------------------------------------------

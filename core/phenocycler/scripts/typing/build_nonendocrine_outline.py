@@ -27,6 +27,7 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 
 import ijson
 import numpy as np
@@ -35,7 +36,7 @@ import pyarrow.parquet as pq
 from shapely.geometry import Polygon, shape
 from shapely.ops import unary_union
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cohort as COHORT
 import subpanel_io as S
 
@@ -80,10 +81,49 @@ def read_polygons(path, wanted: set[str]) -> dict[str, Polygon]:
     return found
 
 
+def is_fresh(donor: str, cell_geojson: Path) -> bool:
+    """True when this donor's outline already postdates every input it is built from.
+
+    The output is a function of exactly one thing that can move: WHICH cells are endocrine.
+    The islet outlines are QuPath's, the cell polygons are the segmentation's, and neither is
+    rewritten by this lane. So the inputs that matter are that donor's typing partition, its
+    per-cell outline file, the QuPath manifest that supplies the pixel size, and this script.
+
+    Why this is worth a guard rather than a comment: `read_polygons` streams a single-line
+    FeatureCollection that reaches 5.5 GB, one feature at a time through `ijson`, and the loop
+    did it unconditionally -- about a minute per donor, sixteen for the cohort, to re-derive a
+    file that was already correct. The cost is JSON parsing, not geometry.
+
+    mtimes, not hashes, to match `scripts/senior/build_layers.py --check`, which is the gate
+    this lane is scheduled by. A no-op rewrite of an input therefore still forces a rebuild --
+    that is the known limitation of the whole staleness scheme here, not something introduced
+    at this call site.
+    """
+    out = OUT / f"endocrine_union_{donor}.parquet"
+    if not out.exists():
+        return False
+    inputs = [
+        S.OUT / f"cells/donor_id={donor}/data.parquet",
+        S.RUN / f"cells/donor_id={donor}/data_0.parquet",
+        cell_geojson,
+        S.REPO / "core/phenocycler/data/qupath_manifest.json",
+        Path(__file__).resolve(),
+    ]
+    present = [i for i in inputs if i.exists()]
+    if len(present) != len(inputs):
+        # An input that is not there cannot be compared against, so nothing is claimed about
+        # freshness: rebuild and let the build fail on the real missing file.
+        return False
+    return out.stat().st_mtime >= max(i.stat().st_mtime for i in present)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
     parser.add_argument("--include-marginal", action="store_true")
+    parser.add_argument("--force", action="store_true",
+                        help="rebuild a donor even when its outline is already newer than "
+                             "every input it reads")
     args = parser.parse_args()
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
 
@@ -101,12 +141,18 @@ def main() -> int:
     # does not need and reading as though the outlines were joined to islet geometry.
     OUT.mkdir(parents=True, exist_ok=True)
 
+    skipped = []
     for donor in donors:
-        print(f"{donor}:", flush=True)
         matches = [p for p in CELL_GEOJSON.glob("cells__*.geojson") if stems[donor] in p.name]
         if len(matches) != 1:
             raise FileNotFoundError(f"{donor}: {len(matches)} cell-outline files")
 
+        if not args.force and is_fresh(donor, matches[0]):
+            print(f"{donor}: fresh -- skipped (--force to rebuild)", flush=True)
+            skipped.append(donor)
+            continue
+
+        print(f"{donor}:", flush=True)
         wanted, cells = endocrine_ids(donor)
         outlines = read_polygons(matches[0], wanted)
         missing = len(wanted) - len(outlines)
@@ -141,6 +187,8 @@ def main() -> int:
         print(f"    {len(frame):,} islets -> endocrine_union_{donor}.parquet  "
               f"(union/reported-area median {ratio.median():.3f})", flush=True)
 
+    if skipped:
+        print(f"skipped as fresh ({len(skipped)}): {', '.join(skipped)}")
     return 0
 
 

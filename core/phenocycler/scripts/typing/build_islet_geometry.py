@@ -130,6 +130,17 @@ def endocrine_unions(donor: str) -> dict[str, object]:
     """
     path = S.OUT / f"geometry/endocrine_union_{donor}.parquet"
     if not path.exists():
+        # Say so, every time. Returning {} here makes `non_endocrine` None, which makes this
+        # donor's region_um2 and every structure area NaN -- correctly Unavailable, but
+        # indistinguishable in the output from a donor whose geometry genuinely could not be
+        # measured. `build_nonendocrine_outline` stopped being a routine build node on
+        # 2026-09-21 (it streams 61 GB of GeoJSON for numbers the cell matrix already holds),
+        # so this path is now reachable by simply not having run it, rather than only by a
+        # broken upstream.
+        print(f"  {donor}: no endocrine_union parquet at {path} -- non-endocrine region and "
+              f"its structure areas will be Unavailable for this donor. Run "
+              f"build_nonendocrine_outline.py --donors {donor} if that region is wanted.",
+              flush=True)
         return {}
     frame = pd.read_parquet(path)
     return {row.islet_key: wkb.loads(row.wkb) for row in frame.itertuples()}
