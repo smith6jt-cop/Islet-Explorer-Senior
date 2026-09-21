@@ -25,8 +25,10 @@ Three layers, because each catches what the others cannot:
 
 3. **The records.**  For every ``records.jsonl`` under ``data/development/broadtype/arms/``,
    ``identity_markers`` (what actually entered identity) must be a subset of the declared
-   identity markers and disjoint from the state markers.  Skipped with a reason when no arm
-   has written a record yet.
+   identity markers and disjoint from the state markers. The protocol's explicitly flagged
+   ``cosine-37-collapsed`` continuity records instead must fail the actual screening gate for
+   every label and be ineligible for producer selection. They are historical violations, not
+   permitted identity inputs. Skipped with a reason when no arm has written a record yet.
 """
 from __future__ import annotations
 
@@ -43,6 +45,8 @@ import pytest
 import arm_base
 import declarations
 import pins
+import screen
+import verdict
 from criteria import CRITERIA
 
 BROADTYPE = pathlib.Path(__file__).resolve().parents[1]
@@ -279,9 +283,56 @@ def run(ctx):
 
 
 # --------------------------------------------------------------------------- 3. the records
+@pytest.fixture
+def assert_identity_rejected(tmp_path, monkeypatch, dec):
+    """Exercise the screening gate and producer selection without reading historical cell data."""
+    primary = tmp_path / "primary.parquet"
+    pd.DataFrame({"object_id": ["cell-0"], "label": ["T_NK"]}).to_parquet(primary, index=False)
+    ctx = arm_base.ArmContext(
+        donor_id="synthetic", scope="frame", ids=np.array(["cell-0"]),
+        X=pd.DataFrame({"CD3e": [5.0]}), markers=["CD3e"],
+        context=pd.DataFrame({"X_centroid": [0.0], "Y_centroid": [0.0]}),
+        region_idx=np.array([0]),
+    )
+
+    def scoring_is_forbidden(*args, **kwargs):
+        pytest.fail("invalid identity inputs reached cell scoring")
+
+    monkeypatch.setattr(screen, "aligned_labels", scoring_is_forbidden)
+
+    def check(rec):
+        used = set(rec["identity_markers"])
+        leak = sorted(used & set(dec["state_markers"]))
+        undeclared = sorted(used - set(dec["identity_markers"]))
+        assert leak or undeclared, "this rejection check needs an invalid input"
+        result = screen.judge(rec["arm"], ctx.donor_id, ctx.scope,
+                              {"primary": {"calls": str(primary)}}, {"primary": rec}, ctx, dec)
+        assert result["state_marker_in_identity_inputs"] == leak
+        assert result["undeclared_identity_inputs"] == undeclared
+        expected = (f"state_marker_in_identity_inputs: {leak}" if leak
+                    else f"undeclared_identity_inputs: {undeclared}")
+        assert set(result["labels"]) == set(dec["labels"])
+        for label in result["labels"].values():
+            assert label["verified"] is False and label["status"] == "failed"
+            assert label["error"] == expected
+            assert label["blocking_reasons"] == [expected]
+        summary = verdict.build_summary({(rec["arm"], ctx.donor_id): result},
+                                         donors=[ctx.donor_id], dec=dec)
+        assert summary["arms"][rec["arm"]]["verified_total"] == 0
+        assert summary["arms"][rec["arm"]]["survives"] is False
+        assert summary["producer"] is None
+
+    return check
+
+
+@pytest.mark.parametrize("marker", ["Ki67", "ASCT2", "CD141", "CD11b", "DAPI", "unknown-marker"])
+def test_screen_rejects_state_excluded_structural_and_undeclared_inputs(marker, assert_identity_rejected):
+    assert_identity_rejected({"arm": "synthetic", "identity_markers": ["CD3e", marker]})
+
+
 @pytest.mark.parametrize("path", RECORDS or [None],
                          ids=lambda p: str(p.relative_to(pins.OUT)) if p else "no-records-yet")
-def test_recorded_identity_markers_are_declared_type_markers_only(path, dec):
+def test_recorded_identity_markers_are_declared_type_markers_only(path, dec, assert_identity_rejected):
     if path is None:
         pytest.skip(f"no records.jsonl exists yet under {(pins.OUT / 'arms').relative_to(pins.REPO)}/")
     identity, state = set(dec["identity_markers"]), set(dec["state_markers"])
@@ -290,8 +341,16 @@ def test_recorded_identity_markers_are_declared_type_markers_only(path, dec):
     for ln in lines:
         rec = json.loads(ln)
         used = set(rec["identity_markers"])
-        assert used <= identity, f"{path} {rec['arm']}/{rec['config_id']}: undeclared identity input {sorted(used - identity)}"
-        assert not used & state, f"{path} {rec['arm']}/{rec['config_id']}: state marker in identity {sorted(used & state)}"
+        if rec["arm"] == "cosine-37-collapsed":
+            # Section 3 declares this state-gated continuity comparator explicitly. Its
+            # records must stay honest, and the tiering gate must reject every one of them.
+            assert rec["params"]["flag"] == "inherits state-gated rule table"
+            assert used & state and used - identity
+            assert used <= {m for ms in pins.markers_by_kind().values() for m in ms}
+            assert_identity_rejected(rec)
+        else:
+            assert used <= identity, f"{path} {rec['arm']}/{rec['config_id']}: undeclared identity input {sorted(used - identity)}"
+            assert not used & state, f"{path} {rec['arm']}/{rec['config_id']}: state marker in identity {sorted(used & state)}"
         assert rec["n_called"] + rec["n_ambiguous"] + rec["n_unavailable"] == rec["n_cells"]
         if rec["config_id"].startswith("ablate:"):
             assert rec["config_id"].split(":", 1)[1] not in used, "the withheld marker re-entered identity"

@@ -249,13 +249,20 @@ def label_vector(clusters: np.ndarray, by_cluster: dict, vocab: dict) -> np.ndar
 
 # --------------------------------------------------------------------------- the arm
 def run(ctx: arm_base.ArmContext) -> pd.DataFrame:
+    return run_features(ctx, arm_base.within_donor_rank(ctx.X),
+                        params=DEFAULT_PARAMS, scratch_root=SCRATCH_ROOT)
+
+
+def run_features(ctx: arm_base.ArmContext, features: pd.DataFrame, *,
+                 params: dict, scratch_root: pathlib.Path) -> pd.DataFrame:
+    """Shared SOM pipeline with an explicit feature block and per-method recording paths."""
     t0 = time.time()
     dec = declarations.load()
     ids = np.asarray(ctx.ids).astype(str)
     n = len(ids)
     result = {"donor_id": ctx.donor_id, "scope": ctx.scope, "config_id": ctx.config_id, "seed": int(ctx.seed),
               "n_cells": int(n), "identity_markers": list(ctx.markers)}
-    DEFAULT_PARAMS["result"] = result
+    params["result"] = result
     ctx.extra["som_kintsugi"] = result
 
     declared, excluded_labels = declared_columns(list(ctx.markers))
@@ -266,9 +273,10 @@ def run(ctx: arm_base.ArmContext) -> pd.DataFrame:
         return pd.DataFrame({"object_id": ids, "label": UNAVAILABLE, "score": np.nan,
                              "reason": "ablation_removes_required_input"})[list(CALL_COLUMNS)]
 
-    # 1. features: within-donor rank of the type markers; non-finite cells cannot enter a Euclidean SOM
-    feats = arm_base.within_donor_rank(ctx.X)
-    F = feats.to_numpy(np.float64)
+    # 1. non-finite cells cannot enter a Euclidean SOM
+    if not features.index.equals(ctx.X.index) or list(features.columns) != list(ctx.markers):
+        raise ValueError("SOM features must preserve the context's rows and identity marker order")
+    F = features.to_numpy(np.float64)
     finite = np.isfinite(F).all(axis=1)
     result["n_non_finite"] = int((~finite).sum())
     result["non_finite_by_marker"] = {m: int(k) for m, k in zip(ctx.markers, (~np.isfinite(F)).sum(axis=0)) if k}
@@ -284,7 +292,7 @@ def run(ctx: arm_base.ArmContext) -> pd.DataFrame:
     # 2. the SOM grid (and the shuffled twin's grid at ctx.seed), in .venv-som
     seeds = [int(ctx.seed) + k for k in range(N_SEEDS)]
     fits = [(nn, s) for nn in NODES_GRID for s in seeds]
-    scratch = SCRATCH_ROOT / f"{ctx.donor_id}__{ctx.scope}__{ctx.config_id.replace(':', '_')}__{os.getpid()}"
+    scratch = scratch_root / f"{ctx.donor_id}__{ctx.scope}__{ctx.config_id.replace(':', '_')}__{os.getpid()}"
     t_som = time.time()
     try:
         cols = list(ctx.markers)
@@ -358,7 +366,7 @@ def run(ctx: arm_base.ArmContext) -> pd.DataFrame:
         "annotation_only": award_rate(ann_only),
         "arm_by_nodes": arm_rates,
         "false_award_rate": arm_rates[str(chosen)]["rate"],
-        "definition": DEFAULT_PARAMS["false_award_measurement"],
+        "definition": params["false_award_measurement"],
     }
     result["label_counts"] = calls["label"].value_counts().to_dict()
     result["seconds"] = round(time.time() - t0, 1)

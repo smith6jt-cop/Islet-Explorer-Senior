@@ -27,6 +27,7 @@ import release  # noqa: E402
 from records import AMBIGUOUS, UNAVAILABLE  # noqa: E402
 
 from phenocycler.config import PipelineConfig  # noqa: E402
+from phenocycler.integration import phenospace  # noqa: E402
 from phenocycler.integration.contract import coerce_cell_table, contract_profile, has_identity  # noqa: E402
 from phenocycler.integration.phenospace import (  # noqa: E402
     PhenotypeSpaceError, attach_release_identity, load_phenotype_space, load_release,
@@ -316,23 +317,42 @@ def test_scope_suffixed_verdict_is_preferred_and_status_form_accepted(tmp_path):
                                 arm=ARM, donor=DONOR, declared=declared)
 
 
-def test_undeclared_label_excluded_donor_and_moved_run_are_refused(tmp_path):
+def test_undeclared_label_excluded_donors_and_moved_writer_pin_are_refused(tmp_path):
     bad = dict(ARM_CALLS)
     bad["u00"] = ("Neural", 0.9, "")
     src, _, _ = build_sources(tmp_path, arm_labels=bad)
     with pytest.raises(ValueError, match="undeclared labels"):
         release.write_release(ARM, [DONOR], out=tmp_path / "release", src=src)
     src2, _, _ = build_sources(tmp_path / "b")
-    with pytest.raises(release.ReleaseError, match="excluded donor"):
-        release.write_release(ARM, [DONOR, "6457"], out=tmp_path / "b" / "release", src=src2)
-    src3, cfg3, _ = build_sources(tmp_path / "c")
+    for excluded in release.DONOR_EXCLUSIONS:
+        with pytest.raises(release.ReleaseError, match="excluded donor"):
+            release.write_release(ARM, [DONOR, excluded], out=tmp_path / "b" / "release", src=src2)
+    src3, _, _ = build_sources(tmp_path / "c")
     src3.expression_content_id = "something-else"
     with pytest.raises(release.ReleaseError, match="content_id"):
         release.write_release(ARM, [DONOR], out=tmp_path / "c" / "release", src=src3)
-    # phenospace catches the same drift from its side when the manifest moves after writing
-    src4, cfg4, data4 = build_sources(tmp_path / "d")
-    out4 = tmp_path / "d" / "release"
-    release.write_release(ARM, [DONOR], out=out4, src=src4)
-    (data4 / "runs" / RUN / "manifests" / "expression.json").write_text(json.dumps({"content_id": "moved"}))
-    with pytest.raises(PhenotypeSpaceError, match="content id"):
-        load_release(PipelineConfig(data_dir=data4, phenocycler_identity_release=out4), "phenocycler")
+
+
+def test_release_loader_checks_input_coverage_and_reports_unresolvable_input(tmp_path, monkeypatch):
+    """Since 2026-09-16 phenospace checks declared input coverage, not retired manifest hashes."""
+    src, cfg, _ = build_sources(tmp_path)
+    monkeypatch.setattr(phenospace, "_REPO_ROOT", tmp_path)
+    out = tmp_path / "release"
+    release.write_release(ARM, [DONOR], out=out, src=src)
+    loaded = release.verify_release(out, cfg)
+    assert loaded.provenance == f"verified:{src.expression_root}"
+
+    src.expression_manifest.write_text(json.dumps({"content_id": "moved"}))
+    loaded = release.verify_release(out, cfg)
+    assert loaded.expression_content_id == CONTENT_ID  # still the release's declared provenance
+    assert loaded.provenance == f"verified:{src.expression_root}"
+
+    donor_part = src.expression_root / f"donor_id={DONOR}"
+    renamed = donor_part.with_name("donor_id=other")
+    donor_part.rename(renamed)
+    with pytest.raises(PhenotypeSpaceError, match=f"missing=.*{DONOR}"):
+        release.verify_release(out, cfg)
+    renamed.rename(donor_part)
+    src.expression_root.rename(src.expression_root.with_name("expression-moved"))
+    loaded = release.verify_release(out, cfg)
+    assert loaded.provenance == "unverifiable:declared input data/runs/run-synthetic/expression does not resolve"

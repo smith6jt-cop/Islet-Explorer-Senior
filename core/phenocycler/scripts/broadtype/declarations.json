@@ -1,6 +1,6 @@
 {
- "method_version": "broadtype-declarations-2026-09-05",
- "rule": "identity = registry kind=='type'; compartments from the registry; Immune split by the rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* leaves; definitional (pos/allpos) cross-branch claims exclude; OR-membership notes",
+ "method_version": "broadtype-declarations-2026-09-17",
+ "rule": "identity = registry kind=='type' and represented in the rule table; compartments from the registry; Immune split by the rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* leaves; definitional (pos/allpos) cross-branch claims exclude; OR-membership notes",
  "labels": {
   "Endocrine": {
    "common_lineage": "Endocrine",
@@ -170,6 +170,8 @@
   "Vimentin"
  ],
  "state_markers": [
+  "ASCT2",
+  "ATP5A",
   "Bcl_2",
   "Beta_actin",
   "CD107a",
@@ -178,16 +180,24 @@
   "CD44",
   "CD57",
   "CD99",
+  "CS",
+  "G6PD",
+  "GLUT1",
   "Granzyme_B",
+  "HK1",
   "HLA_A",
   "HLA_DR",
+  "Histone_H3_(p_Ser28)",
   "ICOS",
+  "IDH2",
   "IDO1",
   "Ki67",
   "LAG3",
+  "LDHA",
   "PCNA",
   "PD_1",
   "PD_L1",
+  "SDHA",
   "SOX2",
   "TCF_1",
   "TOX",
@@ -201,6 +211,8 @@
  "excluded": {
   "B3TUBB": "registry Neural but the rule table makes a definitional claim for it under ['Endocrine', 'Epithelial_nonendocrine'] (rows ['Neural', 'Endo-hormone-negative'])",
   "CD11b": "registry kind=excluded",
+  "CD141": "registry type marker absent from the rule table; no identity rule declared",
+  "CD21": "registry type marker absent from the rule table; no identity rule declared",
   "CD34": "registry Endothelial but the rule table makes a definitional claim for it under ['Stromal'] (rows ['Mes-CD34-fibroblast'])",
   "CD56": "registry type marker with no broad_compartment; rule-table positive rows ['Epi-endocrine', 'Imm-NK-cell']",
   "CD66": "registry Epithelial but the rule table makes a definitional claim for it under ['B_Plasma', 'Myeloid', 'T_NK'] (rows ['Imm-neutrophil'])",
@@ -210,7 +222,7 @@
  "notes": [],
  "sources": {
   "registry": "core/phenocycler/phenocycler/marker_registry.json",
-  "registry_sha256": "ceb0f91ad0e28b11e73b98e9eafc95ce959ff6bcee70fc1d44023a6f5f30bc37",
+  "registry_sha256": "577ab46728ed857943e80d91c1b47d02239b71eb3cc473e84e528b0253edc074",
   "rules": "phenotype_workflow.csv",
   "rules_sha256": "b010a3f9c6ca40cb4b76957f65a25c39f12849387ef72c616a201deb885a0956"
  }
