@@ -102,8 +102,20 @@ def register_one(serial: str, gj: Path, *, xenium_paths: Path = XENIUM_PATHS,
       one record with nothing saying so.
     """
     donor = donor_of(serial, xenium_paths)
-    ann = geo.load_annotations(gj)
-    tissue = geo.tissue_polygon(ann)
+    # Siblings, because the 2026-09-18 re-export splits one image's classes across
+    # directories: Islet in `geojson/<name>`, Tissue in `geojson/Tissue/<name>`.
+    ann = geo.load_annotations_with_siblings(gj)
+    # A run that put pancreas and pLN on one slide carries ONE Tissue annotation spanning
+    # both, while this bundle holds one roi -- so the outline is cut to the islet-bearing
+    # region before anything is measured against it. No-op where the annotation covers a
+    # single tissue. Recorded on the row either way; never applied silently.
+    try:
+        tissue, tissue_split = geo.tissue_for_islet_bearing_roi(ann)
+    except geo.RestainGeoError as exc:
+        if not geo.has_tissue(ann):
+            raise
+        tissue = geo.tissue_polygon(ann)
+        tissue_split = {"split_applied": False, "split_refused_because": str(exc)}
     isl = geo.islets(ann)
 
     dd = xenio.load_donor(donor, xenium_paths, roi=roi, prefer="bundle")
@@ -132,6 +144,7 @@ def register_one(serial: str, gj: Path, *, xenium_paths: Path = XENIUM_PATHS,
         "stages": list(res.stages), "notes": list(res.notes),
         "nonrigid": False, "nonrigid_reason": "SimpleITK not installed",
         "affine": np.asarray(res.transform.affine).tolist(),
+        "tissue_split": tissue_split,
         **scale_check,
     }, res, dd, isl, grid
 

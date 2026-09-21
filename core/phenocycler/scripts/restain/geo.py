@@ -90,6 +90,84 @@ def load_annotations(path: Path) -> dict[str, list]:
     return out
 
 
+def load_annotations_with_siblings(path: Path) -> dict[str, list]:
+    """Annotations for one image, gathered from every directory QuPath exported it to.
+
+    The 2026-09-18 re-export splits one image's annotations across sibling directories: the
+    ``Islet`` objects land in ``geojson/<name>`` and the ``Tissue`` outline in
+    ``geojson/Tissue/<name>``.  Reading only the path handed in therefore yields an
+    islet-only annotation and :func:`tissue_polygon` raises, which is a directory layout
+    reported as a missing annotation.
+
+    Every sibling with the SAME FILENAME is merged, and the classes are unioned rather than
+    overwritten, so an export that later puts both classes in one file needs no change here.
+    """
+    path = Path(path)
+    out = load_annotations(path)
+    for sib in sorted(path.parent.glob(f"*/{path.name}")):
+        if sib == path or not sib.is_file():
+            continue
+        for name, geoms in load_annotations(sib).items():
+            out.setdefault(name, []).extend(geoms)
+    return out
+
+
+def _tissue_parts(ann: dict[str, list]) -> list:
+    """Every ``Tissue`` component as its own polygon, MultiPolygons exploded."""
+    parts: list = []
+    for g in ann.get(TISSUE, []):
+        parts.extend(list(g.geoms) if g.geom_type == "MultiPolygon" else [g])
+    return parts
+
+
+def tissue_for_islet_bearing_roi(ann: dict[str, list]):
+    """The tissue footprint of the ISLET-BEARING region, when one slide carries two tissues.
+
+    A Xenium run that put pancreas and pLN on one slide has ONE ``Tissue`` annotation spanning
+    both, while a ``roi=panc`` bundle holds only the pancreas.  Comparing the two then measures
+    the slide layout rather than the registration.  Measured across the seven donors carrying
+    both exports: the x extents already agree (ratio 0.911-1.076) while y runs 1.193-1.648,
+    because the two tissues are stacked vertically -- and panc + pLN y extent reproduces the
+    ``Tissue`` extent to within 0-8% on every one of them.
+
+    The pancreas is identified by what is drawn on it, not by a coordinate rule: islets occur in
+    pancreas and not in lymph node, so the components carrying an ``Islet`` object fix the
+    pancreas band, and EVERY component whose centroid falls in that band is kept.  Keeping the
+    band rather than only the islet-bearing components matters -- the latter would discard
+    pancreas that happens to hold no islet and shrink the mask the Dice is measured on.  Across
+    the same seven donors this keeps 54.8%-91.5% of the annotated area and brings both extent
+    ratios to 0.911-1.041, from a y ratio that was failing the +/-25% gate on four of them.
+
+    Returns ``(geometry, report)``.  It is a NO-OP by construction where the annotation covers
+    one tissue only: the band then spans every component and nothing is dropped.  Where no
+    islet is drawn it refuses rather than guessing -- an unsplittable annotation is a fact for
+    the caller, not a coordinate heuristic applied silently.
+    """
+    from shapely.ops import unary_union
+    if not has_tissue(ann):
+        raise RestainGeoError(f"no {TISSUE!r} annotation; classes present: {sorted(ann)}")
+    parts = _tissue_parts(ann)
+    centroids = [g.centroid for g in islets(ann)]
+    if not centroids:
+        raise RestainGeoError(
+            f"{len(parts)} {TISSUE!r} components and no {ISLET!r} object to say which of them "
+            "is the pancreas; an annotation spanning two tissues cannot be split without one")
+    bearing = [p for p in parts if any(p.contains(c) for c in centroids)]
+    if not bearing:
+        raise RestainGeoError(
+            f"none of the {len(parts)} {TISSUE!r} components contains any of the "
+            f"{len(centroids)} {ISLET!r} centroids; the two exports are not in one frame")
+    band_bounds = unary_union(bearing).bounds
+    lo, hi = band_bounds[1], band_bounds[3]
+    band = [p for p in parts if lo <= p.centroid.y <= hi]
+    total = sum(p.area for p in parts) or float("nan")
+    report = {"n_tissue_parts": len(parts), "n_islet_bearing": len(bearing),
+              "n_parts_kept": len(band), "n_parts_dropped": len(parts) - len(band),
+              "area_fraction_kept": float(sum(p.area for p in band) / total),
+              "band_y_um": [float(lo), float(hi)], "split_applied": len(band) < len(parts)}
+    return unary_union(band), report
+
+
 def has_tissue(ann: dict[str, list]) -> bool:
     """Whether annotations contain at least one ``Tissue`` geometry.
 

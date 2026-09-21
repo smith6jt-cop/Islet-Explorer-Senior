@@ -6,9 +6,19 @@
 
 **What changed, and why.** The earlier arm sampled a 4 um disc at a warped centroid and then
 restricted to cells inside a QuPath ``Islet`` polygon. The maintainer's instruction of
-2026-09-01 removes both: the QuPath islet annotations are **not to be used on Xenium or on the
-post-Xenium IF**, and the comparison is to run on the Xenium cell and nucleus segmentations
-against the IF insulin and glucagon channels only.
+2026-09-01 removes both from THIS comparison: it runs on the Xenium cell and nucleus
+segmentations against the IF insulin and glucagon channels only.
+
+    CORRECTED 2026-09-21 -- this paragraph used to end "the QuPath islet annotations are **not
+    to be used on Xenium or on the post-Xenium IF**", and a later session read that as a
+    repo-wide prohibition and backed out working code on the strength of it.  It is not one,
+    and nothing outside this docstring ever said it was: the string appears in no other file,
+    no doc and no commit message; ``run_register.py`` and ``run_hormone.py`` -- live, in this
+    same directory -- read ``geo.islets`` and ``islet_residents`` throughout and produced
+    ``hormone_panc_refined.json`` on the very same day; and the maintainer exported fresh
+    ``Islet`` geojsons for ten donors on 2026-09-18, seventeen days later.  What the
+    instruction scoped is the sentence above: what THIS script measures.  Describe what this
+    script does; do not write a rule for the rest of the repo into its docstring.
 
 That is a stronger design, not merely a different one. Every object here is Xenium's own --
 ``cell_boundaries.parquet`` and ``nucleus_boundaries.parquet`` are segmentations of the same
@@ -21,7 +31,7 @@ which carried GCG is recorded in no image -- the qptiff XML names only the instr
 -- so the assignment lives in ``PostXeniumIHC/data/<entry>/server.json``, where the maintainer's
 rename writes it, with ``restain_sections.csv``'s five hand-recorded rows as the fallback. That
 is a name, not an object: no annotation, no classification and no QuPath-derived geometry enters
-this lane, and the instruction of 2026-09-01 is unchanged. See :func:`channel_roles`.
+this script. See :func:`channel_roles`.
 
 **Scored against the subpanel, not the whole panel.** ``core/panels``' 18-gene pancreas
 endocrine identity core is the authority, and most of the 5,101-gene panel is not expressed in
@@ -753,10 +763,11 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
            "channel_source": roles.source, "qupath_entry": roles.qupath_entry,
            "n_cells": int(len(dd.cell_id)), "n_genes": int(len(dd.genes)),
            "uses_qupath_annotations": False, "subpanel": SUBPANEL,
-           "note": ("no QuPath annotation of any class is read here; every object is Xenium's "
-                    "own segmentation, per the maintainer's instruction of 2026-09-01. The "
-                    "QuPath project is read for CHANNEL NAMES only -- no object, class or "
-                    "annotation of any kind is read from it"),
+           "note": ("no QuPath annotation of any class is read by THIS lane; every object is "
+                    "Xenium's own segmentation, per the maintainer's instruction of "
+                    "2026-09-01 scoping this comparison. The QuPath project is read for "
+                    "CHANNEL NAMES only. This records what this lane does; it is not a "
+                    "statement about what other lanes may read"),
            "compartments": {}}
     if roles.csv_conflict:
         rec["channel_assignment_conflict"] = list(roles.csv_conflict)
