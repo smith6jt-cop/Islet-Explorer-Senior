@@ -16,6 +16,12 @@ per-file ownership decisions, the archive list, and the reconciled rule hierarch
 >
 > **Status 2026-09-04:** Phases 3 and 5 are complete. Branch reconciliation converged the
 > monorepo on `main`; the R-lane disposition is in `R_LANE_OWNERSHIP_2026-09-04.md`.
+>
+> **Status 2026-09-21:** every phase re-verified against the working tree and GitHub rather than
+> against the status table — **four of seven complete** (0, 2, 3, 5); 1 void and unbuilt, 4 not
+> executed, 6 half. Read § "Status 2026-09-21" at the end of this file: it corrects the
+> "leaving only `origin`" sentence, records the one original blocker never cleared, and notes
+> that Phase 4's duplication has grown from two lanes to four.
 
 Backups: `/home/smith6jt/repo-backups/2026-08-13/` — seven verified bundles plus working-tree
 snapshots for the two dirty repos. See that directory's `README.md`.
@@ -356,3 +362,44 @@ note on `data/app_data` and § Corrections item 1 (SpleenFollicle path); `docs/H
 and `docs/HANDOFF_2026-08-26_XENIUM_CELLTYPE.md` (dated status notes only); `analysis/xenium/README.md`
 and `CLAUDE.md` (`--paths`; `HANDOFF.md`); `analysis/xenium/docs/README.md`; `core/panels/README.md`
 (renv); `deploy/DEPLOY.md` (status note).
+
+## Status 2026-09-21 — every phase re-verified against the tree
+
+The § Phase status table above is the 2026-09-04 self-assessment. This section re-checks each
+phase **against the working tree and against GitHub**, not against that table. Where the two
+agree the earlier row stands; only the differences are worth reading.
+
+| phase | claimed 2026-09-04 | verified 2026-09-21 |
+|---|---|---|
+| 0 | done | — |
+| 1 | void; rewritten as a `core/bridge/` adapter, gated | **`core/bridge/` does not exist.** Consistent with "not executed"; the gate (`NO_VERIFIED_TYPING`) has not moved |
+| 2 | done; two items left undone on purpose | **holds.** No `.gitmodules`. Both leftovers still outstanding: `git tag -l 'phenocycler-v*'` returns **0**, and the rollback assets are still on disk at `/home/smith6jt/repo-backups/2026-08-13` (**1.2 GB**) |
+| 3 | done 2026-09-03 | **holds.** `analysis/xenium`, `analysis/follicle`, `core/phenocycler`, `core/panels` all present |
+| 4 | rewritten in writing; not executed | **holds, and the problem has grown.** The rewrite names two protein typing lanes to reconcile. There are now **four**: `scripts/celltype` (15 py), `scripts/kintsugi` (10 py), `scripts/broadtype` (10 py), `scripts/typing` (48 py) |
+| 5 | done 2026-09-04 | **holds.** `apps/R/ieCore/DESCRIPTION` present; all three domain configs present (`islet_default.yml`, `run20_default.yml`, `lymphoid_default.yml`) |
+| 6 | reconciliation done; archival gated | **reconciliation holds; archival not done.** All six source repositories read `archived=false` on GitHub. `Islet-Explorer` was pushed **2026-09-09**, after consolidation — consistent with Junior remaining a separate publication build |
+
+**Four of seven phases complete** (0, 2, 3, 5). One void and unbuilt (1), one not executed (4),
+one half (6).
+
+### One statement above is now stale
+
+§ Phase 6 records that "the source-audit remotes were removed, leaving only `origin`". There are
+now **two** remotes: `origin` and `hpg` (`/data/hpg_peek/Islet-Explorer-Senior-main_git/.git`).
+That is the documented HiPerGator pull-over-Globus route, not a returning source-audit remote, so
+it is a correction to the sentence rather than a regression to undo.
+
+### The one original blocker never cleared
+
+§ Blockers carried into later phases lists three. Two are struck through as CLEARED. The third is
+still open and unchanged since 2026-08-14: `XeniumPanelExplorer`'s live `renv.lock` and
+`.Rprofile` are missing. `core/panels/` holds only `renv.lock.r46-backup` and a bare
+`renv/activate.R`, so `renv::restore()` still fails exactly as its README says.
+
+### Phase 4 is the live one
+
+Phase 4's exit — *one calling method per modality, each with the figure that shows why* — is unmet
+on the protein side, and the same question is now open on the RNA side: two live Xenium typing
+workflows, being consolidated under the plan at
+`~/.claude/plans/there-are-currently-two-replicated-wozniak.md`. That work is Phase 4's exit
+criterion for the RNA modality and should be read as part of this phase rather than beside it.

@@ -338,6 +338,31 @@ built from. Until then, 6347, 6579 and 6580 should not be pooled with the other 
 per-cell rate. In the other eighteen the excluded fraction runs 1.8%–13.2% of all cells, so the gap
 is not negligible.
 
+> **RESOLVED 2026-09-20 — the three bundles are here and all 21 donors now measure.** The three
+> pancreas output directories above were fetched on **2026-09-18 16:51**, the day after this
+> release was written, and `analysis/xenium/scripts/nucleus_from_bundle.py` resolves every one of
+> the 21 sections by cell-id superset containment:
+>
+> | donor | bundle | h5ad cells | matched | `nucleus_count == 0` |
+> |---|---|---:|---:|---:|
+> | 6347 | `0041140__Panc_pLN__20241025__204655` | 1,393,487 | 1,393,487 (0 unmatched) | **45,899 (3.29 %)** |
+> | 6579 | `0041035__Pan__20241219__201934` | 665,135 | 665,135 (0 unmatched) | **23,315 (3.51 %)** |
+> | 6580 | `0041139__Panc__20241025__204655` | 931,227 | 931,227 (0 unmatched) | **35,160 (3.78 %)** |
+>
+> The same run reproduces the other **eighteen** donors' excluded counts **exactly**, summing to
+> the 775,234 this document publishes — so the resolver agrees with the release everywhere it
+> could already be checked, which is what makes the three new numbers trustworthy. The cohort
+> total becomes **879,608 of 17,490,305 (5.03 %)**.
+>
+> All three sit inside the 1.8–13.2 % range of the other eighteen, so the concern behind
+> "should not be pooled" does not survive its own test. **That caveat is retired.** The release
+> itself is unchanged and still carries `nucleus_rule_measurable: false` for those three; the
+> counts above are what a re-run produces, and the re-run is the first task of the consolidation.
+>
+> Note for whoever touches `xenium_paths.csv`: 6347's pancreas h5ad meets exactly **28** of its
+> ids in the `0041140__pLN` bundle and is a strict subset of `0041140__Panc_pLN`. Matching on
+> "some ids are present" would have built a nucleus rule from 28 cells. Containment is the test.
+
 Cohort totals: Exocrine 10,287,460 (58.8%) · Stromal_Fibroblast_Stellate 1,308,303 (7.5%) ·
 Myeloid 1,036,165 (5.9%) · Vascular 1,001,006 (5.7%) · Endocrine 463,179 (2.6%) ·
 Stromal_Pericyte_SMC 309,463 (1.8%) · Immune_B_Plasma 292,626 (1.7%) · Granulocyte 261,432 (1.5%) ·
@@ -398,7 +423,38 @@ Depth, not gDNA, is the constraint on a 5K-panel call for most of this cohort.
 > sample every constant in this lane was tuned on. Both donors are typed in this release (see
 > the per-donor table above) with **no gDNA correction applied and no flag on the rows**. Any
 > call on 6533 or 112 from this release has to be read with that in front of it, and a
-> cohort-pooled number that includes them carries it silently. Median transcripts per cell, lowest first: 6347 161 · 6380 221 · 6523 296 ·
+> cohort-pooled number that includes them carries it silently.
+>
+> **RETRACTED 2026-09-20 — the correction above substituted donor identity for bundle identity,
+> which is the substitution this repo's rules forbid.** Serials `0080870` and `0081366` are the
+> **PhenoXeno same-slide acquisitions**, recorded on their own batch row in
+> `core/phenocycler/data/integration/xenium_paths.csv` (`6533,panc,PhenoXeno,…0080870…`).
+> `0081366` appears in that file **nowhere at all**. This release types 6533 and 112 from
+> **different bundles**, and those bundles' own `adjusted_genomic_control_probe_rate`, read from
+> `data/development/xenium_gdna/gdna_triage_2026-09-17.parquet`:
+>
+> | donor | bundle this release used | rate | × tuned (0.00454) |
+> |---|---|---:|---:|
+> | 6533 | `0041393__Pancreas__20241019__205207` | 0.001401 | **0.31×** |
+> | 112 | `0041396__Pancreas__20241019__205206` | 0.001946 | **0.43×** |
+>
+> Both are *below* the rate every constant in this lane was tuned on. `XENIUM_GDNA_TRIAGE`
+> says so in its own §"Finding 1 — the cohort is not in the flagged pair's regime": *"No cohort
+> bundle reaches a fifth of the flagged pair."*
+>
+> **Where the gDNA hazard actually is: pLN, not pancreas.** Across the 46 triaged bundles, panc
+> runs 0.000598–0.013349 (median 0.002115) and pLN runs 0.002888–0.055217 (median 0.010480).
+> Every pancreas bundle in the cohort is under 3× tuned. The worst three are all pLN — 6580
+> 0.0552 (12.2×, median 69 transcripts per cell), 6457 0.0547 (12.1×, centrally excluded), 6347
+> 0.0509 (11.2×).
+>
+> The original sentence — "Depth, not gDNA, is the constraint on a 5K-panel call for most of this
+> cohort" — was right, and the 2026-09-18 correction to it was wrong. **No gDNA flag is owed to
+> any row of this release.** What is owed, and is the first task of the consolidation, is
+> confirming each h5ad's bundle by cell-id containment rather than by donor id, since that is the
+> step that was skipped here.
+
+Median transcripts per cell, lowest first: 6347 161 · 6380 221 · 6523 296 ·
 6539 330 · 6442 377 · 6579 409 · 6591 410 · 6374 420 · 6436 420 · 6533 421 · 115 430 · 112 434 ·
 6461 438 · 6482 474 · 6493 491 · 6476 493 · 6580 509 · 6521 518 · 6593 540 · 6551 620 · 6566 707.
 
