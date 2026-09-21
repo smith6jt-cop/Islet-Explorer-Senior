@@ -26,6 +26,13 @@ node whose own input is the output of a node that is stale and is not being rebu
 half-fresh artifact built on a stale input is the failure this driver exists to stop, so it is
 refused rather than reported afterwards.
 
+It also SKIPS any node that is already fresh.  Until 2026-09-21 it did not: it rebuilt every
+scheduled node, including the ones ``--check`` had reported fresh in the same breath -- the
+staleness was computed, printed, and then thrown away.  On this cohort that is 2 nodes of 26,
+but the cost is not the point; a driver that cannot do less work when less has changed is a
+driver that makes every change cost a full rebuild.  ``--only`` still forces a named node, which
+is the escape hatch for one whose inputs are not fully declared.
+
 WHAT COUNTS AS AN INPUT
 -----------------------
 The builder's own source file is declared as an input alongside its data.  A builder edited after
@@ -941,6 +948,7 @@ def run(nodes: dict[str, Node], repo: Path, only: list[str] | None = None) -> in
     before = {s.name: s for s in check(nodes)}
     dependencies = edges(nodes)
     rebuilt: set[str] = set()
+    skipped: list[str] = []
     durations: list[tuple[str, float, int]] = []
     refused: list[tuple[str, str]] = []
     for name in scheduled:
@@ -962,6 +970,19 @@ def run(nodes: dict[str, Node], repo: Path, only: list[str] | None = None) -> in
             print(f"\n== {name}: REFUSED -- {reason}")
             refused.append((name, reason))
             continue
+
+        # A node whose output already postdates every input it reads has nothing to do.
+        # `check()` computed exactly that a few lines above and the answer was thrown away:
+        # before this, `--run` rebuilt every scheduled node, including the ones `--check`
+        # had just reported fresh. `--only` is still honoured, so naming a fresh node
+        # explicitly forces it -- that is the escape hatch for a node whose inputs are not
+        # fully declared.
+        if not before[name].is_red and not (only and name in set(only)):
+            print(f"\n== {name}: SKIPPED -- fresh (output postdates every declared input)")
+            skipped.append(name)
+            rebuilt.add(name)      # downstream may proceed: this node is not stale
+            continue
+
         command = list(nodes[name].command)
         print(f"\n== {name}\n$ {' '.join(shlex.quote(p) for p in command)}", flush=True)
         started = time.monotonic()
@@ -978,19 +999,21 @@ def run(nodes: dict[str, Node], repo: Path, only: list[str] | None = None) -> in
         if code != 0:
             print(f"\n{name} failed; stopping before anything downstream of it runs.",
                   file=sys.stderr)
-            _print_durations(durations, refused)
+            _print_durations(durations, refused, skipped)
             return code
         rebuilt.add(name)
-    _print_durations(durations, refused)
+    _print_durations(durations, refused, skipped)
     return 1 if refused else 0
 
 
-def _print_durations(durations, refused) -> None:
+def _print_durations(durations, refused, skipped=()) -> None:
     if durations:
         print("\nper-node duration")
         width = max(len(n) for n, _, _ in durations)
         for name, elapsed, code in durations:
             print(f"  {name:<{width}}  {elapsed:>9,.1f}s  exit {code}")
+    if skipped:
+        print(f"\nskipped as fresh ({len(skipped)}): {', '.join(skipped)}")
     for name, reason in refused:
         print(f"  REFUSED {name}: {reason}")
 
@@ -1007,7 +1030,9 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--plan", action="store_true",
                       help="print the topologically ordered commands and run nothing")
     mode.add_argument("--run", action="store_true",
-                      help="execute in dependency order, refusing a node whose input is stale")
+                      help="execute in dependency order. SKIPS a node that is already fresh, "
+                           "and refuses one whose input is stale. --only forces a named node "
+                           "even when it is fresh.")
     parser.add_argument("--only", nargs="+", metavar="NODE",
                         help="restrict to these nodes (dependency order is kept)")
     parser.add_argument("--repo-root", type=Path, default=REPO)
