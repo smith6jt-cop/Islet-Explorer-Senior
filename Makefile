@@ -13,6 +13,7 @@
 #   make rebuild         REFUSES unless GO=1; then build_layers.py --run (skips fresh nodes)
 #   make env-check       the .venv resolves phenocycler to THIS checkout and no script names another
 #   make lock            regenerate requirements.lock from the .venv (pip freeze, editables excluded)
+#   make producers       print docs/PRODUCERS.md: the one declared producer per tissue x modality
 #
 # Interpreters are spelled out because `python` and `Rscript` on PATH are not the ones this
 # repository is built against: /usr/bin/python3 lacks pyarrow and duckdb, /usr/bin/Rscript is
@@ -38,10 +39,10 @@ export LANG ?= C.UTF-8
 export LC_ALL ?= C.UTF-8
 
 .PHONY: help test _test-all test-core test-current test-integration test-research test-fast test-data test-lanes test-xenium test-follicle \
-        test-r test-r-parse test-r-app test-r-viewer test-r-panels test-scripts check plan geojson-outline rebuild env-check lock
+        test-r test-r-parse test-r-app test-r-viewer test-r-panels test-scripts check plan geojson-outline rebuild env-check lock producers
 
 help:
-	@sed -n '6,15p' $(MAKEFILE_LIST) | sed 's/^# \{0,3\}//'
+	@sed -n '6,16p' $(MAKEFILE_LIST) | sed 's/^# \{0,3\}//'
 
 # `make test` keeps going after a failing suite so every count is reported, then exits non-zero
 # if any suite failed (that is what -k does for independent targets).
@@ -167,3 +168,7 @@ env-check:
 lock:
 	$(PY) -m pip freeze --exclude-editable > requirements.lock
 	@wc -l requirements.lock
+
+# The ledger of declared producers, one per tissue x modality (docs/PRODUCERS.md). Read-only.
+producers:
+	@cat docs/PRODUCERS.md

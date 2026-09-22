@@ -7,6 +7,11 @@ only on entries whose check PASSED, so a table that has drifted from disk fails 
 
     python scripts/retire/build_manifest.py            # writes data/ARCHIVE_2026-09-15/MANIFEST.csv
     python scripts/retire/build_manifest.py --quiet
+    python scripts/retire/build_manifest.py --kind code --out /tmp/x.csv  # verify elsewhere
+
+Code rows carry two tiers that are not tiers: "LIBRARY" (declared reached by live code; the
+`library` check asserts presence) and "CANDIDATE" (no live reference measured; the `code_orphan`
+check is run so the row shows today's measurement). `retire.py` selects tiers 1 and 2 only.
 """
 from __future__ import annotations
 
@@ -327,7 +332,9 @@ def _token_re(name: str):
     return re.compile(r"(?P<pre>[\w./{}$-]*/)?" + re.escape(name) + r"(?![\w])")
 
 
-def check_code_orphan(p: Path, arg):
+def _code_orphan(p: Path, internal, scope: str):
+    """The reference walk. ``internal`` is the set of roots whose references do not count;
+    ``scope`` names it in the verdict."""
     if not p.exists():
         return False, "MISSING"
     stems, owner = _targets(p)
@@ -336,7 +343,7 @@ def check_code_orphan(p: Path, arg):
     counts = basename_index()
     hard, docs, soft = [], [], []
     for f in scan_files():
-        if _inside(f, [str(p)]) or _inside(f, D.CODE_RETIRING):
+        if _inside(f, [str(p)]) or _inside(f, internal):
             continue
         try:
             text = f.read_text(errors="replace")
@@ -379,8 +386,54 @@ def check_code_orphan(p: Path, arg):
     tail = (f"; {len(docs)} doc instruction(s) to update: {docs[:3]}" if docs else "") + \
            (f"; {len(soft)} prose mention(s)" if soft else "")
     if hard:
-        return False, f"{len(hard)} LIVE reference(s): {hard[:3]}{tail}"
-    return True, f"no live import, source(), exec or path literal{tail}"
+        return False, f"{len(hard)} LIVE reference(s) {scope}: {hard[:3]}{tail}"
+    return True, f"no live import, source(), exec or path literal {scope}{tail}"
+
+
+def check_code_orphan(p: Path, arg):
+    return _code_orphan(p, D.CODE_RETIRING, "outside the retiring set")
+
+
+def check_candidate_orphan(p: Path, arg):
+    """A CODE_CANDIDATE row: the walk the maintainer's decision rests on. A reference from
+    another candidate is reported as internal, because the decision is about the set -- keep
+    eval_detection.py and context.py stays with it -- and the row's own evidence names it."""
+    return _code_orphan(p, D.CODE_RETIRING + D.CODE_CANDIDATE_PATHS,
+                        "outside the retiring and candidate sets")
+
+
+CONFIG_INI = Path(D.REPO) / "core/phenocycler/config.ini"
+
+
+def _config_binding(ini: Path, key: str) -> tuple[int, str] | None:
+    """``(line, value)`` of ``key = value`` in ``ini``, or None when the key is absent."""
+    for i, line in enumerate(ini.read_text(errors="replace").splitlines(), 1):
+        m = re.match(r"\s*" + re.escape(key) + r"\s*=(.*)$", line)
+        if m:
+            return i, m.group(1).strip()
+    return None
+
+
+def check_code_orphan_and_config_blank(p: Path, arg):
+    """The orphan walk, AND the config.ini key ``arg`` must be blank.
+
+    For the Xenium pancreas comparison apparatus the walk is not enough: its importers are all
+    inside the retiring set, but core/phenocycler/config.ini binds the RELEASE DIRECTORY it
+    writes, and that binding is what carries its class column into cells_xen and two build_layers
+    nodes. A directory binding is invisible to a reference walk over .py names, so the
+    prerequisite is checked by name here and the entry fails closed until Step 5 blanks it.
+    """
+    ok, detail = check_code_orphan(p, None)
+    if not ok:
+        return ok, detail
+    found = _config_binding(CONFIG_INI, arg)
+    if found is None:
+        return True, f"{detail}; {arg} is not bound in {_relrepo(CONFIG_INI)}"
+    line, value = found
+    if value:
+        return False, (f"prerequisite not met: {_relrepo(CONFIG_INI)}:{line} still binds "
+                       f"{arg} = {value}; {detail}")
+    return True, f"{detail}; {_relrepo(CONFIG_INI)}:{line} has {arg} blank"
 
 
 def check_no_reference_anywhere(p: Path, arg):
@@ -399,16 +452,16 @@ def check_no_reference_anywhere(p: Path, arg):
     return True, f"'{p.stem}' appears in no scanned file -- no producer and no consumer"
 
 
-def check_protected(p: Path, arg):
-    """A keep-beside entry. Asserted so the guard is real, never acted on.
+def check_library(p: Path, arg):
+    """A declared-library entry. Asserted so the guard is real, never acted on.
 
-    Absence is NOT a failure: three of these paths (run_field_refine.py,
-    run_sameslide_protein.py, tests/test_no_duplicate_tracked_data.py) are ADDED by
-    merge/hpg-sameslide and do not exist on this branch yet. A guard for a path that has not
-    landed is still a guard, and it is the one that matters after the merge.
+    Absence IS a failure: every library was measured present on main on 2026-09-22 (the
+    merge/hpg-sameslide additions this check once tolerated as "not landed yet" have landed).
+    A library that is gone means the table drifted, and a drifted table is corrected, not acted
+    on.
     """
     if not p.exists():
-        return True, f"not on this branch; added by {D.HPG_BRANCH} -- guarded in advance"
+        return False, "MISSING -- a declared library is gone; correct the table"
     n = 1 if p.is_file() else sum(1 for _ in walk(p))
     return True, f"present, {n} file(s)"
 
@@ -416,8 +469,10 @@ def check_protected(p: Path, arg):
 CHECKS = {
     "plain": check_plain,
     "code_orphan": check_code_orphan,
+    "candidate_orphan": check_candidate_orphan,
+    "code_orphan_and_config_blank": check_code_orphan_and_config_blank,
     "no_reference_anywhere": check_no_reference_anywhere,
-    "protected": check_protected,
+    "library": check_library,
     "sibling_name_under": check_sibling_name_under,
     "orphan_temp": check_orphan_temp,
     "subset_dir": check_subset_dir,
@@ -470,12 +525,15 @@ def code_rows() -> list[dict]:
     """The 2026-09-18 code tier. `kind` keeps it out of the data totals."""
     rows = []
     for e in D.CODE_TIER1 + D.CODE_TIER2:
-        rows.append(row(e["tier"], e["path"], e["check"], None, e["superseded_by"],
+        rows.append(row(e["tier"], e["path"], e["check"], e["arg"], e["superseded_by"],
                         e["evidence"], kind="code", produces=e["produces"], prereq=e["prereq"],
                         blocked_by=e["blocked_by"]))
-    for p, why in D.KEEP_BESIDE_CODE:
-        rows.append(row("KEEP", p, "protected", None,
-                        f"protected: {D.HPG_BRANCH} is developing on it", why, kind="code"))
+    for p, why in D.CODE_LIBRARY:
+        rows.append(row("LIBRARY", p, "library", None, "-", why, kind="code"))
+    for p, why in D.CODE_CANDIDATE:
+        # The orphan walk runs on a candidate too, so the manifest carries today's measurement
+        # beside the recorded evidence. A candidate is on no tier: retire.py never selects it.
+        rows.append(row("CANDIDATE", p, "candidate_orphan", None, "-", why, kind="code"))
     for p, why in D.CODE_TIER3:
         rows.append(row(3, p, None, None, "-", why, kind="code"))
     for p, why in D.CODE_TIER4:
@@ -518,7 +576,7 @@ def main() -> int:
             if not sel_kind:
                 continue
             print(f"--- {kind} ---")
-            for t in (1, "1-KEEP", "KEEP", 2, 3, 4):
+            for t in (1, "1-KEEP", "LIBRARY", "CANDIDATE", 2, 3, 4):
                 sel = [r for r in sel_kind if r["tier"] == t]
                 if not sel:
                     continue
@@ -526,7 +584,7 @@ def main() -> int:
                 print(f"  tier {str(t):<7} {len(sel):>3} entries  {gb:>8.3f} GB")
         print()
         for r in rows:
-            if r["tier"] not in (1, "1-KEEP", "KEEP", 2):
+            if r["tier"] not in (1, "1-KEEP", "LIBRARY", "CANDIDATE", 2):
                 continue
             if r["kind"] == "data" and r["tier"] == 2:
                 continue          # data tier 2 is checked by carve.py, not here

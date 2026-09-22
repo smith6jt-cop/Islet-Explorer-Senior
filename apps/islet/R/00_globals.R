@@ -148,11 +148,12 @@ project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE),
 # ---- DuckDB-backed data backend (Phase 1) ---------------------------------
 # A single read-only DuckDB connection is created once at app startup and
 # shared across all sessions. Parquet files produced by
-# `scripts/convert_h5ad_to_parquet.py` are exposed as virtual views so each
-# module can write lazy dbplyr pipelines (collect() only when an R-only
-# function needs materialised data). When Parquet files are missing or the
-# `USE_DUCKDB` flag is FALSE the app falls back to the existing
-# H5AD/Excel in-memory loader.
+# `core/phenocycler/scripts/typing/build_parquet_views.py` (a node of
+# `scripts/senior/build_layers.py`, which is the only thing that knows the
+# order) are exposed as virtual views so each module can write lazy dbplyr
+# pipelines (collect() only when an R-only function needs materialised data).
+# When Parquet files are missing or the `USE_DUCKDB` flag is FALSE the app
+# falls back to the existing H5AD/Excel in-memory loader.
 con <- NULL
 if (isTRUE(USE_DUCKDB)) {
   have_duckdb <- requireNamespace("duckdb", quietly = TRUE) &&
@@ -164,7 +165,8 @@ if (isTRUE(USE_DUCKDB)) {
     islets_parquet <- file.path(parquet_dir, "islets.parquet")
     tissue_root    <- file.path(parquet_dir, "tissue")
     if (!file.exists(islets_parquet)) {
-      message("[DUCKDB] ", islets_parquet, " not found; run scripts/convert_h5ad_to_parquet.py. ",
+      message("[DUCKDB] ", islets_parquet, " not found; run scripts/senior/build_layers.py ",
+              "--check, then --run (make check; GO=1 make rebuild). ",
               "Falling back to H5AD loader for this session.")
       USE_DUCKDB <- FALSE
     } else {

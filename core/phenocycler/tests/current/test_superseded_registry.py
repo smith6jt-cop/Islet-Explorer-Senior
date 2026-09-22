@@ -377,7 +377,10 @@ def test_the_distance_builder_refuses_through_the_shared_table():
 
 @pytest.mark.parametrize("script,args", [
     ("scripts/senior/build_cell_distance_parquet.py", []),
-    ("scripts/senior/build_phenotyped_h5ad.py", []),
+    # scripts/senior/build_phenotyped_h5ad.py was the second case until 2026-09-22. It is
+    # CODE_TIER1 in scripts/retire/dispositions.py and the ledger owns its fate: a case here
+    # runs the file by path, which the ledger's code_orphan check counts as a live reference
+    # and refuses to move. Its refusal is not lost -- the quarantine removes the entrypoint.
 ])
 def test_the_retired_senior_producers_refuse_at_the_command_line(script, args):
     """Their correction banners are prose. This is the part that stops the run."""

@@ -1,23 +1,24 @@
-# Guard against a bare `return(NULL)` creeping into the files this worker owns.
+# Guard against a bare `return(NULL)` creeping into the file this worker owns.
 #
 # THIS TEST IS ALLOWLIST-SCOPED ON PURPOSE. There are 161 bare `return(NULL)` uses across 15
 # files in this repo today (measured on 2026-09-16 -- re-measure with the command in the
 # second test below). A repo-wide version of this test fails on arrival and tells the reader
-# nothing about the two files this worker actually wrote. Scoping it to
-# `ie_layer_io.R` / `ie_holds.R` is what makes "a bare return(NULL) in a new ieCore file is a
-# defect" a claim this suite can actually enforce, rather than a claim it can only assert
-# and immediately contradict.
+# nothing about the file this worker actually wrote. Scoping it to `ie_layer_io.R` is what
+# makes "a bare return(NULL) in a new ieCore file is a defect" a claim this suite can actually
+# enforce, rather than a claim it can only assert and immediately contradict.
+#
+# The allowlist held a second entry, the hold framework, until 2026-09-22. That file is
+# CODE_TIER1 in scripts/retire/dispositions.py and the ledger owns its fate; a path literal
+# here is a live reference by the ledger's own check, so the entry left before the file does.
 #
 # The rule itself: `ie_layer_io.R` returns an `ie_avail(...)` or an `ie_guard_note` (or NULL
 # from ie_require_layer(), which is itself produced by ie_require_measured() -- a call, not a
-# literal) for every "not found" case; `ie_holds.R` stops() instead of returning anything. A
-# bare `return(NULL)` in either file would be the exact defect the availability contract
-# exists to prevent: a silent NULL standing in for an absence that should carry a state and a
-# reason.
+# literal) for every "not found" case. A bare `return(NULL)` in it would be the exact defect
+# the availability contract exists to prevent: a silent NULL standing in for an absence that
+# should carry a state and a reason.
 
 ALLOWLISTED_FILES <- c(
-  "apps/R/ieCore/R/ie_layer_io.R",
-  "apps/R/ieCore/R/ie_holds.R"
+  "apps/R/ieCore/R/ie_layer_io.R"
 )
 
 #' Bare `return(NULL)` -- not `return(NULL_something)`, not `# return(NULL)` inside a string,
@@ -35,7 +36,7 @@ ALLOWLISTED_FILES <- c(
   which(hit)
 }
 
-test_that("neither allowlisted file contains a bare return(NULL)", {
+test_that("no allowlisted file contains a bare return(NULL)", {
   for (rel in ALLOWLISTED_FILES) {
     path <- .find_repo_file(rel)
     hits <- .find_bare_return_null(path)

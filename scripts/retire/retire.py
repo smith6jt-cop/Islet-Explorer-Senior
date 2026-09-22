@@ -13,12 +13,21 @@ outright, as is anything on the keep-beside list.
 
 Code entries add two refusals of their own:
 
-* everything on ``KEEP_BESIDE_CODE`` is refused outright. That list is the ``merge/hpg-sameslide``
-  exclusion, encoded so a future run cannot retire a file the HiPerGator session is developing on
-  even if someone puts it on a tier by mistake.
+* everything on ``CODE_LIBRARY`` is refused outright, and so is anything UNDER a library entry
+  that is a directory. That list is what the 2026-09-22 reference walk measured as reached by
+  live code, with the importers named, so a future run cannot retire a module something imports
+  even if someone puts it on a tier by mistake. (It replaced the ``merge/hpg-sameslide``
+  exclusion, whose reason lapsed when that branch merged.)
 * an entry is held while anything in its ``blocked_by`` is not moving in the same invocation.
   A within-set import (broadtype -> dct/regions.py, aggregate_islets -> fixed_islet_aggregation)
   only stays safe if both ends move together.
+
+``CODE_CANDIDATE`` is neither: a candidate is on no tier, so this script never selects it, and it
+is in no refusal set, so nothing here says "SKIP" about it either. It is a recorded question.
+
+The log ``RETIRED.csv`` was first written with seven columns (no ``kind``). The first append that
+carries ``kind`` migrates the file once -- header rewritten with ``kind`` second, every existing
+row stamped ``kind=data`` -- so one log stays and no column shifts.
 
 ``--mode delete`` is refused for code. Quarantine is a rename that a ``git mv`` back undoes;
 deleting an entrypoint is a second, reviewable commit, and this script is not where that decision
@@ -44,17 +53,62 @@ CARVE = ARCHIVE / "carve" / "CARVE.json"
 LOG = ARCHIVE / "RETIRED.csv"
 
 REFUSE = ({p for p, _ in D.KEEP_BESIDE_TIER1} | {p for p, _ in D.TIER3} | {p for p, _ in D.TIER4}
-          | {p for p, _ in D.KEEP_BESIDE_CODE} | {p for p, _ in D.CODE_TIER3}
+          | {p for p, _ in D.CODE_LIBRARY} | {p for p, _ in D.CODE_TIER3}
           | {p for p, _ in D.CODE_TIER4})
+
+#: The seven columns RETIRED.csv was first written with, before code entries carried ``kind``.
+LOG_FIELDS_V1 = ["retired_utc", "tier", "path", "bytes", "action", "superseded_by", "evidence"]
+LOG_FIELDS = ["retired_utc", "kind", "tier", "path", "bytes", "action", "superseded_by",
+              "evidence"]
 
 
 def under_protected_tree(path: str) -> str | None:
-    """The keep-beside TREE a path sits under, if any. A file added inside
-    core/phenocycler/scripts/sameslide/ after this list was written is still protected."""
-    for tree in D.KEEP_BESIDE_CODE_TREES:
-        if path == tree or path.startswith(tree.rstrip("/") + "/"):
+    """The declared-library DIRECTORY a path sits under, if any. A test file added inside
+    core/phenocycler/scripts/xenium_celltype/tests/ after the list was written is still
+    protected, because the directory is the library entry."""
+    for tree, _ in D.CODE_LIBRARY:
+        if path.startswith(tree.rstrip("/") + "/"):
             return tree
     return None
+
+
+def migrate_log(log: Path) -> bool:
+    """Bring a seven-column RETIRED.csv to the eight-column shape, once. Returns True if it did.
+
+    The header gains ``kind`` in second place and every existing row is stamped ``kind=data``:
+    everything written before the code tier existed was data. A log that already carries
+    ``kind`` is left alone, so this is idempotent; a missing log is nothing to migrate.
+    """
+    if not log.exists():
+        return False
+    with log.open(newline="") as fh:
+        reader = csv.DictReader(fh)
+        header = reader.fieldnames or []
+        if "kind" in header:
+            return False
+        if header != LOG_FIELDS_V1:
+            sys.exit(f"refusing to migrate {log}: header {header} is neither the v1 nor the "
+                     f"current shape")
+        rows = list(reader)
+    tmp = log.with_suffix(".csv.migrating")
+    with tmp.open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=LOG_FIELDS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({**r, "kind": "data"})
+    tmp.replace(log)
+    return True
+
+
+def append_log(log: Path, rows: list[dict]) -> None:
+    """Append ``rows`` (each carrying every LOG_FIELDS key) to ``log``, migrating it first."""
+    migrate_log(log)
+    new = not log.exists()
+    with log.open("a", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=LOG_FIELDS)
+        if new:
+            w.writeheader()
+        w.writerows(rows)
 
 # Quarantine must land on the SAME filesystem as the source, or shutil.move copies 80 GB instead of
 # renaming it. /data and /home are separate devices here.
@@ -104,9 +158,9 @@ def main() -> int:
         p = Path(r["path"])
         tree = under_protected_tree(r["path"])
         if r["path"] in REFUSE:
-            skip.append((r, "on the keep/overturned list"))
+            skip.append((r, "on the keep/overturned list (a declared library, TIER3 or TIER4)"))
         elif tree:
-            skip.append((r, f"under the protected tree {tree} ({D.HPG_BRANCH} is developing on it)"))
+            skip.append((r, f"under the declared library {tree}"))
         elif not p.exists():
             skip.append((r, "already gone"))
         elif a.kind == "data" and a.tier == 2:
@@ -169,12 +223,7 @@ def main() -> int:
                          superseded_by=r["superseded_by"], evidence=r["evidence"]))
         print(f"  {'rm' if a.mode == 'delete' else 'mv'} {p}")
 
-    new = not LOG.exists()
-    with LOG.open("a", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=list(done[0]))
-        if new:
-            w.writeheader()
-        w.writerows(done)
+    append_log(LOG, done)
     print(f"\n{len(done)} entries, {total/scale:.3f} {unit} -> {LOG}")
     return 0
 

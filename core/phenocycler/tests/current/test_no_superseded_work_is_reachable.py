@@ -530,12 +530,6 @@ def test_no_live_reader_of_a_superseded_artifact():
         + "\n  ".join(sorted(findings)))
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "scripts/retire/dispositions.py declares substrate.py and positivity.py retired code (tier 1, "
-    "verified orphans) and both are still on disk, runnable, and read the historical run tree "
-    "or their own refused output root through literal paths.  Removing them is the retire "
-    "lane's action, not a test fix; this xfail keeps them in every report until it happens, "
-    "and fails the moment it does so the marker is removed."))
 def test_no_retired_producer_still_reads_a_superseded_artifact():
     """A retired producer that still opens superseded work can regenerate it, silently."""
     scanned, _, findings = _superseded_reads()

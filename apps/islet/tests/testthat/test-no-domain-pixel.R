@@ -1,18 +1,21 @@
 # PIXEL_SIZE_UM is a DOMAIN presentation constant (a rounded display value -- see
 # apps/R/ieCore/R/ie_frames.R's note on ie_um_per_px()) and the spec forbids it in new files:
 # a frame's scale is a property of the image a producer recorded, never a constant borrowed
-# from whichever cohort happens to be loaded. This test enforces that ban for the two files
-# this worker wrote.
+# from whichever cohort happens to be loaded. This test enforces that ban for the file this
+# worker wrote.
 #
 # THIS TEST IS ALLOWLIST-SCOPED ON PURPOSE. There are 10 live PIXEL_SIZE_UM uses in the repo
 # today (measured on 2026-09-16; `segmentation_helpers.R` is an explicit pre-existing
 # exemption per the brief and is not to be reused as precedent for a new file). A repo-wide
-# version of this test fails on arrival for reasons that have nothing to do with the files
+# version of this test fails on arrival for reasons that have nothing to do with the file
 # this worker owns.
+#
+# The allowlist held a second entry, the hold framework, until 2026-09-22. That file is
+# CODE_TIER1 in scripts/retire/dispositions.py and the ledger owns its fate; a path literal
+# here is a live reference by the ledger's own check, so the entry left before the file does.
 
 ALLOWLISTED_FILES <- c(
-  "apps/R/ieCore/R/ie_layer_io.R",
-  "apps/R/ieCore/R/ie_holds.R"
+  "apps/R/ieCore/R/ie_layer_io.R"
 )
 
 .pixel_size_um_pattern <- function() "\\bPIXEL_SIZE_UM\\b"
@@ -26,7 +29,7 @@ ALLOWLISTED_FILES <- c(
   which(hit)
 }
 
-test_that("neither allowlisted file uses PIXEL_SIZE_UM", {
+test_that("no allowlisted file uses PIXEL_SIZE_UM", {
   for (rel in ALLOWLISTED_FILES) {
     path <- .find_repo_file(rel)
     hits <- .find_pixel_size_um(path)
