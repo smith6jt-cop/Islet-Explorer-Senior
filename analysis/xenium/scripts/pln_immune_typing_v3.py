@@ -74,6 +74,7 @@ import gc
 import hashlib
 import importlib.util
 import json
+import math
 import subprocess
 import sys
 import time
@@ -103,6 +104,348 @@ RELEASE_ID = "xenium-pln-immune-tnk-split-dev-20260917"
 SPACE_ID = "xenium-pln-immune-tnk-split-v3"
 LANE = "xenium-pln-immune-tnk-split"
 ROI = "pln_1"
+
+
+#: State of the nucleus rule on one donor's summary row.  ``measured``: every cell of the
+#: frame carried ``nucleus_measured`` True, so ``no_nucleus_excluded`` is a count and
+#: ``pct_immune`` a share of nucleated cells.  ``unavailable``: the rule never ran on some or
+#: all of the frame, and both are NaN with the reason beside them.
+NUCLEUS_RULE_MEASURED = "measured"
+NUCLEUS_RULE_UNAVAILABLE = "unavailable"
+#: The whole vocabulary of ``nucleus_rule_state``.  A summary row carrying anything else
+#: (a null, an empty cell, a misspelling) is not read as a state -- see
+#: ``with_nucleus_rule_state``.
+NUCLEUS_RULE_STATES = (NUCLEUS_RULE_MEASURED, NUCLEUS_RULE_UNAVAILABLE)
+
+
+def count_or_reason(value, name: str) -> tuple[float, str]:
+    """One count argument read at the boundary: ``(count, "")``, ``(NaN, "")`` or ``(NaN, why)``.
+
+    A count of cells is a non-negative integer or null.  Null (``None``, NaN, ``pd.NA``) is
+    an unavailable count -- NaN with no reason, the caller's own state says why.  An
+    integral float such as ``10.0`` is admitted because a CSV column with one blank reads
+    as float, and a numeric string such as ``"10"`` because a ``dtype=str`` read returns
+    one; a bool is not a count, nor is anything non-numeric, non-finite, fractional or
+    negative.  Every refusal names the argument and the value, so that the row it lands on
+    can carry the reason (``immune_share_of_donor``, ``xen_cross_row``).  Until 2026-09-22
+    ``int()`` did this reading: it truncated 2.5 to 2 and passed -1 through, and the
+    arithmetic ran.
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return float("nan"), ""
+    if isinstance(value, (bool, np.bool_)):
+        return float("nan"), f"{name} is the bool {value!r}, not a count"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return float("nan"), f"{name} is {value!r}, not a count"
+    if not math.isfinite(number):
+        return float("nan"), f"{name} is {value!r}, not a finite count"
+    if number != int(number):
+        return float("nan"), f"{name} is {value!r}, not an integer count of cells"
+    if number < 0:
+        return float("nan"), f"{name} is {value!r}, a negative count"
+    return int(number), ""
+
+
+def pct_immune_of_nucleated_with_reason(immune, cells,
+                                        no_nucleus_excluded) -> tuple[float, str]:
+    """``pct_immune_of_nucleated`` with the reason a share could not be made, if any.
+
+    The three counts are read through ``count_or_reason`` -- one refusal per argument,
+    every refusal carried -- and then held to what the row says they are: the excluded
+    cells are among ``cells`` (``no_nucleus_excluded <= cells``) and the immune cells are
+    among the nucleated ones (``immune <= cells - no_nucleus_excluded``).  Either
+    violation is a share that cannot be made, NaN with the reason, not a percentage
+    above 100 or below 0 on a row -- which (5, 4, 0) -> 125.0, (-1, 4, 0) -> -25.0 and
+    (2, 4, -1) -> 40.0 were until 2026-09-22.  A null argument is unavailable: NaN with
+    no reason.  Zero nucleated cells is unavailable too, and says so.
+    """
+    read, reasons = {}, []
+    for name, value in (("immune", immune), ("cells", cells),
+                        ("no_nucleus_excluded", no_nucleus_excluded)):
+        count, reason = count_or_reason(value, name)
+        if reason:
+            reasons.append(reason)
+        read[name] = count
+    if reasons:
+        return float("nan"), "; ".join(reasons)
+    if any(math.isnan(v) for v in read.values()):
+        return float("nan"), ""
+    if read["no_nucleus_excluded"] > read["cells"]:
+        return float("nan"), (
+            f"no_nucleus_excluded is {read['no_nucleus_excluded']} of cells "
+            f"{read['cells']}: more cells excluded for no nucleus than there are cells")
+    nucleated = read["cells"] - read["no_nucleus_excluded"]
+    if read["immune"] > nucleated:
+        return float("nan"), (
+            f"immune is {read['immune']} of {nucleated} nucleated cells: more immune "
+            f"cells than cells with a nucleus")
+    if nucleated <= 0:
+        return float("nan"), ("no nucleated cell: every cell of the frame was excluded for "
+                              "no nucleus")
+    return round(100.0 * read["immune"] / nucleated, 2), ""
+
+
+def pct_immune_of_nucleated(immune, cells, no_nucleus_excluded) -> float:
+    """Immune share, in percent, of the cells WITH a nucleus -- rounded to two places.
+
+    ``cells`` is every row of the donor frame and ``no_nucleus_excluded`` is how many of them
+    carry ``Unavailable_no_nucleus``; their difference is the only population a calculation in
+    this lane may see.  Until 2026-09-21 ``per_donor_summary.csv`` divided by ``cells`` -- the
+    no-nucleus cells left the numerator and stayed in the denominator, on the same row that
+    reported them excluded -- and ``run_cross`` carried that ratio into ``xen_pct_immune`` and
+    ``delta_pct_immune``.  Both sites now call this.  Zero nucleated cells is an unavailable
+    share (NaN), never a measured 0.0; so is an unavailable exclusion count (NaN, the nucleus
+    rule never ran on this donor -- see ``nucleus_rule_of``).  Every argument is read at
+    the boundary by ``count_or_reason``; the reason, when there is one, comes from
+    ``pct_immune_of_nucleated_with_reason``, which both writers call so it lands on the row.
+    """
+    return pct_immune_of_nucleated_with_reason(immune, cells, no_nucleus_excluded)[0]
+
+
+def nucleus_flags_of(nucleus_measured: pd.Series) -> tuple[np.ndarray, int]:
+    """``nucleus_measured`` read at its one boundary: ``(flags, n_null)`` or a refusal.
+
+    Whether the nucleus rule ran on a cell is a boolean measurement, so the column is
+    admitted as numpy ``bool``, pandas nullable ``boolean``, or ``object`` whose non-null
+    values are every one a bool.  A null is a cell the rule did not run on: it is counted
+    as not measured, and how many there were is returned so the reason can say "null"
+    rather than "False".  Any other dtype is refused by name: ``astype(bool)`` reads the
+    string ``'False'`` as True and an ``int8`` -1 as True, so until 2026-09-22 a CSV round
+    trip of the calls or a wrong dtype reported the donor MEASURED with 0 excluded -- the
+    silent 0 the state column exists to prevent.  The refusal is a ``ValueError`` in the
+    idiom ``immune_share_of_donor`` uses for a contradiction in the frame.
+    """
+    dtype = nucleus_measured.dtype
+    null = nucleus_measured.isna()
+    n_null = int(null.sum())
+    if dtype.kind == "b":
+        return nucleus_measured.fillna(False).to_numpy(dtype=bool), n_null
+    if dtype.kind == "O":
+        values = nucleus_measured[~null]
+        not_bool = [v for v in values if not isinstance(v, (bool, np.bool_))]
+        if not_bool:
+            shown = sorted({repr(v) for v in not_bool})[:5]
+            raise ValueError(
+                f"nucleus_measured has dtype object and {len(not_bool)} of its "
+                f"{int(len(values))} non-null values are not bool ({', '.join(shown)}): "
+                f"whether the nucleus rule ran on a cell is a boolean measurement, and "
+                f"astype(bool) would read every one of these as True and report the donor "
+                f"measured"
+            )
+        raw = nucleus_measured.to_numpy(dtype=object)
+        flags = np.fromiter(((not isna) and bool(v) for v, isna in zip(raw, null.to_numpy())),
+                            dtype=bool, count=len(raw))
+        return flags, n_null
+    raise ValueError(
+        f"nucleus_measured has dtype {dtype}, not bool: whether the nucleus rule ran on a "
+        f"cell is a boolean measurement, and astype(bool) would read every non-zero value "
+        f"as True and report the donor measured"
+    )
+
+
+def nucleus_rule_of(nucleus_measured: pd.Series) -> tuple[str, str, int]:
+    """(state, reason, n_not_measured) of the nucleus rule over one donor's cells.
+
+    ``call_section`` forces ``has_nucleus`` all-True on a section ``nucleus_for`` found no
+    vendor bundle for, so no cell of such a section can carry ``Unavailable_no_nucleus`` and
+    a 0 excluded there is the rule never having run -- not a measured 0.  The rule is
+    MEASURED for a donor only when every cell of its frame was measured.  A frame the rule
+    saw only part of is UNAVAILABLE as a whole: a share of nucleated cells over it would rest
+    on cells the rule never saw, and a share over the measured part would not be what the
+    counts on the row describe.  Mirrors ``build_grid_composition.py``'s handling of
+    ``nucleus_measured`` False.  The column is read through ``nucleus_flags_of``, which
+    refuses it unless it is boolean.
+    """
+    flags, n_null = nucleus_flags_of(nucleus_measured)
+    n = int(flags.size)
+    n_not = int((~flags).sum())
+    if n == 0:
+        return NUCLEUS_RULE_UNAVAILABLE, "the donor frame holds no cell", 0
+    if n_not == 0:
+        return NUCLEUS_RULE_MEASURED, "", 0
+    value = "False" if n_null == 0 else f"False or null ({n_null} null)"
+    if n_not == n:
+        reason = (
+            f"nucleus_measured is {value} on all {n} cells of this donor: the nucleus was "
+            f"never measured here (no local vendor bundle cells.parquet covers these cell "
+            f"ids), so the nucleus rule cannot be applied and no count from it may enter a "
+            f"calculation. This is a missing measurement, not a measured absence of nuclei."
+        )
+    else:
+        reason = (
+            f"nucleus_measured is {value} on {n_not} of {n} cells of this donor: the nucleus "
+            f"was never measured on those (no local vendor bundle covers their section), so "
+            f"the rule ran on {n - n_not} cells only. The exclusion count and the immune "
+            f"share of nucleated cells are unavailable for the donor rather than reported "
+            f"over a subset the counts on this row do not describe."
+        )
+    return NUCLEUS_RULE_UNAVAILABLE, reason, n_not
+
+
+def immune_share_of_donor(frame: pd.DataFrame) -> dict:
+    """The counts and the immune share ``per_donor_summary.csv`` carries for one donor.
+
+    Reads ``stage1`` and ``nucleus_measured`` off the donor's calls frame.  ``cells`` and
+    ``immune`` are counts of what was called and stay counts.  ``no_nucleus_excluded`` and
+    ``pct_immune`` are a count and a share only under ``nucleus_rule_state == measured``;
+    otherwise both are NaN and ``nucleus_rule_reason`` says why.  Until 2026-09-21 the
+    unmeasured case wrote 0 excluded and a share of every cell, indistinguishable from a
+    donor whose nuclei were all measured and all present.
+    """
+    stage1 = frame["stage1"].astype(str)
+    s1 = stage1.value_counts()
+    immune = int(s1.get("Immune", 0))
+    cells = int(len(frame))
+    measured, _ = nucleus_flags_of(frame["nucleus_measured"])
+    no_nucleus_label = stage1.eq("Unavailable_no_nucleus").to_numpy()
+    contradiction = int((no_nucleus_label & ~measured).sum())
+    if contradiction:
+        raise ValueError(
+            f"{contradiction} cells carry Unavailable_no_nucleus with nucleus_measured "
+            f"False: a nucleus that was never measured cannot have been found absent"
+        )
+    state, reason, n_not = nucleus_rule_of(frame["nucleus_measured"])
+    n_excluded = int(no_nucleus_label.sum())
+    if state == NUCLEUS_RULE_MEASURED:
+        no_nucleus = n_excluded
+        pct, pct_reason = pct_immune_of_nucleated_with_reason(immune, cells, no_nucleus)
+        if pct_reason:
+            # The three counts above are read off the frame, so this is unreachable on
+            # a well-formed one; if it ever fires the row says why the share is NaN.
+            reason = pct_reason
+    else:
+        no_nucleus = float("nan")
+        pct = float("nan")
+        if 0 < n_not < cells:
+            reason += (f" Where it ran it excluded {n_excluded}; that count is not "
+                       f"reported as this donor's.")
+    return {
+        "cells": cells,
+        "immune": immune,
+        "no_nucleus_excluded": no_nucleus,
+        "pct_immune": pct,
+        "nucleus_not_measured": n_not,
+        "nucleus_rule_state": state,
+        "nucleus_rule_reason": reason,
+    }
+
+
+def summary_frame(rows: list[dict]) -> pd.DataFrame:
+    """``per_donor_summary.csv`` as a frame: the two nullable counts stay integers.
+
+    A NaN in a plain int column would turn every donor's count into ``2393.0`` on disk;
+    ``Int64`` writes ``2393`` for a measured donor and an empty cell for an unavailable
+    one, which ``read_csv`` returns as NaN.
+    """
+    summary = pd.DataFrame(rows)
+    for col in ("no_nucleus_excluded", "Unavailable_no_nucleus"):
+        if col in summary.columns:
+            summary[col] = summary[col].astype("Int64")
+    return summary
+
+
+def with_nucleus_rule_state(xen: pd.DataFrame, calls_root: Path) -> pd.DataFrame:
+    """The summary with ``nucleus_rule_state`` / ``nucleus_rule_reason`` on every row.
+
+    A ``per_donor_summary.csv`` written before 2026-09-21 has neither column, and on such a
+    row ``no_nucleus_excluded == 0`` is either a measured 0 or a rule that never ran.  The
+    calls partition the summary was counted from carries ``nucleus_measured`` per cell, so
+    the state is derived from it -- the data on hand resolve the ambiguity -- and an
+    unavailable row's ``no_nucleus_excluded`` and ``pct_immune`` become NaN.  With neither
+    the column nor the partition, nothing can say which it is, and this refuses the summary.
+
+    A summary that carries the column is read as written ONLY where the value is one of
+    ``NUCLEUS_RULE_STATES``.  A null, an empty cell or a value outside the vocabulary is
+    not a state: that row is derived from its calls partition when the partition is there,
+    and is UNAVAILABLE -- both numbers NaN, the reason naming what the row carried -- when
+    it is not.  Until 2026-09-22 such a row passed through as written, with the 50.0
+    beside it.  Whatever the state came from, a row that is not ``measured`` carries no
+    exclusion count and no share.
+    """
+    xen = xen.copy()
+    has_column = "nucleus_rule_state" in xen.columns
+    if has_column:
+        xen["nucleus_rule_reason"] = (
+            xen["nucleus_rule_reason"].fillna("").astype(str)
+            if "nucleus_rule_reason" in xen.columns else "")
+        xen["nucleus_rule_state"] = xen["nucleus_rule_state"].astype(object)
+        unreadable = ~xen["nucleus_rule_state"].isin(NUCLEUS_RULE_STATES)
+        todo = list(xen.index[unreadable])
+    else:
+        xen["nucleus_rule_state"] = pd.Series("", index=xen.index, dtype=object)
+        xen["nucleus_rule_reason"] = ""
+        todo = list(xen.index)
+    for idx in todo:
+        donor = str(xen.at[idx, "donor_id"])
+        path = calls_root / f"donor_id={donor}/roi={ROI}/data.parquet"
+        written = xen.at[idx, "nucleus_rule_state"]
+        if path.is_file():
+            flags = pd.read_parquet(path, columns=["nucleus_measured"])["nucleus_measured"]
+            state, reason, _ = nucleus_rule_of(flags)
+            if has_column:
+                reason = (f"nucleus_rule_state was {written!r} on this row, not one of "
+                          f"{NUCLEUS_RULE_STATES}; derived from {path}. {reason}").rstrip()
+        elif has_column:
+            state = NUCLEUS_RULE_UNAVAILABLE
+            reason = (
+                f"nucleus_rule_state is {written!r} on this row, not one of "
+                f"{NUCLEUS_RULE_STATES}, and {path} is not there to derive it from: the "
+                f"exclusion count and the immune share of nucleated cells are unavailable "
+                f"for this donor"
+            )
+        else:
+            raise SystemExit(
+                f"per_donor_summary.csv predates the nucleus_rule_state column and {path} "
+                f"is not there to derive it from; re-run --stage call"
+            )
+        xen.at[idx, "nucleus_rule_state"] = state
+        xen.at[idx, "nucleus_rule_reason"] = reason
+    unavailable = xen["nucleus_rule_state"].ne(NUCLEUS_RULE_MEASURED)
+    xen.loc[unavailable, ["no_nucleus_excluded", "pct_immune"]] = np.nan
+    return xen
+
+
+def xen_cross_row(r) -> dict:
+    """The Xenium side of one cross-modality row, from one ``per_donor_summary.csv`` row.
+
+    ``r`` is a row of the summary after ``with_nucleus_rule_state``, as ``itertuples``
+    yields it.  ``xen_pct_immune`` is recomputed from the counts the row carries, not read
+    off its ``pct_immune`` column, so a summary written before the denominator was
+    corrected cannot carry the old ratio into ``delta_pct_immune`` -- and it is NaN
+    wherever ``nucleus_rule_state`` is not ``measured``, whatever the counts would divide
+    to.  A count the boundary refuses (``count_or_reason``) makes the share NaN and puts
+    the reason on the row, after the nucleus rule's own.
+    """
+    comp = int(r.T_NK_compartment)
+    t_res = int(r.T_CD4) + int(r.T_CD8) + int(r.T_Treg)
+    state = r.nucleus_rule_state
+    reason = "" if pd.isna(r.nucleus_rule_reason) else str(r.nucleus_rule_reason)
+    pct, pct_reason = pct_immune_of_nucleated_with_reason(
+        r.immune, r.cells, r.no_nucleus_excluded)
+    if state != NUCLEUS_RULE_MEASURED:
+        pct = float("nan")
+    if pct_reason:
+        reason = f"{reason} {pct_reason}".strip()
+    return {"donor_id": str(r.donor_id), "xen_cells": int(r.cells),
+            "xen_immune": int(r.immune),
+            "xen_pct_immune": pct,
+            "xen_nucleus_rule_state": state,
+            "xen_nucleus_rule_reason": reason,
+            "xen_T_NK": comp, "xen_T_CD4": int(r.T_CD4), "xen_T_CD8": int(r.T_CD8),
+            "xen_T_Treg": int(r.T_Treg), "xen_T_CD4_CD8_both": int(r.T_CD4_CD8_both),
+            "xen_T_subset_unresolved": int(r.T_subset_unresolved),
+            "xen_NK_ILC_cellgate": int(r.NK_ILC),
+            "xen_T_NK_unresolved": int(r.T_NK_unresolved),
+            "xen_T_resolved": t_res,
+            "xen_frac_NK_ILC_of_T_NK_cellgate": r.NK_ILC / comp if comp else np.nan,
+            "xen_frac_NK_ILC_of_immune_cellgate": (r.NK_ILC / r.immune
+                                                   if r.immune else np.nan),
+            "xen_frac_T_NK_of_immune": comp / r.immune if r.immune else np.nan,
+            "xen_CD8_over_CD4_plus_CD8": (r.T_CD8 / (r.T_CD4 + r.T_CD8)
+                                          if (r.T_CD4 + r.T_CD8) else np.nan),
+            "xen_frac_Treg_of_resolved_T": r.T_Treg / t_res if t_res else np.nan}
 
 # ---- the one detection predicate in this lane -------------------------------------------
 TARGET_SUM = 1.0e4
@@ -981,20 +1324,26 @@ def run_calls(args) -> None:
     for donor in sorted(by_donor):
         frame = pd.read_parquet(calls_root / f"donor_id={donor}/roi={ROI}/data.parquet",
                                 columns=["stage1", "cluster_lineage", "lineage",
-                                         "in_T_NK_compartment"])
+                                         "in_T_NK_compartment", "nucleus_measured"])
         s1 = frame["stage1"].value_counts()
         lin = frame["lineage"].value_counts()
         tnk_cells = int(frame["in_T_NK_compartment"].sum())
-        immune = int(s1.get("Immune", 0))
+        # cells, immune, no_nucleus_excluded, pct_immune and the nucleus rule's state: a
+        # donor whose nucleus was never measured gets NaN for the exclusion count and the
+        # share, with the reason on the row, never 0 and a share of every cell.
+        share = immune_share_of_donor(frame)
+        immune = share["immune"]
         row = {
             "donor_id": donor,
-            "cells": len(frame),
+            "cells": share["cells"],
             "immune": immune,
             "non_immune": int(s1.get("Non_immune", 0)),
             "uncalled_ambiguous": int(s1.get("Uncalled_ambiguous", 0)),
             "not_partitioned": int(s1.get("Uncalled_not_partitioned", 0)),
-            "no_nucleus_excluded": int(s1.get("Unavailable_no_nucleus", 0)),
-            "pct_immune": round(100.0 * immune / max(len(frame), 1), 2),
+            "no_nucleus_excluded": share["no_nucleus_excluded"],
+            # Of the NUCLEATED cells: the row above says how many were excluded, and they
+            # leave the denominator with the numerator.
+            "pct_immune": share["pct_immune"],
             "T_NK_compartment": tnk_cells,
         }
         for lab in TNK_LABELS:
@@ -1003,6 +1352,9 @@ def run_calls(args) -> None:
                     "Non_immune", "Uncalled_ambiguous", "Uncalled_not_partitioned",
                     "Unavailable_no_nucleus"]:
             row[lab] = int(lin.get(lab, 0))
+        if share["nucleus_rule_state"] != NUCLEUS_RULE_MEASURED:
+            # the same count as no_nucleus_excluded, by construction; the same NaN
+            row["Unavailable_no_nucleus"] = float("nan")
         subset_sum = sum(row[lab] for lab in TNK_LABELS)
         row["T_NK_subsets_sum"] = subset_sum
         row["T_NK_coherent"] = subset_sum == tnk_cells
@@ -1011,8 +1363,11 @@ def run_calls(args) -> None:
         row["frac_NK_ILC_of_T_NK"] = (row["NK_ILC"] / tnk_cells) if tnk_cells else np.nan
         row["frac_NK_ILC_of_immune"] = (row["NK_ILC"] / immune) if immune else np.nan
         row["frac_T_of_immune"] = (row["T_total"] / immune) if immune else np.nan
+        row["nucleus_not_measured"] = share["nucleus_not_measured"]
+        row["nucleus_rule_state"] = share["nucleus_rule_state"]
+        row["nucleus_rule_reason"] = share["nucleus_rule_reason"]
         rows.append(row)
-    summary = pd.DataFrame(rows)
+    summary = summary_frame(rows)
     bad = summary.loc[~summary["T_NK_coherent"], "donor_id"].tolist()
     if bad:
         raise SystemExit(f"T_NK subsets do not sum to the compartment for: {bad}")
@@ -1600,6 +1955,9 @@ def run_cross(args) -> None:
     if not xen_path.exists():
         raise SystemExit(f"no {xen_path} -- run --stage call first")
     xen = pd.read_csv(xen_path, dtype={"donor_id": str})
+    # A summary from before nucleus_rule_state existed cannot tell a measured 0 excluded
+    # from a rule that never ran; the calls partition can, and is read for it.
+    xen = with_nucleus_rule_state(xen, OUT_ROOT / "calls")
     tnk_path = OUT_ROOT / "per_donor_tnk.csv"
     xtnk = (pd.read_csv(tnk_path, dtype={"donor_id": str}) if tnk_path.exists() else None)
 
@@ -1640,27 +1998,9 @@ def run_cross(args) -> None:
         rows.append(d)
     phf = pd.DataFrame(rows)
 
-    xr = []
-    for r in xen.itertuples():
-        comp = int(r.T_NK_compartment)
-        t_res = int(r.T_CD4) + int(r.T_CD8) + int(r.T_Treg)
-        d = {"donor_id": str(r.donor_id), "xen_cells": int(r.cells),
-             "xen_immune": int(r.immune), "xen_pct_immune": float(r.pct_immune),
-             "xen_T_NK": comp, "xen_T_CD4": int(r.T_CD4), "xen_T_CD8": int(r.T_CD8),
-             "xen_T_Treg": int(r.T_Treg), "xen_T_CD4_CD8_both": int(r.T_CD4_CD8_both),
-             "xen_T_subset_unresolved": int(r.T_subset_unresolved),
-             "xen_NK_ILC_cellgate": int(r.NK_ILC),
-             "xen_T_NK_unresolved": int(r.T_NK_unresolved),
-             "xen_T_resolved": t_res,
-             "xen_frac_NK_ILC_of_T_NK_cellgate": r.NK_ILC / comp if comp else np.nan,
-             "xen_frac_NK_ILC_of_immune_cellgate": (r.NK_ILC / r.immune
-                                                    if r.immune else np.nan),
-             "xen_frac_T_NK_of_immune": comp / r.immune if r.immune else np.nan,
-             "xen_CD8_over_CD4_plus_CD8": (r.T_CD8 / (r.T_CD4 + r.T_CD8)
-                                           if (r.T_CD4 + r.T_CD8) else np.nan),
-             "xen_frac_Treg_of_resolved_T": r.T_Treg / t_res if t_res else np.nan}
-        xr.append(d)
-    xf = pd.DataFrame(xr)
+    # xen_pct_immune is recomputed from the counts and masked to NaN wherever the
+    # nucleus rule state is not 'measured' -- see xen_cross_row.
+    xf = pd.DataFrame([xen_cross_row(r) for r in xen.itertuples()])
     if xtnk is not None:
         sub = xtnk[["donor_id", "subcluster__NK_ILC", "T_NK"]].rename(
             columns={"subcluster__NK_ILC": "xen_NK_ILC_subcluster",

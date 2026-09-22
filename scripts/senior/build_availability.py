@@ -108,19 +108,57 @@ def donor_id(value) -> str:
 
 
 def typing_availability(root: Path) -> dict[str, dict]:
-    counts = Counter()
+    counts, n_rows, n_null = Counter(), Counter(), Counter()
+    refused: dict[str, str] = {}
     for path in sorted(root.glob("donor_id=*/*.parquet")):
         donor = donor_id(path.parent.name.removeprefix("donor_id="))
         if not filter_eligible_donors([donor]):
             continue
         counts[donor] += 0
+        if donor in refused:
+            continue
         for batch in batches(path, ("qc_analysis_eligible",)):
-            counts[donor] += pc.sum(batch["qc_analysis_eligible"]).as_py() or 0
-    return {donor: availability(
-        donor, "phenocycler_panc", "measured" if n else "unavailable", root,
-        n=n if n else None,
-        reason="qc_analysis_eligible_cells" if n else "no_qc_eligible_typing_cells",
-    ) for donor, n in counts.items()}
+            column = batch["qc_analysis_eligible"]
+            # The boundary: only a boolean column (nulls allowed) can be summed
+            # as a count of eligible cells.  pc.sum over int8 [1, -1] is 0 and
+            # read as a measured zero; over a string column it raised out of the
+            # build.  Neither is a measurement, so the donor is unavailable with
+            # the dtype named, and nothing below is hardened against it.
+            if not pa.types.is_boolean(column.type):
+                refused[donor] = f"qc_analysis_eligible_not_boolean; dtype={column.type}"
+                break
+            n_rows[donor] += len(column)
+            n_null[donor] += column.null_count
+            # pc.sum skips nulls and returns null over a column that is all null;
+            # ``or 0`` would read that as a measured zero.  The null tally above
+            # is what keeps an unmeasured column apart from zero eligible cells.
+            counts[donor] += pc.sum(column).as_py() or 0
+    result = {}
+    for donor, n in counts.items():
+        if donor in refused:
+            result[donor] = availability(donor, "phenocycler_panc", "unavailable", root,
+                                         reason=refused[donor])
+            continue
+        # Rows with no measured value are a quantity of their own, carried beside
+        # n on EVERY typing row and never folded into it: [True, None, None] is
+        # one eligible cell and two unmeasured rows, [False, None, None, None] is
+        # zero eligible among one measured and three unmeasured.  It travels in
+        # the reason text with its number because availability() forbids n on a
+        # non-measured row and the layer's six columns are pinned
+        # (test_availability_layer.py:29); a reader splits on "; n_null=".
+        null_note = f"n_null={n_null[donor]}"
+        if n:
+            result[donor] = availability(donor, "phenocycler_panc", "measured", root,
+                                         n=n, reason=f"qc_analysis_eligible_cells; {null_note}")
+        elif n_rows[donor] and n_null[donor] == n_rows[donor]:
+            # Rows exist and none carries a value: the column was never measured
+            # for this donor.  That is a missing measurement, not zero cells.
+            result[donor] = availability(donor, "phenocycler_panc", "unavailable", root,
+                                         reason=f"qc_analysis_eligible_unmeasured; {null_note}")
+        else:
+            result[donor] = availability(donor, "phenocycler_panc", "unavailable", root,
+                                         reason=f"no_qc_eligible_typing_cells; {null_note}")
+    return result
 
 
 def paired_if_counts(root: Path) -> Counter:

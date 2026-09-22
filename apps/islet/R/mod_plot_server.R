@@ -393,14 +393,27 @@ plot_server <- function(id, prepared, selected_islet, active_tab = reactive("Plo
           peri_prop <- if (peri_col %in% colnames(df)) suppressWarnings(as.numeric(df[[peri_col]])) else NA_real_
           core_total <- suppressWarnings(as.numeric(df$total_cells_core))
           peri_total <- if ("total_cells_peri" %in% colnames(df)) suppressWarnings(as.numeric(df$total_cells_peri)) else NA_real_
-          # Treat NA cell totals / proportions as 0 so an islet with no peri zone
-          # still contributes its core, and vice versa
-          core_n <- ifelse(is.finite(core_prop) & is.finite(core_total), core_prop * core_total, 0)
-          peri_n <- ifelse(is.finite(peri_prop) & is.finite(peri_total), peri_prop * peri_total, 0)
-          ctot <- ifelse(is.finite(core_total), core_total, 0)
-          ptot <- ifelse(is.finite(peri_total), peri_total, 0)
-          combined_n <- core_n + peri_n
-          combined_total <- ctot + ptot
+          # Two absences meet here and they are not the same thing. A side with NO CELLS --
+          # a total of 0, or a total AND a proportion both null -- has nothing there: an islet
+          # with no peri-islet expansion still contributes its core, and vice versa, so that
+          # side contributes 0 and the other stands alone; that is what this block has always
+          # done. A side WITH cells and a null proportion, or a side with a MEASURED proportion
+          # and a null total (blank or unparseable after as.numeric), is a missing measurement
+          # (build_galectin_layer.py writes NaN for a blank count or a classifier disagreement,
+          # and every galectin prop_/peri_prop_ pair reaches this branch through
+          # combined_pairs), and the islet's Core+Peri value is NA -- unavailable, never 0 over
+          # a kept denominator and never the other side alone. Until 2026-09-21 the first of
+          # those was folded into "no cells" and this tab drew the islet at exactly 0; until
+          # 2026-09-22 the second was, and the tab drew the islet at its other side's value.
+          # The columns are refused where they are read, once, in ie_combine_core_peri() in
+          # ieCore (a negative or infinite total is not a count and reads as null; a proportion
+          # outside [0, 1] is not a proportion and the islet is NA with a reason), so nothing
+          # below tests for those again; an NA n carries through Counts, Density and
+          # Percentage alike, and raw_df_base()'s filter(!is.na(value)) then leaves the islet
+          # off the plot rather than at 0.
+          combined <- ie_combine_core_peri(core_prop, peri_prop, core_total, peri_total)
+          combined_n <- combined$n
+          combined_total <- combined$total
           if (metric == "Counts") {
             df <- df %>% dplyr::mutate(value = round(combined_n))
           } else if (metric == "Density") {

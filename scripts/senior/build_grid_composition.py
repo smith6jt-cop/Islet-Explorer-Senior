@@ -153,6 +153,45 @@ class GridError(RuntimeError):
     """A contract this builder will not paper over."""
 
 
+def refuse_duplicate_keys(rows: pd.DataFrame, keys: list[str], what: str) -> None:
+    """A grid cell carries exactly one composition row per lineage.
+
+    Two rows for one key is a contradiction in the table.  It is named here and
+    refused -- never resolved by taking the first row (what ``drop_duplicates`` did in
+    ``crossmodal_tnk`` until 2026-09-21) and never by summing the two (what the
+    groupby-sum in ``crossmodal_tnk`` did to a non-T_NK duplicate until 2026-09-22,
+    when the check was widened to ``keys + ["lineage_common"]`` over every immune
+    lineage).  The keys are unique on every layer written so far, so on those this
+    never fires.
+    """
+    dup = rows.duplicated(keys, keep=False)
+    if dup.any():
+        named = sorted(set(rows.loc[dup, keys].itertuples(index=False, name=None)))
+        raise GridError(
+            f"{what}: more than one composition row for {named}. A grid cell carries "
+            f"one row per lineage; this builder will not pick one of them or add them."
+        )
+
+
+def refuse_null_measured_count(rows: pd.DataFrame, keys: list[str], where: str) -> None:
+    """A row in state ``measured`` carries a count.
+
+    ``availability_states.py`` states it (``STATE_MEASURED`` is "the one state that
+    carries a count") but nothing enforced it, and a groupby-sum skips a NULL
+    silently -- the row would count as measured and contribute nothing.  A NULL
+    count under ``measured`` is a contradiction and is refused by row.
+    """
+    null = rows["n_cells"].isna()
+    if null.any():
+        cols = keys + ["lineage_common"]
+        named = sorted(set(rows.loc[null, cols].itertuples(index=False, name=None)))
+        raise GridError(
+            f"{where}: a row in state '{STATE_MEASURED}' has a NULL n_cells at {named}. "
+            f"A measured row carries a count; a NULL count is not measured, and a sum "
+            f"over it would skip the row silently."
+        )
+
+
 def refuse_cross_tissue(quantity: str, tissues) -> None:
     """A lymph node has no islet, so a distance to one is undefined, not zero.
 
@@ -1010,28 +1049,71 @@ def crossmodal_tnk(comp: pd.DataFrame) -> pd.DataFrame:
     The two modalities are different SECTIONS of different BLOCKS.  Agreement is
     informative and so is disagreement; neither side is tuned toward the other and
     neither is corrected by the other.  The offset is reported as it falls.
+
+    A T_NK the lane did not resolve is NULL here, with the composition row's own
+    state and reason beside it (``state_T_NK_<modality>``, ``reason_T_NK_<modality>``)
+    -- never a measured zero.  Until 2026-09-21 the join filled that hole with 0, so
+    an unavailable T_NK became a 0.0 share that ``both_modalities`` admitted and the
+    rank ordered first.  It could not fire on the layer then on disk -- every grid
+    cell with a measured immune lineage also carried a measured T_NK -- and it was
+    wrong by construction.  A grid cell with no measured immune lineage in a
+    modality has no T_NK row to carry and stays empty in that modality, as before;
+    its state is in ``presence``.
+
+    Two contradictions are refused rather than resolved: a second row for one grid
+    cell and one immune lineage (``refuse_duplicate_keys``), and a measured row with
+    no count (``refuse_null_measured_count``).  Neither occurs on any layer written
+    so far.  The duplicate check runs over EVERY immune lineage, before the
+    groupby-sum that builds ``n_immune``: until 2026-09-22 only the T_NK rows were
+    checked, so a second B_Plasma row for one grid cell was added into the
+    denominator silently -- 30 + 30 became an immune count of 70 with no refusal.
     """
-    immune = comp[comp["is_immune"].eq("yes") & comp["state"].eq(STATE_MEASURED)
-                  & comp["bucket_kind"].eq(BK_LINEAGE)]
-    grouped = immune.groupby(["tissue", "modality", "donor_id"])["n_cells"].sum().rename("n_immune")
-    tnk = (immune[immune["lineage_common"].eq("T_NK")]
-           .groupby(["tissue", "modality", "donor_id"])["n_cells"].sum().rename("n_T_NK"))
-    tab = pd.concat([grouped, tnk], axis=1).reset_index()
-    tab["n_T_NK"] = tab["n_T_NK"].fillna(0).astype(int)
+    keys = ["tissue", "modality", "donor_id"]
+    immune = comp[comp["is_immune"].eq("yes") & comp["bucket_kind"].eq(BK_LINEAGE)]
+    # One composition row per lineage per grid cell, on the frame the sum below
+    # reads.  The T_NK rows are a subset of these, so the T_NK-only check that
+    # stood here until 2026-09-22 is covered by this one and was removed.
+    refuse_duplicate_keys(immune, keys + ["lineage_common"], "crossmodal_tnk: immune lineage")
+    measured = immune[immune["state"].eq(STATE_MEASURED)]
+    refuse_null_measured_count(measured, keys, "crossmodal_tnk")
+    grouped = measured.groupby(keys)["n_cells"].sum().rename("n_immune")
+    tab = grouped.reset_index()
+    idx = pd.MultiIndex.from_frame(tab[keys])
+
+    # The T_NK row of each grid cell in ANY state.  Only a measured one carries a
+    # count; every other state keeps the NULL and travels with its reason.
+    tnk = immune[immune["lineage_common"].eq("T_NK")].set_index(keys)
+    tnk_state = tnk["state"].reindex(idx)
+    tnk_measured = tnk_state.eq(STATE_MEASURED).to_numpy()
+    tnk_n = pd.to_numeric(tnk["n_cells"].reindex(idx), errors="coerce").to_numpy(
+        dtype=float, na_value=np.nan)
+    tab["n_T_NK"] = np.where(tnk_measured, tnk_n, np.nan)
+    tab["state_T_NK"] = tnk_state.fillna(STATE_UNAVAILABLE).to_numpy()
+    tab["reason_T_NK"] = np.where(
+        tnk_state.isna().to_numpy(),
+        "no T_NK row in the composition table for this grid cell",
+        tnk["reason"].reindex(idx).fillna("").to_numpy(),
+    )
     tab["frac_T_NK_of_resolved_immune"] = tab["n_T_NK"] / tab["n_immune"]
-    counts = tab.pivot_table(index=["tissue", "donor_id"], columns="modality",
-                             values="n_immune", aggfunc="sum")
-    wide = tab.pivot_table(index=["tissue", "donor_id"], columns="modality",
-                           values="frac_T_NK_of_resolved_immune").reset_index()
+
+    # ``pivot``, not ``pivot_table``: the latter aggregates, drops all-NULL rows and
+    # all-NULL columns, and would erase the very donor whose T_NK is NULL on both
+    # sides.  Every (tissue, donor) that resolved an immune lineage keeps its row.
+    def wide_of(column: str) -> pd.DataFrame:
+        return (tab.pivot(index=["tissue", "donor_id"], columns="modality", values=column)
+                .reindex(columns=["protein", "RNA"]))
+
+    wide = wide_of("frac_T_NK_of_resolved_immune")
     for modality in ("protein", "RNA"):
-        if modality not in wide.columns:
-            wide[modality] = np.nan
-        wide[f"n_resolved_immune_{modality}"] = (
-            counts[modality].reindex(
-                pd.MultiIndex.from_frame(wide[["tissue", "donor_id"]])
-            ).to_numpy() if modality in counts.columns else np.nan
-        )
+        wide[f"n_resolved_immune_{modality}"] = wide_of("n_immune")[modality]
+        wide[f"n_T_NK_{modality}"] = wide_of("n_T_NK")[modality].astype("Int64")
+        wide[f"state_T_NK_{modality}"] = wide_of("state_T_NK")[modality]
+        wide[f"reason_T_NK_{modality}"] = wide_of("reason_T_NK")[modality]
+    wide = wide.reset_index()
+    wide.columns.name = None
     wide["offset_pp_RNA_minus_protein"] = 100.0 * (wide["RNA"] - wide["protein"])
+    # A NULL share on either side is not "measured in both", so it never reaches
+    # the rank below; the guard inside the loop makes that a refusal, not a habit.
     wide["both_modalities"] = wide[["protein", "RNA"]].notna().all(axis=1)
     # Ranks ONLY among the donors a tissue measures in both modalities. A rank
     # taken over a different donor set in each modality would compare two
@@ -1043,6 +1125,11 @@ def crossmodal_tnk(comp: pd.DataFrame) -> pd.DataFrame:
         shared = grp[grp["both_modalities"]]
         if len(shared) < 2:
             continue
+        if shared[["protein", "RNA"]].isna().any().any():
+            raise GridError(
+                f"{tissue}: a NULL T_NK share reached the cross-modality rank. An "
+                f"unavailable T_NK is NULL with a state and must not be ordered as a 0."
+            )
         rp = shared["protein"].rank(method="average")
         rr = shared["RNA"].rank(method="average")
         wide.loc[shared.index, "rank_protein"] = rp

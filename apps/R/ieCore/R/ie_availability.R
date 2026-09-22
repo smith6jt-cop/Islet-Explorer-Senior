@@ -33,7 +33,7 @@ IE_STATES <- c("measured", "blank", "unavailable", "withheld", "failed", "uncall
 #' Protein-side labels that are the producer's own recorded non-call.
 #'
 #' The Xenium releases name their non-calls by a prefix convention that
-#' `scripts/senior/xenium_release.py::classify_label` already reads (`Unavailable*` ->
+#' `classify_label` in `scripts/senior/xenium_release.py` already reads (`Unavailable*` ->
 #' unavailable, `Uncalled*` / `*_uncalled` -> uncalled). The protein refinement pass does NOT
 #' follow that convention -- its label is prose -- so the one protein spelling is enumerated
 #' here rather than matched by shape. A label that is not on this list and does not carry one
@@ -65,7 +65,7 @@ ie_is_measured <- function(x) inherits(x, "ie_avail") && identical(x$state, "mea
 #' distinguish a QC drop from an untyped donor, and reading it is the specific error this
 #' function exists to prevent.
 #'
-#' THE RULE IS NOT INVENTED HERE. `scripts/senior/xenium_release.py::classify_label` is this
+#' THE RULE IS NOT INVENTED HERE. `classify_label` in `scripts/senior/xenium_release.py` is this
 #' repository's authority on how a release label is read, and it is copied rather than
 #' paraphrased: `Unavailable*` is the release saying the answer is unavailable; `Uncalled*` and
 #' `*_uncalled` are "looked at, nothing resolved"; everything else is a call, INCLUDING a

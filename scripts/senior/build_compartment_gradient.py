@@ -11,6 +11,11 @@ overridable with ``--out`` -- holds, per donor:
 
 * ``compartment_composition.csv`` -- immune fraction and immune-subtype
   composition for every compartment, one row per donor x compartment x subtype.
+  ``n_lineage_unavailable`` on every row is the count of eligible cells in that
+  compartment whose lineage was never written (a ``cell_class`` that is null,
+  string-shaped missing, the declared absence, or outside the declared
+  vocabulary in the pancreas; a null ``is_immune`` in the pLN); they are outside
+  ``n_cells`` and ``lineage_unavailable_reason`` says why, by kind and count.
 * ``islet_size_strata.csv`` -- the same core-compartment numbers recomputed on
   islets of at least ``--min-islet-cells`` core cells, which is the stratum in
   which an islet-level statement is defensible at all.
@@ -116,11 +121,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+
+sys.path.insert(0, str(REPO / "core" / "phenocycler" / "scripts" / "typing"))
+
+import build_cells as TYPING_CELLS  # noqa: E402  -- the declared cell_class table
 
 sys.path.insert(0, str(REPO))
 
@@ -156,6 +166,52 @@ LYMPHOID_ATTACHMENT_COLUMN = "attached_to_pancreas_section"
 
 EXPANSION_UM = 20.0
 STATUS_ORDER = ["ND", "Aab+", "T1D"]
+
+#: A cell whose lineage was never written is not non-immune.  It leaves the
+#: compartment denominator and is counted on every row as
+#: ``n_lineage_unavailable`` with one of these reasons.
+PANC_LINEAGE_UNAVAILABLE_REASON = (
+    "cell_class is null: no class was written for this cell; its lineage is "
+    "unavailable, not non-immune, and it is outside n_cells")
+PANC_LINEAGE_MISSING_STRING_REASON = (
+    "cell_class is a string-shaped missing value ('', 'nan', 'None', 'NA'): no class "
+    "was written for this cell; its lineage is unavailable, not non-immune, and it is "
+    "outside n_cells")
+PANC_LINEAGE_OUTSIDE_VOCABULARY_REASON = (
+    "cell_class is outside the declared vocabulary (build_cells.DISPLAY): it can be read "
+    "neither as immune nor as any non-immune class; its lineage is unavailable and it is "
+    "outside n_cells")
+#: The ``cell_class`` vocabulary is the one declared table, ``DISPLAY`` in
+#: core/phenocycler/scripts/typing/build_cells.py, whose KEYS are what ``typing/cells``
+#: carries ('Alpha', 'Blood vessel', 'Nerve', ...): build_cells.py:394 maps those keys to
+#: the display labels and build_cells.py:396 reports a value the table lacks.  It is
+#: derived here, never restated, so the two cannot drift.  ``Immune`` is the immune
+#: class; every other declared class is non-immune, except the declared absence below.
+PANC_CLASS_VOCABULARY = frozenset(TYPING_CELLS.DISPLAY)
+PANC_IMMUNE_CLASS = "Immune"
+#: In the table so it can be displayed, and not a lineage: the "no lineage evidence"
+#: entry.  A cell carrying it is lineage-unavailable, never non-immune.  Nothing
+#: produces it today -- refine.py is written and not wired.
+PANC_LINEAGE_ABSENT = frozenset({TYPING_CELLS.UNRESOLVED})
+PANC_LINEAGE_DECLARED_ABSENCE_REASON = (
+    f"cell_class is {TYPING_CELLS.UNRESOLVED!r}: the declared absence of lineage "
+    "evidence; its lineage is unavailable, not non-immune, and it is outside n_cells")
+#: A class written as one of these strings (after strip and lower-case) is a missing
+#: value wearing a string, not a class.
+PANC_MISSING_CLASS_STRINGS = frozenset({"", "nan", "none", "na", "null", "<na>"})
+#: Why a cell has no lineage, in the order the reasons are reported.
+PANC_LINEAGE_KINDS = {
+    "null": PANC_LINEAGE_UNAVAILABLE_REASON,
+    "missing_string": PANC_LINEAGE_MISSING_STRING_REASON,
+    "declared_absence": PANC_LINEAGE_DECLARED_ABSENCE_REASON,
+    "outside_vocabulary": PANC_LINEAGE_OUTSIDE_VOCABULARY_REASON,
+}
+PLN_LINEAGE_UNAVAILABLE_REASON = (
+    "is_immune is null: the cell's cluster carries no immune call (the producer's "
+    "n_uncalled); its lineage is unavailable, not non-immune, and it is outside n_cells")
+#: The row-level eligibility columns the pancreas path filters on.  The pLN path
+#: filters on them the same way where its partition carries them.
+ELIGIBILITY_COLUMNS = ("qc_analysis_eligible", "excluded_reason")
 PANCREAS_COMPARTMENTS = ["core", "peri", "exocrine"]
 COMMON_LINEAGES = ["T_NK", "B_Plasma", "Myeloid", "Granulocyte"]
 
@@ -303,7 +359,26 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
     df["compartment"] = compartment_from_signed_distance(df["signed_dist_islet_um"])
     no_distance = int(df["compartment"].isna().sum())
 
-    df["is_immune"] = df["cell_class"] == "Immune"
+    # A cell whose class was never written has no lineage.  ``== "Immune"`` on a
+    # null is False, which would count it non-immune and keep it in the
+    # denominator; so is it on a class written as '' / 'nan' / 'None' / 'NA', and
+    # on any value the declared vocabulary does not contain.  Each leaves every
+    # calculation here and is counted by name and by kind, per compartment, on
+    # the rows it would have been in.
+    kind = _lineage_unavailable_kind(df["cell_class"])
+    lineage_unavailable = kind != ""
+    null_lineage = df.loc[lineage_unavailable, ["compartment", "islet_num", "cell_class"]]
+    null_lineage = null_lineage.assign(kind=kind[lineage_unavailable])
+    df = df.loc[~lineage_unavailable].copy()
+
+    def _lineage_kwargs(comp, islets=None) -> dict:
+        sel = null_lineage["compartment"] == comp
+        if islets is not None:
+            sel &= null_lineage["islet_num"].isin(islets)
+        return {"n_lineage_unavailable": int(sel.sum()),
+                "lineage_unavailable_reason": _lineage_reason(null_lineage.loc[sel])}
+
+    df["is_immune"] = df["cell_class"] == PANC_IMMUNE_CLASS
     fine = df["immune_definition"].fillna("").str.strip()
     df["fine"] = fine.where(df["is_immune"], "")
     df["common"] = df["fine"].map(PANC_IMMUNE_TO_COMMON)
@@ -312,7 +387,8 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
     rows = []
     for comp in PANCREAS_COMPARTMENTS:
         sub = df[df["compartment"] == comp]
-        rows.extend(_composition_rows(donor, "pancreas", "phenocycler", comp, sub, "all_islets"))
+        rows.extend(_composition_rows(donor, "pancreas", "phenocycler", comp, sub, "all_islets",
+                                      **_lineage_kwargs(comp)))
 
     # Stratum 2: only islets with at least min_islet_cells core cells.  An
     # islet-level statement below that is a statement about classifier
@@ -323,7 +399,7 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
     core_big = core[core["islet_num"].isin(big)]
     strat_rows = _composition_rows(
         donor, "pancreas", "phenocycler", "core", core_big,
-        f"islets_ge_{min_islet_cells}_core_cells",
+        f"islets_ge_{min_islet_cells}_core_cells", **_lineage_kwargs("core", big),
     )
 
     # The peri-islet expansion inherits the same stratification: a 20 um
@@ -332,7 +408,7 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
     peri_big = peri[peri["islet_num"].isin(big)]
     strat_rows.extend(_composition_rows(
         donor, "pancreas", "phenocycler", "peri", peri_big,
-        f"islets_ge_{min_islet_cells}_core_cells",
+        f"islets_ge_{min_islet_cells}_core_cells", **_lineage_kwargs("peri", big),
     ))
 
     n_islets = int(len(sizes))
@@ -363,6 +439,13 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
             "n_eligible": int(len(df)),
             "dropped": dropped,
             "cells_without_signed_distance": no_distance,
+            "n_lineage_unavailable": int(len(null_lineage)),
+            "lineage_unavailable_reason": _lineage_reason(null_lineage),
+            "lineage_unavailable_by_kind": {
+                k: int((null_lineage["kind"] == k).sum()) for k in PANC_LINEAGE_KINDS},
+            "cell_class_values_outside_vocabulary": _outside_vocabulary_values(null_lineage),
+            "cell_class_vocabulary_from":
+                "core/phenocycler/scripts/typing/build_cells.py: DISPLAY (keys)",
             "immune_calls_not_in_crosswalk": unmapped,
             "acq_run": _one(df["acq_run"]),
             "stain_group": _one(df["stain_group"]),
@@ -374,6 +457,64 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
 def _one(series: pd.Series):
     vals = series.dropna().unique()
     return str(vals[0]) if len(vals) == 1 else None
+
+
+def _lineage_unavailable_kind(cell_class: pd.Series) -> pd.Series:
+    """'' where the class is a declared lineage; otherwise why it is not.
+
+    ``null``: never written.  ``missing_string``: written as one of
+    ``PANC_MISSING_CLASS_STRINGS``.  ``declared_absence``: the table's own
+    "no lineage evidence" entry.  ``outside_vocabulary``: a value
+    ``build_cells.DISPLAY`` does not declare.  None of the four is a non-immune
+    cell, and a value is compared to the vocabulary exactly as written.
+    """
+    text = cell_class.astype("string")
+    is_null = text.isna().fillna(False).astype(bool).to_numpy()
+    missing = (text.str.strip().str.lower().isin(PANC_MISSING_CLASS_STRINGS)
+               .fillna(False).astype(bool).to_numpy())
+    absent = text.isin(PANC_LINEAGE_ABSENT).fillna(False).astype(bool).to_numpy()
+    declared = text.isin(PANC_CLASS_VOCABULARY).fillna(False).astype(bool).to_numpy()
+    kind = np.select([is_null, missing, absent, ~declared],
+                     ["null", "missing_string", "declared_absence", "outside_vocabulary"],
+                     default="")
+    return pd.Series(kind, index=cell_class.index)
+
+
+def _outside_vocabulary_values(null_lineage: pd.DataFrame, limit: int = 10) -> list[str]:
+    hit = null_lineage.loc[null_lineage["kind"] == "outside_vocabulary", "cell_class"]
+    values = sorted(str(v) for v in hit.unique())
+    if len(values) > limit:
+        values = values[:limit] + [f"... and {len(values) - limit} more"]
+    return values
+
+
+def _lineage_reason(sel: pd.DataFrame) -> str:
+    """One reason per kind present, each with its count; offending values named."""
+    parts = []
+    for kind, reason in PANC_LINEAGE_KINDS.items():
+        n = int((sel["kind"] == kind).sum()) if len(sel) else 0
+        if not n:
+            continue
+        if kind == "outside_vocabulary":
+            reason = f"{reason}; values: {_outside_vocabulary_values(sel)}"
+        parts.append(f"{reason} [n={n}]")
+    return " | ".join(parts)
+
+
+def _boolean_valued(series: pd.Series) -> bool:
+    """True when every non-null value is a bool.
+
+    A numpy bool, a nullable ``boolean``, or an object column holding only
+    True / False / null -- which is how an arrow bool with nulls reads back when
+    the file carries no pandas dtype metadata.  A string or integer column is
+    not boolean-valued however it spells True.
+    """
+    if pd.api.types.is_bool_dtype(series):
+        return True
+    if series.dtype != object:
+        return False
+    values = series.dropna()
+    return bool(values.map(lambda v: isinstance(v, (bool, np.bool_))).all())
 
 
 def _membership_audit(donor: str, df: pd.DataFrame) -> dict:
@@ -400,15 +541,28 @@ def _membership_audit(donor: str, df: pd.DataFrame) -> dict:
     }
 
 
-def _composition_rows(donor, tissue, modality, compartment, sub, stratum) -> list[dict]:
+def _composition_rows(donor, tissue, modality, compartment, sub, stratum, *,
+                      n_lineage_unavailable: int = 0,
+                      lineage_unavailable_reason: str = "") -> list[dict]:
     """One denominator per compartment, repeated across subtype rows.
 
     ``n_cells`` is the eligible denominator for the compartment.  Do not sum it
     across subtype rows -- the subtype counts sum to the immune count, and the
     immune count plus the non-immune count is the denominator.  That internal
     coherence is checked by the test suite.
+
+    ``is_immune`` must be boolean-valued on every row of ``sub``.  A cell whose
+    lineage is null has already left the frame in the caller and arrives here as
+    ``n_lineage_unavailable`` with its reason; that count is repeated on every
+    row of the compartment, beside ``n_cells`` and outside it.  A null that
+    reaches this function is refused rather than summed as False.
     """
     n = int(len(sub))
+    if n and sub["is_immune"].isna().any():
+        raise ValueError(
+            f"{donor} {tissue} {compartment}: is_immune is null on "
+            f"{int(sub['is_immune'].isna().sum())} rows. A null lineage is unavailable, "
+            "not non-immune: remove it and pass it as n_lineage_unavailable.")
     n_immune = int(sub["is_immune"].sum()) if n else 0
     rows = [{
         "donor_id": donor, "tissue": tissue, "modality": modality,
@@ -419,6 +573,8 @@ def _composition_rows(donor, tissue, modality, compartment, sub, stratum) -> lis
         "fraction_of_immune": 1.0 if n_immune else float("nan"),
         "state": "measured" if n else "unavailable",
         "reason": "" if n else f"no eligible cell in compartment {compartment}",
+        "n_lineage_unavailable": int(n_lineage_unavailable),
+        "lineage_unavailable_reason": lineage_unavailable_reason,
     }]
     for lineage in COMMON_LINEAGES:
         k = int((sub["common"] == lineage).sum()) if n else 0
@@ -430,8 +586,28 @@ def _composition_rows(donor, tissue, modality, compartment, sub, stratum) -> lis
             "fraction_of_immune": (k / n_immune) if n_immune else float("nan"),
             "state": "measured" if n else "unavailable",
             "reason": "" if n else f"no eligible cell in compartment {compartment}",
+            "n_lineage_unavailable": int(n_lineage_unavailable),
+            "lineage_unavailable_reason": lineage_unavailable_reason,
         })
     return rows
+
+
+def _pln_unavailable_rows(donor, modality: str, state: str, reason: str) -> list[dict]:
+    """The pLN rows for a donor that has no number: every lineage, one reason.
+
+    ``n_cells`` is null, never 0, and the reason travels on the row so the card
+    can name it.
+    """
+    return [{
+        "donor_id": donor, "tissue": "pancreatic_lymph_node",
+        "modality": modality, "compartment": "pln",
+        "stratum": "not_applicable_no_islets", "lineage": lineage,
+        "n_cells": pd.NA, "n_lineage": pd.NA, "n_immune": pd.NA,
+        "fraction_of_compartment": float("nan"),
+        "fraction_of_immune": float("nan"),
+        "state": state, "reason": reason,
+        "n_lineage_unavailable": pd.NA, "lineage_unavailable_reason": "",
+    } for lineage in ["Immune_total"] + COMMON_LINEAGES]
 
 
 # ---------------------------------------------------------------------------
@@ -452,35 +628,235 @@ def pln_phenocycler(donor: str) -> tuple[list[dict], dict]:
         # cluster and nothing to name" is a statement about the measurement,
         # and it is never rendered as zero immune cells.
         reason = str(row.iloc[0].get("reason", "") or f"pLN state is {state}")
-        rows = [{
-            "donor_id": donor, "tissue": "pancreatic_lymph_node",
-            "modality": "phenocycler", "compartment": "pln",
-            "stratum": "not_applicable_no_islets", "lineage": lineage,
-            "n_cells": pd.NA, "n_lineage": pd.NA, "n_immune": pd.NA,
-            "fraction_of_compartment": float("nan"),
-            "fraction_of_immune": float("nan"),
-            "state": state if state in {"unavailable", "withheld", "failed"} else "unavailable",
-            "reason": reason,
-        } for lineage in ["Immune_total"] + COMMON_LINEAGES]
+        rows = _pln_unavailable_rows(
+            donor, "phenocycler",
+            state if state in {"unavailable", "withheld", "failed"} else "unavailable",
+            reason)
         return rows, {"donor_id": donor, "state": state, "reason": reason}
 
-    frames = []
-    for part in sorted(base.glob("roi=*/data.parquet")):
-        frames.append(read_parquet_retrying(part, columns=["is_immune", "immune_class"]))
-    if not frames:
+    parts = sorted(base.glob("roi=*/data.parquet"))
+    if not parts:
         return [], {"donor_id": donor, "state": "unavailable",
                     "reason": "pLN status says typed but no roi partition is on disk"}
+
+    # Eligibility is filtered on the row where the partition carries it, with
+    # the pancreas path's filter verbatim.  Today's partitions carry neither
+    # column: core/phenocycler/scripts/typing/build_pln_immune_pheno.py applies
+    # ``qc_analysis_eligible`` before it writes and records n_rows / n_eligible
+    # in per_donor_counts.csv and per_donor_status.csv beside the tree.  Which
+    # of the two happened is written into the diagnostics, never assumed.
+    carried = [c for c in ELIGIBILITY_COLUMNS if c in set(pq.read_schema(parts[0]).names)]
+    if len(carried) == 1:
+        missing = next(c for c in ELIGIBILITY_COLUMNS if c not in carried)
+        reason = (f"partition carries {carried[0]} but not {missing}; eligibility "
+                  "cannot be evaluated on the row and is not assumed")
+        return (_pln_unavailable_rows(donor, "phenocycler", "unavailable", reason),
+                {"donor_id": donor, "state": "unavailable", "reason": reason})
+    frames = [read_parquet_retrying(part, columns=["is_immune", "immune_class"] + carried)
+              for part in parts]
     df = pd.concat(frames, ignore_index=True)
+    n_rows = len(df)
+    n_rows_on_disk = n_rows
+    if carried:
+        # A cell with no nucleus never reached this tree; what is here and still
+        # ineligible is excluded by name, and the name is kept.
+        keep = df["qc_analysis_eligible"].fillna(False)
+        keep &= df["excluded_reason"].fillna("").str.strip() == ""
+        dropped = df.loc[~keep, "excluded_reason"].fillna("ineligible").value_counts().to_dict()
+        df = df.loc[keep].copy()
+        n_eligible = int(len(df))
+        eligibility_filter = ("row-level: qc_analysis_eligible and excluded_reason, the "
+                              "pancreas path's filter")
+        dropped_reason = ""
+    else:
+        recorded_eligible = pd.to_numeric(row.iloc[0].get("n_eligible", pd.NA), errors="coerce")
+        if pd.notna(recorded_eligible) and n_rows > int(recorded_eligible):
+            reason = (f"partition holds {n_rows} rows but per_donor_status.csv records "
+                      f"n_eligible={int(recorded_eligible)}; the partition carries no "
+                      "qc_analysis_eligible column, so the excess cannot be filtered here")
+            return (_pln_unavailable_rows(donor, "phenocycler", "unavailable", reason),
+                    {"donor_id": donor, "state": "unavailable", "reason": reason})
+        eligibility_filter = (
+            "upstream: build_pln_immune_pheno.py filtered on qc_analysis_eligible before "
+            "writing; the partition carries no qc_analysis_eligible or excluded_reason "
+            "column, so the row-level filter was not re-evaluated here")
+        recorded = _pln_recorded_counts(donor)
+        if recorded is None:
+            dropped = None
+            if pd.notna(recorded_eligible):
+                n_eligible = int(recorded_eligible)
+                dropped_reason = ("per_donor_counts.csv does not record this donor; the "
+                                  "ineligible count is not reported")
+            else:
+                # Nobody recorded an eligible count: per_donor_status.csv carries
+                # nothing this reader can parse as one and per_donor_counts.csv
+                # does not record the donor.  The rows on disk are
+                # n_rows_on_disk, a count of what is here; they are never written
+                # up as n_eligible, which would be a count nobody recorded.
+                n_eligible = None
+                raw = row.iloc[0].get("n_eligible", pd.NA)
+                spelled = "blank" if pd.isna(raw) else repr(raw)
+                dropped_reason = (
+                    "the recorded eligible count is absent: per_donor_status.csv carries "
+                    f"n_eligible {spelled}, which is not a count, and per_donor_counts.csv "
+                    "does not record this donor; n_eligible is not reported and the "
+                    "ineligible count is not reported")
+        else:
+            n_rows, n_eligible = recorded
+            dropped = {"ineligible_recorded_by_producer": n_rows - n_eligible}
+            dropped_reason = ""
+
+    # The producer's recorded n_eligible is read back beside what is on disk.  A
+    # partition SMALLER than that count is measured as it stands -- what is on
+    # disk is real -- but the note says so, in numbers, so n_eligible can never
+    # sit beside a smaller n_cells silently.  (Larger is refused above.)
+    eligible_count_disagreement = ""
+    if not carried and n_eligible is not None and n_eligible > n_rows_on_disk:
+        eligible_count_disagreement = (
+            f"partition holds {n_rows_on_disk} rows but the producer recorded "
+            f"n_eligible={n_eligible}; the {n_eligible - n_rows_on_disk} eligible cells not "
+            "on disk are outside n_cells, and nothing here can say which they are")
+
+    # is_immune must be boolean-valued before anything reads it.  ``astype(bool)``
+    # on a string column makes every non-empty value True and on an integer
+    # column every non-zero value True, so ['True', 'NA'] and [1, -1] each came
+    # out as two immune cells, measured.  A partition this reader cannot read is
+    # refused the way the pancreas path refuses one -- read_parquet_retrying
+    # raises and nothing is recorded -- rather than reported as a number.
+    if not _boolean_valued(df["is_immune"]):
+        raise ValueError(
+            f"{donor} pancreatic_lymph_node: is_immune is {df['is_immune'].dtype}, not boolean. "
+            "Only True, False and null can be read as an immune call; coercing this column "
+            "would count every non-empty or non-zero value as immune. The partition is "
+            "unreadable and is refused, as the pancreas path refuses an unreadable partition.")
+    # A null is_immune is a cell whose cluster carries no immune call.  Its
+    # lineage is unavailable, not non-immune: it leaves the denominator and is
+    # counted under its own name on every row.
+    lineage_unavailable = df["is_immune"].isna()
+    n_lineage_unavailable = int(lineage_unavailable.sum())
+    df = df.loc[~lineage_unavailable].copy()
+    df["is_immune"] = df["is_immune"].astype(bool)
     cls = df["immune_class"].astype(str).str.strip()
     df["common"] = cls.map(PLN_CLASS_TO_COMMON)
-    df["is_immune"] = df["is_immune"].fillna(False)
     unmapped = sorted(set(cls[df["is_immune"] & df["common"].isna()]) - {"", "nan"})
+    lineage_reason = PLN_LINEAGE_UNAVAILABLE_REASON if n_lineage_unavailable else ""
     rows = _composition_rows(donor, "pancreatic_lymph_node", "phenocycler",
-                             "pln", df, "all_islets")
+                             "pln", df, "all_islets",
+                             n_lineage_unavailable=n_lineage_unavailable,
+                             lineage_unavailable_reason=lineage_reason)
     for r in rows:
         r["stratum"] = "not_applicable_no_islets"
-    return rows, {"donor_id": donor, "state": "measured",
-                  "n_cells": int(len(df)), "classes_not_in_crosswalk": unmapped}
+        if not len(df) and n_lineage_unavailable:
+            r["reason"] = (f"every eligible cell's lineage is unavailable "
+                           f"({n_lineage_unavailable} cells): {lineage_reason}")
+    return rows, {"donor_id": donor, "state": "measured" if len(df) else "unavailable",
+                  "reason": "" if len(df) else rows[0]["reason"],
+                  "n_rows": int(n_rows),
+                  "n_eligible": None if n_eligible is None else int(n_eligible),
+                  "n_rows_on_disk": int(n_rows_on_disk),
+                  "eligible_count_disagreement": eligible_count_disagreement,
+                  "dropped": dropped, "dropped_reason": dropped_reason,
+                  "eligibility_filter": eligibility_filter,
+                  "n_cells": int(len(df)),
+                  "n_lineage_unavailable": n_lineage_unavailable,
+                  "lineage_unavailable_reason": lineage_reason,
+                  "classes_not_in_crosswalk": unmapped}
+
+
+def _pln_recorded_counts(donor: str) -> tuple[int, int] | None:
+    """(n_rows, n_eligible) the producer recorded for this donor, or None.
+
+    ``per_donor_counts.csv`` is written by build_pln_immune_pheno.py in the same
+    pass as ``per_donor_status.csv``; a tree without it, or a row without both
+    counts, records nothing and nothing is invented for it.
+    """
+    path = PLN_PHENO / "per_donor_counts.csv"
+    if not path.exists():
+        return None
+    counts = pd.read_csv(path, dtype={"donor_id": str})
+    hit = counts[counts["donor_id"] == donor]
+    if not len(hit) or not {"n_rows", "n_eligible"} <= set(counts.columns):
+        return None
+    n_rows, n_eligible = hit.iloc[0]["n_rows"], hit.iloc[0]["n_eligible"]
+    if pd.isna(n_rows) or pd.isna(n_eligible):
+        return None
+    return int(n_rows), int(n_eligible)
+
+
+def _xenium_count(value, column: str) -> tuple[int | None, str]:
+    """The boundary for one per_donor_summary.csv count.
+
+    ``(count, "")`` for a non-negative integer -- an integral float passes,
+    because one null anywhere in a CSV column makes pandas read the whole column
+    as float, and a numeric string passes, because a CSV token has no type --
+    ``(None, "")`` for a null, which the caller reports as not reported, and
+    ``(None, reason)`` for a value that cannot be a count: a boolean, a
+    non-number, a non-finite number, a fraction, or a negative.
+    """
+    if value is None or pd.isna(value):
+        return None, ""
+    if isinstance(value, (bool, np.bool_)):
+        return None, f"{column}={value!r} is a boolean, not a count"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None, f"{column}={value!r} is not a number"
+    if not np.isfinite(number):
+        return None, f"{column}={value!r} is not finite"
+    if number != int(number):
+        return None, f"{column}={value!r} is not an integer"
+    if number < 0:
+        return None, f"{column}={value!r} is negative"
+    return int(number), ""
+
+
+def _xenium_counts(r, columns, col_map: dict[str, list[list[str]]]) -> tuple[dict, str]:
+    """Every count on one per_donor_summary.csv row, through ONE boundary.
+
+    Reads ``cells``, ``immune``, ``no_nucleus_excluded`` and every lineage
+    column the release writes.  Each must be a non-negative integer or null,
+    and the decomposition must hold: ``no_nucleus_excluded <= cells``, and
+    ``immune`` and each lineage ``<= cells - no_nucleus_excluded``.  Returns
+    ``(counts, "")`` with None for every absent or null count, or ``(counts,
+    reason)`` naming each column and value that fails; a row with a reason is
+    unavailable and nothing downstream reads its numbers.  Before this boundary
+    ``immune=-1`` measured a fraction of -0.125, ``no_nucleus_excluded=12`` over
+    ``cells=10`` measured ``n_cells=-2``, ``immune=9`` over 8 nucleated cells
+    measured 1.125, and ``immune=4.7`` truncated to 4.
+    """
+    lineage_columns = [c for groups in col_map.values() for group in groups for c in group]
+    counts: dict[str, int | None] = {}
+    failures: list[str] = []
+    for column in ["cells", "immune", "no_nucleus_excluded"] + lineage_columns:
+        if column not in columns:
+            counts[column] = None
+            continue
+        counts[column], failure = _xenium_count(r[column], column)
+        if failure:
+            failures.append(failure)
+    cells, nne, immune = counts["cells"], counts["no_nucleus_excluded"], counts["immune"]
+    nucleated = None
+    if cells is not None and nne is not None:
+        if nne > cells:
+            failures.append(f"no_nucleus_excluded={nne} exceeds cells={cells}")
+        else:
+            nucleated = cells - nne
+    if nucleated is not None:
+        if immune is not None and immune > nucleated:
+            failures.append(f"immune={immune} exceeds nucleated cells={nucleated} "
+                            f"(cells={cells} - no_nucleus_excluded={nne})")
+        for lineage, groups in col_map.items():
+            have = next((g for g in groups if all(c in columns for c in g)), None)
+            if have is None or any(counts[c] is None for c in have):
+                continue
+            k = sum(counts[c] for c in have)
+            if k > nucleated:
+                spelled = " + ".join(f"{c}={counts[c]}" for c in have)
+                failures.append(f"{lineage} ({spelled}) = {k} exceeds nucleated cells={nucleated}")
+    if not failures:
+        return counts, ""
+    return counts, ("per_donor_summary.csv row cannot be a measurement: "
+                    + "; ".join(failures))
 
 
 def pln_xenium() -> tuple[list[dict], dict]:
@@ -518,11 +894,46 @@ def pln_xenium() -> tuple[list[dict], dict]:
         "Myeloid": [["Myeloid"], ["s2__Myeloid"]],
         "Granulocyte": [["Granulocyte"], ["s2__Granulocyte"]],
     }
+    donors_without_nne = []
+    donors_unavailable: dict[str, str] = {}
+
     for _, r in s.iterrows():
+        # Every count on the row passes ONE boundary at the read: a non-negative
+        # integer or null, and a decomposition that holds.  A row that fails is
+        # unavailable with the column and values named, and none of the
+        # arithmetic below is hardened against it site by site.
+        counts, refusal = _xenium_counts(r, s.columns, col_map)
+        if refusal:
+            donors_unavailable[str(r["donor_id"])] = refusal
+            rows.extend(_pln_unavailable_rows(r["donor_id"], "xenium", "unavailable", refusal))
+            continue
         # The denominator excludes cells with no nucleus, which are not cells we
-        # can be sure of, and excludes nothing else by value.
-        n = int(r["cells"]) - int(r.get("no_nucleus_excluded", 0) or 0)
-        n_immune = int(r["immune"])
+        # can be sure of, and excludes nothing else by value.  A release that
+        # does not report that exclusion has not reported the denominator: an
+        # absent count is not zero exclusions, and an unreduced denominator is a
+        # wrong number, not a slightly large one.
+        nne = counts["no_nucleus_excluded"]
+        if nne is None:
+            donors_without_nne.append(str(r["donor_id"]))
+            donors_unavailable[str(r["donor_id"])] = "no_nucleus_excluded not reported"
+            rows.extend(_pln_unavailable_rows(r["donor_id"], "xenium", "unavailable",
+                                              "no_nucleus_excluded not reported"))
+            continue
+        # The numerator and the denominator are read the same way: a count the
+        # summary does not carry, or carries null, is not a count.  int() on a
+        # null raised mid-build and an absent column raised KeyError; neither is
+        # a reported absence, and this row is one.
+        cells_reported = counts["cells"]
+        immune_reported = counts["immune"]
+        if cells_reported is None or immune_reported is None:
+            missing = [c for c, v in (("cells", cells_reported), ("immune", immune_reported))
+                       if v is None]
+            reason = f"{' and '.join(missing)} not reported"
+            donors_unavailable[str(r["donor_id"])] = reason
+            rows.extend(_pln_unavailable_rows(r["donor_id"], "xenium", "unavailable", reason))
+            continue
+        n = cells_reported - nne
+        n_immune = immune_reported
         rows.append({
             "donor_id": r["donor_id"], "tissue": "pancreatic_lymph_node",
             "modality": "xenium", "compartment": "pln",
@@ -531,6 +942,7 @@ def pln_xenium() -> tuple[list[dict], dict]:
             "fraction_of_compartment": n_immune / n if n else float("nan"),
             "fraction_of_immune": 1.0 if n_immune else float("nan"),
             "state": "measured", "reason": "",
+            "n_lineage_unavailable": pd.NA, "lineage_unavailable_reason": "",
         })
         for lineage, groups in col_map.items():
             have = next((g for g in groups if all(c in s.columns for c in g)), None)
@@ -545,9 +957,28 @@ def pln_xenium() -> tuple[list[dict], dict]:
                     "state": "unavailable",
                     "reason": f"{lineage} has no column in {release.release_id}; that "
                               f"release writes {sorted(s.columns)}",
+                    "n_lineage_unavailable": pd.NA, "lineage_unavailable_reason": "",
                 })
                 continue
-            k = int(sum(int(r[c] or 0) for c in have))
+            unreported = [c for c in have if counts[c] is None]
+            if unreported:
+                # The column is there and the value is null: this lineage is not
+                # reported for this donor.  ``int(r[c] or 0)`` raised on a NaN
+                # here, which is neither a count nor a reported absence.
+                rows.append({
+                    "donor_id": r["donor_id"], "tissue": "pancreatic_lymph_node",
+                    "modality": "xenium", "compartment": "pln",
+                    "stratum": "not_applicable_no_islets", "lineage": lineage,
+                    "n_cells": n, "n_lineage": pd.NA, "n_immune": n_immune,
+                    "fraction_of_compartment": float("nan"),
+                    "fraction_of_immune": float("nan"),
+                    "state": "unavailable",
+                    "reason": f"{lineage} not reported: {', '.join(unreported)} is null in "
+                              f"{release.release_id}",
+                    "n_lineage_unavailable": pd.NA, "lineage_unavailable_reason": "",
+                })
+                continue
+            k = sum(counts[c] for c in have)
             rows.append({
                 "donor_id": r["donor_id"], "tissue": "pancreatic_lymph_node",
                 "modality": "xenium", "compartment": "pln",
@@ -556,8 +987,11 @@ def pln_xenium() -> tuple[list[dict], dict]:
                 "fraction_of_compartment": k / n if n else float("nan"),
                 "fraction_of_immune": k / n_immune if n_immune else float("nan"),
                 "state": "measured", "reason": "",
+                "n_lineage_unavailable": pd.NA, "lineage_unavailable_reason": "",
             })
     return rows, {"state": "measured", "n_donors": int(s["donor_id"].nunique()),
+                  "donors_without_no_nucleus_excluded": donors_without_nne,
+                  "donors_unavailable": donors_unavailable,
                   "release": release.describe(),
                   "per_donor_summary": str(path)}
 

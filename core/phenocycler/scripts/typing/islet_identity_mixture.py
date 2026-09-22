@@ -65,6 +65,27 @@ word on the elongation route in `subpanel.py`, whose weight remains OPEN.  Five 
 strata are UNFIT because their own control rejected, and a statistic that fires on its own
 control discriminates nothing -- those five are not evidence either way.
 
+DROPPED DRAWS ARE COUNTED (2026-09-21).  A null draw whose mixture fit raised, or returned a
+non-finite statistic, is left out of the null, and the p-value is the fraction of the SURVIVING
+draws at or above the observed statistic -- that has not changed.  What the 2026-09-18 outputs
+do not carry is how many draws each p-value lost: a null of 300 requested draws could be 30 real
+ones and read the same.  `n_draws_requested` and `n_dropped_draws` now sit beside every p-value
+in `mixture_test.parquet`, `mixture_test_per_feature.parquet` and `undecided_posterior.parquet`.
+The 2026-09-18 files predate the columns and have NOT been re-run.
+
+AN EMPTY NULL IS NOT A VERDICT.  When every draw drops, the null has no survivors, every p-value
+is NaN, and NaN compares False at each step of the verdict chain -- which used to fall through
+to `one population`.  Such a stratum is now `UNFIT: null empty`, beside the existing
+`UNFIT: control rejects`: it is not testable and is counted with the other UNFITs, not as
+evidence of anything.  The statistic and the p-value are unchanged; only the verdict is.
+
+A STATISTIC THAT IS NOT FINITE IS NOT A VERDICT EITHER (2026-09-22).  The null can be intact and
+the CONTROL's or the TARGET's own fit still return a non-finite statistic -- a zero pooled SD
+gives a NaN separation -- for which `pvalue` returns NaN, and that NaN fell through the same
+chain to `one population` (or, on the control side, past the `control rejects` check it could
+not fail).  Such a stratum is now `UNFIT: statistic not finite`, counted with the other UNFITs.
+The statistic and the p-value are reported as they are, NaN; only the verdict changes.
+
     python core/phenocycler/scripts/typing/islet_identity_mixture.py [--donors 115] [--null 300]
 """
 from __future__ import annotations
@@ -72,6 +93,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -106,22 +128,37 @@ def fit_statistics(x: np.ndarray, seed: int) -> tuple[float, float]:
     return lr, (d / pooled if pooled > 0 else np.nan)
 
 
-def reference_null(pool: np.ndarray, n: int, draws: int, seed: int) -> np.ndarray:
-    """(draws, 2) array of [LR, separation] on subsamples of size n WITHOUT replacement.
+class NullDraws(NamedTuple):
+    """What `reference_null` hands back: the surviving draws, and the ledger of what was lost."""
+    values: np.ndarray            #: (n_surviving, 2) of [LR, separation]
+    n_draws_requested: int
+    n_dropped_draws: int          #: fits that raised, or returned a non-finite statistic
+
+
+def reference_null(pool: np.ndarray, n: int, draws: int, seed: int, fit=None) -> NullDraws:
+    """[LR, separation] on ``draws`` subsamples of size n WITHOUT replacement, minus the drops.
 
     Without replacement, deliberately: resampling with replacement duplicates points, and a
     mixture fit will happily put a tight component on a duplicated cluster, inflating the null's
     upper tail in a way that has nothing to do with real structure.
+
+    A draw is DROPPED when its fit raises or returns a non-finite statistic (a zero pooled SD
+    gives a NaN separation).  The p-value has always been taken over the survivors and still
+    is; since 2026-09-21 the drops are COUNTED and carried beside every p-value, because a
+    silently thinned null reads exactly like a full one.  ``fit`` is the statistic function --
+    `fit_statistics` unless a test hands in a stand-in.
     """
+    fit = fit_statistics if fit is None else fit
     rng = np.random.default_rng(seed)
     out = np.full((draws, 2), np.nan)
     for b in range(draws):
         idx = rng.choice(len(pool), n, replace=False)
         try:
-            out[b] = fit_statistics(pool[idx], seed + b + 1)
+            out[b] = fit(pool[idx], seed + b + 1)
         except Exception:
             pass
-    return out[np.isfinite(out).all(axis=1)]
+    kept = np.isfinite(out).all(axis=1)
+    return NullDraws(out[kept], int(draws), int(draws - kept.sum()))
 
 
 def pvalue(null: np.ndarray, observed: float) -> float:
@@ -153,7 +190,8 @@ def test_population(ref: pd.DataFrame, und: pd.DataFrame, space: list, donor: st
     ctrl = R[B][rng.choice(len(B), n, replace=False)]
     targ = U[rng.choice(len(U), n, replace=False)] if len(U) > n else U
 
-    null = reference_null(R[A], n, draws, seed)
+    null_draws = reference_null(R[A], n, draws, seed)
+    null = null_draws.values
     (lr_c, sep_c) = fit_statistics(ctrl, seed)
     (lr_t, sep_t) = fit_statistics(targ, seed)
     p_lr_c, p_lr_t = pvalue(null[:, 0], lr_c), pvalue(null[:, 0], lr_t)
@@ -161,7 +199,16 @@ def test_population(ref: pd.DataFrame, und: pd.DataFrame, space: list, donor: st
 
     # Three outcomes, not two, because the two statistics can and do disagree. Collapsing them
     # into one yes/no would hide which kind of evidence is actually present.
-    if p_lr_c < 0.05 or p_sep_c < 0.05:
+    #
+    # And three UNFITs before them.  A null with no surviving draw gives four NaN p-values; a
+    # control or target whose own fit returned a non-finite statistic gives NaN for its two.
+    # A NaN is False at every comparison below -- the fall-through would be "one population"
+    # for a stratum that was never tested.
+    if not len(null):
+        verdict = "UNFIT: null empty"
+    elif not np.isfinite([p_lr_c, p_sep_c, p_lr_t, p_sep_t]).all():
+        verdict = "UNFIT: statistic not finite"
+    elif p_lr_c < 0.05 or p_sep_c < 0.05:
         verdict = "UNFIT: control rejects"
     elif p_lr_t < 0.05 and p_sep_t < 0.05:
         verdict = "two populations"
@@ -170,8 +217,10 @@ def test_population(ref: pd.DataFrame, und: pd.DataFrame, space: list, donor: st
     else:
         verdict = "one population"
 
-    row = {**base, "null_lr_median": float(np.median(null[:, 0])),
-           "null_sep_median": float(np.median(null[:, 1])),
+    row = {**base, "n_draws_requested": null_draws.n_draws_requested,
+           "n_dropped_draws": null_draws.n_dropped_draws,
+           "null_lr_median": float(np.median(null[:, 0])) if len(null) else np.nan,
+           "null_sep_median": float(np.median(null[:, 1])) if len(null) else np.nan,
            "lr_control": lr_c, "p_lr_control": p_lr_c,
            "sep_control": sep_c, "p_sep_control": p_sep_c,
            "lr_target": lr_t, "p_lr_target": p_lr_t,
@@ -180,16 +229,19 @@ def test_population(ref: pd.DataFrame, und: pd.DataFrame, space: list, donor: st
     # WHICH FEATURE carries it, same null, one dimension at a time.
     feats = []
     for j, feat in enumerate(space):
-        nj = reference_null(R[A][:, j], n, draws_1d, seed)
+        nj_draws = reference_null(R[A][:, j], n, draws_1d, seed)
+        nj = nj_draws.values
         lr_tj, sep_tj = fit_statistics(targ[:, j], seed)
         lr_cj, sep_cj = fit_statistics(ctrl[:, j], seed)
         feats.append({"donor_id": donor, "stratum": stratum, "feature": feat,
+                      "n_draws_requested": nj_draws.n_draws_requested,
+                      "n_dropped_draws": nj_draws.n_dropped_draws,
                       "p_lr_control": pvalue(nj[:, 0], lr_cj),
                       "p_sep_control": pvalue(nj[:, 1], sep_cj),
                       "p_lr_target": pvalue(nj[:, 0], lr_tj),
                       "p_sep_target": pvalue(nj[:, 1], sep_tj),
                       "sep_target": sep_tj, "sep_control": sep_cj,
-                      "null_sep_median": float(np.median(nj[:, 1]))})
+                      "null_sep_median": float(np.median(nj[:, 1])) if len(nj) else np.nan})
 
     g2 = None
     if verdict in ("two populations", "displaced subpopulation"):
@@ -244,6 +296,11 @@ def main() -> int:
                   f"p {row['p_sep_control']:.3f}")
             print(f"      target   LR p {row['p_lr_target']:.3f}  separation {row['sep_target']:.3f} "
                   f"p {row['p_sep_target']:.3f}   -> {row['verdict']}")
+            lost_1d = sum(f["n_dropped_draws"] for f in feats)
+            if row["n_dropped_draws"] or lost_1d:
+                print(f"      dropped  {row['n_dropped_draws']} of {row['n_draws_requested']} joint "
+                      f"null draws; {lost_1d} of {sum(f['n_draws_requested'] for f in feats)} "
+                      f"per-feature draws (fit raised or non-finite)")
             if g2 is not None:
                 # After standardising by the reference, the reference centroid IS the origin, so
                 # the endocrine-like component is the one with the smaller centroid norm.
@@ -254,13 +311,20 @@ def main() -> int:
                     "object_id": und["object_id"].to_numpy(),
                     "islet_num": und["islet_num"].to_numpy(),
                     "p_endocrine_like": post,
-                    "evidence": row["verdict"]}))
+                    "evidence": row["verdict"],
+                    "n_draws_requested": row["n_draws_requested"],
+                    "n_dropped_draws": row["n_dropped_draws"]}))
                 print(f"      -> {float((post > 0.5).mean()):.1%} of undecided cells score "
                       f"endocrine-like (component weight {g2.weights_[endo]:.3f})")
 
     if not summary:
         return 0
     frame, feats = pd.DataFrame(summary), pd.DataFrame(per_feature)
+    # A "too few" row asked for no draws: its ledger is unavailable, not 0, so the columns stay
+    # nullable integers rather than floats with a NaN in them.
+    for col in ("n_draws_requested", "n_dropped_draws"):
+        if col in frame.columns:
+            frame[col] = frame[col].astype("Int64")
     frame.to_parquet(out_dir / "mixture_test.parquet", index=False)
     feats.to_parquet(out_dir / "mixture_test_per_feature.parquet", index=False)
     if posteriors:
@@ -277,7 +341,7 @@ def main() -> int:
               f"\nFRAGMENTS OF <={k} CELLS  (the contrast)")
         print(f"  testable {len(tested)} of {len(sl)} donors; " +
               ", ".join(f"{v}: {c}" for v, c in sl['verdict'].value_counts().items()))
-        cols = ["donor_id", "n_matched", "p_lr_control", "p_sep_control",
+        cols = ["donor_id", "n_matched", "n_dropped_draws", "p_lr_control", "p_sep_control",
                 "p_lr_target", "sep_target", "p_sep_target", "verdict"]
         print(sl[[c for c in cols if c in sl.columns]].to_string(index=False))
 
