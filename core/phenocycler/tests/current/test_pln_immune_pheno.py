@@ -625,6 +625,7 @@ def test_the_per_cell_subpanel_argmax_uses_one_marker_per_subpanel():
     assert list(got) == ["T_cell", "Myeloid"]
 
 
+@pytest.mark.data
 def test_every_called_cluster_reports_how_concentrated_its_evidence_is():
     if not (OUT / "cluster_heterogeneity.csv").exists():
         pytest.skip("pLN immune pheno has not been built in this checkout")
@@ -650,6 +651,7 @@ def _manifest():
     return json.loads(path.read_text())
 
 
+@pytest.mark.data
 def test_the_manifest_declares_what_it_does_not_read():
     manifest = _manifest()
     for key in ("no_pancreas_input", "no_reference_level", "no_absolute_floor"):
@@ -659,6 +661,7 @@ def test_the_manifest_declares_what_it_does_not_read():
     assert "reference_quantile" not in manifest and "positive_at" not in manifest
 
 
+@pytest.mark.data
 def test_fourteen_typed_four_unavailable_one_withheld():
     states = pd.Series([s["state"] for s in _manifest()["donors"].values()]).value_counts()
     assert states.get("typed", 0) == 14
@@ -666,6 +669,7 @@ def test_fourteen_typed_four_unavailable_one_withheld():
     assert states.get("withheld", 0) == 1
 
 
+@pytest.mark.data
 def test_a_donor_with_no_intensity_measurement_is_unavailable_and_never_zero_immune_cells():
     manifest = _manifest()
     for donor in ("6551", "6566", "6593", "6623"):
@@ -675,6 +679,7 @@ def test_a_donor_with_no_intensity_measurement_is_unavailable_and_never_zero_imm
         assert state.get("n_immune", "") == ""
 
 
+@pytest.mark.data
 def test_every_donor_that_is_not_typed_names_a_reason_on_disk():
     manifest = _manifest()
     for donor, state in manifest["donors"].items():
@@ -684,6 +689,7 @@ def test_every_donor_that_is_not_typed_names_a_reason_on_disk():
         assert (OUT / f"donor_id={donor}/roi=pln_1/UNAVAILABLE.json").exists()
 
 
+@pytest.mark.data
 def test_a_withheld_donor_never_sits_beside_a_call_table():
     """Two generations side by side with nothing marking which is which is how this tree goes
     wrong.  A partition carries calls or a refusal, never both."""
@@ -693,6 +699,7 @@ def test_a_withheld_donor_never_sits_beside_a_call_table():
             f"{part} holds both a call table and a refusal"
 
 
+@pytest.mark.data
 def test_the_superseded_generation_is_named_so_this_tree_does_not_stack_two():
     _manifest()
     marker = OUT / "_reference/SUPERSEDED_2026-09-17.json"
@@ -703,6 +710,7 @@ def test_the_superseded_generation_is_named_so_this_tree_does_not_stack_two():
     assert "cluster_calls.csv" in superseded["current_outputs"]
 
 
+@pytest.mark.data
 def test_object_id_is_preserved_verbatim_and_unique_within_a_donor():
     _manifest()
     import pyarrow.parquet as pq
@@ -719,6 +727,7 @@ def test_object_id_is_preserved_verbatim_and_unique_within_a_donor():
         assert set(frame["object_id"]) <= set(theirs), "object_id was not carried verbatim"
 
 
+@pytest.mark.data
 def test_a_cell_with_no_nucleus_is_excluded_from_every_calculation():
     """`qc_analysis_eligible` is the ingest's verdict and `missing_nucleus_geometry` is one of the
     reasons it withholds.  The call table must hold exactly the eligible, clustered cells."""
@@ -733,6 +742,7 @@ def test_a_cell_with_no_nucleus_is_excluded_from_every_calculation():
         assert row["n_clustered"] == row["n_immune"] + row["n_non_immune"] + row["n_uncalled"]
 
 
+@pytest.mark.data
 def test_an_object_count_is_never_reported_as_a_cell_count():
     """8,961,168 rows in the root, 5,122,269 analysis-eligible.  A prior agent reported the
     10,192,986 QuPath objects as "cells" and inflated the layer by a third."""
@@ -743,6 +753,7 @@ def test_an_object_count_is_never_reported_as_a_cell_count():
     assert counts["n_clustered"].sum() == counts["n_eligible"].sum()
 
 
+@pytest.mark.data
 def test_every_cell_inherits_exactly_its_own_cluster_s_call():
     """Cells inherit; they are not typed one by one and then grouped."""
     _manifest()
@@ -758,6 +769,7 @@ def test_every_cell_inherits_exactly_its_own_cluster_s_call():
         assert (got == mine["immune_class"].fillna("").reindex(got.index)).all()
 
 
+@pytest.mark.data
 def test_uncalled_stays_a_real_category_with_no_default_sink():
     counts = pd.read_csv(OUT / "per_donor_counts.csv") if (OUT / "per_donor_counts.csv").exists() \
         else pytest.skip("not built")
@@ -766,6 +778,7 @@ def test_uncalled_stays_a_real_category_with_no_default_sink():
         "no immune cluster failed stage 2, which would mean the requirement never binds"
 
 
+@pytest.mark.data
 def test_the_separation_each_donor_actually_got_is_reported():
     path = OUT / "per_donor_separation.csv"
     if not path.exists():
@@ -802,6 +815,7 @@ def test_the_veto_accounting_carries_both_statistics_and_the_channel_s_span():
     assert row["marker_dynamic_range_on_this_section"] == 20.3
 
 
+@pytest.mark.data
 def test_every_exclusion_a_structural_marker_caused_is_accounted_for_with_its_span():
     """Every excluded cluster appears exactly once, and the cell counts reconcile with the calls.
 
@@ -822,6 +836,7 @@ def test_every_exclusion_a_structural_marker_caused_is_accounted_for_with_its_sp
 # --------------------------------------------------------------------------------------------
 # Coherence: internal contradictions only.  No expectation is ever a check.
 # --------------------------------------------------------------------------------------------
+@pytest.mark.data
 def test_cd4_and_cd8_never_claim_more_cells_than_exist():
     """The UNION is the arithmetic impossibility: CD4-positive or CD8-positive cannot exceed 100 %
     of the T compartment, whatever a node contains.
@@ -847,6 +862,7 @@ def test_cd4_and_cd8_never_claim_more_cells_than_exist():
     assert (table["union_over_100_at"].fillna("") == "").all()
 
 
+@pytest.mark.data
 def test_where_the_sum_passes_100_the_q_that_did_it_is_named():
     path = OUT / "_reference/coherence.csv"
     if not path.exists():
@@ -1120,6 +1136,7 @@ def _t_nk_tables():
     return pd.read_csv(counts), pd.read_csv(donors), pd.read_csv(clusters)
 
 
+@pytest.mark.data
 def test_on_disk_the_subsets_sum_to_the_t_nk_compartment_on_every_donor():
     counts, donors, _ = _t_nk_tables()
     subsets = [f"tnk_{k}" for k in builder.T_NK_CLASSES]
@@ -1128,12 +1145,14 @@ def test_on_disk_the_subsets_sum_to_the_t_nk_compartment_on_every_donor():
     assert bool(donors["subsets_sum_to_the_compartment"].all())
 
 
+@pytest.mark.data
 def test_on_disk_cd4_and_cd8_never_claim_more_than_the_cd3e_positive_cells():
     _, donors, _ = _t_nk_tables()
     over = donors.loc[donors["pct_CD4_plus_CD8_of_CD3e_positive"] > 100.0 + 1e-9]
     assert over.empty, over[["donor_id", "pct_CD4_plus_CD8_of_CD3e_positive"]]
 
 
+@pytest.mark.data
 def test_on_disk_every_cluster_of_the_compartment_says_which_way_it_went_and_why():
     _, _, clusters = _t_nk_tables()
     assert len(clusters) > 0
@@ -1148,6 +1167,7 @@ def test_on_disk_every_cluster_of_the_compartment_says_which_way_it_went_and_why
         assert refused[column].notna().all(), column
 
 
+@pytest.mark.data
 def test_on_disk_a_zero_nk_count_only_stands_where_the_gate_actually_ran():
     counts, donors, _ = _t_nk_tables()
     zeros = donors.loc[donors["NK_ILC"].astype(str).isin(["0", "0.0"])]

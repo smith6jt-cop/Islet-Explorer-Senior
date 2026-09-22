@@ -66,9 +66,17 @@ def _sections() -> list[tuple[str, Path, Path]]:
     return out
 
 
-SECTIONS = _sections()
-needs_artifacts = pytest.mark.skipif(
-    not SECTIONS, reason=f"no per-section artifacts under {WORK}")
+@pytest.fixture(scope="module")
+def sections() -> list[tuple[str, Path, Path]]:
+    """The per-section artifacts, read only when a test asks for them.
+
+    Collecting this module must never touch ``WORK``: the glob runs inside the fixture, so a
+    checkout without the run collects the same two ids and skips them with the reason below.
+    """
+    found = _sections()
+    if not found:
+        pytest.skip(f"no per-section artifacts under {WORK}")
+    return found
 
 
 # --------------------------------------------------------------- the counting rule itself
@@ -186,15 +194,15 @@ def test_the_release_does_not_publish_the_parent_count_under_the_old_name():
 
 # ------------------------------------------------- the same rule, on the artifacts on disk
 
-@needs_artifacts
-def test_release_counter_equals_the_cells_carrying_the_redirect_reason():
+@pytest.mark.data
+def test_release_counter_equals_the_cells_carrying_the_redirect_reason(sections):
     """What the release publishes must equal what reading the shipped frames says.
 
     This is the assertion that would have caught it: with the parent count in that field the
     published number was 0 while the calls frame carried 215 cells whose reason is the redirect.
     """
     shipped_anywhere = 0
-    for section, calls_path, sub_path in SECTIONS:
+    for section, calls_path, sub_path in sections:
         calls = pd.read_parquet(calls_path, columns=["reason", "lineage", "subcluster_id"])
         subs = pd.read_parquet(
             sub_path, columns=["subcluster_id", "reason", "cd3_negative_nk_redirect", "n_cells",
@@ -224,11 +232,11 @@ def test_release_counter_equals_the_cells_carrying_the_redirect_reason():
         "passed without exercising anything")
 
 
-@needs_artifacts
-def test_the_parent_partition_is_not_a_substitute_for_the_subcluster_partition():
+@pytest.mark.data
+def test_the_parent_partition_is_not_a_substitute_for_the_subcluster_partition(sections):
     """On these artifacts the two partitions give different answers, which is the whole point."""
     parent_applied = subcluster_shipped = 0
-    for section, calls_path, sub_path in SECTIONS:
+    for section, calls_path, sub_path in sections:
         cl_path = sub_path.with_name(sub_path.name.replace(".subclusters.", ".clusters."))
         if cl_path.is_file():
             parents = pd.read_parquet(cl_path, columns=["cd3_negative_nk_redirect"])

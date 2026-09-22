@@ -1,5 +1,14 @@
 """The statistics must behave on data whose answer is known, and fail closed on data that
-has no answer.  These run without touching the cohort."""
+has no answer.  These run without touching the cohort.
+
+The exceptions carry ``pytest.mark.data``: the tests that read the cohort table
+(``data/donor_acquisition_batch.csv``, via ``panel.cohort`` / ``panel.donor_markers`` /
+``panel.donors_with``), the pinned run (``core/phenocycler/data/runs``), an expression
+partition, a Step 1 / Step 2 output under ``data/development/celltype``, or one of the pinned
+checkouts under ``external/`` (``UniFORM``, ``utag``).  None of those is in version control,
+so a clean checkout has nothing for them to read.  The checkout tests skip, naming the
+checkout, when it is absent; a checkout at the wrong commit still fails, which is the drift
+the pin exists to catch."""
 from __future__ import annotations
 
 import pathlib
@@ -15,6 +24,7 @@ HERE = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 import panel                                   # noqa: E402
 import usability as U                          # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -116,13 +126,14 @@ def test_compartment_is_inherited_from_partners_when_the_registry_declines():
     assert "CD3e" not in panel.control_map()["Granzyme_B"]
 
 
+@pytest.mark.data
 def test_cohort_is_the_twenty_eligible_donors_in_four_acquisition_groups():
     """Stale name kept for history; the fact it asserts is now the 2026-09-16 cohort growth:
     22 donors (6533 and 112 added, Fusion 2.4.1, panel variant "both") in five acquisition
     groups -- "both" carries CD38 and b_Catenin1 together, which no prior donor did."""
     c = panel.cohort()
     assert len(c) == 22 and c["donor_id"].is_unique
-    assert not {"6457", "6579"} & set(c["donor_id"]), "centrally excluded donors must not appear"
+    assert not set(DONOR_EXCLUSIONS) & set(c["donor_id"]), "centrally excluded donors must not appear"
     assert set(c["acq_group"]) == {"2.3.1/CD38", "2.4.0/CD38", "2.4.1/b_Catenin1",
                                    "2.4.1/both", "2.4.1/neither"}
 
@@ -137,15 +148,31 @@ def test_panel_variant_markers_are_out_by_default():
 import uniform_adapter as UA                        # noqa: E402
 
 
-def test_uniform_checkout_is_the_pinned_commit():
+@pytest.fixture
+def pinned_uniform():
+    """UniFORM from ``external/UniFORM``, or a skip naming the checkout when it is absent.
+
+    Only absence skips.  ``_import_uniform`` refuses a checkout at any other commit, and that
+    refusal stays a failure: a drifted checkout can change the shift with nothing in the
+    output able to show it.
+    """
+    if not UA.UNIFORM_PATH.exists():
+        pytest.skip(f"UniFORM checkout not on disk at {UA.UNIFORM_PATH} "
+                    f"(external/ is not in version control; pinned to {UA.UNIFORM_COMMIT})")
+    return UA._import_uniform()
+
+
+@pytest.mark.data
+def test_uniform_checkout_is_the_pinned_commit(pinned_uniform):
     """A drifted checkout can change the shift with nothing in the output able to show it."""
-    reg, norm, pre = UA._import_uniform()
+    reg, norm, pre = pinned_uniform
     assert all(hasattr(reg, f) for f in ("automatic_registration", "compute_correlation_shifts"))
     assert hasattr(norm, "calculate_shift_in_log_pixels")
     assert hasattr(pre, "fit_two_component_gmm")
 
 
-def test_registration_recovers_a_known_scale_factor():
+@pytest.mark.data
+def test_registration_recovers_a_known_scale_factor(pinned_uniform):
     """Three donors of the same distribution, scaled by 1x / 4x / 0.25x.
 
     This is the whole method on data whose answer is known: if it cannot recover a scale it
@@ -155,7 +182,7 @@ def test_registration_recovers_a_known_scale_factor():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    reg, norm, _ = UA._import_uniform()
+    reg, norm, _ = pinned_uniform
     rng = np.random.default_rng(0)
     base = rng.lognormal(3, 1, 50_000)
     truth = {"A": 1.0, "B": 4.0, "C": 0.25}
@@ -202,6 +229,7 @@ def test_background_mode_spread_is_zero_for_identical_donors():
 
 
 # ------------------------------------------------------------------- the run this reads
+@pytest.mark.data
 def test_the_expression_stage_is_the_one_this_lane_was_built_against():
     """Pin the data, not just the run id.
 
@@ -223,6 +251,7 @@ def test_the_expression_stage_is_the_one_this_lane_was_built_against():
     assert m["method_version"] == "selected-expression-v2-qupath-norm-inputs"
 
 
+@pytest.mark.data
 def test_the_run_this_lane_reads_is_the_one_latest_names():
     """The pin and the pointer must not drift apart.
 
@@ -300,6 +329,7 @@ def test_flattening_refuses_a_cycle_rather_than_looping():
         R.flatten(bad)
 
 
+@pytest.mark.data
 def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
     """The cohort is four panel variants, so availability is a per-donor property.
 
@@ -325,6 +355,7 @@ def test_a_variant_marker_is_encoded_and_costs_donors_not_the_rule():
     assert (thin["B_cell"] == thin["CD38_high_B"]).all()
 
 
+@pytest.mark.data
 def test_marker_availability_is_a_property_of_the_donor():
     """CD38 and b_Catenin1 are not mutually exclusive: since 2026-09-16, donors 6533 and 112
     carry the new "both" panel variant, so the two donor sets overlap by 2."""
@@ -367,6 +398,7 @@ def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
 
 
 # ------------------------------------------------ the plan's verification items, asserted
+@pytest.mark.data
 def test_the_acquisition_group_statistic_reproduces_from_the_cohort_table_alone():
     """Plan verification item 4.
 
@@ -387,6 +419,7 @@ def test_the_acquisition_group_statistic_reproduces_from_the_cohort_table_alone(
         f"a second marker steps with the group: {max(others, key=others.get)}"
 
 
+@pytest.mark.data
 def test_step2_records_a_reference_donor_shift_and_provenance_for_every_marker():
     """Plan verification item 5, in the part that survived.
 
@@ -567,14 +600,27 @@ def test_a_cell_meeting_no_rule_is_ambiguous_with_a_reason():
 import utag_adapter as UT                              # noqa: E402
 
 
-def test_utag_checkout_is_the_pinned_commit():
-    utag = UT._import_utag()
+@pytest.fixture
+def pinned_utag():
+    """``utag`` from ``external/utag``, or a skip naming the checkout when it is absent.
+
+    Only absence skips; ``_import_utag`` refuses any other commit, and that stays a failure.
+    """
+    if not UT.UTAG_PATH.exists():
+        pytest.skip(f"UTAG checkout not on disk at {UT.UTAG_PATH} "
+                    f"(external/ is not in version control; pinned to {UT.UTAG_COMMIT})")
+    return UT._import_utag()
+
+
+@pytest.mark.data
+def test_utag_checkout_is_the_pinned_commit(pinned_utag):
     import inspect
-    params = inspect.signature(utag).parameters
+    params = inspect.signature(pinned_utag).parameters
     for k in ("adata", "slide_key", "max_dist", "clustering_method", "resolutions"):
         assert k in params, k
 
 
+@pytest.mark.data
 def test_the_domain_input_never_contains_the_geometry_it_is_checked_against():
     """`cell_region` is polygon containment and the domains are expression plus position.
     Feeding the first into the second would make the concordance check circular."""
@@ -640,6 +686,7 @@ import run_step1 as S1                                  # noqa: E402
 import run_step2 as S2                                  # noqa: E402
 
 
+@pytest.mark.data
 def test_a_variant_marker_does_not_cost_a_donor_its_cells():
     """Requiring CD38 of every donor would drop every cell for the 7 that never acquired it,
     which is the opposite of "a comparison using that marker runs on fewer donors"."""
@@ -655,6 +702,7 @@ def test_a_variant_marker_does_not_cost_a_donor_its_cells():
         "a marker this donor lacks must not drop its cells"
 
 
+@pytest.mark.data
 def test_a_variant_marker_is_aligned_only_across_the_donors_that_carry_it():
     """Aligning CD38 against donors that never acquired it would be aligning against
     nothing.  15 donors carry it, 6 carry b_Catenin1 (2 of those carry both), 3 carry
@@ -666,6 +714,7 @@ def test_a_variant_marker_is_aligned_only_across_the_donors_that_carry_it():
     assert len(panel.donors_with(["b_Catenin1"])) == 6
 
 
+@pytest.mark.data
 def test_the_shift_record_says_how_many_donors_backed_each_marker():
     f = panel.OUT / "shifts.json"
     if not f.exists():

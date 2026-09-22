@@ -240,10 +240,10 @@ XEN_PANC_STRUCTURES_WITHOUT_OUTLINE = "xenium_panc_islet_structures_carry_no_out
 #: centroid column is deliberately NOT here: a point is not a border.
 XEN_BORDER_COLUMNS = ("wkb", "geometry", "outline_wkb", "border_wkb")
 
-#: Kept as a name, but the text is now DERIVED from the shared registry rather than restated
-#: here. The counts in it -- 25,150,537 rows against 25,230,109, endocrine
-#: Beta 191,485 / Alpha 246,055 / Delta 62,797 against Beta 226,183 / Alpha 279,686 / Delta 90,658
-#: -- live in exactly one place, so they cannot drift between the two readers that quote them.
+#: Kept as a name, but the text is DERIVED from the shared registry rather than restated here.
+#: The counts in it live in exactly one place -- the record 'subpanel_calls' in
+#: core/phenocycler/scripts/typing/superseded.py, whose frozen-file constants every reader
+#: imports -- and are not restated here, so they cannot drift between the readers that quote them.
 SUPERSEDED = superseded_notice(
     superseded_match("data/development/typing/subpanel/subpanel_calls.parquet"),
     "data/development/typing/subpanel/subpanel_calls.parquet",

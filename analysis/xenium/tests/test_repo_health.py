@@ -3,7 +3,9 @@
 Cheap: no heavy imports, no real data. They catch the things that are annoying to debug
 later — a notebook that will not open, a shell script SLURM will reject, a `utils` module
 that does not import, and a panel snapshot that has drifted from the taxonomy it was
-generated from.
+generated from. The two snapshot tests read `data/development/xenium_panels/subpanels`, a
+derived and gitignored tree, so they carry `pytest.mark.data` and are outside the default
+`-m "not data"` run this lane's pyproject.toml configures; `make test-data` runs them.
 
 **What this file no longer asserts, and why.** Three of its original checks tested things
 that do not exist in the monorepo:
@@ -142,6 +144,7 @@ def _snapshot_tree_id() -> str | None:
     return None
 
 
+@pytest.mark.data
 @pytest.mark.skipif(not (SNAPSHOT / "SOURCE.txt").exists(),
                     reason="no panel snapshot; run analysis/xenium/scripts/fetch_subpanels.py")
 def test_the_panel_snapshot_matches_the_core_panels_it_was_generated_from():
@@ -164,6 +167,7 @@ def test_the_panel_snapshot_matches_the_core_panels_it_was_generated_from():
     )
 
 
+@pytest.mark.data
 @pytest.mark.skipif(not (SNAPSHOT / "panel_roles.csv").exists(),
                     reason="no panel snapshot; run analysis/xenium/scripts/fetch_subpanels.py")
 def test_the_derived_allowlist_agrees_with_each_tissue_module():

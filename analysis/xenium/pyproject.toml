@@ -12,6 +12,12 @@ target-version = "py310"
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
+# This is its own pytest rootdir, so core/phenocycler's marker table does not reach it: the
+# `data` marker is registered here too, and the default run deselects it the same way.
+# `make test-data` passes `-m data` on the command line, which overrides the one in addopts.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = ["-q", "--strict-markers", "-m", "not data"]
+markers = [
+    "data: tests that read a derived, gitignored snapshot (data/development/xenium_panels) rather than the checkout",
+]

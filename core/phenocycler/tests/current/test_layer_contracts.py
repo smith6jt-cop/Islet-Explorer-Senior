@@ -73,6 +73,7 @@ HIVE_COLLIDING_ROOTS = [
 
 
 @pytest.mark.parametrize("rel", HIVE_COLLIDING_ROOTS)
+@pytest.mark.data
 def test_hive_partitioning_collides_with_the_donor_id_column(rel):
     """partitioning="hive" raises on these roots; partitioning=None is the contract.
 
@@ -96,6 +97,7 @@ def test_hive_partitioning_collides_with_the_donor_id_column(rel):
     assert set(table.column("donor_id").to_pylist())
 
 
+@pytest.mark.data
 def test_typing_cells_has_no_donor_id_column_so_the_directory_is_the_donor():
     """The opposite problem, and the reason the spec tables both.
 
@@ -112,6 +114,7 @@ def test_typing_cells_has_no_donor_id_column_so_the_directory_is_the_donor():
     assert "object_id" in names
 
 
+@pytest.mark.data
 def test_donor_id_is_not_normalised_across_trees():
     """0112 and 112 are the same donor. A builder that globs donor_id=112 finds nothing.
 

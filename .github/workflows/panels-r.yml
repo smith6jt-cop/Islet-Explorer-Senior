@@ -1,0 +1,151 @@
+name: Panel taxonomy (R)
+
+# core/panels/tests had no workflow before this file. phenocycler-ci.yml lists core/panels/**
+# in its path filters (lines 16, 22) but only checks that one file exists (line 142); the only
+# runner was Makefile:110-112, which is also where the cwd rule below comes from:
+# tests/testthat.R calls test_check(), which looks for ./testthat relative to the cwd, so the
+# suite runs from core/panels/tests, not from core/panels (Makefile:108-109).
+#
+# WHY NOT THE UBUNTU DEBS, which is how islet-r.yml installs R. The census (2026-09-21,
+# `apt-cache policy` on Ubuntu 24.04, noble/universe) found eight of the package's Imports
+# without a deb -- qs2, arrow, waiter, harmony, clustree, aricode, presto (DESCRIPTION:55-56 pins
+# it to a GitHub Remote, so it is not on CRAN either) -- plus shinyWidgets, which has no
+# r-cran-shinywidgets candidate either (re-checked 2026-09-22); ten more packaged below the floor
+# DESCRIPTION:13-43 declares (shiny 1.8.0 < 1.9.0, bslib 0.6.1 < 0.8.0, DT 0.31 < 0.33, ggplot2
+# 3.4.4 < 3.5.0, Seurat 5.0.1 < 5.1.0, SeuratObject 5.0.1 < 5.0.2, data.table 1.14.10 < 1.16.0,
+# rhdf5 2.46.1 < 2.48.0, shinycssloaders 1.0.0 < 1.1.0, fs 1.6.3 < 1.6.4); and r-base-core
+# 4.3.3, below DESCRIPTION:12's `R (>= 4.4)`. The census proposed the deb closure anyway, with
+# those tests skipping, on the reading that pkgload::load_all() (testthat.R:2) does not need
+# the Imports installed -- and said it had not measured the suite under a restricted library.
+# Measured 2026-09-22, R 4.5.1, pkgload 1.5.2, against a library with only those eight
+# packages removed, from core/panels/tests with `Rscript testthat.R`:
+#   Error in load_imports(path) : The packages "qs2" (>= 0.1.3), "arrow" (>= 17.0.0),
+#   "waiter" (>= 0.2.5), "harmony" (>= 1.2.0), "clustree" (>= 0.5.1), "aricode",
+#   "presto" (>= 1.0.0), and "shinyWidgets" (>= 0.8.6) are required.
+#   Calls: source ... load_imports -> deps_check_installed -> check_installed
+# Zero tests ran. load_all() hands every Imports row, version and all, to
+# rlang::check_installed(), which aborts in a non-interactive session -- pkgload 1.5.2
+# (`pkgload:::load_imports`, `pkgload:::deps_check_installed`) and the noble deb's 1.3.4
+# (R/imports-env.R:64 -> R/package-deps.R:57-91, from the CRAN archive tarball) both do. So the
+# deb closure cannot run this suite, whatever the test guards say, and this job takes the
+# census's stated alternative: r-lib/actions with an R above the declared floor.
+#
+# WHAT THIS JOB DOES: r-lib/actions installs R 4.5.1 -- the version Makefile:29 runs the suite
+# with -- and pak installs the package's hard dependencies (Depends, Imports, LinkingTo,
+# following the presto Remote and the Bioconductor rhdf5) as prebuilt Posit binaries, plus the
+# three Suggests named under extra-packages that the test harness itself calls (testthat and
+# pkgload from testthat.R:1-2, rprojroot from helper-test-data.R:11).
+#
+# MEASURED BASELINE, 2026-09-22, R 4.5.1 with every DESCRIPTION package present, from a bare git
+# worktree of main with `cd core/panels/tests && Rscript testthat.R`:
+#   [ FAIL 0 | WARN 7 | SKIP 2 | PASS 387 ]
+#   the two skips: test-cluster_pipeline.R:84, which skips when leidenAlg IS installed (the
+#   Louvain fallback block :83-96 only runs without it), and test-shinytest2.R:8, skipped as
+#   "On CRAN" because NOT_CRAN is unset on the workstation.
+# The tissue fixtures the suite reads (core/panels/data/tissues/, helper-test-data.R:25-26) are
+# tracked, so no data step is needed. This job has not yet run on a GitHub runner; the first
+# run's count belongs on this line.
+#
+# DELIBERATELY NOT INSTALLED, so that each is a stated absence and not a silent skip. The
+# inventory step prints them by name on every run, as islet-r.yml does.
+#   leidenAlg              the census's reading: test-cluster_pipeline.R:84 is the inverse guard
+#                          (skip_if(requireNamespace("leidenAlg"))), so leaving it out is what
+#                          lets the Louvain fallback block :83-96 run. Measured 2026-09-22 with
+#                          leidenAlg alone removed from the workstation library: that block runs
+#                          and passes (1 expectation, 0 failed), so the runner's expected count
+#                          is 388 passed and the skip at :84 becomes a pass.
+#   zellkonverter          one block, test-load_xenium.R:59 (h5ad dispatch). It is the
+#                          Bioconductor package that pulls basilisk, which builds a conda
+#                          environment at first use: a download at test time, not install time.
+#   SingleCellExperiment,  reached only inside .load_xenium_h5ad (R/load_xenium.R:158-165),
+#   SummarizedExperiment   the zellkonverter path above; no test gets there without it.
+#   shinytest2, chromote   test-shinytest2.R:2-3, the one browser test; without them it skips at
+#                          :2 instead of :8, with the package named.
+#   devtools               Suggests only; no call site in R/ or tests/.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/panels/**'
+      - '.github/workflows/panels-r.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'core/panels/**'
+      - '.github/workflows/panels-r.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  panels:
+    name: Panel taxonomy R package (xeniumPanelExplorer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # pak resolves the presto Remote (DESCRIPTION:55-56) through the GitHub API.
+      GITHUB_PAT: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5.1'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: core/panels
+          dependencies: '"hard"'
+          extra-packages: any::testthat, any::pkgload, any::rprojroot
+
+      - name: Optional-package inventory
+        # A skip that nobody can see is the thing this step exists to stop. EXPECTED names
+        # must be present or the job fails here, with the name, rather than thinning the suite
+        # and still printing a green tick. STATED_ABSENT names are reported with what they
+        # disable and do not fail; one that turns up present is reported too, so the list is
+        # revisited rather than inherited.
+        run: |
+          Rscript -e '
+            expected <- c("shiny", "bslib", "DT", "plotly", "data.table", "ggplot2", "Seurat",
+                          "SeuratObject", "Matrix", "qs2", "arrow", "rhdf5", "shinyFiles",
+                          "waiter", "harmony", "clustree", "aricode", "presto", "viridisLite",
+                          "htmltools", "shinycssloaders", "shinyWidgets", "scales", "ggrastr",
+                          "fs", "rlang",
+                          "testthat", "pkgload", "rprojroot")
+            stated_absent <- c(
+              leidenAlg            = "nothing; its absence RUNS test-cluster_pipeline.R:83-96 (measured passing 2026-09-22)",
+              zellkonverter        = "1 block, test-load_xenium.R:59 (h5ad dispatch); pulls basilisk",
+              SingleCellExperiment = "nothing without zellkonverter (R/load_xenium.R:159)",
+              SummarizedExperiment = "nothing without zellkonverter (R/load_xenium.R:159)",
+              shinytest2           = "1 block, test-shinytest2.R:2 (browser smoke test)",
+              chromote             = "the same block, test-shinytest2.R:3",
+              devtools             = "Suggests only; no call site")
+            have <- vapply(expected, requireNamespace, logical(1), quietly = TRUE)
+            for (p in expected) cat(sprintf("  %-22s %s\n", p, if (have[[p]]) "present" else "ABSENT"))
+            for (p in names(stated_absent)) {
+              got <- requireNamespace(p, quietly = TRUE)
+              cat(sprintf("  %-22s %s  -- disables: %s\n", p,
+                          if (got) "present (stated absent; revisit the list)" else "absent, by decision",
+                          stated_absent[[p]]))
+            }
+            if (!all(have)) {
+              cat("\nThese are required for the suite to run whole:",
+                  paste(expected[!have], collapse = ", "), "\n")
+              cat("pkgload::load_all() refuses the package without its Imports;",
+                  "every test a Suggests guards would skip without failing.\n")
+              quit(status = 1)
+            }'
+
+      - name: testthat
+        # From core/panels/tests, not core/panels: test_check() looks for ./testthat relative
+        # to the cwd (Makefile:108-112). load_all(".") still finds the package, because pkgload
+        # walks up to the DESCRIPTION.
+        working-directory: core/panels/tests
+        run: Rscript testthat.R

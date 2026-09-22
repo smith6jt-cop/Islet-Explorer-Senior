@@ -86,6 +86,7 @@ def test_builder_does_not_restate_the_exclusion_list(grid):
 # ---------------------------------------------------------------------------
 # A missing measurement is unavailable -- never zero, never negative.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_absence_never_carries_a_count(layer):
     holes = layer["composition"][layer["composition"]["state"].ne("measured")]
     assert len(holes), "no absence in the layer; the rule would go untested"
@@ -93,6 +94,7 @@ def test_absence_never_carries_a_count(layer):
     assert holes["frac_of_assessed"].isna().all()
 
 
+@pytest.mark.data
 def test_every_absence_names_a_reason(layer):
     for table in ("composition", "presence"):
         rows = layer[table][layer[table]["state"].ne("measured")]
@@ -100,6 +102,7 @@ def test_every_absence_names_a_reason(layer):
         assert (reasons.str.len() > 0).all(), f"{table} carries an absence with no reason"
 
 
+@pytest.mark.data
 def test_states_are_the_five(grid, layer):
     for table in ("composition", "presence"):
         assert set(layer[table]["state"]) <= set(grid.STATES)
@@ -143,6 +146,7 @@ def test_nucleus_never_measured_is_not_a_nucleus_that_is_absent(grid, tmp_path):
     assert sum(broad.values()) == 1, "both excluded cells must leave the denominator"
 
 
+@pytest.mark.data
 def test_a_partition_with_no_nucleus_measurement_is_unavailable_not_empty(layer):
     """Measured in this release: three pancreas RNA donors carry nucleus_measured
     False on every cell. That is unavailable with a named reason, not a donor with
@@ -159,6 +163,7 @@ def test_a_partition_with_no_nucleus_measurement_is_unavailable_not_empty(layer)
 # ---------------------------------------------------------------------------
 # Internal coherence: the subsets sum to their parent.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_buckets_sum_to_the_cells_assessed(layer):
     comp = layer["composition"]
     measured = comp[comp["state"].eq("measured")]
@@ -173,6 +178,7 @@ def test_buckets_sum_to_the_cells_assessed(layer):
     assert layer["manifest"]["coherence"]["n_mismatched"] == 0
 
 
+@pytest.mark.data
 def test_every_measured_row_has_a_denominator_it_divides(layer):
     measured = layer["composition"][layer["composition"]["state"].eq("measured")]
     frac = measured["n_cells"] / measured["denom_assessed"]
@@ -181,6 +187,7 @@ def test_every_measured_row_has_a_denominator_it_divides(layer):
     assert (measured["denom_assessed"] > 0).all()
 
 
+@pytest.mark.data
 def test_the_fine_level_never_exceeds_the_lineage_it_sits_in(layer):
     """t_nk_class sits inside the T_NK class and must never be added to it."""
     fine = layer["fine"]
@@ -202,6 +209,7 @@ def test_the_fine_level_never_exceeds_the_lineage_it_sits_in(layer):
 # ---------------------------------------------------------------------------
 # The two tissues are different blocks.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_no_spatial_column_reaches_the_layer(layer):
     forbidden = {"signed_dist_islet_um", "distance_bin_um", "compartment",
                  "neighbourhood", "x_centroid", "y_centroid"}
@@ -215,6 +223,7 @@ def test_a_cross_tissue_quantity_is_refused(grid):
     grid.refuse_cross_tissue("peri-islet expansion", ["pancreas", "pancreas"])
 
 
+@pytest.mark.data
 def test_the_cross_tissue_join_carries_only_donor_and_status(layer):
     comp = layer["composition"]
     assert {"donor_id", "disease_status"} <= set(comp.columns)
@@ -225,6 +234,7 @@ def test_the_cross_tissue_join_carries_only_donor_and_status(layer):
 # ---------------------------------------------------------------------------
 # The crosswalk is read, never narrowed.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_every_crosswalk_lineage_appears_in_every_grid_cell(grid, layer):
     crosswalk = grid.load_crosswalk()
     wanted = set(crosswalk["common"]) - {"Unassigned"}
@@ -237,6 +247,7 @@ def test_every_crosswalk_lineage_appears_in_every_grid_cell(grid, layer):
         )
 
 
+@pytest.mark.data
 def test_resolution_columns_travel_with_every_row(layer):
     comp = layer["composition"]
     lineage_rows = comp[comp["in_crosswalk"]]
@@ -244,6 +255,7 @@ def test_resolution_columns_travel_with_every_row(layer):
         assert (lineage_rows[column].fillna("").str.len() > 0).all()
 
 
+@pytest.mark.data
 def test_a_disagreement_with_the_crosswalk_is_named_not_dropped(layer):
     comp = layer["composition"]
     conflicts = comp[comp["resolution_conflict"].fillna("").str.len() > 0]
@@ -260,6 +272,7 @@ def test_map_targets_must_exist_in_the_crosswalk(grid, monkeypatch):
         grid.validate_maps(crosswalk)
 
 
+@pytest.mark.data
 def test_no_exocrine_subdivision_is_claimed(grid, layer):
     """The 60-plex carries no acinar-specific and no ductal-specific marker."""
     forbidden = re.compile(r"acinar|ductal|amylase|trypsin|CPA1|elastase|CK19|SOX9|HNF1B|CFTR|MUC1",
@@ -271,6 +284,7 @@ def test_no_exocrine_subdivision_is_claimed(grid, layer):
 # ---------------------------------------------------------------------------
 # Eta-squared never travels without its null.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_eta_squared_is_reported_beside_a_permutation_null(grid, layer):
     eta = layer["eta"]
     measured = eta[eta["state"].eq("measured")]
@@ -293,6 +307,7 @@ def test_eta_with_null_is_bounded_and_honest(grid):
     assert stat["n_donors"] == 12
 
 
+@pytest.mark.data
 def test_the_fusion_version_is_never_a_batch_variable(grid, layer):
     """Correction is only ever defensible on the finer acquisition variables."""
     assert "software" not in set(layer["eta"]["variable"])
@@ -328,13 +343,19 @@ def test_the_layer_root_is_the_one_the_card_resolves(grid, monkeypatch, tmp_path
     assert "grid_composition" in card
 
 
+@pytest.mark.data
 def test_the_layer_records_the_domain_it_belongs_to(layer):
     recorded = Path(layer["manifest"]["source_domain_root"])
     assert recorded.is_absolute() and recorded.exists()
     assert CARD.read_text().count("domain_data_root()") >= 1
 
 
-def test_the_card_refuses_a_foreign_domain(layer):
+def test_the_card_refuses_a_foreign_domain():
+    """Reads only the tracked card source, so it belongs in the default lane.
+
+    It carried @pytest.mark.data and took ``layer`` without using it, which deselected a
+    source-text check whenever the checkout had no built layer -- the clean-checkout state.
+    """
     card = CARD.read_text()
     assert "grid_composition_belongs_to_a_different_domain" in card
 
@@ -342,6 +363,7 @@ def test_the_card_refuses_a_foreign_domain(layer):
 # ---------------------------------------------------------------------------
 # No cohort fact is written as a literal in the card.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_the_card_names_no_donor_no_cohort_size_and_no_method(layer):
     card = CARD.read_text()
     code = "\n".join(line for line in card.splitlines() if not line.lstrip().startswith("#"))
@@ -364,6 +386,7 @@ def test_the_card_renders_a_named_note_for_every_state(grid):
 # ---------------------------------------------------------------------------
 # Presence: every donor, every cell of the grid, with a reason.
 # ---------------------------------------------------------------------------
+@pytest.mark.data
 def test_presence_is_complete_over_the_grid(layer):
     presence = layer["presence"]
     donors = set(presence["donor_id"])
@@ -372,6 +395,7 @@ def test_presence_is_complete_over_the_grid(layer):
     assert not presence.duplicated(["tissue", "modality", "donor_id"]).any()
 
 
+@pytest.mark.data
 def test_a_measured_cell_has_cells_and_an_absent_one_has_none(layer):
     presence = layer["presence"]
     measured = presence[presence["state"].eq("measured")]
@@ -380,6 +404,7 @@ def test_a_measured_cell_has_cells_and_an_absent_one_has_none(layer):
     assert blank["n_cells_assessed"].isna().all()
 
 
+@pytest.mark.data
 def test_a_producer_reason_that_outlived_its_citation_is_flagged(layer):
     presence = layer["presence"]
     flagged = presence[presence["citation_conflict"].fillna("").str.len() > 0]

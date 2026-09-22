@@ -29,7 +29,7 @@ With the suffix removed properly the join is exact and total: **221 of 221 on 65
 6436**, and the same row counts as `islet_geometry.parquet`'s `core` rows for those donors (572
 and 600 islets, of which those with an endocrine union get a non-endocrine region).
 
-`scripts/test_build_tissuumaps_regions.py` now pins the suffix rule.
+`scripts/check_build_tissuumaps_regions.py` now pins the suffix rule.
 
 ## The three tests
 

@@ -22,20 +22,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dispositions as D  # noqa: E402
 
 REPO = Path(D.REPO)
+# The frozen file's counts come from the one table that holds them; nothing here restates them.
+# The table is the one BESIDE THIS SCRIPT -- resolved from __file__, never from D.REPO, which is
+# one checkout's absolute path: from a worktree that would import another checkout's registry
+# and stamp its text into the notes.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core/phenocycler/scripts/typing"))
+import superseded as SUP  # noqa: E402
 
-# The current artifact in each stacked directory, stated once, in the maintainer's own numbers.
+# The current artifact in each stacked directory, stated once.  A note is written BESIDE the
+# data and outlives the build that was current when it was written, so it carries no number that
+# a rebuild changes: no class count, no resolved_by count, no build date.  Those are properties of
+# the tree -- count them from it, read its generation from its partition mtimes.
 CURRENT = {
     "data/development/typing": (
-        "cells/  -- 20 donors, 25,230,109 cells, 24 columns\n"
-        "    Beta 226,183 | Alpha 279,686 | Delta 90,658 | is_endocrine 596,527\n"
-        "    resolved_by: fallthrough 20,258,524 | definition 2,779,374 | structure 1,440,160 |\n"
-        "                 hormone 596,527 | supporting 155,524\n"
-        "    Built Fri 2026-09-11 -> 09-14 -> 09-15. Eight classes plus Excluded. It carries\n"
-        "    NO CD99 question and no Unresolved class: the 2026-09-18 islet chain (structure,\n"
-        "    exocrine-inside-an-islet excluded, CD99 fitted PER DONOR AND PER SIZE STRATUM with\n"
-        "    a floor guard, nucleus_elongation as a SECOND ROUTE that can only ADD and only in\n"
-        "    the >10-cell stratum, then hormone argmax over INS/GCG/SST) is the decided method\n"
-        "    and NO DONOR HAS BEEN RE-RUN with it. Do not read this build as carrying it.\n"
+        f"cells/  -- {SUP.CELLS_CURRENT}\n"
+        "    Class counts, resolved_by counts and the build date are NOT copied here: they are\n"
+        "    properties of cells/ and change with every rebuild (measured 2026-09-21: the tree\n"
+        "    was rebuilt in place on 2026-09-19 with the same row count and a different class\n"
+        "    composition). Count them from the tree. Eight classes plus Excluded. Which chain\n"
+        "    built the partitions on disk is read from the tree itself and from\n"
+        "    scripts/typing/RECONSTRUCTION.md's [ON DISK] / [CHAIN NOW] marks, never from this\n"
+        "    note: the 2026-09-18 islet chain (structure, exocrine-inside-an-islet excluded,\n"
+        "    CD99 fitted PER DONOR AND PER SIZE STRATUM with a floor guard, nucleus_elongation\n"
+        "    as a SECOND ROUTE that can only ADD and only in the >10-cell stratum, then hormone\n"
+        "    argmax over INS/GCG/SST) is the decided method.\n"
         "    refined_class does not exist here either: scripts/typing/refine.py is written and\n"
         "    not wired, and its 5th-percentile demotion is an open question, not a decision.\n"
         "    Supporting, measured 2026-09-18: subpanel_rebuilt/ qupath_fundamentals/\n"
@@ -61,8 +71,10 @@ CURRENT = {
 EXTRA = {
     "data/development/typing/subpanel": [
         ("subpanel_calls.parquet",
-         "SUPERSEDED by ../cells/ -- Beta 191,485 / Alpha 246,055 / Delta 62,797 here against "
-         "226,183 / 279,686 / 90,658 there. The row deficit is exactly the 7 batch-2 donors. "
+         f"SUPERSEDED by ../cells/ -- {SUP.SUBPANEL_CALLS_ROWS} rows, endocrine "
+         f"{SUP.SUBPANEL_CALLS_ENDOCRINE} here, fixed because this file is frozen; the current "
+         "counts are a property of ../cells/ and are not copied into this note. "
+         "The row deficit is exactly the 7 batch-2 donors. "
          "KEPT ON DISK ANYWAY: typed-orbit Phase 0 names it as the row-for-row reconstruction "
          "gate, so Phase 0 cannot run once it is gone. Do not cite it; do not delete it."),
     ],

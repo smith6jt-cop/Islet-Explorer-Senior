@@ -108,6 +108,7 @@ def test_own_markers_are_the_recovered_table():
 
 @pytest.mark.skipif(not (REPO / "data/development/celltype/shifts.json").exists(),
                     reason="shifts.json is not in this checkout")
+@pytest.mark.data
 def test_marker_set_is_derived_and_the_drop_list_with_it():
     markers = refine.derive_markers()
     assert len(markers) > 20

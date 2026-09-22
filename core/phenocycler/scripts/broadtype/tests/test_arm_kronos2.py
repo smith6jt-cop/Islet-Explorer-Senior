@@ -28,7 +28,9 @@ def test_no_state_marker_is_mapped():
     assert not set(arm.CANONICAL) & set(DEC["state_markers"])
 
 
+@pytest.mark.data
 def test_novel_rows_reuse_existing_kronos2_categories():
+    """Reads the vendored KRONOS2 snapshot under ``external/``, which is not in version control."""
     meta = arm.KRONOS2_DIR / "marker_metadata.csv"
     if not meta.exists():
         pytest.skip("KRONOS2 snapshot not on disk")

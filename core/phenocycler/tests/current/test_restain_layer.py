@@ -346,6 +346,7 @@ source("apps/R/ieCore/R/ie_selectable.R")
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.data
 def test_real_paired_warp_counts_and_nucleus_exclusions():
     root = REPO / "core/phenocycler/data/integration/cells_xen"
     if not root.is_dir():

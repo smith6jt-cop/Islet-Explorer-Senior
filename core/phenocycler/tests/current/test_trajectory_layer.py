@@ -260,6 +260,7 @@ def test_sampling_comes_from_provenance_and_disagreement_is_rejected(inputs):
         layer.trajectory_table(summary, cells, {"n_ordered": 5, "n_population": 100})
 
 
+@pytest.mark.data
 def test_real_data_builder_and_in_memory_acceptance_check(monkeypatch, capsys):
     if not (layer.DEFAULT_SOURCE / layer.SUMMARY_FILE).is_file():
         pytest.skip("trajectory source data is not installed")

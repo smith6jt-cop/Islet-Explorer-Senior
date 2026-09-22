@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import time
 import subprocess
@@ -25,6 +26,10 @@ BUILDER = REPO / "scripts/senior/build_distance_profiles.py"
 spec = importlib.util.spec_from_file_location("build_distance_profiles", BUILDER)
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
+
+# The counts a refusal must carry are read from the one table that holds them, never restated.
+sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+import superseded as SUP  # noqa: E402
 
 
 def write_rows(path, rows):
@@ -81,9 +86,12 @@ def test_builder_refuses_superseded_path_with_measured_counts(root):
     with pytest.raises(ValueError) as exc:
         builder.build_distance_profiles(cells_root=root)
     message = str(exc.value)
-    for counts in ("Beta 191,485", "Alpha 246,055", "Delta 62,797",
-                   "Beta 226,183", "Alpha 279,686", "Delta 90,658"):
-        assert counts in message
+    # The frozen file's counts, from the registry; no count of the current tree, which changes
+    # with every rebuild, may be in the message.
+    assert SUP.SUBPANEL_CALLS_ROWS in message
+    assert SUP.SUBPANEL_CALLS_ENDOCRINE in message
+    triples = re.findall(r"Beta [\d,]+ / Alpha [\d,]+ / Delta [\d,]+", message)
+    assert triples == [SUP.SUBPANEL_CALLS_ENDOCRINE], triples
 
 
 def test_superseded_symlink_and_cli_are_also_refused(tmp_path):
@@ -91,13 +99,13 @@ def test_superseded_symlink_and_cli_are_also_refused(tmp_path):
     target.touch()
     alias = tmp_path / "cells.parquet"
     alias.symlink_to(target)
-    with pytest.raises(ValueError, match="Beta 191,485"):
+    with pytest.raises(ValueError, match=re.escape(SUP.SUBPANEL_CALLS_ENDOCRINE)):
         builder.build_distance_profiles(alias)
     result = subprocess.run([sys.executable, "-B", str(BUILDER), "--cells-root", str(target),
                              "--layers-dir", str(tmp_path / "output")],
                             capture_output=True, text=True, check=False)
     assert result.returncode != 0
-    assert "Beta 191,485 / Alpha 246,055 / Delta 62,797" in result.stderr
+    assert SUP.SUBPANEL_CALLS_ENDOCRINE in result.stderr
     assert not (tmp_path / "output").exists()
 
 

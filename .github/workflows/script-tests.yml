@@ -1,0 +1,90 @@
+name: Repo-root script tests
+
+# scripts/test_build_acquisition_batch_table.py and scripts/test_build_tissuumaps_h5ad_wiring.py
+# had no workflow before this file: `grep -rn 'scripts/test_' .github/workflows/` found only
+# islet-r.yml:221 (the R viewer-helper test) on 2026-09-21 (census), and the only runner was
+# Makefile:116-118. They cannot ride in phenocycler-ci.yml: that file sets
+# defaults.run.working-directory to core/phenocycler, and these modules live at the repo root
+# and load what they test by path (test_build_tissuumaps_h5ad_wiring.py:22-30). No pytest
+# config applies at the repo root -- no pyproject.toml, pytest.ini, setup.cfg, tox.ini or
+# conftest.py there -- so core/phenocycler/pyproject.toml's addopts, including the
+# `-m "not data"` the step3/guards branch adds, do not reach this job. It needs none of them:
+# nothing here reads data/.
+#
+# MEASURED 2026-09-22 in a fresh `python3 -m venv` holding exactly the install line below
+# (Python 3.12.3, pytest 9.1.1, numpy 2.5.3, pandas 3.0.6, anndata 0.13.4, shapely 2.1.2,
+# pyarrow 25.0.1), from bare git worktrees of main and of the step3/scripts-not-tests branch:
+#   the two pytest modules                 39 passed in 0.44s (34 + 5)
+#   check_build_tissuumaps_regions.py      46 ok, "all checks passed", exit 0
+#   check_export_viewer_cell_markers.py    18 ok, "all checks passed", exit 0
+# What each needs: test_build_acquisition_batch_table.py:15-20 imports only stdlib and pytest,
+# and :26-41 reads its two constants out of the source with ast.literal_eval when the script's
+# own imports are unavailable, so it needs nothing else. test_build_tissuumaps_h5ad_wiring.py
+# imports numpy at :19 and importorskips anndata and pandas at :36-37 and :99 -- without them
+# its 5 tests skip, which is why both are installed rather than left to -rs. The regions check
+# imports scripts/senior/build_tissuumaps_regions.py at :148, which imports shapely at :59-60
+# and core/phenocycler/scripts/typing/build_islet_geometry.py at :63-65, which imports
+# pyarrow.parquet at :33: run with pytest, numpy, pandas, anndata and zarr alone it died at
+# build_tissuumaps_regions.py:59 with "No module named 'shapely'" (measured 2026-09-22). That
+# import chain is why the path filter also watches core/phenocycler/scripts/typing/. The export
+# check is stdlib only and drives scripts/senior/export_viewer_cell_markers.py by subprocess
+# against a tempdir (check_export_viewer_cell_markers.py:58-95).
+#
+# The two check_*.py scripts are not pytest modules -- they run their assertions at import and
+# end in sys.exit(1 if fails else 0) (check_build_tissuumaps_regions.py:213,
+# check_export_viewer_cell_markers.py:101) -- and they arrive under those names from the
+# step3/scripts-not-tests branch (commit 2c7e956: they were scripts/test_build_tissuumaps_regions.py
+# and scripts/test_export_viewer_cell_markers.py, whose module-level sys.exit took a whole
+# pytest session down with INTERNALERROR). Until that rename is on the merge base the last step
+# fails with "can't open file", which names the missing rename rather than hiding it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'core/phenocycler/scripts/typing/**'
+      - '.github/workflows/script-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'core/phenocycler/scripts/typing/**'
+      - '.github/workflows/script-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  script-tests:
+    name: Repo-root script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No defaults.run.working-directory anywhere in this file, on purpose: every step below
+    # runs from the repo root, which is where these modules resolve their paths from.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest numpy pandas anndata shapely pyarrow
+      - name: Dependency preflight
+        # test_build_tissuumaps_h5ad_wiring.py:36-37 and :99 importorskip anndata and pandas;
+        # a missing one would skip 5 tests and still print green. Fail here by name instead.
+        run: python -c "import anndata, pandas, shapely, pyarrow; print('preflight OK')"
+      - name: Pytest modules under scripts/
+        run: pytest -q -rs scripts/test_build_acquisition_batch_table.py scripts/test_build_tissuumaps_h5ad_wiring.py
+      - name: Standalone check scripts
+        # Each prints ok/FAIL per assertion and exits non-zero on any failure; both build their
+        # fixtures in a tempfile.TemporaryDirectory and read no data.
+        run: |
+          python scripts/check_build_tissuumaps_regions.py
+          python scripts/check_export_viewer_cell_markers.py

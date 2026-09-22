@@ -1,4 +1,10 @@
-"""The claims features.py rests on, tested on data whose answer is known."""
+"""The claims features.py rests on, tested on data whose answer is known.
+
+One test carries ``pytest.mark.data``: the feature-block test derives the marker classes from
+Step 2's own record (``data/development/celltype/shifts.json``, ``features.SHIFTS``), which is
+not in version control, so on a checkout without it the test skips naming the file.  Everything
+else here is synthetic.
+"""
 import pathlib
 import sys
 
@@ -63,7 +69,12 @@ def test_donor_purity_flags_a_donor_pure_cluster():
     assert features.donor_purity(split, donors)["purity"].min() == pytest.approx(1.0)
 
 
+@pytest.mark.data
 def test_feature_block_excludes_what_the_registry_and_shifts_declare():
+    """The classes come from ``shifts.json`` so this lane and ``celltype/README.md`` cannot
+    disagree silently; without that record there is nothing to derive them from."""
+    if not features.SHIFTS.is_file():
+        pytest.skip(f"{features.SHIFTS} not present (Step 2 has not been run on this machine)")
     classes = features.shift_classes()
     for arm in features.ARMS:
         markers = features.feature_markers(arm)

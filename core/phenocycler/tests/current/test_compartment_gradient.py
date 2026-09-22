@@ -134,6 +134,7 @@ def test_the_excluded_donor_list_is_derived_not_restated():
     assert "6579" not in source
 
 
+@pytest.mark.data
 def test_the_centrally_excluded_donor_is_not_built():
     donors = builder.eligible_donors()
     assert "6457" not in donors
@@ -152,6 +153,7 @@ requires_artifact = pytest.mark.skipif(
 
 
 @requires_artifact
+@pytest.mark.data
 def test_built_pln_rows_carry_no_pancreas_geometry():
     comp = pd.read_csv(OUT / "compartment_composition.csv", dtype={"donor_id": str})
     pln = comp[comp["tissue"] != "pancreas"]
@@ -162,6 +164,7 @@ def test_built_pln_rows_carry_no_pancreas_geometry():
 
 
 @requires_artifact
+@pytest.mark.data
 def test_built_counts_are_internally_coherent():
     comp = pd.read_csv(OUT / "compartment_composition.csv", dtype={"donor_id": str})
     m = comp[comp["state"] == "measured"]
@@ -175,6 +178,7 @@ def test_built_counts_are_internally_coherent():
 
 
 @requires_artifact
+@pytest.mark.data
 def test_built_manifest_records_the_domain_and_the_reasons():
     manifest = json.loads((OUT / "manifest.json").read_text())
     assert manifest["source_domain_root"].endswith("typing/app")
@@ -189,6 +193,7 @@ def test_built_manifest_records_the_domain_and_the_reasons():
 
 
 @requires_artifact
+@pytest.mark.data
 def test_both_stratifications_are_present_and_applied():
     strata = pd.read_csv(OUT / "islet_size_summary.csv", dtype={"donor_id": str})
     assert (strata["n_islets_ge_10"] <= strata["n_islets"]).all()
@@ -202,6 +207,7 @@ def test_both_stratifications_are_present_and_applied():
 
 
 @requires_artifact
+@pytest.mark.data
 def test_batch_eta_squared_is_exported_on_the_finer_variables_with_a_null():
     eta = pd.read_csv(OUT / "batch_eta_squared.csv")
     assert {"stain_group", "acq_run"} <= set(eta["grouping"])

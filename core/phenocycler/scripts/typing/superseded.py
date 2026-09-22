@@ -57,12 +57,27 @@ WHAT IS EXEMPT, AND WHY.  Two live inputs sit INSIDE retired trees.  They are na
     ``cosine_scale.parquet`` out of it as the cohort scale the classification was made on.
   * ``core/phenocycler/data/runs/<run_id>/expression`` is NOT exempt; it is ANNOUNCE, above.
 
-THE ONE ALLOWED READER.  ``subpanel.py::gate`` reads ``subpanel_calls.parquet`` on purpose: it is
-the row-for-row reconstruction gate, and ``CLAUDE.md`` keeps the four pooled reference levels
-alive for exactly that ("survive only so ``subpanel.py --gate`` can reproduce it").  That caller
-is recorded in the record itself, as ``allowed_readers``, and it STILL gets the full notice on
-stderr.  Allowed is not silent.  No other caller may read that file, and nothing else in this
-table has an allowed reader at all.
+THE ALLOWED READERS, AND WHAT "ALLOWED" MEANS AT EACH SEVERITY.  ``subpanel.py::gate`` reads
+``subpanel_calls.parquet`` on purpose: it is the row-for-row reconstruction gate, and ``CLAUDE.md``
+keeps the four pooled reference levels alive for exactly that ("survive only so ``subpanel.py
+--gate`` can reproduce it").  That caller is recorded in the record itself, as ``allowed_readers``
+with its reason in ``allowed_why``, and it STILL gets the full notice on stderr, because its path
+arrives through ``S.OUT``.  Allowed is not silent.  No other caller may read that file, and no
+other REFUSE record has an allowed reader at all.
+
+On an ANNOUNCE record every caller is permitted to read; what ``allowed_readers`` records there is
+a reader that reaches the tree by a LITERAL path, which no ``GuardedPath`` ever sees, so the
+announcement that would make the read loud never fires.  Naming the reader here, with why it reads
+the historical tree by design, is where that read is declared instead: the static guard
+``tests/current/test_no_superseded_work_is_reachable.py`` derives its policy from this table and
+treats an undeclared literal read of an announced tree as the finding it is.  Wrapping the literal
+in :func:`refuse_if_superseded` makes the read loud at runtime as well, and lets the entry here be
+dropped.  A RETIRED producer is never recorded this way: its reads are the retire lane's to
+remove, and that guard names them under their own heading rather than as live readers.
+
+WHAT HAS NO PRODUCER, AND IS STILL READ.  :data:`PRODUCERLESS` names the live inputs nothing in
+the repository can re-make.  An entry there is a ruling waiting to be made, not an exemption, and
+it stays in every test report until the ruling is made.
 
 WHAT IT COSTS.  Measured 2026-09-19 on this machine: ``os.fspath`` on a guarded path that is NOT
 registered takes 0.23 us more than on a plain one (0.022 s -> 0.068 s over 200,000 calls).  There
@@ -70,12 +85,23 @@ is no syscall on that route -- the string test is cached per distinct path and t
 happens only in the explicit :func:`refuse_if_superseded` a builder calls once -- so a bulk read
 pays it once per file open, against milliseconds of parquet I/O.
 
-MEASURED 2026-09-19 in this checkout, with the numbers this module quotes:
+MEASURED in this checkout, with the numbers this module quotes:
 
-    data/development/typing/subpanel/subpanel_calls.parquet  25,150,537 rows  2026-09-11 17:14
-    data/development/typing/cells/ (20 donor partitions)     25,230,109 rows  2026-09-15 13:16
+    data/development/typing/subpanel/subpanel_calls.parquet  25,150,537 rows  2026-09-11 17:14, frozen
+    data/development/typing/cells/ (20 donor partitions)     25,230,109 rows  its partition mtimes
                                                              ---------
-                                                                79,572 cells apart
+                                                                79,572 objects apart
+
+The first is ONE FILE THAT NEVER CHANGES -- nothing writes it -- so its row count and its
+endocrine counts are written here once, as :data:`SUBPANEL_CALLS_ROWS` and
+:data:`SUBPANEL_CALLS_ENDOCRINE`, and every other site imports them.  The second is a tree that is
+REBUILT IN PLACE, and a rebuild can keep the row count while changing the class composition: on
+2026-09-21 the partitions carried 2026-09-19 mtimes, the same 25,230,109 rows the 2026-09-15 build
+had, and a different endocrine composition from the one this module used to quote beside the
+frozen file.  That is why no class count for that tree is written down here or anywhere -- read
+them from its ``cell_class`` column -- and why its date is its partition mtimes, never a date
+written here.  The row count and the difference are re-measured from the parquet footers by
+``tests/current/test_superseded_registry.py::test_the_counts_in_the_message_are_the_counts_on_disk``.
 """
 from __future__ import annotations
 
@@ -119,13 +145,32 @@ class Record:
     why: str
     read_instead: str
     severity: str = REFUSE
-    #: "<repo-relative file>::<function>" of the one caller permitted to read this anyway.
+    #: "<repo-relative file>::<function>" (``<module>`` for a module-level read) of each caller
+    #: recorded as reading this anyway.  On a REFUSE record it is the one caller permitted to,
+    #: and it is announced rather than refused; on an ANNOUNCE record it is a caller that reaches
+    #: the tree by a literal path and is declared here because no GuardedPath will announce it.
     allowed_readers: tuple[str, ...] = ()
+    #: Why those readers read it.  Required whenever ``allowed_readers`` is non-empty.
+    allowed_why: str = ""
     #: Basenames that identify this artifact wherever it has been copied or symlinked to.
     aliases: tuple[str, ...] = field(default_factory=tuple)
 
 
-CELLS_CURRENT = "data/development/typing/cells/ (25,230,109 cells, 20 donors, written 2026-09-15)"
+#: The replacement tree, as every record that points at it names it.  Its row count is here
+#: because a guard re-measures it (see the module docstring); its date is not, because the tree
+#: is rebuilt in place and a date written here was already wrong once.
+CELLS_CURRENT = ("data/development/typing/cells/ (20 donor partitions, 25,230,109 objects; rebuilt "
+                 "in place -- its generation is the partition mtimes, never a date written here)")
+
+#: Properties of ONE FROZEN FILE, data/development/typing/subpanel/subpanel_calls.parquet
+#: (mtime 2026-09-11 17:14:37), which nothing writes.  They are literals because the file cannot
+#: change, and this is the only place they are written: every test, builder and note that quotes
+#: them imports these names.  The row count is re-measured off the parquet footer by
+#: tests/current/test_superseded_registry.py::test_the_counts_in_the_message_are_the_counts_on_disk;
+#: the endocrine triple was counted off the same file's ``cell_class`` column on 2026-09-19 and
+#: again on 2026-09-21, and is the frozen file's, never the current tree's.
+SUBPANEL_CALLS_ROWS = "25,150,537"
+SUBPANEL_CALLS_ENDOCRINE = "Beta 191,485 / Alpha 246,055 / Delta 62,797"
 
 REGISTRY: tuple[Record, ...] = (
     Record(
@@ -136,10 +181,14 @@ REGISTRY: tuple[Record, ...] = (
         superseded_on="2026-09-15",
         superseded_by=CELLS_CURRENT,
         counts=(
-            "25,150,537 rows written 2026-09-11 against typing/cells 25,230,109 rows written "
-            "2026-09-15 -- 79,572 cells apart; endocrine "
-            "Beta 191,485 / Alpha 246,055 / Delta 62,797 "
-            "against Beta 226,183 / Alpha 279,686 / Delta 90,658"
+            f"{SUBPANEL_CALLS_ROWS} rows written 2026-09-11 17:14; endocrine "
+            f"{SUBPANEL_CALLS_ENDOCRINE} -- fixed, because this file is frozen. Against "
+            "typing/cells' 25,230,109 rows it is 79,572 objects short (both re-measured from the "
+            "parquet footers by tests/current/test_superseded_registry.py::"
+            "test_the_counts_in_the_message_are_the_counts_on_disk). The CURRENT endocrine counts "
+            "are NOT restated here or anywhere: they are a property of "
+            "data/development/typing/cells/'s cell_class column and change with every typing "
+            "rebuild -- read them from that tree"
         ),
         why=(
             "the PREVIOUS generation of the calls. Its endocrine counts differ materially from "
@@ -152,6 +201,11 @@ REGISTRY: tuple[Record, ...] = (
             "data/development/typing/islet_membership/ for islet membership"
         ),
         allowed_readers=("core/phenocycler/scripts/typing/subpanel.py::gate",),
+        allowed_why=(
+            "the row-for-row reconstruction gate: CLAUDE.md keeps the four pooled reference "
+            "levels alive only so subpanel.py --gate can reproduce this table. Its path arrives "
+            "through S.OUT, so the read is announced on stderr, never silent"
+        ),
     ),
     Record(
         key="umap_refinement_log",
@@ -209,6 +263,22 @@ REGISTRY: tuple[Record, ...] = (
             "subpanel_io.cell_source(), which prefers it over this tree"
         ),
         severity=ANNOUNCE,
+        allowed_readers=(
+            "core/phenocycler/scripts/dct/arms.py::run_arm",
+            "core/phenocycler/scripts/dct/feasibility_tile.py::<module>",
+            "core/phenocycler/scripts/dct/marker_exclusivity_check.py::main",
+            "core/phenocycler/scripts/dct/plane_identity.py::<module>",
+        ),
+        allowed_why=(
+            "the withdrawn DeepCell-types comparison's gates and its confound factorial. Each "
+            "joins model output, or a marker's tile intensity, to the run's own expression table "
+            "on object_id, and that table -- the 20-donor cohort expression -- exists nowhere "
+            "else. The lane is closed, not retired: scripts/retire/dispositions.py keeps "
+            "core/phenocycler/scripts/dct because broadtype/frame.py imports dct/regions.py. "
+            "Each of the four builds the run path as a literal, so no GuardedPath announces the "
+            "read; it is declared here instead. Wrapping each literal in refuse_if_superseded "
+            "would make the read loud at runtime too, and let this entry go"
+        ),
     ),
     Record(
         key="cells_redsea",
@@ -325,6 +395,26 @@ EXEMPT: tuple[str, ...] = (
     # 2026-09-11 refinement_log.json.  Named so no future subpanel/ prefix can catch it.
     "data/development/typing/subpanel/subpanel_log.json",
 )
+
+#: Live inputs with NO PRODUCER in the repository: read today, re-makeable by nothing, and not
+#: checked in.  Each entry is a RULING WAITING TO BE MADE, not an exemption -- it says what the
+#: file is, what measured it producerless, and what the ruling is between.  The orphan guard in
+#: tests/current/test_no_superseded_work_is_reachable.py reports a declared entry under its own
+#: strict xfail rather than in the general failure, so the ruling stays in every test report until
+#: it is made; once the file has a producer or is tracked, the entry must go, or that xfail fails.
+PRODUCERLESS: dict[str, str] = {
+    "data/development/typing/subpanel/subpanel_log.json": (
+        "the parameter sidecar the classification on disk was made from -- the marker lists per "
+        "context, the hormones, the reference quantile and the four POOLED levels that survive "
+        "only so subpanel.py --gate can reproduce the old table. Read by subpanel.py::_log and "
+        "trajectory_singlecell_features.py::feature_markers. Measured 2026-09-21: 688 bytes, "
+        "mtime 2026-09-11 14:10, nothing in the repository writes it, git does not track it "
+        "(.gitignore anchors /data/), and its top-level key is still 'bars'. RULING NEEDED, and "
+        "not made here: commit it as a tracked sidecar beside subpanel.py, renaming 'bars' to "
+        "reference levels on the way in, or give it a producer in build_cells.py / subpanel.py. "
+        "Until then the marker lists it carries come from an unrebuildable 2026-09-11 artifact"
+    ),
+}
 
 _BY_KEY = {r.key: r for r in REGISTRY}
 #: Cheap pre-filter.  ``__fspath__`` runs on every open in this lane, so the common case must be
@@ -569,9 +659,13 @@ def table() -> str:
         lines.append(f"             measured: {record.counts}")
         if record.allowed_readers:
             lines.append(f"             allowed reader: {', '.join(record.allowed_readers)}")
+            lines.append(f"             allowed why   : {record.allowed_why}")
         lines.append("")
     lines.append("exempt (live inputs inside a retired tree):")
     lines.extend(f"             {fragment}" for fragment in EXEMPT)
+    lines.append("")
+    lines.append("producerless (live inputs nothing in the repository can re-make; a ruling each):")
+    lines.extend(f"             {path}  -- {why}" for path, why in PRODUCERLESS.items())
     return "\n".join(lines)
 
 

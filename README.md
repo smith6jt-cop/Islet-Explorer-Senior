@@ -370,7 +370,6 @@ driver (it lives in `tests/`, not `tests/testthat/`).
 R CMD INSTALL apps/R/ieCore
 Rscript apps/islet/tests/parse_check.R
 Rscript apps/islet/tests/run_tests.R
-Rscript scripts/test_shiny_prep.R            # Test data loading
 Rscript scripts/diagnose_islets.R            # Islet data quality
 Rscript scripts/diagnose_marker_regions.R    # Marker region checks
 Rscript scripts/na_audit.R                   # Missing value audit

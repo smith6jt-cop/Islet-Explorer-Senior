@@ -433,11 +433,11 @@ python scripts/senior/tissuumaps_smoke_test.py \
     --channels DAPI,INS,SST,GCG --keep
 
 Rscript scripts/test_viewer_helpers.R                  # 14 unit tests for the R helpers
-python scripts/test_build_tissuumaps_regions.py        # 26 unit tests for region handling
-python scripts/test_export_viewer_cell_markers.py      # 18 unit tests for the cell exporter
+python scripts/check_build_tissuumaps_regions.py       # 46 checks for region handling
+python scripts/check_export_viewer_cell_markers.py     # 18 checks for the cell exporter
 ```
 
-`test_build_tissuumaps_regions.py` needs no slide, server or pyvips — it covers the directory
+`check_build_tissuumaps_regions.py` needs no slide, server or pyvips — it covers the directory
 lookup, gzip reading, and the scale inference (including the cases the smoke test's single
 donor cannot reach: a full-res export, a 4×-downsampled one, and geometry-free input).
 

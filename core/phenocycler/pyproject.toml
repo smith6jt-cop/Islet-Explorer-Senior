@@ -159,7 +159,10 @@ ignore = [
 minversion = "7.0"
 testpaths = ["tests/current"]
 pythonpath = ["."]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+# The default lane is the synthetic one. Tests that read a built artifact or a source tree
+# carry @pytest.mark.data and are DESELECTED here (silently, unlike a skip); run them with
+# `pytest -m data` (or `make test-data` at the repo root).
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not data"]
 markers = [
     "research: exploratory-method tests run explicitly, outside the default gate",
     "integration: optional cross-modal stack tests run in the integration CI job",

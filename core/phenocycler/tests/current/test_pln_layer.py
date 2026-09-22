@@ -291,6 +291,7 @@ def test_an_absent_audit_log_leaves_the_check_unavailable_never_zero(world, tmp_
 
 @pytest.mark.skipif(not (LIVE / "MANIFEST.json").exists(),
                     reason="the cohort artifact is not built in this checkout")
+@pytest.mark.data
 def test_the_built_artifact_reconciles_with_the_tracked_roster():
     """Arithmetic only: the artifact's own total against the hand-recorded roster it came from."""
     manifest = json.loads((LIVE / "MANIFEST.json").read_text())
@@ -543,6 +544,7 @@ def test_the_slide_scope_caveat_is_carried_per_row_not_only_in_prose(slide_world
 
 @pytest.mark.skipif(not (LIVE / "MANIFEST.json").exists(),
                     reason="the cohort artifact is not built in this checkout")
+@pytest.mark.data
 def test_the_built_artifact_reports_a_root_it_actually_has():
     """The published totals are the files', the root matches the run, and 6579 is in it."""
     manifest = json.loads((LIVE / "MANIFEST.json").read_text())

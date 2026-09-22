@@ -5,7 +5,7 @@
 #
 #   make test            every suite, each run in its own process, continuing past failures
 #   make test-fast       the default lane without the data-state guards (-m "not data")
-#   make test-data       only the data-state guards (they read built artifacts; red = stale)
+#   make test-data       only the data-state guards, in every suite that has one (red = stale)
 #   make check           is every layer/app artifact newer than its inputs? (reads mtimes only)
 #   make plan            the rebuild the driver WOULD run, in order; runs nothing
 #   make geojson-outline REFUSES unless GO=1; the on-demand 61 GB GeoJSON outline pass, which
@@ -69,8 +69,26 @@ test-research:
 test-fast:
 	cd core/phenocycler && $(PYTEST) -q -rfEs -m "not data" tests/current
 
+# The guards live in tests/current, in five of the script lanes and in analysis/xenium, so
+# this runs `-m data` in each place the default `-m "not data"` deselects them: every lane,
+# one at a time for the reason given at test-lanes, and analysis/xenium under scvi-env with
+# its own rootdir. -k semantics by hand, as in test-lanes: every suite runs, then one exit
+# status. pytest exits 5 when a selection is empty, which is what `-m data` is in a lane
+# that has no guard today; that is not a failure, so 5 is passed over and every other
+# non-zero status is kept. The loop stays over all of $(LANES) so a guard added to any lane
+# is run here without editing this file.
 test-data:
-	cd core/phenocycler && $(PYTEST) -q -rfEs -m data tests/current
+	@status=0; \
+	echo "== core/phenocycler tests/current (-m data)"; \
+	(cd core/phenocycler && $(PYTEST) -q -rfEs -m data tests/current) || status=1; \
+	for lane in $(LANES); do \
+	  echo "== lane $$lane (-m data)"; \
+	  (cd core/phenocycler && $(PYTEST) -q -rfEs -m data scripts/$$lane/tests); rc=$$?; \
+	  if [ $$rc -ne 0 ] && [ $$rc -ne 5 ]; then status=1; fi; \
+	done; \
+	echo "== analysis/xenium (scvi-env, -m data)"; \
+	(cd analysis/xenium && $(PYENV) $(CONDA) run --no-capture-output -n scvi-env python -m pytest -p no:cacheprovider -rfEs -m data tests) || status=1; \
+	exit $$status
 
 test-lanes:
 	@status=0; for lane in $(LANES); do \
@@ -111,11 +129,15 @@ test-r-panels:
 	@echo "== core/panels testthat"
 	cd core/panels/tests && $(RSCRIPT) testthat.R
 
-# Two more files under scripts/ are named test_*.py but are scripts, not pytest modules, and
-# abort a collection run; they are listed here by name until they are renamed.
+# scripts/test_*.py are the two real pytest modules (the two check_*.py beside them are
+# hand-rolled check scripts with synthetic inputs, run as scripts, and the R checks live under
+# apps/islet/tests). A new test_*.py under scripts/ is picked up by the glob.
 test-scripts:
 	@echo "== scripts/test_*.py"
-	$(PYTEST) -q scripts/test_build_acquisition_batch_table.py scripts/test_build_tissuumaps_h5ad_wiring.py
+	$(PYTEST) -q -rfEs scripts/test_*.py
+	@echo "== scripts/check_*.py"
+	$(PYENV) $(PY) scripts/check_build_tissuumaps_regions.py
+	$(PYENV) $(PY) scripts/check_export_viewer_cell_markers.py
 
 check:
 	$(PY) scripts/senior/build_layers.py --check

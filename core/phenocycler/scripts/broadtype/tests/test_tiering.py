@@ -29,6 +29,13 @@ Three layers, because each catches what the others cannot:
    ``cosine-37-collapsed`` continuity records instead must fail the actual screening gate for
    every label and be ineligible for producer selection. They are historical violations, not
    permitted identity inputs. Skipped with a reason when no arm has written a record yet.
+   The records are globbed inside a module-scoped fixture, never at import: a module-scope
+   glob made the collected id count a property of the data tree.
+
+Layers 1 and 3 carry ``pytest.mark.data``: layer 1's fixture asks ``panel.donor_markers`` for
+what donor 6436 acquired, which reads ``data/donor_acquisition_batch.csv`` and the donor's
+expression partition, and layer 3 reads ``data/development/broadtype/arms``. Neither is in
+version control, so neither belongs to the synthetic lane.
 """
 from __future__ import annotations
 
@@ -56,7 +63,6 @@ ARM_MODULES = sorted(p for p in ARMS_DIR.glob("*.py") if not p.name.startswith("
 #: feature stream that turns a mask label into a UUID): provenance and geometry, not identity.
 GEOMETRY_IDENTIFIERS = {"QUPATH_MANIFEST", "manifest_image", "qptiff_path", "geojson_path",
                         "iter_qupath_geojson_features", "qptiff_channels", "qupath_manifest"}
-RECORDS = sorted((pins.OUT / "arms").glob("**/records.jsonl")) if (pins.OUT / "arms").exists() else []
 
 FORBIDDEN_IDENTIFIERS = {"state_markers_for", "state_columns"}
 FORBIDDEN_COLUMNS = {"cell_region", "islet_num", "Parent"}
@@ -87,6 +93,7 @@ def synthetic_uniform(tmp_path, dec):
     return {"uniform": p, "frame_cells": fp, "n": n, "have": have}
 
 
+@pytest.mark.data
 def test_load_context_hands_arms_type_markers_only(synthetic_uniform, dec, monkeypatch):
     monkeypatch.setattr(pins, "uniform_parquet", lambda d: synthetic_uniform["uniform"])
     monkeypatch.setattr(arm_base.pd, "read_parquet", arm_base.pd.read_parquet)
@@ -130,6 +137,7 @@ def test_load_context_hands_arms_type_markers_only(synthetic_uniform, dec, monke
     assert np.array_equal(sub.ids, again.ids), "a subsample replicate is a deterministic hash draw"
 
 
+@pytest.mark.data
 def test_state_columns_are_computed_after_identity_and_never_thresholded(synthetic_uniform, dec, monkeypatch):
     monkeypatch.setattr(pins, "uniform_parquet", lambda d: synthetic_uniform["uniform"])
     ids = np.array([f"cell-{i}" for i in (5, 2, 9)], dtype=object)
@@ -330,30 +338,44 @@ def test_screen_rejects_state_excluded_structural_and_undeclared_inputs(marker, 
     assert_identity_rejected({"arm": "synthetic", "identity_markers": ["CD3e", marker]})
 
 
-@pytest.mark.parametrize("path", RECORDS or [None],
-                         ids=lambda p: str(p.relative_to(pins.OUT)) if p else "no-records-yet")
-def test_recorded_identity_markers_are_declared_type_markers_only(path, dec, assert_identity_rejected):
-    if path is None:
-        pytest.skip(f"no records.jsonl exists yet under {(pins.OUT / 'arms').relative_to(pins.REPO)}/")
+@pytest.fixture(scope="module")
+def records() -> list[pathlib.Path]:
+    """Every ``records.jsonl`` an arm has written under ``data/development/broadtype/arms``.
+
+    Globbed here, not at import.  As a module-scope constant feeding ``parametrize`` this
+    collected 25 ids with the tree present and one (``no-records-yet``) without it, so the
+    collected count could not be reconciled against a deselection.  One id, always
+    collected; skipped with the cause named when nothing has been written yet.
+    """
+    arms = pins.OUT / "arms"
+    paths = sorted(arms.glob("**/records.jsonl")) if arms.exists() else []
+    if not paths:
+        pytest.skip(f"no records.jsonl exists yet under {arms.relative_to(pins.REPO)}/")
+    return paths
+
+
+@pytest.mark.data
+def test_recorded_identity_markers_are_declared_type_markers_only(records, dec, assert_identity_rejected):
     identity, state = set(dec["identity_markers"]), set(dec["state_markers"])
-    lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
-    assert lines, f"{path}: empty record file"
-    for ln in lines:
-        rec = json.loads(ln)
-        used = set(rec["identity_markers"])
-        if rec["arm"] == "cosine-37-collapsed":
-            # Section 3 declares this state-gated continuity comparator explicitly. Its
-            # records must stay honest, and the tiering gate must reject every one of them.
-            assert rec["params"]["flag"] == "inherits state-gated rule table"
-            assert used & state and used - identity
-            assert used <= {m for ms in pins.markers_by_kind().values() for m in ms}
-            assert_identity_rejected(rec)
-        else:
-            assert used <= identity, f"{path} {rec['arm']}/{rec['config_id']}: undeclared identity input {sorted(used - identity)}"
-            assert not used & state, f"{path} {rec['arm']}/{rec['config_id']}: state marker in identity {sorted(used & state)}"
-        assert rec["n_called"] + rec["n_ambiguous"] + rec["n_unavailable"] == rec["n_cells"]
-        if rec["config_id"].startswith("ablate:"):
-            assert rec["config_id"].split(":", 1)[1] not in used, "the withheld marker re-entered identity"
+    for path in records:
+        lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
+        assert lines, f"{path}: empty record file"
+        for ln in lines:
+            rec = json.loads(ln)
+            used = set(rec["identity_markers"])
+            if rec["arm"] == "cosine-37-collapsed":
+                # Section 3 declares this state-gated continuity comparator explicitly. Its
+                # records must stay honest, and the tiering gate must reject every one of them.
+                assert rec["params"]["flag"] == "inherits state-gated rule table", path
+                assert used & state and used - identity, path
+                assert used <= {m for ms in pins.markers_by_kind().values() for m in ms}, path
+                assert_identity_rejected(rec)
+            else:
+                assert used <= identity, f"{path} {rec['arm']}/{rec['config_id']}: undeclared identity input {sorted(used - identity)}"
+                assert not used & state, f"{path} {rec['arm']}/{rec['config_id']}: state marker in identity {sorted(used & state)}"
+            assert rec["n_called"] + rec["n_ambiguous"] + rec["n_unavailable"] == rec["n_cells"], path
+            if rec["config_id"].startswith("ablate:"):
+                assert rec["config_id"].split(":", 1)[1] not in used, f"{path}: the withheld marker re-entered identity"
 
 
 def test_declared_identity_and_state_are_disjoint_registry_kinds(dec):

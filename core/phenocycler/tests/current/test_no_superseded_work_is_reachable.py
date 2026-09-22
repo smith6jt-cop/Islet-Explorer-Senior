@@ -27,6 +27,13 @@ biological finding, which would measure the expectation rather than the build:
     No producer under ``scripts/senior/`` or ``core/phenocycler/scripts/`` READS a superseded
     artifact.  A refusal is fine -- that is the fix.  Prose is fine -- history belongs in
     comments, and a comment is not in the AST at all, so it cannot be confused for a read.
+    WHAT IS SUPERSEDED, AT WHICH SEVERITY, AND WHO MAY READ IT ANYWAY is not decided here: it is
+    read from the one table, ``core/phenocycler/scripts/typing/superseded.py``.  A read the
+    registry names in a record's ``allowed_readers`` -- ``<file>::<function>`` -- is cleared by
+    that entry and by nothing typed into this file.  A read inside a module the repository
+    itself declares retired (``scripts/retire/dispositions.py``, code tier 1) is not a LIVE
+    reader; it is reported by ``test_no_retired_producer_still_reads_a_superseded_artifact``,
+    which is a strict xfail until the retire lane removes those modules.
 
 ``test_every_artifact_read_as_an_input_has_a_producer``
     An orphan is never a live input.  A file with no producer in the repository cannot be
@@ -34,7 +41,10 @@ biological finding, which would measure the expectation rather than the build:
     nothing can tell you which.  ``scripts/retire/dispositions.py`` names this failure at its
     code-tier banner: deleting a producer "makes a live artifact producerless, which is the
     exact failure ``typing/umap/refinement_log.json`` is already in".  The property asserted
-    here is the general one, not that one case.
+    here is the general one, not that one case.  An artifact the registry names as superseded is
+    that guard's, not this one's; an artifact the registry declares in ``PRODUCERLESS`` -- a
+    ruling waiting to be made -- is reported by its own strict xfail rather than here, so the
+    ruling stays in every test report until it is made.
 
 ``test_reconstruction_names_every_concept_the_refinement_rests_on``
 ``test_reconstruction_names_every_artifact_the_refinement_touches``
@@ -63,9 +73,11 @@ Run from the repository root:
 from __future__ import annotations
 
 import ast
+import fnmatch
 import pathlib
 import re
 import subprocess
+import sys
 
 import pytest
 
@@ -74,29 +86,26 @@ REPO = pathlib.Path(__file__).resolve().parents[4]
 TYPING = REPO / "core/phenocycler/scripts/typing"
 CURRENT = REPO / "core/phenocycler/tests/current"
 
+sys.path.insert(0, str(TYPING))
+import superseded as SUP  # noqa: E402
+
 #: The trees the lane calls producers.  ``tests/`` subtrees inside them are excluded: a test that
 #: names a superseded path in order to assert it is refused is doing this file's job, not
 #: defeating it.
 PRODUCER_TREES = (REPO / "scripts/senior", REPO / "core/phenocycler/scripts")
 
-#: The superseded artifacts, as a pattern matched against the text of a path expression.
-#:
-#: This is a policy table, not a table of results -- it names FILES AND ROOTS, no counts, no
-#: classes, no proportions.  Every entry is cross-checked in
-#: ``test_the_superseded_table_is_itself_declared_in_the_repository`` against the repository's own
-#: prose, so an entry cannot invent a retirement that the maintainer never declared.
-SUPERSEDED = {
-    "subpanel_calls.parquet": (
-        "the PREVIOUS generation of the calls, written 2026-09-11; typing/cells/ is current and "
-        "was written 2026-09-15, and their endocrine counts differ materially"),
-    "refinement_log.json": (
-        "the 2026-09-11 umap/refinement_log.json, which has NO PRODUCER in the repository -- it "
-        "cannot be re-made, so it is frozen at a generation nothing can identify"),
-    "data/runs/": (
-        "the content-addressed run tree; the run framework was removed 2026-09-16 and nothing "
-        "has written to it since -- stages write to stable roots"),
-    "cells_redsea": "a retired flat root",
-    "restore_gated_redsea": "a retired flat root",
+#: The superseded artifacts, as patterns matched against the text of a path expression -- DERIVED
+#: from the one table, never kept here.  Each fragment and alias of every registry record maps to
+#: its record, so the severity, the reason and the allowed readers all come from
+#: ``core/phenocycler/scripts/typing/superseded.py``.  This file carries no policy of its own:
+#: an artifact is superseded because the registry records it, a reader is cleared because the
+#: registry names it, and ``test_the_superseded_table_is_itself_declared_in_the_repository``
+#: still cross-checks EVERY fragment and alias of every record against the repository's prose,
+#: so the registry cannot invent a retirement the maintainer never declared either.
+SUPERSEDED: dict[str, SUP.Record] = {
+    fragment: record
+    for record in SUP.REGISTRY
+    for fragment in (*record.fragments, *record.aliases)
 }
 
 #: Calls that read.  ``exists`` / ``is_dir`` / ``is_file`` are probes rather than reads, but a
@@ -299,6 +308,12 @@ def _superseded_hits(path: pathlib.Path) -> list[dict]:
         enclosing = _enclosing_def(node, parents)
         if enclosing and enclosing.lower().startswith(REFUSAL_PREFIXES):
             return True
+        # The literal is handed to the guard inline -- ``read_parquet(refuse_if_superseded(p))``
+        # or ``ROOT = refuse_if_superseded(...)`` -- which is the loud form of the read.
+        for anc in chain:
+            if isinstance(anc, ast.Call) \
+                    and (_callee(anc) or "").lower().startswith(REFUSAL_PREFIXES):
+                return True
         for anc in chain:
             if isinstance(anc, (ast.Assign, ast.AnnAssign)):
                 targets = anc.targets if isinstance(anc, ast.Assign) else [anc.target]
@@ -317,13 +332,16 @@ def _superseded_hits(path: pathlib.Path) -> list[dict]:
         if not matched:
             continue
         pattern = matched[0]
+        enclosing = _enclosing_def(node, parents) or "<module>"
         if _is_refusal(node):
-            hits.append(dict(line=node.lineno, pattern=pattern, kind="refusal", detail="refusal"))
+            hits.append(dict(line=node.lineno, pattern=pattern, kind="refusal", detail="refusal",
+                             enclosing=enclosing))
             continue
         chain = _ancestors(node, parents)
         # A bare string statement is prose that happens not to be the first in its block.
         if chain and isinstance(chain[0], ast.Expr):
-            hits.append(dict(line=node.lineno, pattern=pattern, kind="inert", detail="bare string"))
+            hits.append(dict(line=node.lineno, pattern=pattern, kind="inert", detail="bare string",
+                             enclosing=enclosing))
             continue
         kind, detail = "inert", "named but not read here"
         for anc in chain:
@@ -351,7 +369,8 @@ def _superseded_hits(path: pathlib.Path) -> list[dict]:
                 if isinstance(anc, ast.keyword) and anc.arg in {"inputs", "outputs", "sources"}:
                     kind, detail = "declared_input", f"declared as {anc.arg}="
                     break
-        hits.append(dict(line=node.lineno, pattern=pattern, kind=kind, detail=detail))
+        hits.append(dict(line=node.lineno, pattern=pattern, kind=kind, detail=detail,
+                         enclosing=enclosing))
 
     # Second pass: a read THROUGH a name the literal was bound to.
     if tainted:
@@ -369,7 +388,8 @@ def _superseded_hits(path: pathlib.Path) -> list[dict]:
                 bound_at, artifact = tainted[via]
                 kind = "probe" if name in PROBE_METHODS else "read"
                 hits.append(dict(line=node.lineno, pattern=artifact, kind=kind,
-                                 detail=f"{name}() on {via}, bound at line {bound_at}"))
+                                 detail=f"{name}() on {via}, bound at line {bound_at}",
+                                 enclosing=_enclosing_def(node, parents) or "<module>"))
         # Names bound FROM a tainted name inherit the taint (one level).
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
@@ -392,7 +412,8 @@ def _superseded_hits(path: pathlib.Path) -> list[dict]:
                 bound_at, artifact = tainted[via]
                 rec = dict(line=node.lineno, pattern=artifact,
                            kind="probe" if name in PROBE_METHODS else "read",
-                           detail=f"{name}() on {via}, bound at line {bound_at}")
+                           detail=f"{name}() on {via}, bound at line {bound_at}",
+                           enclosing=_enclosing_def(node, parents) or "<module>")
                 if rec not in hits:
                     hits.append(rec)
     return hits
@@ -420,6 +441,10 @@ def _retired_code_paths() -> set[str]:
             text = _path_text(node.value, env)
             if text and "*" not in text:
                 env[node.targets[0].id] = text
+    # dispositions.py names its paths under ITS OWN root constant, which is an absolute path to
+    # one checkout.  Strip that, not this test's REPO: in a worktree the two differ, and stripping
+    # the wrong one derived an empty set -- a retired module then looked live.
+    root = env.get("REPO", str(REPO))
     out: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
@@ -436,60 +461,155 @@ def _retired_code_paths() -> set[str]:
             if expr is None:
                 continue
             text = _path_text(expr, env)
-            if text.startswith(str(REPO) + "/"):
-                out.add(text[len(str(REPO)) + 1:])
+            if text.startswith(root + "/"):
+                out.add(text[len(root) + 1:])
     return out
 
 
-def test_no_live_reader_of_a_superseded_artifact():
-    """A superseded artifact may be refused or described.  It may not be read.
+def _superseded_reads() -> tuple[int, list[str], list[str]]:
+    """``(producers scanned, live findings, findings inside retired producers)``.
 
-    Every producer under ``scripts/senior/`` and ``core/phenocycler/scripts/`` is parsed, and
-    each string literal naming a superseded artifact is classified.  A literal inside a
-    ``raise``, inside a ``refuse_*`` function, or bound to a name that is only raised, is the
-    FIX and passes.  A docstring passes.  A comment never reaches the AST.  What fails is a
-    literal that reaches a read.
+    A hit is a read, probe or declared input of a registry artifact.  It is cleared -- by the
+    registry, never by this file -- when the record names ``<file>::<function>`` in its
+    ``allowed_readers``.  A hit inside a module that ``scripts/retire/dispositions.py`` declares
+    retired code (tier 1: verified orphan, no surviving output) is not a live reader and goes in
+    the second list, for the strict xfail that keeps it in view until the retire lane acts.
     """
     retired = _retired_code_paths()
-    findings: list[str] = []
+    live: list[str] = []
+    in_retired: list[str] = []
     scanned = 0
     for tree_root in PRODUCER_TREES:
         if not tree_root.exists():
             continue
         for path in _py_files(tree_root):
             scanned += 1
+            rel = _rel(path)
             for hit in _superseded_hits(path):
                 if hit["kind"] not in {"read", "probe", "declared_input"}:
                     continue
-                rel = _rel(path)
-                mark = "  [this file is itself DECLARED RETIRED in scripts/retire/dispositions.py" \
-                       " and is still on disk and runnable]" if rel in retired else ""
-                findings.append(
-                    f"{rel}:{hit['line']}  {hit['kind'].upper()} of {hit['pattern']} "
-                    f"via {hit['detail']}{mark}")
+                record = SUPERSEDED[hit["pattern"]]
+                if f"{rel}::{hit['enclosing']}" in record.allowed_readers:
+                    continue  # the registry names this reader, and says why
+                line = (f"{rel}:{hit['line']}  {hit['kind'].upper()} of {hit['pattern']} "
+                        f"[{record.key}, {record.severity}] via {hit['detail']}")
+                (in_retired if rel in retired else live).append(line)
+    return scanned, live, in_retired
+
+
+def _superseded_why() -> str:
+    return "\n".join(
+        f"    [{r.severity}] {r.key}: {', '.join(r.fragments)} -- {r.why}" for r in SUP.REGISTRY)
+
+
+def test_no_live_reader_of_a_superseded_artifact():
+    """A superseded artifact may be refused or described.  It may not be read.
+
+    Every producer under ``scripts/senior/`` and ``core/phenocycler/scripts/`` is parsed, and
+    each string literal naming a registry artifact is classified.  A literal inside a ``raise``,
+    inside a ``refuse_*`` function, handed to ``refuse_if_superseded`` inline, or bound to a name
+    that is only raised, is the FIX and passes.  A docstring passes.  A comment never reaches the
+    AST.  A read the registry names as allowed, with its reason, passes.  What fails is an
+    undeclared literal that reaches a read -- at either severity, because a literal read of an
+    ANNOUNCE tree is exactly the silent read the announcement exists to prevent.
+    """
+    scanned, findings, _ = _superseded_reads()
     assert scanned, f"scanned no producers under {[_rel(t) for t in PRODUCER_TREES]}"
-    why = "\n".join(f"    {k} -- {v}" for k, v in SUPERSEDED.items())
     assert not findings, (
         f"{len(findings)} live reference(s) to superseded work, across {scanned} producers.\n"
-        f"Superseded, and why:\n{why}\n"
+        f"Superseded, and why (from core/phenocycler/scripts/typing/superseded.py):\n"
+        f"{_superseded_why()}\n"
         f"WHAT TO DO: make each one REFUSE, naming the file, why it is superseded and what to "
         f"read instead -- the pattern is `refuse_superseded` in "
         f"scripts/senior/build_distance_profiles.py, which raises with the counts in the "
-        f"message.  A silent fallback is the defect; a loud failure is the fix.  Do not delete "
-        f"any data root.\n  "
+        f"message -- or, for a tree the registry ANNOUNCES, hand the path to "
+        f"`refuse_if_superseded` inline so the read is loud.  A silent fallback is the defect; a "
+        f"loud failure is the fix.  Do not delete any data root, and do not add an exclusion "
+        f"here: a reader that must read anyway is recorded in the registry record's "
+        f"allowed_readers, with why.\n  "
         + "\n  ".join(sorted(findings)))
 
 
-def test_the_superseded_table_is_itself_declared_in_the_repository():
-    """This file may not invent a retirement.  Each pattern must be declared somewhere tracked."""
-    sources = [REPO / "CLAUDE.md", REPO / "scripts/CLAUDE.md", REPO / "core/phenocycler/README.md",
-               REPO / "scripts/retire/dispositions.py", REPO / "README.md"]
+@pytest.mark.xfail(strict=True, reason=(
+    "scripts/retire/dispositions.py declares substrate.py and positivity.py retired code (tier 1, "
+    "verified orphans) and both are still on disk, runnable, and read the historical run tree "
+    "or their own refused output root through literal paths.  Removing them is the retire "
+    "lane's action, not a test fix; this xfail keeps them in every report until it happens, "
+    "and fails the moment it does so the marker is removed."))
+def test_no_retired_producer_still_reads_a_superseded_artifact():
+    """A retired producer that still opens superseded work can regenerate it, silently."""
+    scanned, _, findings = _superseded_reads()
+    assert scanned
+    assert not findings, (
+        f"{len(findings)} reference(s) to superseded work inside modules the repository declares "
+        f"RETIRED, still on disk and runnable.  WHAT TO DO: retire them -- delete, or make the "
+        f"read refuse by name -- per their disposition in scripts/retire/dispositions.py.\n  "
+        + "\n  ".join(sorted(findings)))
+
+
+#: The prose a retirement must be declared in before the registry may enforce it.
+DECLARATION_SOURCES = ("CLAUDE.md", "scripts/CLAUDE.md", "core/phenocycler/README.md",
+                       "scripts/retire/dispositions.py", "README.md")
+
+#: A glob the prose documents, as a code span made only of path characters and ``*`` -- the root
+#: ``CLAUDE.md`` retires "flat `cells_redsea*` / `restore*` roots" and ``scripts/CLAUDE.md``
+#: repeats them as ``data/cells_redsea*`` and ``data/restore*``.  The span is the whole match,
+#: so a sentence that happens to sit between two code spans on one line is never read as one.
+DOCUMENTED_GLOB = re.compile(r"`([A-Za-z0-9_./-]*\*[A-Za-z0-9_./*-]*)`")
+
+
+def _documented_globs(text: str) -> set[str]:
+    """The globs the prose documents, keeping only those whose basename begins with a literal.
+
+    ``*.csv``, ``cells/*.csv`` and a hypothetical ``data/*`` constrain nothing about the name of
+    a root, so honouring them would let the registry name any root at all and call it declared.
+    A glob counts only when the text before its first ``*``, after the last ``/``, is non-empty.
+    """
+    globs: set[str] = set()
+    for glob in DOCUMENTED_GLOB.findall(text):
+        if glob.rsplit("/", 1)[-1].split("*", 1)[0]:
+            globs.add(glob)
+    return globs
+
+
+def _declared_as(pattern: str, text: str, globs: set[str]) -> str | None:
+    """How the prose declares ``pattern`` -- its literal basename, or a documented glob -- or None.
+
+    A glob with a ``/`` is matched against the whole repo-relative pattern (``data/restore*``
+    against ``data/restore_pair_validation``); one without is matched against the basename.
+    """
+    rel = pattern.strip("/")
+    base = rel.rsplit("/", 1)[-1]
+    if base in text:
+        return f"basename {base!r}"
+    for glob in sorted(globs):
+        if fnmatch.fnmatchcase(rel if "/" in glob else base, glob):
+            return f"documented glob `{glob}`"
+    return None
+
+
+@pytest.mark.parametrize("record", SUP.REGISTRY, ids=[r.key for r in SUP.REGISTRY])
+def test_the_superseded_table_is_itself_declared_in_the_repository(record):
+    """The registry may not invent a retirement.  EVERY fragment and alias is declared.
+
+    Declared means the basename appears in one of :data:`DECLARATION_SOURCES`, or the path
+    matches a glob those sources document.  A record's key declares nothing, and one declared
+    fragment does not clear its siblings: the any-of reading introduced in 5137741 passed
+    ``restore_roots`` on ``restore_gated_redsea`` alone while ``data/restore_gated_redsea_extra``
+    and ``data/restore_pair_validation`` were spelled out nowhere -- they are declared by the
+    maintainer's ``restore*`` glob, which is what this test honours instead.
+    """
+    sources = [REPO / s for s in DECLARATION_SOURCES]
     text = "\n".join(p.read_text(errors="replace") for p in sources if p.exists())
-    undeclared = [p for p in SUPERSEDED if p.strip("/").split("/")[-1] not in text]
+    globs = _documented_globs(text)
+    patterns = (*record.fragments, *record.aliases)
+    undeclared = [p for p in patterns if _declared_as(p, text, globs) is None]
     assert not undeclared, (
-        "these patterns are treated as superseded by this test but are declared nowhere in "
-        f"CLAUDE.md, the READMEs or scripts/retire/dispositions.py: {undeclared}. "
-        "Either the declaration was removed or this table invented a retirement.")
+        f"registry record {record.key!r} names {len(undeclared)} of {len(patterns)} pattern(s) "
+        f"that are declared nowhere in {list(DECLARATION_SOURCES)} -- neither by basename nor "
+        f"by a documented glob {sorted(globs)}: {undeclared}.  Either the declaration was "
+        f"removed or the registry invented a retirement.  Declare it in one of those sources; "
+        f"do not weaken this check to any-of.")
 
 
 # ----------------------------------------- 3. an orphan is never a live input ----
@@ -583,6 +703,19 @@ def _artifact_calls(path: pathlib.Path) -> tuple[list[tuple[str, int]], set[str]
     return reads, writes
 
 
+def _declared_producerless(key: str) -> str | None:
+    """The registry's PRODUCERLESS entry naming this read key, if any."""
+    for path in SUP.PRODUCERLESS:
+        if path == key or path.endswith("/" + key):
+            return path
+    return None
+
+
+#: What the orphan guard found among the registry's declared producerless inputs, for the strict
+#: xfail below to report.  Filled by test_every_artifact_read_as_an_input_has_a_producer.
+_ORPHANS_DECLARED_IN_THE_REGISTRY: list[str] = []
+
+
 def _tracked_basenames() -> set[str]:
     """Files git already carries.  A checked-in input HAS a producer: source control."""
     done = _git("ls-files")
@@ -615,6 +748,7 @@ def test_every_artifact_read_as_an_input_has_a_producer():
     assert produced_basenames, "found no producers at all; the derivation is broken"
 
     orphans: set[str] = set()
+    declared: set[str] = set()
     for tree_root in PRODUCER_TREES:
         if not tree_root.exists():
             continue
@@ -626,8 +760,16 @@ def test_every_artifact_read_as_an_input_has_a_producer():
                 if any(key.startswith(w.rstrip("/") + "/") or w.startswith(key + "/")
                        for w in producers):
                     continue
-                orphans.add(f"{_rel(path)}:{line}  reads {key} -- NOTHING in the repository "
-                            f"writes {base}, and it is not checked in")
+                # A superseded artifact is recorded, refused and guarded by the registry and by
+                # test_no_live_reader_of_a_superseded_artifact; policing it here again would make
+                # the same finding under two names.
+                if SUP.match(REPO / key) is not None:
+                    continue
+                finding = (f"{_rel(path)}:{line}  reads {key} -- NOTHING in the repository "
+                           f"writes {base}, and it is not checked in")
+                (declared if _declared_producerless(key) else orphans).add(finding)
+    _ORPHANS_DECLARED_IN_THE_REGISTRY.clear()
+    _ORPHANS_DECLARED_IN_THE_REGISTRY.extend(sorted(declared))
     assert not orphans, (
         f"{len(orphans)} artifact(s) are read as a live input with no producer in the "
         f"repository.  An orphan cannot be re-made, so it is frozen at whatever generation "
@@ -636,6 +778,42 @@ def test_every_artifact_read_as_an_input_has_a_producer():
         f"umap/refinement_log.json was in.  WHAT TO DO: either commit the producer, or make the "
         f"read REFUSE by name and say what to read instead.  Do not delete the file.\n  "
         + "\n  ".join(sorted(orphans)))
+
+
+@pytest.mark.parametrize("path", sorted(SUP.PRODUCERLESS), ids=lambda p: p.rsplit("/", 1)[-1])
+def test_a_declared_producerless_input_is_still_producerless(path):
+    """The declaration may not outlive its truth: once the file is tracked or written by
+    something in the repository, the PRODUCERLESS entry must go."""
+    base = path.rsplit("/", 1)[-1]
+    assert base not in _tracked_basenames(), (
+        f"{path} is now tracked by git, which is a producer; remove it from "
+        f"superseded.PRODUCERLESS")
+    writers: set[str] = set()
+    for tree_root in (REPO / "scripts", REPO / "core/phenocycler", REPO / "apps",
+                      REPO / "analysis"):
+        if not tree_root.exists():
+            continue
+        for module in sorted(p for p in tree_root.rglob("*.py")
+                             if "__pycache__" not in p.parts and ".venv" not in p.parts):
+            if any(w.rsplit("/", 1)[-1] == base for w in _artifact_calls(module)[1]):
+                writers.add(_rel(module))
+    assert not writers, (
+        f"{path} now has a producer ({sorted(writers)}); remove it from superseded.PRODUCERLESS")
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "superseded.PRODUCERLESS declares data/development/typing/subpanel/subpanel_log.json: read "
+    "by subpanel.py::_log and trajectory_singlecell_features.py::feature_markers, 688 bytes, "
+    "mtime 2026-09-11 14:10, written by nothing in the repository, ignored by .gitignore's "
+    "anchored /data/.  A ruling is needed -- commit it as a tracked sidecar, or give it a "
+    "producer -- and it is not made in a test.  This xfail fails the moment the declaration is "
+    "emptied, so the marker is removed with the ruling."))
+def test_no_live_input_is_declared_producerless():
+    """Every live input has a producer, and the registry declares no exception to that."""
+    test_every_artifact_read_as_an_input_has_a_producer()
+    assert not SUP.PRODUCERLESS and not _ORPHANS_DECLARED_IN_THE_REGISTRY, (
+        f"declared producerless, awaiting a ruling: {sorted(SUP.PRODUCERLESS)}\n  "
+        + "\n  ".join(_ORPHANS_DECLARED_IN_THE_REGISTRY))
 
 
 # -------------------------------- 4. the document the maintainer named is complete ----

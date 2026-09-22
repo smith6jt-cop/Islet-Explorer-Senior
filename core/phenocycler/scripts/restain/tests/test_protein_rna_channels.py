@@ -376,11 +376,14 @@ def test_measure_one_refuses_by_name_instead_of_raising_indexerror(monkeypatch):
 
 
 # --------------------------------------------------------------- the real project, properties only
+# These three read the maintainer's QuPath project and IF images outside the repository (and,
+# through them, data/development/restain/valis); they carry pytest.mark.data beside their skips.
 
 _REAL = pytest.mark.skipif(not (PR.QUPATH_PROJECT / "data").is_dir(),
                            reason="the QuPath project is not on this machine")
 
 
+@pytest.mark.data
 @_REAL
 def test_the_real_project_resolves_by_name_and_never_by_position():
     """Properties that stay true as the maintainer keeps renaming, not a count that moves.
@@ -410,6 +413,7 @@ def test_the_real_project_resolves_by_name_and_never_by_position():
         assert roles.pixel_size_source == "qptiff_xml_PixelSizeMicrons"
 
 
+@pytest.mark.data
 @_REAL
 def test_an_unrecognised_name_in_the_real_project_is_reported_as_such():
     """If any entry carries a rename this reader does not know, it is named, not missed."""
@@ -420,6 +424,7 @@ def test_an_unrecognised_name_in_the_real_project_is_reported_as_such():
         assert all(name in roles.detail for name in roles.unrecognised_names)
 
 
+@pytest.mark.data
 @pytest.mark.skipif(not PR.IMAGES.is_dir(), reason="the IF images are not on this machine")
 def test_qptiff_facts_on_the_real_images():
     """The parser against the real file format, on one image of each objective.

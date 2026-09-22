@@ -178,18 +178,63 @@ jobs:
             required: true
           - lane: xenium_celltype
             required: true
-          # Four lanes are red right now and are being fixed in parallel on other branches.
-          # Do not fix them here: they run so their status is visible, but `continue-on-error`
-          # keeps them from blocking the build. Each flips to `required: true` once its branch
-          # lands and the lane is green again.
+          # scripts/xenium_celltype/hpg/tests is one level deeper than every other lane, so the
+          # `scripts/<lane>/tests` shape never reached it; the Makefile's test-lanes target already
+          # runs it as its own step after the LANES loop. Spelling the lane with its subdirectory is the whole
+          # fix: the run step below interpolates it verbatim, and a `/` is legal in a job name.
+          # Measured 2026-09-22 on a bare git worktree of main (nothing gitignored present):
+          # 4 passed in 0.56s. test_nullgate_fast.py builds its fixtures with sp.random (:20-30),
+          # reads no file, and imports nothing beyond numpy/pandas/scipy.sparse and the two
+          # nullgate modules (:4-17).
+          - lane: xenium_celltype/hpg
+            required: true
+          # The four lanes below were listed here as "red, being fixed on work/N-broadtype,
+          # work/O-celltype, work/P-dct". Measured instead, none is red for want of a fix:
+          #   workstation, every gitignored tree present (census, 2026-09-21):
+          #     broadtype 198 passed / 1 xfailed    celltype 85 passed
+          #     dct 56 passed                       xenium_typing 13 passed (not 3)
+          #   bare git worktree of main -- no data/, no external/, no run tree, which is the
+          #   runner's condition (2026-09-22, repo .venv, `pytest -q -rfEs scripts/<lane>/tests`):
+          #     broadtype      161 passed, 11 skipped, 1 xfailed, 2 ERRORS: both users of the
+          #                    synthetic_uniform fixture (test_tiering.py:73), whose
+          #                    panel.donor_markers("6436") falls through panel.py:302-308 to
+          #                    markers_on_disk -> expression_path and raises at :84 for want of
+          #                    data/donor_acquisition_batch.csv (.gitignore:9) and an expression
+          #                    partition (core/phenocycler/.gitignore:218). The 11 skips name
+          #                    external/.venv-som (8), .venv-nimbus, the KRONOS2 snapshot and
+          #                    the records layer (test_tiering.py:337).
+          #     dct            39 passed, 2 skipped, 2 FAILED: test_concordance_gate.py:36
+          #                    (derive_anchors) and :65 both read the gitignored
+          #                    core/phenocycler/data/qupath_manifest.json.
+          #     xenium_typing  12 passed, 1 FAILED: test_pins_serial_and_run_maps_cover_the_cohort
+          #                    (test_xenium_typing.py:19); pins.donors() raises PinError at
+          #                    pins.py:98-99 on the same absent manifest.
+          #     celltype       71 passed, 3 skipped, 11 FAILED: 3 import the gitignored
+          #                    external/UniFORM or external/utag checkout (uniform_adapter.py:92-96,
+          #                    utag_adapter.py:50-51; .gitignore:80) and 8 read the cohort table,
+          #                    the run tree or an expression partition (test_usability.py:123-662).
+          # Since 2026-09-22 every data-state read in these lanes carries `pytest.mark.data`
+          # (both broadtype tests, both dct tests, celltype's eleven -- the three external
+          # checkouts skip by name when absent -- and xenium_typing's one), and
+          # core/phenocycler/pyproject.toml's addopts deselects that marker, so the default run
+          # is the synthetic suite. Measured on the merged tree, bare worktree, 2026-09-22:
+          #   broadtype 161 passed / 9 skipped / 4 deselected / 1 xfailed    celltype 71 passed / 14 deselected
+          #   dct 40 passed / 16 deselected    xenium_typing 12 passed / 1 deselected    kintsugi 13 passed / 1 skipped / 9 deselected
+          # The guards run on the workstation with `make test-data`; a runner never sees them.
           - lane: broadtype
-            required: false   # work/N-broadtype
+            required: true    # 161 passed / 9 skipped / 4 deselected / 1 xfailed on a bare worktree, 2026-09-22
           - lane: celltype
-            required: false   # work/O-celltype
+            required: true    # 71 passed / 14 deselected on a bare worktree, 2026-09-22 (the checkout and data reads are `data`-marked)
+          # dct passes on a runner largely by skipping: deepcell_types is absent there (the dct
+          # extra needs Python >= 3.11 and checkpoints pip does not install, pyproject.toml:62-64),
+          # so test_panels.py:33's module-level importorskip reports that whole file (14 tests
+          # locally) as one skip; test_deepcell_crosswalk.py's dct_utils fixture (:41) skips the
+          # 6 tests that take it and :69 skips 2 pin checks; test_regions.py:116 skips 1. Census
+          # estimate 2026-09-21: about 32 pass, about 10 skip, 0 fail; `-rs` prints each skip.
           - lane: dct
-            required: false   # work/P-dct
+            required: true    # green largely by skipping (deepcell_types absent on a runner); 40 passed / 16 deselected on a bare worktree, 2026-09-22
           - lane: xenium_typing
-            required: false   # red today (1 fail/3); no fix branch assigned yet
+            required: true    # 12 passed / 1 deselected on a bare worktree, 2026-09-22 (the one data-state test is `data`-marked)
     continue-on-error: ${{ !matrix.required }}
     steps:
       - uses: actions/checkout@v4

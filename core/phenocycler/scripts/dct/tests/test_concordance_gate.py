@@ -26,13 +26,19 @@ from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 CROSSWALK = json.loads((HERE / "broad_class_crosswalk.json").read_text())
 CLASSES = tuple(CROSSWALK["entries"])
 ANCHORS = load_anchors()
+#: The cohort manifest is gitignored; the two tests that read it (one through
+#: ``derive_anchors``) carry ``pytest.mark.data`` and skip, naming it, when it is absent.
+MANIFEST = HERE.parents[1] / "data" / "qupath_manifest.json"
 BLOCKING = {"sign", "specificity", "detectability", "argmax_coherence",
             "impossible_mass", "null_separation"}
 
 
 # ----------------------------------------------------------------- the anchors
+@pytest.mark.data
 def test_anchors_are_derived_not_typed():
     """anchors.json must be exactly what the rule produces, or it has been hand-edited."""
+    if not MANIFEST.exists():
+        pytest.skip(f"{MANIFEST} not present (data is gitignored)")
     frozen = json.loads((HERE / "anchors.json").read_text())
     fresh = derive_anchors()
     assert fresh == frozen
@@ -60,8 +66,11 @@ def test_anchor_set_size_is_pinned():
     assert len(ANCHORS) == 27
 
 
+@pytest.mark.data
 def test_every_anchor_is_acquired_on_every_cohort_image():
-    manifest = json.loads((HERE.parents[1] / "data" / "qupath_manifest.json").read_text())
+    if not MANIFEST.exists():
+        pytest.skip(f"{MANIFEST} not present (data is gitignored)")
+    manifest = json.loads(MANIFEST.read_text())
     missing = {
         im["donor_id"]: sorted({m for m, _ in ANCHORS}
                                - {c["marker"] for c in im["channel_map"]})

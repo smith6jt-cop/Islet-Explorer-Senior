@@ -12,8 +12,10 @@ So what is asserted here is refusals, and the CONTENT of the refusals:
     or schema check, and by path, by basename, and through a symlink pointing at it;
   * the message names what was refused, when, by what, why, and what to read instead -- a
     refusal a reader cannot act on just sends them back to the old file;
-  * the measured counts are IN the message, both generations of them, so the reader does not
-    have to trust the word "superseded";
+  * the measured counts are IN the message -- the frozen file's, which never change, and the
+    replacement tree's ROW count, which a test here re-measures -- so the reader does not have to
+    trust the word "superseded".  No CLASS count of the replacement tree is in any message: the
+    tree is rebuilt in place, and a class count copied into a refusal was stale within a week;
   * the current artifacts beside them stay readable -- ``typing/cells``,
     ``subpanel/subpanel_log.json``, ``broadtype/scratch/cosine_scale.parquet``.  A guard that
     takes the live inputs with it is not a guard, it is an outage;
@@ -32,8 +34,10 @@ Run with
 
 from __future__ import annotations
 
+import ast
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -110,19 +114,41 @@ def test_a_count_nobody_measured_says_unavailable_not_zero(record):
 SUBPANEL_CALLS = "data/development/typing/subpanel/subpanel_calls.parquet"
 
 
-def test_subpanel_calls_refusal_carries_both_generations_of_counts():
+#: A class name followed by a count.  The only such text any message may carry is the frozen
+#: file's own triple; a count for the replacement tree is a number that changes with every rebuild.
+CLASS_COUNT = re.compile(
+    r"\b(?:Beta|Alpha|Delta|Exocrine|Immune|Nerve|Lymphatic|Blood vessel|Excluded)\s+[\d,]{3,}")
+
+
+def test_subpanel_calls_refusal_carries_the_frozen_counts_and_no_current_one():
+    record = SUP.match(REPO / SUBPANEL_CALLS)
     with pytest.raises(SUP.SupersededArtifactError) as exc:
         SUP.refuse_if_superseded(REPO / SUBPANEL_CALLS)
     message = str(exc.value)
-    # The previous generation, and the build that replaced it, side by side.
-    assert "25,150,537" in message and "25,230,109" in message
-    assert "79,572" in message
-    assert "Beta 191,485 / Alpha 246,055 / Delta 62,797" in message
-    assert "Beta 226,183 / Alpha 279,686 / Delta 90,658" in message
-    assert "2026-09-11" in message and "2026-09-15" in message
+    # The frozen file's numbers come from the registry's constants, and are quoted verbatim.
+    assert record.counts in message
+    assert SUP.SUBPANEL_CALLS_ROWS in message
+    assert SUP.SUBPANEL_CALLS_ENDOCRINE in message
+    assert record.superseded_on in message and "2026-09-11" in message
     assert "data/development/typing/cells/" in message
+    # The replacement tree is named, its class counts are not: the only class counts in the
+    # message are the frozen file's.
+    for found in CLASS_COUNT.findall(message):
+        assert found in SUP.SUBPANEL_CALLS_ENDOCRINE, (
+            f"a class count that is not the frozen file's is quoted in a refusal: {found!r}. "
+            f"The current tree's counts change with every rebuild and belong in no message")
 
 
+@pytest.mark.parametrize("record", SUP.REGISTRY, ids=[r.key for r in SUP.REGISTRY])
+def test_no_record_quotes_a_class_count_of_the_current_tree(record):
+    """The class composition of typing/cells is a property of that tree, not of this table."""
+    for text in (record.counts, record.superseded_by, record.why, record.read_instead,
+                 SUP.CELLS_CURRENT):
+        for found in CLASS_COUNT.findall(text):
+            assert found in SUP.SUBPANEL_CALLS_ENDOCRINE, (record.key, found)
+
+
+@pytest.mark.data
 def test_the_counts_in_the_message_are_the_counts_on_disk():
     """The refusal quotes a measurement; the measurement has to be true of this checkout.
 
@@ -147,7 +173,7 @@ def test_an_alias_or_symlink_to_it_is_the_same_file(tmp_path):
     target.touch()
     alias = tmp_path / "cells.parquet"
     alias.symlink_to(target)
-    with pytest.raises(SUP.SupersededArtifactError, match="Beta 191,485"):
+    with pytest.raises(SUP.SupersededArtifactError, match=re.escape(SUP.SUBPANEL_CALLS_ENDOCRINE)):
         SUP.refuse_if_superseded(alias)
     # And the bare basename, anywhere at all.
     with pytest.raises(SUP.SupersededArtifactError):
@@ -280,7 +306,7 @@ def test_only_subpanel_gate_may_read_the_previous_generation(capsys):
     assert _call_as(gate_file, "gate", target) == target
     printed = capsys.readouterr().err
     assert "allowed for" in printed
-    assert "Beta 191,485 / Alpha 246,055 / Delta 62,797" in printed
+    assert SUP.SUBPANEL_CALLS_ENDOCRINE in printed
 
     # The same file, a different function: refused.
     with pytest.raises(SUP.SupersededArtifactError):
@@ -290,9 +316,45 @@ def test_only_subpanel_gate_may_read_the_previous_generation(capsys):
         _call_as(str(REPO / "scripts/senior/build_layers.py"), "gate", target)
 
 
-def test_nothing_else_in_the_registry_has_an_allowed_reader():
-    allowed = {r.key: r.allowed_readers for r in SUP.REGISTRY if r.allowed_readers}
-    assert set(allowed) == {"subpanel_calls"}
+def test_no_other_refused_record_has_an_allowed_reader():
+    """Permission to read a REFUSED artifact exists once, for the reconstruction gate."""
+    allowed = {r.key for r in SUP.REGISTRY if r.severity == SUP.REFUSE and r.allowed_readers}
+    assert allowed == {"subpanel_calls"}
+
+
+def _defines(path: Path, function: str) -> bool:
+    if function == "<module>":
+        return True
+    tree = ast.parse(path.read_text(errors="replace"))
+    return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == function
+               for n in ast.walk(tree))
+
+
+@pytest.mark.parametrize("record", [r for r in SUP.REGISTRY if r.allowed_readers],
+                         ids=[r.key for r in SUP.REGISTRY if r.allowed_readers])
+def test_every_allowed_reader_is_a_real_function_with_a_reason(record):
+    """A declared reader is a file::function that exists, and it carries why it reads this.
+
+    The entry is what the static guard in test_no_superseded_work_is_reachable.py clears a read
+    by, so an entry naming a function that is not there would clear nothing and rot unnoticed.
+    """
+    assert record.allowed_why.strip(), f"{record.key} names allowed readers without a reason"
+    for entry in record.allowed_readers:
+        tail, sep, function = entry.partition("::")
+        assert sep and function, f"{record.key}: {entry!r} is not <file>::<function>"
+        path = REPO / tail
+        assert path.is_file(), f"{record.key}: allowed reader {tail} is not in this checkout"
+        assert _defines(path, function), f"{record.key}: {tail} defines no {function!r}"
+
+
+def test_a_retired_producer_is_never_an_allowed_reader():
+    """Its reads are the retire lane's to remove, not this table's to permit."""
+    sys.path.insert(0, str(REPO / "scripts/retire"))
+    import dispositions as D  # noqa: E402
+    retired = {e["path"].replace(D.REPO + "/", "") for e in D.CODE_TIER1}
+    for record in SUP.REGISTRY:
+        for entry in record.allowed_readers:
+            assert entry.partition("::")[0] not in retired, (record.key, entry)
 
 
 # --------------------------------------------------------------------------------------------
@@ -306,8 +368,8 @@ def test_the_distance_builder_refuses_through_the_shared_table():
     with pytest.raises(ValueError) as exc:
         builder.build_distance_profiles(cells_root=Path(SUBPANEL_CALLS))
     message = str(exc.value)
-    assert "Beta 191,485 / Alpha 246,055 / Delta 62,797" in message
-    assert "Beta 226,183 / Alpha 279,686 / Delta 90,658" in message
+    assert SUP.SUBPANEL_CALLS_ENDOCRINE in message
+    assert SUP.match(REPO / SUBPANEL_CALLS).counts in message
     # It refuses the other registered roots now too, which it never knew about before.
     with pytest.raises(ValueError):
         builder.refuse_superseded(REPO / "data/restore_gated_redsea")
@@ -333,7 +395,7 @@ def test_the_module_answers_on_its_own_at_the_command_line():
                              capture_output=True, text=True, check=False, cwd=REPO)
     assert listing.returncode == 0
     assert "subpanel_calls" in listing.stdout
-    assert "25,150,537" in listing.stdout
+    assert SUP.SUBPANEL_CALLS_ROWS in listing.stdout
 
     checked = subprocess.run([sys.executable, "-B", str(MODULE), SUBPANEL_CALLS,
                               "data/development/typing/cells"],

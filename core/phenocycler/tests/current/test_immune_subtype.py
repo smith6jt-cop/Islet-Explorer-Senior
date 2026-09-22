@@ -231,6 +231,7 @@ def _coverage():
     return json.loads(path.read_text())
 
 
+@pytest.mark.data
 def test_every_requested_donor_was_built_or_carries_a_reason():
     cov = _coverage()
     for donor in cov["donors_requested"]:
@@ -240,12 +241,14 @@ def test_every_requested_donor_was_built_or_carries_a_reason():
             assert record.get("reason"), f"{donor} was not built and no reason was written"
 
 
+@pytest.mark.data
 def test_a_donor_left_out_of_the_run_is_named_with_the_cohort_module_s_reason():
     cov = _coverage()
     for donor, why in cov["donors_not_requested"].items():
         assert why == COHORT.MARGINAL[donor]
 
 
+@pytest.mark.data
 def test_no_count_is_written_as_zero_where_the_rule_could_not_be_evaluated():
     path = OUT / "per_donor_counts.csv"
     if not path.exists():
@@ -258,6 +261,7 @@ def test_no_count_is_written_as_zero_where_the_rule_could_not_be_evaluated():
     assert measured["count"].str.match(r"^\d+$").all()
 
 
+@pytest.mark.data
 def test_a_count_that_is_not_cross_donor_comparable_says_so_with_its_numbers():
     path = OUT / "per_donor_counts.csv"
     if not path.exists():
@@ -270,6 +274,7 @@ def test_a_count_that_is_not_cross_donor_comparable_says_so_with_its_numbers():
         assert "NOT comparable" in row["reason"]
 
 
+@pytest.mark.data
 def test_the_written_cells_are_exactly_the_Immune_cells_and_the_subsets_sum_to_their_parent():
     parts = sorted(glob.glob(str(OUT / "donor_id=*/data.parquet")))
     if not parts:

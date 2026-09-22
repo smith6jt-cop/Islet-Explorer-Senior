@@ -8,7 +8,7 @@ orientation the nonzero fill rule needs, and the area agreement that refuses a l
 with the numbers it is drawn beside. No slide, no server, no pyvips -- both builders keep their
 heavy imports function-local, so this runs on a bare interpreter in well under a second.
 
-    python scripts/test_build_tissuumaps_regions.py
+    python scripts/check_build_tissuumaps_regions.py
 """
 
 from __future__ import annotations

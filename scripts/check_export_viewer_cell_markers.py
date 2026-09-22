@@ -5,7 +5,7 @@ No pandas, no Parquet, no cohort data — the legacy-CSV path, the skip
 behaviour, coordinate hygiene and the coverage record are all exercised on
 stdlib alone, which is also what makes them runnable anywhere.
 
-    python scripts/test_export_viewer_cell_markers.py
+    python scripts/check_export_viewer_cell_markers.py
 """
 
 from __future__ import annotations

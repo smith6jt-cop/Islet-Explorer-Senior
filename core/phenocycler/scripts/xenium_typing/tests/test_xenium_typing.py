@@ -1,4 +1,12 @@
-"""Cohort readback and synthetic checks for Xenium typing and bundle selection."""
+"""Cohort readback and synthetic checks for Xenium typing and bundle selection.
+
+One test carries ``pytest.mark.data``: the cohort readback opens the acquired cohort
+(``core/phenocycler/data/qupath_manifest.json``, through ``pins.donors``) and the donor ->
+bundle manifest (``core/phenocycler/data/integration/xenium_paths.csv``, through
+``pins.serial_map`` / ``pins.run_map``).  Neither is in version control, so on a checkout
+without them it skips naming the file it wanted.  Every other test here is synthetic, or
+writes the file it reads under ``tmp_path``.
+"""
 from __future__ import annotations
 
 import json
@@ -16,7 +24,11 @@ import pins  # noqa: E402
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 
+@pytest.mark.data
 def test_pins_serial_and_run_maps_cover_the_cohort():
+    for pinned in (pins.COHORT_MANIFEST, pins.XENIUM_PATHS):
+        if not pinned.is_file():
+            pytest.skip(f"{pinned} not present (data is gitignored)")
     donors = pins.donors()
     assert len(donors) == len(set(donors)) == 22
     assert {"112", "6533"} <= set(donors)

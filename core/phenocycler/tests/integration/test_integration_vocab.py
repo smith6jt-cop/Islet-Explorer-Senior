@@ -7,7 +7,7 @@ import pytest
 from phenocycler import load_config
 from phenocycler.integration.phenospace import PhenotypeSpaceError
 from phenocycler.integration.vocab import (
-    COMMON_LINEAGES, GATE_MARKERS,
+    COMMON_LINEAGES, GATE_MARKERS, NON_CALLS,
     PROTEIN_GENE_CANDIDATES, RESOLVABLE, SURROGATE_PANEL, XENIUM_TO_COMMON, check_panel_roles_agreement, coverage_report, crosswalk_frame,
     load_panel_taxonomy, pheno_to_common, protein_gene_pairs, resolvable_for, usable_anchors,
     xenium_to_common,
@@ -208,8 +208,11 @@ def test_surrogate_panels_reference_real_cores(tax):
 def test_crosswalk_frame_and_report(tax, legacy_space):
     pairs = protein_gene_pairs(["PECAM1", "CD3E", "MS4A1"], tax=tax)
     df = crosswalk_frame(legacy_space, pairs, tax=tax)
-    assert set(df["kind"]) == {"lineage", "marker"}
+    assert set(df["kind"]) == {"lineage", "noncall", "marker"}
     assert len(df[df["kind"] == "lineage"]) == len(COMMON_LINEAGES)
+    # One row per recorded non-call, outside the lineage block, and never a lineage's is-immune.
+    assert len(df[df["kind"] == "noncall"]) == len(NON_CALLS)
+    assert set(df.loc[df["kind"] == "noncall", "is_immune"]) == {"not_applicable"}
     report = coverage_report(legacy_space, pairs, tax)
     assert "OFF-PANEL LINEAGE GATES" in report
     assert "default_sink" in report
