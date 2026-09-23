@@ -30,8 +30,9 @@ def test_pins_serial_and_run_maps_cover_the_cohort():
         if not pinned.is_file():
             pytest.skip(f"{pinned} not present (data is gitignored)")
     donors = pins.donors()
-    assert len(donors) == len(set(donors)) == 22
-    assert {"112", "6533"} <= set(donors)
+    # 23 since 2026-09-23: 6579 (reinstated 2026-09-17) joined the acquired manifest.
+    assert len(donors) == len(set(donors)) == 23
+    assert {"112", "6533", "6579"} <= set(donors)
     assert not set(donors) & DONOR_EXCLUSIONS.keys()
     serials, runs = pins.serial_map(), pins.run_map()
     assert set(donors) <= serials.keys() & runs.keys()

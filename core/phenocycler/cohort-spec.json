@@ -20,6 +20,7 @@
     "6539",
     "6551",
     "6566",
+    "6579",
     "6591",
     "6593",
     "6623"
@@ -29,7 +30,8 @@
       "/home/smith6jt/IO60panc2nd/results/Cellmeasurements.csv",
       "/home/smith6jt/IO60panc2nd/results/CellmeasurementsBatch2.csv",
       "/home/smith6jt/IO60panc2nd/results/Cellmeasurements_6539parentFixed.csv",
-      "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/6533.tsv"
+      "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/6533.tsv",
+      "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/RevisedQuPathExports/6579.tsv"
     ],
     "segmentation_version": "qupath-0.7.0__instanseg-fluorescence_nuclei_and_cells-0.1.1",
     "nucleus_geojson": null,
@@ -173,6 +175,14 @@
       "qptiff": "/home/smith6jt/IO60panc2nd/Images/6566panc_Scan1.er.qptiff",
       "cell_geojson": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/redsea_scratch/geojson/cells__6566panc_Scan1.er.qptiff_-_resolution__1.geojson",
       "panel_id": "panel-neither-58ch"
+    },
+    {
+      "donor_id": "6579",
+      "image_id": "6579_Scan2.er.qptiff - resolution #1",
+      "measurement_csv_index": 4,
+      "qptiff": "/home/smith6jt/IO60panc2nd/Images/6579_Scan2.er.qptiff",
+      "cell_geojson": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data/redsea_scratch/geojson/cells__6579_Scan2.er.qptiff_-_resolution__1.geojson",
+      "panel_id": "panel-cd38-59ch"
     },
     {
       "donor_id": "6591",

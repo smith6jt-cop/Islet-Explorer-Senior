@@ -165,3 +165,8 @@ former anchor is no longer shared by every donor. CD21 is also not shared by eve
 and CD141 has no DCT vocabulary entry. The frozen exclusions record all three facts; the
 gate criteria and method version are unchanged. The readback test compares the entire
 generated artifact, including its derived cohort/intersection counts.
+
+2026-09-23: donor 6579 (reinstated 2026-09-17) joined the manifest, now 23 donors. Its image
+is on `panel-cd38-59ch`, so the intersection is unchanged: `anchors.json` was regenerated and
+differs only in the donor count in its `rule` text -- the same 27 anchors, the same 50
+markers, the same 5 exclusions.
