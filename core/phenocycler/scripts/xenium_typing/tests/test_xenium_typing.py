@@ -123,29 +123,3 @@ def test_validate_calls_refuses_a_missing_reason_and_an_unknown_label():
     bad = df.copy(); bad.loc[0, "lineage_native"] = "Neural_X"
     with pytest.raises(ValueError):
         gate.validate_calls(bad)
-
-
-def test_release_label_space_maps_every_lineage_to_the_common_vocabulary():
-    import release
-    from phenocycler.integration.vocab import COMMON_LINEAGES
-    space = release.label_space("joint-run-aware")
-    mapped = {r["label"]: r.get("common_lineage") for r in space["labels"] if "common_lineage" in r}
-    assert set(mapped) == set(pins.LINEAGES)
-    assert set(mapped.values()) <= set(COMMON_LINEAGES) - {"Unassigned"}
-    resolutions = {r["label"]: r.get("common_resolution") for r in space["labels"] if "common_resolution" in r}
-    assert resolutions == {gate.AMBIGUOUS: "ambiguous", gate.UNAVAILABLE: "unavailable"}
-
-
-def test_baseline_cluster_award_is_exactly_one_lineage(monkeypatch):
-    import baseline_analyzer as ba
-    long = pd.DataFrame({
-        "group": ["c1"] * 3 + ["c2"] * 3 + ["c3"] * 3,
-        "lineage": ["Endocrine", "Exocrine", "Myeloid"] * 3,
-        "clears": [True, False, False, True, True, False, False, False, False],
-        "judgeable": [True] * 9,
-    })
-    monkeypatch.setattr(gate, "nullgate_table", lambda *a, **k: (long, None))
-    lab, rsn, _ = ba.annotate_clusters(None, None, np.array(["c1", "c2", "c3"]), {})
-    assert lab["c1"] == "Endocrine" and rsn["c1"] == ""
-    assert lab["c2"] == gate.AMBIGUOUS and rsn["c2"] == "multi_lineage"
-    assert lab["c3"] == gate.UNAVAILABLE and rsn["c3"] == "no_lineage_beats_null"

@@ -123,15 +123,31 @@ def test_retire_refuses_a_declared_library_even_if_it_reaches_a_tier(tmp_path, v
 
 
 # ------------------------------------------------------------ the candidates ----
-def test_the_candidates_the_walk_found_are_recorded_with_evidence():
-    for required in (f"{SCRIPTS}/sameslide",
-                     f"{SCRIPTS}/restain/run_field_refine.py",
-                     f"{SCRIPTS}/celltype/run_sameslide_protein.py",
-                     f"{SCRIPTS}/typing/compare_clustering.py",
-                     f"{SCRIPTS}/xenium_celltype/hpg/fetch_results.sh",
-                     f"{SCRIPTS}/xenium_celltype/hpg/sync_code.sh",
-                     f"{SCRIPTS}/xenium_celltype/hpg/slurm"):
-        assert required in CANDIDATE, f"{required} is not on CODE_CANDIDATE"
+def test_the_candidates_the_walk_found_were_ruled_on_and_carry_their_evidence():
+    """The 2026-09-22 walk recorded 23 candidates; the maintainer ruled on them 2026-09-23.
+    The same-slide lane is a library WITH the ruling on its row; the rest are tier 2 with the
+    walk's evidence carried unchanged; nothing is a candidate any more."""
+    libraries = dict(D.CODE_LIBRARY)
+    for kept in (f"{SCRIPTS}/sameslide",
+                 f"{SCRIPTS}/restain/run_field_refine.py",
+                 f"{SCRIPTS}/celltype/run_sameslide_protein.py"):
+        assert kept in libraries, f"{kept} must be a declared library (ruled kept 2026-09-23)"
+        assert "RULED KEPT 2026-09-23" in libraries[kept], f"{kept}: the ruling is on its row"
+        assert "2026-09-22" in libraries[kept], f"{kept}: the walk's evidence stays on its row"
+    tier2 = {e["path"]: e for e in D.CODE_TIER2}
+    for moved in (f"{SCRIPTS}/typing/compare_clustering.py",
+                  f"{SCRIPTS}/typing/call.py",
+                  f"{SCRIPTS}/xenium_celltype/eval_detection.py",
+                  f"{SCRIPTS}/xenium_celltype/hpg/fetch_results.sh",
+                  f"{SCRIPTS}/xenium_celltype/hpg/sync_code.sh",
+                  f"{SCRIPTS}/xenium_celltype/hpg/slurm"):
+        assert moved in tier2, f"{moved} must be on CODE_TIER2 (ruled 2026-09-23)"
+        assert tier2[moved]["evidence"], f"{moved}: the walk's evidence is carried"
+    assert tier2[f"{SCRIPTS}/typing/call.py"]["blocked_by"] == (
+        f"{SCRIPTS}/typing/compare_clustering.py",), "call.py moves with its one importer"
+    assert tier2[f"{SCRIPTS}/xenium_celltype/hpg/stage_prep.py"]["blocked_by"] == (
+        f"{SCRIPTS}/xenium_celltype/hpg/stage_call.py",)
+    assert D.CODE_CANDIDATE == [], "every 2026-09-22 candidate was ruled on 2026-09-23"
     for path, why in D.CODE_CANDIDATE:
         assert Path(path).exists(), f"{path} is a candidate but is gone"
         assert why, f"{path}: a candidate carries the walk's evidence"
@@ -153,9 +169,13 @@ def test_a_candidate_is_neither_refused_nor_acted_on(manifest):
         row = manifest["by_path"][path]
         assert row["tier"] == "CANDIDATE" and row["check"] == "candidate_orphan", row
         assert row["verified"] in ("PASS", "FAIL"), "a candidate row carries a measurement"
-    inside = manifest["by_path"][f"{SCRIPTS}/xenium_celltype/context.py"]
-    assert inside["verified"] == "PASS", \
-        f"a reference from another candidate is internal to the question: {inside['verify_detail']}"
+    # context.py was the worked example of "a reference from another candidate is internal to
+    # the question": its only importer was eval_detection.py, a candidate too. Both were ruled
+    # to tier 2 and moved together on 2026-09-23, which the log records; the manifest now
+    # reports the path absent rather than measuring a file that is not there.
+    context = f"{SCRIPTS}/xenium_celltype/context.py"
+    assert context in _moved_by_the_ledger(), "context.py moved with eval_detection.py"
+    assert manifest["by_path"][context]["verify_detail"] == "MISSING"
     for tier in ("1", "2"):
         out = subprocess.run([sys.executable, str(RETIRE / "retire.py"), "--kind", "code",
                               "--tier", tier, "--manifest", str(manifest["path"])],
@@ -195,24 +215,21 @@ def test_the_alternative_typers_are_declared_and_not_movable():
     assert "xen_identity.py" in overturned[f"{SCRIPTS}/xenium_typing/joint_model.py"]
 
 
-def test_the_apparatus_check_reads_the_binding_blank_and_fails_only_on_a_live_reference(manifest):
+def test_the_apparatus_moved_once_its_binding_was_blank(manifest):
     """Until 2026-09-23 core/phenocycler/config.ini:153 bound the release directory the X1/X3
     arms and release.py write, and the manifest FAILED all four by name on that binding. Step 5
-    blanked it. The check still reads the key on every run: a row that passes says the binding
-    is blank, and a row that fails now fails on a LIVE reference the walk found, never on
-    config.ini -- if it ever does again, the binding is back."""
+    blanked it; the check then passed on all four (baseline_analyzer once its lane test was
+    removed with it) and the maintainer's ruling executed the tier the same day. The log
+    records the move; the key is still read blank; a value there would be the binding back."""
+    moved = _moved_by_the_ledger()
     for name in ("release", "nullgate_typer", "scanvi_replicates", "baseline_analyzer"):
-        row = manifest["by_path"][f"{SCRIPTS}/xenium_typing/{name}.py"]
+        path = f"{SCRIPTS}/xenium_typing/{name}.py"
+        row = manifest["by_path"][path]
         assert row["check"] == "code_orphan_and_config_blank", row["check"]
-        assert "still binds" not in row["verify_detail"], f"{name}: {row['verify_detail']}"
-        if row["verified"] == "PASS":
-            assert "xenium_identity_release blank" in row["verify_detail"], row["verify_detail"]
-        else:
-            assert "LIVE reference" in row["verify_detail"], f"{name}: {row['verify_detail']}"
-    # Measured 2026-09-23: three pass; baseline_analyzer fails on its lane test, which is the
-    # reference that leaves with it when the tier is executed.
-    row = manifest["by_path"][f"{SCRIPTS}/xenium_typing/release.py"]
-    assert "config.ini:153 has xenium_identity_release blank" in row["verify_detail"], row
+        assert path in moved, f"{name}: quarantined 2026-09-23, the log must say so"
+        assert not Path(path).exists() and row["verify_detail"] == "MISSING", row
+    assert BM._config_binding(BM.CONFIG_INI, "xenium_identity_release") == (153, "")
+    assert BM._config_binding(BM.CONFIG_INI, "phenocycler_identity_release") == (152, "")
     row = manifest["by_path"][f"{D.REPO}/analysis/xenium/scripts/hierarchical_phenotype.py"]
     assert row["verified"] == "FAIL" and "run_pipeline.sh" in row["verify_detail"], row
 
@@ -420,10 +437,11 @@ def test_a_dry_run_moves_nothing(manifest):
 def test_the_overturned_entries_carry_their_measurement():
     overturned = dict(D.CODE_TIER3)
     for path in (f"{D.REPO}/core/phenocycler/scripts/broadtype",
-                 f"{D.REPO}/core/phenocycler/scripts/dct",
-                 f"{D.REPO}/core/phenocycler/scripts/typing/call.py"):
+                 f"{D.REPO}/core/phenocycler/scripts/dct"):
         assert path in overturned, f"{path} must be recorded as overturned, with why"
         assert "import" in overturned[path].lower()
+    # call.py was overturned while compare_clustering.py imported it; ruled retired 2026-09-23.
+    assert f"{D.REPO}/core/phenocycler/scripts/typing/call.py" not in overturned
 
 
 # -------------------------------------- adata_ins_root.h5ad has one producer ----

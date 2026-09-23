@@ -628,6 +628,37 @@ CODE_TIER2 = [
                 "are the HPC lane and X1 named in prereq; tissue_markers/pancreas.py:427,490,609 "
                 "declare their tables consumed by it. c2, not c1: it is the named producer of "
                 "the sidecar arm X1 still reads."),
+    # -- the Nimbus/Leiden naming chain's last two modules, RULED 2026-09-23 ------------------
+    #    Maintainer: "Retire, but if data was ever produced with this, I want to see it
+    #    regardless." What they produced is kept and was shown: data/development/typing/calls
+    #    (donors 6436 and 6442, written 2026-09-11, data TIER2 since 2026-09-16, now under
+    #    data/ARCHIVE_2026-09-15/quarantine) and data/development/typing/clustering_comparison.json
+    #    (2026-09-08, donor 6442 only, recommendation leiden). Only the code moves.
+    _c(f"{TYPING}/compare_clustering.py", 2,
+       produces=("data/development/typing/clustering_comparison.json",),
+       superseded_by=f"{TYPING}/subpanel.py",
+       evidence="Walk 2026-09-22: DOC-ONLY -- no importer, no invocation, no test; docstrings of "
+                "cluster_kodama.py, cluster_lda.py and cluster_leiden.py name it. It was the "
+                "load-bearing referrer of call.py (compare_clustering.py:105 `from call import "
+                "TOP_N, _statistic, name_clusters`). Ruled retired 2026-09-23 with call.py; the "
+                "comparison it ran is recorded in its one output, which stays."),
+    _c(f"{TYPING}/call.py", 2,
+       produces=("data/development/typing/calls",),
+       superseded_by=f"{TYPING}/subpanel.py",
+       blocked_by=(f"{TYPING}/compare_clustering.py",),
+       evidence="Was CODE_TIER3 (overturned) because compare_clustering.py:105 imported it and "
+                "the default-lane suite typing/tests/test_typing.py imported it at 20 sites. "
+                "Ruled retired 2026-09-23: those 20 tests were removed with it, compare_clustering.py "
+                "moves in the same invocation (blocked_by), and cluster_kodama.py:45,67 carry "
+                "call.py's defaults as literals with a comment, not an import. It is the third "
+                "module of the retired Nimbus/Leiden chain (substrate.py -> positivity.py -> "
+                "call.py -> validate.py -> export_qupath.py; typing/README.md:157)."),
+    # -- the old Xenium detection lane and its HiPerGator apparatus, RULED 2026-09-23 --------
+    #    Recorded as CODE_CANDIDATE on 2026-09-22 (walk: NONE / DOC-ONLY / in-tree only; the
+    #    evidence is carried on each row below, unchanged). The maintainer's reply of
+    #    2026-09-23 carved out only the same-slide lane (now CODE_LIBRARY); the rest moves on
+    #    the stated default. Quarantine is a move, so it is reversible. The current Xenium
+    #    method runs from analysis/xenium/hpc, not from here.
 ]
 
 # --- code tier 3: proposed and OVERTURNED. Untouched. -------------------------------------
@@ -654,16 +685,6 @@ CODE_TIER3 = [
      "core/phenocycler/scripts/common/ (dct/ holds neither), and dct/{arms,concordance_gate,"
      "feasibility_tile,plane_identity}.py already resolve them by putting scripts/common on "
      "sys.path. So the move scripts/CLAUDE.md asks for is done; what blocks dct now is broadtype."),
-    (f"{TYPING}/call.py",
-     "STILL IMPORTED BY LIVE CODE, and a library for exactly one consumer: "
-     "core/phenocycler/scripts/typing/compare_clustering.py:105 does "
-     "`from call import TOP_N, _statistic, name_clusters` -- the naming statistic the whole "
-     "Leiden/LDA/KODAMA comparison is built on -- and cluster_kodama.py:45,67 pins its own "
-     "graph_k / resolution to call.py's defaults. The default-lane suite "
-     "core/phenocycler/scripts/typing/tests/test_typing.py imports it at 20 sites (e.g. :183). "
-     "Its OUTPUT tree data/development/typing/calls is already TIER2 (withdrawn). Retiring the "
-     "module would break the comparison; compare_clustering.py is a CODE_CANDIDATE below, so the "
-     "disposition that closes call.py is that one, not another reference walk."),
     (f"{XTYPING}/joint_model.py",
      "STAYS while the report lane reads what it wrote. It is arm X2 of the retired Xenium "
      "pancreas comparison (joint_model.py:51 ARM = pins.ARM_JOINT; :62 OUT = "
@@ -882,50 +903,47 @@ CODE_LIBRARY = [
      "5th-percentile bound demotes about 5% of every class by construction -- root CLAUDE.md "
      "calls that an open question, not a decision. Its own imports are panel/rules/score/"
      "run_step3 (:127-130), all declared libraries above."),
-]
-
-# --- retirement candidates: NO live reference measured 2026-09-22. Recorded, not moved. -----
-# One row per path the walk classified NONE, DOC-ONLY, or reached only from other rows on this
-# list (in-tree only), and that is on no tier. `retire.py` neither refuses nor acts on a
-# candidate -- it reads tiers 1 and 2 only -- and `build_manifest.py` writes each with tier
-# "CANDIDATE" and the `code_orphan` check, so the manifest shows today's measurement beside the
-# evidence. Promotion to a tier is the maintainer's decision at the end of Step 4.
-CODE_CANDIDATE = [
+    # -- the same-slide / same-section lane, RULED KEPT 2026-09-23 ----------------------------
+    #    Maintainer: "The sameslide folder needs to stay because the 'one typing' goal does not
+    #    cover sequential slide and same slide typing." Read as the lane, not one folder: the
+    #    two-donor same-slide bridge (6533, 112) and the same-section registration refinement
+    #    are its operator entry points. The 2026-09-22 walk evidence is kept verbatim so the
+    #    protection is a ruling on top of a measurement, not instead of one.
     (f"{SAMESLIDE}",
-     "Whole tree (5 files), walk 2026-09-22: no importer outside it. lift_calls.py: DOC-ONLY -- "
-     "docstring of the live scripts/senior/same_section_linkage.py:16 ('read not run here') and "
+     "RULED KEPT 2026-09-23 (same-slide typing is outside the one-typing goal). Walk 2026-09-22, "
+     "whole tree (5 files): no importer outside it. lift_calls.py: DOC-ONLY -- docstring of the "
+     "live scripts/senior/same_section_linkage.py:16 ('read not run here') and "
      "docs/SAME_SECTION_LINKAGE_2026-09-17.md:26; it imports build_joined:47 and "
      "integration/transform:48. register_points.py: NONE -- zero inbound references; its :219 "
      "and :224 help text name read_pheno_tsv and extract_pheno_geometry.py, the only references "
      "to those two files. build_joined.py: in-tree only, imported by lift_calls.py:47. The "
-     "tree has no tests and no lane entry in Makefile:32. The former protection reason "
-     "(lift_calls.py changed on merge/hpg-sameslide) lapsed with the merge. Outbound it "
-     "imports the declared library integration/transform.py (build_joined.py:34, "
-     "register_points.py:42)."),
+     "tree has no tests and no lane entry in Makefile:32. Outbound it imports the declared "
+     "library integration/transform.py (build_joined.py:34, register_points.py:42)."),
     (f"{RESTAIN}/run_field_refine.py",
-     "TEST-ONLY via the retire guard itself: before 2026-09-22 its only references were "
-     "tests/current/test_retire_code_tier.py asserting it on the keep-beside list and "
-     "build_manifest.py tolerating its absence. No importer, no invocation, no doc. It imports "
-     "six declared libraries (align:53, registration_inputs:54, run_align:55, "
-     "run_intensity_refine:61, run_register:62, integration/transform:64) and its :4 docstring "
-     "contrasts itself with run_intensity_refine.py. The former reason ('the branch adds it, "
-     "398 lines') lapsed with the merge."),
+     "RULED KEPT 2026-09-23 with the same-slide lane: the same-section registration refinement "
+     "for the sheared donor (6533). Walk 2026-09-22: TEST-ONLY via the retire guard itself; no "
+     "importer, no invocation, no doc. It imports six declared libraries (align:53, "
+     "registration_inputs:54, run_align:55, run_intensity_refine:61, run_register:62, "
+     "integration/transform:64) and its :4 docstring contrasts itself with "
+     "run_intensity_refine.py."),
     (f"{CELLTYPE}/run_sameslide_protein.py",
-     "DOC-ONLY: docs/XENIUM_PIPELINE.md:239,245-246 describe it and give its command; "
-     "docs/XENIUM_PIPELINE.md:367 cites run_sameslide_protein.islet_regions. No importer, no "
-     "test, no invocation. Its output path (run_sameslide_protein.py:82 OUT = panel.OUT/"
-     "'sameslide_protein') is named literally by sameslide/lift_calls.py:28, itself a "
-     "candidate above, and lift_calls.py:52 CARRY lifts its `call` column onto Xenium cells. "
-     "It is the two-donor SAME-SLIDE BRIDGE (6533 and 112), not a cohort producer: its call "
-     "column reaches no build_layers node and no R card. It imports the declared libraries "
-     "panel/rules/run_islet/run_step3/score/usability (:70-74, :146)."),
-    (f"{TYPING}/compare_clustering.py",
-     "DOC-ONLY (moved here from CODE_TIER4, where it was 'the maintainer's call'): no importer, "
-     "no invocation, no test; docstrings of cluster_kodama.py, cluster_lda.py and "
-     "cluster_leiden.py name it. It is the load-bearing referrer of call.py "
-     "(compare_clustering.py:105 `from call import TOP_N, _statistic, name_clusters`), so "
-     "retiring it would unblock call.py (CODE_TIER3) and keeping it keeps call.py. Either way "
-     "it is a ruling about the clustering comparison, not an orphan finding."),
+     "RULED KEPT 2026-09-23 with the same-slide lane: the two-donor SAME-SLIDE BRIDGE (6533 and "
+     "112), not a cohort producer -- its call column reaches no build_layers node and no R card. "
+     "Walk 2026-09-22: DOC-ONLY (docs/XENIUM_PIPELINE.md:239,245-246 describe it and give its "
+     "command; :367 cites run_sameslide_protein.islet_regions). Its output path (:82 OUT = "
+     "panel.OUT/'sameslide_protein') is named literally by sameslide/lift_calls.py:28, and "
+     "lift_calls.py:52 CARRY lifts its `call` column onto Xenium cells. It imports the declared "
+     "libraries panel/rules/run_islet/run_step3/score/usability (:70-74, :146)."),
+]
+
+# --- the 2026-09-22 candidates, RULED 2026-09-23 -----------------------------------------------
+# The walk classified each of these NONE, DOC-ONLY, or reached only from other rows on this list
+# (in-tree only), and recorded them for the maintainer's decision. The decision came 2026-09-23:
+# the same-slide lane is kept (CODE_LIBRARY above), compare_clustering.py moves with call.py
+# (CODE_TIER2 above), and every row below is promoted to CODE_TIER2 on the stated default. The
+# evidence is unchanged; `_c` entries are built from it at the end of this block so the
+# measurement and the ruling stay on one row.
+_RULED_TO_TIER2_2026_09_23 = [
     # -- xenium_celltype: the detection-evaluation trio, in-tree only ------------------------
     (f"{XCT}/eval_detection.py",
      "DOC-ONLY: no importer, no runner, no test. Cited by name in the tracked "
@@ -1004,6 +1022,29 @@ CODE_CANDIDATE = [
      "In-tree: slurm/10_prep.sh:37 invocation and stage_call.py:43 (`from stage_prep import "
      "load_at_site`). It imports sites:35, xenio:36 and run_donor:37."),
 ]
+
+#: Within-set Python imports among the promoted rows, importer-first (B imported by A is
+#: blocked_by A), so retire.py moves them in one invocation or not at all.
+_RULED_BLOCKERS = {
+    f"{XCT}/context.py": (f"{XCT}/eval_detection.py",),
+    f"{XCT}/detect.py": (f"{XCT}/eval_detection.py",),
+    f"{HPG}/sites.py": (f"{HPG}/preflight.py", f"{HPG}/stage_prep.py"),
+    f"{HPG}/stage_prep.py": (f"{HPG}/stage_call.py",),
+}
+CODE_TIER2 += [
+    _c(path, 2, superseded_by=f"{REPO}/analysis/xenium/hpc/run_pipeline.sh",
+       blocked_by=_RULED_BLOCKERS.get(path, ()),
+       prereq="Promoted from CODE_CANDIDATE on the maintainer's ruling of 2026-09-23 (the "
+              "same-slide lane was the one carve-out). Quarantine is a move under "
+              "data/ARCHIVE_2026-09-15/quarantine, reversible by hand.",
+       evidence=why)
+    for path, why in _RULED_TO_TIER2_2026_09_23
+]
+
+#: Nothing is a candidate after 2026-09-23: every 2026-09-22 candidate was ruled on. The list
+#: stays so the next walk has somewhere to record what it finds, and so the tests that pin
+#: "a candidate is on no tier" keep running.
+CODE_CANDIDATE: list[tuple[str, str]] = []
 
 #: The candidate paths, for `retire.py`'s tests: on no tier, in no refusal set.
 CODE_CANDIDATE_PATHS = [p for p, _ in CODE_CANDIDATE]
