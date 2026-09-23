@@ -18,6 +18,12 @@ recorded pair recovers that outline's isotropic calibration without a constant
 or an image-name lookup. Conversion to phenocycler_um happens here, never in R.
 Circularity and solidity describe this union, not the enclosing islet.
 
+The converted outline itself is NOT written. Until 2026-09-23 it went out as a
+``wkb`` column: 147.3 of islets.parquet's 148.7 MB, and no card read it
+(card_s1_size_composition.R reads the counts, the states and the strata). What
+it measured is kept -- endocrine_circularity, endocrine_solidity and
+outline_um_per_px -- and the outline stays in typing/geometry, where it came from.
+
     .venv/bin/python scripts/senior/build_islet_summary.py --layers-dir /tmp/layers
 """
 
@@ -138,7 +144,6 @@ def _outlines(frame: pd.DataFrame | None) -> pd.DataFrame | None:
         out.update(
             outline_state="unavailable",
             outline_reason="missing_endocrine_outline_measurement",
-            wkb=None,
             endocrine_um2_from_outlines=None,
             n_endocrine_outlines=None,
             outline_um_per_px=None,
@@ -172,7 +177,6 @@ def _outlines(frame: pd.DataFrame | None) -> pd.DataFrame | None:
             out.update(
                 outline_state="measured",
                 outline_reason="",
-                wkb=outline_um.wkb,
                 endocrine_um2_from_outlines=float(area),
                 n_endocrine_outlines=int(n),
                 outline_um_per_px=calibration,
@@ -311,7 +315,6 @@ def build_islet_summary(
         islets = islets.merge(outline_table, on=KEY, how="left", validate="one_to_one")
     else:
         for column in (
-            "wkb",
             "endocrine_um2_from_outlines",
             "n_endocrine_outlines",
             "outline_um_per_px",
@@ -375,10 +378,6 @@ def write_summary(tables: dict[str, pd.DataFrame], layers_dir: Path) -> Path:
             path.unlink(missing_ok=True)
             continue
         table = pa.Table.from_pandas(tables[name], preserve_index=False)
-        if name == "islets":
-            # Keep an all-unavailable outline column typed as binary, not Arrow null.
-            i = table.schema.get_field_index("wkb")
-            table = table.set_column(i, "wkb", pa.array(tables[name]["wkb"], type=pa.binary()))
         pq.write_table(table, path)
     return target
 

@@ -18,7 +18,6 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 import pytest
-from shapely import from_wkb
 from shapely.geometry import box
 
 REPO = Path(__file__).resolve().parents[4]
@@ -118,7 +117,8 @@ def test_emitted_per_islet_counts_and_donor_groups_survive_serialization(source,
         schema.field("donor_id").type
     )
     assert schema.field("n_cells").type == pa.int64()
-    assert schema.field("wkb").type == pa.binary()
+    # The converted outline is measured and then dropped: 147.3 of the file's 148.7 MB, no reader.
+    assert "wkb" not in schema.names
 
 
 def test_composition_keeps_its_denominator_and_unavailable_is_not_zero(source):
@@ -148,14 +148,17 @@ def test_real_outline_units_and_kind_are_preserved_without_fabricating_a_border(
         assert row["outline_kind"] == "endocrine_cell_union"
         assert row["frame"] == f"phenocycler_um:{donor}:panc"
         assert row["outline_um_per_px"] == expected_scale
-        assert from_wkb(row["wkb"]).area == pytest.approx(expected_area)
+        assert row["endocrine_um2_from_outlines"] == pytest.approx(expected_area)
         assert row["endocrine_solidity"] == pytest.approx(1)
         assert row["endocrine_circularity"] == pytest.approx(np.pi / 4)
     missing = islets.loc[("112", "Islet_2")]
     assert missing["outline_state"] == "unavailable"
     assert missing["outline_reason"] == "no_endocrine_outline_exported"
-    assert pd.isna(missing["wkb"])
+    assert pd.isna(missing["outline_um_per_px"])
     assert pd.isna(missing["endocrine_circularity"])
+    # The circularity and solidity above are measured on the converted outline, so they still
+    # prove the conversion; the outline itself is not carried out of the builder.
+    assert "wkb" not in islets.columns
 
 
 def test_all_reads_disable_partition_discovery_and_stay_in_the_small_sources(source, monkeypatch):
@@ -210,7 +213,7 @@ def test_missing_sources_emit_reasons_and_remove_stale_measurements(source, tmp_
     assert islets["composition_reason"].str.startswith("source_missing:").all()
     assert islets["outline_state"].eq("unavailable").all()
     assert islets["outline_reason"].str.startswith("no_parquet_files:").all()
-    assert islets["wkb"].isna().all()
+    assert "wkb" not in islets.columns
     assert islets["region_total"].isna().all()
     (source / "app/islet_geometry.parquet").unlink()
     tables = builder.build_islet_summary(source)
