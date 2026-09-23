@@ -478,3 +478,44 @@ def test_the_expansion_is_derived_from_the_signed_distance(tmp_path, monkeypatch
     assert out["cell_region_20um"].tolist() == ["core", "expansion", "tissue"], (
         "every expansion is 20 um by construction: one donor's annotation is drawn at 23.1 um "
         "and carries the same _exp20um name")
+
+
+# --------------------------------------------------------------------------------------------
+# 7. The served table carries the refinement join (a data-state guard).
+# --------------------------------------------------------------------------------------------
+
+@pytest.mark.data
+def test_the_served_cells_table_carries_the_refinement_join():
+    """Every donor partition of ``typing/cells`` was built with ``--refine``.
+
+    The refinement pass is part of producer 1 since the maintainer's ruling of 2026-09-23, by
+    one route only: ``refine.py --out data/development/typing/refine``, then
+    ``build_cells.py --include-marginal --refine data/development/typing/refine``, which joins
+    the pass's verdict BESIDE ``cell_class`` and leaves the islet chain's columns alone. A build
+    without the flag writes the refinement columns as unavailable and records
+    ``refine_applied`` False; this guard is what says such a table is not the served one.
+
+    Read off the build ledger the build itself writes, not off 25M rows. RED until the DATA
+    step: on 2026-09-23 the ledger lists 3 of the 20 partitions (the last of two invocations on
+    2026-09-19 replaced the file whole), each with ``refine_applied`` False. The DATA step runs
+    the join once over all twenty, which is also what makes the ledger whole again.
+    """
+    cells = REPO / "data/development/typing/cells"
+    partitions = sorted(p.name.split("=", 1)[1] for p in cells.glob("donor_id=*")
+                        if (p / "data.parquet").exists())
+    if not partitions:
+        pytest.skip(f"no typing/cells partitions under {cells}")
+    ledger_path = cells / "build_ledger.csv"
+    assert ledger_path.exists(), f"{ledger_path} is missing: the build left no ledger"
+    ledger = pd.read_csv(ledger_path, dtype={"donor_id": str}).set_index("donor_id")
+    unlisted = [d for d in partitions if d not in ledger.index]
+    applied = (ledger["refine_applied"].astype(str).str.lower() == "true"
+               if "refine_applied" in ledger.columns
+               else pd.Series(False, index=ledger.index))
+    not_joined = [d for d in partitions if d in ledger.index and not applied.loc[d]]
+    assert not unlisted and not not_joined, (
+        f"typing/cells is not the refined build: {len(unlisted)} of {len(partitions)} "
+        f"partitions have no ledger row {unlisted} and {len(not_joined)} were built without "
+        f"--refine {not_joined}. Run refine.py --out data/development/typing/refine, then "
+        "build_cells.py --include-marginal --refine data/development/typing/refine, once over "
+        "every donor (the DATA step, on a go).")

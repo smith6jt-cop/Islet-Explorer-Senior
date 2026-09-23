@@ -891,20 +891,22 @@ CODE_LIBRARY = [
      "and test_pln_immune_pheno.py:1087. Run as docs/PLN_REGIONAL_CLUSTERING_2026-09-17.md:"
      "569-570. A by-path importlib load is invisible to an import-statement walk."),
     (f"{TYPING}/refine.py",
-     "A library and the VOCABULARY AUTHORITY for the ninth class, not a fifth producer. "
-     "`refined_class` has ZERO consumers (refine.py:5; modality_concordance.py:29,212-213); "
-     "build_cells.py:507 `--refine` is the join that would wire it and has not been run "
-     "(build_cells.py:148 REFINE_CARRY). What is live is the label string refine.py:150 "
-     "UNRESOLVED = 'Unresolved (no lineage evidence)', read as the committed spelling by "
-     "integration/vocab.py:206-209 (PHENO_UNRESOLVED), scripts/senior/build_grid_composition.py:"
-     "272 (PANC_CLASS_NONCALL), modality_concordance.py:186 ('AUTHORITY. The class vocabulary "
-     "is ... refine.py'), apps/islet/config/run20_default.yml:42,57, apps/islet/R/00_globals.R:"
-     "653 and apps/R/ieCore/R/ie_availability.R:18; and the process-wide guard it installs at "
-     "import (:19) against the producerless refinement_log.json. It must NOT be wired as a "
-     "second PhenoCycler pancreas producer while refined_class has no consumer and its "
-     "5th-percentile bound demotes about 5% of every class by construction -- root CLAUDE.md "
-     "calls that an open question, not a decision. Its own imports are panel/rules/score/"
-     "run_step3 (:127-130), all declared libraries above."),
+     "Part of PRODUCER 1 since the maintainer's ruling of 2026-09-23 ('needs to be included in "
+     "the cell typing for phenocycler data'), by one route only: refine.py --out "
+     "data/development/typing/refine, then build_cells.py:507 `--refine`, whose join "
+     "(build_cells.py:212, REFINE_CARRY at :148) adds refined_class BESIDE cell_class and "
+     "leaves the islet chain's columns untouched -- not a fifth producer, and no builder reads "
+     "refined_class (docs/PRODUCERS.md 'Not decided here'). Also the VOCABULARY AUTHORITY for "
+     "the ninth class: the label string refine.py:156 UNRESOLVED = 'Unresolved (no lineage "
+     "evidence)', read as the committed spelling by integration/vocab.py:206-209 "
+     "(PHENO_UNRESOLVED), scripts/senior/build_grid_composition.py:272 (PANC_CLASS_NONCALL), "
+     "modality_concordance.py:186 ('AUTHORITY. The class vocabulary is ... refine.py'), "
+     "apps/islet/config/run20_default.yml:42,57, apps/islet/R/00_globals.R:653 and "
+     "apps/R/ieCore/R/ie_availability.R:18; and the process-wide guard it installs at import "
+     "(:336) against the producerless refinement_log.json. Its 5th-percentile bound demotes "
+     "about 5% of every class by construction (REFINEMENT.md section 6); the ruling did not "
+     "revisit it. Its own imports are panel/rules/score/run_step3 (:133-136), all declared "
+     "libraries above."),
     # -- the same-slide / same-section lane, RULED KEPT 2026-09-23 ----------------------------
     #    Maintainer: "The sameslide folder needs to stay because the 'one typing' goal does not
     #    cover sequential slide and same slide typing." Read as the lane, not one folder: the

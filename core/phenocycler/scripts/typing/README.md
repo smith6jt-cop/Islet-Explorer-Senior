@@ -75,7 +75,9 @@ refuses a batch-2 donor only when no rebuild exists for it under `typing/revised
 The three MARGINAL donors (6521, 6551, 6380) carry a stated islet deficit and are opt-in.
 
 ```bash
-.venv/bin/python core/phenocycler/scripts/typing/build_cells.py                 # per-cell table
+.venv/bin/python core/phenocycler/scripts/typing/build_cells.py                 # per-cell table (first build after new calls)
+.venv/bin/python core/phenocycler/scripts/typing/refine.py --out data/development/typing/refine   # the refinement, ~10 min
+.venv/bin/python core/phenocycler/scripts/typing/build_cells.py --refine data/development/typing/refine   # joined beside cell_class
 .venv/bin/python core/phenocycler/scripts/typing/build_nonendocrine_outline.py  # ~30 s/donor
 .venv/bin/python core/phenocycler/scripts/typing/build_islet_geometry.py        # four regions
 .venv/bin/python core/phenocycler/scripts/typing/aggregate_islets.py            # per-islet counts
@@ -88,6 +90,14 @@ The three MARGINAL donors (6521, 6551, 6380) carry a stated islet deficit and ar
 .venv/bin/python core/phenocycler/scripts/typing/build_parquet_views.py         # the DuckDB views
 .venv/bin/python core/phenocycler/scripts/typing/summarise_crossed_fraction.py  # correction D -> islets
 ```
+
+The refinement is part of the typing since the maintainer's ruling of 2026-09-23, through the
+`--refine` join only: `refine.py` reads `typing/cells`, so the plain `build_cells.py` run is
+needed first only when `subpanel.py` has written new calls, and the join ADDS `refined_class`
+and the pass's per-cell columns beside `cell_class` without changing the islet chain's
+`cell_class`, `is_endocrine` or `endocrine_route`. Pass `--include-marginal` to both
+`build_cells.py` runs for the twenty-donor app cohort, in one invocation each, because the
+build ledger is rewritten whole by every run.
 
 Order matters in three places: the outlines must exist before the geometry (the non-endocrine
 region has no shape without them), the geometry before the workbook, and

@@ -83,6 +83,8 @@ DECLARED_PRODUCERS: dict[tuple[str, str], tuple[str, ...]] = {
     ("pancreas", "PhenoCycler"): (
         "core/phenocycler/scripts/typing/subpanel.py",
         "core/phenocycler/scripts/typing/build_cells.py",
+        # The refinement pass, joined back by `build_cells.py --refine` (ruled in 2026-09-23).
+        "core/phenocycler/scripts/typing/refine.py",
     ),
     ("pancreas", "Xenium"): (
         "analysis/xenium/scripts/panc_xenium_cluster_name.py",
@@ -115,8 +117,9 @@ DECLARED_RELEASE_IDS = {
 
 #: Every root the graph declares that carries a class column, and which columns.  Measured
 #: 2026-09-21 and re-read 2026-09-22:
-#:   typing/cells      cell_class (subpanel.py:1214; build_cells.py:88), refined_class only
-#:                     under --refine (build_cells.py:148)
+#:   typing/cells      cell_class (subpanel.py:1214; build_cells.py:88), and refined_class
+#:                     joined beside it by `build_cells.py --refine` (build_cells.py:148),
+#:                     the refinement's verdict since the 2026-09-23 ruling
 #:   typing/immune     the same lane's second pass over Immune (immune_subtype.py:98, :577)
 #:   typing/pln/pheno  build_pln_immune_pheno.py:1732-1746
 #:   the two resolver roots   lineage / common_lineage (panc_xenium_release.py:552;

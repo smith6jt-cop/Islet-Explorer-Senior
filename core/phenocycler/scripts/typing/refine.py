@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """The refinement pass: a class is kept only where its own defining marker is present.
 
-WRITTEN AND NOT WIRED (status, 2026-09-18).  This module runs and nothing consumes what it
-writes.  ``refined_class`` has ZERO consumers; no cell in ``typing/cells/`` carries
-``Unresolved (no lineage evidence)`` or any ``refined_*`` column; ``build_cells.py --refine
-<dir>`` is the join that would put the pass in front of the app and it has not been run.  What
-follows describes a PROPOSAL, and the open decisions in ``REFINEMENT.md`` section 10 are open.
+RULED IN, WIRED THROUGH THE ``--refine`` JOIN (status, 2026-09-23).  The maintainer ruled that
+the pass "needs to be included in the cell typing for phenocycler data" and scoped it the same
+day to one route: ``refine.py --out data/development/typing/refine``, then ``build_cells.py
+--refine data/development/typing/refine``, which joins ``refined_class`` and this pass's
+per-cell columns BESIDE ``cell_class``.  The islet chain's ``cell_class``, ``is_endocrine`` and
+``endocrine_route`` are not touched, and this module reads no CD99, elongation or hormone
+route: it demotes after ``subpanel.py``'s classes exist, on its own 54-marker neighbour
+concordance.  ON DISK the join has not run until the DATA step -- no cell in ``typing/cells/``
+carries ``Unresolved (no lineage evidence)`` or a filled ``refined_*`` column yet -- and every
+builder still reads ``cell_class``; whether one should read the refined class instead is a
+separate open question (``docs/PRODUCERS.md``, "Not decided here").
 
-THE BIGGEST OF THEM, because it qualifies every count this module reports: ``bound_X`` is the
-5th percentile of a class's own concordant members, so **a class with no low tail at all still
-loses about 5 % of it**.  Measured per class in ``REFINEMENT.md`` section 6: Lymphatic, Nerve,
-Immune and Delta are demoted far above that floor -- the rule finding cells without their own
-evidence -- while Exocrine's excess is only 0.2-0.5 percentage points, so essentially the whole
-Exocrine demotion is the percentile relabelling a fixed share of the class by construction.
-That is an OPEN QUESTION for the maintainer, not a decision this module makes; it implements
-the recovered rule and reports the floor in every log.
+WHAT QUALIFIES EVERY COUNT THIS MODULE REPORTS: ``bound_X`` is the 5th percentile of a class's
+own concordant members, so **a class with no low tail at all still loses about 5 % of it**.
+Measured per class in ``REFINEMENT.md`` section 6: Lymphatic, Nerve, Immune and Delta are
+demoted far above that floor -- the rule finding cells without their own evidence -- while
+Exocrine's excess is only 0.2-0.5 percentage points, so essentially the whole Exocrine demotion
+is the percentile relabelling a fixed share of the class by construction.  The ruling included
+the pass without revisiting that floor; the module implements the recovered rule unchanged and
+reports the floor in every log.
 
 THE ORPHAN IT REPLACES IS CLOSED (2026-09-19).  The recovered run's outcome was written to
 ``data/development/typing/umap/refinement_log.json``, a file NOTHING in this repository

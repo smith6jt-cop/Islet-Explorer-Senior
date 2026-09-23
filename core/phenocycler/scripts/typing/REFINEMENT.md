@@ -1,11 +1,16 @@
 # The refinement pass, and what measuring it at cohort scale changed
 
-> **STATUS, 2026-09-18: WRITTEN AND NOT WIRED.** `refine.py` runs, and nothing consumes what it
-> writes. `refined_class` has **zero consumers**; no cell in `typing/cells/` carries
-> `Unresolved (no lineage evidence)` or any `refined_*` column; `build_cells.py --refine <dir>`
-> is the join that would put the pass in front of the app and it has not been run. Everything
-> below describes a proposal. The open decisions in section 10 are open — in particular the
-> 5th-percentile floor of section 6, which demotes about 5 % of every class by construction.
+> **STATUS, 2026-09-23: RULED IN, WIRED THROUGH `--refine`, NOT YET RUN ON DISK.** The
+> maintainer ruled that the pass "needs to be included in the cell typing for phenocycler data"
+> and scoped it the same day to the join this file describes: `refine.py --out
+> data/development/typing/refine`, then `build_cells.py --include-marginal --refine
+> data/development/typing/refine`, which adds `refined_class` and the pass's per-cell columns
+> **beside** `cell_class`. The islet chain — `cell_class`, `is_endocrine`, `endocrine_route`,
+> the CD99 / elongation / hormone routes — is not touched. **[ON DISK]** the join has not run
+> until the DATA step, so no cell in `typing/cells/` carries `Unresolved (no lineage evidence)`
+> or a filled `refined_*` column yet, and every builder still reads `cell_class`. The
+> 5th-percentile floor of section 6, which demotes about 5 % of every class by construction, was
+> not revisited by the ruling and is unchanged.
 
 `RECONSTRUCTION.md` documents the subpanel classification and, until 2026-09-18, **none of this**,
 which is how the refinement pass got lost: it ran on 2026-09-11, its outcome was written to
@@ -286,6 +291,13 @@ Cells the pass does not act on, and why:
   rather than choosing a winner.
 
 ## 10. Open decisions this hands to the maintainer
+
+Whether the pass runs at all is no longer among them: it was ruled in on 2026-09-23, through the
+`--refine` join beside `cell_class`. What stays open is how the refined verdict is used. Items 1-3
+below matter to any builder that reads `refined_class` rather than `cell_class`, and none does
+today; pointing one at it needs decisions that touch the islet chain (a demoted endocrine cell's
+`is_endocrine`; a demoted cell inside an islet outline routed to Exocrine), which are asked
+specifically, never settled as part of the wiring (`docs/PRODUCERS.md`, "Not decided here").
 
 1. **The Exocrine floor** (section 6). ~5 % of Exocrine becomes `Unresolved` by construction.
 2. **A demoted islet-core endocrine cell becomes Exocrine**, and `aggregate_islets.py` drops the

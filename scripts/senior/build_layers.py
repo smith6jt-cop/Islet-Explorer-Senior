@@ -97,6 +97,14 @@ TSV -- so this driver names them as the newest input when they are the reason so
 and does not offer to run them.  ``SOURCE_PRODUCERS`` records what does produce each, so the check
 table can say so out loud.
 
+The refinement pass is part of that lane, not a node.  Since 2026-09-23 (maintainer's ruling)
+``typing/cells`` is written by ``refine.py --out data/development/typing/refine`` followed by
+``build_cells.py --refine data/development/typing/refine``, which joins the pass's verdict beside
+``cell_class``.  ``refine.py`` READS ``typing/cells`` and the join REWRITES it, so a ``refine``
+node here would go stale every time its own result was joined back, and once rerun it would
+report fresh while the served table still carried an older join.  The pass stays with the lane
+that consumes it.
+
 ``--include-marginal`` is spelled into the app-artifact commands because the cohort those artifacts
 were rebuilt on is ``cohort.CLEAN`` (17) + ``cohort.MARGINAL`` (3) = 20, each marginal donor
 carrying its own measured defect (docs/APP_COVERAGE_2026-09-17.md, "The --include-marginal
@@ -152,7 +160,10 @@ SOURCE_PRODUCERS = {
         "(see WHAT IS DELIBERATELY NOT A NODE). Only the drawn outline needs it",
     "data/development/typing/cells":
         "core/phenocycler/scripts/typing/build_cells.py (the subpanel classification lane; "
-        "see core/phenocycler/scripts/typing/RECONSTRUCTION.md)",
+        "see core/phenocycler/scripts/typing/RECONSTRUCTION.md), with the refinement joined: "
+        "refine.py --out data/development/typing/refine, then build_cells.py --include-marginal "
+        "--refine data/development/typing/refine (a plain build_cells.py run first after new "
+        "subpanel.py calls, because refine.py reads typing/cells; see REFINEMENT.md)",
     "data/development/typing/islet_membership":
         "core/phenocycler/scripts/typing/islet_membership.py",
     "data/development/typing/immune":

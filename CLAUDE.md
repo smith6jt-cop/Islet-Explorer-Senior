@@ -146,15 +146,21 @@ counts in the error.
   written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No app
   artifact reads `typing/immune`** — the four app builders contain no reference to it, and coverage
   comes from each builder's own `COHORT.resolve`.
-- **The refinement pass is written and not wired.** `scripts/typing/refine.py`
-  (concordance / demotion / immune leaf, documented in `REFINEMENT.md`) writes a keyed sidecar;
-  `refined_class` has zero consumers. Its marker set is 54, not 21, and its 5th-percentile bound
-  demotes about 5% of every class by construction. That is an **open question, not a decision**.
-- **The ninth class is declared and nothing produces it.** `Unresolved (no lineage evidence)` is in
-  `apps/islet/config/run20_default.yml`; its only producer would be `refine.py`, which is not wired,
-  so no cell on disk carries it.
-- Still open, and not to be resolved in prose: the refinement, elongation's weight, and the size
-  stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
+- **The refinement pass is part of the typing, through the `--refine` join only (ruled
+  2026-09-23).** `scripts/typing/refine.py` (concordance / demotion / immune leaf, documented in
+  `REFINEMENT.md`) writes a keyed sidecar under `data/development/typing/refine`, and
+  `build_cells.py --refine` joins `refined_class` and the pass's per-cell columns **beside**
+  `cell_class`; the islet chain's `cell_class`, `is_endocrine` and `endocrine_route` are not
+  touched. Its marker set is 54, not 21, and its 5th-percentile bound demotes about 5% of every
+  class by construction — not revisited by the ruling. **[ON DISK] the join has not run** until
+  the DATA step, and every builder still reads `cell_class`. Whether any should read
+  `refined_class` instead touches the islet chain, so it is asked, never inferred.
+- **The ninth class is declared; only the join produces it.** `Unresolved (no lineage evidence)`
+  is in `apps/islet/config/run20_default.yml`; `refine.py` writes it into `refined_class` for a
+  demoted Exocrine cell, never into `cell_class`, and no cell on disk carries it until the join
+  runs.
+- Still open, and not to be resolved in prose: which class the builders serve once the join has
+  run, elongation's weight, and the size stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
   outputs under `data/development/typing/islet_identity/`); in the large stratum 14 of 20 donors
   were testable, and CD99 is the strongest feature at 5 of 10 donors firing. That is evidence about
   the question, not an answer to it.

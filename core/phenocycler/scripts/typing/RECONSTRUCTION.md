@@ -421,18 +421,21 @@ donor  structure       in object   clears level   called   passed through
 6534   Lymphatic           6,206            108      100        98.3 %
 ```
 
-## The refinement pass  [CHAIN NOW — WRITTEN AND NOT WIRED; see REFINEMENT.md]
+## The refinement pass  [CHAIN NOW — RULED IN 2026-09-23, WIRED THROUGH `--refine`; ON DISK: NOT YET RUN; see REFINEMENT.md]
 
 Recovered 2026-09-18 from the 2026-09-11 session and made maintainable as `refine.py`.
 
-> **WRITTEN AND NOT WIRED, as of 2026-09-18.** `refined_class` has **zero consumers**: nothing
-> reads it, no cell on disk carries `Unresolved (no lineage evidence)`, and `typing/cells/` has
-> no `refined_*` column at all. `build_cells.py --refine <dir>` is the join that would put it in
-> front of the app, and it has not been run. The pass is therefore a proposal, not a second
-> decision that has been taken.
+> **RULED IN 2026-09-23, WIRED THROUGH THE `--refine` JOIN.** The maintainer ruled that the pass
+> "needs to be included in the cell typing for phenocycler data" and scoped it the same day to
+> `refine.py --out data/development/typing/refine`, then `build_cells.py --include-marginal
+> --refine data/development/typing/refine`: the pass's verdict is joined **beside**
+> `cell_class`, and the islet chain above — `cell_class`, `is_endocrine`, `endocrine_route` — is
+> not touched. **[ON DISK]** the join has not run until the DATA step: no cell carries
+> `Unresolved (no lineage evidence)` and `typing/cells/`'s `refined_*` columns are empty, and
+> every builder still reads `cell_class`.
 
-It would be the second thing that decides a cell's class in this lane, and it is **not** described
-in full here;
+It records a second verdict on a cell's class, beside the first rather than over it, and it is
+**not** described in full here;
 [`REFINEMENT.md`](REFINEMENT.md) carries the rule, the cohort-scale measurements and the open
 decisions. What a reader of this file needs:
 
@@ -466,8 +469,9 @@ decisions. What a reader of this file needs:
   `refused_reagent_change` provenance, never by name. The one artifact it **REFUSES** is
   `data/development/typing/umap/refinement_log.json` — see the note below.
 * **The 5th-percentile bound demotes about 5 % of every class by construction**, which is
-  `REFINEMENT.md` section 6 and is an **OPEN question, not a decision**. Do not read a demotion
-  count as evidence about the cells it removed until that is ruled on.
+  `REFINEMENT.md` section 6. The ruling of 2026-09-23 included the pass without revisiting that
+  floor, so a demotion count is still not evidence about the cells it removed: read it against
+  the floor every log reports.
 * **`Unresolved (no lineage evidence)` is a new class value.** `build_cells.py`'s display map and
   the app's domain configuration were told on 2026-09-18. `trajectory_singlecell_features.py` was
   the last reader still taking its own-marker table from the 2026-09-11 `umap/refinement_log.json`;
@@ -670,10 +674,11 @@ verification target.**
 
 ---
 
-**Documenting the refinement is not applying it.** Everything in these three subsections describes
-`refine.py` and the 2026-09-11 recovered run. `refined_class` still has **zero consumers**, no cell
-in `typing/cells/` carries `Unresolved (no lineage evidence)` or any `refined_*` column,
-`immune_leaf` exists on no cell on disk, and `build_cells.py --refine <dir>` has not been run. What
+**Documenting the refinement is not applying it, and wiring it is not running it.** Everything in
+these three subsections describes `refine.py` and the 2026-09-11 recovered run. Since 2026-09-23
+the `build_cells.py --refine` join is the declared route into `typing/cells/`, but **[ON DISK]** it
+has not run: no cell carries `Unresolved (no lineage evidence)`, the `refined_*` columns and
+`immune_leaf` are empty on every cell, and no builder reads `refined_class`. What
 is on disk is the 2026-09-15 build: eight classes plus `Excluded`.
 
 ## The gate, 2026-09-15  [ON DISK]
