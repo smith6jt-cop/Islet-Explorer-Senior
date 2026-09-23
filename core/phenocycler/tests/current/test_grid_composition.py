@@ -50,9 +50,9 @@ def layer(grid):
         pytest.skip(f"no grid_composition layer at {out}; run {BUILDER.name} first")
     return {
         "manifest": json.loads((out / "manifest.json").read_text()),
-        "composition": pd.read_parquet(out / "composition.parquet"),
-        "presence": pd.read_parquet(out / "presence.parquet"),
-        "fine": pd.read_parquet(out / "fine.parquet"),
+        "composition": pd.read_csv(out / "composition.csv", dtype={"donor_id": str}),
+        "presence": pd.read_csv(out / "presence.csv", dtype={"donor_id": str}),
+        "fine": pd.read_csv(out / "fine.csv", dtype={"donor_id": str}),
         "crossmodal": pd.read_csv(out / "crossmodal_tnk.csv", dtype={"donor_id": str}),
         "eta": pd.read_csv(out / "batch_eta_squared.csv"),
         "dir": out,

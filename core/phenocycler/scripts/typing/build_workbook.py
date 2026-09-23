@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The master workbook, the per-islet proportions, the spatial lookup and annotations.tsv.
+"""The master workbook, the per-islet proportions and the spatial lookup.
 
-Four artifacts because the app reads the same per-islet facts four ways, and one source keeps
+Three artifacts because the app reads the same per-islet facts three ways, and one source keeps
 them consistent.  Conventions taken from the code rather than from the legacy files:
 
   * ``islet_key`` is never stored -- ``add_unit_key()`` re-derives it by regex from ``region``
@@ -172,44 +172,6 @@ def build_lookup(geometry: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-def build_annotations(geometry: pd.DataFrame) -> pd.DataFrame:
-    """The narrow fallback table: Image, Name, Classification, and a centroid.
-
-    `IsletExpanded` is the class QuPath writes and the class the app filters on -- the same
-    spelling on both sides, which is what makes this table reachable at all. `IsletNonEndocrine`
-    is this build's own (correction E) and is declared in the run cohort's domain config, so the
-    CODEX cohort never looks for it.
-    """
-    #: geometry region -> (name suffix, the class the viewer filters on).
-    annotated = {"core": ("", "Islet"),
-                 "expansion": ("_exp20um", "IsletExpanded"),
-                 "non_endocrine": ("_nonendo", "IsletNonEndocrine")}
-    rows = []
-    for _, islet in geometry[geometry["region"].isin(annotated)].iterrows():
-        suffix, classification = annotated[islet["region"]]
-        core = islet["region"] == "core"
-        rows.append({
-            "Image": int(islet["donor_id"]),
-            "Name": f"{islet['islet_key']}{suffix}",
-            "Classification": classification,
-            "Centroid X µm": islet.get("centroid_x_um"),
-            "Centroid Y µm": islet.get("centroid_y_um"),
-            "Area µm^2": islet["region_um2"],
-            "Num Detections": islet["n_cells"],
-        })
-    frame = pd.DataFrame(rows)
-    # An expansion row inherits its core's centroid: the two are concentric by construction.
-    centroids = frame[frame["Classification"] == "Islet"].set_index(["Image", "Name"])
-    missing = frame["Centroid X µm"].isna()
-    for index in frame.index[missing]:
-        base = frame.at[index, "Name"].replace("_exp20um", "").replace("_nonendo", "")
-        key = (frame.at[index, "Image"], base)
-        if key in centroids.index:
-            frame.at[index, "Centroid X µm"] = centroids.at[key, "Centroid X µm"]
-            frame.at[index, "Centroid Y µm"] = centroids.at[key, "Centroid Y µm"]
-    return frame
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
@@ -229,7 +191,6 @@ def main() -> int:
     comp_sheet = build_composition(hormones, meta)
     proportions = build_proportions(composition)
     lookup = build_lookup(geometry)
-    annotations = build_annotations(geometry)
 
     workbook = APP / "master_results_run10.xlsx"
     with pd.ExcelWriter(workbook, engine="openpyxl") as writer:
@@ -237,15 +198,12 @@ def main() -> int:
         targets.to_excel(writer, sheet_name="Islet_Targets", index=False)
     proportions.to_csv(APP / "islet_celltype_proportions.csv", index=False)
     lookup.to_csv(APP / "islet_spatial_lookup.csv", index=False)
-    annotations.to_csv(APP / "annotations.tsv", sep="\t", index=False)
 
     print(f"Islet_Composition {len(comp_sheet):>7,} rows")
     print(f"Islet_Targets     {len(targets):>7,} rows  ({targets['type'].nunique()} region types "
           f"x {targets['class'].nunique()} classes)")
     print(f"proportions       {len(proportions):>7,} islets x {proportions.shape[1]} cols")
     print(f"spatial lookup    {len(lookup):>7,} islets")
-    print(f"annotations.tsv   {len(annotations):>7,} rows  "
-          f"{annotations['Classification'].value_counts().to_dict()}")
     print(f"\n-> {APP}")
     return 0
 

@@ -63,15 +63,6 @@ def lane(tmp_path, monkeypatch):
     return out
 
 
-def test_donor_csv_leads_with_object_id(lane):
-    B.write_donor_csv(["6374"])
-    written = pd.read_csv(lane / "app/donors/6374.csv", dtype={"object_id": str})
-    assert list(written.columns) == ["object_id", "X_centroid", "Y_centroid", "phenotype",
-                                     "cell_region", "islet_name"]
-    assert written["object_id"].is_unique
-    assert written["object_id"].notna().all()
-
-
 def test_drilldown_csv_leads_with_object_id(lane):
     B.write_drilldown_cells(["6374"])
     written = pd.read_csv(lane / "app/cells/6374_Islet_1.csv", dtype={"object_id": str})
@@ -96,17 +87,19 @@ def test_a_duplicated_uuid_stops_the_writer(lane):
     frame.loc[frame.index[1], "object_id"] = frame.loc[frame.index[0], "object_id"]
     frame.to_parquet(target, index=False)
     with pytest.raises(ValueError, match="duplicated object_id"):
-        B.write_donor_csv(["6374"])
+        B.write_drilldown_cells(["6374"])
 
 
 def test_a_missing_uuid_stops_the_writer(lane):
     """A null UUID is a lost key, not a cell to write without one."""
     target = lane / "cells/donor_id=6374/data.parquet"
     frame = pd.read_parquet(target)
-    frame.loc[frame.index[2], "object_id"] = None
+    # Row 4 is a peri-islet cell, so it reaches the written frame (row 2 is tissue and is
+    # filtered out before the check; a lost key on a cell nothing writes is not a written lie).
+    frame.loc[frame.index[4], "object_id"] = None
     frame.to_parquet(target, index=False)
     with pytest.raises(ValueError, match="carry no object_id"):
-        B.write_donor_csv(["6374"])
+        B.write_drilldown_cells(["6374"])
 
 
 def test_an_empty_uuid_string_counts_as_missing(lane):
@@ -116,7 +109,7 @@ def test_an_empty_uuid_string_counts_as_missing(lane):
     frame.loc[frame.index[3], "object_id"] = ""
     frame.to_parquet(target, index=False)
     with pytest.raises(ValueError, match="carry no object_id"):
-        B.write_donor_csv(["6374"])
+        B.write_drilldown_cells(["6374"])
 
 
 def test_the_check_runs_after_the_excluded_filter(lane):
@@ -131,7 +124,10 @@ def test_the_check_runs_after_the_excluded_filter(lane):
     frame.loc[frame.index[1], "cell_class"] = "Excluded"
     frame.loc[frame.index[1], "object_id"] = frame.loc[frame.index[0], "object_id"]
     frame.to_parquet(target, index=False)
-    B.write_donor_csv(["6461"])
-    written = pd.read_csv(lane / "app/donors/6461.csv", dtype={"object_id": str})
-    assert len(written) == 4
+    B.write_drilldown_cells(["6461"])
+    written = pd.concat([pd.read_csv(f, dtype={"object_id": str})
+                         for f in sorted((lane / "app/cells").glob("6461_*.csv"))])
+    # The fixture's six rows hold four islet cells (two core, two peri); two are now Excluded,
+    # so the drill-down files carry the other two, and the duplicate never reaches them.
+    assert len(written) == 2
     assert written["object_id"].is_unique

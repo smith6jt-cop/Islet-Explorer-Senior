@@ -104,16 +104,6 @@ def write_tissue_parquet(donors: list[str]) -> None:
         print(f"  tissue  {donor}: {len(frame):>9,} cells", flush=True)
 
 
-def write_donor_csv(donors: list[str]) -> None:
-    """donors/<case_id>.csv -- the fallback the spatial tab uses when DuckDB is absent."""
-    root = APP / "donors"
-    root.mkdir(parents=True, exist_ok=True)
-    for donor in donors:
-        frame = _app_frame(donor, with_object_id=True)
-        frame.to_csv(root / f"{donor}.csv", index=False)
-        print(f"  donors  {donor}: {len(frame):>9,} cells, object_id unique", flush=True)
-
-
 def write_drilldown_cells(donors: list[str]) -> None:
     """cells/<case_id>_<islet_key>.csv -- core + peri cells of one islet, identity by filename."""
     root = APP / "cells"
@@ -216,7 +206,7 @@ def write_cell_distance_parquet(donors: list[str]) -> None:
               flush=True)
 
 
-WRITERS = {"tissue": write_tissue_parquet, "donors": write_donor_csv,
+WRITERS = {"tissue": write_tissue_parquet,
            "cells": write_drilldown_cells, "outlines": write_outlines,
            "distance": write_cell_distance_parquet}
 

@@ -53,9 +53,9 @@ WHAT IS NEVER DONE HERE.
 
 Outputs under ``$ISLET_LAYERS_DIR/grid_composition``:
 
-``composition.parquet``   (tissue, modality, donor_id, lineage_common) -> counts
-``fine.parquet``          the fine call inside a common lineage, where a lane has one
-``presence.parquet``      (tissue, modality, donor_id) -> one of the five states + reason
+``composition.csv``       (tissue, modality, donor_id, lineage_common) -> counts
+``fine.csv``              the fine call inside a common lineage, where a lane has one
+``presence.csv``          (tissue, modality, donor_id) -> one of the five states + reason
 ``crossmodal_tnk.csv``    per-donor T_NK share of immune, both modalities, per tissue
 ``batch_eta_squared.csv`` eta-squared of every cross-donor quantity with a permutation null
 ``manifest.json``         sources, domain root, builder, commit, totals
@@ -866,10 +866,9 @@ def build(n_perm: int, out: Path) -> dict:
     coherence = coherence_checks(comp, presence)
 
     out.mkdir(parents=True, exist_ok=True)
-    comp.to_parquet(out / "composition.parquet", index=False)
+    # CSV only, since 2026-09-22: card_g1_grid.R reads the CSVs and nothing read the parquets.
     comp.to_csv(out / "composition.csv", index=False)
-    fine.to_parquet(out / "fine.parquet", index=False)
-    presence.to_parquet(out / "presence.parquet", index=False)
+    fine.to_csv(out / "fine.csv", index=False)
     presence.to_csv(out / "presence.csv", index=False)
     tnk.to_csv(out / "crossmodal_tnk.csv", index=False)
     eta.to_csv(out / "batch_eta_squared.csv", index=False)

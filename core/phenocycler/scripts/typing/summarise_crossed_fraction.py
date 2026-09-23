@@ -43,7 +43,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
     parser.add_argument("--include-marginal", action="store_true")
-    parser.add_argument("--no-merge", action="store_true")
+    parser.add_argument("--no-merge", action="store_true",
+                        help="accepted for old commands; this script never merges any more")
     args = parser.parse_args()
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
 
@@ -97,8 +98,9 @@ def main() -> int:
         depth = summary[f"crossed_mean_{structure}_peri"].median()
         print(f"  peri {structure:<10s} median reach {reach:.3f}  median depth {depth:.3f}")
 
-    if args.no_merge:
-        return 0
+    # The merge into islets.parquet is build_parquet_views.py's (its ROLLUPS table reads the
+    # summary written above).  This script writes one file.
+    return 0
     islets = pd.read_parquet(APP / "parquet/islets.parquet")
     stale = [c for c in islets.columns if c.startswith("crossed_")]
     if stale:

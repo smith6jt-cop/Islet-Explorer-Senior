@@ -53,9 +53,9 @@ import subpanel_io as S
 
 APP = S.OUT / "app"
 
-#: Islet-level rollups written by their own scripts and merged in HERE, not only by those scripts
-#: afterwards.  Each script still drops its own stale columns and remerges, so running one after
-#: this is a no-op on the values; reading the summary file is what makes the order not matter.
+#: Islet-level rollups written by their own scripts (which run BEFORE this one and write only their
+#: summary file) and merged in HERE, by the one writer of islets.parquet.  Until 2026-09-22 each
+#: script also re-merged itself afterwards; that second writer is gone.
 #: Keyed `(family, label, source, producer)`.
 ROLLUPS = (
     ("crossed_", "crossed fractions",
@@ -101,9 +101,11 @@ def refuse_silent_drop(islets: pd.DataFrame, target: pathlib.Path,
                        allow_drop: bool) -> list[str]:
     """Name every column the islets.parquet being replaced carries and this build does not.
 
-    Three scripts write this one path.  Overwriting it with fewer columns than it had is how the
-    21 `crossed_*`/`sc_*` columns used to vanish, and the only thing wrong with that was the
-    silence: a consumer reading the view could not tell a wiped column from one never produced.
+    This script is the only writer of this path.  Overwriting it with fewer columns than it had
+    is how the 21 `crossed_*`/`sc_*` columns used to vanish when three scripts wrote it, and the
+    only thing wrong with that was the silence: a consumer reading the view could not tell a
+    wiped column from one never produced.  Today the guard catches a rollup summary that has gone
+    missing between two builds.
     So the overwrite is refused by default and the names are printed; `--allow-drop` proceeds and
     records them in the manifest.  Whether a dropped column SHOULD come back is not decided here.
     """

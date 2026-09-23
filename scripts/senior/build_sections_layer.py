@@ -77,6 +77,11 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
+#: The app domain this layer belongs to, recorded as parquet schema metadata so
+#: apps/islet/R/card_n1_sections.R can refuse a layer built for the other domain (it compares
+#: `source_domain_root` against domain_data_root()). Same value the grid and compartment
+#: builders record.
+DOMAIN_ROOT = REPO / "data" / "development" / "typing" / "app"
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import filter_eligible_donors
@@ -245,11 +250,17 @@ def build_sections(inventory_dir: Path, parent_evidence: Path | None = PARENT_EV
         unique[key] = row
     if not unique:
         raise ValueError("The section inventories contain no eligible sections")
-    return pa.Table.from_pylist(
+    table = pa.Table.from_pylist(
         sorted(unique.values(), key=lambda r: tuple(str(r[k] or "") for k in (
             "donor_id", "roi", "modality", "xenium_serial"))),
         schema=SECTIONS_SCHEMA,
     )
+    # Attached here, not in write_layer, which build_availability.py shares and whose
+    # provenance is its own.
+    return table.replace_schema_metadata({
+        "source_domain_root": str(DOMAIN_ROOT.resolve()),
+        "built_by": "scripts/senior/build_sections_layer.py",
+    })
 
 
 def write_layer(table: pa.Table, layers_dir: Path, name: str) -> Path:

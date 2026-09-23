@@ -40,6 +40,13 @@ get_available_donors <- function() {
     )
     if (!is.null(donors) && length(donors) > 0) return(as.character(donors))
   }
+  # Since 2026-09-22 nothing writes donors/<case_id>.csv (the app_donors node duplicated the
+  # DuckDB `tissue` view); the CSV branch is kept only for a checkout built before that date, and
+  # an absent directory is said out loud rather than returned as an empty donor list.
+  if (!dir.exists(DONORS_DIR)) {
+    message("event=spatial_tissue_unavailable reason=no_duckdb_tissue_view_and_no_legacy_csv dir=", DONORS_DIR)
+    return(character(0))
+  }
   files <- list.files(DONORS_DIR, pattern = "\\.csv$")
   gsub("\\.csv$", "", files)
 }

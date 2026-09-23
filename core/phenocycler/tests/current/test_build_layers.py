@@ -97,17 +97,17 @@ def test_no_node_declares_a_relative_path(tmp_path):
 # The islets.parquet ordering hazard
 # ---------------------------------------------------------------------------------------------
 
-def test_three_nodes_write_islets_parquet_and_parquet_views_is_never_last(tmp_path):
-    """docs/APP_COVERAGE_2026-09-17.md:200-212 -- build_parquet_views.py rewrites the file from
-    scratch and drops the 21 crossed_*/sc_* columns the other two merge in."""
+def test_parquet_views_is_the_one_writer_of_islets_parquet_and_runs_after_both_rollups(tmp_path):
+    """Since 2026-09-22 the two rollup scripts write only their summary files, which
+    build_parquet_views.py merges; the dependency is the files, not a declared `after`."""
     nodes = bl.build_graph(REPO, tmp_path / "layers")
     islets = str(REPO / "data/development/typing/app/parquet/islets.parquet")
-    writers = bl.producers(nodes)[islets]
-    assert set(writers) == {"parquet_views", "crossed_fraction", "singlecell_trajectory"}
+    assert bl.producers(nodes)[islets] == ["parquet_views"]
     order = bl.topological_order(nodes)
-    positions = {name: order.index(name) for name in writers}
-    assert positions["parquet_views"] < positions["crossed_fraction"] < \
-        positions["singlecell_trajectory"]
+    assert order.index("crossed_fraction") < order.index("parquet_views")
+    assert order.index("singlecell_trajectory") < order.index("parquet_views")
+    for name in ("crossed_fraction", "singlecell_trajectory"):
+        assert islets not in nodes[name].inputs and islets not in nodes[name].outputs
 
 
 def test_two_writers_of_one_path_with_no_order_between_them_is_refused():
@@ -126,12 +126,12 @@ def test_the_same_two_writers_are_accepted_once_an_order_is_declared():
     assert bl.topological_order({"a": a, "b": b}) == ["a", "b"]
 
 
-def test_a_path_a_node_both_reads_and_writes_is_not_an_edge_to_the_other_writers():
-    """A rewrite in place must not make the three-writer chain circular."""
+def test_the_two_rollups_are_independent_and_both_feed_parquet_views():
     nodes = bl.build_graph(REPO, Path("/tmp/layers-for-this-test"))
     dependencies = bl.edges(nodes)
     assert "singlecell_trajectory" not in dependencies["crossed_fraction"]
-    assert "crossed_fraction" in dependencies["singlecell_trajectory"]
+    assert "crossed_fraction" not in dependencies["singlecell_trajectory"]
+    assert {"crossed_fraction", "singlecell_trajectory"} <= set(dependencies["parquet_views"])
 
 
 def test_nonendocrine_outline_is_not_a_node(tmp_path):
@@ -295,12 +295,11 @@ def test_plan_runs_nothing_and_writes_nothing(tmp_path):
     assert not (tmp_path / "empty").exists()
 
 
-def test_plan_prints_parquet_views_before_both_merge_steps(tmp_path):
+def test_plan_prints_both_rollups_before_parquet_views(tmp_path):
     result = _driver("--plan", layers=tmp_path / "empty")
     text = result.stdout
-    assert (text.index("build_parquet_views.py")
-            < text.index("summarise_crossed_fraction.py")
-            < text.index("summarise_singlecell_trajectory.py"))
+    assert text.index("summarise_crossed_fraction.py") < text.index("build_parquet_views.py")
+    assert text.index("summarise_singlecell_trajectory.py") < text.index("build_parquet_views.py")
 
 
 def test_an_unknown_node_name_is_refused_rather_than_silently_skipped(tmp_path):

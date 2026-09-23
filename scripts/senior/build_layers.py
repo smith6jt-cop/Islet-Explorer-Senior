@@ -45,15 +45,17 @@ is a glob.  ``typing/geometry`` holds two unrelated families written by two diff
 (``endocrine_union_*.parquet`` and ``nonendocrine_*.geojson``), so those are declared as globs and
 not as the directory -- declaring the directory would make each builder its own input.
 
-THE ORDERING HAZARD THIS ENCODES
---------------------------------
-``build_parquet_views.py`` rewrites ``app/parquet/islets.parquet`` FROM SCRATCH and silently drops
-the 21 ``crossed_*`` and ``sc_*`` columns that ``summarise_crossed_fraction.py`` and
-``summarise_singlecell_trajectory.py`` merge in afterwards (docs/APP_COVERAGE_2026-09-17.md:200-212).
-All three declare that file as an output, and ``build_graph`` REFUSES a graph in which two nodes
-write one path without an ordering between them.  ``build_parquet_views`` therefore cannot be last:
-the graph will not build unless ``crossed_fraction`` runs after it and ``singlecell_trajectory``
-after that.
+ONE WRITER OF islets.parquet, SINCE 2026-09-22
+-----------------------------------------------
+``build_parquet_views.py`` is the only node that writes ``app/parquet/islets.parquet``.  The two
+islet-level rollups -- ``summarise_crossed_fraction.py`` (14 ``crossed_*`` columns) and
+``summarise_singlecell_trajectory.py`` (7 ``sc_*`` columns) -- write only their own summary
+files, which ``build_parquet_views.py`` merges through its ``ROLLUPS`` table.  Until 2026-09-22
+each rollup also re-merged itself into ``islets.parquet`` afterwards, so three nodes wrote one
+path and the graph needed a declared ``after`` chain to keep the last writer from dropping the
+other two's columns.  The dependency is now the two summary files themselves, declared as inputs
+of ``parquet_views``, and ``build_graph`` still REFUSES any graph in which two nodes write one
+path without an ordering between them.
 
 ONE DECLARED CYCLE BREAK
 ------------------------
@@ -322,7 +324,6 @@ def _declaration() -> list[dict]:
                 "{app}/master_results_run10.xlsx",
                 "{app}/islet_celltype_proportions.csv",
                 "{app}/islet_spatial_lookup.csv",
-                "{app}/annotations.tsv",
             ),
         ),
         dict(
@@ -379,14 +380,16 @@ def _declaration() -> list[dict]:
                 "{app}/islet_leiden.parquet",
                 "{app}/islet_galectin.parquet",
                 "{app}/master_results_run10.xlsx",
+                "{typing}/crossed/crossed_islet_summary.parquet",
+                "{typing}/trajectory/singlecell_islet_summary.parquet",
             ),
             outputs=(
                 "{app}/parquet/islets.parquet",
                 "{app}/parquet/uns_targets.parquet",
                 "{app}/parquet/uns_composition.parquet",
             ),
-            why="Rewrites islets.parquet FROM SCRATCH. The two nodes below merge 21 columns back "
-                "in, so this one must never run last -- build_graph refuses a graph where it can.",
+            why="The one writer of islets.parquet. The two rollup summaries above are merged in "
+                "here (ROLLUPS in the builder); each is recorded present or absent by name.",
         ),
         dict(
             name="crossed_fraction",
@@ -395,15 +398,10 @@ def _declaration() -> list[dict]:
                 "{typingscripts}/summarise_crossed_fraction.py",
                 "{typing}/crossed",
                 "{typing}/cells",
-                "{app}/parquet/islets.parquet",
             ),
-            outputs=(
-                "{typing}/crossed/crossed_islet_summary.parquet",
-                "{app}/parquet/islets.parquet",
-            ),
-            after=("parquet_views",),
-            why="Merges the 14 crossed_* columns back into islets.parquet after "
-                "build_parquet_views.py has dropped them.",
+            outputs=("{typing}/crossed/crossed_islet_summary.parquet",),
+            why="The 14 crossed_* columns per islet, as a summary file only; parquet_views "
+                "reads it.",
         ),
         dict(
             name="singlecell_trajectory",
@@ -411,15 +409,10 @@ def _declaration() -> list[dict]:
             inputs=(
                 "{typingscripts}/summarise_singlecell_trajectory.py",
                 "{typing}/trajectory/singlecell_pseudotime.parquet",
-                "{app}/parquet/islets.parquet",
             ),
-            outputs=(
-                "{typing}/trajectory/singlecell_islet_summary.parquet",
-                "{app}/parquet/islets.parquet",
-            ),
-            after=("crossed_fraction",),
-            why="Merges the 7 sc_* columns back in. Takes no --include-marginal; its cohort comes "
-                "from singlecell_pseudotime.parquet.",
+            outputs=("{typing}/trajectory/singlecell_islet_summary.parquet",),
+            why="The 7 sc_* columns per islet, as a summary file only; parquet_views reads it. "
+                "Takes no --include-marginal; its cohort comes from singlecell_pseudotime.parquet.",
         ),
 
         # -- the per-cell app artifacts the drill-down and the Spatial tab read ------------------
@@ -429,13 +422,6 @@ def _declaration() -> list[dict]:
                      "--only", "tissue"),
             inputs=("{typingscripts}/build_app_data.py", "{typing}/cells"),
             outputs=("{app}/parquet/tissue",),
-        ),
-        dict(
-            name="app_donors",
-            command=("{py}", "{typingscripts}/build_app_data.py", "--include-marginal",
-                     "--only", "donors"),
-            inputs=("{typingscripts}/build_app_data.py", "{typing}/cells"),
-            outputs=("{app}/donors",),
         ),
         dict(
             name="app_drilldown_cells",
@@ -656,10 +642,8 @@ def _declaration() -> list[dict]:
                 "{repo}/data/donor_acquisition_runs.csv",
             ),
             outputs=(
-                "{layers}/grid_composition/composition.parquet",
                 "{layers}/grid_composition/composition.csv",
-                "{layers}/grid_composition/fine.parquet",
-                "{layers}/grid_composition/presence.parquet",
+                "{layers}/grid_composition/fine.csv",
                 "{layers}/grid_composition/presence.csv",
                 "{layers}/grid_composition/crossmodal_tnk.csv",
                 "{layers}/grid_composition/batch_eta_squared.csv",

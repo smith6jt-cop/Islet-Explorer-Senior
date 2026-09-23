@@ -41,7 +41,7 @@ MIN_SAMPLED_CELLS = 5
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-merge", action="store_true",
-                        help="write the summary but leave islets.parquet alone")
+                        help="accepted for old commands; this script never merges any more")
     args = parser.parse_args()
 
     cells = pd.read_parquet(TRAJ / "singlecell_pseudotime.parquet")
@@ -74,8 +74,9 @@ def main() -> int:
     print(f"  {int(both.sum()):,} islets have both regions; median peri-core difference "
           f"{summary.loc[both, 'sc_pseudotime_peri_minus_core'].median():+.4g}")
 
-    if args.no_merge:
-        return 0
+    # The merge into islets.parquet is build_parquet_views.py's (its ROLLUPS table reads the
+    # summary written above).  This script writes one file.
+    return 0
 
     islets = pd.read_parquet(APP / "parquet/islets.parquet")
     stale = [c for c in islets.columns if c.startswith("sc_pseudotime") or c.startswith("sc_n_")]
