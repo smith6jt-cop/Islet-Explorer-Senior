@@ -5,8 +5,9 @@ Counts have explicit units: ``qc_analysis_eligible`` cells of the current
 ``data/development/typing/cells`` build for phenocycler_panc; inventoried
 sections for phenocycler_pln; CALLED cells of the current typed release for each
 Xenium tissue, resolved by ``xenium_release.resolve`` and tallied by
-``xenium_release.donor_tallies`` (the untyped ``cells_xen`` ingest and its
-``lineage_native`` column answer only when no release resolves at all); paired IF
+``xenium_release.donor_tallies`` (a tissue whose release does not resolve is
+``unavailable`` with the resolver's own reason; the untyped ``cells_xen`` ingest
+carries no class column since 2026-09-23 and is read only for the IF pairing); paired IF
 cells whose recorded hormone release check passes for restain_if; nonempty
 exported islet outlines; finite core-or-peri islet trajectory summaries; and
 maintainer-recorded pLN nodes. pLN export cell counts are not used as a
@@ -187,51 +188,6 @@ def paired_if_counts(root: Path) -> Counter:
                 if row["roi"] == "panc" and filter_eligible_donors([donor]):
                     paired_if[donor] += row["row_count_sum"]
     return paired_if
-
-
-def xenium_ingest_availability(root: Path, capabilities: set[str]) -> dict[tuple[str, str], dict]:
-    """The UNTYPED ingest, read only for a capability no release answered.
-
-    A typed release supersedes the ingest -- the same contract
-    ``build_distance_profiles.py`` states for its ``--xenium-cells`` argument.
-    This is the fallback for a checkout that has no release tree at all, and the
-    reason on every row it writes says which source answered, so an ingest count
-    is never mistaken for a release count.
-    """
-    counts = defaultdict(Counter)
-    for path in parquet_files(root):
-        for batch in batches(path, ("donor_id", "roi", "lineage_native")):
-            table = pa.Table.from_batches([batch])
-            # Count physical rows, including null native identities, rather than
-            # count(lineage_native), which would discard untyped nulls.
-            table = table.append_column("row_count", pa.repeat(pa.scalar(1, pa.int64()), len(table)))
-            grouped = table.group_by(["donor_id", "roi", "lineage_native"]).aggregate(
-                [("row_count", "sum")])
-            for row in grouped.to_pylist():
-                donor = donor_id(row["donor_id"])
-                if not filter_eligible_donors([donor]):
-                    continue
-                roi = row["roi"]
-                if roi != "panc" and not (isinstance(roi, str) and roi.startswith("pln_")):
-                    raise ValueError(f"{path}: unrecognised recorded ROI {roi!r}")
-                capability = "xenium_panc" if roi == "panc" else "xenium_pln"
-                if capability not in capabilities:
-                    continue
-                native = row["lineage_native"]
-                state = "blank" if native is None or native == "" else (
-                    "unavailable" if native == "Unavailable" else "measured")
-                counts[donor, capability][state] += row["row_count_sum"]
-    result = {}
-    for (donor, capability), count in counts.items():
-        reason = (f"lineage_native: measured={count['measured']}; "
-                  f"blank={count['blank']}; qc_unavailable={count['unavailable']}")
-        state = "measured" if count["measured"] else (
-            "unavailable" if count["unavailable"] else "blank")
-        result[donor, capability] = availability(
-            donor, capability, state, root, reason=reason,
-            n=count["measured"] if state == "measured" else None,
-        )
-    return result
 
 
 def xenium_availability(releases: dict) -> dict[tuple[str, str], dict]:
@@ -421,16 +377,14 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
     cells = core_data / "integration/cells_xen"
     nodes = inventory / "pln_node_annotations.csv"
     summaries = typing / "trajectory/singlecell_islet_summary.parquet"
-    # The typed releases answer the two Xenium capabilities; the ingest answers
-    # only the IF pairing, because it is the only tree that carries an IF column.
+    # The typed releases are the only source of the two Xenium capabilities. The
+    # ingest answers only the IF pairing, because it is the only tree that carries
+    # an IF column; its lineage columns are empty since config.ini:153 was blanked
+    # (2026-09-23) and are not read here.
     releases = {tissue: xenium_release.resolve(tissue, roots=xenium_roots, repo=repo_root)
                 for tissue in xenium_release.TISSUES}
     paired_if = paired_if_counts(cells)
     observed = xenium_availability(releases)
-    unanswered = {capability for tissue, capability in XENIUM_CAPABILITY.items()
-                  if not releases[tissue].available}
-    if unanswered:
-        observed.update(xenium_ingest_availability(cells, unanswered))
     observed.update(pln_availability(nodes))
     for capability, records in (
         ("phenocycler_panc", typing_availability(typing / "cells")),
@@ -456,13 +410,12 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
                 release.root,
                 f"no partition for this donor in {release.release_id}")
         else:
-            # No release resolved, so the ingest answered for the donors it has.
-            # This row is for a donor NEITHER of them has, and it names both.
+            # No release resolved. Every donor's row for this capability names the
+            # resolver's own reason and the roots it searched; nothing else is asked.
             xenium_missing[capability] = (
-                cells,
+                release.roots[0] if release.roots else cells,
                 f"no_current_xenium_{tissue}_release ({release.reason}; roots searched: "
-                f"{[str(r) for r in release.roots]}), and the untyped ingest holds no "
-                "row for this donor and roi either")
+                f"{[str(r) for r in release.roots]})")
     missing = {
         "phenocycler_panc": (typing / "cells", "no_typing_cells_exported"),
         "phenocycler_pln": (nodes, "no_pheno_pln_section_recorded"),

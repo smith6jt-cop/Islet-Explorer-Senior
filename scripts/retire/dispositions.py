@@ -317,15 +317,18 @@ SAMESLIDE = f"{REPO}/core/phenocycler/scripts/sameslide"
 PKG = f"{REPO}/core/phenocycler/phenocycler"
 
 #: The one prerequisite the Xenium pancreas comparison apparatus (CODE_TIER2, xenium_typing/*)
-#: shares. It is Step 5 work: this lane records it and refuses until the check passes.
+#: shares. Met 2026-09-23 (Step 5); the check still reads the binding on every run and
+#: refuses again if it is ever re-bound.
 XTYPING_PREREQ = (
-    "Step 5 FIRST: blank `xenium_identity_release` at core/phenocycler/config.ini:153 (the "
-    "file's own :151 says 'Blank is the current fail-closed state') and re-point the "
-    "availability (build_layers.py:520; build_availability.py:203-226) and distance_profiles "
-    "(build_layers.py:543; build_distance_profiles.py:201,880) nodes off cells_xen's "
-    "lineage_native / lineage_common, which this apparatus writes through "
-    "import_xenium.py:454-456 and phenospace.py:532-533. Until then its class column reaches "
-    "apps/islet/R/card_x1_gradient.R:143,271.")
+    "Prerequisite MET 2026-09-23 (Step 5): `xenium_identity_release` at core/phenocycler/"
+    "config.ini:153 is blank, so nothing attaches this apparatus's class column to cells_xen "
+    "(import_xenium.py:454-456 -> phenospace.load_release_or_none returns None), and the "
+    "availability and distance_profiles nodes read Xenium calls from the declared releases "
+    "only (build_availability.py xenium_availability; build_distance_profiles.py "
+    "_pln_xenium_release_arm; the ingest fallbacks were removed the same day). The check "
+    "code_orphan_and_config_blank now passes on the binding; what remains is the reference "
+    "walk, and moving the files is `retire.py --kind code --tier 2 --execute`, which is the "
+    "maintainer's to run.")
 
 #: The two live domain roots (apps/islet/config/{islet_default,run20_default}.yml). An entry that
 #: names an output which still EXISTS under one of these is c2, not c1.
@@ -540,18 +543,17 @@ CODE_TIER2 = [
     # -- the Xenium pancreas comparison apparatus (arms X1 / X3 and its release), declared
     #    2026-09-22 from the producers census. Superseded IN WRITING: analysis/xenium/scripts/
     #    panc_xenium_release.py:86-91 declares that it SUPERSEDES data/development/xenium_typing/
-    #    release (the scANVI-per-donor arm over 6436 and 6442, column lineage_native). The release
-    #    is still BOUND, which is why the group is c2 with a prerequisite and not c1:
-    #    core/phenocycler/config.ini:153 `xenium_identity_release = ../../data/development/
+    #    release (the scANVI-per-donor arm over 6436 and 6442, column lineage_native). Until
+    #    2026-09-23 the release was BOUND, which is why the group is c2 with a prerequisite and
+    #    not c1: core/phenocycler/config.ini:153 `xenium_identity_release = ../../data/development/
     #    xenium_typing/release` -> integration/import_xenium.py:454-456 load_release_or_none /
-    #    attach_release_identity -> integration/phenospace.py:532-533 writes lineage_native and
-    #    lineage_common onto cells_xen -> scripts/senior/build_layers.py:520 (availability;
-    #    build_availability.py:203-226 groups on lineage_native) and :543 (distance_profiles;
-    #    build_distance_profiles.py:201 XEN_LINEAGE = lineage_common, :880 resolved_by=XEN_LINEAGE)
-    #    -> apps/islet/R/card_x1_gradient.R:143,271 renders resolved_by. Blanking the binding and
-    #    re-pointing those two nodes is Step 5 work; nothing here moves until it is done, and the
-    #    check `code_orphan_and_config_blank` FAILS by name while config.ini:153 is bound, because
-    #    the reference walk alone passes these (every importer is inside the retiring set).
+    #    attach_release_identity -> integration/phenospace.py:532-533 wrote lineage_native and
+    #    lineage_common onto cells_xen -> the availability and distance_profiles nodes read them
+    #    (build_availability.py's xenium_ingest_availability, build_distance_profiles.py's
+    #    _pln_arm, both since removed) -> apps/islet/R/card_x1_gradient.R:143,271 rendered
+    #    resolved_by. Step 5 blanked :153 and removed both readers on 2026-09-23. The check
+    #    `code_orphan_and_config_blank` reads the binding itself and now passes on it; the
+    #    entries stay c2 and move only when the maintainer executes the tier.
     #    joint_model.py (X2) is CODE_TIER3: the report lane reads its latent.
     _c(f"{XTYPING}/release.py", 2, check="code_orphan_and_config_blank",
        arg="xenium_identity_release",
@@ -615,7 +617,7 @@ CODE_TIER2 = [
               "as the `phenotype` stage, analysis/xenium/scripts/refresh_broad_umap.py:49 imports "
               "it by importlib, render_stage02_phenotyping.py:213,362 reads its celltype_broad, "
               "and analysis/xenium/CLAUDE.md:196 documents that lane as separate from the cohort "
-              "lane. Those are Step 5 decisions, not this lane's.",
+              "lane. Those are the maintainer's decisions, not this lane's.",
        evidence="Retired as a Xenium pancreas typer because the declared producer "
                 "(panc_xenium_cluster_name.py under panc_xenium_release.py) replaces it and says "
                 "so at panc_xenium_release.py:86-91. Writes data/processed/<s>/<s>_hierarchical."

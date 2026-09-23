@@ -195,18 +195,24 @@ def test_the_alternative_typers_are_declared_and_not_movable():
     assert "xen_identity.py" in overturned[f"{SCRIPTS}/xenium_typing/joint_model.py"]
 
 
-def test_the_apparatus_with_a_prerequisite_fails_its_check_today(manifest):
-    """The reference walk alone PASSES the X1/X3 arms and release.py -- every importer is inside
-    the retiring set -- but core/phenocycler/config.ini:153 still binds the release directory
-    they write, and that binding carries their class column into cells_xen. The manifest must
-    say so by name, so retire.py refuses them until Step 5 blanks it."""
+def test_the_apparatus_check_reads_the_binding_blank_and_fails_only_on_a_live_reference(manifest):
+    """Until 2026-09-23 core/phenocycler/config.ini:153 bound the release directory the X1/X3
+    arms and release.py write, and the manifest FAILED all four by name on that binding. Step 5
+    blanked it. The check still reads the key on every run: a row that passes says the binding
+    is blank, and a row that fails now fails on a LIVE reference the walk found, never on
+    config.ini -- if it ever does again, the binding is back."""
     for name in ("release", "nullgate_typer", "scanvi_replicates", "baseline_analyzer"):
         row = manifest["by_path"][f"{SCRIPTS}/xenium_typing/{name}.py"]
         assert row["check"] == "code_orphan_and_config_blank", row["check"]
-        assert row["verified"] == "FAIL", f"{name}: {row['verify_detail']}"
-        assert "config.ini" in row["verify_detail"] or "LIVE reference" in row["verify_detail"]
+        assert "still binds" not in row["verify_detail"], f"{name}: {row['verify_detail']}"
+        if row["verified"] == "PASS":
+            assert "xenium_identity_release blank" in row["verify_detail"], row["verify_detail"]
+        else:
+            assert "LIVE reference" in row["verify_detail"], f"{name}: {row['verify_detail']}"
+    # Measured 2026-09-23: three pass; baseline_analyzer fails on its lane test, which is the
+    # reference that leaves with it when the tier is executed.
     row = manifest["by_path"][f"{SCRIPTS}/xenium_typing/release.py"]
-    assert "config.ini:153" in row["verify_detail"], row["verify_detail"]
+    assert "config.ini:153 has xenium_identity_release blank" in row["verify_detail"], row
     row = manifest["by_path"][f"{D.REPO}/analysis/xenium/scripts/hierarchical_phenotype.py"]
     assert row["verified"] == "FAIL" and "run_pipeline.sh" in row["verify_detail"], row
 

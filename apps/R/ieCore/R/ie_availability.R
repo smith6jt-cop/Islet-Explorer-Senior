@@ -4,10 +4,12 @@
 # needs more than a NA check, because the distinctions live in the DATA and are easy to erase:
 #
 #   measured     the value exists
-#   blank        never typed. In cells_xen this is lineage_native == "" -- all 960,284 cells
-#                of donor 115 and 17 other donors, because the typer has not been run on them
-#   unavailable  measured, then dropped at QC. lineage_native == "Unavailable" -- 53,626 cells
-#                on 6436 and 52,533 on 6442. Something WAS measured here; it did not survive
+#   blank        never typed. A release partition whose rows carry no label -- in the
+#                availability layer, xenium_release's blank tally. (The examples this comment
+#                used to give were cells_xen's lineage_native, which carries no lineage at all
+#                since config.ini:153 was blanked on 2026-09-23.)
+#   unavailable  measured, then dropped at QC, or a label the release itself marks
+#                Unavailable_*. Something WAS measured here; it did not survive
 #   withheld     measurable and deliberately not released. The post-Xenium IF hormone calls
 #                sit below the 0.75 AUROC bar they were preregistered at (6436 INS 0.5143 /
 #                GCG 0.5220; 6442 0.6571 / 0.7276)

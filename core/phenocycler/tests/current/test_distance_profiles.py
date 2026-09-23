@@ -386,17 +386,21 @@ RECORDED = {"Endocrine": "no", "Exocrine": "no", "Stromal": "no", "Vascular": "n
 
 @pytest.fixture
 def pln(tmp_path):
-    """One pLN section for donor 112, fully called. Counts are synthetic."""
+    """One pLN section for donor 112 in a typed release, fully called. Counts are synthetic.
+
+    The release is the only source of a pLN call: cells_xen carries none (config.ini:153
+    is blank since 2026-09-23) and the builder no longer reads it for one. Stage 1 is
+    Immune for every lineage the crosswalk records as immune and Non_immune otherwise.
+    """
     calls = (["T_NK"] * 4 + ["B_Plasma"] * 3 + ["Myeloid"] * 2 + ["Stromal"] * 1)
-    path = tmp_path / "cells_xen" / "donor_id=0112" / "roi=pln_1" / "data.parquet"
-    write_rows(path, [dict(cell_id=f"c{i}", lineage_common=call,
-                           tissue="pancreatic_lymph_node")
-                      for i, call in enumerate(calls)])
-    return dict(root=path.parents[2], calls=calls)
+    root = tmp_path / "xenium_typing"
+    write_release(root / "release_pln_immune", {"0112": [
+        ("Immune" if RECORDED[call] == "yes" else "Non_immune", call, 1) for call in calls]})
+    return dict(root=root, calls=calls)
 
 
 def build_pln(sources, pln, crosswalk, **kwargs):
-    return build(sources, xen_cells_root=pln["root"], vocab_crosswalk=crosswalk, **kwargs)
+    return build(sources, xenium_roots=[pln["root"]], vocab_crosswalk=crosswalk, **kwargs)
 
 
 def pln_rows(table):
@@ -414,8 +418,10 @@ def test_pln_immune_fraction_is_measured_once_the_vocabulary_is_recorded(sources
     assert total[0]["immune_fraction"] == 0.9
     by_lineage = {r["immune_subtype"]: r["n_immune"] for r in rows if r["resolved_by"] != "all"}
     assert by_lineage == {"T_NK": 4, "B_Plasma": 3, "Myeloid": 2}
-    assert all(r["resolved_by"] == "lineage_common" for r in rows if r["resolved_by"] != "all")
-    assert set(json.loads(table.schema.metadata[b"pln_audit"].decode())) == {"112/pln_1"}
+    assert all(r["resolved_by"] == "identity_core" for r in rows if r["resolved_by"] != "all")
+    audit = json.loads(table.schema.metadata[b"pln_audit"].decode())
+    assert set(audit) == {"112/pln_1", "xenium_release"}
+    assert audit["112/pln_1"]["release"] == "fixture-release_pln_immune"
 
 
 def test_a_measured_pln_row_still_carries_nothing_spatial(sources, pln, tmp_path):
@@ -440,13 +446,16 @@ def test_an_unrecorded_lineage_is_withheld_by_name_not_treated_as_non_immune(sou
         assert rows[0][name] is None
 
 
-def test_an_unclassifiable_lineage_is_blank_and_never_counted_either_way(sources, pln, tmp_path):
-    path = pln["root"] / "donor_id=0112" / "roi=pln_1" / "data.parquet"
-    write_rows(path, [dict(cell_id="c0", lineage_common="Unassigned",
-                           tissue="pancreatic_lymph_node")])
+def test_an_unresolvable_stage2_lineage_emits_no_lineage_row_and_stage1_stands(
+        sources, pln, tmp_path):
+    """The rule _pln_composition states: the numerator is stage 1's Immune, and a lineage
+    the crosswalk records as unresolvable is counted neither as an immune lineage nor as a
+    non-immune one. The cell stays in stage 1's count; no lineage row is invented for it."""
+    write_release(pln["root"] / "release_pln_immune",
+                  {"0112": [("Immune", "Unassigned", 1), ("Non_immune", "", 1)]})
     rows = pln_rows(build_pln(sources, pln, write_crosswalk(tmp_path / "vocab.csv", RECORDED)))
-    assert (rows[0]["state"], rows[0]["reason"]) == ("blank", "xenium_lineage_unresolvable:1_of_1")
-    assert rows[0]["n_immune"] is None
+    assert len(rows) == 1 and rows[0]["resolved_by"] == "all"
+    assert (rows[0]["n_cells"], rows[0]["n_immune"]) == (2, 1)
 
 
 def test_the_recorded_tissue_scope_is_what_licenses_the_lymph_node(sources, pln, tmp_path):
@@ -581,15 +590,18 @@ def layers_dir(tmp_path, name, table):
 
 @pytest.fixture
 def pln_two_donors(tmp_path):
-    """Donor 112 (in the cohort) and 6347 (a pLN section with no pancreas here)."""
-    root = tmp_path / "cells_xen"
-    write_rows(root / "donor_id=0112" / "roi=pln_1" / "data.parquet",
-               [dict(cell_id=f"a{i}", lineage_common=call, tissue="pancreatic_lymph_node")
-                for i, call in enumerate(["T_NK"] * 4 + ["B_Plasma"] * 3 + ["Stromal"] * 3)])
-    write_rows(root / "donor_id=6347" / "roi=pln_1" / "data.parquet",
-               [dict(cell_id=f"b{i}", lineage_common="T_NK", tissue="pancreatic_lymph_node")
-                for i in range(5)])
-    return dict(root=root)
+    """Donor 112 (in the cohort) and 6347 (a pLN section with no pancreas here), typed."""
+    root = tmp_path / "xenium_typing"
+    write_release(root / "release_pln_immune", {
+        "0112": [("Immune", "T_NK", 1)] * 4 + [("Immune", "B_Plasma", 1)] * 3
+                + [("Non_immune", "Stromal", 1)] * 3,
+        "6347": [("Immune", "T_NK", 1)] * 5,
+    })
+    # The ingest root is still handed in, for coordinates: the artifact records it as
+    # source_xen_cells and the reader requires that record whatever the rows hold.
+    cells = tmp_path / "cells_xen"
+    cells.mkdir()
+    return dict(root=root, cells=cells)
 
 
 def r_or_skip():
@@ -640,7 +652,8 @@ def test_cards_validate_every_source_path_not_only_the_domain_root(
     """
     rscript = r_or_skip()
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xen_cells_root=pln_two_donors["root"], vocab_crosswalk=crosswalk)
+    table = build(sources, xenium_roots=[pln_two_donors["root"]],
+                  xen_cells_root=pln_two_donors["cells"], vocab_crosswalk=crosswalk)
     good = layers_dir(tmp_path, "good", patch_metadata(table))
     cases = []
     for index, (override, reason) in enumerate(SOURCE_DEFECTS):
@@ -703,7 +716,8 @@ def test_the_pln_column_names_the_donor_it_will_not_show(sources, pln_two_donors
     """The card renders the withheld pLN donor rather than dropping it silently."""
     rscript = r_or_skip()
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xen_cells_root=pln_two_donors["root"], vocab_crosswalk=crosswalk)
+    table = build(sources, xenium_roots=[pln_two_donors["root"]],
+                  xen_cells_root=pln_two_donors["cells"], vocab_crosswalk=crosswalk)
     root = layers_dir(tmp_path, "card", patch_metadata(table))
     env = dict(os.environ, ISLET_LAYERS_DIR=str(root), DISTANCE_TEST_DOMAIN=DOMAIN_ROOT)
     code = r'''
@@ -750,15 +764,14 @@ def test_a_shared_source_is_required_only_where_a_number_depended_on_it(
     """
     rscript = r_or_skip()
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    # Uncalled pLN cells: the rows exist and are blank, exactly as shipped.
+    # A pLN section stage 1 answered for no cell: the rows exist and are blank.
     uncalled = tmp_path / "uncalled"
-    write_rows(uncalled / "donor_id=0112" / "roi=pln_1" / "data.parquet",
-               [dict(cell_id=f"u{i}", lineage_common="",
-                     tissue="pancreatic_lymph_node") for i in range(6)])
-    blank = build(sources, xen_cells_root=uncalled, vocab_crosswalk=crosswalk)
+    write_release(uncalled / "release_pln_immune", {"0112": [("Ambiguous", "", 1)] * 6})
+    blank = build(sources, xenium_roots=[uncalled], xen_cells_root=pln_two_donors["cells"],
+                  vocab_crosswalk=crosswalk)
     assert {r["state"] for r in blank.to_pylist() if r["roi"] != "panc"} == {"blank"}
-    measured = build(sources, xen_cells_root=pln_two_donors["root"],
-                     vocab_crosswalk=crosswalk)
+    measured = build(sources, xenium_roots=[pln_two_donors["root"]],
+                     xen_cells_root=pln_two_donors["cells"], vocab_crosswalk=crosswalk)
     assert "measured" in {r["state"] for r in measured.to_pylist() if r["roi"] != "panc"}
 
     no_vocab = dict(source_immune_vocabulary=None)
@@ -882,28 +895,38 @@ def test_the_xenium_pln_arm_reads_a_typed_release_not_the_untyped_ingest(
         assert row["tissue"] == "pancreatic_lymph_node"
 
 
-def test_a_release_supersedes_the_ingest_and_the_ingest_is_the_fallback(
-        sources, pln, tmp_path):
-    """Both roots given: the typed release wins, and its source is recorded."""
+def test_the_typed_release_is_the_only_pln_source_and_its_absence_is_named(
+        sources, tmp_path):
+    """The release is recorded as the source; with none resolvable, the arm records that
+    absence by name and reads no call off cells_xen, whatever that tree holds.
+
+    Until 2026-09-23 an ingest tree handed in as ``xen_cells_root`` was the fallback here,
+    carrying the superseded scANVI lineage that config.ini:153 attached to it.
+    """
     typing_root = tmp_path / "xenium_typing"
     release = write_release(typing_root / "release_pln_immune", {"0112": SECTION})
     crosswalk = write_crosswalk(tmp_path / "vocab.csv", RECORDED)
-    table = build(sources, xenium_roots=[typing_root], xen_cells_root=pln["root"],
+    # An ingest tree beside it that still spells the old lineage column, fully called.
+    ingest = tmp_path / "cells_xen"
+    write_rows(ingest / "donor_id=0112" / "roi=pln_1" / "data.parquet",
+               [dict(cell_id=f"c{i}", lineage_common="T_NK", tissue="pancreatic_lymph_node")
+                for i in range(10)])
+    table = build(sources, xenium_roots=[typing_root], xen_cells_root=ingest,
                   vocab_crosswalk=crosswalk)
     rows = [r for r in table.to_pylist() if r["roi"] != "panc"]
     total = [r for r in rows if r["resolved_by"] == "all"][0]
-    assert (total["n_cells"], total["n_immune"]) == (6, 4)   # the release, not the ingest
+    assert (total["n_cells"], total["n_immune"]) == (6, 4)   # the release's counts
     sources_by_modality = json.loads(
         table.schema.metadata[b"source_pln_by_modality"].decode())
     assert sources_by_modality["xenium"] == str(release.resolve())
 
-    # With no release present, the ingest is read and named as the source.
-    fallback = build(sources, xenium_roots=[tmp_path / "empty"],
-                     xen_cells_root=pln["root"], vocab_crosswalk=crosswalk)
-    fallback_rows = [r for r in fallback.to_pylist() if r["roi"] != "panc"]
-    assert [r for r in fallback_rows if r["resolved_by"] == "all"][0]["n_cells"] == 10
-    assert json.loads(fallback.schema.metadata[b"source_pln_by_modality"].decode())[
-        "xenium"] == str(pln["root"].resolve())
+    # No release resolvable: no pLN Xenium row at all, the absence named in provenance, and
+    # the ten called cells in the ingest tree never become a number.
+    absent = build(sources, xenium_roots=[tmp_path / "empty"], xen_cells_root=ingest,
+                   vocab_crosswalk=crosswalk)
+    assert [r for r in absent.to_pylist() if r["roi"] != "panc"] == []
+    assert json.loads(absent.schema.metadata[b"source_pln_by_modality"].decode())[
+        "xenium"] == builder.NO_XEN_PLN_RELEASE
 
 
 def test_the_two_pln_modalities_stay_distinct_and_are_never_pooled(sources, tmp_path):

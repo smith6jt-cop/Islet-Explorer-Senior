@@ -197,8 +197,6 @@ NO_XEN_PLN_RELEASE = "xenium_pln_release_absent"
 
 PANCREAS_ROI = "panc"
 PANCREAS_TISSUE = "pancreas"
-# The Xenium lineage column carried by cells_xen. An empty string is not a call.
-XEN_LINEAGE = "lineage_common"
 
 # --------------------------------------------------------------------------
 # The pancreas Xenium arm's named absences. Each one is the FIRST missing link
@@ -489,17 +487,16 @@ def resolve_release(tissue: str, roots: Sequence[Path] | None):
 
 
 def _release_lineage_column(names: set[str]) -> str | None:
-    """The release's common-lineage column, under either spelling.
+    """The release's common-lineage column, or None when it carries none.
 
-    The pLN release writes ``common_lineage``; cells_xen writes
-    ``lineage_common``. Guessing wrong would read every cell as uncalled, so the
-    column is found rather than assumed and a release carrying neither is
-    refused by name.
+    The declared releases spell it ``common_lineage`` (panc_xenium_release.py,
+    pln_immune_typing_v3.py). Guessing another name would read every cell as
+    uncalled, so the column is looked for and a release without it is named
+    as missing its call columns rather than read as empty. The untyped ingest's
+    ``lineage_common`` is not a candidate: since 2026-09-23 no lineage is attached
+    to cells_xen (config.ini:153 is blank) and this builder reads none from it.
     """
-    for candidate in ("common_lineage", XEN_LINEAGE):
-        if candidate in names:
-            return candidate
-    return None
+    return "common_lineage" if "common_lineage" in names else None
 
 
 def _pln_composition(
@@ -744,140 +741,6 @@ def _pln_phenocycler_arm(
         rows.append(_row(donor, statuses.get(donor), roi="pln_1", tissue=PLN_TISSUE,
                          modality="phenocycler", frame="none",
                          state="unavailable", reason=reason))
-    return rows, audit
-
-
-def _pln_arm(
-    xen_cells_root: Path,
-    statuses: dict[str, str],
-    donors: set[str] | None,
-    vocabulary: dict | None = None,
-) -> tuple[list[dict], dict]:
-    """Compositional rows for every non-pancreas section in cells_xen.
-
-    No distance, bin or compartment is produced here, by construction: these
-    rows carry ``frame=none`` and a null ``distance_bin_um``. The only quantity
-    a lymph node section could contribute to this card is an immune fraction,
-    and that needs a lineage call on every cell plus a recorded rule for which
-    lineages are immune. Whatever is missing is named, never zeroed.
-
-    The rule is now recorded. Maintainer ruling, 2026-09-17: "All immune cell
-    calls from pancreas can be applied to pLN" -- the pancreas immune lineage
-    vocabulary is the pLN immune lineage vocabulary, and the crosswalk carries
-    it as ``is_immune`` with ``immune_tissue_scope``. That is a ruling about
-    identity only: it changes what a lineage label means here, and nothing about
-    anatomy or coordinates. These rows still cross no spatial relation, and a
-    label row is still never copied from a pancreas cell onto a pLN cell -- the
-    two ROIs are segmented separately, so the calls have to be produced on the
-    pLN cells themselves.
-    """
-    rows: list[dict] = []
-    audit: dict[str, dict] = {}
-    parts: dict[tuple[str, str], list[Path]] = {}
-    for path in sorted(xen_cells_root.glob("donor_id=*/roi=*/*.parquet")):
-        roi = norm_roi(path.parent.name.removeprefix("roi="))
-        if is_pancreas_roi(roi):
-            continue  # the pancreas arm is PhenoCycler typing, not Xenium
-        donor = norm_donor(path.parents[1].name.removeprefix("donor_id="))
-        parts.setdefault((donor, roi), []).append(path)
-
-    eligible = set(filter_eligible_donors({donor for donor, _ in parts}))
-    with duckdb.connect(config={"threads": 2, "memory_limit": "2GB"}) as con:
-        for (donor, roi), files in sorted(parts.items()):
-            if donor not in eligible:
-                continue
-            if donors is not None and donor not in donors:
-                continue
-            con.register("xen", ds.dataset([str(p) for p in files], format="parquet",
-                                           partitioning=None))
-            names = {row[0] for row in con.execute("DESCRIBE xen").fetchall()}
-            tissue = None
-            if "tissue" in names:
-                values = sorted({
-                    str(value).strip()
-                    for (value,) in con.execute(
-                        "SELECT DISTINCT tissue FROM xen WHERE tissue IS NOT NULL"
-                    ).fetchall() if str(value).strip()
-                })
-                if len(values) > 1:
-                    raise ValueError(f"{donor}/{roi}: mixed tissue values {values}")
-                tissue = values[0] if values else None
-            by_lineage: dict[str, int] = {}
-            if XEN_LINEAGE in names:
-                n, called = con.execute(
-                    f"SELECT count(*), count(*) FILTER "
-                    f"(WHERE nullif(trim({XEN_LINEAGE}), '') IS NOT NULL) FROM xen"
-                ).fetchone()
-                by_lineage = {
-                    str(label).strip(): int(count)
-                    for label, count in con.execute(
-                        f"SELECT trim({XEN_LINEAGE}), count(*) FROM xen "
-                        f"WHERE nullif(trim({XEN_LINEAGE}), '') IS NOT NULL GROUP BY 1"
-                    ).fetchall()
-                }
-            else:
-                n, called = con.execute("SELECT count(*), 0 FROM xen").fetchone()
-            con.unregister("xen")
-
-            status = statuses.get(donor)
-            audit[f"{donor}/{roi}"] = {"cells": n, "lineage_called": called,
-                                       "tissue": tissue, "donor_status": status,
-                                       "lineage_counts": dict(sorted(by_lineage.items()))}
-            # The state is the honest one. These cells were not dropped at QC:
-            # they are present and were never typed, which ie_state_label calls
-            # "Not typed" (blank). Reserve "unavailable" for an absent export and
-            # "withheld" for a number this builder declines to compute.
-            state = reason = None
-            if not status:
-                state, reason = "unavailable", "donor_status_not_recorded"
-            elif not n:
-                state, reason = "unavailable", "xenium_export_empty"
-            elif called == 0:
-                state, reason = "blank", f"xenium_lineage_not_called:{n}_of_{n}"
-            elif called < n:
-                state, reason = "blank", f"xenium_lineage_partially_called:{n - called}_of_{n}"
-            elif vocabulary is None:
-                # The branch that used to fire on every fully-called section. It
-                # stays: an unrecorded vocabulary is still withheld, not guessed.
-                state, reason = "withheld", NO_IMMUNE_VOCAB
-            else:
-                classes = vocabulary["is_immune"]
-                unrecorded = sorted(lin for lin in by_lineage if lin not in classes)
-                section_tissue = (tissue or "").strip()
-                unresolvable = sum(count for lin, count in by_lineage.items()
-                                   if classes.get(lin) == IMMUNE_UNRESOLVABLE)
-                if unrecorded:
-                    state = "withheld"
-                    reason = f"{UNRECORDED_LINEAGE}:{'|'.join(unrecorded)}"
-                elif not section_tissue:
-                    state, reason = "withheld", f"{OUT_OF_SCOPE_TISSUE}:unrecorded"
-                elif section_tissue not in vocabulary["scope"]:
-                    state = "withheld"
-                    reason = f"{OUT_OF_SCOPE_TISSUE}:{section_tissue}"
-                elif unresolvable:
-                    # Neither immune nor non-immune. Counting these either way
-                    # would be inventing the numerator or the denominator.
-                    state = "blank"
-                    reason = f"xenium_lineage_unresolvable:{unresolvable}_of_{n}"
-            if state is not None:
-                rows.append(_row(
-                    donor, status, roi=roi, tissue=tissue or "unrecorded", modality="xenium",
-                    frame="none", state=state, reason=reason,
-                ))
-                continue
-
-            immune_by_lineage = {lin: count for lin, count in sorted(by_lineage.items())
-                                 if vocabulary["is_immune"][lin] == IMMUNE_YES}
-            n_immune = sum(immune_by_lineage.values())
-            base = dict(roi=roi, tissue=tissue, modality="xenium", frame="none",
-                        n_cells=n, state="measured", reason="")
-            rows.append(_row(donor, status, n_immune=n_immune,
-                             immune_fraction=n_immune / n, immune_subtype="Immune",
-                             resolved_by="all", **base))
-            for lineage, count in immune_by_lineage.items():
-                rows.append(_row(donor, status, n_immune=count,
-                                 immune_fraction=count / n, immune_subtype=lineage,
-                                 resolved_by=XEN_LINEAGE, **base))
     return rows, audit
 
 
@@ -1474,10 +1337,10 @@ def build_distance_profiles(
                       if vocab_crosswalk is not None else None)
         wanted = {norm_donor(d) for d in donors} if donors is not None else None
 
-        # Xenium. A typed release supersedes the untyped ingest: cells_xen at
-        # roi=pln_1 carries no call on any row, so reading it can only ever say
-        # "not called". The ingest is still read when no release exists, so the
-        # arm degrades to a named absence instead of vanishing.
+        # Xenium. The typed pLN release is the only source of a call: cells_xen at
+        # roi=pln_1 carries no call on any row (config.ini:153 is blank since
+        # 2026-09-23), so it is never read for one. No release resolving is a
+        # named absence in the artifact's provenance, not an empty arm.
         release = resolve_release(xenium_release.PLN, xenium_roots) if xenium_roots else None
         if release is not None and release.available:
             pln_sources["xenium"] = str(release.root.resolve())
@@ -1486,17 +1349,10 @@ def build_distance_profiles(
             rows.extend(release_rows)
             pln_audit.update(release_audit)
             pln_audit["xenium_release"] = release.describe()
-        elif xen_cells_root is not None:
-            pln_sources["xenium"] = str(xen_cells_root.resolve())
-            ingest_rows, ingest_audit = _pln_arm(
-                xen_cells_root, pln_statuses, wanted, vocabulary)
-            rows.extend(ingest_rows)
-            pln_audit.update(ingest_audit)
+        else:
+            pln_sources["xenium"] = NO_XEN_PLN_RELEASE
             if release is not None:
                 pln_audit["xenium_release"] = release.describe()
-        elif release is not None:
-            pln_sources["xenium"] = NO_XEN_PLN_RELEASE
-            pln_audit["xenium_release"] = release.describe()
 
         # PhenoCycler, kept distinct. The two modalities are not interchangeable
         # and are never pooled into one fraction.
@@ -1605,8 +1461,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--membership-root", type=Path, default=TYPING / "islet_membership")
     parser.add_argument("--donor-metadata", type=Path, default=TYPING / "app" / "donor_metadata.csv")
     parser.add_argument("--xen-cells-root", type=Path, default=XEN_CELLS,
-                        help="cells_xen INGEST: the pLN fallback when no typed pLN release "
-                             "exists, and the only source of a pancreas cell's coordinates")
+                        help="cells_xen INGEST: the only source of a pancreas cell's "
+                             "coordinates. It carries no call and none is read from it")
     parser.add_argument("--xenium-root", type=Path, action="append", dest="xenium_roots",
                         help="repeatable root to search for Xenium releases; the default is "
                              "both roots from scripts/senior/xenium_release.py, which selects "

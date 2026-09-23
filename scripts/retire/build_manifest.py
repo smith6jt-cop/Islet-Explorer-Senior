@@ -421,7 +421,8 @@ def check_code_orphan_and_config_blank(p: Path, arg):
     inside the retiring set, but core/phenocycler/config.ini binds the RELEASE DIRECTORY it
     writes, and that binding is what carries its class column into cells_xen and two build_layers
     nodes. A directory binding is invisible to a reference walk over .py names, so the
-    prerequisite is checked by name here and the entry fails closed until Step 5 blanks it.
+    prerequisite is checked by name here; the entry failed closed until Step 5 blanked the
+    binding on 2026-09-23, and it would fail closed again if the binding came back.
     """
     ok, detail = check_code_orphan(p, None)
     if not ok:

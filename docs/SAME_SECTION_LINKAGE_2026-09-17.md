@@ -134,6 +134,15 @@ Three things follow, and the asymmetry is the point.
 
 ## 4. The direct per-cell protein-vs-RNA agreement
 
+> **Source change, 2026-09-23.** The numbers below were computed against the RNA call the
+> ingest carried in `lineage_native` -- the scANVI two-donor release that `config.ini:153`
+> attached to `cells_xen` and that the declared pancreas producer supersedes. `agreement()`
+> now reads the declared release (`docs/PRODUCERS.md`, producer 2) joined on `cell_id`, and
+> "called" is the release module's own reading of the label. The `endocrine_fine` strata are
+> no longer produced: the declared release carries no fine endocrine type (the 5K panel has no
+> INS, GCG or SST), so nothing on disk supplies that split. The section has not been re-run;
+> its numbers stand as a record of the old source until it is.
+
 For **6436 and 6442 only**. Cells with no nucleus are excluded before anything is computed
 (6436: 26,829 of 695,113; 6442: 51,392 of 958,744). Of the remainder, every cell fell inside the
 imaged area — `n_outside_imaged_area` is 0 for both — and cells the RNA lane left `Unavailable`

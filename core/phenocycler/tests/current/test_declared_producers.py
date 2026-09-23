@@ -30,16 +30,16 @@ carries as a string constant in its CODE -- docstrings excluded, comments never 
 signature is coarse on purpose: a builder that opens a root and spells its class column is
 reading it, whatever the surrounding control flow says about when.
 
-THE MEASURED LEAK (2026-09-21, re-read 2026-09-22).  ``core/phenocycler/config.ini:153`` binds
+THE LEAK THAT WAS MEASURED (2026-09-21) AND CLOSED (2026-09-23).  ``config.ini:153`` bound
 ``data/development/xenium_typing/release`` -- the scANVI two-donor release that the declared
 pancreas producer supersedes (``panc_xenium_release.py:86-96``) -- as the integration lane's
-Xenium identity release.  ``phenospace.py:532-533`` writes its ``lineage_native`` and
-``lineage_common`` onto ``core/phenocycler/data/integration/cells_xen``, and two nodes read
-them: ``availability`` (``build_availability.py:203-233``) and ``distance_profiles``
-(``build_distance_profiles.py:201, :806-816, :880``).  ``card_x1_gradient.R:143, :271`` renders
-the second.  The test that asserts the absence of that leak is ``xfail(strict=True)``: it turns
-red the moment Step 5 blanks the binding and re-points the two nodes, and the mark is then
-removed.  Nothing here asserts a biological number, and nothing here reruns a builder.
+Xenium identity release; ``phenospace.py:532-533`` wrote its ``lineage_native`` and
+``lineage_common`` onto ``cells_xen``, and two nodes read them as a fallback when no typed
+release resolved: ``availability`` (``xenium_ingest_availability``) and ``distance_profiles``
+(``_pln_arm``).  Step 5 blanked both bindings at ``config.ini:152-153``, removed both readers,
+and declared the release roots as inputs of the two nodes.  The guard below is now an ordinary
+assertion; the binding test at the end pins the two keys BLANK so the leak cannot come back
+unannounced.  Nothing here asserts a biological number, and nothing here reruns a builder.
 """
 from __future__ import annotations
 
@@ -122,8 +122,9 @@ DECLARED_RELEASE_IDS = {
 #:   the two resolver roots   lineage / common_lineage (panc_xenium_release.py:552;
 #:                     pln_immune_typing_v3.py:1128-1129); the superseded releases under the
 #:                     repo root spell lineage_native (xenium_typing/release.py:149)
-#:   cells_xen         lineage_native / lineage_common from config.ini:153 via
-#:                     phenospace.py:532-533 -- NOT a producer
+#:   cells_xen         lineage_native / lineage_common, attached via phenospace.py:532-533
+#:                     while config.ini:153 was bound (until 2026-09-23) -- NOT a producer, and
+#:                     kept here so a builder that starts naming them again is caught
 #:   cells_pheno       the same two columns from config.ini:152 via export_pheno.py:381-386
 #:                     -- NOT a producer, and declared by no node
 CLASS_COLUMNS_BY_ROOT: dict[Path, frozenset[str]] = {
@@ -151,14 +152,6 @@ DECLARED_PRODUCER_ROOTS: frozenset[Path] = frozenset({
 
 CELLS_XEN = REPO / "core/phenocycler/data/integration/cells_xen"
 CELLS_PHENO = REPO / "core/phenocycler/data/integration/cells_pheno"
-
-#: The leak as measured: (node, root).  Kept as a constant so the non-xfail test below can pin
-#: "nothing beyond this" while the xfail test pins "nothing at all".
-MEASURED_LEAK: frozenset[tuple[str, Path]] = frozenset({
-    ("availability", CELLS_XEN),
-    ("distance_profiles", CELLS_XEN),
-})
-
 
 # ---------------------------------------------------------------------------------------------
 # helpers
@@ -268,31 +261,32 @@ def test_every_declared_producer_root_is_spelled_by_its_producer_or_its_resolver
 # The guard
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="config.ini:153 still binds the superseded scANVI release into cells_xen; "
-           "Step 5 blanks it and re-points availability and distance_profiles",
-)
 def test_class_columns_reach_the_graph_only_from_declared_producer_roots(nodes):
     """Every node reading a class column reads it only from the four declared producers'
-    roots -- and cells_xen, whose lineage columns come from config.ini:153, is read for a
-    class column by no node.  FALSE today by measurement: availability and distance_profiles
-    read it.  strict xfail, so the day Step 5 fixes it this test goes red and the mark comes
-    off."""
+    roots.  cells_xen, whose lineage columns were attached from config.ini:153 until
+    2026-09-23, is read for a class column by no node: availability and distance_profiles
+    still declare it (IF pairing; a pancreas cell's coordinates) and neither builder names
+    lineage_native or lineage_common in code.  A third node declaring cells_xen and naming
+    those columns, a node declaring cells_pheno, or a release spelled outside the resolver's
+    roots all land here."""
     leaks = _leaks(nodes)
     assert not leaks, "class columns read from a root that is not a declared producer: " + \
         ", ".join(f"{name} <- {_rel(root)}" for name, root in sorted(leaks, key=str))
 
 
-def test_no_class_column_reaches_the_graph_from_anywhere_but_the_measured_leak(nodes):
-    """GREEN today and it has to stay green: the leak is cells_xen on availability and
-    distance_profiles, and nothing else.  A third node declaring cells_xen and naming its
-    lineage columns, a node declaring cells_pheno, or a release spelled outside the resolver's
-    roots all land here, today, rather than hiding behind the xfail above."""
-    unexpected = _leaks(nodes) - MEASURED_LEAK
-    assert not unexpected, "a class column reaches the graph from a root the ledger does not " \
-        "declare, beyond the measured cells_xen leak: " + \
-        ", ".join(f"{name} <- {_rel(root)}" for name, root in sorted(unexpected, key=str))
+def test_the_two_nodes_that_read_the_leak_still_declare_the_ingest_and_the_releases(nodes):
+    """What replaced the fallback: both nodes declare the two declared release roots as
+    inputs (so a new release makes them stale) beside cells_xen, which stays declared for
+    the columns only the ingest carries."""
+    for name in ("availability", "distance_profiles"):
+        node = nodes[name]
+        assert any(_under(i, CELLS_XEN) for i in node.inputs), f"{name} no longer declares cells_xen"
+        assert any(_under(i, xr.EXTERNAL_ROOT_DEFAULT) for i in node.inputs), (
+            f"{name} does not declare the external release root as an input")
+        assert any(_under(i, REPO / xr.REPO_RELATIVE_ROOT) for i in node.inputs), (
+            f"{name} does not declare the repo release root as an input")
+        named = _code_strings(_builder(node)) & CLASS_COLUMNS_BY_ROOT[CELLS_XEN]
+        assert not named, f"{name}'s builder names a cells_xen lineage column in code: {named}"
 
 
 def test_cells_pheno_is_a_declared_input_of_no_node(nodes):
@@ -314,23 +308,11 @@ def test_every_declared_xenium_release_input_sits_under_a_resolver_root(nodes):
     assert not stray, f"Xenium release inputs outside the resolver's roots: {stray}"
 
 
-def test_the_leak_signature_is_measured_not_assumed(nodes):
-    """The xfail above is only honest if the signature it reads is the one on disk today.
-    availability and distance_profiles both declare cells_xen, and their builders both name
-    one of its lineage columns in code -- the two conditions the module docstring states."""
-    for name in ("availability", "distance_profiles"):
-        node = nodes[name]
-        assert any(_under(i, CELLS_XEN) for i in node.inputs), f"{name} no longer declares cells_xen"
-        named = _code_strings(_builder(node)) & CLASS_COLUMNS_BY_ROOT[CELLS_XEN]
-        assert named, (f"{name}'s builder no longer names a cells_xen lineage column in code; "
-                       "if Step 5 has landed, remove the xfail mark on "
-                       "test_class_columns_reach_the_graph_only_from_declared_producer_roots "
-                       "and retire this test with it")
-
-
-def test_the_binding_that_causes_the_leak_is_the_one_the_ledger_names():
-    """config.ini:153 is the cause the xfail reason cites.  Read the key, not the line number:
-    if the binding is blanked this test fails, which is the signal to remove the xfail."""
+def test_both_identity_release_bindings_are_blank():
+    """config.ini:152-153 are the two bindings that carried a second method into the ingest
+    trees.  Both keys stay in the file (the ledger cites them by line) and both are BLANK,
+    which config.ini:151 names as the fail-closed state.  A value here is the leak coming
+    back: phenospace.load_release_or_none attaches whatever the key points at."""
     import configparser
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.read(CONFIG_INI)
@@ -338,13 +320,11 @@ def test_the_binding_that_causes_the_leak_is_the_one_the_ledger_names():
               if k in ("xenium_identity_release", "phenocycler_identity_release")}
     assert set(values) == {"xenium_identity_release", "phenocycler_identity_release"}, (
         f"config.ini no longer carries both identity-release keys: {sorted(values)}")
-    assert values["xenium_identity_release"].strip().endswith("data/development/xenium_typing/release"), (
-        "xenium_identity_release is no longer the superseded scANVI release -- if it is blank, "
-        "Step 5 has landed: remove the xfail mark on "
-        "test_class_columns_reach_the_graph_only_from_declared_producer_roots and retire this test")
-    assert values["phenocycler_identity_release"].strip().endswith("data/development/broadtype/release"), (
-        "phenocycler_identity_release is no longer the withdrawn broadtype release; update "
-        "docs/PRODUCERS.md, whose last section records the binding")
+    for key, value in values.items():
+        assert value.strip() == "", (
+            f"{key} = {value!r}: a declared identity release attaches a class column to the "
+            "ingest that no declared producer wrote. Blank is the fail-closed state "
+            "(config.ini:151; docs/PRODUCERS.md)")
 
 
 # ---------------------------------------------------------------------------------------------

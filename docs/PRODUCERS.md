@@ -3,7 +3,7 @@
 Step 4 of the 2026-09-21 plan, scope **"Ledger only"** (maintainer, 2026-09-21). This page
 declares the single producer of a class column for each of the four tissue x modality cells,
 turns every other runnable typer in the tree into a recorded disposition with its measured
-live uses, and records the one place a second method still reaches the app.
+live uses, and records the one place a second method reached the app and how it was closed.
 
 Measurements: the producers census of **2026-09-21** and the bare-name reference walk of
 **2026-09-22** (116 ledger paths, classified LIVE / TEST-ONLY / RETIRED-SET-ONLY / DOC-ONLY /
@@ -47,63 +47,83 @@ Ledger buckets are `scripts/retire/dispositions.py`'s: `CODE_TIER1-4`, `KEEP_BES
 | `core/phenocycler/scripts/celltype/run_sameslide_protein.py` | `call` at data/development/celltype/sameslide_protein/donor_id=<d> (:82), carried with `reason`, `cell_region`, `structure`, `islet_endocrine`, `islet_num`. Donors: 6533 and 112/0112, normalised to one donor (:23-24). | sameslide/lift_calls.py:27-28 names the path in its usage block and :51 `CARRY` is exactly that column set, lifted onto Xenium cells. Imports run_step3 (:73), run_islet (:72). | **BRIDGE for donors 6533 and 0112**: it gives the same-slide Xenium cells a protein prior with its own uncertainty and reaches no build_layers node and no R card. `KEEP_BESIDE_CODE` (dispositions.py:299-300; the whole `sameslide/` tree at :288-289). |
 | `core/phenocycler/scripts/typing/refine.py` | `refined_class` (:688, :698) in a keyed sidecar at `--out`, required, no default (:781). Label `UNRESOLVED` = "Unresolved (no lineage evidence)" (:150). | `refined_class` has zero consumers (:4-7; root CLAUDE.md:149-152). The module is live as the **vocabulary authority**: vocab.py:206-209 (`PHENO_UNRESOLVED`), build_grid_composition.py:255-272 (`PANC_CLASS_NONCALL`), modality_concordance.py:186, run20_default.yml:41-42, 00_globals.R:652-653; and as the import-time guard on the producerless `refinement_log.json` (:19-25). | **LIBRARY / vocabulary authority**, not a fifth producer. Whether to wire it is **decision pending** (root CLAUDE.md:151-152: its 5th-percentile bound demotes about 5% of every class by construction -- an open question). Not in the ledger. |
 | `core/phenocycler/scripts/typing/call.py` | The named-cluster label at data/development/typing/calls (:53, :497-501). Header :4-10: "RETIRED -- NOT A FALLBACK ... It did not produce the calls on disk." | One importer: typing/compare_clustering.py:105 (`from call import TOP_N, _statistic, name_clusters`). Its output tree is already retired as data (dispositions.py:191-193). | **LIBRARY** for compare_clustering.py's naming statistic. `CODE_TIER3`, overturned by that importer (dispositions.py:575-579; the cite there reads `:98`, the import is at :105). The ruling that closes it is compare_clustering.py's own, `CODE_TIER4` (dispositions.py:594-597): **decision pending**. |
-| `core/phenocycler/scripts/broadtype/` (whole tree, incl. `arms/cosine_broad8.py`, `release.py`) | Methods write `label` under data/development/broadtype/arms (records.py:29, :53; pins.py:40). `release.py` turns them into data/development/broadtype/release with `lineage_native` + `common_lineage` (release.py:93-95). Run as cosine_broad8.py:44. | (a) core/phenocycler/config.ini:152 binds `broadtype/release` as the integration lane's protein identity release, attached through export_pheno.py:330 and :381-386 onto `cells_pheno`. (b) The report lane: identity_io.py:17-19, pheno_identity.py:62, :111, :176, rendered by run_report.py:77-78. (c) kronos2_doc/run.py:35-40, rendered by run_report.py:83-84. (d) subpanel_io.py:73 and :186-188 read `broadtype/scratch/cosine_scale.parquet` as producer 1's cohort floor/top; superseded.py:52-57 and :390-393 exempt that directory; build_layers.py:448 declares the parquet for app_drilldown_cells and :184-186 names it. | Retired as a producer (root CLAUDE.md:163-164, the comparison withdrawn 2026-09-08); declared **LIBRARY + AUDIT** with (b), (c) and (d) named. `CODE_TIER3`, overturned (dispositions.py:552-564); its release, frame and scratch directories are data `TIER3` (:210-215). The config.ini:152 binding is the correction, and it is Step 5's -- see the last section. |
+| `core/phenocycler/scripts/broadtype/` (whole tree, incl. `arms/cosine_broad8.py`, `release.py`) | Methods write `label` under data/development/broadtype/arms (records.py:29, :53; pins.py:40). `release.py` turns them into data/development/broadtype/release with `lineage_native` + `common_lineage` (release.py:93-95). Run as cosine_broad8.py:44. | (a) core/phenocycler/config.ini:152 bound `broadtype/release` as the integration lane's protein identity release until 2026-09-23, attached through export_pheno.py:330 and :381-386 onto `cells_pheno`. (b) The report lane: identity_io.py:17-19, pheno_identity.py:62, :111, :176, rendered by run_report.py:77-78. (c) kronos2_doc/run.py:35-40, rendered by run_report.py:83-84. (d) subpanel_io.py:73 and :186-188 read `broadtype/scratch/cosine_scale.parquet` as producer 1's cohort floor/top; superseded.py:52-57 and :390-393 exempt that directory; build_layers.py:448 declares the parquet for app_drilldown_cells and :184-186 names it. | Retired as a producer (root CLAUDE.md:163-164, the comparison withdrawn 2026-09-08); declared **LIBRARY + AUDIT** with (b), (c) and (d) named. `CODE_TIER3`, overturned (dispositions.py:552-564); its release, frame and scratch directories are data `TIER3` (:210-215). The config.ini:152 binding was blanked 2026-09-23 (Step 5) -- see the closed-leak section. |
 | `core/phenocycler/phenocycler/simultaneous_typing.py` | No output root: `type_simultaneous_cells` returns a frame and the `type` stage that would write it is blocked by `NO_VERIFIED_TYPING` (:3-7). | Two importers inside the installed package: pipeline.py:75-78, production_typing.py:21-26. | **LIBRARY behind the latch**, with both importers named and `NO_VERIFIED_TYPING` named as what keeps it from producing. Retiring it would break the package's own `pipeline` import. Not in the ledger. |
 | `core/phenocycler/scripts/pln/cluster_pln.py` | Writes `cluster_id` (:595, :610, :784) and `meta_cluster` (:1016, :1041) under data/development/typing/pln/clusters (:173). **No class column** -- a partition, not a typer. Run as :112-113. | Both pLN producers depend on it: build_pln_immune_pheno.py:166 reads its output tree (:22 "consumed here"); pln_immune_typing_v3.py:561-563 loads the file by path. A by-path `importlib` load is invisible to a grep for import statements. | **LIBRARY** upstream of producers 3 and 4, both named. Not in the ledger. |
 | `analysis/xenium/scripts/hierarchical_phenotype.py` | `celltype`, `celltype_broad`, `celltype_fine` and confidences into `data/processed/<s>/<s>_hierarchical.h5ad` or in place (:47-52). Its docstring :38-40 describes a split of the exocrine label that root CLAUDE.md:165-166 forbids; :82-84 records that the current pancreas release carries a single `Exocrine` lineage. | analysis/xenium/hpc/run_pipeline.sh:163-164 runs it as the HiPerGator `phenotype` stage. Cross-lane: xenium_typing/nullgate_typer.py:43-44 reads its sidecar's `celltype_broad` / `celltype` as the scANVI method's `lineage_native` / `celltype_fine`. | **RETIRED-CANDIDATE with a prerequisite**: producer 2 replaces it for the cohort, but deleting it makes nullgate_typer.py's input producerless. Close the `xenium_typing` chain below first (blank config.ini:153). The HiPerGator lane's own use stays named. Not in the ledger. |
-| `core/phenocycler/scripts/xenium_typing/{release,nullgate_typer,joint_model,baseline_analyzer}.py` (one entry) | Methods write `lineage_native` + `celltype_fine` under data/development/xenium_typing/arms (gate.py:51; pins.py:60, :208-209). release.py:175 writes **data/development/xenium_typing/release** with `lineage_native` + `common_lineage` (:149); `release.json` read 2026-09-22: `release_id` `xenium-typing-scanvi-per-donor-dev-20260907`, `written_utc` 2026-09-07. joint_model.py:7-8 is the one `scvi-env` entry point (:62 output, :289 columns); baseline_analyzer.py:68 writes `Unavailable`. | **The load-bearing one**: core/phenocycler/config.ini:153 binds this release as `xenium_identity_release`; import_xenium.py:454-456 loads it and :427-429 attaches it; phenospace.py:532-533 writes `lineage_native` and `lineage_common` onto `cells_xen`; then build_availability.py:203-233 and build_distance_profiles.py:201, :806-816, :880 read those columns -- see the last section. Report lane: xen_identity.py:157-160 reads `joint_model/train_latent.npy`. panc_xenium_release.py:86-96 declares this release superseded. | **RETIRED-CANDIDATE with a prerequisite**: blank config.ini:153 first (Step 5). Within the group, baseline_analyzer.py has no transferred output; joint_model.py stays while xen_identity.py:157-160 reads its latent; nullgate_typer.py and release.py move together with hierarchical_phenotype.py. Not in the ledger. |
+| `core/phenocycler/scripts/xenium_typing/{release,nullgate_typer,joint_model,baseline_analyzer}.py` (one entry) | Methods write `lineage_native` + `celltype_fine` under data/development/xenium_typing/arms (gate.py:51; pins.py:60, :208-209). release.py:175 writes **data/development/xenium_typing/release** with `lineage_native` + `common_lineage` (:149); `release.json` read 2026-09-22: `release_id` `xenium-typing-scanvi-per-donor-dev-20260907`, `written_utc` 2026-09-07. joint_model.py:7-8 is the one `scvi-env` entry point (:62 output, :289 columns); baseline_analyzer.py:68 writes `Unavailable`. | **Was the load-bearing one, until 2026-09-23**: core/phenocycler/config.ini:153 bound this release as `xenium_identity_release`; import_xenium.py:454-456 loaded it and :427-429 attached it; phenospace.py:532-533 wrote `lineage_native` and `lineage_common` onto `cells_xen`; then the availability and distance_profiles builders read those columns as a fallback -- see the closed-leak section. The binding is blank and both readers are gone. Report lane: xen_identity.py:157-160 reads `joint_model/train_latent.npy`. panc_xenium_release.py:86-96 declares this release superseded. | **RETIRED-CANDIDATE, prerequisite met 2026-09-23** (config.ini:153 blank; the ledger's `code_orphan_and_config_blank` check passes on the binding, and `retire.py --kind code --tier 2 --execute` is the maintainer's to run). Within the group, baseline_analyzer.py has no transferred output; joint_model.py stays while xen_identity.py:157-160 reads its latent; nullgate_typer.py and release.py move together with hierarchical_phenotype.py. Not in the ledger. |
 
 `typing/compartments.py`, `common/window_mask.py`, `common/label_space.py` and the rest of the
 "not on any tier" set in the reference walk write no class column and are not in this table.
 
-## Where a second method still reaches the app
+## Where a second method reached the app, and how it was closed
 
-Measured 2026-09-21, re-read 2026-09-22.
+Measured 2026-09-21, re-read 2026-09-22, closed 2026-09-23 (Step 5). The record is kept so the
+signature is recognisable if it comes back.
 
 1. **The bindings.** core/phenocycler/config.ini:151 says "Optional declared identity
-   releases. Blank is the current fail-closed state." The next two lines are not blank:
-   :152 `phenocycler_identity_release = ../../data/development/broadtype/release` (the
-   withdrawn broad-typing comparison, retired as a producer at root CLAUDE.md:163-164) and
-   :153 `xenium_identity_release = ../../data/development/xenium_typing/release` (the scANVI
-   two-donor release that producer 2 declares superseded, panc_xenium_release.py:86-96).
-2. **How :153 reaches the cells.** import_xenium.py:454-456 calls
-   `phenospace.load_release_or_none(cfg, "xenium")` and :427-429 `attach_release_identity`;
-   phenospace.py:532-533 writes `out["lineage_native"]` and `out["lineage_common"]` onto
-   `core/phenocycler/data/integration/cells_xen`. apps/R/ieCore/R/ie_availability.R:7-10
-   documents the result by count: `lineage_native == ""` on all 960,284 cells of donor 115 and
-   17 other donors, `Unavailable` on 53,626 cells of 6436 and 52,533 of 6442.
-3. **Which nodes read it.** build_layers.py:520 declares `cells_xen` as an input of
-   `availability`, and build_availability.py:203-233 reads `lineage_native` from it and writes
-   the reason string `lineage_native: measured=...; blank=...; qc_unavailable=...` (:226-227)
-   -- called at :433 only for a capability no release answered (:192-199). build_layers.py:543
-   declares the same root for `distance_profiles`; build_distance_profiles.py:201 sets
-   `XEN_LINEAGE = "lineage_common"`, :806-816 counts cells by it and :880 emits one row per
-   immune lineage with `resolved_by = XEN_LINEAGE` (the ingest fallback at :1489-1494).
-4. **Which card renders it.** apps/islet/R/card_x1_gradient.R:143 requires `immune_subtype`
-   and `resolved_by` from `distance_profiles/data.parquet` and :271 pastes them into the
-   displayed pair label.
-5. **What does not leak.** `cells_pheno` (the :152 twin) is a declared input of no
+   releases. Blank is the fail-closed state." Until 2026-09-23 the next two lines were not
+   blank: :152 `phenocycler_identity_release` bound `../../data/development/broadtype/release`
+   (the withdrawn broad-typing comparison, retired as a producer at root CLAUDE.md:163-164)
+   and :153 `xenium_identity_release` bound `../../data/development/xenium_typing/release`
+   (the scANVI two-donor release that producer 2 declares superseded,
+   panc_xenium_release.py:86-96). **Both are blank now**, in
+   `config.ini` and in `config_metabolic.ini`, and `test_both_identity_release_bindings_are_blank`
+   in `core/phenocycler/tests/current/test_declared_producers.py` keeps them so.
+2. **How :153 reached the cells.** import_xenium.py:454-456 calls
+   `phenospace.load_release_or_none(cfg, "xenium")`, which returns None on a blank key, and
+   :427-429 `attach_release_identity`; phenospace.py:532-533 wrote `lineage_native` and
+   `lineage_common` onto `core/phenocycler/data/integration/cells_xen`. The tree on disk still
+   carries those columns from its last ingest; nothing reads them, and the next ingest writes
+   none.
+3. **Which nodes read it, and what they read now.** `availability` read `lineage_native` off
+   cells_xen through `xenium_ingest_availability`, called only when a tissue's release did not
+   resolve. That function is gone: a tissue with no resolvable release is `unavailable` with
+   the resolver's own reason and the roots it searched, on every donor. `distance_profiles`
+   read `lineage_common` off cells_xen through `_pln_arm`, the pLN fallback when no typed pLN
+   release resolved. That function is gone: an unresolved pLN release records
+   `xenium_pln_release_absent` in the artifact's provenance and emits no pLN Xenium row. Both
+   nodes now declare the two declared release roots as inputs in build_layers.py, so a new
+   release makes them stale; both still declare cells_xen, for the IF pairing and for a
+   pancreas cell's coordinates, which only the ingest carries.
+4. **Which card rendered it.** apps/islet/R/card_x1_gradient.R:143 requires `immune_subtype`
+   and `resolved_by` from `distance_profiles/data.parquet` and :271 pastes them into the pair
+   label. `resolved_by` now takes only the release arms' values (`all`, `identity_core`,
+   `stage1_unresolved`, `common_lineage`); `lineage_common` is not spelled by any builder.
+5. **The one reader outside the graph.** scripts/senior/same_section_linkage.py's
+   `agreement()` read `lineage_native` and `celltype_fine` off cells_xen for the per-cell
+   protein-vs-RNA figure (docs/SAME_SECTION_LINKAGE_2026-09-17.md section 4). It now reads the
+   declared pancreas release joined on `cell_id`; the `endocrine_fine` strata are no longer
+   produced because the declared release carries no fine endocrine type. Its recorded numbers
+   are from the old source until the script is re-run, and the document says so.
+6. **What did not leak.** `cells_pheno` (the :152 twin) is a declared input of no
    build_layers node; it reaches only the report lane (identity_io.py:19; pheno_identity.py:62,
-   :111, :176). `restain` declares `cells_xen` (build_layers.py:562) but
-   build_restain_layer.py names no lineage column. `app_drilldown_cells` declares
-   `cosine_scale.parquet` (build_layers.py:448) as a scale, not a class.
+   :111, :176). `restain` declares `cells_xen` but build_restain_layer.py names no lineage
+   column. `app_drilldown_cells` declares `cosine_scale.parquet` as a scale, not a class.
 
-**The fix is Step 5's, scheduled, not done here:** blank both bindings at config.ini:152-153
--- the file's own comment at :151 names blank as the fail-closed state -- and re-point the
-`availability` and `distance_profiles` nodes at the declared release roots. The guard
-`test_class_columns_reach_the_graph_only_from_declared_producer_roots` in
-`core/phenocycler/tests/current/test_declared_producers.py` is marked `xfail(strict=True)` on
-exactly this measurement and turns red the moment it is fixed, at which point the mark is
-removed. The signature it reads is: a node declares `cells_xen` as an input **and** its
-builder names `lineage_native` or `lineage_common` in code (docstrings excluded). After Step 5,
-`distance_profiles` may keep `cells_xen` for coordinates (build_distance_profiles.py:82-87,
-link 2) but its builder must stop naming `lineage_common`; the releases spell the column
-`common_lineage` (panc_xenium_release.py:552; pln_immune_typing_v3.py:1129).
+The guard `test_class_columns_reach_the_graph_only_from_declared_producer_roots` is an
+ordinary assertion now (its strict xfail came off with the fix). Its signature is unchanged: a
+node declares a root **and** its builder names one of that root's class columns in code
+(docstrings excluded). The ledger's four `xenium_typing` entries held on this prerequisite now
+pass the binding half of their check (`scripts/retire/dispositions.py`, `XTYPING_PREREQ`); the
+files have not been moved.
 
 ## Not decided here
 
+**Status 2026-09-23.** Steps 0 and 5 of the resumption plan are landed: one writer per app
+artifact, both identity-release bindings blank, both ingest fallbacks removed, the release
+roots declared as inputs of `availability` and `distance_profiles`, the strict xfail off, the
+same-section agreement re-pointed. Nothing under `data/development` or `/data/islet_layers`
+was written; every served artifact is still the pre-fix build until the DATA step runs on a
+go. Open for the maintainer, in the order they were recorded:
+
 - Wiring `refine.py` (`refined_class`, the ninth class). Open question, root CLAUDE.md:149-155.
 - `compare_clustering.py`, and with it `call.py`. `CODE_TIER4`, dispositions.py:594-597.
-- The stale declared inputs at build_layers.py:520-532 (availability) and :625, :637-641
-  (compartments' `release_pln_immune_v2`), which the staleness check watches instead of the
-  resolved releases. Recorded there; a change to the graph is a change to `--check`.
+- The stale declared input on `compartments`: build_layers.py:615 names
+  `release_pln_immune_v2`, which the staleness check watches instead of the resolved v3
+  release. Recorded there; a change to the graph is a change to `--check`.
+- The four `xenium_typing` tier-2 entries whose prerequisite is now met (`release.py`,
+  `nullgate_typer.py`, `scanvi_replicates.py`, `baseline_analyzer.py`): execute the tier or
+  hold. The manifest names one doc instruction (docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md:155)
+  and a lane test (`xenium_typing/tests/test_xenium_typing.py:129`) that go with them.
+- The 23 `CODE_CANDIDATE` paths: recorded, not moved.

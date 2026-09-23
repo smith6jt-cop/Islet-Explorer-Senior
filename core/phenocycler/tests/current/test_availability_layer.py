@@ -112,16 +112,41 @@ def source_tree(tmp_path):
     })
     # Physical donor columns win over a deliberately misleading directory. The
     # large_string type also reproduces the hive donor_id collision in real data.
+    # The ingest carries NO class column: config.ini:152-153 are blank (2026-09-23), so the
+    # only thing read off it is the IF pairing.
     write_parquet(inventory / "cells_xen/donor_id=9999/roi=panc/data.parquet", {
         "donor_id": pa.array(["0112"] * 4 + ["115", "6436", "6442", excluded],
                              type=pa.large_string()),
         "roi": ["panc"] * 8,
-        "lineage_native": ["", "Unavailable", "Immune_T", None, "", "Unavailable",
-                           "Endocrine", "Immune_T"],
-        "lineage_common": [""] * 8,
         "feat__if_INS": [None] * 5 + [1.0, 2.0, None],
         "feat__if_GCG": [None] * 5 + [3.0, 4.0, None],
     })
+    # The typed pancreas release is the ONLY source of xenium_panc. Written under the
+    # fixture repo's own release root, which is the only root the resolver searches for a
+    # repo that is not this checkout (xenium_release.default_roots). One donor per state the
+    # release reader can produce: 112 measured with one call beside an uncalled, an
+    # unavailable and a blank label; 115 looked at and left blank; 6436 label-unavailable on
+    # every row; 6442 measured. No pLN release exists here, so xenium_pln is unavailable with
+    # the resolver's reason on every donor.
+    release = repo / "data/development/xenium_typing/release_panc_fixture"
+    write_json(release / "release.json", {
+        "schema_version": 1, "modality": "xenium", "tissue": "pancreas", "roi": ["panc"],
+        "calls_dir": "calls", "cell_key": "cell_id", "release_id": "fixture-panc",
+        "generated_at_utc": "2026-09-17T20:36:54+00:00",
+        "columns": {"label": "lineage", "common_lineage": "common_lineage"},
+    })
+    for donor, labels in (
+        ("0112", ["Endocrine", "Uncalled_no_enrichment", "Unavailable_no_nucleus", ""]),
+        ("115", ["", ""]),
+        ("6436", ["Unavailable_no_nucleus", "Unavailable_no_nucleus"]),
+        ("6442", ["Immune_T"]),
+        (excluded, ["Immune_T"]),
+    ):
+        write_parquet(release / f"calls/donor_id={donor}/roi=panc/data.parquet", {
+            "cell_id": [f"{donor}-{i}" for i in range(len(labels))],
+            "lineage": labels, "common_lineage": labels,
+            "nucleus_count": [1] * len(labels), "nucleus_measured": [True] * len(labels),
+        })
     write_parquet(typing / "geometry/outlines.parquet", {
         "donor_id": ["0112", "112", "115", excluded],
         "islet_key": ["Islet_1", "Islet_2", "Islet_1", "Islet_1"],
@@ -191,9 +216,18 @@ def test_five_states_and_null_counts_survive_parquet(source_tree, tmp_path):
     rows = {(r["donor_id"], r["capability"]): r for r in table.to_pylist()}
     assert rows["112", "phenocycler_panc"]["n"] == 2
     assert rows["112", "xenium_panc"]["n"] == 1
-    assert "blank=2; qc_unavailable=1" in rows["112", "xenium_panc"]["reason"]
+    assert rows["112", "xenium_panc"]["reason"].startswith(
+        "fixture-panc: called=1; uncalled=1; label_unavailable=1; blank=1")
     assert rows["115", "xenium_panc"]["state"] == "blank"
     assert rows["6436", "xenium_panc"]["state"] == "unavailable"
+    assert rows["6442", "xenium_panc"]["n"] == 1
+    # No pLN release in the fixture, and the ingest is not asked in its place: the row names
+    # the resolver's absence and the roots it searched, never a count from an untyped tree.
+    for donor in ("112", "115", "6436", "6442"):
+        row = rows[donor, "xenium_pln"]
+        assert row["state"] == "unavailable" and row["n"] is None
+        assert row["reason"].startswith("no_current_xenium_pln_release (")
+        assert "roots searched" in row["reason"] and "ingest" not in row["reason"]
     assert rows["6436", "restain_if"]["state"] == "withheld"
     assert "INS_auroc=0.52" in rows["6436", "restain_if"]["reason"]
     assert rows["6442", "restain_if"]["n"] == 1

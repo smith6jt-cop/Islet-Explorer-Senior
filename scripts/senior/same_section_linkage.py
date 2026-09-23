@@ -265,29 +265,60 @@ def nucleus_match_class(d: str) -> pd.Series:
 
 
 def agreement(donors: list[str]) -> pd.DataFrame:
-    """Per-cell protein-vs-RNA agreement, restricted to cells that carry a nucleus."""
+    """Per-cell protein-vs-RNA agreement, restricted to cells that carry a nucleus.
+
+    The RNA call is the declared pancreas Xenium release (docs/PRODUCERS.md, producer 2),
+    resolved by ``scripts/senior/xenium_release.resolve`` and joined to the ingest on
+    ``cell_id``; the IF values come from the ingest, which is the only tree that carries
+    them. Until 2026-09-23 the call was read off the ingest's own ``lineage_native``, the
+    superseded scANVI release that config.ini:153 attached to it. A cell is *called* by the
+    release module's own reading of its label (``classify_label``): ``Uncalled_*`` and
+    ``Unavailable*`` are not calls and leave the comparison.
+
+    The ``endocrine_fine`` strata are no longer produced. They split the endocrine call by
+    a fine type the old arm inferred from surrogates; the declared release carries no fine
+    endocrine type, because the 5K panel has no INS, GCG or SST. With no release column to
+    read, the stratum is absent rather than re-derived.
+    """
+    sys.path.insert(0, str(ROOT))
+    from scripts.senior import xenium_release  # noqa: E402
+    release = xenium_release.resolve("pancreas")
     rows = []
+    if not release.available:
+        # Named, not silent: the frame carries the resolver's reason for every donor asked.
+        return pd.DataFrame([dict(donor_id=d, stratum="unavailable",
+                                  reason=f"no_current_xenium_pancreas_release ({release.reason})")
+                             for d in donors])
+    label = release.require_column("label")
     for d in donors:
         f = sorted((CELLS_XEN / f"donor_id={d}/roi=panc").glob("*.parquet"))
         if not f:
             continue
-        cols = ["cell_id", "lineage_native", "celltype_fine", "evidence_positive",
-                "feat__if_INS", "feat__if_GCG"]
+        cols = ["cell_id", "feat__if_INS", "feat__if_GCG"]
         df = pd.read_parquet(f[0], columns=cols)
+        df["cell_id"] = df["cell_id"].astype(str)
+        calls = release.read_calls(columns=["cell_id", label], donors=[d]).to_pandas()
+        if calls.empty:
+            rows.append(dict(donor_id=d, stratum="unavailable",
+                             reason=f"{release.release_id}: no partition for this donor"))
+            continue
+        calls["cell_id"] = calls["cell_id"].astype(str)
+        calls = calls.drop_duplicates("cell_id").set_index("cell_id")[label]
+        df["call"] = calls.reindex(df["cell_id"]).to_numpy()
         dd = VALIS / f"donor_id={d}"
         nuc_ids = set(np.load(dd / "xenium_nuclei_cell_ids.npy", allow_pickle=True).tolist())
-        has_nuc = df["cell_id"].astype(str).isin(nuc_ids)
+        has_nuc = df["cell_id"].isin(nuc_ids)
         n_all = len(df)
         df = df[has_nuc]                                   # no nucleus, no calculation
         imaged = df["feat__if_INS"].notna() & df["feat__if_GCG"].notna()
         sub = df[imaged]
-        called = sub["lineage_native"].notna() & (sub["lineage_native"] != "Unavailable")
+        called = sub["call"].map(xenium_release.classify_label) == xenium_release.CALL
         sub = sub[called]
-        endo = (sub["lineage_native"] == "Endocrine").to_numpy()
-        fine = sub["celltype_fine"].astype(str)
-        mcls = nucleus_match_class(d).reindex(sub["cell_id"].astype(str)).fillna("unmatched")
+        endo = (sub["call"] == "Endocrine").to_numpy()
+        mcls = nucleus_match_class(d).reindex(sub["cell_id"]).fillna("unmatched")
         mcls = mcls.to_numpy()
-        base = dict(donor_id=d, n_cells=n_all, n_with_nucleus=int(has_nuc.sum()),
+        base = dict(donor_id=d, release_id=release.release_id, call_column=label,
+                    n_cells=n_all, n_with_nucleus=int(has_nuc.sum()),
                     n_nucleus_free_excluded=int(n_all - has_nuc.sum()),
                     n_imaged=int(imaged.sum()),
                     n_outside_imaged_area=int((~imaged).sum()),
@@ -297,17 +328,6 @@ def agreement(donors: list[str]) -> pd.DataFrame:
             base[f"auroc_{name}_endocrine"] = auroc(score, endo)
             base[f"median_{name}_endocrine"] = float(np.median(score[endo])) if endo.any() else np.nan
             base[f"median_{name}_other"] = float(np.median(score[~endo])) if (~endo).any() else np.nan
-        # Within the endocrine call, do the two hormones separate the fine types the RNA
-        # panel had to infer from surrogates? INS/GCG/SST are not in the 5K panel.
-        for ft in sorted(fine[endo].unique()):
-            m = endo & (fine == ft).to_numpy()
-            if m.sum() < 200:
-                continue
-            rows.append(dict(**base, stratum=f"endocrine_fine:{ft}", n_stratum=int(m.sum()),
-                             auroc_if_INS_vs_other_endocrine=auroc(
-                                 sub["feat__if_INS"].to_numpy()[endo], m[endo]),
-                             auroc_if_GCG_vs_other_endocrine=auroc(
-                                 sub["feat__if_GCG"].to_numpy()[endo], m[endo])))
         rows.append(dict(**base, stratum="all", n_stratum=int(len(sub))))
         # The same agreement, split by the segmentation ambiguity. A gap between these rows
         # is the cost a many-to-one transfer would impose; no gap means the disagreement is

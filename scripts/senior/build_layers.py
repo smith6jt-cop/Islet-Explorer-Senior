@@ -504,18 +504,19 @@ def _declaration() -> list[dict]:
                 "{integration}/xenium_paths.csv",
                 "{integration}/pln_node_annotations.csv",
                 "{integration}/cells_xen",
+                "/data/xenium_typing/panc_2026-09-17/release",
+                "{repo}/data/development/xenium_typing/release_pln_immune_v3",
                 "{typing}/cells",
                 "{typing}/geometry/endocrine_union_*.parquet",
                 "{typing}/trajectory/singlecell_islet_summary.parquet",
                 "{repo}/data/development/restain",
             ),
             outputs=("{layers}/availability/data.parquet",),
-            why="The table every other card consults. Since 2026-09-18 it answers the two Xenium "
-                "capabilities from the typed releases, resolved by scripts/senior/xenium_release.py; "
-                "cells_xen, the UNTYPED ingest, is read only for the IF pairing and as the fallback "
-                "when no release resolves. The declared inputs below still name only cells_xen and "
-                "do not name the release roots, so this node's staleness check does not see a new "
-                "release. Reported, not edited here.",
+            why="The table every other card consults. It answers the two Xenium capabilities from "
+                "the typed releases only, resolved by scripts/senior/xenium_release.py and declared "
+                "here as inputs so a new release makes this node stale; cells_xen, the UNTYPED "
+                "ingest, carries no class column (config.ini:153 blank since 2026-09-23) and is "
+                "read only for the IF pairing.",
         ),
         dict(
             name="distance_profiles",
@@ -531,11 +532,14 @@ def _declaration() -> list[dict]:
                 "{integration}/manifest.csv",
                 "{integration}/vocab_crosswalk.csv",
                 "{typing}/pln/pheno",
+                "/data/xenium_typing/panc_2026-09-17/release",
                 "{repo}/data/development/xenium_typing",
             ),
             outputs=("{layers}/distance_profiles/data.parquet",),
             why="Carries the study question: the immune fraction against signed distance to the "
-                "islet edge. Refuses subpanel_calls.parquet by path.",
+                "islet edge. Refuses subpanel_calls.parquet by path. Every Xenium call comes from "
+                "the two declared releases; cells_xen is declared for a pancreas cell's "
+                "coordinates only.",
         ),
         dict(
             name="restain",
