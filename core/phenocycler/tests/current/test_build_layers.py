@@ -8,6 +8,7 @@ and assert structure -- which nodes exist, which paths they name -- never what i
 """
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import os
 import subprocess
@@ -160,6 +161,31 @@ def test_nonendocrine_outline_is_not_a_node(tmp_path):
         "the unions are an input no node produces, so the check table must name what does")
 
 
+def test_islet_geometry_declares_the_parquet_its_builder_writes_last(tmp_path):
+    """The declaration is only true while the builder writes the geojsons inside its donor loop
+    and the parquet after it; if that order changes, so must the declaration."""
+    node = bl.build_graph(REPO, tmp_path / "layers")["islet_geometry"]
+    assert node.written_last == str(REPO / "data/development/typing/app/islet_geometry.parquet")
+    source = (REPO / "core/phenocycler/scripts/typing/build_islet_geometry.py").read_text()
+    assert (source.index('nonendocrine_{donor}.geojson").write_text(')
+            < source.index("out.to_parquet(target")), (
+        "build_islet_geometry.py no longer writes the parquet after the per-donor geojsons")
+
+
+def test_typing_immune_is_a_reported_source_and_not_a_node(tmp_path):
+    """It is subtyped from typing/cells' Immune class, so it goes stale when typing/cells is
+    rewritten -- and grid_composition reads the two side by side."""
+    nodes = bl.build_graph(REPO, tmp_path / "layers")
+    source = "data/development/typing/immune"
+    built_from = bl.SOURCE_CHECKS[source]
+    assert "data/development/typing/cells" in built_from
+    assert "core/phenocycler/scripts/typing/immune_subtype.py" in built_from
+    assert (REPO / "core/phenocycler/scripts/typing/immune_subtype.py").is_file()
+    assert source in bl.SOURCE_PRODUCERS
+    assert not any(o.startswith(str(REPO / source)) for n in nodes.values() for o in n.outputs)
+    assert bl.readers_of(str(REPO / source), nodes) == ["grid_composition"]
+
+
 # ---------------------------------------------------------------------------------------------
 # The staleness gate
 # ---------------------------------------------------------------------------------------------
@@ -255,6 +281,105 @@ def test_a_pycache_directory_is_not_counted(tmp_path):
     _touch(tmp_path / "tree/__pycache__/x.pyc", 9000)
     _touch(tmp_path / "out.parquet", 3000)
     assert bl.check_node(_node(tmp_path, ["tree"], ["out.parquet"])).state == bl.FRESH
+
+
+def _per_donor_node(tmp_path, written_last=True):
+    return bl.Node(name="n", command=("python", "x.py"),
+                   inputs=(str(tmp_path / "in.csv"),),
+                   outputs=(str(tmp_path / "last.parquet"), str(tmp_path / "geo/*.geojson")),
+                   written_last=str(tmp_path / "last.parquet") if written_last else "")
+
+
+def test_a_run_that_did_not_finish_is_stale_though_every_output_postdates_every_input(tmp_path):
+    """The case the oldest-output rule cannot see: a run forced with --only on a fresh node and
+    killed partway.  d2 was rewritten, the last write was never reached, and every output is
+    still newer than every input -- the islet_geometry state of 2026-09-21, 17 geojsons against
+    a parquet from the run before."""
+    _touch(tmp_path / "in.csv", 1000)
+    _touch(tmp_path / "geo/d1.geojson", 2000)
+    _touch(tmp_path / "last.parquet", 3000)
+    _touch(tmp_path / "geo/d2.geojson", 4000)
+    status = bl.check_node(_per_donor_node(tmp_path))
+    assert status.state == bl.STALE and status.is_red
+    assert status.unfinished == (str(tmp_path / "geo/d2.geojson"),)
+    assert status.stale_inputs == ()
+    # Undeclared, the same files read as fresh -- which is what the declaration is for.
+    undeclared = dataclasses.replace(_per_donor_node(tmp_path), written_last="")
+    assert bl.check_node(undeclared).state == bl.FRESH
+
+
+def test_a_complete_run_writes_its_last_output_last_and_is_fresh(tmp_path):
+    _touch(tmp_path / "in.csv", 1000)
+    _touch(tmp_path / "geo/d1.geojson", 2000)
+    _touch(tmp_path / "geo/d2.geojson", 2500)
+    _touch(tmp_path / "last.parquet", 3000)
+    status = bl.check_node(_per_donor_node(tmp_path))
+    assert status.state == bl.FRESH
+    assert status.unfinished == ()
+
+
+def test_written_last_must_be_one_declared_output_file():
+    with pytest.raises(ValueError, match="written_last"):
+        bl.Node(name="n", command=(), inputs=(), outputs=("/a.parquet",),
+                written_last="/b.parquet")
+    with pytest.raises(ValueError, match="written_last"):
+        bl.Node(name="n", command=(), inputs=(), outputs=("/geo/*.geojson",),
+                written_last="/geo/*.geojson")
+
+
+def test_every_input_newer_than_the_oldest_output_is_listed_newest_first(tmp_path):
+    """The table shows the newest input only; a node stale for its code AND its data must say
+    both, and must not list an input that is not a reason."""
+    _touch(tmp_path / "old.csv", 1000)
+    _touch(tmp_path / "data.csv", 3000)
+    _touch(tmp_path / "builder.py", 5000)
+    _touch(tmp_path / "out.parquet", 2000)
+    status = bl.check_node(_node(tmp_path, ["old.csv", "data.csv", "builder.py"], ["out.parquet"]))
+    assert status.state == bl.STALE
+    assert [path for path, _ in status.stale_inputs] == [
+        str(tmp_path / "builder.py"), str(tmp_path / "data.csv")]
+    assert status.newest_input == str(tmp_path / "builder.py")
+
+
+def test_check_prints_every_reason_a_node_is_stale(tmp_path, capsys):
+    _touch(tmp_path / "old.csv", 1000)
+    _touch(tmp_path / "data.csv", 3000)
+    _touch(tmp_path / "builder.py", 5000)
+    _touch(tmp_path / "out.parquet", 2000)
+    stale = _node(tmp_path, ["old.csv", "data.csv", "builder.py"], ["out.parquet"])
+    _touch(tmp_path / "in.csv", 1000)
+    _touch(tmp_path / "geo/d1.geojson", 2000)
+    _touch(tmp_path / "last.parquet", 3000)
+    _touch(tmp_path / "geo/d2.geojson", 4000)
+    torn = dataclasses.replace(_per_donor_node(tmp_path), name="torn")
+    bl.print_check([bl.check_node(stale), bl.check_node(torn)], tmp_path,
+                   nodes={"n": stale, "torn": torn})
+    why = capsys.readouterr().out.split("Why, node by node")[1]
+    assert "builder.py" in why and "data.csv" in why and "old.csv" not in why
+    assert "a run that did not finish: 1 outputs are newer than last.parquet" in why
+    assert "d2.geojson" in why
+
+
+def test_a_source_older_than_what_it_is_built_from_is_reported_stale(tmp_path):
+    _touch(tmp_path / "make_source.py", 500)
+    _touch(tmp_path / "data/source/donor_id=1/data.parquet", 1000)
+    _touch(tmp_path / "data/cells/donor_id=1/data.parquet", 2000)
+    [status] = bl.check_sources(tmp_path, {"data/source": ("make_source.py", "data/cells")})
+    assert status.name == "data/source"
+    assert status.state == bl.STALE
+    assert status.stale_inputs == ((str(tmp_path / "data/cells/donor_id=1/data.parquet"), 2000),)
+
+
+def test_a_stale_source_is_printed_but_never_changes_the_exit_code(monkeypatch, capsys, tmp_path):
+    """Rerunning a source is the typing lane's step, taken on its own go; the gate covers what
+    this driver can rebuild."""
+    monkeypatch.setattr(bl, "check", lambda nodes, only=None: [bl.NodeStatus("n", bl.FRESH)])
+    monkeypatch.setattr(bl, "check_sources", lambda repo=None, checks=None: [
+        bl.NodeStatus("data/development/typing/immune", bl.STALE)])
+    assert bl.main(["--check", "--layers-dir", str(tmp_path / "layers")]) == 0
+    out = capsys.readouterr().out
+    assert "data/development/typing/immune  stale" in out
+    assert "read by grid_composition" in out
 
 
 def test_check_reports_every_node_in_topological_order(tmp_path):

@@ -16,8 +16,9 @@ Three modes, and only the third writes anything::
     .venv/bin/python scripts/senior/build_layers.py --run [--only NODE ...]
 
 ``--check`` compares each node's OLDEST output against its NEWEST input and exits non-zero if any
-node is stale, has a missing output or has a missing input.  That is the gate.  It reads mtimes and
-nothing else; it opens no parquet and writes no file.
+node is stale, has a missing output or has a missing input.  A node whose outputs were left by a
+run that did not finish is stale too (AN INTERRUPTED RUN, below).  That is the gate.  It reads
+mtimes and nothing else; it opens no parquet and writes no file.
 
 ``--plan`` prints the topologically ordered commands and runs nothing.
 
@@ -38,12 +39,42 @@ WHAT COUNTS AS AN INPUT
 The builder's own source file is declared as an input alongside its data.  A builder edited after
 its artifact was written means the artifact no longer describes that builder, which is the same
 kind of staleness as a newer data file and is reported the same way.  The table names which input
-won, so code staleness and data staleness are told apart at a glance.
+won, so code staleness and data staleness are told apart at a glance, and the lines under it list
+EVERY input newer than the node's oldest output: a node stale for its code and for its data says
+both, where the table alone would show whichever is newer.
 
 A directory input is scanned recursively and the newest file in it wins; a ``*`` in a declared path
 is a glob.  ``typing/geometry`` holds two unrelated families written by two different builders
 (``endocrine_union_*.parquet`` and ``nonendocrine_*.geojson``), so those are declared as globs and
 not as the directory -- declaring the directory would make each builder its own input.
+
+AN INTERRUPTED RUN
+------------------
+``--run`` runs one node at a time, so a kill interrupts at most one builder: every node before it
+finished, and none after it started.  What that builder leaves depends on how it writes.
+
+* ``sections``, ``availability`` and ``distance_profiles`` write a ``.parquet.tmp`` and rename it
+  (build_sections_layer.py:266-276, build_distance_profiles.py:1544-1548), so a kill leaves their
+  previous artifact whole.  Every other builder writes in place, and a kill during a write can
+  leave a truncated file at the path the app reads.  So a DATA run copies the files it will
+  replace before it starts (Step 7 of the 2026-09-21 plan), and a rerun that cannot finish is
+  undone by copying them back.
+* A builder that writes per donor -- ``islet_geometry``'s geojsons, the four ``app_*`` nodes, the
+  donor partitions of ``pln``, ``restain`` and ``pln_node_membership`` -- is left with some donors
+  rewritten and the rest not.  ``--check`` reports that as stale: the donors not yet rewritten
+  predate the input that made the node stale.  The one case that rule cannot see is a run forced
+  with ``--only`` on a node that was fresh, where every output, old or new, postdates every input.
+  A node that declares ``written_last`` -- the one file its builder writes after all the others --
+  is stale while any output is newer than it; ``islet_geometry`` declares its parquet, which
+  build_islet_geometry.py writes after the donor loop that writes the geojsons (:257, :270).
+* The remedy is the same every time: rerun the node through ``--run``.  It is red, so it is not
+  skipped, and every builder rewrites its whole cohort; nothing resumes where it stopped.  Do not
+  finish a killed run by hand with ``--donors``.  Twelve builders take that flag.  Eleven write a
+  cohort file from the donors given alone (``build_parquet_views.py`` refuses a write that would
+  drop islets it already holds), and ``build_app_data.py`` writes per-donor files only.  The
+  nodes whose numbers are computed across donors -- ``islet_leiden``'s pooled ordering,
+  ``grid_composition``, ``compartments``' batch eta-squared, ``trajectory`` -- are wrong on a
+  subset even where nothing is dropped.
 
 ONE WRITER OF islets.parquet, SINCE 2026-09-22
 -----------------------------------------------
@@ -96,6 +127,13 @@ They have no single declared command -- the rebuild takes a donor list, the inge
 TSV -- so this driver names them as the newest input when they are the reason something is stale,
 and does not offer to run them.  ``SOURCE_PRODUCERS`` records what does produce each, so the check
 table can say so out loud.
+
+A source can itself be stale against what it is built from, and a node reading it would never
+show it.  ``typing/immune`` is the case measured on 2026-09-21: ``immune_subtype.py`` subtyped
+2,934,898 Immune cells on 2026-09-17, ``typing/cells`` was rewritten on 2026-09-19 with 2,875,751,
+and ``grid_composition`` reads both.  ``SOURCE_CHECKS`` declares such a source with its own inputs,
+and ``--check`` reports its state under the table with the nodes that read it.  It is reported,
+never run, and never part of the exit code: rerunning it is the typing lane's step, on its own go.
 
 The refinement pass is part of that lane, not a node.  Since 2026-09-23 (maintainer's ruling)
 ``typing/cells`` is written by ``refine.py --out data/development/typing/refine`` followed by
@@ -204,14 +242,30 @@ SOURCE_PRODUCERS = {
         "framework was removed 2026-09-16, and reading it announces itself through "
         "core/phenocycler/scripts/typing/superseded.py",
     "results/Geojson/Islets":
-        "exported from QuPath",
+        "QuPath, as an export made by hand",
     "results/AnnotationsMeasurements.csv":
-        "exported from QuPath",
+        "QuPath, as an export made by hand",
     "/data/IO60pLN/results/node_geojson":
         "core/phenocycler/scripts/groovy/export_pln_node_annotations.groovy",
     "/data/islet_layers/pln/provenance/qupath_annotation_audit.log":
         "the captured stdout of export_pln_node_annotations.groovy; it lives under the pln "
         "artifact root but it is an input, not something build_pln_layer.py writes",
+}
+
+#: Sources whose OWN staleness --check reports, measured exactly as a node's is (oldest file of
+#: the source against the newest file of each thing it is built from), and which --run never
+#: starts. Repo-relative. A stale source does not change --check's exit code: the gate covers
+#: what this driver can rebuild, and rerunning a source is the typing lane's own step, taken on
+#: its own go. What it does is stop a node that reads the source from looking sound while it
+#: pairs two generations of the typing -- grid_composition reads typing/immune beside
+#: typing/cells (build_grid_composition.py:102, :585).
+SOURCE_CHECKS = {
+    "data/development/typing/immune": (
+        "core/phenocycler/scripts/typing/immune_subtype.py",
+        "data/development/typing/cells",
+        "data/development/celltype/uniform",
+        "data/development/broadtype/scratch/cosine_scale.parquet",
+    ),
 }
 
 
@@ -222,7 +276,9 @@ class Node:
     ``inputs`` and ``outputs`` are repo-relative or absolute paths; a ``*`` makes one a glob and a
     directory is scanned recursively.  ``after`` names nodes this one must follow for a reason the
     files do not express.  ``soft_inputs`` are files the builder opens that are deliberately NOT
-    edges, each with its reason in ``why``.
+    edges, each with its reason in ``why``.  ``written_last`` names the one output file a complete
+    run writes after every other output; any output newer than it was written by a run that
+    stopped partway (see AN INTERRUPTED RUN in the module docstring).
     """
 
     name: str
@@ -232,6 +288,14 @@ class Node:
     after: tuple[str, ...] = ()
     soft_inputs: tuple[str, ...] = ()
     why: str = ""
+    written_last: str = ""
+
+    def __post_init__(self) -> None:
+        if self.written_last and ("*" in self.written_last
+                                  or self.written_last not in self.outputs):
+            raise ValueError(
+                f"{self.name}: written_last must be one of its declared outputs and one file, "
+                f"not a glob; got {self.written_last!r}")
 
 
 @dataclass
@@ -245,6 +309,12 @@ class NodeStatus:
     oldest_output: str | None = None
     oldest_output_mtime: float | None = None
     missing: tuple[str, ...] = field(default_factory=tuple)
+    #: Every declared input newer than the oldest output, as (newest file in it, mtime), newest
+    #: first. ``newest_input`` is only the first of these; a node stale for its code AND its data
+    #: lists both here.
+    stale_inputs: tuple[tuple[str, float], ...] = field(default_factory=tuple)
+    #: Output files newer than the node's ``written_last``: left by a run that did not finish.
+    unfinished: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def is_red(self) -> bool:
@@ -307,7 +377,11 @@ def _declaration() -> list[dict]:
                 "{app}/islet_geometry.parquet",
                 "{typing}/geometry/nonendocrine_*.geojson",
             ),
-            why="The islet floor every per-islet artifact meets: 18,404 core outlines, 20 donors.",
+            written_last="{app}/islet_geometry.parquet",
+            why="The islet floor every per-islet artifact meets: 18,404 core outlines, 20 donors. "
+                "Each donor's nonendocrine_<donor>.geojson is written inside the donor loop "
+                "(build_islet_geometry.py:257) and the parquet once, after it (:270), so a "
+                "geojson newer than the parquet is a run that stopped partway.",
         ),
 
         # -- the typing/app artifacts, in the order docs/APP_COVERAGE_2026-09-17.md gives -------
@@ -694,6 +768,8 @@ def build_graph(repo: Path = REPO, layers_dir: Path | None = None) -> dict[str, 
             after=tuple(spec.get("after", ())),
             soft_inputs=_expand_paths(spec.get("soft_inputs", ()), tokens),
             why=spec.get("why", ""),
+            written_last=(_expand_paths((spec["written_last"],), tokens)[0]
+                          if spec.get("written_last") else ""),
         )
         if node.name in nodes:
             raise ValueError(f"Duplicate node name: {node.name}")
@@ -815,8 +891,8 @@ def _files_under(root: Path):
                 yield entry
 
 
-def _extremum(path: str, newest: bool) -> tuple[float, str] | None:
-    """(mtime, the file carrying it) over a file, a directory tree or a glob; None if absent."""
+def _matches(path: str) -> list[tuple[float, str]]:
+    """(mtime, file) for every file a declared path names: one file, a directory tree or a glob."""
     target = Path(path)
     if "*" in path:
         parent = Path(path).parent
@@ -830,20 +906,42 @@ def _extremum(path: str, newest: bool) -> tuple[float, str] | None:
             candidates = list(anchor.glob(str(base.relative_to(anchor))))
         else:
             candidates = list(parent.glob(pattern))
-        stats = [(c.stat().st_mtime, str(c)) for c in candidates if c.is_file()]
-    elif target.is_dir():
-        stats = [(e.stat().st_mtime, e.path) for e in _files_under(target)]
-    elif target.is_file():
-        stats = [(target.stat().st_mtime, str(target))]
-    else:
-        return None
+        return [(c.stat().st_mtime, str(c)) for c in candidates if c.is_file()]
+    if target.is_dir():
+        return [(e.stat().st_mtime, e.path) for e in _files_under(target)]
+    if target.is_file():
+        return [(target.stat().st_mtime, str(target))]
+    return []
+
+
+def _extremum(path: str, newest: bool) -> tuple[float, str] | None:
+    """(mtime, the file carrying it) over a file, a directory tree or a glob; None if absent."""
+    stats = _matches(path)
     if not stats:
         return None
     return max(stats) if newest else min(stats)
 
 
+def _unfinished(node: Node) -> tuple[str, ...]:
+    """Output files newer than the one a complete run of this node writes last.
+
+    The oldest-output rule cannot see this.  A run forced with ``--only`` on a node that was
+    fresh, and killed partway, leaves every output newer than every input -- some from the killed
+    run, the rest from the run before it -- and reads as fresh.  The builder's last write is the
+    one file that says whether a run finished, so anything newer than it did not.
+    """
+    if not node.written_last:
+        return ()
+    last = _extremum(node.written_last, newest=True)
+    if last is None:
+        return ()
+    later = {path for output in node.outputs if output != node.written_last
+             for mtime, path in _matches(output) if mtime > last[0] and path != last[1]}
+    return tuple(sorted(later))
+
+
 def check_node(node: Node) -> NodeStatus:
-    """Compare the node's oldest output against its newest input. Reads mtimes only."""
+    """Compare the node's oldest output against every input it reads. Reads mtimes only."""
     missing_inputs = tuple(p for p in node.inputs if _extremum(p, newest=True) is None)
     if missing_inputs:
         return NodeStatus(node.name, MISSING_INPUT, missing=missing_inputs)
@@ -853,11 +951,16 @@ def check_node(node: Node) -> NodeStatus:
         return NodeStatus(node.name, MISSING_OUTPUT, missing=missing_outputs,
                           newest_input=newest[1] if newest else None,
                           newest_input_mtime=newest[0] if newest else None)
-    newest = max(_extremum(p, newest=True) for p in node.inputs)
+    newest_per_input = [_extremum(p, newest=True) for p in node.inputs]
+    newest = max(newest_per_input)
     oldest = min(_extremum(p, newest=False) for p in node.outputs)
-    state = STALE if newest[0] > oldest[0] else FRESH
+    stale_inputs = tuple((path, mtime) for mtime, path in
+                         sorted((x for x in newest_per_input if x[0] > oldest[0]), reverse=True))
+    unfinished = _unfinished(node)
+    state = STALE if stale_inputs or unfinished else FRESH
     return NodeStatus(node.name, state, newest_input=newest[1], newest_input_mtime=newest[0],
-                      oldest_output=oldest[1], oldest_output_mtime=oldest[0])
+                      oldest_output=oldest[1], oldest_output_mtime=oldest[0],
+                      stale_inputs=stale_inputs, unfinished=unfinished)
 
 
 def check(nodes: dict[str, Node], only: list[str] | None = None) -> list[NodeStatus]:
@@ -866,6 +969,21 @@ def check(nodes: dict[str, Node], only: list[str] | None = None) -> list[NodeSta
     if only:
         order = [n for n in order if n in set(only)]
     return [check_node(nodes[name]) for name in order]
+
+
+def check_sources(repo: Path = REPO, checks: dict | None = None) -> list[NodeStatus]:
+    """One NodeStatus per reported source (SOURCE_CHECKS), named by its repo-relative path."""
+    checks = SOURCE_CHECKS if checks is None else checks
+    return [check_node(Node(name=source, command=(),
+                            inputs=tuple(str(Path(repo) / p) for p in inputs),
+                            outputs=(str(Path(repo) / source),)))
+            for source, inputs in checks.items()]
+
+
+def readers_of(path: str, nodes: dict[str, Node]) -> list[str]:
+    """The nodes that declare ``path``, or a file under it, as an input."""
+    return [name for name, node in nodes.items()
+            if any(i == path or i.startswith(path.rstrip("/") + "/") for i in node.inputs)]
 
 
 # --------------------------------------------------------------------------------------------
@@ -885,38 +1003,80 @@ def _short(path: str | None, repo: Path) -> str:
         return path
 
 
-def print_check(statuses: list[NodeStatus], repo: Path) -> None:
+def _row(status: NodeStatus, width: int, repo: Path) -> str:
+    mark = "  " if status.state == FRESH else "* "
+    by = _short(status.newest_input, repo)
+    if status.state == MISSING_INPUT:
+        by = "MISSING: " + ", ".join(_short(p, repo) for p in status.missing)
+    elif status.state == MISSING_OUTPUT:
+        by = f"absent: {', '.join(_short(p, repo) for p in status.missing)}"
+    elif status.state == STALE and not status.stale_inputs:
+        by = f"a run that did not finish: {len(status.unfinished)} outputs newer than its last write"
+    return (f"{mark + status.name:<{width}}  {status.state:<14} "
+            f"{_stamp(status.oldest_output_mtime):<16} "
+            f"{_stamp(status.newest_input_mtime):<16} {by}")
+
+
+def _why(status: NodeStatus, node: Node | None, repo: Path) -> list[str]:
+    """Every reason one stale node is stale: each newer input, then an unfinished run."""
+    lines = [f"    {_stamp(mtime)}  {_short(path, repo)}" for path, mtime in status.stale_inputs]
+    if status.unfinished:
+        last = _short(node.written_last, repo) if node else "its last write"
+        named = ", ".join(Path(p).name for p in status.unfinished[:3])
+        more = f" and {len(status.unfinished) - 3} more" if len(status.unfinished) > 3 else ""
+        lines.append(f"    a run that did not finish: {len(status.unfinished)} outputs are newer "
+                     f"than {last}, which a complete run writes last ({named}{more})")
+    return lines
+
+
+def print_check(statuses: list[NodeStatus], repo: Path, sources: list[NodeStatus] = (),
+                nodes: dict[str, Node] | None = None) -> None:
     width = max(len(s.name) for s in statuses) + 2
     print(f"{'  node':<{width}}  {'state':<14} {'output':<16} {'newest input':<16} by")
     print("-" * (width + 90))
     for status in statuses:
-        mark = "  " if status.state == FRESH else "* "
-        by = _short(status.newest_input, repo)
-        if status.state == MISSING_INPUT:
-            by = "MISSING: " + ", ".join(_short(p, repo) for p in status.missing)
-        elif status.state == MISSING_OUTPUT:
-            by = f"absent: {', '.join(_short(p, repo) for p in status.missing)}"
-        print(f"{mark + status.name:<{width}}  {status.state:<14} "
-              f"{_stamp(status.oldest_output_mtime):<16} "
-              f"{_stamp(status.newest_input_mtime):<16} {by}")
+        print(_row(status, width, repo))
     red = [s for s in statuses if s.is_red]
     layers_red = [s.name for s in red if s.name in LAYER_NODES]
     print()
     print(f"{len(statuses) - len(red)} fresh, {len(red)} not fresh "
           f"({len(layers_red)} of the nine layers: {', '.join(layers_red) or 'none'})")
-    named = set()
+    stale = [s for s in red if s.state == STALE]
+    if stale:
+        # The table names the newest input only. A node stale for its code AND its data would
+        # show just one of the two, so every reason is listed here.
+        print("\nWhy, node by node: every declared input newer than the node's oldest output, "
+              "newest first.")
+        for status in stale:
+            print(f"  {status.name}")
+            for line in _why(status, (nodes or {}).get(status.name), repo):
+                print(line)
+    named = {}
     for status in red:
-        by = status.newest_input
-        if not by:
-            continue
-        for source, producer in SOURCE_PRODUCERS.items():
-            if source in by and source not in named:
-                named.add(source)
-                print(f"  {source} is written by {producer}")
+        paths = [p for p, _ in status.stale_inputs] or [status.newest_input]
+        for by in filter(None, paths):
+            for source, producer in SOURCE_PRODUCERS.items():
+                if source in by and source not in named:
+                    named[source] = producer
+    if named:
+        print("\nThe sources named above have no node here; what writes each:")
+        for source, producer in named.items():
+            print(f"  {source} is written by {producer}")
+    if sources:
+        swidth = max(len(s.name) for s in sources) + 2
+        print("\nSources this driver reports and never runs (a stale one does not change the "
+              "exit code):")
+        for status in sources:
+            print(_row(status, swidth, repo))
+            readers = readers_of(str(repo / status.name), nodes or {})
+            producer = SOURCE_PRODUCERS.get(status.name, "no producer recorded")
+            print(f"    written by {producer}; read by {', '.join(readers) or 'no node'}")
+            for line in _why(status, None, repo) if status.state == STALE else ():
+                print(line)
     if red:
-        print("\nStale means the artifact was built before an input it reads. It is not a claim "
-              "about the numbers in it;\nit is a claim that they were computed from a different "
-              "generation of the inputs than the ones on disk now.")
+        print("\nStale means the artifact was built before an input it reads, or that a run of it "
+              "did not finish. It is not a\nclaim about the numbers in it; it is a claim that they "
+              "were computed from a different generation of the\ninputs than the ones on disk now.")
 
 
 def print_plan(nodes: dict[str, Node], repo: Path, only: list[str] | None = None) -> None:
@@ -1071,7 +1231,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.check:
         statuses = check(nodes, args.only)
-        print_check(statuses, args.repo_root)
+        print_check(statuses, args.repo_root, sources=check_sources(args.repo_root), nodes=nodes)
+        # The nodes alone decide the exit code; the reported sources never do (SOURCE_CHECKS).
         return 1 if any(s.is_red for s in statuses) else 0
     return run(nodes, args.repo_root, args.only)
 
