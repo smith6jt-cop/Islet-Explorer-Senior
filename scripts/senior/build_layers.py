@@ -612,7 +612,7 @@ def _declaration() -> list[dict]:
                 "{typing}/cells",
                 "{typing}/islet_membership",
                 "{typing}/pln/pheno",
-                "{repo}/data/development/xenium_typing/release_pln_immune_v2",
+                "{repo}/data/development/xenium_typing/release_pln_immune_v3",
                 "{app}/donor_metadata.csv",
                 "{repo}/data/donor_acquisition_runs.csv",
                 "{integration}/vocab_crosswalk.csv",
@@ -626,8 +626,10 @@ def _declaration() -> list[dict]:
             ),
             why="No longer pinned: since 2026-09-18 it resolves the pLN release through "
                 "scripts/senior/xenium_release.py, which honours _v3's declaration that it "
-                "supersedes _v2. The declared input below is still the superseded _v2 path, so "
-                "the staleness check watches the wrong tree. Reported, not edited here. Not in "
+                "supersedes _v2, and pLN is the only release it resolves "
+                "(build_compartment_gradient.py:870). The declared input is the v3 root it "
+                "reads, so a new v3 write makes it stale; until 2026-09-23 it declared the "
+                "superseded _v2 and the staleness check watched the wrong tree. Not in "
                 "docs/ISLET_LAYERS_SPEC.md; it exists anyway.",
         ),
         dict(

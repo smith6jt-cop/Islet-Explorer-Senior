@@ -308,6 +308,20 @@ def test_every_declared_xenium_release_input_sits_under_a_resolver_root(nodes):
     assert not stray, f"Xenium release inputs outside the resolver's roots: {stray}"
 
 
+def test_no_node_declares_the_superseded_pln_release(nodes):
+    """release_pln_immune_v3 declares that it supersedes _v2 (pln_immune_typing_v3.py:1484),
+    and the resolver honours that, so no builder reads _v2 any more. A node still declaring
+    _v2 has the staleness check watching a tree its builder never opens -- which is what
+    `compartments` did until 2026-09-23. The maintainer's go to fix it came the same day."""
+    stale = sorted((n.name, i) for n in nodes.values() for i in n.inputs
+                   if i.rstrip("/").endswith("release_pln_immune_v2"))
+    assert not stale, f"nodes declaring the superseded pLN release: {stale}"
+    assert any(i.rstrip("/").endswith("release_pln_immune_v3")
+               for i in nodes["compartments"].inputs), (
+        "compartments resolves the pLN release (build_compartment_gradient.py:870) and must "
+        "declare the v3 root it reads")
+
+
 def test_both_identity_release_bindings_are_blank():
     """config.ini:152-153 are the two bindings that carried a second method into the ingest
     trees.  Both keys stay in the file (the ledger cites them by line) and both are BLANK,
