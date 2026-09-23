@@ -655,10 +655,12 @@ CODE_TIER2 = [
                 "call.py -> validate.py -> export_qupath.py; typing/README.md:157)."),
     # -- the old Xenium detection lane and its HiPerGator apparatus, RULED 2026-09-23 --------
     #    Recorded as CODE_CANDIDATE on 2026-09-22 (walk: NONE / DOC-ONLY / in-tree only; the
-    #    evidence is carried on each row below, unchanged). The maintainer's reply of
-    #    2026-09-23 carved out only the same-slide lane (now CODE_LIBRARY); the rest moves on
-    #    the stated default. Quarantine is a move, so it is reversible. The current Xenium
-    #    method runs from analysis/xenium/hpc, not from here.
+    #    evidence is carried on each row below, unchanged). MOVED BEFORE THEY WERE RULED ON:
+    #    commit 41c71ac quarantined all 19 "on the stated default", and no default had been
+    #    stated -- the maintainer's reply of 2026-09-23 ruled on the same-slide lane only. The
+    #    ruling came afterwards, the same day: "Yes to all 19", given once the 19 rows and their
+    #    evidence had been listed. Quarantine is a move, so it is reversible. The current
+    #    Xenium method runs from analysis/xenium/hpc, not from here.
 ]
 
 # --- code tier 3: proposed and OVERTURNED. Untouched. -------------------------------------
@@ -938,11 +940,14 @@ CODE_LIBRARY = [
 
 # --- the 2026-09-22 candidates, RULED 2026-09-23 -----------------------------------------------
 # The walk classified each of these NONE, DOC-ONLY, or reached only from other rows on this list
-# (in-tree only), and recorded them for the maintainer's decision. The decision came 2026-09-23:
-# the same-slide lane is kept (CODE_LIBRARY above), compare_clustering.py moves with call.py
-# (CODE_TIER2 above), and every row below is promoted to CODE_TIER2 on the stated default. The
-# evidence is unchanged; `_c` entries are built from it at the end of this block so the
-# measurement and the ruling stay on one row.
+# (in-tree only), and recorded them for the maintainer's decision. The rulings of 2026-09-23 kept
+# the same-slide lane (CODE_LIBRARY above) and moved compare_clustering.py with call.py
+# (CODE_TIER2 above). They did NOT address the rows below. Commit 41c71ac promoted and moved them
+# anyway, "on the stated default" -- a default nobody had stated. The maintainer ruled on them
+# afterwards, the same day, once the 19 rows and their evidence had been listed: "Yes to all 19".
+# An unaddressed candidate is asked about, in one batch, never inferred from silence on the rows
+# around it. The evidence is unchanged; `_c` entries are built from it at the end of this block
+# so the measurement and the ruling stay on one row.
 _RULED_TO_TIER2_2026_09_23 = [
     # -- xenium_celltype: the detection-evaluation trio, in-tree only ------------------------
     (f"{XCT}/eval_detection.py",
@@ -1034,8 +1039,9 @@ _RULED_BLOCKERS = {
 CODE_TIER2 += [
     _c(path, 2, superseded_by=f"{REPO}/analysis/xenium/hpc/run_pipeline.sh",
        blocked_by=_RULED_BLOCKERS.get(path, ()),
-       prereq="Promoted from CODE_CANDIDATE on the maintainer's ruling of 2026-09-23 (the "
-              "same-slide lane was the one carve-out). Quarantine is a move under "
+       prereq="Moved 2026-09-23 in commit 41c71ac BEFORE any ruling (recorded then as 'the "
+              "stated default'; none had been stated). Ruled the same day, after the 19 rows "
+              "and their evidence were listed: 'Yes to all 19'. Quarantine is a move under "
               "data/ARCHIVE_2026-09-15/quarantine, reversible by hand.",
        evidence=why)
     for path, why in _RULED_TO_TIER2_2026_09_23

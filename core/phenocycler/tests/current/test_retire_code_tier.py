@@ -126,7 +126,13 @@ def test_retire_refuses_a_declared_library_even_if_it_reaches_a_tier(tmp_path, v
 def test_the_candidates_the_walk_found_were_ruled_on_and_carry_their_evidence():
     """The 2026-09-22 walk recorded 23 candidates; the maintainer ruled on them 2026-09-23.
     The same-slide lane is a library WITH the ruling on its row; the rest are tier 2 with the
-    walk's evidence carried unchanged; nothing is a candidate any more."""
+    walk's evidence carried unchanged; nothing is a candidate any more.
+
+    Nineteen of the tier-2 rows were MOVED BEFORE THEY WERE RULED ON: commit 41c71ac
+    quarantined them "on the stated default", and no default had been stated. The ruling came
+    afterwards, once the rows and their evidence had been listed -- "Yes to all 19". Each row
+    has to say that, so the ledger cannot again present an inferred decision as the
+    maintainer's."""
     libraries = dict(D.CODE_LIBRARY)
     for kept in (f"{SCRIPTS}/sameslide",
                  f"{SCRIPTS}/restain/run_field_refine.py",
@@ -147,6 +153,16 @@ def test_the_candidates_the_walk_found_were_ruled_on_and_carry_their_evidence():
         f"{SCRIPTS}/typing/compare_clustering.py",), "call.py moves with its one importer"
     assert tier2[f"{SCRIPTS}/xenium_celltype/hpg/stage_prep.py"]["blocked_by"] == (
         f"{SCRIPTS}/xenium_celltype/hpg/stage_call.py",)
+    moved_first = [p for p, _ in D._RULED_TO_TIER2_2026_09_23]
+    assert len(moved_first) == 19, f"the after-the-fact ruling covers 19 rows: {moved_first}"
+    for path in moved_first:
+        prereq = tier2[path]["prereq"]
+        assert "Yes to all 19" in prereq, f"{path}: the ruling actually given is on its row"
+        assert "41c71ac" in prereq and "BEFORE any ruling" in prereq, (
+            f"{path}: the row says the move preceded the ruling")
+        assert "carve-out" not in prereq, (
+            f"{path}: the row must not present the move as following from a ruling that did "
+            "not address it")
     assert D.CODE_CANDIDATE == [], "every 2026-09-22 candidate was ruled on 2026-09-23"
     for path, why in D.CODE_CANDIDATE:
         assert Path(path).exists(), f"{path} is a candidate but is gone"
