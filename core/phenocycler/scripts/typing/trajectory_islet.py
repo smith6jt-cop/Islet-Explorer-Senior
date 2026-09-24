@@ -61,6 +61,13 @@ So what this script owns is:
 ``--h5ad-name`` moves that name, and ``adata_ins_root`` is refused for it: a flag is not a place to
 decide which script owns a deployed path.
 
+``--leiden-only`` writes the clustering and nothing else.  It builds the same neighbourhood graph
+the ordering is built on -- ``X_composition_alr`` of the islets above the composition floor,
+``N_NEIGHBORS``, ``METRIC`` -- and runs UMAP and Leiden on it, but picks no root, fits no
+pseudotime, runs no method check and writes no H5AD, so it cannot fail on the pooled ordering's
+own gate.  The layer driver's ``islet_leiden`` node runs it this way (2026-09-24): the gate judges
+the ordering, not the clustering, and an exit 1 from it had stopped every node after it.
+
     python core/phenocycler/scripts/typing/trajectory_islet.py
 """
 from __future__ import annotations
@@ -151,6 +158,41 @@ def alr_matrix(frame: pd.DataFrame, classes: list[str], prefix: str,
     counts = np.column_stack([frame[f"{prefix}count_{c}"].to_numpy(float) for c in classes])
     return np.log((counts + ALR_PSEUDOCOUNT)
                   / (denominator + ALR_PSEUDOCOUNT)[:, None]).astype(np.float32)
+
+
+def cluster_islets(fitted: ad.AnnData) -> None:
+    """UMAP and Leiden at every resolution, on the graph already in ``fitted``."""
+    sc.tl.umap(fitted)
+    # Islet-level Leiden on the same graph the ordering was built from -- the Spatial tab's
+    # "Islet-Level UMAPs" card reads `leiden_<res>` and `leiden_umap_1/2` and had been showing
+    # "Leiden clustering not available in current H5AD" because nothing produced them here.
+    for resolution in LEIDEN_RESOLUTIONS:
+        sc.tl.leiden(fitted, resolution=resolution, key_added=f"leiden_{resolution}",
+                     flavor="igraph", n_iterations=2, directed=False)
+        print(f"  leiden {resolution}: {fitted.obs[f'leiden_{resolution}'].nunique()} clusters")
+
+
+def leiden_table(adata: ad.AnnData, ordered: ad.AnnData, fitted: ad.AnnData) -> pd.DataFrame:
+    """The islet-level clustering mapped back onto every islet; below the floor it is empty."""
+    umap = pd.DataFrame(np.full((adata.n_obs, 2), np.nan), index=adata.obs_names)
+    umap.loc[ordered.obs_names] = fitted.obsm["X_umap"]
+    umap = umap.to_numpy().astype(np.float32)
+    leiden = pd.DataFrame(index=adata.obs_names)
+    for resolution in LEIDEN_RESOLUTIONS:
+        column = f"leiden_{resolution}"
+        leiden[column] = pd.Series(fitted.obs[column].astype(str).to_numpy(),
+                                   index=ordered.obs_names).reindex(adata.obs_names)
+    leiden["leiden_umap_1"] = umap[:, 0]
+    leiden["leiden_umap_2"] = umap[:, 1]
+    leiden.insert(0, "islet_key", adata.obs["base_islet_id"].to_numpy())
+    leiden.insert(0, "case_id", adata.obs["imageid"].astype(int).to_numpy())
+    return leiden.reset_index(drop=True)
+
+
+def write_leiden(leiden: pd.DataFrame, target: pathlib.Path) -> None:
+    leiden.to_parquet(target, index=False)
+    for column in [c for c in leiden.columns if c.startswith("leiden_") and "umap" not in c]:
+        print(f"  {column}: {leiden[column].notna().sum():,} islets clustered")
 
 
 def diffusion_pseudotime(adata: ad.AnnData, rep: str, root: int,
@@ -247,6 +289,9 @@ def main() -> int:
                         help=f"basename for this script's own H5AD (default: {H5AD_NAME}). "
                              "adata_ins_root is refused: scripts/rebuild_adata_ins_root.py is the "
                              "single producer of that path")
+    parser.add_argument("--leiden-only", action="store_true",
+                        help="write islet_leiden.parquet from the ordering's graph and stop: no "
+                             "root, no pseudotime, no method check, no H5AD")
     args = parser.parse_args()
     stem = pathlib.Path(args.h5ad_name).name
     for refused in REFUSED_H5AD_STEMS:
@@ -329,6 +374,16 @@ def main() -> int:
     print(f"\nislets above the {COMPOSITION_FLOOR_CELLS}-cell composition floor: "
           f"{int(eligible.sum()):,} of {adata.n_obs:,} ({100 * eligible.mean():.1f}%)")
     ordered = adata[eligible].copy()
+
+    if args.leiden_only:
+        # The graph diffusion_pseudotime builds, without the ordering built on it.
+        fitted = ordered.copy()
+        sc.pp.neighbors(fitted, n_neighbors=N_NEIGHBORS, use_rep="X_composition_alr",
+                        metric=METRIC)
+        cluster_islets(fitted)
+        write_leiden(leiden_table(adata, ordered, fitted), out_dir / args.leiden_name)
+        print(f"\n--leiden-only: {out_dir / args.leiden_name}; no ordering, no H5AD")
+        return 0
 
     root, root_meta = pick_root(ordered, "X_composition_alr")
     print(f"root: {ordered.obs_names[root]} "
@@ -438,14 +493,7 @@ def main() -> int:
     into.loc[ordered.obs_names] = combined
     adata.obs["dpt_pseudotime_combined"] = into.to_numpy()
 
-    sc.tl.umap(fitted)
-    # Islet-level Leiden on the same graph the ordering was built from -- the Spatial tab's
-    # "Islet-Level UMAPs" card reads `leiden_<res>` and `leiden_umap_1/2` and had been showing
-    # "Leiden clustering not available in current H5AD" because nothing produced them here.
-    for resolution in LEIDEN_RESOLUTIONS:
-        sc.tl.leiden(fitted, resolution=resolution, key_added=f"leiden_{resolution}",
-                     flavor="igraph", n_iterations=2, directed=False)
-        print(f"  leiden {resolution}: {fitted.obs[f'leiden_{resolution}'].nunique()} clusters")
+    cluster_islets(fitted)
     # --- How much of the EMBEDDING is batch? Reported, never gated. --------------------------
     # The pseudotime already carries a donor eta-squared; the UMAP is a different object and the
     # app draws it, so it gets its own number. Acquisition batch is aliased with disease status
@@ -508,18 +556,7 @@ def main() -> int:
     # The islet-level clustering, mapped back onto the full islet set and written beside the
     # H5AD for build_parquet_views.py to merge into islets.parquet, which is where the app reads
     # it from. Islets below the composition floor are Unavailable here too.
-    leiden = pd.DataFrame(index=adata.obs_names)
-    for resolution in LEIDEN_RESOLUTIONS:
-        column = f"leiden_{resolution}"
-        leiden[column] = pd.Series(fitted.obs[column].astype(str).to_numpy(),
-                                   index=ordered.obs_names).reindex(adata.obs_names)
-    leiden["leiden_umap_1"] = adata.obsm["X_umap"][:, 0]
-    leiden["leiden_umap_2"] = adata.obsm["X_umap"][:, 1]
-    leiden.insert(0, "islet_key", adata.obs["base_islet_id"].to_numpy())
-    leiden.insert(0, "case_id", adata.obs["imageid"].astype(int).to_numpy())
-    leiden.reset_index(drop=True).to_parquet(out_dir / args.leiden_name, index=False)
-    for column in [c for c in leiden.columns if c.startswith("leiden_") and "umap" not in c]:
-        print(f"  {column}: {leiden[column].notna().sum():,} islets clustered")
+    write_leiden(leiden_table(adata, ordered, fitted), out_dir / args.leiden_name)
 
     # --- Three uns strings that were COHORT FACTS WRITTEN AS LITERALS -------------------------
     #

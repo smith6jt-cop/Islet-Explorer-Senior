@@ -483,9 +483,12 @@ def test_trajectory_islet_still_writes_the_clustering_before_the_gate():
     """islet_leiden.parquet is what build_layers.py declares as this node's output, and the
     pseudotime gate does not judge it -- so it must stay on the early side of the gate."""
     lines = TRAJECTORY.read_text().splitlines()
-    leiden = next(i for i, ln in enumerate(lines, 1) if "to_parquet(out_dir / args.leiden_name" in ln)
+    # Two writes since 2026-09-24: the --leiden-only branch's, and the full path's (the later).
+    writes = [i for i, ln in enumerate(lines, 1)
+              if "write_leiden(leiden_table(adata, ordered, fitted), out_dir / args.leiden_name)" in ln]
+    assert len(writes) == 2, writes
     gate = next(i for i, ln in enumerate(lines, 1) if "if not all(gates.values()):" in ln)
-    assert leiden < gate, f"leiden write at {leiden} must precede the gate at {gate}"
+    assert max(writes) < gate, f"leiden write at {max(writes)} must precede the gate at {gate}"
 
 
 def test_rebuild_is_the_single_producer():

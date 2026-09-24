@@ -90,3 +90,26 @@ def test_downstream_of_a_skipped_fresh_node_is_not_refused(graph, capsys, tmp_pa
     nodes, repo, _, _ = graph
     bl.run(nodes, repo)
     assert "REFUSED" not in capsys.readouterr().out
+
+
+def test_a_node_made_stale_by_an_upstream_rebuild_in_the_same_run_is_rebuilt(tmp_path, capsys):
+    """Fresh is judged when a node is reached, not when the run starts.
+
+    Until 2026-09-24 `down`, fresh before the run, was skipped after `up` had rewritten its input,
+    and the run ended with it stale: the islet_leiden / build_workbook case.
+    """
+    import os
+    src, mid, out = tmp_path / "src.txt", tmp_path / "mid.txt", tmp_path / "down.txt"
+    for path, when in ((src, 1000), (mid, 500), (out, 800)):
+        path.write_text("x")
+        os.utime(path, (when, when))            # up is stale; down is fresh before the run
+    nodes = {
+        "up": _node("up", [sys.executable, "-c", "open(r'%s','w').write('new')" % mid],
+                    [src], [mid]),
+        "down": _node("down", [sys.executable, "-c", "open(r'%s','w').write('rebuilt')" % out],
+                      [mid], [out]),
+    }
+    assert bl.check_node(nodes["down"]).state == bl.FRESH
+    assert bl.run(nodes, tmp_path) == 0
+    assert out.read_text() == "rebuilt", "down was skipped after its input was rewritten"
+    assert bl.check_node(nodes["down"]).state == bl.FRESH

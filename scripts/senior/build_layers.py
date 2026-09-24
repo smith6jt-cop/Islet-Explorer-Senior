@@ -34,6 +34,12 @@ but the cost is not the point; a driver that cannot do less work when less has c
 driver that makes every change cost a full rebuild.  ``--only`` still forces a named node, which
 is the escape hatch for one whose inputs are not fully declared.
 
+Fresh is judged WHEN A NODE IS REACHED, not when the run starts.  Until 2026-09-24 the skip read the
+state measured before the first node ran, so a node that was fresh then was skipped even after an
+upstream node in the same run had rewritten its input -- and was left stale.  ``islet_leiden`` was
+that case: ``build_workbook`` rewrites ``islet_celltype_proportions.csv``, and the Leiden table
+would have stayed the one built on the previous proportions.
+
 WHAT COUNTS AS AN INPUT
 -----------------------
 The builder's own source file is declared as an input alongside its data.  A builder edited after
@@ -431,17 +437,21 @@ def _declaration() -> list[dict]:
         ),
         dict(
             name="islet_leiden",
-            command=("{py}", "{typingscripts}/trajectory_islet.py", "--include-marginal"),
+            command=("{py}", "{typingscripts}/trajectory_islet.py", "--include-marginal",
+                     "--leiden-only"),
             inputs=(
                 "{typingscripts}/trajectory_islet.py",
                 "{app}/islet_celltype_proportions.csv",
                 "{app}/donor_metadata.csv",
             ),
             outputs=("{app}/islet_leiden.parquet",),
-            why="Leiden is written at :481, BEFORE the pseudotime gate at :598, so a rejected "
-                "pooled ordering does not withhold the clustering. adata_ins_root.h5ad is NOT "
-                "declared here: it has a second producer (scripts/rebuild_adata_ins_root.py) and "
-                "which one owns it is another lane's decision.",
+            why="--leiden-only (2026-09-24): the Leiden table from the graph the pooled ordering "
+                "is built on, without the ordering -- no root, no pseudotime, no method check, "
+                "no H5AD. The full run writes the identical table (measured cell for cell on "
+                "2026-09-24) and then exits 1 when its ordering fails pseudotime_is_not_mostly_"
+                "donor, which stopped every node after this one. The pooled ordering and its H5AD "
+                "are run by hand, not by this graph; adata_ins_root.h5ad has its own producer "
+                "(scripts/rebuild_adata_ins_root.py).",
         ),
         dict(
             name="galectin",
@@ -1135,20 +1145,22 @@ def run(nodes: dict[str, Node], repo: Path, only: list[str] | None = None) -> in
             print(f"\n== {name}: REFUSED -- {reason}")
             refused.append((name, reason))
             continue
-        missing = before[name].missing if before[name].state == MISSING_INPUT else ()
+        # Measured now, not taken from `before`: an upstream node rebuilt earlier in this run may
+        # have rewritten this node's input since the run began.
+        now = check_node(nodes[name])
+        missing = now.missing if now.state == MISSING_INPUT else ()
         if missing:
             reason = "a declared input does not exist: " + ", ".join(missing)
             print(f"\n== {name}: REFUSED -- {reason}")
             refused.append((name, reason))
             continue
 
-        # A node whose output already postdates every input it reads has nothing to do.
-        # `check()` computed exactly that a few lines above and the answer was thrown away:
-        # before this, `--run` rebuilt every scheduled node, including the ones `--check`
-        # had just reported fresh. `--only` is still honoured, so naming a fresh node
-        # explicitly forces it -- that is the escape hatch for a node whose inputs are not
-        # fully declared.
-        if not before[name].is_red and not (only and name in set(only)):
+        # A node whose output already postdates every input it reads has nothing to do. Until
+        # 2026-09-21 `--run` rebuilt every scheduled node, including the ones `--check` had just
+        # reported fresh; until 2026-09-24 it judged fresh from `before`, the state measured
+        # before any node ran. `--only` is still honoured, so naming a fresh node explicitly
+        # forces it -- the escape hatch for a node whose inputs are not fully declared.
+        if not now.is_red and not (only and name in set(only)):
             print(f"\n== {name}: SKIPPED -- fresh (output postdates every declared input)")
             skipped.append(name)
             rebuilt.add(name)      # downstream may proceed: this node is not stale
