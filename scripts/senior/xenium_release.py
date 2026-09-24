@@ -18,11 +18,12 @@ The consequence reached the app: ``availability/data.parquet`` reported
 ``xenium_panc`` blank on 18 of 20 donors and ``xenium_pln`` blank on 13 of 13
 while both releases carried calls for them.
 
-That list is history, not the current state: all five of those builders now call
-:func:`resolve` and none of them holds a release path of its own.  What some of
-them still carry is a stale DECLARED INPUT in
-``scripts/senior/build_layers.py``'s node graph, which is a staleness-check
-defect rather than a source they read.
+That list is history, not the current state: four of those builders now call
+:func:`resolve` and none of them holds a release path of its own.  The fifth,
+``build_availability.py``, reads no release at all since 2026-09-23, when it
+dropped the two Xenium capabilities, which no card read.  The stale DECLARED
+INPUTS that outlived the change in ``scripts/senior/build_layers.py``'s node
+graph were corrected the same day.
 
 WHAT THIS MODULE PROMISES.
 

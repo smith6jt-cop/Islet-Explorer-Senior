@@ -278,18 +278,35 @@ def test_class_columns_reach_the_graph_only_from_declared_producer_roots(nodes):
 
 
 def test_the_two_nodes_that_read_the_leak_still_declare_the_ingest_and_the_releases(nodes):
-    """What replaced the fallback: both nodes declare the two declared release roots as
-    inputs (so a new release makes them stale) beside cells_xen, which stays declared for
-    the columns only the ingest carries."""
+    """What replaced the fallback: distance_profiles declares the two declared release roots
+    as inputs (so a new release makes it stale); both nodes keep cells_xen, declared for the
+    columns only the ingest carries, and neither builder names its lineage columns.
+
+    availability declares NO release root since 2026-09-23 (Step 5c): it dropped xenium_panc
+    and xenium_pln, which no card read, and with them its only read of a release.  A release
+    root declared on a node that does not read it would make it stale for nothing."""
     for name in ("availability", "distance_profiles"):
         node = nodes[name]
         assert any(_under(i, CELLS_XEN) for i in node.inputs), f"{name} no longer declares cells_xen"
-        assert any(_under(i, xr.EXTERNAL_ROOT_DEFAULT) for i in node.inputs), (
-            f"{name} does not declare the external release root as an input")
-        assert any(_under(i, REPO / xr.REPO_RELATIVE_ROOT) for i in node.inputs), (
-            f"{name} does not declare the repo release root as an input")
         named = _code_strings(_builder(node)) & CLASS_COLUMNS_BY_ROOT[CELLS_XEN]
         assert not named, f"{name}'s builder names a cells_xen lineage column in code: {named}"
+    profiles = nodes["distance_profiles"]
+    assert any(_under(i, xr.EXTERNAL_ROOT_DEFAULT) for i in profiles.inputs), (
+        "distance_profiles does not declare the external release root as an input")
+    assert any(_under(i, REPO / xr.REPO_RELATIVE_ROOT) for i in profiles.inputs), (
+        "distance_profiles does not declare the repo release root as an input")
+    availability = nodes["availability"]
+    imported = set()
+    for node in ast.walk(ast.parse(_builder(availability).read_text())):
+        if isinstance(node, ast.Import):
+            imported |= {alias.name for alias in node.names}
+        elif isinstance(node, ast.ImportFrom):
+            imported |= {f"{node.module}.{alias.name}" for alias in node.names}
+    assert not {name for name in imported if name.endswith("xenium_release")}, (
+        "build_availability.py imports the release resolver again")
+    assert not any(_under(i, xr.EXTERNAL_ROOT_DEFAULT) or _under(i, REPO / xr.REPO_RELATIVE_ROOT)
+                   for i in availability.inputs), (
+        "availability declares a release root, and its builder reads no release")
 
 
 def test_cells_pheno_is_a_declared_input_of_no_node(nodes):

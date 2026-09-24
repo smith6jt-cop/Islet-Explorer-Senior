@@ -587,21 +587,19 @@ def _declaration() -> list[dict]:
                 "{senior}/build_sections_layer.py",
                 "{integration}/restain_sections.csv",
                 "{integration}/xenium_paths.csv",
-                "{integration}/pln_node_annotations.csv",
                 "{integration}/cells_xen",
-                "/data/xenium_typing/panc_2026-09-17/release",
-                "{repo}/data/development/xenium_typing/release_pln_immune_v3",
                 "{typing}/cells",
                 "{typing}/geometry/endocrine_union_*.parquet",
                 "{typing}/trajectory/singlecell_islet_summary.parquet",
                 "{repo}/data/development/restain",
             ),
             outputs=("{layers}/availability/data.parquet",),
-            why="The table every other card consults. It answers the two Xenium capabilities from "
-                "the typed releases only, resolved by scripts/senior/xenium_release.py and declared "
-                "here as inputs so a new release makes this node stale; cells_xen, the UNTYPED "
-                "ingest, carries no class column (config.ini:153 blank since 2026-09-23) and is "
-                "read only for the IF pairing.",
+            why="Four capabilities, each read by a card: phenocycler_panc and "
+                "islet_outline (card_x1_gradient.R:284), restain_if (card_x2_overlay.R:47), "
+                "trajectory (card_s2_trajectory.R:56). Until 2026-09-23 it also wrote "
+                "phenocycler_pln, xenium_panc, xenium_pln and pln_nodes, which no card read; with "
+                "them went its reads of both Xenium releases and pln_node_annotations.csv, so "
+                "none is declared here. cells_xen is read for the IF pairing only.",
         ),
         dict(
             name="distance_profiles",

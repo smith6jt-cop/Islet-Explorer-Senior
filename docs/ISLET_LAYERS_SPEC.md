@@ -123,13 +123,18 @@ Each builder writes exactly one root. Paths are relative to `$ISLET_LAYERS_DIR`.
 | column | type | meaning |
 |---|---|---|
 | `donor_id` | string | normalised, unpadded |
-| `capability` | string | `phenocycler_panc`, `phenocycler_pln`, `xenium_panc`, `xenium_pln`, `restain_if`, `islet_outline`, `trajectory`, `pln_nodes` |
+| `capability` | string | `phenocycler_panc`, `restain_if`, `islet_outline`, `trajectory` |
 | `state` | string | one of the five |
 | `reason` | string | measured, e.g. `no_islet_outline_exported`; empty only when `state == "measured"` |
 | `n` | int64 | the count the state is based on; **null, never 0, when not measured** |
 | `source` | string | the path the state was read from |
 
 This is the table every other card consults before claiming a donor has something.
+
+Each capability is read by a card: `phenocycler_panc` and `islet_outline`
+(`card_x1_gradient.R:284`), `restain_if` (`card_x2_overlay.R:47`), `trajectory`
+(`card_s2_trajectory.R:56`). Until 2026-09-23 it also carried `phenocycler_pln`, `xenium_panc`,
+`xenium_pln` and `pln_nodes`; no card read any of them, so they are no longer written.
 
 ### 1.2 `sections/` — worker F
 

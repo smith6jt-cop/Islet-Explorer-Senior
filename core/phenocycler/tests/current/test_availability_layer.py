@@ -22,7 +22,6 @@ sys.path.insert(0, str(REPO))
 
 from scripts.senior import build_availability as ledger  # noqa: E402
 from scripts.senior import build_sections_layer as sections  # noqa: E402
-from scripts.senior import xenium_release  # noqa: E402
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
@@ -34,28 +33,6 @@ SECTION_COLUMNS = ["donor_id", "roi", "modality", "image_file", "xenium_serial",
                    "section_relationship", "section_relationship_basis"]
 
 
-
-def _release_called_cells(donor: str) -> int | None:
-    """Cells the current pancreas Xenium release carries a LINEAGE for, from its own summary.
-
-    Read from `lineage_counts.csv` rather than from `calls/`, so that this expectation and the
-    builder do not both come from the same file. Returns None when no release is resolvable, so
-    the caller skips rather than asserting against an absence.
-    """
-    release = xenium_release.resolve("pancreas")
-    if not getattr(release, "is_measured", lambda: bool(getattr(release, "root", None)))():
-        return None
-    counts = Path(release.root) / "lineage_counts.csv"
-    if not counts.exists():
-        return None
-    with counts.open() as handle:
-        for row in csv.DictReader(handle):
-            if str(row.get("donor_id")) != str(donor):
-                continue
-            return sum(int(float(v)) for k, v in row.items()
-                       if k != "donor_id" and v not in (None, "")
-                       and not k.startswith(("Uncalled_", "Unavailable_")))
-    return None
 
 def write_csv(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,10 +76,6 @@ def source_tree(tmp_path):
              xenium_serial=sections.parse_bundle_path(r["source_path"])[0], pixel_size_um="0.2712")
         for r in paths if r["donor_id"] in {"115", "6436", "6442", excluded}
     ])
-    write_csv(inventory / "pln_node_annotations.csv", [
-        dict(donor_id="0112", roi="pln_1", image_file="a.qptiff", n_nodes="2"),
-        dict(donor_id=excluded, roi="pln_1", image_file="excluded.qptiff", n_nodes="999"),
-    ])
     typing = repo / "data/development/typing"
     write_parquet(typing / "cells/donor_id=0112/data.parquet", {
         "object_id": ["a", "b", "c"], "qc_analysis_eligible": [True, False, True],
@@ -121,32 +94,6 @@ def source_tree(tmp_path):
         "feat__if_INS": [None] * 5 + [1.0, 2.0, None],
         "feat__if_GCG": [None] * 5 + [3.0, 4.0, None],
     })
-    # The typed pancreas release is the ONLY source of xenium_panc. Written under the
-    # fixture repo's own release root, which is the only root the resolver searches for a
-    # repo that is not this checkout (xenium_release.default_roots). One donor per state the
-    # release reader can produce: 112 measured with one call beside an uncalled, an
-    # unavailable and a blank label; 115 looked at and left blank; 6436 label-unavailable on
-    # every row; 6442 measured. No pLN release exists here, so xenium_pln is unavailable with
-    # the resolver's reason on every donor.
-    release = repo / "data/development/xenium_typing/release_panc_fixture"
-    write_json(release / "release.json", {
-        "schema_version": 1, "modality": "xenium", "tissue": "pancreas", "roi": ["panc"],
-        "calls_dir": "calls", "cell_key": "cell_id", "release_id": "fixture-panc",
-        "generated_at_utc": "2026-09-17T20:36:54+00:00",
-        "columns": {"label": "lineage", "common_lineage": "common_lineage"},
-    })
-    for donor, labels in (
-        ("0112", ["Endocrine", "Uncalled_no_enrichment", "Unavailable_no_nucleus", ""]),
-        ("115", ["", ""]),
-        ("6436", ["Unavailable_no_nucleus", "Unavailable_no_nucleus"]),
-        ("6442", ["Immune_T"]),
-        (excluded, ["Immune_T"]),
-    ):
-        write_parquet(release / f"calls/donor_id={donor}/roi=panc/data.parquet", {
-            "cell_id": [f"{donor}-{i}" for i in range(len(labels))],
-            "lineage": labels, "common_lineage": labels,
-            "nucleus_count": [1] * len(labels), "nucleus_measured": [True] * len(labels),
-        })
     write_parquet(typing / "geometry/outlines.parquet", {
         "donor_id": ["0112", "112", "115", excluded],
         "islet_key": ["Islet_1", "Islet_2", "Islet_1", "Islet_1"],
@@ -199,10 +146,16 @@ def assert_ledger_contract(table):
 #: rows earn it.  That is the maintainer's question, not this test's.  Pinning the gap here rather
 #: than loosening the equality means the day a producer starts emitting `uncalled`, this test goes
 #: red and the decision gets made deliberately instead of arriving unannounced in a layer.
-STATES_WITH_NO_PRODUCER = {"uncalled"}
+#: `blank` joined it on 2026-09-23: only the Xenium capabilities produced it (a section looked at
+#: and left uncalled), and they were dropped because no card read them. The state stays declared;
+#: the app renders it from other layers.
+STATES_WITH_NO_PRODUCER = {"uncalled", "blank"}
+
+#: The four capabilities dropped 2026-09-23, none of which any card read.
+DROPPED_CAPABILITIES = {"phenocycler_pln", "xenium_panc", "xenium_pln", "pln_nodes"}
 
 
-def test_five_states_and_null_counts_survive_parquet(source_tree, tmp_path):
+def test_every_produced_state_and_null_counts_survive_parquet(source_tree, tmp_path):
     table = ledger.build_availability(source_tree)
     path = sections.write_layer(table, tmp_path / "layers", "availability")
     table = pq.ParquetFile(path).read()
@@ -215,19 +168,6 @@ def test_five_states_and_null_counts_survive_parquet(source_tree, tmp_path):
         "STATES_WITH_NO_PRODUCER names a state that is no longer declared")
     rows = {(r["donor_id"], r["capability"]): r for r in table.to_pylist()}
     assert rows["112", "phenocycler_panc"]["n"] == 2
-    assert rows["112", "xenium_panc"]["n"] == 1
-    assert rows["112", "xenium_panc"]["reason"].startswith(
-        "fixture-panc: called=1; uncalled=1; label_unavailable=1; blank=1")
-    assert rows["115", "xenium_panc"]["state"] == "blank"
-    assert rows["6436", "xenium_panc"]["state"] == "unavailable"
-    assert rows["6442", "xenium_panc"]["n"] == 1
-    # No pLN release in the fixture, and the ingest is not asked in its place: the row names
-    # the resolver's absence and the roots it searched, never a count from an untyped tree.
-    for donor in ("112", "115", "6436", "6442"):
-        row = rows[donor, "xenium_pln"]
-        assert row["state"] == "unavailable" and row["n"] is None
-        assert row["reason"].startswith("no_current_xenium_pln_release (")
-        assert "roots searched" in row["reason"] and "ingest" not in row["reason"]
     assert rows["6436", "restain_if"]["state"] == "withheld"
     assert "INS_auroc=0.52" in rows["6436", "restain_if"]["reason"]
     assert rows["6442", "restain_if"]["n"] == 1
@@ -237,9 +177,19 @@ def test_five_states_and_null_counts_survive_parquet(source_tree, tmp_path):
     assert rows["115", "islet_outline"]["state"] == "unavailable"
     assert rows["112", "trajectory"]["n"] == 3
     assert rows["115", "trajectory"]["state"] == "unavailable"
-    assert rows["112", "pln_nodes"]["n"] == 2
-    assert rows["112", "phenocycler_pln"]["n"] == 1
-    assert rows["6591", "xenium_pln"]["reason"] == "xenium_source_path_recorded_unavailable"
+    # The donor rows still come from both section inventories: 6591 is known only from
+    # xenium_paths.csv, and has a row for every capability, each naming its absence.
+    assert all(rows["6591", c]["state"] == "unavailable" for c in ledger.CAPABILITIES)
+    assert not {c for _, c in rows} & DROPPED_CAPABILITIES
+
+
+def test_every_capability_is_read_by_a_card():
+    """A capability no card reads is not written.  Four were, until 2026-09-23."""
+    cards = "\n".join(p.read_text() for p in (REPO / "apps/islet/R").glob("*.R"))
+    for capability in ledger.CAPABILITIES:
+        assert f'"{capability}"' in cards, f"no card in apps/islet/R reads {capability}"
+    for capability in DROPPED_CAPABILITIES:
+        assert f'"{capability}"' not in cards, f"a card reads {capability}, which is not written"
 
 
 @pytest.mark.parametrize("state", ["blank", "unavailable", "withheld", "failed"])
@@ -252,7 +202,7 @@ def test_nonmeasured_cannot_be_written_as_zero_or_without_reason(state):
 
 
 def test_a_measured_zero_is_distinct_from_absence():
-    row = ledger.availability("0112", "pln_nodes", "measured", Path("source"), n=0)
+    row = ledger.availability("0112", "islet_outline", "measured", Path("source"), n=0)
     assert row["n"] == 0 and row["donor_id"] == "112"
 
 
@@ -309,31 +259,14 @@ def test_both_builders_run_against_real_trees(tmp_path):
     table = pq.ParquetFile(layers / "availability/data.parquet").read()
     assert_ledger_contract(table)
     # SUBSET, not equality. Every state the builder emits must be in the vocabulary, but the
-    # vocabulary does not have to be exercised on the real trees. `blank` was only ever produced
-    # by reading the UNTYPED cells_xen ingest, whose lineage column is empty on every row. Now
-    # that the Xenium arms resolve through xenium_release, a donor the release carries a call for
-    # is `measured`, and requiring `blank` to appear here would assert that the defect is still
-    # present. `blank` stays in ledger.STATES because a never-typed section is a real state and
-    # the app renders it -- test_five_states_and_null_counts_survive_parquet still pins all five
-    # against a fixture that constructs them.
+    # vocabulary does not have to be exercised on the real trees.
     assert set(table["state"].to_pylist()) <= set(ledger.STATES)
     assert table.num_rows > 0, "the builder emitted no rows at all"
     row_map = {(r["donor_id"], r["capability"]): r for r in table.to_pylist()}
     for donor in ("6436", "6442"):
         assert row_map[donor, "restain_if"]["state"] == "withheld"
-        # The xenium_panc count is pinned to the RELEASE, not to cells_xen. The untyped ingest
-        # carries no call on any row, so counting its non-empty lineage_native counted cells that
-        # were never typed -- which is what the builder used to report as `blank`. The expectation
-        # here is read from the release's own published per-donor summary, a different file from
-        # the calls/ tree the builder reads, so the check is not circular. A call is a lineage that
-        # is neither Uncalled_* (no naming evidence, no enrichment, below cluster QC) nor
-        # Unavailable_no_nucleus, which is the nucleus rule this repo applies everywhere.
-        expected = _release_called_cells(donor)
-        if expected is None:
-            pytest.skip(f"no current pancreas Xenium release to pin {donor} against")
-        assert row_map[donor, "xenium_panc"]["n"] == expected
     assert row_map["115", "restain_if"]["state"] == "failed"
-    assert row_map["6380", "pln_nodes"]["n"] == 1  # Its Tissue annotation is the one node.
+    assert not {c for _, c in row_map} & DROPPED_CAPABILITIES
     output = pq.ParquetFile(layers / "sections/data.parquet").read()
     assert output.column_names == SECTION_COLUMNS
     assert output.schema == sections.SECTIONS_SCHEMA
@@ -350,4 +283,3 @@ def test_both_builders_run_against_real_trees(tmp_path):
             assert row["pixel_size_um"] is None
     missing = next(r for r in rows if r["donor_id"] == "6591" and r["roi"] == "pln_1")
     assert missing["image_file"] is None and missing["xenium_serial"] is None
-    assert row_map["6591", "xenium_pln"]["state"] == "unavailable"

@@ -21,6 +21,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO))
 
+from scripts.senior.build_availability import CAPABILITIES
 from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 pytestmark = pytest.mark.data
@@ -75,7 +76,10 @@ def test_persisted_layers_preserve_cohort_exclusions_frames_and_absence(artifact
     assert cohort <= set(ledger.donor_id)
     assert cohort <= set(tables["sections"]["donor_id"].to_pylist())
     assert not ledger.duplicated(["donor_id", "capability"]).any()
-    assert ledger.groupby("donor_id").capability.nunique().eq(8).all()
+    # The builder's own list, not a literal: the layer carried eight until 2026-09-23 and four
+    # since, so a served table still carrying eight is a stale artifact, and says so here.
+    assert set(ledger.capability) == set(CAPABILITIES)
+    assert ledger.groupby("donor_id").capability.nunique().eq(len(CAPABILITIES)).all()
 
 
 def test_persisted_islets_and_trajectory_reconcile_with_their_sources(artifacts):

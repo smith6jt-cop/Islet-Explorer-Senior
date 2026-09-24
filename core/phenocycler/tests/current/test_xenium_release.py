@@ -32,8 +32,9 @@ sys.path.insert(0, str(REPO))
 
 from scripts.senior import xenium_release as xr  # noqa: E402
 
+#: build_availability.py left this list on 2026-09-23: it dropped xenium_panc and xenium_pln, which
+#: no card read, and reads no release at all now (test_declared_producers.py holds it to that).
 BUILDERS = {
-    "build_availability.py": REPO / "scripts/senior/build_availability.py",
     "build_compartment_gradient.py": REPO / "scripts/senior/build_compartment_gradient.py",
     "modality_concordance.py": REPO / "scripts/senior/modality_concordance.py",
     "build_grid_composition.py": REPO / "scripts/senior/build_grid_composition.py",
@@ -275,7 +276,7 @@ def test_an_unavailable_names_every_candidate_it_rejected(roots):
 def test_a_foreign_repo_root_never_reaches_the_external_machine_root(tmp_path, monkeypatch):
     """A synthetic tree must not silently read a release nobody put there.
 
-    ``build_availability`` is called with a fixture repo root by its own suite; if
+    A builder run against a fixture repo root resolves releases under that root; if
     the external root travelled with it, that fixture would be measuring this
     machine.
     """
