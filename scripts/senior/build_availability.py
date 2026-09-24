@@ -26,9 +26,9 @@ identity is inferred from coordinates or names. Recorded failures/withholding
 outrank the existence of files. All non-measured states carry a reason and a
 null int64 count.
 
-The PhenoCycler pancreas count is the 2026-09-15 typing build. No donor has been
-re-run with the 2026-09-18 islet chain, and this builder neither types nor
-re-types anything; NO_VERIFIED_TYPING remains latched.
+The PhenoCycler pancreas count is whatever typing/cells holds when this runs --
+since 2026-09-19, the islet-chain build of all 20 donors. This builder neither
+types nor re-types anything; NO_VERIFIED_TYPING remains latched.
 """
 
 from __future__ import annotations

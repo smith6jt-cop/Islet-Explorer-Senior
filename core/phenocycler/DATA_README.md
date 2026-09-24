@@ -57,19 +57,22 @@ Cell: Area µm^2
 Cell: Solidity
 Cell: <marker>: Mean
 Nucleus: <marker>: Mean       # where required by the registry
-<compartment>: <marker>: Mean (norm)
-                               # compartment = Cell, Cytoplasm, Membrane, Nucleus
-                               # marker = Iba1, CD68, M2Gal3; exact fields required
 ```
 
-The three `Mean (norm)` marker families were written by the original QuPath
-object-classifier workflow before RESTORE, using
+No `Mean (norm)` field is required. Ingest requires and keeps one only for a marker whose
+registry `measurement_source` is `qupath_norm` (`cells_parquet.QUPATH_NORMALIZED_MARKERS`,
+`cells_parquet.py:47-51`), and since 2026-08-27 (a30a517) no marker is: Iba1, CD68 and M2Gal3
+take the `redsea` default like every other marker (`marker_registry.py:340-347`).
+
+The `Mean (norm)` families the batch exports still carry (24 columns: Iba1, CD68,
+M2Gal3, B3TUBB, CD34 and Podoplanin across four compartments; the 0112 and 6533
+revised exports carry none) were written by the original
+QuPath object-classifier workflow before RESTORE, using
 `(raw - tissue p50)/(tissue p99 - tissue p50)`. Thus 0 is the tissue p50 anchor,
 1 is the tissue p99 anchor rather than a positivity call, and negative values
-are valid. Ingest retains them as
-`QuPathNorm__<Compartment>__<Marker>`. They are not RESTORE-normalized outputs,
-and raw marker means, REDSEA measurements, `*_norm` convenience columns, and
-`*__restore_normalized` columns may not substitute for a missing exact field.
+are valid. A marker contracted to `qupath_norm` would be kept as
+`QuPathNorm__<Compartment>__<Marker>`, with no substitution for a missing exact
+field; no marker is contracted to it today, so ingest keeps none.
 
 The ingest stage derives `cell_region` and `islet_num` from `Parent`, but these
 context fields do not define calibration controls or cell identity. Other
@@ -279,10 +282,9 @@ the only accepted source for each marker:
 > historical.
 
 Measurement source and spillover policy are separate contracts. Iba1, CD68,
-and M2Gal3 had `measurement_source=qupath_norm`; their exact signed QuPath
-measurements win even though their spillover policy remains recorded. Missing
-exact measurements fail closed rather than falling back to raw, REDSEA, or a
-historical RESTORE output. None of these markers currently receives a call.
+and M2Gal3 had `measurement_source=qupath_norm` until 2026-08-27 (a30a517); they
+now take `redsea` under their recorded `redsea_corrected` spillover policy, like
+every other marker. None of these markers currently receives a call.
 
 The `expression` dataset contains exactly one selected column named
 `<marker>` for every registered marker, plus:
@@ -302,9 +304,8 @@ qc_estimation_eligible
 Keeping one authoritative value avoids ambiguous mixtures of raw,
 whole-cell, nuclear, and corrected columns downstream.
 `audit/expression_availability.parquet` explains every donor-marker selection
-or absence, including its `measurement_source`. QuPath norm values remain
-signed and unchanged in `cells` and `expression`; finite negative values are
-not censored by the current workflow.
+or absence, including its `measurement_source`. No QuPath norm value is carried
+into `cells` or `expression` today, because no marker's source is `qupath_norm`.
 
 ## Historical reference-control schema (blocked)
 

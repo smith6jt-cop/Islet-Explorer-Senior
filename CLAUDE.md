@@ -31,8 +31,9 @@ a second copy of those CSVs; never hand-edit the snapshot.
   must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
   from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
   alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
-  drop it. It is not yet a 21st donor in any stage root — see `docs/DONOR_6579_REENTRY_2026-09-17.md`
-  for what it would take. `pln_node_annotations.csv` now records it `excluded=False`;
+  drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
+  `data/RevisedQuPathExports/6579.tsv`), but it is not yet a 21st donor in any stage root — no stage
+  has run on it; see `docs/DONOR_6579_REENTRY_2026-09-17.md` for what re-entry takes. `pln_node_annotations.csv` now records it `excluded=False`;
   `data/donor_acquisition_runs.csv` still carries `excluded=True` and disagrees with `cohort.py`
   until its generator reruns.
 - Acquisition batch is aliased with disease status at the coarse level; correct only on the finer
@@ -77,6 +78,21 @@ when a source file moves. Results live under `core/phenocycler/data/<stage>/`. R
 2026-09-16 remain under `core/phenocycler/data/runs/<run_id>/`; that tree is historical, nothing
 writes to it, and the 20-donor cohort output still lives only there. Mutable review artifacts live
 under the repo-root `data/development/` — a level above `core/`.
+
+## One entry point: `make`
+
+`make help` lists every target; these are the ones a session uses, run from the repo root.
+
+| command | what it does |
+|---|---|
+| `make test-fast` | the default suite without the data-state guards (`-m "not data"`) |
+| `make test-data` | only the data-state guards; red means an artifact is stale |
+| `make test-lanes` | each development lane's own tests, lane by lane |
+| `make check` | is every layer/app artifact newer than its inputs? Reads mtimes only, and names every stale input, a run that did not finish, and a stale `typing/immune` |
+| `make plan` | the rebuild the driver would run, in order; runs nothing |
+| `make rebuild` | refuses unless `GO=1`; it writes `data/development/typing/app` and `/data/islet_layers` |
+| `make env-check` | the `.venv` resolves `phenocycler` to this checkout |
+| `make producers` | prints `docs/PRODUCERS.md` |
 
 ## Cell typing, as it stands
 
@@ -123,16 +139,20 @@ survive only so `subpanel.py --gate` can reproduce it.
 6. **Not endocrine** takes the ordinary chain: immune definitions, the supporting tier, then
    Exocrine.
 
-**What is on disk is older than that chain.** `data/development/typing/cells/` is the 2026-09-15
-build — **25,230,109 cells, all 20 donors**, eight classes plus `Excluded`, no CD99 question and no
-`Unresolved`. The chain above is proven on three donors (115, 6442, 6534) and **no donor has been
-re-run with it**. `RECONSTRUCTION.md` marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the
-mark before quoting it.
+**What is on disk carries that chain.** `data/development/typing/cells/` was rewritten on
+2026-09-19 with the chain applied to all 20 donors — **25,230,109 cells**, eight classes plus
+`Excluded`, no `Unresolved`. Measured 2026-09-24: every partition carries `islet_route` (cd99
+408,950 · elongation 29,060 · hormone 190,571) and `islet_stratum` (`1` / `2-3` / `4-10` / `>10`),
+and the endocrine triple is Beta 235,052 / Alpha 294,514 / Delta 99,015. The row count equals the
+2026-09-15 pre-chain build's, so a count cannot tell the two apart; `islet_route` can.
+`RECONSTRUCTION.md` marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting
+it.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation and must not
-be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against `typing/cells/`'s
-25,230,109 rows written Sep 15 — 79,572 cells apart, and its endocrine counts differ materially
-(Beta 191,485 / Alpha 246,055 / Delta 62,797 against 226,183 / 279,686 / 90,658). That tree stacks
+be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against the 25,230,109
+rows `typing/cells/` then held (written Sep 15) — 79,572 cells apart, and its endocrine counts differ
+materially (Beta 191,485 / Alpha 246,055 / Delta 62,797 against 226,183 / 279,686 / 90,658 then, and
+235,052 / 294,514 / 99,015 since the 2026-09-19 rewrite). That tree stacks
 generations side by side with nothing marking which is which, so check mtimes before citing anything
 in it. `scripts/senior/build_distance_profiles.py` refuses the superseded file by path, with the
 counts in the error.
@@ -140,12 +160,14 @@ counts in the error.
 - **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
 - **Immune subtyping is a second pass over the `Immune` class only**
-  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898 Immune cells). It
-  never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
+  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898 Immune cells —
+  the Immune class before the 2026-09-19 rewrite; it is 2,875,751 now, so `make check` reports
+  `typing/immune` stale). It never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
   outcome, distinct from "no rule fired"; reduced rules are reported on every donor and never
-  written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No app
-  artifact reads `typing/immune`** — the four app builders contain no reference to it, and coverage
-  comes from each builder's own `COHORT.resolve`.
+  written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No
+  `typing/app` artifact reads `typing/immune`** — the four app builders contain no reference to it,
+  and coverage comes from each builder's own `COHORT.resolve`. The `grid_composition` layer does, for
+  `fine.csv` (`scripts/senior/build_grid_composition.py:585`).
 - **The refinement pass is part of the typing, through the `--refine` join only (ruled
   2026-09-23).** `scripts/typing/refine.py` (concordance / demotion / immune leaf, documented in
   `REFINEMENT.md`) writes a keyed sidecar under `data/development/typing/refine`, and
@@ -175,6 +197,20 @@ Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `
 `docs/WORKFLOW.md`, `docs/METHOD_HISTORY.md`; and at repo level `docs/WORKFLOW_2026-09-02_MAP.md`
 (what runs today),
 `docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`, `docs/EXTERNAL_PACKAGES.md`.
+
+## One producer per tissue × modality
+
+| tissue × modality | producer | writes |
+|---|---|---|
+| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — `cell_class`, and `refined_class` beside it once the join runs |
+| pancreas × Xenium | `analysis/xenium/scripts/panc_xenium_cluster_name.py`, run by `panc_xenium_release.py` | `/data/xenium_typing/panc_2026-09-17/release` — `lineage`, `common_lineage` |
+| pLN × Xenium | `analysis/xenium/scripts/pln_immune_typing_v3.py` | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
+| pLN × PhenoCycler | `core/phenocycler/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
+
+Everything else that writes a class column is retired, quarantined or a declared library;
+`docs/PRODUCERS.md` has each one with its evidence, and
+`core/phenocycler/tests/current/test_declared_producers.py` holds the graph to these four. The
+same-slide lane (6533, 0112) is typed on its own and is not one of them.
 
 ## The app
 

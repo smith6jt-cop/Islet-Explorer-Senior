@@ -4,11 +4,12 @@
 RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
 specification and is not one.  This module belongs to the broad-typing producer comparison
 WITHDRAWN 2026-09-08 (``cluster_leiden.py`` / ``cluster_lda.py`` / ``cluster_kodama.py`` scored by
-``compare_clustering.py``).  It did not produce the calls on disk, and the current typing is the
+``compare_clustering.py``, quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/ with ``call.py``).  It did not produce the calls on disk, and the current typing is the
 subpanel classification in ``subpanel.py``; see ``README.md``, "Retired, and not to be revived as
 fallbacks".  What follows is kept as a record of what was measured and why.
 
-One of the three clustering methods ``compare_clustering.py`` scores against each other.  Leiden
+One of the three clustering methods ``compare_clustering.py`` (now quarantined) scored against each
+other.  Leiden
 is the one that is not told how many groups to look for: it reads local density on a kNN graph,
 so an exocrine community of several thousand cells and a delta-cell community of fifty can both
 survive the same partition, and ``resolution`` sets granularity rather than a hard count.  That is

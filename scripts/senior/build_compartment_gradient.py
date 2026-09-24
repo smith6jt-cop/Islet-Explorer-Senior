@@ -37,16 +37,15 @@ Where the pancreas subtype comes from
 -------------------------------------
 The pancreas immune subtype is ``immune_definition`` in
 ``data/development/typing/cells`` -- the per-marker immune definition, carried
-on all 20 donors of the 2026-09-15 build.  ``data/development/typing/immune`` is
+on all 20 donors of the 2026-09-19 build.  ``data/development/typing/immune`` is
 NOT read here: that second pass is a finer subtype (rewritten 2026-09-17, 20
-donors, 2,934,898 Immune cells), it never modifies ``cell_class``, and no app
-artifact reads it.  ``refined_class`` is not read either;
-``core/phenocycler/scripts/typing/refine.py`` is written and not wired, and its
-5th-percentile demotion is an open question rather than a decision.
+donors, 2,934,898 Immune cells), and it never modifies ``cell_class``.
+``refined_class`` is not read either: the refinement pass was ruled in on
+2026-09-23 and is wired as the ``build_cells.py --refine`` join, beside
+``cell_class``; the join has not run, and which class a builder serves is open.
 
-That build carries eight classes plus ``Excluded``.  No donor has been re-run
-with the 2026-09-18 islet chain, so there is no CD99 question and no
-``Unresolved`` class in anything this builder reads.
+That build carries eight classes plus ``Excluded``, with the 2026-09-18 islet
+chain applied to every donor; no cell carries ``Unresolved``.
 
 Three compartments are pancreas and one is not
 ----------------------------------------------
@@ -190,8 +189,9 @@ PANC_LINEAGE_OUTSIDE_VOCABULARY_REASON = (
 PANC_CLASS_VOCABULARY = frozenset(TYPING_CELLS.DISPLAY)
 PANC_IMMUNE_CLASS = "Immune"
 #: In the table so it can be displayed, and not a lineage: the "no lineage evidence"
-#: entry.  A cell carrying it is lineage-unavailable, never non-immune.  Nothing
-#: produces it today -- refine.py is written and not wired.
+#: entry.  A cell carrying it is lineage-unavailable, never non-immune.  No cell
+#: carries it today: refine.py writes it into refined_class, beside cell_class, only
+#: through the build_cells.py --refine join, which has not run.
 PANC_LINEAGE_ABSENT = frozenset({TYPING_CELLS.UNRESOLVED})
 PANC_LINEAGE_DECLARED_ABSENCE_REASON = (
     f"cell_class is {TYPING_CELLS.UNRESOLVED!r}: the declared absence of lineage "

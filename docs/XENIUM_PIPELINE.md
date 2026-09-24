@@ -231,8 +231,8 @@ above. Validate against the Y probes.
 knows where the cell is makes "do immune cells sit near islets" partly circular. The arm
 difference is the measurement of how much location leaks into identity.
 
-KODAMA is pinned to `smith6jt-cop/KODAMA@d2dbe30e` and `check_shard_equivalence.R` is a release
-gate. **Do not substitute a Python embedding** — it discards the equivalence proof.
+KODAMA is pinned to `smith6jt-cop/KODAMA@d2dbe30e` and `check_shard_equivalence.R` was the release
+gate (quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/ with the rest of `xenium_celltype/hpg/`). **Do not substitute a Python embedding** — it discards the equivalence proof.
 
 ### Stage 5 — protein arm  ✅ IMPLEMENTED, VALIDATED
 
@@ -346,10 +346,12 @@ Single schema `{unit, n, label, reason, statistic, null, confidence, runners_up}
 `run_donor.composition`'s status vocabulary (`awarded / unavailable / cleared_but_outranked /
 no_group_cleared`, **NaN never 0**).
 
-**Fix `verify_run.py` check (8) before any production run.** It tests `lineage ==
-"Unavailable"` while `composition` writes `"Unavailable:" + reason`, so it **fails on every
-complete run** and `50_assemble.sh` reports "run NOT complete". One-line fix
-(`str.startswith`) plus a test.
+**Fixed 2026-09-17 (990c5b2), kept as a record.** `verify_run.py` check (8) tested
+`lineage == "Unavailable"` while `composition` writes `"Unavailable:" + reason`, so it failed
+on every complete run and `50_assemble.sh` reported "run NOT complete". It now uses
+`str.startswith` (`verify_run.py:163`), with `tests/test_verify_run.py`. The `hpg/` run
+apparatus it verified, `50_assemble.sh` and the rest, was quarantined 2026-09-23 under
+data/ARCHIVE_2026-09-15/quarantine/.
 
 ---
 

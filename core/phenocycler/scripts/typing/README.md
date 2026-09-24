@@ -38,15 +38,16 @@ wrote, so **the producer runs before the app build whenever the typing changes**
 not rewrite `typing/cells/`; it writes a sidecar beside it, joined only under
 `build_cells.py --refine`.
 
-### NO DONOR HAS BEEN RE-RUN with the 2026-09-18 islet chain
+### The 2026-09-18 islet chain is on disk, for every donor
 
-Measured 2026-09-18. `typing/subpanel_rebuilt/` and `typing/cells/` both hold 25,230,109 rows over
-20 donors and were written on **2026-09-15** (12:41 and 13:16). They are the pre-chain build: nine
-`cell_class` values — the eight classes plus `Excluded` — **no CD99 question**, no `islet_cells` /
-`islet_stratum` / `islet_route` column, `resolved_by` carrying only `hormone` for endocrine cells,
-and **no `Unresolved`** anywhere. The refinement pass is **written and not wired**: `refined_class`
-has zero consumers and no cell on disk carries it. Anything read out of these tables is the
-2026-09-15 method, whatever the prose beside them describes.
+Measured 2026-09-24. `typing/subpanel_rebuilt/` and `typing/cells/` both hold 25,230,109 rows over
+20 donors and were rewritten on **2026-09-19** (09:41–09:46 and 09:55–09:59) with the islet chain:
+every partition carries `islet_route` (cd99 408,950 · elongation 29,060 · hormone 190,571) and
+`islet_stratum` (`1` / `2-3` / `4-10` / `>10`). `cell_class` has nine values — the eight classes
+plus `Excluded` — and **no `Unresolved`**: the refinement pass was ruled in on 2026-09-23 and is
+wired as the `build_cells.py --refine` join, which has not run, so `typing/cells` carries no
+`refined_class` yet. The row count equals the 2026-09-15 pre-chain build's; read `islet_route`,
+not a count, to tell the two apart.
 
 Read, rather than re-deriving them:
 
@@ -55,8 +56,9 @@ Read, rather than re-deriving them:
   islet chain ruled on 2026-09-18, the measured evidence for the size strata, and three defects the
   build found in the calls on disk.
 * [`REFINEMENT.md`](REFINEMENT.md) — the refinement pass, recovered from the 2026-09-11 session:
-  concordance, the per-donor bound, `immune_leaf`, and why it is applied once. **Not wired:
-  `refined_class` has no consumer and no cell carries `Unresolved` today.**
+  concordance, the per-donor bound, `immune_leaf`, and why it is applied once. **Wired, not run:
+  the `build_cells.py --refine` join adds `refined_class` beside `cell_class`; no builder reads it
+  and no cell carries `Unresolved` today.**
 
 The two modules carrying the parts verified exactly are `subpanel_io.py` (input chain, scale,
 reference levels) and `context.py` (centroid-in-object assignment, reproduced at 100.0000%).

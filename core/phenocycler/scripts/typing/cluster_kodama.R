@@ -42,7 +42,8 @@ args <- parse_args()
 # chunk_size = max(1, min(16, ceiling(M / (4 * n.cores)))), so it cannot occupy more than
 # min(16, ceiling(M / (4 * cores))) workers -- it needs M >= 4 * cores^2 before `cores` cores are
 # all busy.  Refuse rather than burn the difference; the same gate is in
-# scripts/xenium_celltype/hpg/kodama_shard.R and the reason is measured there.
+# scripts/xenium_celltype/hpg/kodama_shard.R, quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/, and the
+# reason is measured there.
 occupancy <- function(m, cores) {
   if (cores <= 1L) return(1L)
   min(max(1L, min(16L, ceiling(m / (cores * 4L)))), cores)

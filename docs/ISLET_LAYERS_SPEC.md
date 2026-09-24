@@ -205,7 +205,8 @@ Five things this builder must do:
 
 1. **Refuse `typing/subpanel/subpanel_calls.parquet` by path**, with the superseded counts in the
    error. That file is a previous generation — Beta 191,485 / Alpha 246,055 / Delta 62,797 against
-   the current 226,183 / 279,686 / 90,658.
+   `typing/cells`' 235,052 / 294,514 / 99,015 (the 2026-09-19 islet-chain build, measured
+   2026-09-24; it was 226,183 / 279,686 / 90,658 before that rewrite).
 2. Carry `resolved_by` through, so the card can state provenance rather than imply it.
 3. Use `islet_membership`, not QuPath's `Parent`. `Parent` mislabels 2.7% of islet-core cells,
    which fall through to Exocrine.

@@ -10,12 +10,11 @@ could not be re-run, which meant no correction to it could ever be applied.
 This is that producer, written from `RECONSTRUCTION.md` -- which was itself recovered by
 reproducing the calls from their inputs and checked against them, not inferred from prose.
 
-WHAT IS ON DISK TODAY IS NOT WHAT THIS FILE NOW DOES. Measured 2026-09-18: the current stage roots
-`typing/subpanel_rebuilt/` and `typing/cells/` hold 25,230,109 rows over 20 donors and were both
-written on 2026-09-15, BEFORE the islet chain below existed -- nine `cell_class` values, no CD99
-question, no `islet_stratum` / `islet_route` column, `resolved_by` carrying only `hormone` for
-endocrine cells. **No donor has been re-run with the 2026-09-18 chain.** The three-donor proving
-run (115, 6442, 6534) is a proving run and wrote no stage root.
+THE ISLET CHAIN BELOW IS ON DISK. Measured 2026-09-24: the stage roots `typing/subpanel_rebuilt/`
+and `typing/cells/` hold 25,230,109 rows over 20 donors and were both rewritten on 2026-09-19 with
+it -- every partition carries `islet_route` (cd99 408,950, elongation 29,060, hormone 190,571) and
+`islet_stratum`. The row count equals the 2026-09-15 pre-chain build's, so read `islet_route`, not
+a count, to tell which build is on disk.
 
 THE METHOD, unchanged from what was recovered:
 

@@ -243,15 +243,16 @@ the repo-root `data/development/typing/`. It is not a release, it does not move
 - What it does and how it was recovered: [`scripts/typing/RECONSTRUCTION.md`](scripts/typing/RECONSTRUCTION.md).
   Every statement in that file is marked `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting
   a number.
-- What is on disk: `data/development/typing/cells/` — the build of **2026-09-15**, 25,230,109 cells,
-  20 donors, eight classes plus `Excluded`. The islet chain the maintainer ruled on 2026-09-18
+- What is on disk: `data/development/typing/cells/` — rewritten on **2026-09-19**, 25,230,109 cells,
+  20 donors, eight classes plus `Excluded`, with the islet chain the maintainer ruled on 2026-09-18
   (structure, then exocrine-inside-an-islet excluded, then CD99 at a level fitted per donor **and per
-  size stratum**, with nucleus elongation as a second route in the large stratum only) is proven on
-  three donors and **no donor has been re-run with it**.
+  size stratum**, with nucleus elongation as a second route in the large stratum only) applied to
+  every donor. Measured 2026-09-24: every partition carries `islet_route` and `islet_stratum`.
 - `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation (25,150,537
   rows) and is not current. The refinement pass
-  ([`scripts/typing/REFINEMENT.md`](scripts/typing/REFINEMENT.md), `refine.py`) is written and **not
-  wired**; `refined_class` has no consumer, and whether that pass should run is open.
+  ([`scripts/typing/REFINEMENT.md`](scripts/typing/REFINEMENT.md), `refine.py`) was ruled in on
+  2026-09-23 and is wired as the `build_cells.py --refine` join, `refined_class` beside `cell_class`;
+  the join has not run on disk, and whether any builder should read `refined_class` is open.
 - Reference levels are fitted **per donor**. Pooling was measured wrong on 2026-09-15; the four
   pooled levels survive only so `subpanel.py --gate` can reproduce the older table.
 

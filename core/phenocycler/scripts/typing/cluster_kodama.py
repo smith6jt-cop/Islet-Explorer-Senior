@@ -4,7 +4,7 @@
 RETIRED -- NOT A FALLBACK.  Recorded here 2026-09-18 because the docstring below reads as a live
 specification and is not one.  This module belongs to the broad-typing producer comparison
 WITHDRAWN 2026-09-08 (``cluster_leiden.py`` / ``cluster_lda.py`` / ``cluster_kodama.py`` scored by
-``compare_clustering.py``).  It did not produce the calls on disk, and the current typing is the
+``compare_clustering.py``, quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/ with ``call.py``).  It did not produce the calls on disk, and the current typing is the
 subpanel classification in ``subpanel.py``; see ``README.md``, "Retired, and not to be revived as
 fallbacks".  What follows is kept as a record of what was measured and why.
 
@@ -73,7 +73,8 @@ overlap of a cell's 15 nearest KODAMA neighbours between two independent seeds.
 * ``n_cores = 5``.  KODAMA's M loop dispatches chunks of ``ceiling(M / (4 * n.cores))`` to
   ``mclapply``, so it cannot fill more than that many workers: 5 cores is the most M=100 can
   occupy (it needs M >= 4 * cores^2).  Asking for more is measurably slower, not faster --
-  recorded in ``scripts/xenium_celltype/hpg/kodama_shard.R``, which is where this gate comes from,
+  recorded in ``scripts/xenium_celltype/hpg/kodama_shard.R`` (quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/), which is
+  where this gate comes from,
   and re-enforced in the R half.  The 64-core box cannot be filled by one KODAMA run.
 
 Cost is driven by input WIDTH, and the panel is narrow.  ``run_kodama.R`` measured 5,101 genes at
@@ -109,7 +110,8 @@ step to 1.4 M cells gives ~8.6 h on 16 cores, and the module runs it at ``n_core
 loop's gate), which measured 4x rather than 10.6x parallel speed-up: call it 22-35 h.  The
 Monte-Carlo loop is nearly linear by comparison -- 2.91 s per iteration at 11,659 cells, 14.2 s at
 50,000, n^1.09 -- so ~535 s per iteration at 1.4 M, about 3 h for M=100 at 5-way occupancy, and it
-is the ONLY one of the three that shards across nodes (``hpg/kodama_shard.R`` is exact).  The
+is the ONLY one of the three that shards across nodes (``hpg/kodama_shard.R``, now quarantined, is
+exact).  The
 dissimilarity rewrite is an R-level loop over n cells x 500 neighbours x M draws -- 7e10
 comparisons at 1.4 M -- but it is linear and adds under an hour.  Total: **a day to a day and a
 half per donor, two to three days for the pair**, against minutes for the same Leiden on the

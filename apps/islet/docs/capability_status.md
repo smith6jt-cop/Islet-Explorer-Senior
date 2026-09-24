@@ -68,32 +68,37 @@ ordinary tissue and fitted **per donor**. `config/run20_default.yml` declares
 `classifier_label: subpanel classification` and the Plot tab's measure-group headings read it, so
 no heading in this app says "(scVI)" over this dataset.
 
-The source is `data/development/typing/cells/` — **20 donor partitions, 25,230,109 rows, written
-2026-09-15**, counted off the parquet footers. Its `cell_class` column carries eight classes plus
-`Excluded` and nothing else: Exocrine 20,064,656 · Immune 2,934,898 · Blood vessel 1,267,015 ·
-Alpha 279,686 · Beta 226,183 · Excluded 193,868 · Lymphatic 122,884 · Delta 90,658 · Nerve 50,261.
-Three things follow, and all three are easy to get wrong from older text:
+The source is `data/development/typing/cells/` — **20 donor partitions, 25,230,109 rows, rewritten
+2026-09-19 with the islet chain** (measured 2026-09-24). Its `cell_class` column carries eight
+classes plus `Excluded` and nothing else: Exocrine 20,099,247 · Immune 2,875,751 · Blood vessel
+1,422,676 · Alpha 294,514 · Beta 235,052 · Excluded 165,431 · Delta 99,015 · Nerve 32,836 ·
+Lymphatic 5,587. Three things follow, and all three are easy to get wrong from older text:
 
 - **`typing/subpanel/subpanel_calls.parquet` is a PREVIOUS generation** — 25,150,537 rows, written
   Sep 11 — and nothing in this app reads it. That tree stacks generations side by side with
   nothing marking which is which; check mtimes before citing anything in it.
-- **No donor has been re-run with the 2026-09-18 islet chain.** The 09-15 build predates the CD99
-  question, the per-donor-and-per-size-stratum CD99 level, the elongation second route and the
-  requirement that a structure call match the cell's top identity marker. Nothing this app draws
-  has been typed by that chain yet.
-- **The ninth vocabulary entry, `Unresolved`, has no producer.** It is an *absence*, not a class —
-  what the refinement pass (`core/phenocycler/scripts/typing/refine.py`, producer label
-  `Unresolved (no lineage evidence)`) would write on a cell demoted out of Exocrine. That pass is
-  written and **not wired**: `refined_class` has zero consumers, `build_cells.py` still sets
-  `phenotype` from `cell_class`, and `parquet/islets.parquet` carries `count_*` / `prop_*` /
-  `peri_*` / `enrich_z_*` / `min_dist_*` over the eight classes with **no `Unresolved` column of
-  any kind**. Whether the pass should run at all is an OPEN question, not a decision: its
-  5th-percentile bound demotes about 5 % of every class by construction.
+- **The 2026-09-18 islet chain is on disk, but not yet in everything this app draws.** Every
+  `typing/cells` partition carries `islet_route` (cd99 408,950 · elongation 29,060 · hormone
+  190,571). The `typing/app` artifacts were written at different times: islet geometry, islet
+  composition, neighbourhood metrics, islet marker means and islet Leiden on 2026-09-21, after the
+  rewrite; `parquet/islets.parquet` on 2026-09-17 and the per-cell tissue, drill-down, outline and
+  distance artifacts on 2026-09-14, before it. `make check` names each stale one, and the DATA step
+  rebuilds them.
+- **The ninth vocabulary entry, `Unresolved`, is carried by no cell yet.** It is an *absence*, not a
+  class — what the refinement pass (`core/phenocycler/scripts/typing/refine.py`, producer label
+  `Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. The pass was ruled in
+  on 2026-09-23 and is wired as the `build_cells.py --refine` join, which adds `refined_class`
+  beside `cell_class`; the join has not run on disk, `build_cells.py` still sets `phenotype` from
+  `cell_class`, and `parquet/islets.parquet` carries `count_*` / `prop_*` / `peri_*` /
+  `enrich_z_*` / `min_dist_*` over the eight classes with **no `Unresolved` column of any kind**.
+  Its 5th-percentile bound demotes about 5 % of every class by construction; whether any builder
+  should serve `refined_class` instead of `cell_class` is open.
 
 `Exocrine` is one label here and is not divisible: the 60-plex carries no acinar-specific and no
 ductal-specific marker. `Immune` is one label for the same reason — the immune second pass
-(`scripts/typing/immune_subtype.py`) never modifies `cell_class`, and **no app builder reads
-`data/development/typing/immune`**; coverage comes from each builder's own `COHORT.resolve`.
+(`scripts/typing/immune_subtype.py`) never modifies `cell_class`, and **no `typing/app` builder
+reads `data/development/typing/immune`** (the `grid_composition` layer does, for `fine.csv`);
+coverage comes from each builder's own `COHORT.resolve`.
 
 **OME-TIFFs, measured 2026-09-18:** 16 files in `/data/islet_ome_tiff` — 115, 6374, 6380, 6436,
 6442, 6450, 6457, 6461, 6476, 6482, 6493, 6521, 6539, 6551, 6579, 6593. Against the 20-donor

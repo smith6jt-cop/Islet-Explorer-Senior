@@ -87,8 +87,10 @@ manifest builder resolves and fingerprints:
 - X/Y pixel calibration and segmentation version;
 - the expected donor set.
 
-Donors 6457 and 6579 remain centrally excluded. A manifest that contains either
-fails rather than silently filtering it later.
+Donor 6457 remains centrally excluded (`phenocycler/cohort.py` `DONOR_EXCLUSIONS`). A
+manifest that lists it fails rather than silently filtering it later:
+`ensure_eligible_donors` refuses the run (`pipeline.py:321`). 6579's exclusion was lifted
+on 2026-09-17 (`REINSTATED`), and the manifest has declared it since 2026-09-23.
 
 ## Stage 1: ingest the measurement union
 

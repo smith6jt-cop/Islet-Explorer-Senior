@@ -32,23 +32,28 @@ add either back, and do not write a script that reads one.
 
 ## What the typing lane hands these scripts
 
-`data/development/typing/cells/` is the build of **2026-09-15** — 25,230,109 cells, 20 donors,
-eight classes plus `Excluded`. **No donor has been re-run with the islet chain the maintainer ruled
-on 2026-09-18**, so nothing a root script reads carries a CD99 question or an `Unresolved` class,
-and `apps/islet/config/run20_default.yml`'s declared ninth class has no producer.
-`refined_class` has none either: `core/phenocycler/scripts/typing/refine.py` is written and **not
-wired**, and whether that pass should run at all is open.
+`data/development/typing/cells/` was rewritten on **2026-09-19** with the islet chain the
+maintainer ruled on 2026-09-18 applied to all 20 donors — 25,230,109 cells, eight classes plus
+`Excluded`. Measured 2026-09-24, every partition carries `islet_route` (cd99 / elongation / hormone)
+and `islet_stratum`. No cell carries `Unresolved`, the ninth class `run20_default.yml` declares:
+the refinement pass (`core/phenocycler/scripts/typing/refine.py`) was ruled in on 2026-09-23 and is
+wired as the `build_cells.py --refine` join, which writes `refined_class` **beside** `cell_class`,
+and that join has not run on disk. Every root script reads `cell_class`; whether any should read
+`refined_class` touches the islet chain and is asked, not inferred.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation (25,150,537
 rows, written Sep 11). `senior/build_distance_profiles.py` refuses it by path with the counts in the
 error. That tree stacks generations side by side, so check mtimes before reading anything else in
 it.
 
-**No app artifact reads `data/development/typing/immune`.** That second pass
+**No `typing/app` artifact reads `data/development/typing/immune`.** That second pass
 (`core/phenocycler/scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898
 Immune cells) adds a finer subtype over the `Immune` class only and never modifies `cell_class`;
-each app builder's coverage comes from its own `COHORT.resolve`. `build_layers.py` lists that root
-with its producer as an upstream lane — that is provenance, not a layer input.
+each app builder's coverage comes from its own `COHORT.resolve`. One layer does read it:
+`senior/build_grid_composition.py` takes the fine subtype for `fine.csv` (:585), and
+`build_layers.py` declares it as that node's input. It was built over the Immune class before the
+2026-09-19 rewrite (2,875,751 cells now), so `--check` reports it stale under the table
+(`SOURCE_CHECKS`) without turning the gate red.
 
 ## The layer builders
 
@@ -108,8 +113,10 @@ screens, the GMM/Otsu gate searches, ordered-residual broad-lineage assignment, 
 and `data/restore*` as source roots, and the broad-typing producer comparison withdrawn 2026-09-08.
 Git history has all of it.
 
-`core/phenocycler/scripts/dct/` is a closed lane but exports two symbols other lanes import
-(`gates.require_evidence`, `tiff_window.read_window`) — move those before deleting anything there.
+`core/phenocycler/scripts/dct/` is a closed lane. One of its modules is still imported from outside
+it: `regions.py` (the hash rule), by `broadtype/frame.py:34` — move it before deleting anything
+there. The two symbols this line used to name, `gates.require_evidence` and
+`tiff_window.read_window`, already live in `core/phenocycler/scripts/common/`.
 
 The QuPath handoff is `core/phenocycler/scripts/groovy/import_cell_assignments.groovy`: UUID-keyed,
 preserves uncertainty, verifies each CSV's size and SHA-256 against its manifest before changing a

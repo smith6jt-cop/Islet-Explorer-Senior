@@ -256,8 +256,9 @@ tree.
 
 **Cell typing is a development lane, and it is not part of that workflow.** The subpanel
 classification lives in `core/phenocycler/scripts/typing/` and writes **outside** the package, to
-the repo-root `data/development/typing/`: `typing/cells/` is the build of 2026-09-15 —
-25,230,109 cells, 20 donors, eight classes plus `Excluded`. Nothing there is a release, the
+the repo-root `data/development/typing/`: `typing/cells/` was rewritten on 2026-09-19 with the
+islet chain applied to all 20 donors — 25,230,109 cells, eight classes plus `Excluded` (measured
+2026-09-24). Nothing there is a release, the
 `NO_VERIFIED_TYPING` latch is unmoved, and `typing/subpanel/subpanel_calls.parquet` is a SUPERSEDED
 earlier generation. How it works is `core/phenocycler/scripts/typing/RECONSTRUCTION.md`; read it
 rather than re-deriving it.

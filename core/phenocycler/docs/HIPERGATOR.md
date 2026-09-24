@@ -81,9 +81,9 @@ and Xenium joins. Repeating a bare donor across sections or using an unknown
 section token is rejected during manifest creation; otherwise two coordinate
 frames could enter one partition and be masked or normalized together.
 
-Donors 6457 and 6579 are centrally excluded and make manifest resolution fail,
-including through section keys such as `6579pln2`. Do not bypass those
-exclusions in a submission script.
+Donor 6457 is centrally excluded and makes manifest resolution fail, including
+through a section key of that donor (`6457pln2`, say). Do not bypass that
+exclusion in a submission script. 6579's was lifted on 2026-09-17.
 
 ## Configure resources
 

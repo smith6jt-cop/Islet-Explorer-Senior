@@ -30,9 +30,10 @@ into a string.
 **The run cohort's vocabulary has nine entries and eight cell types.** `Unresolved` is the ninth
 entry in `config/run20_default.yml`, and it is an *absence*, not a class: it is what the refinement
 pass (`core/phenocycler/scripts/typing/refine.py`, producer label
-`Unresolved (no lineage evidence)`) would write on a cell demoted out of Exocrine. **Nothing
-produces it today** — that pass is written and not wired, and `data/development/typing/app` is built
-from the 2026-09-15 typing, eight classes plus `Excluded`. A tab asks
+`Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. **No cell carries it
+today**: that pass was ruled in on 2026-09-23 and is wired as the `build_cells.py --refine` join,
+which writes it into `refined_class` beside `cell_class`, and the join has not run on disk; every
+`data/development/typing/app` builder reads `cell_class`, eight classes plus `Excluded`. A tab asks
 `ieCore::ie_absence_phenotypes()` and `ieCore::ie_absence_class_color()` rather than matching the
 string; `tests/testthat/test-ninth-class.R` asserts that pairing. Do not render it as a population,
 and do not report its count as zero — it is declared ahead of its data so a card meets a named

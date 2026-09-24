@@ -223,9 +223,10 @@ REGISTRY: tuple[Record, ...] = (
         why=(
             "it is the 2026-09-11 generation's log and it has no producer, so it cannot be "
             "regenerated, checked, or dated against the chain it is being used to describe. "
-            "refine.py is WRITTEN AND NOT WIRED and its 5th-percentile bound demotes about 5% of "
-            "every class by construction -- that is an open question, not a decision, so its "
-            "refine_log.json is not a replacement either. A missing own-marker table is "
+            "refine.py was ruled in on 2026-09-23 and is wired as the build_cells.py --refine "
+            "join, which has not run, and its 5th-percentile bound demotes about 5% of every "
+            "class by construction, so its refine_log.json is not a replacement either. A "
+            "missing own-marker table is "
             "UNAVAILABLE, not the 2026-09-11 one"
         ),
         read_instead=(

@@ -30,7 +30,6 @@ import pandas as pd
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import subpanel_io as S
 
-APP = S.OUT / "app"
 TRAJ = S.OUT / "trajectory"
 
 #: Minimum sampled cells in a region before an islet gets a value there. Below this the median is
@@ -76,19 +75,6 @@ def main() -> int:
 
     # The merge into islets.parquet is build_parquet_views.py's (its ROLLUPS table reads the
     # summary written above).  This script writes one file.
-    return 0
-
-    islets = pd.read_parquet(APP / "parquet/islets.parquet")
-    stale = [c for c in islets.columns if c.startswith("sc_pseudotime") or c.startswith("sc_n_")]
-    if stale:
-        islets = islets.drop(columns=stale)
-    merged = islets.merge(summary, on=["case_id", "islet_key"], how="left", validate="one_to_one")
-    if len(merged) != len(islets):
-        raise ValueError("the merge changed the islet count")
-    merged.to_parquet(APP / "parquet/islets.parquet", index=False)
-    covered = merged["sc_pseudotime_core"].notna().sum()
-    print(f"  merged into islets.parquet: {covered:,} of {len(merged):,} islets carry a core "
-          f"single-cell pseudotime")
     return 0
 
 

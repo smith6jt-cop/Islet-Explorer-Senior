@@ -8,18 +8,18 @@ because a reader in a month has to be able to tell them apart:
   so marked was **recovered 2026-09-12 by reproducing those calls from their inputs** and checked
   against them, not inferred from prose.
 * **[CHAIN NOW]** — the method as `subpanel.py` runs it after the maintainer's islet ruling of
-  2026-09-18. Proven on three donors (115, 6442, 6534) with `--membership geometry --levels
-  per-donor`; **NO DONOR HAS BEEN RE-RUN**, so nothing marked this way is yet a fact about any
-  table on disk.
+  2026-09-18. Proven first on three donors (115, 6442, 6534) with `--membership geometry --levels
+  per-donor`, then **run on all 20 on 2026-09-19**: `typing/subpanel_rebuilt/` (written
+  09:41–09:46) and `typing/cells/` (09:55–09:59) carry it. Measured 2026-09-24: 25,230,109 rows
+  over 20 donors in each, every partition with `islet_route` (cd99 408,950 · elongation 29,060 ·
+  hormone 190,571) and `islet_stratum`, and no `Unresolved` anywhere.
 
-  Measured 2026-09-18, because this is what stale text keeps getting wrong.
-  `typing/subpanel_rebuilt/` (25,230,109 rows, 20 donors, written 2026-09-15 12:41) and
-  `typing/cells/` (25,230,109 rows, 20 donors, written 2026-09-15 13:16) are **the 09-15 build**:
-  nine `cell_class` values — the eight classes plus `Excluded` — no `islet_cells`,
-  `islet_stratum` or `islet_route` column at all, `resolved_by` carrying only
-  `structure` / `definition` / `supporting` / `fallthrough` / `hormone`, and no `Unresolved`
-  anywhere. There is no CD99 question in either table. Every `[CHAIN NOW]` number below comes
-  from a three-donor proving run, not from a stage root.
+  **Read the date on an `[ON DISK]` statement.** One written before 2026-09-19 describes the
+  pre-chain build of 2026-09-15 that this rewrite replaced — the same 25,230,109 rows, but no
+  `islet_cells`, `islet_stratum` or `islet_route` column, `resolved_by` carrying only
+  `structure` / `definition` / `supporting` / `fallthrough` / `hormone`, and no CD99 question. A
+  `[CHAIN NOW]` number quoted from the three-donor proving run is the proving run's, not the
+  stage root's.
 
 The refinement pass has its own file, [`REFINEMENT.md`](REFINEMENT.md), and a short section here.
 It is summarised here on purpose: that pass ran on 2026-09-11, no producer for it existed anywhere
@@ -679,7 +679,7 @@ these three subsections describes `refine.py` and the 2026-09-11 recovered run. 
 the `build_cells.py --refine` join is the declared route into `typing/cells/`, but **[ON DISK]** it
 has not run: no cell carries `Unresolved (no lineage evidence)`, the `refined_*` columns and
 `immune_leaf` are empty on every cell, and no builder reads `refined_class`. What
-is on disk is the 2026-09-15 build: eight classes plus `Excluded`.
+is on disk is the 2026-09-19 islet-chain build: eight classes plus `Excluded`.
 
 ## The gate, 2026-09-15  [ON DISK]
 
@@ -736,4 +736,4 @@ than re-deriving it from the class NAME, keeps `Excluded` as a class with its re
 removing it, attaches the per-stratum level each cell was measured against from
 `subpanel.py --audit-out`, and joins `refine.py`'s sidecar under `--refine`. It reads
 `typing/subpanel_rebuilt/`, so what it carries is whatever the last run of the producer wrote —
-today, the 2026-09-15 build.
+today, the 2026-09-19 islet-chain build (written 09:41–09:46).

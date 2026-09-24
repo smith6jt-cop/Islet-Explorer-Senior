@@ -119,6 +119,11 @@ pass**; these notes sit beside them, per the rule at the top of this file.
   `.py` files, not "15 canonical scripts"; `run_pipeline.sh` and `env_rapids.sh` moved to `hpc/`
   (already noted under Common operations); `scripts/slurm/` moved to `hpc/slurm/`;
   `scripts/R/xenium_analysis.R` and `notebooks/06_xenium_phenocycler_integration.ipynb` are gone.
+  Seven scripts the numbered decisions below cite have never been in this repository -- no commit
+  here touches them (`git log --all`, 2026-09-24): `select_embedding_features.py`,
+  `lineage_phenotype.py`, `refine_rare_celltypes.py`, `resolve_indeterminate.py`,
+  `fix_acinar_argmax.py`, `validate_hierarchical_pilot.py` and `program_panels.py`. The decisions
+  stand as records of the HiPerGator workflow; do not look for those files under `scripts/` here.
   `notebooks/`, `utils/`, `scripts/benchmark/` and `scripts/tissue_markers/` are as described.
 
 - **The 2026-08-28 cohort note, made exact.** `core/phenocycler/cohort-spec.json` declares **21** expected

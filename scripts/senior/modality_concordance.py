@@ -36,10 +36,9 @@ WHAT IT READS
 Exocrine is ONE label on both sides.  Neither panel carries a marker or a probe
 set that separates acinar from ductal, so no such claim exists to compare.
 
-``typing/cells`` here is the 2026-09-15 build: 25,230,109 cells, 20 donors,
-eight classes plus ``Excluded``.  No donor has been re-run with the 2026-09-18
-islet chain, so nothing read here carries a CD99 question or an ``Unresolved``
-class.
+``typing/cells`` here is the 2026-09-19 build: 25,230,109 cells, 20 donors,
+eight classes plus ``Excluded``, with the 2026-09-18 islet chain applied to
+every donor.  No cell carries ``Unresolved``.
 
 EVERY CLASS IS COUNTED, INCLUDING THE ONES THAT CARRY NO SHARE.  A class with no
 common lineage used to be dropped by ``value_counts(dropna=True)`` while
@@ -220,7 +219,8 @@ PANC_PHENO_CLASS_NOT_COMPARED = {
 #: UNAVAILABLE rather than zero.
 #:
 #: `Unresolved (no lineage evidence)` is produced only by `core/phenocycler/scripts/typing/
-#: refine.py`, which is written and not wired, and `build_cells._join_refinement` adds
+#: refine.py`, through the `build_cells.py --refine` join (ruled in 2026-09-23, not yet run),
+#: and `build_cells._join_refinement` adds
 #: `refined_class` BESIDE `cell_class` without overwriting it.  Printing 0 here would say "this
 #: builder looked and found none", when it did not look -- the column cannot carry the class at
 #: all.  That is the missing-measurement rule, and this file's own entry for the label states it.

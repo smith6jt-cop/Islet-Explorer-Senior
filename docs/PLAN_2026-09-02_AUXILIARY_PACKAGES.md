@@ -210,7 +210,8 @@ have to be resolved before a source repository counts as absorbed.
 1. `core/phenocycler/setup.sh`: replace the no-op `git submodule update --init --recursive` with the
    three `external/` clone + checkout commands at their pins and the `external/.venv-som` recipe. Today
    the only provisioning is prose in two READMEs and a `pyproject.toml` comment. Note the two KODAMA
-   installers: pinned (`smith6jt-cop/KODAMA@d2dbe30e`) in `scripts/xenium_celltype/hpg/setup_envs.sh`,
+   installers: pinned (`smith6jt-cop/KODAMA@d2dbe30e`) in `scripts/xenium_celltype/hpg/setup_envs.sh`
+   (quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/),
    unpinned (`tkcaccia/KODAMA` HEAD) in `analysis/xenium/hpc/setup_envs.sh` — HPG-only, untestable here.
 2. CI: run `core/phenocycler/scripts/*/tests` (celltype and kintsugi tests provisioned from E.1, or
    skipping with a stated reason) and add an `analysis/xenium/**` job for its 77 tests. `core/panels`

@@ -5,7 +5,8 @@ is ``Unavailable:too_few_cells`` or ``Unavailable:no_core_beats_its_matched_null
 `test_nullgate.py::test_composition_never_renders_an_absence_as_a_zero`). Check 8 compared
 those rows for equality with ``"Unavailable"``, which is never true -- so every refusal was
 read as a lineage the composition *claims*, `claimed - awarded` was never empty, and the
-check failed on a run that was in fact complete. `50_assemble.sh` exits on that status, so a
+check failed on a run that was in fact complete. `50_assemble.sh` (quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/)
+exited on that status, so a
 finished cohort reported as "run NOT complete".
 
 The verifier is the thing that decides whether 20 donors are a result, so this builds a small

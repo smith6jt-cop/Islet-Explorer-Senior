@@ -30,8 +30,8 @@ source. Before work starts, `registration_inputs.py` checks that:
   morphology file.
 
 The inventory deliberately contains acquisition records that are not executable cohort members.
-Donors `6457` and `6579` remain centrally excluded by `phenocycler/cohort.py`: an explicit request
-for either donor fails, and an omitted `--donors` filters them out. Local stale VALIS directories
+Donor `6457` remains centrally excluded by `phenocycler/cohort.py`: an explicit request for it
+fails, and an omitted `--donors` filters it out. `6579`'s exclusion was lifted on 2026-09-17. Local stale VALIS directories
 cannot bypass that guard.
 
 QuPath GeoJSON is optional for image registration. `nuclei.py` uses a drawn `Tissue` polygon when

@@ -261,7 +261,8 @@ In `tests/testthat/` — these run via `devtools::test()`:
 
 - `test-load_panels.R`: every CSV in `data/panel_audit/` parses and has the expected columns.
 - `test-load_xenium.R`: the synthetic fixture loads into a valid Seurat object; cache hit on second call.
-- `test-panel_validate.R`: known overlap counts match.
+- `test-panel_validate.R` (planned, never written; measured 2026-09-24): no test checks overlap
+  counts today.
 - `test-cluster_pipeline.R`: `run_cluster_pipeline()` on the fixture produces ≥ 2 cluster columns and a UMAP reduction; output object survives `qs2::qs_save`/`qs_read` round-trip.
 - `test-clustree.R`: the `clustree()` call returns a `ggplot` object given the fixture.
 

@@ -6,7 +6,8 @@ shards of a donor-arm tiled 1..M, or that a merge read the shards it thinks it r
 jobs are especially good at hiding this: one task of 120 can fail, the array reports as
 completed, and the merge for that donor-arm will happily rbind two shards out of three --
 which is why `kodama_merge.R` refuses a partial tile, and why this checks the same thing
-independently of the job that wrote it.
+independently of the job that wrote it. (`kodama_merge.R` and the rest of the hpg/ apparatus
+were quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/; this verifier was not.)
 
 Nine checks, all fail-closed:
   1. every cohort donor in qupath_manifest.json appears in the work manifest

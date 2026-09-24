@@ -24,11 +24,11 @@ never modifies ``cell_class``, and no app artifact reads it. An Immune cell whos
 ``Immune (subtype unresolved)``, which is a named absence of a subtype and not a
 zero.
 
-``typing/cells`` here is the 2026-09-15 build: eight classes plus ``Excluded``.
-It carries no CD99 question and no ``Unresolved`` class, because no donor has
-been re-run with the 2026-09-18 islet chain. ``refined_class`` is not read --
-``core/phenocycler/scripts/typing/refine.py`` is written and not wired, and
-its 5th-percentile demotion is an open question rather than a decision.
+``typing/cells`` here is the 2026-09-19 build: eight classes plus ``Excluded``,
+with the 2026-09-18 islet chain applied to every donor, and no ``Unresolved``
+class. ``refined_class`` is not read -- the refinement pass was ruled in on
+2026-09-23 and is wired as the ``build_cells.py --refine`` join, which has not
+run, and which class a builder serves is open.
 
 Cell files have no donor column: only their explicit donor_id= partition is
 read. Membership files are read with partitioning=None and joined on object_id

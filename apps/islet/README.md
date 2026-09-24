@@ -21,10 +21,11 @@ path cannot escape the active domain's root.
 
 The run cohort's display vocabulary has **nine entries and eight cell types**: the
 eight classes the subpanel classification decides, plus `Unresolved`, which is an
-*absence* rather than a class. **Nothing produces `Unresolved` today** — the
-refinement pass that would write it is written and not wired, and the build under
-`typing/app` comes from the 2026-09-15 typing of 25,230,109 cells with eight
-classes plus `Excluded`. It is declared ahead of its data so a card meets a named
+*absence* rather than a class. **No cell carries `Unresolved` today** — the
+refinement pass that writes it was ruled in on 2026-09-23 and is wired as the
+`build_cells.py --refine` join (into `refined_class`, beside `cell_class`), and that
+join has not run; `typing/app` is built from `cell_class`, eight classes plus
+`Excluded`. It is declared ahead of its data so a card meets a named
 absence instead of an unmapped value. See the header of `config/run20_default.yml`.
 
 These configs are downstream display contracts. They must not be used to define

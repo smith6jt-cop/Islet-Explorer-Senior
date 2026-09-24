@@ -192,7 +192,9 @@ def test_refinement_log_refusal_says_no_producer_and_names_what_to_read():
     assert "2026-09-11" in message
     assert "subpanel_log.json" in message          # the current file to read instead
     assert "UNAVAILABLE" in message                # there is no current own-marker table
-    assert "NOT WIRED" in message                  # refine.py is not a replacement either
+    # refine.py is not a replacement either: wired as the --refine join since 2026-09-23 (it said
+    # "NOT WIRED" until then), not run, and its log is the 54-marker pass, not this table.
+    assert "not a replacement" in message and "has not run" in message
     assert "54, not 21" in message                 # and its marker set is a different one
 
 
