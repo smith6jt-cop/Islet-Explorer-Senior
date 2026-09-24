@@ -71,13 +71,13 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 
+from scripts.senior import crosswalk as XW  # noqa: E402
 from scripts.senior import xenium_release  # noqa: E402
 
 CROSSWALK = REPO / "core/phenocycler/data/integration/vocab_crosswalk.csv"
@@ -312,8 +312,9 @@ def log(msg: str) -> None:
 # crosswalk
 # ---------------------------------------------------------------------------
 def load_crosswalk() -> pd.DataFrame:
-    cw = pd.read_csv(CROSSWALK, dtype=str).fillna("")
-    return cw[cw["kind"] == "lineage"].copy()
+    """The crosswalk's lineage rows, through the one strict reader (scripts/senior/crosswalk.py).
+    A crosswalk with no lineage rows is refused rather than compared as empty."""
+    return XW.lineage_rows(CROSSWALK)
 
 
 def comparable_lineages(cw: pd.DataFrame, *, immune_only: bool) -> tuple[list[str], dict[str, str]]:

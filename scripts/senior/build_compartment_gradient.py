@@ -124,7 +124,6 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
@@ -134,6 +133,7 @@ import build_cells as TYPING_CELLS  # noqa: E402  -- the declared cell_class tab
 
 sys.path.insert(0, str(REPO))
 
+from scripts.senior import crosswalk as XW  # noqa: E402
 from scripts.senior import xenium_release  # noqa: E402
 
 
@@ -306,16 +306,15 @@ def load_donor_meta() -> pd.DataFrame:
 
 
 def load_crosswalk_immune() -> tuple[set[str], dict[str, str]]:
-    """Which common lineages the crosswalk records as immune in the pLN."""
-    cw = pd.read_csv(CROSSWALK)
-    lin = cw[cw["kind"] == "lineage"]
-    immune, scope = set(), {}
-    for _, row in lin.iterrows():
-        common = str(row["common"])
-        if str(row["is_immune"]).strip().lower() == "yes":
-            immune.add(common)
-            scope[common] = str(row.get("immune_tissue_scope", ""))
-    return immune, scope
+    """Which common lineages the crosswalk records as immune, and in which tissues.
+
+    Read through the one strict reader (scripts/senior/crosswalk.py): ``is_immune`` must say
+    exactly ``yes`` -- it was matched case-insensitively here until 2026-09-24 -- and a blank
+    scope is ``""``, not the string ``"nan"`` this reader used to write into the manifest.
+    """
+    lin = XW.lineage_rows(CROSSWALK)
+    immune = lin[lin["is_immune"].eq("yes")]
+    return set(immune["common"]), dict(zip(immune["common"], immune["immune_tissue_scope"]))
 
 
 # ---------------------------------------------------------------------------

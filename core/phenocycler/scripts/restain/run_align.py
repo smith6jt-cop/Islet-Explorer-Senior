@@ -24,7 +24,6 @@ thresholds are geometry rather than preference.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -33,7 +32,6 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE.parents[1] / "scripts" / "xenium_celltype"))
 
 import align as AL  # noqa: E402
@@ -44,6 +42,9 @@ from rasterize_labels import rasterize_binary  # noqa: E402
 from run_register import OUT, register_one  # noqa: E402
 
 from phenocycler.integration import boundaries as B  # noqa: E402
+# The one file checksum (phenocycler/artifacts.py): every byte, hex digest. Bound to the
+# local name because other modules and tests call it through this one.
+from phenocycler.artifacts import sha256_file as _sha256  # noqa: E402
 
 #: Probe window side. Must comfortably exceed 2x the search radius so the correlation disk fits
 #: inside the window; at 60 um search that is 120 um, and 500 um leaves room for the nuclei
@@ -212,14 +213,6 @@ def _saved_transform(donor: str, stem: str, out_dir: Path):
     if payload.get("has_displacement") and not npz.exists():
         raise AL.AlignError(f"{js} declares a displacement field but {npz} is absent")
     return Transform.load(d, stem=stem)
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with Path(path).open("rb") as fh:
-        for chunk in iter(lambda: fh.read(8 * 1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _select_window_fold(probes: list[dict], fold: str) -> list[dict]:

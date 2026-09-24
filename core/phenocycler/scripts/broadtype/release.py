@@ -63,7 +63,6 @@ No provenance string may carry a retired-lane token (``phenospace.RETIRED_INPUT_
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import pathlib
 import sys
@@ -82,6 +81,9 @@ from arm_base import within_donor_rank  # noqa: E402  (the one rank definition t
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 from phenocycler.integration.phenospace import RETIRED_INPUT_TOKENS  # noqa: E402
+# The one file checksum (phenocycler/artifacts.py): every byte, hex digest. Bound to the
+# local name because other modules and tests call it through this one.
+from phenocycler.artifacts import sha256_file as _sha256  # noqa: E402
 
 SCHEMA_VERSION = 1
 MODALITY = "phenocycler"
@@ -170,14 +172,6 @@ class Sources:
 
 
 # --------------------------------------------------------------------------- small helpers
-def _sha256(path: pathlib.Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def _strings(obj) -> list:
     """Every string anywhere in a JSON-like object (keys included)."""
     out = []

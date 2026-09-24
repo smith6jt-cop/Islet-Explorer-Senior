@@ -78,13 +78,13 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED  # noqa: E402
 from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 
+from scripts.senior import crosswalk as XW  # noqa: E402
 from scripts.senior import xenium_release  # noqa: E402
 from scripts.senior.availability_states import (  # noqa: E402
     AVAILABILITY_STATES,
@@ -214,11 +214,11 @@ def refuse_cross_tissue(quantity: str, tissues) -> None:
 # every row instead of being consumed here.
 # --------------------------------------------------------------------------
 def load_crosswalk() -> pd.DataFrame:
-    cw = pd.read_csv(CROSSWALK, dtype=str).fillna("")
-    lin = cw[cw["kind"].eq("lineage")].copy()
-    if lin.empty:
-        raise GridError(f"{CROSSWALK} carries no lineage rows")
-    return lin
+    """The crosswalk's lineage rows, through the one strict reader (scripts/senior/crosswalk.py)."""
+    try:
+        return XW.lineage_rows(CROSSWALK)
+    except XW.CrosswalkError as exc:
+        raise GridError(str(exc)) from exc
 
 
 #: Fine PhenoCycler calls -> the crosswalk `common` lineage they belong to.

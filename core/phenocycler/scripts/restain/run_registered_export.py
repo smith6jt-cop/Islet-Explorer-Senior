@@ -44,13 +44,15 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parents[1]))
 
 import explorer as EX  # noqa: E402
 import islet_annotations as IA  # noqa: E402
 import registration_inputs as RI  # noqa: E402
 
 from phenocycler.integration.transform import Transform  # noqa: E402
+# The one file checksum (phenocycler/artifacts.py): every byte, hex digest. Bound to the
+# local name because other modules and tests call it through this one.
+from phenocycler.artifacts import sha256_file as _sha256  # noqa: E402
 
 OUT = RI.REPO / "data" / "development" / "restain"
 ALIGNMENT_ROOT = OUT / "valis"
@@ -94,14 +96,6 @@ class ExportPlan:
     morphology: dict[str, Any]
     destination: Path
     action: str
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _read_json_object(path: Path, what: str) -> dict[str, Any]:
