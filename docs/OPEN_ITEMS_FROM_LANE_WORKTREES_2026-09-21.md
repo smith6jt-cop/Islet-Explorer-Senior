@@ -11,7 +11,7 @@ open items survive the folders that held them.
 
 Nothing below has been acted on. Each needs an owner decision, not a code change first.
 
-## 1. A card exists that the app cannot display
+## 1. A card exists that the app cannot display — RESOLVED
 
 `s1_size_composition` is listed in neither `IE_CROSSMODAL_CARDS`
 (`apps/islet/R/mod_crossmodal_ui.R`) nor `IE_LYMPHNODE_CARDS`
@@ -27,7 +27,12 @@ one. Mounting means calling `card_s1_size_composition_ui(ns)` and
 Reported independently by two workers (`wt-I-islet`, `wt-M-cards`), both of which recorded
 that registry and app wiring were outside their file ownership.
 
-## 2. The app's own startup assertion blocks its smoke test
+> **Resolved — recorded 2026-09-24.** The card is mounted: `IE_CROSSMODAL_CARDS` lists it at
+> `apps/islet/R/mod_crossmodal_ui.R:40` (`list(id = "s1_size_composition", ...)`), added in
+> `6f54f9d` (2026-09-17). The maintainer reran `tests/tab_smoke.R` on 2026-09-24: the card mounts
+> and renders. The finding above is kept as it was recovered.
+
+## 2. The app's own startup assertion blocks its smoke test — RESOLVED
 
 `apps/islet/app.R:304` asserts `IE_TAB_KEYS` equals the old tab list — without `CrossModal`
 and `LymphNode`. Those keys already exist in `apps/islet/R/00_globals.R`. The browser smoke
@@ -42,6 +47,16 @@ Separately, `s3_compartments` is omitted from both card registries though its UI
 exist in `apps/islet/R/card_s3_compartments.R`.
 
 Recorded by `wt-G-gradient`.
+
+> **Resolved — recorded 2026-09-24.** Both halves are fixed in code, in `1b49f49` (2026-09-16).
+> The startup assertion, now `apps/islet/app.R:317-322`, compares `IE_TAB_KEYS` (derived from
+> `IE_PIPELINE` and `IE_REFERENCE`, `apps/islet/R/00_globals.R:419-420`) with a list that names
+> `CrossModal` and `LymphNode` (`app.R:320`). `s3_compartments` is registered in
+> `IE_LYMPHNODE_CARDS` at `apps/islet/R/mod_lymphnode_ui.R:31`. The maintainer reran
+> `tests/tab_smoke.R` on 2026-09-24: startup no longer blocks. **The smoke suite is not green**:
+> it still fails for two separate reasons not diagnosed here — an `ieCore` package lookup in the
+> R process the test spawns, and Chromote screenshot-copy timeouts. Neither bears on this item.
+> The finding above is kept as it was recovered.
 
 ## 3. A standing-rule question: Xenium records carry no `object_id`
 
