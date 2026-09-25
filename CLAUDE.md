@@ -139,14 +139,15 @@ survive only so `subpanel.py --gate` can reproduce it.
 6. **Not endocrine** takes the ordinary chain: immune definitions, the supporting tier, then
    Exocrine.
 
-**What is on disk carries that chain.** `data/development/typing/cells/` was rewritten on
-2026-09-19 with the chain applied to all 20 donors — **25,230,109 cells**, eight classes plus
+**What is on disk carries that chain.** `data/development/typing/cells/` was rewritten on 2026-09-19
+with the chain applied to all 20 donors — **25,230,109 cells**, `cell_class` eight classes plus
 `Excluded`, no `Unresolved`. Measured 2026-09-24: every partition carries `islet_route` (cd99
 408,950 · elongation 29,060 · hormone 190,571) and `islet_stratum` (`1` / `2-3` / `4-10` / `>10`),
 and the endocrine triple is Beta 235,052 / Alpha 294,514 / Delta 99,015. The row count equals the
-2026-09-15 pre-chain build's, so a count cannot tell the two apart; `islet_route` can.
-`RECONSTRUCTION.md` marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting
-it.
+2026-09-15 pre-chain build's, so a count cannot tell the two apart; `islet_route` can. On 2026-09-24
+the `--refine` join rewrote every partition to add `refined_class` and the pass's columns beside
+`cell_class`; the count, the triple and the routes above are unchanged by it. `RECONSTRUCTION.md`
+marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting it.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation and must not
 be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against the 25,230,109
@@ -160,9 +161,9 @@ counts in the error.
 - **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
 - **Immune subtyping is a second pass over the `Immune` class only**
-  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898 Immune cells —
-  the Immune class before the 2026-09-19 rewrite; it is 2,875,751 now, so `make check` reports
-  `typing/immune` stale). It never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
+  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, rerun 2026-09-24 over the current
+  Immune class — 2,875,751 cells, 20 donors — so `make check` reports `typing/immune` fresh). It
+  never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
   outcome, distinct from "no rule fired"; reduced rules are reported on every donor and never
   written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No
   `typing/app` artifact reads `typing/immune`** — the four app builders contain no reference to it,
@@ -174,15 +175,17 @@ counts in the error.
   `build_cells.py --refine` joins `refined_class` and the pass's per-cell columns **beside**
   `cell_class`; the islet chain's `cell_class`, `is_endocrine` and `endocrine_route` are not
   touched. Its marker set is 54, not 21, and its 5th-percentile bound demotes about 5% of every
-  class by construction — not revisited by the ruling. **[ON DISK] the join has not run** until
-  the DATA step, and every builder still reads `cell_class`. Whether any should read
-  `refined_class` instead touches the islet chain, so it is asked, never inferred.
+  class by construction — not revisited by the ruling. **[ON DISK] the join ran 2026-09-24** on
+  all 20 partitions, but every builder still reads `cell_class`, and no layer or app artifact has
+  been rebuilt from the joined tree — `/data/islet_layers` and `typing/app` are still pre-join.
+  Whether any builder should read `refined_class` instead touches the islet chain, so it is
+  asked, never inferred.
 - **The ninth class is declared; only the join produces it.** `Unresolved (no lineage evidence)`
   is in `apps/islet/config/run20_default.yml`; `refine.py` writes it into `refined_class` for a
-  demoted Exocrine cell, never into `cell_class`, and no cell on disk carries it until the join
-  runs.
-- Still open, and not to be resolved in prose: which class the builders serve once the join has
-  run, elongation's weight, and the size stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
+  demoted Exocrine cell, never into `cell_class`. Since the join, 1,063,102 cells carry it in
+  `refined_class` and none in `cell_class`.
+- Still open, and not to be resolved in prose: which class the builders serve now that the join
+  has run, elongation's weight, and the size stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
   outputs under `data/development/typing/islet_identity/`); in the large stratum 14 of 20 donors
   were testable, and CD99 is the strongest feature at 5 of 10 donors firing. That is evidence about
   the question, not an answer to it.
@@ -202,7 +205,7 @@ Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `
 
 | tissue × modality | producer | writes |
 |---|---|---|
-| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — `cell_class`, and `refined_class` beside it once the join runs |
+| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — `cell_class`, and `refined_class` beside it (joined 2026-09-24; builders read `cell_class`) |
 | pancreas × Xenium | `analysis/xenium/scripts/panc_xenium_cluster_name.py`, run by `panc_xenium_release.py` | `/data/xenium_typing/panc_2026-09-17/release` — `lineage`, `common_lineage` |
 | pLN × Xenium | `analysis/xenium/scripts/pln_immune_typing_v3.py` | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
 | pLN × PhenoCycler | `core/phenocycler/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
