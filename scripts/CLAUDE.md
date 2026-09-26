@@ -51,8 +51,8 @@ it.
 Immune cells) adds a finer subtype over the `Immune` class only and never modifies `cell_class`;
 each app builder's coverage comes from its own `COHORT.resolve`. One layer does read it:
 `senior/build_grid_composition.py` takes the fine subtype for `fine.csv` (:585), and
-`build_layers.py` declares it as that node's input. It was built over the Immune class before the
-2026-09-19 rewrite (2,875,751 cells now), so `--check` reports it stale under the table
+`build_layers.py` declares it as that node's input. It was last rebuilt 2026-09-26 over the
+current Immune class (2,875,793 cells); `--check` reports its state under the table
 (`SOURCE_CHECKS`) without turning the gate red.
 
 ## The layer builders

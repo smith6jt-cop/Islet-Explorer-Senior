@@ -10,9 +10,10 @@ could not be re-run, which meant no correction to it could ever be applied.
 This is that producer, written from `RECONSTRUCTION.md` -- which was itself recovered by
 reproducing the calls from their inputs and checked against them, not inferred from prose.
 
-THE ISLET CHAIN BELOW IS ON DISK. Measured 2026-09-24: the stage roots `typing/subpanel_rebuilt/`
+THE ISLET CHAIN BELOW IS ON DISK. Measured 2026-09-26: the stage roots `typing/subpanel_rebuilt/`
 and `typing/cells/` hold 25,230,109 rows over 20 donors and were both rewritten on 2026-09-19 with
-it -- every partition carries `islet_route` (cd99 408,950, elongation 29,060, hormone 190,571) and
+it, and 6374 alone was retyped 2026-09-26 on its re-exported structure objects -- every partition
+carries `islet_route` (cd99 408,934, elongation 29,047, hormone 190,571) and
 `islet_stratum`. The row count equals the 2026-09-15 pre-chain build's, so read `islet_route`, not
 a count, to tell which build is on disk.
 

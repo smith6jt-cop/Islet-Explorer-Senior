@@ -276,6 +276,16 @@ def test_a_half_written_temporary_is_not_counted(tmp_path):
     assert bl.check_node(_node(tmp_path, ["tree"], ["out.parquet"])).state == bl.FRESH
 
 
+def test_a_superseded_copy_kept_beside_its_replacement_is_not_counted(tmp_path):
+    """`<donor>.geojson.superseded-2026-09-14` sits in app/json; no node writes it."""
+    _touch(tmp_path / "in.csv", 2000)
+    _touch(tmp_path / "out/115.geojson", 3000)
+    _touch(tmp_path / "out/115.geojson.superseded-2026-09-14", 1000)
+    assert bl.check_node(_node(tmp_path, ["in.csv"], ["out"])).state == bl.FRESH
+    _touch(tmp_path / "out/115.geojson", 1500)
+    assert bl.check_node(_node(tmp_path, ["in.csv"], ["out"])).state == bl.STALE
+
+
 def test_a_pycache_directory_is_not_counted(tmp_path):
     _touch(tmp_path / "tree/data.parquet", 1000)
     _touch(tmp_path / "tree/__pycache__/x.pyc", 9000)
@@ -433,19 +443,32 @@ def test_an_unknown_node_name_is_refused_rather_than_silently_skipped(tmp_path):
     assert "unknown node" in result.stderr
 
 
-@pytest.mark.data
-def test_run_refuses_a_node_whose_own_input_is_stale_and_builds_nothing(tmp_path):
+def test_run_refuses_a_node_whose_own_input_is_stale_and_builds_nothing(tmp_path, capsys):
     """The refusal is the point: a fresh artifact built on a stale input is the failure mode.
 
-    Pointed at an empty layers root, islet_summary's upstream geometry nodes are not fresh, so the
-    driver must refuse before it starts the builder and must leave the root uncreated.
+    A synthetic graph, never the real one. This used to run `--run --only islet_summary` on the
+    real graph with `--layers-dir` at a temporary root, relying on islet_geometry being stale to
+    produce the refusal. But no node reads anything under the layers root and every builder
+    writes its own hard-coded one, so once Step 7 left the tree fresh (2026-09-26) the run was
+    not refused: it rebuilt /data/islet_layers/islet_summary for real (byte-identical, since
+    its inputs had not moved).
     """
-    target = tmp_path / "probe_layers"
-    result = _driver("--run", "--only", "islet_summary", layers=target)
-    assert result.returncode == 1
-    assert "REFUSED" in result.stdout
-    assert "islet_geometry" in result.stdout
-    assert not target.exists(), "a refused run must write nothing"
+    src, up_out, out = tmp_path / "src.txt", tmp_path / "up.txt", tmp_path / "down.txt"
+    for path, when in ((src, 1000), (up_out, 500)):      # up is stale: src postdates its output
+        _touch(path, when)
+    builds = tmp_path / "down_builder_ran"
+    nodes = {
+        "up": bl.Node(name="up", command=(sys.executable, "-c", "pass"),
+                      inputs=(str(src),), outputs=(str(up_out),)),
+        "down": bl.Node(name="down",
+                        command=(sys.executable, "-c",
+                                 f"open(r'{builds}','w'); open(r'{out}','w')"),
+                        inputs=(str(up_out),), outputs=(str(out),)),
+    }
+    assert bl.run(nodes, tmp_path, only=["down"]) == 1
+    printed = capsys.readouterr().out
+    assert "down: REFUSED" in printed and "up" in printed
+    assert not builds.exists() and not out.exists(), "a refused run must write nothing"
 
 
 def test_a_mode_is_required(tmp_path):

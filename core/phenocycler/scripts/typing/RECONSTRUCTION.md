@@ -10,9 +10,10 @@ because a reader in a month has to be able to tell them apart:
 * **[CHAIN NOW]** — the method as `subpanel.py` runs it after the maintainer's islet ruling of
   2026-09-18. Proven first on three donors (115, 6442, 6534) with `--membership geometry --levels
   per-donor`, then **run on all 20 on 2026-09-19**: `typing/subpanel_rebuilt/` (written
-  09:41–09:46) and `typing/cells/` (09:55–09:59) carry it. Measured 2026-09-24: 25,230,109 rows
-  over 20 donors in each, every partition with `islet_route` (cd99 408,950 · elongation 29,060 ·
-  hormone 190,571) and `islet_stratum`, and no `Unresolved` anywhere.
+  09:41–09:46) and `typing/cells/` (09:55–09:59) carry it; 6374 alone was retyped 2026-09-26 on its re-exported structure objects (the other 19
+  unchanged). Measured 2026-09-26: 25,230,109 rows over 20 donors in each, every partition with
+  `islet_route` (cd99 408,934 · elongation 29,047 · hormone 190,571) and `islet_stratum`, and no
+  `Unresolved` in `cell_class`.
 
   **Read the date on an `[ON DISK]` statement.** One written before 2026-09-19 describes the
   pre-chain build of 2026-09-15 that this rewrite replaced — the same 25,230,109 rows, but no

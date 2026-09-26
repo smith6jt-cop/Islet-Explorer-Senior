@@ -193,6 +193,11 @@ RED_STATES = (STALE, MISSING_OUTPUT, MISSING_INPUT)
 #: Directory entries never counted when scanning a tree for its newest file.
 SKIP_DIR_NAMES = {"__pycache__", ".ipynb_checkpoints"}
 SKIP_SUFFIXES = (".tmp", ".parquet.tmp")
+#: A file renamed `<name>.superseded-<stamp>[.ext]` is a previous generation kept beside its
+#: replacement, written by no node. app/json holds ten (`<donor>.geojson.superseded-2026-09-14`,
+#: docs/TISSUUMAPS_REGIONS_2026-09-17.md), and counted as outputs they held app_outlines stale
+#: after the 2026-09-26 rebuild had rewritten all twenty donors' files.
+SUPERSEDED_MARK = ".superseded-"
 
 #: Sources with no node here, and what does write them. Printed beside the check table whenever
 #: one of them is the newest input, so "stale against typing/cells" names its producer rather
@@ -880,7 +885,7 @@ def _assert_shared_outputs_are_ordered(nodes: dict[str, Node]) -> None:
 # --------------------------------------------------------------------------------------------
 
 def _files_under(root: Path):
-    """Every file under a directory, skipping caches and half-written temporaries."""
+    """Every file under a directory, skipping caches, half-written temporaries and superseded copies."""
     stack = [root]
     while stack:
         current = stack.pop()
@@ -894,7 +899,7 @@ def _files_under(root: Path):
             if entry.is_dir(follow_symlinks=False):
                 stack.append(Path(entry.path))
             elif entry.is_file(follow_symlinks=False):
-                if entry.name.endswith(SKIP_SUFFIXES):
+                if entry.name.endswith(SKIP_SUFFIXES) or SUPERSEDED_MARK in entry.name:
                     continue
                 yield entry
 

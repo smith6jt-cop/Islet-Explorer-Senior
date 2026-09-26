@@ -69,26 +69,25 @@ ordinary tissue and fitted **per donor**. `config/run20_default.yml` declares
 no heading in this app says "(scVI)" over this dataset.
 
 The source is `data/development/typing/cells/` — **20 donor partitions, 25,230,109 rows, rewritten
-2026-09-19 with the islet chain** (measured 2026-09-24). Its `cell_class` column carries eight
-classes plus `Excluded` and nothing else: Exocrine 20,099,247 · Immune 2,875,751 · Blood vessel
-1,422,676 · Alpha 294,514 · Beta 235,052 · Excluded 165,431 · Delta 99,015 · Nerve 32,836 ·
-Lymphatic 5,587. Three things follow, and all three are easy to get wrong from older text:
+2026-09-19 with the islet chain**, 6374 retyped 2026-09-26 (measured 2026-09-26). Its `cell_class`
+column carries eight classes plus `Excluded` and nothing else: Exocrine 20,099,397 · Immune
+2,875,793 · Blood vessel 1,422,519 · Alpha 294,496 · Beta 235,046 · Excluded 165,431 · Delta
+99,010 · Nerve 32,837 · Lymphatic 5,580. Three things follow, and all three are easy to get wrong
+from older text:
 
 - **`typing/subpanel/subpanel_calls.parquet` is a PREVIOUS generation** — 25,150,537 rows, written
   Sep 11 — and nothing in this app reads it. That tree stacks generations side by side with
   nothing marking which is which; check mtimes before citing anything in it.
-- **The 2026-09-18 islet chain is on disk, but not yet in everything this app draws.** Every
-  `typing/cells` partition carries `islet_route` (cd99 408,950 · elongation 29,060 · hormone
-  190,571). The `typing/app` artifacts were written at different times: islet geometry, islet
-  composition, neighbourhood metrics, islet marker means and islet Leiden on 2026-09-21, after the
-  rewrite; `parquet/islets.parquet` on 2026-09-17 and the per-cell tissue, drill-down, outline and
-  distance artifacts on 2026-09-14, before it. `make check` names each stale one, and the DATA step
-  rebuilds them.
-- **The ninth vocabulary entry, `Unresolved`, is carried by no cell yet.** It is an *absence*, not a
+- **The 2026-09-18 islet chain is in everything this app draws.** Every `typing/cells` partition
+  carries `islet_route` (cd99 408,934 · elongation 29,047 · hormone 190,571), and every
+  `typing/app` artifact and `/data/islet_layers` layer was rebuilt from it on 2026-09-26 (Step 7;
+  `make check` 24 fresh, 0 not fresh).
+- **The ninth vocabulary entry, `Unresolved`, is carried by no served artifact.** It is an *absence*, not a
   class — what the refinement pass (`core/phenocycler/scripts/typing/refine.py`, producer label
   `Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. The pass was ruled in
   on 2026-09-23 and is wired as the `build_cells.py --refine` join, which adds `refined_class`
-  beside `cell_class`; the join has not run on disk, `build_cells.py` still sets `phenotype` from
+  beside `cell_class`; the join ran on disk 2026-09-24 (1,063,097 cells carry it in `refined_class`
+  since 2026-09-26), but `build_cells.py` still sets `phenotype` from
   `cell_class`, and `parquet/islets.parquet` carries `count_*` / `prop_*` / `peri_*` /
   `enrich_z_*` / `min_dist_*` over the eight classes with **no `Unresolved` column of any kind**.
   Its 5th-percentile bound demotes about 5 % of every class by construction; whether any builder

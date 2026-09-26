@@ -141,19 +141,23 @@ survive only so `subpanel.py --gate` can reproduce it.
 
 **What is on disk carries that chain.** `data/development/typing/cells/` was rewritten on 2026-09-19
 with the chain applied to all 20 donors — **25,230,109 cells**, `cell_class` eight classes plus
-`Excluded`, no `Unresolved`. Measured 2026-09-24: every partition carries `islet_route` (cd99
-408,950 · elongation 29,060 · hormone 190,571) and `islet_stratum` (`1` / `2-3` / `4-10` / `>10`),
-and the endocrine triple is Beta 235,052 / Alpha 294,514 / Delta 99,015. The row count equals the
+`Excluded`, no `Unresolved`. Measured 2026-09-26: every partition carries `islet_route` (cd99
+408,934 · elongation 29,047 · hormone 190,571) and `islet_stratum` (`1` / `2-3` / `4-10` / `>10`),
+and the endocrine triple is Beta 235,046 / Alpha 294,496 / Delta 99,010. The row count equals the
 2026-09-15 pre-chain build's, so a count cannot tell the two apart; `islet_route` can. On 2026-09-24
 the `--refine` join rewrote every partition to add `refined_class` and the pass's columns beside
-`cell_class`; the count, the triple and the routes above are unchanged by it. `RECONSTRUCTION.md`
+`cell_class`; the count, the triple and the routes were unchanged by it. On 2026-09-26 donor 6374
+alone was retyped (crossed fraction → `subpanel.py` → build → refine → join) on its re-exported
+Nerve / Blood vessel / Lymphatic objects: 2,477 of its 2,132,181 cells changed `cell_class`, the
+other 19 donors are identical row for row, and the numbers above are that build's. `RECONSTRUCTION.md`
 marks every statement `[ON DISK]` or `[CHAIN NOW]`; read the mark before quoting it.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation and must not
 be read as current. Measured 2026-09-17: 25,150,537 rows, written Sep 11, against the 25,230,109
 rows `typing/cells/` then held (written Sep 15) — 79,572 cells apart, and its endocrine counts differ
 materially (Beta 191,485 / Alpha 246,055 / Delta 62,797 against 226,183 / 279,686 / 90,658 then, and
-235,052 / 294,514 / 99,015 since the 2026-09-19 rewrite). That tree stacks
+235,052 / 294,514 / 99,015 after the 2026-09-19 rewrite, 235,046 / 294,496 / 99,010 since 6374's
+2026-09-26 retyping). That tree stacks
 generations side by side with nothing marking which is which, so check mtimes before citing anything
 in it. `scripts/senior/build_distance_profiles.py` refuses the superseded file by path, with the
 counts in the error.
@@ -161,8 +165,8 @@ counts in the error.
 - **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
 - **Immune subtyping is a second pass over the `Immune` class only**
-  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, rerun 2026-09-24 over the current
-  Immune class — 2,875,751 cells, 20 donors — so `make check` reports `typing/immune` fresh). It
+  (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, rerun 2026-09-26 over the current
+  Immune class — 2,875,793 cells, 20 donors — so `make check` reports `typing/immune` fresh). It
   never modifies `cell_class`. A rule that cannot be asked is EMPTY, not 0; "undecidable" is its own
   outcome, distinct from "no rule fired"; reduced rules are reported on every donor and never
   written into `immune_class`; per-cell `panel_offset` is a diagnostic that gates nothing. **No
@@ -176,13 +180,14 @@ counts in the error.
   `cell_class`; the islet chain's `cell_class`, `is_endocrine` and `endocrine_route` are not
   touched. Its marker set is 54, not 21, and its 5th-percentile bound demotes about 5% of every
   class by construction — not revisited by the ruling. **[ON DISK] the join ran 2026-09-24** on
-  all 20 partitions, but every builder still reads `cell_class`, and no layer or app artifact has
-  been rebuilt from the joined tree — `/data/islet_layers` and `typing/app` are still pre-join.
+  all 20 partitions (rerun 2026-09-26 with 6374's retyping), and every layer and app artifact was
+  rebuilt from the joined tree on 2026-09-26 (Step 7, `make check` 24 fresh) — but every builder
+  still reads `cell_class`, so what they serve is the islet chain's class, not `refined_class`.
   Whether any builder should read `refined_class` instead touches the islet chain, so it is
   asked, never inferred.
 - **The ninth class is declared; only the join produces it.** `Unresolved (no lineage evidence)`
   is in `apps/islet/config/run20_default.yml`; `refine.py` writes it into `refined_class` for a
-  demoted Exocrine cell, never into `cell_class`. Since the join, 1,063,102 cells carry it in
+  demoted Exocrine cell, never into `cell_class`. Since the join, 1,063,097 cells carry it in
   `refined_class` and none in `cell_class`.
 - Still open, and not to be resolved in prose: which class the builders serve now that the join
   has run, elongation's weight, and the size stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,

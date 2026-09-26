@@ -40,9 +40,10 @@ not rewrite `typing/cells/`; it writes a sidecar beside it, joined only under
 
 ### The 2026-09-18 islet chain is on disk, for every donor
 
-Measured 2026-09-24. `typing/subpanel_rebuilt/` and `typing/cells/` both hold 25,230,109 rows over
-20 donors and were rewritten on **2026-09-19** (09:41–09:46 and 09:55–09:59) with the islet chain:
-every partition carries `islet_route` (cd99 408,950 · elongation 29,060 · hormone 190,571) and
+Measured 2026-09-26. `typing/subpanel_rebuilt/` and `typing/cells/` both hold 25,230,109 rows over
+20 donors and were rewritten on **2026-09-19** (09:41–09:46 and 09:55–09:59) with the islet chain,
+and 6374 alone was retyped 2026-09-26 on its re-exported structure objects:
+every partition carries `islet_route` (cd99 408,934 · elongation 29,047 · hormone 190,571) and
 `islet_stratum` (`1` / `2-3` / `4-10` / `>10`). `cell_class` has nine values — the eight classes
 plus `Excluded` — and **no `Unresolved`**: the refinement pass was ruled in on 2026-09-23 and is
 wired as the `build_cells.py --refine` join, which has not run, so `typing/cells` carries no
