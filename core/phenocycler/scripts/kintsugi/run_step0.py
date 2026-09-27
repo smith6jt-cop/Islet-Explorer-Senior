@@ -80,19 +80,19 @@ def main() -> int:
             donors = sorted(set(image_to_donor.values()))
             print(f"\n=== {csv_path.name}  ({len(donors)} donors: {', '.join(donors)}) ===",
                   flush=True)
-            distance.assert_columns_present(con, csv_path)
-            print("  distance columns present", flush=True)
+            islet_col, tissue_col = distance.assert_columns_present(con, csv_path)
+            print(f"  distance columns present: {islet_col!r}, {tissue_col!r}", flush=True)
 
             if args.smoke:
-                escaped = str(csv_path).replace("'", "''")
                 allowed = ", ".join(distance._sql_string(i) for i in sorted(image_to_donor))
+                where = ("" if distance.is_parquet_measurement(csv_path)
+                         else f'WHERE "Image" IN ({allowed})')
                 rows = con.execute(f"""
-                    SELECT "Image", "Object ID",
-                           TRY_CAST("{distance.ISLET_COL}" AS DOUBLE) AS islet_um,
-                           TRY_CAST("{distance.TISSUE_COL}" AS DOUBLE) AS tissue_um
-                    FROM read_csv('{escaped}', header=true, all_varchar=true,
-                                  ignore_errors=true)
-                    WHERE "Image" IN ({allowed}) LIMIT 5
+                    SELECT "Object ID",
+                           TRY_CAST("{islet_col}" AS DOUBLE) AS islet_um,
+                           TRY_CAST("{tissue_col}" AS DOUBLE) AS tissue_um
+                    FROM {distance.read_source(csv_path)}
+                    {where} LIMIT 5
                 """).fetchall()
                 for r in rows:
                     print("   ", r, flush=True)
@@ -100,7 +100,8 @@ def main() -> int:
 
             distance.OUT.mkdir(parents=True, exist_ok=True)
             t0 = time.time()
-            con.execute(distance.extract_sql(csv_path, image_to_donor, distance.OUT))
+            con.execute(distance.extract_sql(csv_path, image_to_donor, distance.OUT,
+                                             islet_col=islet_col, tissue_col=tissue_col))
             print(f"  wrote in {time.time() - t0:.0f}s", flush=True)
 
     if args.smoke:

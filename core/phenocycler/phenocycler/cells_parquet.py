@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Stream contracted QuPath measurements into canonical donor partitions.
 
-Input  : measurement CSVs named by the QuPath cohort manifest. Panels differ
-         between batches, so ingest reconciles headers and keeps the marker
-         UNION plus availability.
+Input  : measurement exports named by the QuPath cohort manifest -- v2 CSV/TSV
+         batch exports, or v3 per-image (cells, context) Parquet pairs joined
+         on ``Object ID``. Panels differ between batches, so ingest reconciles
+         headers and keeps the marker UNION plus availability.
 Output : <run>/cells/donor_id=<id>/*.parquet with exact keys, geometry-QC
          inputs, spatial region and one raw Cell/Nucleus source per marker.
 
-Region scheme: Parent ``Islet_N`` = core, ``Islet_N_exp20um`` = peri,
+Region scheme (from Parent, see :data:`CELL_REGION_SQL`): ``Islet_N`` = core,
+``Islet_<id>_exp20um`` = peri, ``Cluster_N`` = cluster, ``Single_N`` = single,
+``Annotation (pLN)`` = pLN, ``Annotation (Artifact)`` = artifact,
 ``Annotation (Tissue)`` / ``Root object`` = tissue, else other.
 
 DuckDB streams large CSVs out of core with ``PARTITION_BY donor_id`` and ZSTD.
@@ -25,7 +28,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from .artifacts import ContractError, QuPathCohortManifest, image_id_to_donor_id
+from .artifacts import (
+    CONTEXT_REQUIRED_COLUMNS,
+    ContractError,
+    QuPathCohortManifest,
+    image_id_to_donor_id,
+    is_parquet_measurement,
+    measurement_header,
+)
 from .config import PipelineConfig
 from .marker_registry import load_registry
 
@@ -63,12 +73,65 @@ def qupath_normalized_column(compartment: str, marker: str) -> str:
 
 
 def header_cols(csv_path: Path) -> list[str]:
-    # Delimiter from the suffix -- the 2026-09 re-exports are .tsv. See
-    # artifacts.measurement_delimiter() for why this is not sniffed.
+    """Column names of one export: the Parquet schema (v3), else the CSV/TSV header (v2).
+
+    The CSV delimiter comes from the suffix -- the 2026-09 re-exports are .tsv. See
+    artifacts.measurement_delimiter() for why this is not sniffed.
+    """
+    if is_parquet_measurement(csv_path):
+        return list(measurement_header(csv_path))
     from .artifacts import measurement_delimiter
 
     with open(csv_path, newline="") as f:
         return next(csv.reader(f, delimiter=measurement_delimiter(csv_path)))
+
+
+#: QuPath 0.7 names the signed distance WITH the word "with"; the v2 batch exports have no
+#: "with". Both are the same measurement. The newer spelling is preferred when both appear.
+SIGNED_DISTANCE_SPELLINGS = (
+    "Signed distance to annotation with {cls} µm",
+    "Signed distance to annotation {cls} µm",
+)
+_SIGNED_DISTANCE = re.compile(r"^Signed distance to annotation (with )?.+ µm$")
+
+
+def signed_distance_column(columns: Sequence[str], annotation_class: str) -> str | None:
+    """The column carrying the signed distance to ``annotation_class``, in either spelling."""
+    present = set(columns)
+    for spelling in SIGNED_DISTANCE_SPELLINGS:
+        name = spelling.format(cls=annotation_class)
+        if name in present:
+            return name
+    return None
+
+
+def is_signed_distance_column(name: str) -> bool:
+    return bool(_SIGNED_DISTANCE.match(name))
+
+
+def context_columns_taken(context_columns: Sequence[str]) -> list[str]:
+    """What a v3 context Parquet supplies in place of the cells file's own columns.
+
+    Parent, both centroids and every signed distance. ``Object ID`` is the join key, and
+    anything else the context happens to carry is left to the cells file.
+    """
+    absent = [c for c in CONTEXT_REQUIRED_COLUMNS if c not in context_columns]
+    if absent:
+        raise ContractError(f"QuPath context Parquet is missing required columns {absent}")
+    return [
+        c for c in context_columns
+        if c in CONTEXT_REQUIRED_COLUMNS[1:] or is_signed_distance_column(c)
+    ]
+
+
+def source_header(path: Path, contexts: Mapping[str, str] | None = None) -> list[str]:
+    """Columns ingest will see for one export: a pair's cells columns plus its context's."""
+    columns = header_cols(Path(path))
+    context = (contexts or {}).get(str(path))
+    if context is None:
+        return columns
+    taken = context_columns_taken(header_cols(Path(context)))
+    return [c for c in columns if c not in taken] + taken
 
 
 def marker_means(cols: list[str]) -> dict[str, str]:
@@ -144,7 +207,10 @@ def sanitize(name: str) -> str:
     return re.sub(r"[^0-9A-Za-z]+", "_", name).strip("_")
 
 
-def reconcile_headers(csv_paths: Sequence[Path]) -> tuple[dict[str, str], dict]:
+def reconcile_headers(
+    csv_paths: Sequence[Path],
+    contexts: Mapping[str, str] | None = None,
+) -> tuple[dict[str, str], dict]:
     """Return the UNION of marker means plus explicit per-export availability.
 
     A batch-specific marker remains scientifically usable for donors acquired with that panel. The
@@ -156,13 +222,14 @@ def reconcile_headers(csv_paths: Sequence[Path]) -> tuple[dict[str, str], dict]:
         raise SystemExit(
             "[err] the cohort manifest declares no QuPath measurement CSV"
         )
-    missing = [str(p) for p in csv_paths if not Path(p).exists()]
+    paired = [Path(c) for c in (contexts or {}).values()]
+    missing = [str(p) for p in [*csv_paths, *paired] if not Path(p).exists()]
     if missing:
         raise SystemExit("[err] QuPath cell CSV not found:\n       " + "\n       ".join(missing))
 
     per_file = {}
     for p in csv_paths:
-        columns = header_cols(Path(p))
+        columns = source_header(Path(p), contexts)
         absent = sorted(set(REQUIRED_CONTEXT_COLUMNS).difference(columns))
         if absent:
             raise SystemExit(
@@ -252,10 +319,87 @@ def donor_case_expression(image_to_donor: Mapping[str, str]) -> str:
     )
 
 
+def _parquet_literal(path: Path | str) -> str:
+    return "read_parquet(" + _sql_string(path) + ")"
+
+
+def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
+    """Refuse a (cells, context) Parquet pair whose ``Object ID`` universes differ.
+
+    The join is exact on the QuPath UUID, so a cell with no context row would silently lose
+    its Parent and distances under an inner join, and a context row with no cell would mean
+    the two files are not one export. Duplicates are refused too: they multiply rows. Fails
+    loudly with both counts and a sample of each difference; returns the counts otherwise.
+    """
+    import duckdb
+
+    con = duckdb.connect()
+    try:
+        c, x = _parquet_literal(cells), _parquet_literal(context)
+        n_cells, u_cells = con.execute(
+            f'SELECT count(*), count(DISTINCT "Object ID") FROM {c}'
+        ).fetchone()
+        n_ctx, u_ctx = con.execute(
+            f'SELECT count(*), count(DISTINCT "Object ID") FROM {x}'
+        ).fetchone()
+        only_cells = con.execute(
+            f'SELECT "Object ID" FROM {c} EXCEPT SELECT "Object ID" FROM {x}'
+        ).fetchall()
+        only_ctx = con.execute(
+            f'SELECT "Object ID" FROM {x} EXCEPT SELECT "Object ID" FROM {c}'
+        ).fetchall()
+    finally:
+        con.close()
+    counts = {"cells_rows": int(n_cells), "context_rows": int(n_ctx)}
+    problems = []
+    if n_cells != u_cells or n_ctx != u_ctx:
+        problems.append(
+            f"duplicate Object ID: cells {n_cells} rows / {u_cells} distinct, "
+            f"context {n_ctx} rows / {u_ctx} distinct"
+        )
+    if n_cells != n_ctx:
+        problems.append(f"row count differs: cells {n_cells} != context {n_ctx}")
+    if only_cells or only_ctx:
+        problems.append(
+            f"Object ID sets differ: {len(only_cells)} only in cells "
+            f"(e.g. {sorted(r[0] for r in only_cells)[:5]}), {len(only_ctx)} only in "
+            f"context (e.g. {sorted(r[0] for r in only_ctx)[:5]})"
+        )
+    if problems:
+        raise ContractError(
+            f"QuPath (cells, context) pair does not describe one object set:\n"
+            f"  cells:   {cells}\n  context: {context}\n  " + "\n  ".join(problems)
+        )
+    return counts
+
+
+def paired_parquet_source(cells: Path | str, context: Path | str) -> str:
+    """SELECT over a v3 cells Parquet joined to its context Parquet on ``Object ID``.
+
+    Parent, centroids and signed distances come from the context file: the cells file is
+    written before islets are parented, so its own Parent is not authoritative. Call
+    :func:`verify_context_pair` first -- this join is exact only once the sets are equal.
+    """
+    taken = context_columns_taken(header_cols(Path(context)))
+    kept = [col for col in header_cols(Path(cells)) if col not in taken]
+    columns = [f'c.{_quote_ident(col)}' for col in kept] + [
+        f'x.{_quote_ident(col)}' for col in taken
+    ]
+    return (
+        f"(SELECT {', '.join(columns)} FROM {_parquet_literal(cells)} AS c "
+        f'JOIN {_parquet_literal(context)} AS x ON c."Object ID" = x."Object ID")'
+    )
+
+
+def _quote_ident(name: str) -> str:
+    return '"' + str(name).replace('"', '""') + '"'
+
+
 def contracted_image_source(
     csv_paths: Sequence[Path],
     image_to_donor: Mapping[str, str],
     image_to_csv: Mapping[str, str] | None = None,
+    contexts: Mapping[str, str] | None = None,
 ) -> str:
     """Read shared exports but expose only exact manifest-contracted images.
 
@@ -270,6 +414,10 @@ def contracted_image_source(
     interleaved. Filtering per file makes the manifest's per-image ``measurement_csv``
     assignment mean what it already says, and refuses the class of error rather than this
     instance of it.
+
+    A ``.parquet`` export is read with ``read_parquet`` (no reject table: Parquet is typed),
+    and one named in ``contexts`` (cells path -> context path) is read as that joined pair.
+    CSV reject tables keep the export's index in ``csv_paths``.
     """
 
     contracted_images = sorted(map(str, image_to_donor))
@@ -289,16 +437,22 @@ def contracted_image_source(
             )
 
     raw_parts = []
+    contexts = dict(contexts or {})
     for index, path in enumerate(csv_paths):
         escaped = str(path).replace("'", "''")
-        read = (
-            f"read_csv('{escaped}', header=true, all_varchar=true, "
-            f"ignore_errors=true, store_rejects=true, "
-            f"rejects_table='phenocycler_ingest_rejects_{index}', "
-            f"rejects_scan='phenocycler_ingest_reject_scans_{index}', rejects_limit=0)"
-        )
+        if str(path) in contexts:
+            read = paired_parquet_source(path, contexts[str(path)])
+        elif is_parquet_measurement(path):
+            read = _parquet_literal(path)
+        else:
+            read = (
+                f"read_csv('{escaped}', header=true, all_varchar=true, "
+                f"ignore_errors=true, store_rejects=true, "
+                f"rejects_table='phenocycler_ingest_rejects_{index}', "
+                f"rejects_scan='phenocycler_ingest_reject_scans_{index}', rejects_limit=0)"
+            )
         if image_to_csv is None:
-            raw_parts.append(f"SELECT * FROM {read}")
+            raw_parts.append(f"SELECT * FROM {read} AS src_{index}")
             continue
         mine = sorted(
             image for image, csv in image_to_csv.items() if Path(csv) == Path(path)
@@ -309,7 +463,7 @@ def contracted_image_source(
             )
         allowed_here = ", ".join(_sql_string(image) for image in mine)
         raw_parts.append(
-            f'SELECT * FROM {read} WHERE "Image" IN ({allowed_here})'
+            f'SELECT * FROM {read} AS src_{index} WHERE "Image" IN ({allowed_here})'
         )
 
     combined = "(" + " UNION ALL BY NAME ".join(raw_parts) + ")"
@@ -320,6 +474,32 @@ def contracted_image_source(
     )
 
 
+#: Parent -> spatial region. v2 exports produce only core / peri / tissue / other; the v3
+#: re-export adds endocrine clusters, single endocrine cells and named class annotations.
+CELL_REGION_SQL = (
+    "CASE WHEN \"Parent\" LIKE '%exp20um' THEN 'peri' "
+    "WHEN regexp_matches(\"Parent\", '^Islet_[0-9]+$') THEN 'core' "
+    "WHEN regexp_matches(\"Parent\", '^Cluster_[0-9]+$') THEN 'cluster' "
+    "WHEN regexp_matches(\"Parent\", '^Single_[0-9]+$') THEN 'single' "
+    "WHEN \"Parent\" = 'Annotation (pLN)' THEN 'pLN' "
+    "WHEN \"Parent\" = 'Annotation (Artifact)' THEN 'artifact' "
+    "WHEN \"Parent\" = 'Annotation (Tissue)' OR \"Parent\" LIKE 'Root object%' THEN 'tissue' "
+    "ELSE 'other' END"
+)
+
+#: The islet id of a core (``Islet_7``) or its peri-islet expansion (``Islet_<id>_exp20um``).
+#: A v3 expansion carries the islet's uid, which need not be numeric; a v2 expansion reads
+#: ``Islet_7_exp20um`` -> ``7`` exactly as before. Like ``islet_num``, the cluster and single
+#: ids are ``''`` where the Parent is not one.
+ISLET_NUM_SQL = (
+    "CASE WHEN regexp_matches(\"Parent\", '^Islet_.+_exp20um$') "
+    "THEN regexp_extract(\"Parent\", '^Islet_(.+)_exp20um$', 1) "
+    "ELSE regexp_extract(\"Parent\", 'Islet_([0-9]+)', 1) END"
+)
+CLUSTER_NUM_SQL = "regexp_extract(\"Parent\", '^Cluster_([0-9]+)$', 1)"
+SINGLE_NUM_SQL = "regexp_extract(\"Parent\", '^Single_([0-9]+)$', 1)"
+
+
 def build_sql(
     csv_paths: Sequence[Path],
     out_dir: Path,
@@ -328,9 +508,17 @@ def build_sql(
     *,
     image_to_donor: Mapping[str, str],
     image_to_csv: Mapping[str, str] | None = None,
+    contexts: Mapping[str, str] | None = None,
 ) -> tuple[str, dict]:
     csv_paths = [Path(p) for p in ([csv_paths] if isinstance(csv_paths, (str, Path)) else csv_paths)]
-    mm, _report = reconcile_headers(csv_paths)
+    contexts = {str(Path(k)): str(Path(v)) for k, v in (contexts or {}).items()}
+    unknown = sorted(set(contexts) - {str(p) for p in csv_paths})
+    if unknown:
+        raise ContractError(f"context declared for an export that is not read: {unknown}")
+    mm, _report = reconcile_headers(csv_paths, contexts)
+    # Fail before any partition is written: the pair join is exact only on equal sets.
+    for cells, context in sorted(contexts.items()):
+        verify_context_pair(cells, context)
     nucleus_mm = reconcile_compartment_headers(csv_paths, "Nucleus")
     qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     selects = [
@@ -340,11 +528,10 @@ def build_sql(
         "TRY_CAST(\"Centroid X µm\" AS DOUBLE) AS X_centroid",
         "TRY_CAST(\"Centroid Y µm\" AS DOUBLE) AS Y_centroid",
         '"Parent" AS parent_raw',
-        ("CASE WHEN \"Parent\" LIKE '%exp20um' THEN 'peri' "
-         "WHEN regexp_matches(\"Parent\", '^Islet_[0-9]+$') THEN 'core' "
-         "WHEN \"Parent\" = 'Annotation (Tissue)' OR \"Parent\" LIKE 'Root object%' THEN 'tissue' "
-         "ELSE 'other' END AS cell_region"),
-        "regexp_extract(\"Parent\", 'Islet_([0-9]+)', 1) AS islet_num",
+        f"{CELL_REGION_SQL} AS cell_region",
+        f"{ISLET_NUM_SQL} AS islet_num",
+        f"{CLUSTER_NUM_SQL} AS cluster_num",
+        f"{SINGLE_NUM_SQL} AS single_num",
         "TRY_CAST(\"Cell: Area µm^2\" AS DOUBLE) AS cell_area",
         "TRY_CAST(\"Cell: Solidity\" AS DOUBLE) AS cell_solidity",
     ]
@@ -362,7 +549,7 @@ def build_sql(
     # image allow-list. A shared QuPath export may contain deliberately excluded
     # or otherwise out-of-cohort images; those rows must not reach donor mapping.
     # The CSV reader still scans the batched files because CSV has no image index.
-    src = contracted_image_source(csv_paths, image_to_donor, image_to_csv)
+    src = contracted_image_source(csv_paths, image_to_donor, image_to_csv, contexts)
     inner = f"SELECT\n  {sel}\nFROM {src}"
     if min_cell_area and min_cell_area > 0:
         # Drop degenerate sub-cell segmentation objects (QuPath emits NaN
@@ -395,7 +582,13 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     image_to_csv = {
         image.image_id: str(image.measurement_csv.path) for image in cohort.images
     }
-    mm, report = reconcile_headers(csv_paths)
+    # v3: a cells Parquet declared with its context Parquet is read as the joined pair.
+    contexts = {
+        str(image.measurement_csv.path): str(image.measurement_context.path)
+        for image in cohort.images
+        if image.measurement_context is not None
+    }
+    mm, report = reconcile_headers(csv_paths, contexts)
     qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     for path, n in report["files"].items():
         print(f"[info] {Path(path).name}: {n} marker means")
@@ -426,6 +619,7 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
         cfg.cells_min_cell_area,
         image_to_donor=donor_mapping,
         image_to_csv=image_to_csv,
+        contexts=contexts,
     )
     print(f"[info] files={len(csv_paths)} markers={len(mm)} out={cfg.cells_dir} limit={limit} "
           f"min_cell_area={cfg.cells_min_cell_area} threads={cfg.duckdb_threads}")
@@ -440,9 +634,11 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
             f"{cfg.cells_dir} is not empty; ingest is immutable and will not merge with a prior run"
         )
     con.execute(sql)
+    # Only a CSV/TSV read keeps a reject table; Parquet is typed and has none.
     reject_frames = [
         con.execute(f"SELECT * FROM phenocycler_ingest_rejects_{index}").fetchdf()
-        for index in range(len(csv_paths))
+        for index, path in enumerate(csv_paths)
+        if not is_parquet_measurement(path)
     ]
     rejects = pd.concat(reject_frames, ignore_index=True) if reject_frames else pd.DataFrame()
     rejects.to_parquet(cfg.data_dir / "ingest_rejects.parquet", index=False)

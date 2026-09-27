@@ -49,12 +49,19 @@ sys.path.insert(0, str(HERE.parent / "celltype"))  # reuse the cohort/panel auth
 sys.path.insert(0, str(HERE.parents[1]))           # core/phenocycler, for `phenocycler`
 
 import panel                                       # noqa: E402
+from phenocycler.cells_parquet import (             # noqa: E402
+    is_parquet_measurement,
+    signed_distance_column,
+)
 
-#: The exact QuPath column names.  They carry a literal MICRO SIGN; matching them by prefix
-#: or by ``LIKE`` would also match a differently-scoped distance if one is ever added, so
-#: they are spelled out and asserted present.
-ISLET_COL = "Signed distance to annotation Islet µm"
-TISSUE_COL = "Signed distance to annotation Tissue µm"
+#: The exact QuPath column names, in both spellings: QuPath 0.7 (the v3 re-export) writes
+#: "annotation with Islet", the v2 batch exports "annotation Islet".  They carry a literal
+#: MICRO SIGN; matching them by prefix or by ``LIKE`` would also match a differently-scoped
+#: distance if one is ever added, so each is spelled out and the one present is asserted.
+ISLET_COLS = ("Signed distance to annotation with Islet µm",
+              "Signed distance to annotation Islet µm")
+TISSUE_COLS = ("Signed distance to annotation with Tissue µm",
+               "Signed distance to annotation Tissue µm")
 
 #: Donors whose tissue distance is not a measurement.  **Empty, and 6539 is deliberately not
 #: in it.**
@@ -87,7 +94,9 @@ def csv_groups(cohort) -> dict[pathlib.Path, dict[str, str]]:
     """
     groups: dict[pathlib.Path, dict[str, str]] = {}
     for image in cohort.images:
-        path = pathlib.Path(image.measurement_csv.path)
+        # A v3 image carries its signed distances in the context Parquet, not the cells one.
+        source = image.measurement_context or image.measurement_csv
+        path = pathlib.Path(source.path)
         groups.setdefault(path, {})[image.image_id] = str(image.donor_id)
     return groups
 
@@ -103,43 +112,79 @@ def _donor_case(image_to_donor: dict[str, str]) -> str:
     )
 
 
-def assert_columns_present(con, csv_path: pathlib.Path) -> None:
-    """Fail before the scan if the export does not carry the distance columns."""
-    escaped = str(csv_path).replace("'", "''")
+def read_source(path: pathlib.Path, *, sample: bool = False) -> str:
+    """The DuckDB table function for one export: Parquet (v3) or CSV/TSV (v2)."""
+    escaped = str(path).replace("'", "''")
+    if is_parquet_measurement(path):
+        return f"read_parquet('{escaped}')"
+    extra = ", sample_size=1" if sample else ", ignore_errors=true"
+    return f"read_csv('{escaped}', header=true, all_varchar=true{extra})"
+
+
+def assert_columns_present(con, csv_path: pathlib.Path) -> tuple[str, str]:
+    """Fail before the scan if the export does not carry the distance columns.
+
+    Returns the (islet, tissue) column names actually present, in whichever spelling.
+    ``Image`` is required only of a CSV export: a v3 context Parquet is per image and keyed
+    by ``Object ID`` alone, and its image comes from the manifest.
+    """
     names = {
         row[0]
         for row in con.execute(
-            f"SELECT column_name FROM (DESCRIBE SELECT * FROM read_csv('{escaped}', "
-            "header=true, all_varchar=true, sample_size=1))"
+            f"SELECT column_name FROM (DESCRIBE SELECT * FROM "
+            f"{read_source(csv_path, sample=True)})"
         ).fetchall()
     }
-    missing = [c for c in (ISLET_COL, TISSUE_COL, "Object ID", "Image") if c not in names]
+    islet = signed_distance_column(names, "Islet")
+    tissue = signed_distance_column(names, "Tissue")
+    keys = ("Object ID",) if is_parquet_measurement(csv_path) else ("Object ID", "Image")
+    missing = [
+        *([] if islet else [" or ".join(repr(c) for c in ISLET_COLS)]),
+        *([] if tissue else [" or ".join(repr(c) for c in TISSUE_COLS)]),
+        *(c for c in keys if c not in names),
+    ]
     if missing:
         raise RuntimeError(
             f"{csv_path} does not carry {missing}. This lane cannot substitute a "
             "recomputed distance for the one the annotations were drawn in."
         )
+    return islet, tissue
 
 
 def extract_sql(csv_path: pathlib.Path, image_to_donor: dict[str, str],
-                out_dir: pathlib.Path) -> str:
+                out_dir: pathlib.Path, *, islet_col: str = ISLET_COLS[1],
+                tissue_col: str = TISSUE_COLS[1]) -> str:
     """One column-selective pass over one export, partitioned by donor.
 
     ``all_varchar`` then ``TRY_CAST`` rather than letting the sniffer type 1,228 columns:
     the projection is pushed down, so only these four are ever converted, and a value that
     does not parse becomes NULL -- unavailable -- instead of failing the whole scan.
+
+    ``islet_col`` / ``tissue_col`` are the spellings :func:`assert_columns_present` found.
+    A v3 context Parquet is one image with no ``Image`` column, so its single manifest image
+    names the donor directly.
     """
-    escaped = str(csv_path).replace("'", "''")
-    allowed = ", ".join(_sql_string(i) for i in sorted(image_to_donor))
     out = str(out_dir).replace("'", "''")
+    if is_parquet_measurement(csv_path):
+        if len(image_to_donor) != 1:
+            raise ValueError(
+                f"{csv_path} is a per-image context Parquet but {len(image_to_donor)} "
+                "manifest images point at it"
+            )
+        donor = _sql_string(next(iter(image_to_donor.values())))
+        select_donor, where = f"{donor} AS donor_id", ""
+    else:
+        allowed = ", ".join(_sql_string(i) for i in sorted(image_to_donor))
+        select_donor = f"{_donor_case(image_to_donor)} AS donor_id"
+        where = f'WHERE "Image" IN ({allowed})'
     return f"""
 COPY (
-    SELECT {_donor_case(image_to_donor)} AS donor_id,
+    SELECT {select_donor},
            "Object ID" AS object_id,
-           TRY_CAST("{ISLET_COL}" AS DOUBLE) AS signed_dist_islet_um,
-           TRY_CAST("{TISSUE_COL}" AS DOUBLE) AS signed_dist_tissue_um
-    FROM read_csv('{escaped}', header=true, all_varchar=true, ignore_errors=true)
-    WHERE "Image" IN ({allowed})
+           TRY_CAST("{islet_col}" AS DOUBLE) AS signed_dist_islet_um,
+           TRY_CAST("{tissue_col}" AS DOUBLE) AS signed_dist_tissue_um
+    FROM {read_source(csv_path)}
+    {where}
 ) TO '{out}' (FORMAT PARQUET, PARTITION_BY (donor_id),
               OVERWRITE_OR_IGNORE, FILENAME_PATTERN 'data_{{i}}', COMPRESSION zstd)
 """

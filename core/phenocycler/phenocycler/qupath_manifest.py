@@ -60,6 +60,29 @@ def _measurement_path(base: Path, row: Mapping[str, Any]) -> Path:
     return paths[index]
 
 
+def _context_path(base: Path, row: Mapping[str, Any]) -> Path | None:
+    """Resolve a v3 image's context Parquet, the partner of its cells Parquet.
+
+    A v3 image is a (cells, context) pair: ``measurement_csv`` names the cells Parquet and
+    ``measurement_context`` the context Parquet joined to it on ``Object ID``. Absent or null
+    for a v2 CSV/TSV image, whose entry shape is unchanged. A list follows
+    ``measurement_csv_index`` exactly as ``measurement_csv`` does.
+    """
+
+    value = row.get("measurement_context")
+    if value in (None, ""):
+        return None
+    if isinstance(value, (str, Path)):
+        return _path(base, value)
+    return _measurement_path(
+        base,
+        {
+            "measurement_csv": value,
+            "measurement_csv_index": row.get("measurement_csv_index"),
+        },
+    )
+
+
 def _channels_from_qptiff(path: Path) -> tuple[ChannelMapping, ...]:
     tf, _pages, names, _shape, _pixel_size = qptiff_channels(path, 0)
     tf.close()
@@ -127,6 +150,7 @@ def create_cohort_manifest(
     for raw_row in rows:
         row = {**payload.get("defaults", {}), **dict(raw_row)}
         measurement = _measurement_path(base, row)
+        context = _context_path(base, row)
         qptiff = _path(base, row["qptiff"])
         cell_geojson = _path(base, row["cell_geojson"])
         nucleus_value = row.get("nucleus_geojson")
@@ -140,6 +164,10 @@ def create_cohort_manifest(
         if qptiff not in qptiff_cache:
             qptiff_cache[qptiff] = FileFingerprint.capture(
                 qptiff, hash_mode=qptiff_hash_mode
+            )
+        if context is not None and context not in measurement_cache:
+            measurement_cache[context] = FileFingerprint.capture(
+                context, hash_mode=measurement_hash_mode
             )
         measurement_fp = measurement_cache[measurement]
         qptiff_fp = qptiff_cache[qptiff]
@@ -159,6 +187,10 @@ def create_cohort_manifest(
                 qptiff_hash_mode=qptiff_hash_mode,
                 measurement_fingerprint=measurement_fp,
                 qptiff_fingerprint=qptiff_fp,
+                measurement_context=context,
+                context_fingerprint=(
+                    None if context is None else measurement_cache[context]
+                ),
             )
         )
 
