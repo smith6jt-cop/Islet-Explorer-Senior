@@ -23,6 +23,7 @@ python scripts/celltype/figures.py                    # ~5 min
 python scripts/celltype/run_step2.py --dry-run        # derive shifts only, ~1 min
 python scripts/celltype/run_step2.py                  # + write normalised parquets
 python scripts/celltype/verify_step2.py               # prove the shift is pure
+python scripts/celltype/uniform_audit.py --help      # Step 8e: RESTORE residual-batch + marker-invariance audit
 python -m pytest scripts/celltype/tests -q
 ```
 
