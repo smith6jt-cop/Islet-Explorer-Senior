@@ -1,5 +1,81 @@
 #!/usr/bin/env python3
-"""The galectin layer -- correction J.
+"""The galectin layer -- v3: rebuilt from typed cells, on the UniFORM cohort scale.
+
+**The maintainer's ruling, 2026-09-28.**  Correction J (below, historical) read three counts
+straight off QuPath's own object-classifier verdicts in the annotation export.  The maintainer
+reversed that choice for the v3 re-run: UniFORM is now the only normalization of record for this
+cohort, and the QuPath object classifiers are retired for it.  Positivity and lineage now come
+from the same typing, and the same reference-level machinery every other marker in this lane
+already uses, so a reader comparing this layer to any other one in the app is comparing one
+normalization throughout, not two.
+
+Per cell, from ``data/development/typing/cells`` (the declared pancreas x PhenoCycler producer,
+``docs/PRODUCERS.md``) and the UniFORM-aligned values (``subpanel_io.ALIGNED``):
+
+    macrophage (Myeloid)   ``cell_class == "Immune"`` and ``immune_definition`` in
+                            ``{"Imm-macrophage", "Imm-dendritic-cell"}`` -- the producer's OWN
+                            per-cell phenotype column, written under ``--emit-detail`` (the
+                            declared production command, ``docs/PRODUCERS.md``), grouped the way
+                            ``scripts/senior/build_grid_composition.py`` / ``build_compartment_
+                            gradient.py`` / ``modality_concordance.py`` already group it into the
+                            common lineage "Myeloid" (``PANC_DEFINITION_TO_COMMON`` /
+                            ``PANC_PHENO_IMMDEF_TO_COMMON``).  This is NOT ``lineages.py``'s own,
+                            broader Myeloid marker list -- that module states what an antibody
+                            *means*, before any result is seen; it never decides a call, and
+                            ``cell_class`` carries no "Myeloid" value of its own (only the broad
+                            "Immune").
+    galectin-positive       M2Gal3, on the UniFORM cohort scale (``subpanel_io.apply_scale``),
+                            at or above the donor's OWN M2Gal3 reference level -- the p99 of
+                            M2Gal3 over that donor's reference population (cells in no
+                            pixel-classified object and outside every islet, ``context ==
+                            "tissue"`` in the typed-cells table), fitted with
+                            ``subpanel_io.reference_level``, the SAME function every structure and
+                            the hormone level are fitted with (``subpanel.fit_levels``).  No new
+                            threshold is invented here.  The read-and-scale step
+                            (``read_aligned_marker`` below) restates ``subpanel.scaled_markers``
+                            for one marker rather than importing ``subpanel`` itself: that module
+                            also imports ``context``/``islet_membership`` for its OWN geometry
+                            work, which pulls in ``shapely`` -- a dependency this layer's lean
+                            ``tests/current`` CI job does not install (`pyproject.toml`'s ``test``
+                            extra, unlike ``integration``).  The same reasoning `apply_scale`'s own
+                            docstring gives for duplicating rather than importing
+                            ``celltype/score.apply_scale``.
+    metabolically-active    galectin-positive and NOT Myeloid -- the maintainer's definition,
+                            galectin without macrophage markers, unchanged from correction J.
+    macrophage (denominator) the Myeloid count above, independent of M2Gal3.
+
+A missing M2Gal3 value on a cell, or a donor whose M2Gal3 reference level cannot be fitted (the
+donor's panel never carried it, or its reference population is empty), leaves that cell's
+galectin state UNAVAILABLE -- never negative, never zero, the same rule every other missing
+measurement in this lane follows.  ``n_cells_galectin_evaluable`` sits beside ``n_cells_eligible``
+so the gap between "cells in this islet-region" and "cells a galectin call could be made on" stays
+visible, the same "two denominators" idiom correction J used for ``n_cells_qupath`` /
+``n_cells_eligible``.  The islet keys are the ones ``typing/cells`` already assigns
+(``islet_key``, ``cell_region_20um`` mapped to core/peri) -- the same geometric islet outline
+membership the rest of the app reads, restricted to cell_class != "Excluded" cells, which is the
+current lane's reading of "class Islet only".
+
+Column names, nullable-integer semantics and the app's contract are unchanged from correction J:
+every ``count_<class>``/``prop_<class>`` pair keeps its name, and a nullable integer -- not a
+0 -- is what a count that could not be made looks like.  ``method`` records
+``"typed-cells-uniform-v3"`` on every row, and the same string plus the ruling date are written
+into the Parquet file's own schema metadata.
+
+**The retired QuPath-count path.**  ``--source qupath-counts`` runs the untouched pre-2026-09-28
+method below (correction J): it reads ``results/AnnotationsMeasurements.csv`` and the two RTrees
+classifier passes QuPath fit on ``Cell: M2Gal3: Mean``/``Max``/``Std.Dev.``.  It is kept, behind
+an explicit flag, only because it is the table `tests/current/test_silent_failures_galectin_
+mixture.py` exercises and because the annotation export cannot be recomputed outside QuPath (see
+below) -- not because it is a candidate default.  ``--source typed-cells`` (the default) is the v3
+method described above.
+
+    python core/phenocycler/scripts/typing/build_galectin_layer.py
+    python core/phenocycler/scripts/typing/build_galectin_layer.py --source qupath-counts
+
+---
+
+**Historical -- correction J, 2026-09-21.  Superseded as the default by the 2026-09-28 ruling
+above; kept, verbatim, behind ``--source qupath-counts``.**
 
 Three classes per islet and per expansion, all of them QuPath's own object-classifier verdicts read
 from the annotation export:
@@ -56,8 +132,6 @@ proportions (measured on this build: -5 gave `measured` with every proportion Na
 -1 was cast to -1 and reported a proportion of -0.1 under the classifier-disagreement reason, and
 an `inf` or a 2.5 in a count column raised at the `Int64` cast for the whole frame.  Only admitted
 values now reach that cast, so it cannot raise.
-
-    python core/phenocycler/scripts/typing/build_galectin_layer.py
 """
 from __future__ import annotations
 
@@ -65,8 +139,11 @@ import argparse
 import re
 import sys
 
+import datetime as dt
+
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
@@ -220,13 +297,8 @@ def derive_counts(frame: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--donors", nargs="*", default=None)
-    parser.add_argument("--include-marginal", action="store_true")
-    args = parser.parse_args()
-    donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
-
+def _main_qupath_counts(donors: list[str]) -> int:
+    """The pre-2026-09-28 method (correction J), untouched: ``--source qupath-counts``."""
     missing = [c for c in COUNT_COLUMNS if c not in pd.read_csv(ANNOTATIONS, nrows=1).columns]
     if missing:
         raise KeyError(f"the annotation export lacks {missing}")
@@ -276,6 +348,254 @@ def main() -> int:
         print(f"  {region:>5}: " + "  ".join(f"{k} {v:.4f}" for k, v in stats.items()))
     print(f"\n{len(out):,} islet-regions -> {target}")
     return 0
+
+
+# =============================================================================================
+# v3: rebuilt from typed cells, on the UniFORM cohort scale (the maintainer's ruling, 2026-09-28)
+# =============================================================================================
+
+#: The marker this layer classifies.  Spelled the way the panel registry and `lineages.py` spell
+#: it (`lineages.LINEAGE_MARKERS["Myeloid"]` carries it, and `lineages.SUPPORTING_ONLY` too -- it
+#: may not carry a lineage call on its own, which is exactly why this layer does not ask
+#: `lineages.py` for the call and reads the typing's own `immune_definition` instead).
+MARKER = "M2Gal3"
+
+#: `immune_definition` values `scripts/senior/build_grid_composition.py` (`PANC_DEFINITION_TO_
+#: COMMON`), `build_compartment_gradient.py` and `modality_concordance.py` (`PANC_PHENO_IMMDEF_
+#: TO_COMMON`) already group into the common lineage "Myeloid".  Restated here rather than
+#: imported -- those modules pull in the whole grid/compartment machinery for one small dict, the
+#: same reason `build_cells.py` restates `refine.UNRESOLVED` rather than importing `refine`.  The
+#: three call sites are named so a maintainer changing the grouping there is told to change it
+#: here too.
+MYELOID_DEFINITIONS = ("Imm-macrophage", "Imm-dendritic-cell")
+
+#: `cell_region_20um` (typed cells) -> the app's word for the zone, matching `REGION_OF` above.
+TYPED_REGION_OF = {"core": "core", "expansion": "peri"}
+
+#: Columns this method reads off `typing/cells`.  `context` is written on every row regardless of
+#: `--emit-detail`; `immune_definition` is not, and its absence means the declared producer's own
+#: production command (`docs/PRODUCERS.md`) was not followed for this build.
+TYPED_CELLS_COLUMNS = ("object_id", "cell_class", "context", "immune_definition",
+                       "islet_key", "cell_region_20um")
+
+METHOD = "typed-cells-uniform-v3"
+RULING_DATE = "2026-09-28"
+
+
+def read_aligned_marker(donor: str, marker: str, scale: pd.DataFrame,
+                        object_ids: pd.Series) -> np.ndarray:
+    """One marker's UniFORM-aligned value, on the cohort scale, joined to ``object_ids``.
+
+    Restates ``subpanel.scaled_markers`` for a single marker rather than importing ``subpanel``
+    itself -- see the module docstring for why: that module's own geometry work pulls in
+    ``shapely``, which this layer's lean CI job does not install.  Same contract: a marker absent
+    from this donor's panel yields an all-NaN column, by name, never by position -- ``NaN >=
+    level`` is False, so a missing marker never fires as a positive.
+    """
+    path = S.ALIGNED / f"donor_id={donor}/data.parquet"
+    have = set(pq.ParquetFile(path).schema_arrow.names)
+    if marker not in have:
+        return np.full(len(object_ids), np.nan, dtype=float)
+    frame = pq.read_table(path, columns=["object_id", marker]).to_pandas()
+    frame = object_ids.to_frame("object_id").merge(frame, on="object_id", how="left")
+    return S.apply_scale(frame[[marker]].to_numpy(), [marker], scale)[:, 0]
+
+
+def donor_m2gal3_reference_level(cells: pd.DataFrame, scale: pd.DataFrame) -> tuple[np.ndarray, float | None]:
+    """This donor's M2Gal3 values (UniFORM cohort scale, one per row of ``cells``) and its
+    reference level -- the SAME machinery every structure and the hormone level are fitted with
+    (``read_aligned_marker`` / ``subpanel.scaled_markers``, ``subpanel_io.reference_level``),
+    never a new threshold.
+
+    The reference population is ``context == "tissue"``: cells in no pixel-classified object and
+    outside every islet, exactly as ``subpanel.fit_levels`` defines it -- read here off the
+    typing's own carried ``context`` column rather than recomputed, so this layer cannot drift
+    from the classification it is layered on.
+
+    Unlike ``fit_levels``, which fails loudly when a level will not fit, an unfittable donor here
+    is UNAVAILABLE rather than a crash: a donor whose panel never carried M2Gal3, or whose tissue
+    population is empty, is an expected outcome for one marker on one donor, not a defect in the
+    whole cohort build.  Returns ``None`` for the level in that case, and every cell of this
+    donor's galectin state is UNAVAILABLE from it.
+    """
+    m2gal3 = read_aligned_marker(cells.attrs["donor"], MARKER, scale, cells["object_id"])
+    tissue = cells["context"].to_numpy() == "tissue"
+    level = None
+    if tissue.any():
+        try:
+            level = S.reference_level(m2gal3[tissue])
+        except ValueError:
+            level = None
+    return m2gal3, level
+
+
+def load_typed_donor(donor: str) -> pd.DataFrame:
+    """One donor's typed cells, with the columns this layer reads and no others."""
+    path = S.OUT / f"cells/donor_id={donor}/data.parquet"
+    have = set(pq.ParquetFile(path).schema_arrow.names)
+    missing = [c for c in TYPED_CELLS_COLUMNS if c not in have]
+    if missing:
+        raise KeyError(
+            f"{donor}: typing/cells lacks {missing} -- `immune_definition` is written only under "
+            "`subpanel.py --emit-detail`, the declared production command (docs/PRODUCERS.md); "
+            "rerun it with that flag.")
+    cells = pq.read_table(path, columns=list(TYPED_CELLS_COLUMNS)).to_pandas()
+    cells.attrs["donor"] = donor
+    return cells
+
+
+def build_donor_galectin(donor: str, scale: pd.DataFrame) -> tuple[pd.DataFrame, float | None]:
+    """One donor's admitted islet-region cells, with a galectin state and a Myeloid flag each.
+
+    "Admitted" is `cell_class != "Excluded"` and `islet_key` not null -- this lane's reading of
+    "class Islet only": the geometric islet-outline membership `typing/cells` already carries,
+    with the in-islet exocrine misclassification (`Excluded`) removed, same as correction J's own
+    `n_cells_eligible`.
+    """
+    cells = load_typed_donor(donor)
+    m2gal3, level = donor_m2gal3_reference_level(cells, scale)
+    cells["m2gal3_scaled"] = m2gal3
+
+    admitted = cells[(cells["cell_class"] != "Excluded") & cells["islet_key"].notna()].copy()
+    admitted["region"] = admitted["cell_region_20um"].map(TYPED_REGION_OF)
+    admitted = admitted.dropna(subset=["region"])
+
+    state = np.full(len(admitted), UNAVAILABLE, dtype=object)
+    if level is not None:
+        known = admitted["m2gal3_scaled"].notna().to_numpy()
+        state[known] = np.where(
+            admitted.loc[known, "m2gal3_scaled"].to_numpy() >= level, "positive", "negative")
+    admitted["galectin_state"] = state
+    admitted["is_myeloid"] = (
+        (admitted["cell_class"] == "Immune")
+        & admitted["immune_definition"].fillna("").isin(MYELOID_DEFINITIONS))
+    admitted["case_id"] = donor
+    return admitted, level
+
+
+def derive_counts_from_typed_cells(donors: list[str], scale: pd.DataFrame | None = None
+                                   ) -> pd.DataFrame:
+    """Per-islet-region counts and proportions, from typed cells on the UniFORM cohort scale.
+
+    Mirrors ``derive_counts``'s contract exactly: the same four ``count_<class>`` /
+    ``prop_<class>`` names, nullable integers, and a ``galectin_state`` / ``galectin_reason`` pair
+    naming which rows lost a count and why.  A count that cannot be made -- the donor's M2Gal3
+    reference level is unavailable, or not one admitted cell in this islet-region carries a
+    measured M2Gal3 value -- is null, never 0; a count that needs no M2Gal3 at all
+    (``count_Macrophage``) is unaffected by either.
+    """
+    scale = S.load_scale() if scale is None else scale
+    donor_levels: dict[str, float | None] = {}
+    frames = []
+    for donor in donors:
+        admitted, level = build_donor_galectin(donor, scale)
+        donor_levels[donor] = level
+        if len(admitted):
+            frames.append(admitted)
+    if not frames:
+        raise ValueError(f"no admitted islet-region cells across {len(donors)} donor(s)")
+    cells = pd.concat(frames, ignore_index=True)
+
+    cells["is_known"] = cells["galectin_state"] != UNAVAILABLE
+    cells["is_positive"] = cells["galectin_state"] == "positive"
+    cells["is_macrophage_positive"] = cells["is_positive"] & cells["is_myeloid"]
+    cells["is_active_only"] = cells["is_positive"] & ~cells["is_myeloid"]
+
+    out = cells.groupby(["case_id", "islet_key", "region"], sort=True).agg(
+        n_cells_eligible=("object_id", "size"),
+        n_cells_galectin_evaluable=("is_known", "sum"),
+        count_Macrophage=("is_myeloid", "sum"),
+        count_Galectin_positive=("is_positive", "sum"),
+        count_Galectin_macrophage=("is_macrophage_positive", "sum"),
+        count_Metabolically_active=("is_active_only", "sum"),
+    ).reset_index()
+
+    no_coverage = (out["n_cells_galectin_evaluable"] == 0).to_numpy()
+    galectin_labels = ["Galectin_positive", "Galectin_macrophage", "Metabolically_active"]
+    for label in galectin_labels:
+        column = f"count_{label}"
+        out[column] = out[column].astype("Int64")
+        out.loc[no_coverage, column] = pd.NA
+    out["count_Macrophage"] = out["count_Macrophage"].astype("Int64")
+
+    def reason(row) -> str | None:
+        if row["n_cells_galectin_evaluable"] > 0:
+            return None
+        names = ", ".join(f"count_{label}" for label in galectin_labels)
+        level = donor_levels.get(row["case_id"])
+        if level is None:
+            return (f"{names}: donor {row['case_id']}'s M2Gal3 reference level is unavailable "
+                    "-- its panel did not carry M2Gal3, or its tissue reference population "
+                    "(context == \"tissue\") was empty")
+        return f"{names}: no admitted cell in this islet-region carries a measured M2Gal3 value"
+
+    out[COUNT_REASON] = pd.array([reason(r) for _, r in out.iterrows()], dtype="string")
+    out[COUNT_STATE] = np.where(no_coverage, UNAVAILABLE, MEASURED)
+    out["m2gal3_reference_level"] = out["case_id"].map(donor_levels).astype("float64")
+    out["method"] = METHOD
+
+    denominator = out["n_cells_eligible"].astype("Float64")
+    for label in list(COUNT_COLUMNS.values()) + ["Metabolically_active"]:
+        ratio = (out[f"count_{label}"].astype("Float64") / denominator).where(denominator > 0)
+        out[f"prop_{label}"] = ratio.astype("float64")
+    return out
+
+
+def _main_typed_cells(donors: list[str]) -> int:
+    """The default method: rebuilt from typed cells, per the maintainer's 2026-09-28 ruling."""
+    scale = S.load_scale()
+    out = derive_counts_from_typed_cells(donors, scale)
+
+    props = [c for c in out.columns if c.startswith("prop_")]
+    out = out[[c for c in out.columns if c not in props] + props]
+
+    target = APP / "islet_galectin.parquet"
+    table = pa.Table.from_pandas(out, preserve_index=False)
+    table = table.replace_schema_metadata({
+        **(table.schema.metadata or {}),
+        b"method": METHOD.encode(),
+        b"ruling_date": RULING_DATE.encode(),
+        b"built_by": b"core/phenocycler/scripts/typing/build_galectin_layer.py",
+        b"built_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").encode(),
+    })
+    pq.write_table(table, target)
+
+    print(f"{len(out):,} islet-regions over {out['case_id'].nunique()} donors "
+          f"({(out['region'] == 'core').sum():,} core, {(out['region'] == 'peri').sum():,} peri) "
+          f"-- method={METHOD}")
+    fittable = sum(1 for v in out.drop_duplicates('case_id')['m2gal3_reference_level'] if pd.notna(v))
+    print(f"M2Gal3 reference level fitted for {fittable} of {out['case_id'].nunique()} donors")
+    print(f"\n{int((out[COUNT_STATE] == UNAVAILABLE).sum()):,} of {len(out):,} islet-regions carry "
+          f"an unavailable count (`{COUNT_REASON}` names which and why):")
+    for label in list(COUNT_COLUMNS.values()) + ["Metabolically_active"]:
+        print(f"  count_{label}: {int(out[f'count_{label}'].isna().sum()):,} unavailable")
+    print("\nmedian proportion per class, by region:")
+    for region in ("core", "peri"):
+        here = out[out["region"] == region]
+        stats = {label: here[f"prop_{label}"].median()
+                 for label in list(COUNT_COLUMNS.values()) + ["Metabolically_active"]}
+        print(f"  {region:>5}: " + "  ".join(f"{k} {v:.4f}" for k, v in stats.items()))
+    print(f"\n{len(out):,} islet-regions -> {target}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--donors", nargs="*", default=None)
+    parser.add_argument("--include-marginal", action="store_true")
+    parser.add_argument("--source", choices=("typed-cells", "qupath-counts"),
+                        default="typed-cells",
+                        help="typed-cells (default): rebuilt from typed cells on the UniFORM "
+                             "cohort scale, per the maintainer's 2026-09-28 ruling. "
+                             "qupath-counts: the retired pre-2026-09-28 method (correction J), "
+                             "QuPath's own object-classifier counts read from the annotation "
+                             "export -- kept behind this flag, never the default.")
+    args = parser.parse_args()
+    donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
+
+    if args.source == "qupath-counts":
+        return _main_qupath_counts(donors)
+    return _main_typed_cells(donors)
 
 
 if __name__ == "__main__":

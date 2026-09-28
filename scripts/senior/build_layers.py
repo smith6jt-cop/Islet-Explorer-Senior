@@ -463,10 +463,15 @@ def _declaration() -> list[dict]:
             command=("{py}", "{typingscripts}/build_galectin_layer.py", "--include-marginal"),
             inputs=(
                 "{typingscripts}/build_galectin_layer.py",
-                "{qupath_results}/AnnotationsMeasurements.csv",
                 "{typing}/cells",
+                "{repo}/data/development/celltype/uniform",
+                "{repo}/data/development/broadtype/scratch/cosine_scale.parquet",
             ),
             outputs=("{app}/islet_galectin.parquet",),
+            why="v3 (2026-09-28 ruling): rebuilt from typed cells on the UniFORM cohort scale, "
+                "not from `{qupath_results}/AnnotationsMeasurements.csv` -- the default command "
+                "no longer reads the annotation export. `--source qupath-counts` still does, "
+                "behind an explicit flag this graph does not pass.",
         ),
         dict(
             name="parquet_views",
