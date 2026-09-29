@@ -461,3 +461,29 @@ def test_the_cohort_spec_accepts_a_context_beside_the_cells_parquet(tmp_path, mo
     image = cohort.images[0]
     assert image.measurement_context.path == str(tmp_path / "context" / "6374.parquet")
     assert QuPathCohortManifest.read_json(tmp_path / "manifest.json") == cohort
+
+
+def test_one_cells_parquet_paired_with_two_contexts_is_refused(tmp_path):
+    def image(cells, context):
+        return SimpleNamespace(
+            measurement_csv=SimpleNamespace(path=cells),
+            measurement_context=None if context is None else SimpleNamespace(path=context),
+        )
+
+    assert cp.context_pairs([image("c.parquet", "x.parquet"),
+                             image("c.parquet", "x.parquet"),
+                             image("v2.csv", None)]) == {"c.parquet": "x.parquet"}
+    for second in ("y.parquet", None):
+        with pytest.raises(ContractError, match="more than one context"):
+            cp.context_pairs([image("c.parquet", "x.parquet"), image("c.parquet", second)])
+
+
+def test_a_large_mismatch_reports_a_count_and_five_sorted_examples(tmp_path):
+    cells_ids = [f"id{i:05d}" for i in range(2000)]
+    cells, context = _pair(tmp_path, cells_ids, context_ids=cells_ids[:500])
+    with pytest.raises(ContractError) as err:
+        cp.verify_context_pair(cells, context)
+    message = str(err.value)
+    assert "1500 only in cells (e.g. ['id00500', 'id00501', 'id00502', 'id00503', " \
+        "'id00504'])" in message
+    assert "0 only in context (e.g. [])" in message

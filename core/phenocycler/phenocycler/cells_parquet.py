@@ -342,12 +342,17 @@ def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
         n_ctx, u_ctx = con.execute(
             f'SELECT count(*), count(DISTINCT "Object ID") FROM {x}'
         ).fetchone()
-        only_cells = con.execute(
-            f'SELECT "Object ID" FROM {c} EXCEPT SELECT "Object ID" FROM {x}'
-        ).fetchall()
-        only_ctx = con.execute(
-            f'SELECT "Object ID" FROM {x} EXCEPT SELECT "Object ID" FROM {c}'
-        ).fetchall()
+        # Count and sample in DuckDB: a mispaired donor differs by millions of UUIDs, and only
+        # the count and five examples are reported, so neither set is brought into Python.
+        differences = []
+        for left, right in ((c, x), (x, c)):
+            diff = f'(SELECT "Object ID" FROM {left} EXCEPT SELECT "Object ID" FROM {right})'
+            (n,) = con.execute(f"SELECT count(*) FROM {diff} AS d").fetchone()
+            sample = con.execute(
+                f'SELECT "Object ID" FROM {diff} AS d ORDER BY "Object ID" LIMIT 5'
+            ).fetchall()
+            differences.append((int(n), [row[0] for row in sample]))
+        (n_only_cells, only_cells), (n_only_ctx, only_ctx) = differences
     finally:
         con.close()
     counts = {"cells_rows": int(n_cells), "context_rows": int(n_ctx)}
@@ -359,11 +364,10 @@ def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
         )
     if n_cells != n_ctx:
         problems.append(f"row count differs: cells {n_cells} != context {n_ctx}")
-    if only_cells or only_ctx:
+    if n_only_cells or n_only_ctx:
         problems.append(
-            f"Object ID sets differ: {len(only_cells)} only in cells "
-            f"(e.g. {sorted(r[0] for r in only_cells)[:5]}), {len(only_ctx)} only in "
-            f"context (e.g. {sorted(r[0] for r in only_ctx)[:5]})"
+            f"Object ID sets differ: {n_only_cells} only in cells "
+            f"(e.g. {only_cells}), {n_only_ctx} only in context (e.g. {only_ctx})"
         )
     if problems:
         raise ContractError(
@@ -371,6 +375,34 @@ def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
             f"  cells:   {cells}\n  context: {context}\n  " + "\n  ".join(problems)
         )
     return counts
+
+
+def context_pairs(images) -> dict[str, str]:
+    """Cells path -> context path from manifest images, refusing an ambiguous pairing.
+
+    The pair is declared per image but read per cells file, so two images naming the same
+    cells Parquet must name the same context -- or neither may name one. Otherwise one
+    image's cells would be joined to another's Parent and centroids, with nothing raised.
+    """
+    declared: dict[str, set[str | None]] = {}
+    for image in images:
+        context = image.measurement_context
+        declared.setdefault(str(image.measurement_csv.path), set()).add(
+            None if context is None else str(context.path)
+        )
+    ambiguous = {cells: seen for cells, seen in declared.items() if len(seen) > 1}
+    if ambiguous:
+        detail = "; ".join(
+            f"{cells}: {sorted(str(c) for c in seen)}" for cells, seen in sorted(ambiguous.items())
+        )
+        raise ContractError(
+            f"a cells Parquet is paired with more than one context across images: {detail}"
+        )
+    return {
+        cells: context
+        for cells, (context,) in declared.items()
+        if context is not None
+    }
 
 
 def paired_parquet_source(cells: Path | str, context: Path | str) -> str:
@@ -583,11 +615,7 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
         image.image_id: str(image.measurement_csv.path) for image in cohort.images
     }
     # v3: a cells Parquet declared with its context Parquet is read as the joined pair.
-    contexts = {
-        str(image.measurement_csv.path): str(image.measurement_context.path)
-        for image in cohort.images
-        if image.measurement_context is not None
-    }
+    contexts = context_pairs(cohort.images)
     mm, report = reconcile_headers(csv_paths, contexts)
     qupath_norm_mm = reconcile_qupath_normalized_headers(csv_paths)
     for path, n in report["files"].items():
