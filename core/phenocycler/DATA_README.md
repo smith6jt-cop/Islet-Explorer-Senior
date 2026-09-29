@@ -35,7 +35,7 @@ Different image records may point to the same batched measurement CSV.
 
 | Source | Required contract |
 |---|---|
-| QuPath measurement CSV(s) | Exact `Image` and `Object ID` values; centroids, parent, cell area/solidity, cell marker means, nucleus means for registered nuclear/state markers, and exact Cell/Cytoplasm/Membrane/Nucleus `Mean (norm)` fields for Iba1, CD68, and M2Gal3 |
+| QuPath measurement export(s) | v2: batch CSV/TSV. v3: per image, a cells Parquet plus a context Parquet (see [v3 Parquet pairs](#v3-parquet-pairs)). Exact `Image` and `Object ID` values; centroids, parent, cell area/solidity, cell marker means, and nucleus means for registered nuclear/state markers. No `Mean (norm)` field is required (see below) |
 | qptiff | Original channel stack used for REDSEA; channel order and names must agree with the declared map |
 | cell GeoJSON | One feature per detection, with feature `id` equal to the QuPath UUID and a usable cell geometry |
 | nucleus geometry | Either `nucleusGeometry` embedded in the cell GeoJSON or a separate UUID-matched nucleus GeoJSON; every QC-accepted cell must have one |
@@ -74,8 +74,15 @@ are valid. A marker contracted to `qupath_norm` would be kept as
 `QuPathNorm__<Compartment>__<Marker>`, with no substitution for a missing exact
 field; no marker is contracted to it today, so ingest keeps none.
 
-The ingest stage derives `cell_region` and `islet_num` from `Parent`, but these
-context fields do not define calibration controls or cell identity. Other
+The ingest stage derives `cell_region`, `islet_num`, `cluster_num` and
+`single_num` from `Parent`, but these context fields do not define calibration
+controls or cell identity. `cell_region` is `core` (`Islet_<n>`), `peri`
+(`Islet_<id>_exp20um`), `cluster` (`Cluster_<n>`), `single` (`Single_<n>`),
+`pLN` (`Annotation (pLN)`), `artifact` (`Annotation (Artifact)`), `tissue`
+(`Annotation (Tissue)` or `Root object …`), else `other`. The v2 exports carry
+only the core / peri / tissue parents, so their mapping is unchanged except that
+an `Annotation (pLN)` or `Annotation (Artifact)` parent, previously `other`, now
+has its own region. Other
 QuPath morphology, classification, and distance columns may remain in the raw
 CSV but are intentionally not copied into the canonical cell table. Nucleus
 and cell raster areas used by geometry QC come from the contracted GeoJSON.
@@ -136,6 +143,34 @@ The cohort manifest's exact `image_id` values are an ingest allow-list. Rows
 for other images in a shared export are ignored before donor assignment. The
 CSV files must still be scanned to locate those rows because CSV has no index,
 but only contracted cohort rows are written to the cell Parquet dataset.
+
+### v3 Parquet pairs
+
+The v3 re-export writes two Parquet files per image. `results/v3/cells/<tag>.parquet`
+carries every detection measurement under QuPath's own column names; it is written
+before islets are parented, so its `Parent` is not authoritative, and it has no
+`(norm)` columns. `results/v3/context/<tag>.parquet` carries `Object ID`, `Parent`,
+both centroids and every `Signed distance to annotation with <Class> µm` column
+(QuPath 0.7 spells it with "with"; the v2 exports did not, and readers accept both).
+
+Declare the pair on the image entry: `measurement_csv` names the cells Parquet and
+`measurement_context` the context Parquet. Both are fingerprinted; a v2 entry omits
+`measurement_context` and serialises exactly as before.
+
+```json
+{
+  "donor_id": "6374",
+  "image_id": "exact QuPath Image column value",
+  "measurement_csv": "results/v3/cells/6374.parquet",
+  "measurement_context": "results/v3/context/6374.parquet",
+  "...": "qptiff, geojson, calibration and panel as above"
+}
+```
+
+Ingest joins the pair on `Object ID` in DuckDB, taking `Parent`, centroids and signed
+distances from the context file. It refuses the pair before writing anything if the two
+`Object ID` sets differ (reporting both counts and a sample of each difference) or if
+either file repeats an `Object ID`.
 
 `nucleus_geojson: null` declares that nucleus polygons are embedded as
 `nucleusGeometry`; a path declares a separate nucleus FeatureCollection.
@@ -233,7 +268,7 @@ panel marker columns. Core columns are:
 | `object_id` | canonical QuPath UUID |
 | `X_centroid`, `Y_centroid` | centroid in micrometres |
 | `parent_raw` | QuPath parent context retained for audit only |
-| `cell_region`, `islet_num` | context derived from `Parent` |
+| `cell_region`, `islet_num`, `cluster_num`, `single_num` | context derived from `Parent` (`''` where the Parent is not that kind) |
 | `cell_area`, `cell_solidity` | structural measurements retained from the CSV |
 | `<marker>` | sanitized whole-cell mean |
 | `Nucleus__<marker>` | retained nucleus mean where available |

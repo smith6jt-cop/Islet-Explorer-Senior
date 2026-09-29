@@ -519,6 +519,34 @@ def measurement_delimiter(path) -> str:
     """
     return "\t" if str(path).lower().endswith((".tsv", ".tab")) else ","
 
+
+def is_parquet_measurement(path) -> bool:
+    """A v3 QuPath export is Parquet; v2 exports are CSV/TSV. Decided by suffix, as above."""
+    return str(path).lower().endswith(".parquet")
+
+
+def measurement_header(path) -> tuple[str, ...]:
+    """Column names of one QuPath measurement export: Parquet schema, else the CSV/TSV header.
+
+    The Parquet schema is read from the footer only (``pyarrow.parquet.read_schema``); no row
+    is read. QuPath's own column names are kept verbatim, micro sign included.
+    """
+    if is_parquet_measurement(path):
+        import pyarrow.parquet as pq
+
+        return tuple(pq.read_schema(str(path)).names)
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
+        try:
+            return tuple(next(csv.reader(handle, delimiter=measurement_delimiter(path))))
+        except StopIteration as exc:
+            raise ContractError(f"QuPath measurement export {path} is empty") from exc
+
+
+#: What the v3 per-image context Parquet must carry to stand in for the cells file's Parent,
+#: centroids and signed distances. The cells file is written before islets are parented, so
+#: its own Parent is not authoritative when a context file is declared.
+CONTEXT_REQUIRED_COLUMNS = ("Object ID", "Parent", "Centroid X µm", "Centroid Y µm")
+
 @dataclass(frozen=True)
 class QuPathImageManifest:
     """The complete immutable contract for one QuPath image export."""
@@ -540,6 +568,10 @@ class QuPathImageManifest:
     nucleus_geometry: GeoJSONSummary
     combined_geometry_file: bool
     content_id: str
+    #: v3 exports split one image into a cells Parquet (``measurement_csv``) and a context
+    #: Parquet joined to it on ``Object ID``. ``None`` for a v2 CSV/TSV entry, and then absent
+    #: from the serialised entry, so a v2 manifest's shape and ``content_id`` are unchanged.
+    measurement_context: FileFingerprint | None = None
 
     @classmethod
     def create(
@@ -561,6 +593,8 @@ class QuPathImageManifest:
         qptiff_sample_count: int = _SAMPLE_COUNT,
         measurement_fingerprint: FileFingerprint | None = None,
         qptiff_fingerprint: FileFingerprint | None = None,
+        measurement_context: Path | str | None = None,
+        context_fingerprint: FileFingerprint | None = None,
     ) -> "QuPathImageManifest":
         donor_id = str(donor_id).strip()
         image_id = str(image_id).strip()
@@ -593,14 +627,39 @@ class QuPathImageManifest:
                     "precomputed measurement fingerprint path differs from "
                     f"measurement_csv: {measurement_fp.path} != {measurement_path}"
                 )
-        with Path(measurement_fp.path).open(newline="", encoding="utf-8-sig") as handle:
-            try:
-                measurement_columns = tuple(
-                    next(csv.reader(handle,
-                                    delimiter=measurement_delimiter(measurement_fp.path)))
+        measurement_columns = measurement_header(measurement_fp.path)
+        if not measurement_columns:
+            raise ContractError("QuPath measurement CSV is empty")
+        context_fp: FileFingerprint | None = None
+        if measurement_context is not None:
+            if not is_parquet_measurement(measurement_fp.path):
+                raise ContractError(
+                    "measurement_context pairs only with a cells Parquet, not "
+                    f"{measurement_fp.path}"
                 )
-            except StopIteration as exc:
-                raise ContractError("QuPath measurement CSV is empty") from exc
+            context_path = Path(measurement_context).expanduser().resolve()
+            if not is_parquet_measurement(context_path):
+                raise ContractError(f"measurement_context must be Parquet: {context_path}")
+            if context_fingerprint is None:
+                context_fp = FileFingerprint.capture(context_path)
+            else:
+                context_fp = context_fingerprint
+                if Path(context_fp.path) != context_path:
+                    raise ContractError(
+                        "precomputed context fingerprint path differs from "
+                        f"measurement_context: {context_fp.path} != {context_path}"
+                    )
+            context_columns = measurement_header(context_fp.path)
+            absent = [c for c in CONTEXT_REQUIRED_COLUMNS if c not in context_columns]
+            if absent:
+                raise ContractError(
+                    f"QuPath context Parquet {context_fp.path} is missing {absent}"
+                )
+            measurement_columns = measurement_columns + tuple(
+                c for c in context_columns if c not in measurement_columns
+            )
+        elif context_fingerprint is not None:
+            raise ContractError("context_fingerprint given without measurement_context")
         for required in ("Image", "Object ID"):
             if required not in measurement_columns:
                 raise ContractError(
@@ -667,6 +726,7 @@ class QuPathImageManifest:
             nucleus_geometry=nucleus_summary,
             combined_geometry_file=combined,
             content_id="",
+            measurement_context=context_fp,
         )
         if Path(draft.qptiff.path) != Path(qptiff).expanduser().resolve():
             raise ContractError(
@@ -681,7 +741,10 @@ class QuPathImageManifest:
         return _content_identity(value)
 
     def to_dict(self) -> dict[str, Any]:
-        return _normalise_json(asdict(self))
+        value = _normalise_json(asdict(self))
+        if value.get("measurement_context") is None:
+            value.pop("measurement_context", None)
+        return value
 
     def verify_identity(self) -> None:
         if self.manifest_version != MANIFEST_VERSION:
@@ -714,6 +777,11 @@ class QuPathImageManifest:
             nucleus_geometry=GeoJSONSummary.from_dict(value["nucleus_geometry"]),
             combined_geometry_file=bool(value["combined_geometry_file"]),
             content_id=str(value["content_id"]),
+            measurement_context=(
+                None
+                if value.get("measurement_context") is None
+                else FileFingerprint.from_dict(value["measurement_context"])
+            ),
         )
         result.verify_identity()
         return result
@@ -945,7 +1013,10 @@ class QuPathCohortManifest:
         return _content_identity(value)
 
     def to_dict(self) -> dict[str, Any]:
-        return _normalise_json(asdict(self))
+        value = _normalise_json(asdict(self))
+        # Each image serialises itself, so a v2 entry keeps omitting measurement_context.
+        value["images"] = [image.to_dict() for image in self.images]
+        return value
 
     def verify_identity(self) -> None:
         if self.manifest_version != MANIFEST_VERSION:
