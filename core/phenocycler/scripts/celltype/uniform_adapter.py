@@ -80,7 +80,7 @@ import panel                                        # noqa: E402
 #: The UniFORM checkout this lane was built against.  It is a gitignored clone under
 #: /external/ because the repo carries no packaging metadata, so pip cannot pin it; the
 #: assertion below is what stops a drifted checkout from silently changing the shift.
-UNIFORM_COMMIT = "7c33396d12e5a19dc0b36e46a94c3293de0cd814"
+UNIFORM_COMMIT = "c750a9a7025f8ea4b819c99c2945a2ba85724934"
 UNIFORM_PATH = panel.REPO / "external" / "UniFORM"
 
 NUM_BINS = 1024

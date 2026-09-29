@@ -338,7 +338,7 @@ realised as `apps/islet/CLAUDE.md`.
 
 | tree | what it is | position |
 |---|---|---|
-| `external/` (gitignored, 970 MB) | pinned checkouts UniFORM @ `7c33396d`, utag @ `056cb87e`, KINTSUGI @ `716d1eb`, plus `.venv-som` | load-bearing for three lanes; provisioning is plan Track E.1; index in `EXTERNAL_PACKAGES.md` |
+| `external/` (gitignored, 970 MB) | pinned checkouts UniFORM @ `c750a9a7`, utag @ `056cb87e`, KINTSUGI @ `716d1eb`, plus `.venv-som` | load-bearing for three lanes; provisioning is plan Track E.1; index in `EXTERNAL_PACKAGES.md` |
 | `literature/external/` | DeepCellTypes figure repo @ `4a06e97`, `redseapy`, `RESTORE` | reference copies; none is an import path except the two files the dct lane reads |
 | `single_cell_analysis/SCVI_CODEX_v2.ipynb` | archival Junior-era scVI notebook, unexecuted | history; superseded by `scripts/senior/train_scvi_senior.py` |
 | `scripts/` (39 entries) | the app-build chain, viewer tools, legacy Junior scripts | Phase 2's split into `core/` and `analysis/` was never done; stays where it is until Phase 5 |

@@ -9,7 +9,7 @@ the same physical section, against ~433 sparse transcripts of which ~29% are gDN
 **The lane's full step order runs.** Step 1 (marker usability, per donor) gates the markers
 scored here and rejects 0 of 58 on both donors. Step 2 (UniFORM) was re-run with these two
 donors inside the cohort -- ``shifts_22donor.json``, 22 donors, ``uniform_commit
-7c33396d...``, the commit ``uniform_adapter`` pins -- so this module reads the ALIGNED
+c750a9a7...``, the commit ``uniform_adapter`` pins -- so this module reads the ALIGNED
 partitions and takes the COHORT scale from them, exactly as ``run_step3`` and ``run_islet``
 do. Step 3 (cosine behind the requirement gate) is reused unchanged.
 

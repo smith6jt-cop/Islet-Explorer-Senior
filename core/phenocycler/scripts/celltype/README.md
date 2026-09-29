@@ -32,7 +32,7 @@ It is a gitignored checkout following this repo's existing convention (`.gitigno
 
 ```bash
 git clone https://github.com/smith6jt-cop/UniFORM.git external/UniFORM
-git -C external/UniFORM checkout 7c33396d12e5a19dc0b36e46a94c3293de0cd814
+git -C external/UniFORM checkout c750a9a7025f8ea4b819c99c2945a2ba85724934
 pip install -e "core/phenocycler[uniform]"
 ```
 

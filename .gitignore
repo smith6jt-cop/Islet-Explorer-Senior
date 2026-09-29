@@ -75,7 +75,7 @@ __pycache__/
 scripts/tools/
 
 # Vendored third-party code (cloned, not committed; pins and clone commands are indexed in
-# docs/EXTERNAL_PACKAGES.md — e.g. external/UniFORM @ 7c33396d)
+# docs/EXTERNAL_PACKAGES.md — e.g. external/UniFORM @ c750a9a7)
 # Anchored so it cannot shadow a subtree's own external/ directory.
 /external/
 
