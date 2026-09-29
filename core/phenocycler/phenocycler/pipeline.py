@@ -11,6 +11,10 @@ description, so it can be hand-edited when a source file moves.
 
 Ordinary execution stops after ``expression``.  ``controls``, ``calibrate``, ``type`` and the
 QuPath assignment export are blocked by ``NO_VERIFIED_TYPING``, and that latch has not moved.
+
+``redsea`` stays in the stage order but is a logged no-op while no registry marker reads REDSEA
+(:func:`stage_noop_reason`), which has been the case since 2026-09-29: every marker reads its raw
+QuPath mean, and ``expression`` then reads no REDSEA partition.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ from .expression import (
 )
 from .expression import (
     build_selected_expression,
+    read_redsea_for_expression,
     read_single_partition,
     write_donor_partition,
 )
@@ -161,6 +166,7 @@ STAGE_SOURCE_PATHS = {
     "expression": (
         "phenocycler/donor_pipeline.py",
         "phenocycler/expression.py",
+        "phenocycler/cells_parquet.py",
         "phenocycler/marker_registry.py",
     ),
     "controls": (
@@ -412,7 +418,9 @@ def _run_expression(context: RunContext) -> None:
     for donor in context.donors:
         expression, donor_availability = build_selected_expression(
             read_single_partition(context.config.cells_dir, donor),
-            read_single_partition(context.config.redsea_dir, donor),
+            read_redsea_for_expression(
+                context.registry, context.config.redsea_dir, donor
+            ),
             read_single_partition(context.config.geometry_qc_dir, donor),
             donor_id=donor,
             acquired_markers={
@@ -544,15 +552,40 @@ STAGE_RUNNERS: dict[str, Callable[[RunContext], None]] = {
 }
 
 
+def stage_noop_reason(registry: MarkerRegistry, stage: str) -> str | None:
+    """Why ``stage`` has nothing to compute under ``registry``; ``None`` when it has work.
+
+    Only ``redsea`` can be a no-op. Its one reader in the ordinary workflow is
+    ``expression``, which opens the REDSEA partition only for markers whose
+    ``measurement_source`` is ``redsea``; with none, the stage would re-read every
+    qptiff to write a partition nothing opens. It stays in ``DEFAULT_STAGE_ORDER`` so
+    a marker that earns REDSEA again needs a registry edit and nothing else. (The
+    blocked ``calibrate`` stage also reads REDSEA; it cannot run under this registry.)
+    """
+
+    if stage == "redsea" and not registry.redsea_markers:
+        return (
+            "no registry marker reads REDSEA (every spillover_policy is "
+            "uncompensated), so there is nothing to compute or write"
+        )
+    return None
+
+
 def run_stage(context: RunContext, stage: str, *, force: bool = False) -> None:
     """Run one stage into its stable output root.
 
     Present, non-empty output is treated as done and skipped -- `--force` reruns it.
     Nothing here validates a fingerprint or a manifest, so a renamed input, a touched
     file or an edit to unrelated package source can no longer refuse to run.
+    A stage :func:`stage_noop_reason` names is logged and not run, with or without
+    ``--force``.
     """
 
     _assert_stages_available(context, (stage,))
+    reason = stage_noop_reason(context.registry, stage)
+    if reason is not None:
+        print(f"[no-op] {stage}: {reason}")
+        return
     output = context.output_root(stage)
     if output.exists() and any(output.iterdir()):
         if not force:
@@ -651,6 +684,14 @@ def status(context: RunContext) -> int:
             path.name.split("=", 1)[1]
             for path in output.glob("donor_id=*")
         ) if output.is_dir() else []
+        noop = stage_noop_reason(context.registry, stage)
+        if noop is not None:
+            # A partial REDSEA tree left by an earlier registry is not a stage to finish.
+            print(
+                f"  {stage:11s} NO-OP   {noop}; {len(present)} donor partition(s) "
+                "on disk are not read"
+            )
+            continue
         if not output.is_dir() or not any(output.iterdir()):
             if stage == "states":
                 print(f"  {stage:11s} OPTIONAL (explicit-only)")

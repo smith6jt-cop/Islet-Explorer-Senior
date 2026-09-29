@@ -26,6 +26,7 @@ from .artifacts import (
 )
 from .expression import (
     build_selected_expression,
+    read_redsea_for_expression,
     read_single_partition,
     write_donor_partition,
 )
@@ -155,7 +156,9 @@ def _run_donor_stage_body(context, stage: str, donor_id: str) -> tuple[Path, ...
         image = image_by_donor[donor]
         expression, availability = build_selected_expression(
             read_single_partition(context.config.cells_dir, donor),
-            read_single_partition(context.config.redsea_dir, donor),
+            read_redsea_for_expression(
+                context.registry, context.config.redsea_dir, donor
+            ),
             read_single_partition(context.config.geometry_qc_dir, donor),
             donor_id=donor,
             acquired_markers={
@@ -278,9 +281,14 @@ def _partition_has_content(root: Path, donor_id: str) -> bool:
 
 
 def execute_donor_stage(context, stage: str, donor_id: str, *, force: bool = False) -> str:
-    """Run one ready donor task. Present output is done; nothing is fingerprinted."""
+    """Run one ready donor task. Present output is done; nothing is fingerprinted.
 
-    from .pipeline import _assert_stages_available
+    A stage ``pipeline.stage_noop_reason`` names (REDSEA while no marker reads it)
+    is logged and returns as done without running or writing anything, so the
+    tasks that depend on it still become ready.
+    """
+
+    from .pipeline import _assert_stages_available, stage_noop_reason
 
     _assert_stages_available(
         context,
@@ -289,6 +297,10 @@ def execute_donor_stage(context, stage: str, donor_id: str, *, force: bool = Fal
     )
 
     donor = str(donor_id)
+    reason = stage_noop_reason(context.registry, stage)
+    if reason is not None:
+        print(f"[donor-noop] {stage}/{donor}: {reason}", flush=True)
+        return donor
     output_root = context.output_root(stage)
     if _partition_has_content(output_root, donor) and not force:
         print(f"[donor-skip] {stage}/{donor}: output present (--force to rerun)", flush=True)

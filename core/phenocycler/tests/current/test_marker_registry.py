@@ -55,13 +55,94 @@ def test_no_marker_selects_the_retired_qupath_normalized_source():
     assert observed == set()
     for name in ("Iba1", "CD68", "M2Gal3"):
         marker = registry.marker(name)
-        assert marker.measurement_source == "redsea"
-        assert marker.measurement_column == f"Cell__{name}"
+        # redsea from a30a517 to 2026-09-29; the raw Cell mean, like every marker, since.
+        assert marker.measurement_source == "qupath_raw"
+        assert marker.compartment == "Cell"
         # Uniform source, unchanged calibration status: still no verified reference.
         assert marker.reference is None
         assert not marker.active
     with pytest.raises(ValueError, match="no active calibration"):
         registry.marker_alpha("Iba1")
+
+
+def test_every_marker_reads_its_raw_qupath_mean():
+    """The 2026-09-29 policy: no marker earned REDSEA, so none is compensated or read from it.
+
+    Before it, 63 markers were ``redsea_corrected``, Collagen_IV was ``redsea_passthrough``
+    and the eight nuclear markers were already ``uncompensated``.
+    """
+    registry = load_registry()
+
+    assert len(registry.markers) == 72
+    assert {marker.spillover_policy for marker in registry.markers} == {"uncompensated"}
+    assert {marker.measurement_source for marker in registry.markers} == {"qupath_raw"}
+    assert registry.redsea_markers == ()
+    compartments = [marker.compartment for marker in registry.markers]
+    assert compartments.count("Cell") == 63
+    assert sorted(m.name for m in registry.markers if m.compartment == "Nucleus") == [
+        "DAPI", "FOXP3", "Histone_H3_(p_Ser28)", "Ki67", "PCNA", "SOX2", "TCF_1", "TOX", "TP63",
+    ]
+    # REDSEA therefore compensates nothing, and the vocabulary still offers it.
+    assert not marker_taxonomy.spillover_corrected_mask(
+        [marker.name for marker in registry.markers]
+    ).any()
+    assert {"redsea_corrected", "redsea_passthrough"} <= set(
+        registry.allowed_spillover_policies
+    )
+
+
+@pytest.mark.parametrize("compartment", ["Cell", "Nucleus"])
+def test_uncompensated_is_accepted_where_ingest_carries_the_raw_mean(compartment):
+    payload = _payload()
+    cd3e = next(row for row in payload["markers"] if row["name"] == "CD3e")
+    cd3e["compartment"] = compartment
+
+    marker = registry_from_dict(payload).marker("CD3e")
+    assert (marker.spillover_policy, marker.measurement_source) == (
+        "uncompensated",
+        "qupath_raw",
+    )
+
+
+@pytest.mark.parametrize("compartment", ["Cytoplasm", "Membrane"])
+def test_uncompensated_is_refused_where_there_is_no_raw_mean(compartment):
+    """Relaxed from Nucleus-only on 2026-09-29, but a raw source must still exist: ingest
+    keeps only the Cell and Nucleus means, so Cytoplasm and Membrane are REDSEA outputs."""
+
+    payload = _payload()
+    cd3e = next(row for row in payload["markers"] if row["name"] == "CD3e")
+    cd3e["compartment"] = compartment
+    with pytest.raises(ValueError, match="ingest carries only for \\['Cell', 'Nucleus'\\]"):
+        registry_from_dict(payload)
+
+    # Routed to REDSEA, the same compartment is valid: REDSEA writes it.
+    cd3e["spillover_policy"] = "redsea_corrected"
+    assert registry_from_dict(payload).marker("CD3e").measurement_column == (
+        f"{compartment}__CD3e"
+    )
+
+
+def test_a_marker_can_be_routed_back_to_redsea_by_the_registry_alone():
+    payload = _payload()
+    for row in payload["markers"]:
+        if row["name"] in {"CD3e", "Collagen_IV"}:
+            row["spillover_policy"] = (
+                "redsea_corrected" if row["name"] == "CD3e" else "redsea_passthrough"
+            )
+    registry = registry_from_dict(payload)
+
+    assert [marker.name for marker in registry.redsea_markers] == ["CD3e", "Collagen_IV"]
+    assert {marker.measurement_source for marker in registry.redsea_markers} == {"redsea"}
+
+    # A REDSEA policy cannot be paired with the raw source, nor the raw policy with REDSEA.
+    mixed = _payload()
+    cd3e = next(row for row in mixed["markers"] if row["name"] == "CD3e")
+    cd3e["measurement_source"] = "redsea"
+    with pytest.raises(ValueError, match="redsea measurement source requires a REDSEA"):
+        registry_from_dict(mixed)
+    cd3e.update(spillover_policy="redsea_corrected", measurement_source="qupath_raw")
+    with pytest.raises(ValueError, match="qupath_raw measurement source requires uncompensated"):
+        registry_from_dict(mixed)
 
 
 def test_registry_rejects_reintroducing_an_active_or_operative_pair():

@@ -8,6 +8,12 @@ allocation; it does not copy marker lists from ``config`` or
 The current registry deliberately declares no verified calibration pairs.
 Marker measurement sources remain authoritative inputs, while pair selection
 lives only in mutable development diagnostics until it is validated.
+
+Since 2026-09-29 every marker's spillover policy is ``uncompensated``: each
+reads its raw QuPath mean from ``cells``, and no marker reads REDSEA
+(``MarkerRegistry.redsea_markers`` is empty). The REDSEA policies stay in the
+vocabulary, so a marker that later earns correction is one registry edit away;
+``DATA_README.md`` ("Spillover policy") has the evidence.
 """
 
 from __future__ import annotations
@@ -48,6 +54,13 @@ class NoVerifiedTypingError(ContractError):
 ALLOWED_BROAD_COMPARTMENTS = frozenset(
     {"Immune", "Endothelial", "Epithelial", "Neural", "Mesenchymal"}
 )
+
+# The compartments whose raw QuPath mean ingest carries into ``cells``
+# (``cells_parquet.build_sql``): ``Cell: <m>: Mean`` as the bare marker name and
+# ``Nucleus: <m>: Mean`` as ``Nucleus__<m>``. An ``uncompensated`` marker reads one
+# of these, so it must declare one of them; Cytoplasm and Membrane exist only as
+# REDSEA outputs.
+RAW_QUPATH_COMPARTMENTS = ("Cell", "Nucleus")
 
 
 @dataclass(frozen=True)
@@ -94,7 +107,12 @@ class MarkerSpec:
 
     @property
     def measurement_column(self) -> str:
-        """Canonical upstream measurement selected by this specification."""
+        """Canonical upstream measurement selected by this specification.
+
+        This is the REDSEA column name (``<Compartment>__<name>``). A ``qupath_raw``
+        marker is read from ``cells`` under the name ingest gave it instead; see
+        ``expression.raw_measurement_column``.
+        """
 
         if self.measurement_source == "qupath_norm":
             return f"QuPathNorm__{self.compartment}__{self.name}"
@@ -148,6 +166,20 @@ class MarkerRegistry:
     @property
     def state_markers(self) -> tuple[MarkerSpec, ...]:
         return tuple(marker for marker in self.markers if marker.kind == "state")
+
+    @property
+    def redsea_markers(self) -> tuple[MarkerSpec, ...]:
+        """Markers whose selected value is read from the REDSEA stage.
+
+        Empty means nothing reads REDSEA output: the REDSEA stage is a logged no-op
+        and ``expression`` does not read ``data/redsea``. ``validate_registry`` ties
+        the ``redsea`` source to a REDSEA spillover policy, so this is also every
+        marker REDSEA would compensate or pass through.
+        """
+
+        return tuple(
+            marker for marker in self.markers if marker.measurement_source == "redsea"
+        )
 
     def markers_for_use(self, use: str) -> tuple[MarkerSpec, ...]:
         return tuple(marker for marker in self.markers if use in marker.uses)
@@ -343,8 +375,9 @@ def validate_registry(registry: MarkerRegistry) -> None:
     # a different scale from the other 57 while being compared against them in the same
     # cosine, and the ``QuPathNorm__*`` columns they demanded are absent from every export we
     # hold -- which made ``expression`` unrunnable and so made the whole upstream
-    # unreproducible. They now take the ``redsea`` default their ``redsea_corrected``
-    # spillover policy already implies.
+    # unreproducible. They took the ``redsea`` default their ``redsea_corrected``
+    # spillover policy implied, and since 2026-09-29 read the raw QuPath mean like every
+    # other marker.
     qupath_normalized = {
         marker.name
         for marker in registry.markers
@@ -394,9 +427,24 @@ def validate_registry(registry: MarkerRegistry) -> None:
                 f"{label}: unsupported spillover policy "
                 f"{marker.spillover_policy!r}"
             )
-        if marker.spillover_policy == "uncompensated" and marker.compartment != "Nucleus":
+        # Until 2026-09-29 this required Nucleus. Only the nuclear markers skipped
+        # REDSEA, on the physical argument that a signal confined to the nucleus has no
+        # lateral membrane spillover to correct, and the rule stopped a surface marker
+        # from escaping correction by accident. It is relaxed on evidence: the policy
+        # audit found no Cell marker whose REDSEA correction removed biologically
+        # impossible co-positives without also removing real signal (DATA_README.md,
+        # "Spillover policy"), so every marker now reads its raw QuPath mean. What
+        # still binds is that the raw source exists: ingest carries only the Cell and
+        # Nucleus means, so an uncompensated Cytoplasm or Membrane marker would have
+        # nothing to read.
+        if (
+            marker.spillover_policy == "uncompensated"
+            and marker.compartment not in RAW_QUPATH_COMPARTMENTS
+        ):
             errors.append(
-                f"{label}: uncompensated per-cell markers must select Nucleus"
+                f"{label}: an uncompensated marker reads the raw QuPath mean, which "
+                f"ingest carries only for {list(RAW_QUPATH_COMPARTMENTS)}, not "
+                f"{marker.compartment!r}"
             )
         if marker.measurement_source not in registry.allowed_measurement_sources:
             errors.append(
@@ -539,6 +587,7 @@ __all__ = [
     "MarkerSpec",
     "NO_VERIFIED_TYPING_STATUS",
     "NoVerifiedTypingError",
+    "RAW_QUPATH_COMPARTMENTS",
     "load_registry",
     "registry_from_dict",
     "validate_registry",

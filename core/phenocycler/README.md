@@ -12,7 +12,7 @@ The current workflow is:
 QuPath cohort manifest
   -> measurement ingest
   -> geometry QC
-  -> REDSEA boundary-spillover correction
+  -> REDSEA boundary-spillover correction   (a logged no-op: no marker reads it since 2026-09-29)
   -> authoritative per-marker expression
 ```
 
@@ -44,11 +44,16 @@ history; it is not a current command path or fallback.
 - Each registered marker has one authoritative intensity source and
   compartment. An acquired marker with a missing required source is an error;
   a marker absent from a panel remains explicitly unavailable.
-- Every marker reads one source: the declared REDSEA compartment, or the raw
-  QuPath compartment for the nine uncompensated markers. Since `a30a517`
-  (2026-08-27) no marker may select `qupath_norm` — the signed QuPath
-  `Mean (norm)` scale was a RESTORE-era exception and `cells/` carries no
-  `QuPathNorm__` column. Iba1, CD68 and M2Gal3 read REDSEA like the rest.
+- Every marker reads one source: the raw QuPath mean in its declared
+  compartment (`uncompensated`), or the declared REDSEA compartment for a
+  marker routed to REDSEA. Since 2026-09-29 all 72 markers are
+  `uncompensated`: a 13-donor audit found no marker whose REDSEA correction
+  removed biologically impossible co-positives without also removing real
+  signal, so the REDSEA stage is a logged no-op and expression reads only
+  `cells` (the evidence is in [the data guide](DATA_README.md#spillover-policy)).
+  Since `a30a517` (2026-08-27) no marker may select `qupath_norm` — the signed
+  QuPath `Mean (norm)` scale was a RESTORE-era exception and `cells/` carries no
+  `QuPathNorm__` column.
 - The only active pairwise work is a mutable, rank-only development diagnostic:
   raw CD3e versus raw Ker8_18 and exact QuPath `Iba1_norm` versus raw Ker8_18.
   CD79a is excluded as a pair candidate because its expression is too sparse in
@@ -204,6 +209,10 @@ The donor-local dependency graph is fixed:
 ingest (cohort barrier)
   └─ geometry[d] -> redsea[d] -> expression[d]
 ```
+
+While no registry marker reads REDSEA (the case since 2026-09-29), `redsea[d]` is
+a logged no-op (`[donor-noop] redsea/<d>`) that computes and writes nothing, so
+`expression[d]` follows `geometry[d]` without a REDSEA partition.
 
 `--only` does not infer or rebuild dependencies. This makes every requested
 transition explicit and prevents an interactive notebook from quietly

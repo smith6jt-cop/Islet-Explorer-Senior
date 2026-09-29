@@ -348,3 +348,113 @@ def test_donor_output_without_a_receipt_counts_as_done(tmp_path):
 
     completed = _initial_task_state(context, ("geometry",))
     assert completed == {DonorTask("geometry", "1")}
+
+
+def _queue_context(tmp_path, donors=("1", "2")):
+    """A serial queue over donors whose cells and geometry are on disk and REDSEA is not."""
+
+    from phenocycler.marker_registry import load_registry
+
+    config = SimpleNamespace(
+        cells_dir=tmp_path / "cells",
+        geometry_qc_dir=tmp_path / "geometry_qc",
+        redsea_dir=tmp_path / "redsea",
+        selected_expression_dir=tmp_path / "expression",
+        audit_dir=tmp_path / "audit",
+        n_jobs=1,
+        use_gpu=False,
+        pipeline_geometry_workers=1,
+        pipeline_redsea_workers=1,
+        pipeline_downstream_workers=1,
+    )
+    roots = {
+        "geometry": config.geometry_qc_dir,
+        "redsea": config.redsea_dir,
+        "expression": config.selected_expression_dir,
+    }
+    for offset, donor in enumerate(donors):
+        write_donor_partition(
+            pd.DataFrame(
+                {
+                    "object_id": ["a", "b"],
+                    "image": [f"img{donor}"] * 2,
+                    "INS": [100.0 + offset, 0.5],
+                    "Nucleus__INS": [-1.0, -1.0],
+                    "Nucleus__Ki67": [3.0, 30.0 + offset],
+                }
+            ),
+            config.cells_dir,
+            donor_id=donor,
+            filename="data_0.parquet",
+        )
+        write_donor_partition(
+            pd.DataFrame(
+                {
+                    "object_id": ["b", "a"],
+                    "analysis_eligible": [True, True],
+                    "estimation_eligible": [True, True],
+                }
+            ),
+            config.geometry_qc_dir,
+            donor_id=donor,
+        )
+    channel_map = tuple(SimpleNamespace(marker=marker) for marker in ("INS", "Ki67"))
+    return SimpleNamespace(
+        donors=tuple(donors),
+        config=config,
+        cohort=SimpleNamespace(
+            images=tuple(
+                SimpleNamespace(donor_id=donor, channel_map=channel_map)
+                for donor in donors
+            )
+        ),
+        registry=load_registry(),
+        output_root=lambda stage: roots[stage],
+    )
+
+
+def test_pipelined_expression_needs_no_redsea_partition(capsys, tmp_path):
+    """`run --pipelined --through expression` when no marker reads REDSEA.
+
+    The queue keeps its geometry -> redsea -> expression DAG. Each REDSEA task is a logged
+    no-op that writes nothing, which is enough to make that donor's expression ready, and
+    expression reads the raw QuPath means from cells.
+    """
+
+    from phenocycler.expression import read_single_partition
+
+    context = _queue_context(tmp_path)
+    run_donor_queue(context, ("geometry", "redsea", "expression"))
+
+    output = capsys.readouterr().out
+    for donor in context.donors:
+        assert f"[donor-noop] redsea/{donor}: no registry marker reads REDSEA" in output
+        assert f"[donor-done] expression/{donor}" in output
+    assert "[donor-run] redsea" not in output
+    assert "[donor-run] geometry" not in output  # already on disk
+    assert not (tmp_path / "redsea").exists()
+    for offset, donor in enumerate(context.donors):
+        expression = read_single_partition(tmp_path / "expression", donor)
+        assert expression["INS"].tolist() == [100.0 + offset, 0.5]
+        assert expression["Ki67"].tolist() == [3.0, 30.0 + offset]
+        audit = pd.read_parquet(
+            tmp_path / "audit" / "donors" / "expression_availability"
+            / f"donor_id={donor}" / "data.parquet"
+        ).set_index("marker")
+        assert audit.loc["INS", "source"] == "qupath:INS"
+        assert audit.loc["Ki67", "source"] == "qupath:Nucleus__Ki67"
+
+
+def test_a_direct_redsea_donor_task_is_a_noop(monkeypatch, capsys, tmp_path):
+    from phenocycler import donor_pipeline
+
+    context = _queue_context(tmp_path, donors=("1",))
+    monkeypatch.setattr(
+        donor_pipeline,
+        "process_donor",
+        lambda *_args, **_kwargs: pytest.fail("REDSEA ran with no marker reading it"),
+    )
+
+    assert execute_donor_stage(context, "redsea", "1", force=True) == "1"
+    assert "[donor-noop] redsea/1" in capsys.readouterr().out
+    assert not (tmp_path / "redsea").exists()

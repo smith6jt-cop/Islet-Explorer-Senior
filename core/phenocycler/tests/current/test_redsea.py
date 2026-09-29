@@ -109,8 +109,31 @@ def test_compensate_rejects_unknown_norm_form():
                           comp_mode=1, alpha=1.0, norm_form="rowsum")
 
 
-def test_no_spillover_channels_pass_through_uncorrected():
-    """Nuclear/ECM channels get alpha=0 AND comp_mode=0, so corrected == raw for those columns."""
+def _registry_with(**policies):
+    from phenocycler.marker_registry import DEFAULT_REGISTRY_PATH, registry_from_dict
+
+    payload = json.loads(DEFAULT_REGISTRY_PATH.read_text(encoding="utf-8"))
+    for row in payload["markers"]:
+        if row["name"] in policies:
+            row["spillover_policy"] = policies[row["name"]]
+    return registry_from_dict(payload)
+
+
+def test_no_spillover_channels_pass_through_uncorrected(monkeypatch):
+    """Nuclear/ECM channels get alpha=0 AND comp_mode=0, so corrected == raw for those columns.
+
+    The mask follows the registry, so this runs under the policies REDSEA last compensated with
+    (E-cadherin and CD31 corrected, Collagen_IV passed through, the nuclear markers untouched);
+    the shipped registry compensates nothing (next test).
+    """
+    from phenocycler import marker_taxonomy
+
+    registry = _registry_with(
+        E_cadherin="redsea_corrected",
+        CD31="redsea_corrected",
+        Collagen_IV="redsea_passthrough",
+    )
+    monkeypatch.setattr(marker_taxonomy, "_registry", lambda: registry)
     cols = ["E_cadherin", "DAPI", "CD31", "Collagen_IV", "Ki67"]
     params = redsea.RedseaParams(comp_mode=1, alpha=1.0, exclude_no_spillover=True)
 
@@ -130,6 +153,18 @@ def test_no_spillover_channels_pass_through_uncorrected():
     raw_mean = data / sizes[:, None]
     assert np.allclose(corrected[:, ~keep], raw_mean[:, ~keep])   # untouched
     assert not np.allclose(corrected[:, keep], raw_mean[:, keep])  # corrected
+
+
+def test_the_shipped_registry_has_redsea_compensate_no_channel():
+    """Every marker is ``uncompensated`` since 2026-09-29, so a REDSEA pass run anyway would be
+    a pure passthrough -- which is why the pipeline does not run it (``stage_noop_reason``)."""
+    cols = ["E_cadherin", "DAPI", "CD31", "Collagen_IV", "Ki67", "INS", "CD3e"]
+    params = redsea.RedseaParams(comp_mode=1, alpha=1.0, exclude_no_spillover=True)
+
+    alpha, comp_mode, n_skipped = redsea.apply_no_spillover_mask(params, cols, params.alpha,
+                                                                 params.comp_mode)
+    assert n_skipped == len(cols)
+    assert np.allclose(alpha, 0.0) and np.allclose(comp_mode, 0)
 
 
 def test_no_spillover_mask_is_a_no_op_when_disabled():

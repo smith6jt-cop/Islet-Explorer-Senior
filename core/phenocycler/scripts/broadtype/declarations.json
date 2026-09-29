@@ -222,7 +222,7 @@
  "notes": [],
  "sources": {
   "registry": "core/phenocycler/phenocycler/marker_registry.json",
-  "registry_sha256": "577ab46728ed857943e80d91c1b47d02239b71eb3cc473e84e528b0253edc074",
+  "registry_sha256": "35ca419ba431521b9cb8de01d3d7768ffc40c593ccbd216cc23bd5ce5a036626",
   "rules": "phenotype_workflow.csv",
   "rules_sha256": "b010a3f9c6ca40cb4b76957f65a25c39f12849387ef72c616a201deb885a0956"
  }

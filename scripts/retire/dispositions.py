@@ -876,8 +876,8 @@ CODE_LIBRARY = [
      "typer. Its header (:3-6) reads RETIRED -- NOT A FALLBACK, and what stops it producing is "
      "code: the `type` stage is blocked by NO_VERIFIED_TYPING (root CLAUDE.md, 'that latch has "
      "not moved'). Live importers, both inside the installed package by bare module name: "
-     "phenocycler/pipeline.py:75-78 (`from .simultaneous_typing import BroadGatePolicy, "
-     "load_broad_gate_policy`; :182 records it as a source string) and "
+     "phenocycler/pipeline.py:80-83 (`from .simultaneous_typing import BroadGatePolicy, "
+     "load_broad_gate_policy`; :188 records it as a source string) and "
      "phenocycler/production_typing.py:21-25 (METHOD_VERSION, BroadGatePolicy, "
      "type_simultaneous_cells). Retiring it breaks the package's own pipeline import -- a "
      "failure the code_orphan check only sees when the walk searches the bare module name."),

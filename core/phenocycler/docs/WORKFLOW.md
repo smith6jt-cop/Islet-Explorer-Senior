@@ -25,7 +25,7 @@ marker and cell:
 ```text
 declared QuPath cohort
   + geometry-only eligibility
-  + compartment-resolved REDSEA measurements
+  + raw QuPath Cell/Nucleus means (REDSEA only for a marker routed to it; none since 2026-09-29)
   + exact source selection and availability audit
   -> donor-partitioned expression
 ```
@@ -68,8 +68,10 @@ QuPath cohort manifest
   -> expression
 ```
 
-Expression depends on geometry and REDSEA because the registry contains raw,
-REDSEA-routed, and exact QuPath-normalized measurements. **The content-addressed
+Expression depends on geometry and, for a marker the registry routes to it, on
+REDSEA. Since 2026-09-29 no marker is routed to REDSEA, so the `redsea` stage is a
+logged no-op and expression reads only `cells` and `geometry_qc` (see
+[Stage 3](#stage-3-redsea)). **The content-addressed
 run framework that formerly gated these four stages was removed on
 2026-09-16.** Each stage now writes directly to a stable root
 (`data/{cells,geometry_qc,redsea,expression}`), keyed only by donor partition —
@@ -89,7 +91,7 @@ manifest builder resolves and fingerprints:
 
 Donor 6457 remains centrally excluded (`phenocycler/cohort.py` `DONOR_EXCLUSIONS`). A
 manifest that lists it fails rather than silently filtering it later:
-`ensure_eligible_donors` refuses the run (`pipeline.py:321`). 6579's exclusion was lifted
+`ensure_eligible_donors` refuses the run (`pipeline.py:327`). 6579's exclusion was lifted
 on 2026-09-17 (`REINSTATED`), and the manifest has declared it since 2026-09-23.
 
 ## Stage 1: ingest the measurement union
@@ -123,13 +125,25 @@ lateral spillover independently for each channel. It emits aligned
 Nucleus/Cytoplasm/Membrane/Cell measurements and preserves the exact UUID
 universe. REDSEA does not assign positivity or cell identity.
 
+**Since 2026-09-29 the stage is a logged no-op** (`[no-op] redsea`, or
+`[donor-noop] redsea/<id>` under `--pipelined`; `pipeline status` prints `NO-OP`):
+every registered marker is `uncompensated`, so nothing reads its output. An audit of
+13 donors found no marker whose correction removed biologically impossible
+co-positives without also removing real single-positive signal: a median 5% fewer
+co-positives, 0.91 of single positives kept, and a selectivity of about 1.3, close
+to what dimming the channel gives. The evidence and the rule are in
+[the data guide](../DATA_README.md#spillover-policy). The stage keeps its place in
+the order and its code, and runs again once the registry routes a marker to it.
+
 ## Stage 4: authoritative expression
 
 For each registered marker, expression selects exactly one declared source:
 
-- the declared REDSEA compartment for REDSEA-routed markers (Iba1, CD68 and
-  M2Gal3 included — `qupath_norm` is refused since `a30a517`); or
-- the declared raw QuPath compartment for uncompensated markers.
+- the declared raw QuPath compartment for uncompensated markers, which since
+  2026-09-29 is every marker: the bare `<marker>` column of `cells` for `Cell`
+  and `Nucleus__<marker>` for `Nucleus`, named by ingest's own sanitiser; or
+- the declared REDSEA compartment for a marker routed to REDSEA (none today;
+  `qupath_norm` is refused since `a30a517`).
 
 An acquired marker with a missing required source is fatal. A marker not
 acquired in a panel becomes null with an explicit availability reason. Exact

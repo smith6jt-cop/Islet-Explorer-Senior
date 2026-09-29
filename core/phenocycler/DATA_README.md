@@ -10,7 +10,9 @@ The ordinary workflow stops after `expression`. Pair-dependent
 export are not current outputs. Ingest, geometry, REDSEA, expression, and the
 explicit pair-independent `states` stage each write to a stable root under
 `data/`; see [Run layout](#run-layout) — **the content-addressed run framework
-that used to gate these stages was removed on 2026-09-16.**
+that used to gate these stages was removed on 2026-09-16.** REDSEA writes nothing
+while no marker reads it, which has been the case since 2026-09-29 (see
+[Spillover policy](#spillover-policy)).
 
 **Adoption audit, 2026-09-02 (historical — the `adopt` command it exercised was
 deleted on 2026-09-16).** A dry run of
@@ -61,8 +63,10 @@ Nucleus: <marker>: Mean       # where required by the registry
 
 No `Mean (norm)` field is required. Ingest requires and keeps one only for a marker whose
 registry `measurement_source` is `qupath_norm` (`cells_parquet.QUPATH_NORMALIZED_MARKERS`,
-`cells_parquet.py:47-51`), and since 2026-08-27 (a30a517) no marker is: Iba1, CD68 and M2Gal3
-take the `redsea` default like every other marker (`marker_registry.py:340-347`).
+`cells_parquet.py:57-61`), and since 2026-08-27 (a30a517) no marker is: Iba1, CD68 and M2Gal3
+took the `redsea` default like every other marker then, and since 2026-09-29 read the raw
+QuPath mean like every other marker (`marker_registry.py:372-390`; see
+[Spillover policy](#spillover-policy)).
 
 The `Mean (norm)` families the batch exports still carry (24 columns: Iba1, CD68,
 M2Gal3, B3TUBB, CD34 and Podoplanin across four compartments; the 0112 and 6533
@@ -270,8 +274,14 @@ panel marker columns. Core columns are:
 | `parent_raw` | QuPath parent context retained for audit only |
 | `cell_region`, `islet_num`, `cluster_num`, `single_num` | context derived from `Parent` (`''` where the Parent is not that kind) |
 | `cell_area`, `cell_solidity` | structural measurements retained from the CSV |
-| `<marker>` | sanitized whole-cell mean |
-| `Nucleus__<marker>` | retained nucleus mean where available |
+| `<marker>` | sanitized whole-cell mean (`Cell: <marker>: Mean`); the raw source `expression` reads for a `Cell` marker |
+| `Nucleus__<marker>` | retained nucleus mean where available; the raw source for a `Nucleus` marker |
+
+`<marker>` is `cells_parquet.sanitize` of the QuPath name: every run of characters
+other than letters and digits becomes one `_`. Registry names follow the qptiff
+channel spelling instead, which agrees for every marker but one:
+`Histone_H3_(p_Ser28)` is stored here as `Histone_H3_p_Ser28` and
+`Nucleus__Histone_H3_p_Ser28`, and `expression` looks it up under that name.
 
 The ingest floor removes only degenerate objects below
 `[cells] min_cell_area` (5 µm² by default). Biological and geometry decisions
@@ -308,18 +318,82 @@ the only accepted source for each marker:
 - current availability/development status;
 - whole-cell or nucleus compartment;
 - measurement source: REDSEA or raw QuPath (`qupath_norm` is refused since `a30a517`);
-- REDSEA-corrected, REDSEA passthrough, or uncompensated policy;
+- REDSEA-corrected, REDSEA passthrough, or uncompensated policy — every marker
+  is `uncompensated` since 2026-09-29 (see [Spillover policy](#spillover-policy));
 - historical interpretation metadata, which does not authorize a production pair.
 
 > **2026-08-27 (`a30a517`):** `qupath_norm` is no longer a permitted
-> `measurement_source` — `validate_registry` refuses it and all 60 markers
-> resolve to `redsea` or `qupath_raw`. The RESTORE-era text that follows is
-> historical.
+> `measurement_source` — `validate_registry` refuses it and every marker
+> resolves to `redsea` or `qupath_raw` (all 72 to `qupath_raw` since
+> 2026-09-29). The RESTORE-era text that follows is historical.
 
-Measurement source and spillover policy are separate contracts. Iba1, CD68,
-and M2Gal3 had `measurement_source=qupath_norm` until 2026-08-27 (a30a517); they
-now take `redsea` under their recorded `redsea_corrected` spillover policy, like
-every other marker. None of these markers currently receives a call.
+Measurement source and spillover policy are separate contracts, which
+`validate_registry` ties together: `uncompensated` selects `qupath_raw`, and the
+two REDSEA policies select `redsea`. Iba1, CD68, and M2Gal3 had
+`measurement_source=qupath_norm` until 2026-08-27 (a30a517), then took `redsea`
+under their `redsea_corrected` policy; since 2026-09-29 they read the raw QuPath
+mean like every other marker. None of these markers currently receives a call.
+
+### Spillover policy
+
+**Since 2026-09-29 all 72 registered markers are `uncompensated`**: each reads
+QuPath's raw mean in its declared compartment from `cells`, and nothing in the
+ordinary workflow reads REDSEA. Before that, 63 markers were `redsea_corrected`
+(62 whole-cell markers and the nuclear `Histone_H3_(p_Ser28)`), `Collagen_IV` was
+`redsea_passthrough`, and the eight nuclear markers (`DAPI`, `FOXP3`, `Ki67`, `PCNA`,
+`SOX2`, `TCF_1`, `TOX`, `TP63`) were already `uncompensated`.
+
+The approved rule keeps REDSEA for a marker only where it reduces biologically
+impossible co-positives (cells positive for two markers of mutually exclusive
+lineages, such as INS/GCG, CD3e/CD20, CD4/CD8 inside CD3e+ cells, or CD3e/E-cadherin)
+without destroying the marker's real single-positive signal. **Evidence.** An audit
+of 13 donors scored every corrected marker against each exclusive partner, correcting
+the marker alone with the partner held raw, under the typing lane's own positivity
+rule (Otsu where that rule's threshold was unstable between raw and corrected values).
+Over 748 donor × marker × partner comparisons, correction lowered the impossible
+co-positive rate by a median 5% (IQR 1–11%), kept a median 0.91 (IQR 0.85–0.93) of
+the marker's raw single positives, and had a median selectivity of 1.3 (IQR 0.9–1.9),
+where selectivity is co-positive cells cleared per single-positive cell lost and a
+uniform dimming of the channel scores about 1. Inside the co-positive cells REDSEA
+left the marker at a median 1.05 of its raw value, so it barely treats them as
+spillover recipients: most impossible co-positives come from something its one-pixel
+lateral model does not see. Keeping REDSEA needed a drop of at least 20% with
+selectivity of at least 2 and retention of at least 0.90, in at least two-thirds of
+the evaluable donors. Of the 748 comparisons, 9 met it (569 showed no benefit, 85
+lost more than 20% of the marker's single positives); no marker met it in two-thirds
+of donors for any partner, five markers were donor-dependent, and a marker with no
+exclusive partner cannot earn REDSEA under the rule. The 12 donors the audit could
+not yet read cannot change this: the best case, INS against CD31 (2 of 13 donors),
+would reach 14 of 25 donors even if all 12 benefited, against the 17 that two-thirds
+requires.
+
+What this means for each stage:
+
+- **`expression`** reads a `Cell` marker's bare `<marker>` column and a `Nucleus`
+  marker's `Nucleus__<marker>` column from `cells`, naming the marker with ingest's
+  own sanitiser (`expression.raw_measurement_column`). The lookup is exact: no
+  similarly named column substitutes for a missing one. It opens `data/redsea` only
+  when some marker's `measurement_source` is `redsea`, so it runs on donors REDSEA
+  never reached. The availability audit's `source` reads `qupath:<column>`.
+- **`redsea`** keeps its place in the stage order (`ingest, geometry, redsea,
+  expression`) but is a logged no-op while no marker reads it: `[no-op] redsea`, or
+  `[donor-noop] redsea/<id>` under `--pipelined`, with nothing computed or written,
+  and `pipeline status` prints `NO-OP`. REDSEA partitions written earlier are left
+  where they are and not read.
+- **`controls`, `type` and `states`** read `expression`, not REDSEA. **`calibrate`**
+  (RESTORE) still reads REDSEA compartments for its NNMF features; it is blocked by
+  `NO_VERIFIED_TYPING` and cannot run under this registry.
+- **The vocabulary is unchanged.** `validate_registry` still accepts
+  `redsea_corrected` and `redsea_passthrough`, so a marker that later earns REDSEA
+  is one registry edit away; the stage then runs again, and `expression` has to be
+  rerun after it. `uncompensated`, which until 2026-09-29 was allowed only for
+  `Nucleus` markers, is allowed for `Cell` and `Nucleus`, the two compartments whose
+  raw mean ingest keeps; a `Cytoplasm` or `Membrane` marker has no raw source.
+- **Expression written before the change** holds REDSEA values for 64 markers.
+  A present partition is skipped and `write_donor_partition` refuses to overwrite,
+  so move `data/expression` and its availability audits
+  (`audit/expression_availability.parquet`, `audit/donors/expression_availability/`)
+  aside before rerunning `expression`.
 
 The `expression` dataset contains exactly one selected column named
 `<marker>` for every registered marker, plus:
@@ -527,7 +601,7 @@ data/
 ├── ingest_rejects.parquet
 ├── panel_availability.json
 ├── geometry_qc/donor_id=<id>/*.parquet
-├── redsea/donor_id=<id>/*.parquet
+├── redsea/donor_id=<id>/*.parquet               # written only while a marker reads REDSEA
 ├── expression/donor_id=<id>/*.parquet
 ├── audit/
 │   ├── donors/<audit_name>/donor_id=<id>/data.parquet

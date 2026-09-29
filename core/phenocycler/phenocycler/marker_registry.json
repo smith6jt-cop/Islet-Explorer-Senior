@@ -1,8 +1,8 @@
 {
  "schema_version": 3,
- "registry_version": "marker-measurement-registry-v3-no-verified-typing",
- "method_version": "upstream-marker-selection-v3-no-verified-typing",
- "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified.",
+ "registry_version": "marker-measurement-registry-v4-raw-qupath-no-verified-typing",
+ "method_version": "upstream-marker-selection-v4-raw-qupath-no-verified-typing",
+ "description": "Authoritative upstream marker measurement sources for development. No calibration pair, divisor, marker call, or production phenotype is verified. Since 2026-09-29 every marker is uncompensated and reads its raw QuPath mean: no marker's REDSEA correction removed biologically impossible co-positives without also removing real signal (DATA_README.md, Spillover policy).",
  "allowed_compartments": [
   "Nucleus",
   "Cytoplasm",
@@ -32,7 +32,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -46,7 +46,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -60,7 +60,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -74,7 +74,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -88,7 +88,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -102,7 +102,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -116,7 +116,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -131,7 +131,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -145,7 +145,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -159,7 +159,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -173,7 +173,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -188,7 +188,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -202,7 +202,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -216,7 +216,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -230,7 +230,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -245,7 +245,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -259,7 +259,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -273,7 +273,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -288,7 +288,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -303,7 +303,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -317,7 +317,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -331,7 +331,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -345,7 +345,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -359,7 +359,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -374,7 +374,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -389,7 +389,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -404,7 +404,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -418,7 +418,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -432,7 +432,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -446,7 +446,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -460,7 +460,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_passthrough",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -488,7 +488,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -502,7 +502,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -530,7 +530,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -545,7 +545,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -559,7 +559,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -573,7 +573,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -587,7 +587,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -601,7 +601,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -615,7 +615,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -629,7 +629,7 @@
    "reference": null,
    "families": [],
    "compartment": "Nucleus",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -643,7 +643,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -657,7 +657,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -671,7 +671,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -685,7 +685,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -700,7 +700,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -715,7 +715,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -729,7 +729,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -743,7 +743,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -771,7 +771,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -785,7 +785,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -799,7 +799,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -814,7 +814,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -842,7 +842,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -856,7 +856,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -870,7 +870,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -885,7 +885,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -899,7 +899,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -914,7 +914,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -942,7 +942,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -998,7 +998,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -1012,7 +1012,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -1026,7 +1026,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   },
   {
@@ -1040,7 +1040,7 @@
    "reference": null,
    "families": [],
    "compartment": "Cell",
-   "spillover_policy": "redsea_corrected",
+   "spillover_policy": "uncompensated",
    "mutually_exclusive": false
   }
  ],
