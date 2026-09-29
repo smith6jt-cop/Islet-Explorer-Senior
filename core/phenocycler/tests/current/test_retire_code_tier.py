@@ -37,6 +37,11 @@ import retire as R  # noqa: E402
 CODE_ENTRIES = D.CODE_TIER1 + D.CODE_TIER2
 ALL_ENTRIES = CODE_ENTRIES + D.ARTIFACT_TIER2
 
+# The tables key every path on dispositions.REPO, the workstation checkout, and three tests
+# also read its retirement log under data/ (gitignored). A test that looks there is a
+# workstation test and is `data`-marked: `make test-data` runs it; a CI runner, whose
+# checkout lives elsewhere and has no data/, deselects it.
+
 
 @pytest.fixture(scope="module")
 def manifest(tmp_path_factory) -> dict:
@@ -79,6 +84,7 @@ def test_every_library_the_walk_measured_is_declared_with_its_importers():
         assert ":" in why, f"{path}: a library row names its importers as path:line"
 
 
+@pytest.mark.data
 def test_every_declared_library_exists():
     """The branch that once justified tolerating absence has merged; a missing library is a
     drifted table, and the manifest check must FAIL on it rather than guard a ghost."""
@@ -178,6 +184,7 @@ def test_a_candidate_is_on_no_tier_and_in_no_refusal_set():
         assert R.under_protected_tree(path) is None, f"{path} sits under a library directory"
 
 
+@pytest.mark.data
 def test_a_candidate_is_neither_refused_nor_acted_on(manifest):
     """The manifest carries every candidate as tier CANDIDATE with the orphan walk run; a
     retire run over tiers 1 and 2 never mentions one, in either the acting or the skip list."""
@@ -202,6 +209,7 @@ def test_a_candidate_is_neither_refused_nor_acted_on(manifest):
                 f"tier {tier} run names the candidate {path}"
 
 
+@pytest.mark.data
 def test_every_library_row_is_in_the_manifest_and_verified(manifest):
     for path in LIBRARY:
         row = manifest["by_path"][path]
@@ -231,6 +239,7 @@ def test_the_alternative_typers_are_declared_and_not_movable():
     assert "xen_identity.py" in overturned[f"{SCRIPTS}/xenium_typing/joint_model.py"]
 
 
+@pytest.mark.data
 def test_the_apparatus_moved_once_its_binding_was_blank(manifest):
     """Until 2026-09-23 core/phenocycler/config.ini:153 bound the release directory the X1/X3
     arms and release.py write, and the manifest FAILED all four by name on that binding. Step 5
@@ -250,6 +259,7 @@ def test_the_apparatus_moved_once_its_binding_was_blank(manifest):
     assert row["verified"] == "FAIL" and "run_pipeline.sh" in row["verify_detail"], row
 
 
+@pytest.mark.data
 def test_the_config_binding_check_reads_the_key_by_name(tmp_path):
     ini = tmp_path / "config.ini"
     ini.write_text("[integration]\nphenocycler_identity_release = ../../x\n"
@@ -345,6 +355,7 @@ def _moved_by_the_ledger() -> set[str]:
 
 
 # --------------------------------------------------- resolution is by path ----
+@pytest.mark.data
 def test_a_basename_shared_with_a_live_file_does_not_block_the_orphan(manifest):
     """`scripts/senior/aggregate_islets.py` is an orphan; the typing lane's file of the same
     name is a live node in build_layers.py. Only the first is listed, and it passes."""
@@ -360,6 +371,7 @@ def test_a_basename_shared_with_a_live_file_does_not_block_the_orphan(manifest):
     assert Path(typing).exists(), "precondition: the live file of the same name is still there"
 
 
+@pytest.mark.data
 def test_an_import_that_resolves_to_another_lane_is_not_a_live_reference():
     """`scripts/report/{bakeoff,identity_io}.py` import `pins`, meaning their OWN pins.py."""
     report = Path(D.REPO) / "core/phenocycler/scripts/report"
@@ -369,6 +381,7 @@ def test_an_import_that_resolves_to_another_lane_is_not_a_live_reference():
     assert BM._import_resolves_here(report / "bakeoff.py", "pins", report)
 
 
+@pytest.mark.data
 def test_an_import_reached_through_sys_path_is_a_live_reference():
     """kronos2_doc/run.py puts scripts/broadtype on sys.path, so its `import pins` is broadtype's."""
     run = Path(D.REPO) / "core/phenocycler/scripts/kronos2_doc/run.py"
@@ -394,6 +407,7 @@ def test_imports_are_read_from_the_ast_not_the_text(tmp_path):
 
 
 # ------------------------------------------------------- the table itself ----
+@pytest.mark.data
 def test_every_listed_code_path_still_exists():
     """A table that has drifted from disk must be corrected, not acted on."""
     moved = _moved_by_the_ledger()
@@ -425,6 +439,7 @@ def test_every_blocker_is_itself_on_a_code_tier():
             assert blocker in listed, f"{entry['path']} is blocked by unlisted {blocker}"
 
 
+@pytest.mark.data
 def test_a_blocked_entry_is_held_when_its_blocker_stays(manifest):
     """fixed_islet_aggregation.py is imported by two files on the list; alone, it is a broken
     import, so the tier-1 pass holds it while reaggregate_islets.py (tier 2) is still there."""

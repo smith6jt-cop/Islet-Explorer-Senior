@@ -79,7 +79,6 @@ def derive_anchors(repo_root: pathlib.Path | None = None) -> dict:
     ``broad_compartment``, and the DCT crosswalk -- all predate any inference output.
     """
     root = pathlib.Path(repo_root) if repo_root else HERE.parents[1]
-    from deepcell_types.utils import resolve_supported_marker
     from phenocycler.cohort import ensure_eligible_donors
 
     reg = json.loads((root / "phenocycler" / "marker_registry.json").read_text())["markers"]
@@ -90,6 +89,9 @@ def derive_anchors(repo_root: pathlib.Path | None = None) -> dict:
         [str(im["donor_id"]).lstrip("0") for im in man["images"]],
         context="DCT anchor cohort",
     )
+    # After the cohort check, which needs no model: an excluded donor is refused even
+    # where the dct extra is not installed (a CI runner).
+    from deepcell_types.utils import resolve_supported_marker
 
     per_donor, marker_to_dct = [], {}
     for im in man["images"]:
