@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import pathlib
 import sys
 import time
@@ -66,6 +67,19 @@ import subpanel_io as S
 WANTED = ["Image", "Object ID", "Parent", "Centroid X µm", "Centroid Y µm"]
 #: What makes two rows the same DETECTION rather than two cells at the same printed spot.
 GEOMETRY = ["Nucleus: Area µm^2", "Cell: Area µm^2", "Cell: Max diameter µm"]
+
+
+def _f(text: str) -> float | None:
+    """One exported cell as a float, or None when it is blank, "NaN" or not a number.
+
+    ``duplicate_rows`` drops a record holding a None; a NaN reaching it instead would
+    fail its ``int(x // radius_um)`` bucketing.
+    """
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def duplicate_rows(records, radius_um: float = 1.0, area_tol: float = 0.15) -> int:

@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 import phenocycler.artifacts as artifacts
@@ -201,33 +200,6 @@ def test_qupath_manifest_records_partially_missing_embedded_nuclei(tmp_path):
     assert manifest.cell_geometry.feature_count == 2
     assert manifest.cell_geometry.nucleus_geometry_count == 1
     assert manifest.nucleus_geometry.primary_geometry_count == 1
-
-
-def _write_partition(root: Path, donor: str, object_ids, values=None):
-    partition = root / f"donor_id={donor}"
-    partition.mkdir(parents=True, exist_ok=True)
-    values = values if values is not None else list(range(len(object_ids)))
-    pd.DataFrame(
-        {
-            "object_id": list(object_ids),
-            "donor_id": [str(donor)] * len(object_ids),
-            "value": values,
-        }
-    ).to_parquet(partition / "data_0.parquet", index=False)
-
-
-def _stage_fixture(tmp_path: Path):
-    output = tmp_path / "output"
-    _write_partition(output, "1", ["a", "b"], [1.0, 2.0])
-    _write_partition(output, "2", ["c", "d"], [3.0, 4.0])
-    source = tmp_path / "stage_code.py"
-    source.write_text("METHOD = 'v1'\n")
-    input_path = tmp_path / "input.txt"
-    input_path.write_text("source data\n")
-    code = CodeMetadata.capture(tmp_path, source_paths=(source,))
-    inputs = (InputArtifact.from_path("raw", input_path),)
-    config = {"alpha": 1.0, "emit_compartments": True}
-    return output, source, input_path, code, inputs, config
 
 
 def test_channel_map_and_measurement_contracts_are_explicit(tmp_path):
