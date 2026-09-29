@@ -75,10 +75,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install current workflow dependencies
+      - name: Install the core package alone
+        # The suite's extras go in after the lean-import check below, so that check sees the
+        # core dependencies and nothing else.
         run: |
           python -m pip install --upgrade pip
-          pip install -e '.[test]'
+          pip install -e .
       - name: Version and stage contract
         run: |
           python -c "import phenocycler; v = phenocycler.__version__; print('version:', v); assert v != '0.0.0+unknown', 'setuptools-scm did not resolve a version (check [tool.setuptools_scm] root)'"
@@ -92,6 +94,12 @@ jobs:
         # when a module is added, and hard-fails when one is retired.
         run: |
           python -c "import importlib, pkgutil, phenocycler; names = [m.name for m in pkgutil.iter_modules(phenocycler.__path__) if m.name != 'integration']; [importlib.import_module(f'phenocycler.{name}') for name in names]; print('live core modules import OK:', ', '.join(names))"
+      - name: Install the suite's dependencies
+        # tests/current reaches the typing and senior scripts, which import shapely, anndata,
+        # h5py and pynndescent: the integration extra, as the script lanes already install.
+        # With `.[test]` alone, nine modules failed to import (2026-09-15 on), and a collection
+        # error aborts the whole run, so nothing ran at all.
+        run: pip install -e '.[integration,test]'
       - name: Fast deterministic default suite
         # testpaths = tests/current. -rs reports skip reasons: a silently skipped test reads
         # exactly like a passing one in the summary line.
