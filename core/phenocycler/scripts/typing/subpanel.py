@@ -1367,7 +1367,10 @@ def main() -> int:
     log = _log()
     scale = S.load_scale()
     pixel, stem = MEMBERSHIP._manifest()
-    every = sorted(p.name.split("=")[1] for p in (S.RUN / "expression").glob("donor_id=*"))
+    # Every donor that CAN be classified is one with aligned marker values. This read the
+    # historical run tree's expression partitions until 2026-10-01 -- the same 20 donors while that
+    # tree was the only source, and none at all in a checkout whose cells come from revised exports.
+    every = sorted(p.name.split("=")[1] for p in S.ALIGNED.glob("donor_id=*"))
     donors = args.donors or every
     work = pathlib.Path(args.work) if args.work else WORK
     work.mkdir(parents=True, exist_ok=True)

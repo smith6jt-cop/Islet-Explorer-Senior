@@ -79,18 +79,29 @@ SCALE_CSV = REPO / "data/development/broadtype/scratch/cosine_scale.parquet"
 #: `S.OUT / "subpanel/subpanel_log.json"` and the rest are untouched -- the registry names
 #: artifacts, not directories it happens to be able to reach.
 OUT = guarded(REPO / "data/development/typing")
-GEOJSON = pathlib.Path.home() / "IO60panc2nd/results/Geojson"
 
-#: Islet outlines, read from the QuPath export where they LAND -- the same place every other
-#: classified object is read from, and no longer a hand-copied folder inside the repo.
+#: The v3 QuPath export root: what `IO60panc2nd/scripts/v3/run_v3.sh --out` writes for the 25
+#: images re-segmented on the Tissue annotations redrawn 2026-09-30.  ONE root for every object
+#: this lane reads, and it is NOT `results/Geojson`: that folder holds the v2 objects, drawn
+#: against the old annotations, and the old resolver took "the newest file that matches" -- so a
+#: v3 file dropped beside them would have been mixed into a v2 build, or the reverse, by mtime.
+#: Nothing v3 is ever written into `results/Geojson`.
+EXPORT = pathlib.Path.home() / "IO60panc2nd/results/v3/export"
+
+#: Structure objects, one file per image and class: `<Class>/<Class>__<image tag>.geojson`, written
+#: by the driver's step 7 (the maintainer's tiled pixel classifiers, unchanged).
+GEOJSON = EXPORT / "structures"
+
+#: Islet outlines for this lane, one file per image, written by the export adapter
+#: (`IO60panc2nd/scripts/v3/islet_export_adapter.py`) from the reviewed QuPath objects: features
+#: named `Islet_<N>` with classification `Islet`, and `Islet_<N>_exp20um` where an expansion is
+#: declared -- the shape `islet_membership.outlines` and `build_islet_geometry.islet_outlines`
+#: have always read.
 #:
-#: `REPO/data/Islets` was that copy, and it went stale exactly as you would expect: on
-#: 2026-09-15 the re-exported outlines for 6523 and 6566 sat in the export directory for three
-#: hours while the repo held the July versions, and nothing would have said so. Reading the
-#: export directly removes the step that can be forgotten. Stem matching was checked against
-#: every donor in the manifest: 0 collisions, including the two pancreatic-lymph-node files that
-#: share the directory but not the `Islets__` naming.
-ISLETS = GEOJSON / "Islets"
+#: Read from the export where it LANDS, never a hand-copied folder inside the repo: `REPO/data/Islets`
+#: was that copy and went stale on 2026-09-15 (the re-exported outlines for 6523 and 6566 sat in
+#: the export directory for three hours while the repo held the July versions).
+ISLETS = EXPORT / "typing_islets"
 
 #: The rebuild of the re-exported batch-2 donors. Authoritative for them: the historical run tree
 #: still holds the defective export whose islet detections were duplicated.
@@ -111,6 +122,42 @@ def cell_source(donor: str) -> tuple[pathlib.Path, str]:
     if revised.exists():
         return revised, "revised"
     return RUN / f"expression/donor_id={donor}/data.parquet", "run"
+
+
+def cell_area_source(donor: str) -> pathlib.Path:
+    """The file a donor's QuPath `cell_area` is read from -- the SAME source `cell_source` names.
+
+    The area readers took it from the historical run tree unconditionally until 2026-10-01, which
+    for a donor whose cells come from a revised export meant an area from the superseded
+    segmentation, joined by `object_id` and silently NaN for every cell the run never had.
+    """
+    path, which = cell_source(donor)
+    if which == "revised":
+        return path
+    return RUN / f"cells/donor_id={donor}/data_0.parquet"
+
+
+def cell_areas(donor: str) -> pd.DataFrame:
+    """(object_id, cell_area), one row per cell, from :func:`cell_area_source`."""
+    import pyarrow.parquet as pq
+    return pq.read_table(cell_area_source(donor), columns=["object_id", "cell_area"]).to_pandas()
+
+
+def cell_outlines(donor: str) -> pathlib.Path:
+    """The per-cell outline GeoJSON of one donor, as the QuPath manifest records it.
+
+    The manifest is where an image's geometry file is declared (`cell_geojson.path`), so it is
+    asked rather than a folder being globbed for a name: the glob was
+    `data/redsea_scratch/geojson/cells__*<stem>*.geojson`, which is where 21 of the 23 v2 images
+    keep theirs and where none of the v3 images do.
+    """
+    import json
+    raw = json.loads((REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
+    found = [pathlib.Path(r["cell_geojson"]["path"]) for r in raw["images"]
+             if str(r["donor_id"]) == str(donor)]
+    if len(found) != 1:
+        raise FileNotFoundError(f"{donor}: {len(found)} images in the QuPath manifest")
+    return found[0]
 
 #: context -> the markers that answer that context's question.  Vessel is Caveolin/CD34 and
 #: NOT CD31: the objects were drawn by `Cavdil1200` / `CD34dil1430`, so CD31 was never what

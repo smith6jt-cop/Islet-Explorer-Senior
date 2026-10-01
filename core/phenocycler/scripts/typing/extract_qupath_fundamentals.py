@@ -22,7 +22,8 @@ Everything is keyed by ``Object ID`` -- the QuPath UUID -- so it joins to the ru
 with no centroid matching anywhere.  Verified on 6505: 2,863,277 of the revised export's
 2,870,418 ids (99.8%) are present in the run.
 
-Three source files, ~215 GB, streamed once each; nothing is loaded whole:
+A v3 image's source is its own cells Parquet (``extract_parquet``); the three CSV exports below
+are the v2 cohort's, ~215 GB, streamed once each with nothing loaded whole:
 
     results/Cellmeasurements.csv                  147.9 GB   12 batch-1 donors
     results/CellmeasurementsBatch2.csv             64.2 GB    7 batch-2 donors
@@ -183,6 +184,47 @@ def extract(path: str, donors: list[str], stems: dict[str, str], wanted: set[str
     print(f"  {seen:,} rows in {time.time() - started:.0f}s", flush=True)
 
 
+def extract_parquet(path: str, donors: list[str], stems: dict[str, str],
+                    wanted: set[str] | None) -> None:
+    """The same columns from a v3 cells Parquet -- typed, one image per file, read by name.
+
+    A v3 image's measurement source is a Parquet written from the QuPath export with its header
+    unchanged, so the seventeen columns are asked for under exactly the names the CSV carries and
+    a missing one is the same refusal.  The output is the same per-donor table the CSV path writes.
+    """
+    keep = [d for d in donors if wanted is None or d in wanted]
+    if not keep:
+        print(f"  skip {path} (no requested donor in it)")
+        return
+    print(f"\n{path}\n  donors: {' '.join(sorted(keep))}", flush=True)
+    fields = IDENTITY + MORPHOMETRY
+    missing = [c for c in fields if c not in set(pq.read_schema(path).names)]
+    if missing:
+        raise KeyError(f"{path}: missing {missing}")
+    schema = pa.schema([
+        pa.field(RENAME[c], pa.float32() if RENAME[c] in FLOAT_COLUMNS else pa.string())
+        for c in fields
+    ])
+    started = time.time()
+    table = pq.read_table(path, columns=fields)
+    image = table.column("Image").to_pandas()
+    donor_of = image.map(stems)
+    unmatched = image[donor_of.isna()].value_counts().to_dict()
+    for donor in sorted(keep):
+        rows = table.filter(pa.array((donor_of == donor).to_numpy()))
+        if rows.num_rows == 0:
+            continue
+        arrays = [rows.column(c).cast(schema.field(RENAME[c]).type, safe=False) for c in fields]
+        target = OUT / f"donor_id={donor}"
+        target.mkdir(parents=True, exist_ok=True)
+        pq.write_table(pa.Table.from_arrays(arrays, schema=schema), target / "data.parquet",
+                       compression="zstd", row_group_size=CHUNK)
+        print(f"    {donor}: {rows.num_rows:>10,} cells -> {target / 'data.parquet'}", flush=True)
+    if unmatched:
+        print(f"    images with no manifest donor: {dict(list(unmatched.items())[:4])}")
+    print(f"  {table.num_rows:,} rows in {time.time() - started:.0f}s", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
@@ -192,7 +234,10 @@ def main() -> int:
     mapping, stems = source_files()
     OUT.mkdir(parents=True, exist_ok=True)
     for path, donors in mapping.items():
-        extract(path, donors, stems, wanted)
+        if str(path).endswith(".parquet"):
+            extract_parquet(path, donors, stems, wanted)
+        else:
+            extract(path, donors, stems, wanted)
     print(f"\n-> {OUT}")
     return 0
 

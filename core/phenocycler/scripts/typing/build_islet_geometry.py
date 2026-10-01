@@ -154,9 +154,7 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> pd.DataFrame:
     cells = pq.read_table(S.OUT / f"cells/donor_id={donor}/data.parquet",
                           columns=["islet_key", "cell_region_20um", "is_endocrine",
                                    "phenotype", "object_id"]).to_pandas()
-    areas = pq.read_table(S.RUN / f"cells/donor_id={donor}/data_0.parquet",
-                          columns=["object_id", "cell_area"]).to_pandas()
-    cells = cells.merge(areas, on="object_id", how="left", validate="one_to_one")
+    cells = cells.merge(S.cell_areas(donor), on="object_id", how="left", validate="one_to_one")
 
     endocrine = endocrine_unions(donor)
     objects = {name: CX.load_objects(stem[donor], name) for name in STRUCTURES}

@@ -11,10 +11,10 @@ back, per cell and per structure:
 **This changes no call.** It adds a measurement beside the existing ones. Nothing here re-decides
 `cell_class`, which is final for these donors.
 
-Exact, not sampled: the cell outlines are the QuPath ones from `data/redsea_scratch/geojson/` (the
-only per-cell polygons in this checkout -- see RECONSTRUCTION.md) and the structure objects are the
-same `results/Geojson/` objects the classification used, so the intersection is of the two shapes
-QuPath itself drew. Both are in pixels; the ratio is dimensionless, so no conversion is needed --
+Exact, not sampled: the cell outlines are the QuPath ones the manifest declares for each image
+(`subpanel_io.cell_outlines`; the only per-cell polygons there are -- see RECONSTRUCTION.md) and the
+structure objects are the same objects the classification used (`subpanel_io.GEOJSON`), so the
+intersection is of the two shapes QuPath itself drew. Both are in pixels; the ratio is dimensionless, so no conversion is needed --
 but `cell_um2` is converted, as a cross-check against QuPath's own reported area.
 
 Scope: EVERY admitted cell in the tissue. This is an input to the structure call, which is asked
@@ -46,7 +46,6 @@ import cohort as COHORT
 import context as CX
 import subpanel_io as S
 
-CELL_GEOJSON = S.REPO / "data/redsea_scratch/geojson"
 OUT = S.OUT / "crossed"
 
 #: The structure objects, and the column each becomes. The keys are context.py's own class names
@@ -181,12 +180,15 @@ def main() -> int:
             print(f"  {donor}: rebuilding -- the file on disk misses {len(wanted - done):,} of "
                   f"today's islet-associated cells and carries {len(done - wanted):,} that no "
                   f"longer are", flush=True)
-        matches = [p for p in CELL_GEOJSON.glob("cells__*.geojson") if stem[donor] in p.name]
+        # The outline file the manifest declares for this donor (`S.cell_outlines`), not a folder
+        # globbed for a name.
+        outline_file = S.cell_outlines(donor)
+        matches = [outline_file] if outline_file.is_file() else []
         if len(matches) != 1:
             # Named and carried on rather than raised: the cell outlines are the one input this
             # lane cannot substitute, and a donor that lacks them is a coverage fact the other
             # donors' measurements should not be lost to.
-            reason = f"{len(matches)} cell-outline exports match {stem[donor]!r} in {CELL_GEOJSON}"
+            reason = f"the cell-outline export {outline_file} is not on disk"
             print(f"  {donor}: NOT BUILT -- {reason}", flush=True)
             coverage.append({"donor_id": donor, "cells_wanted": len(wanted),
                              "cells_measured": 0, "no_outline": len(wanted),
