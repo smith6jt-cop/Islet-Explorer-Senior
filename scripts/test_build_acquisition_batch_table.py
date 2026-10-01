@@ -107,3 +107,43 @@ def test_previously_misparsed_names_no_longer_yield_a_donor(name, old_donor):
 def test_no_cohort_name_is_treated_as_non_cohort():
     for _, name in COHORT:
         assert not re.fullmatch(NON_COHORT_NAME, name), f"{name} must not be skipped"
+
+
+# ---- declared images: the donor comes from the cohort specification, never from the name ----------
+
+def _module():
+    sys.path.insert(0, str(SCRIPTS))
+    return pytest.importorskip("build_acquisition_batch_table")
+
+
+DECLARED = {"HDL115pancLN_Scan1.er.qptiff": "115", "0080870_6533_pLNpanc_Scan3.er.qptiff": "6533",
+            "0081366_HDL112_pLNpanc_Scan3.er.qptiff": "0112", "0080579_6347_pLNpanc_Scan1.er.qptiff": "6347"}
+
+
+def test_a_declared_image_takes_its_donor_from_the_specification():
+    mod = _module()
+    for name, donor in DECLARED.items():
+        assert mod.donor_for(name, DECLARED) == donor
+    # an ordinary cohort name needs no declaration, and a declaration wins over the name
+    assert mod.donor_for("6450panc_Scan1.er.qptiff", DECLARED) == "6450"
+    assert mod.donor_for("6450panc_Scan1.er.qptiff", {"6450panc_Scan1.er.qptiff": "9999"}) == "9999"
+
+
+def test_an_undeclared_image_is_skipped_or_stops_the_run_as_before():
+    mod = _module()
+    assert mod.donor_for("HDL115pancLN_Scan1.er.qptiff", {}) is None          # non-cohort by name
+    for name in ("0080870_6533_pLNpanc_Scan3.er.qptiff", "Scan1.er.qptiff", "control.qptiff"):
+        with pytest.raises(SystemExit, match="not declared"):
+            mod.donor_for(name, {})
+
+
+def test_the_same_slide_sections_are_their_own_batch():
+    mod = _module()
+    assert mod.batch_for("6533", "0080870_6533_pLNpanc_Scan3.er.qptiff") == "pLNpanc"
+    assert mod.batch_for("0112", "0081366_HDL112_pLNpanc_Scan3.er.qptiff") == "pLNpanc"
+    assert mod.batch_for("6450", "6450panc_Scan1.er.qptiff") == "batch2"
+    assert mod.batch_for("115", "HDL115pancLN_Scan1.er.qptiff") == "batch1"
+    assert mod.batch_for("6539", "6539_Scan1.er.qptiff") == "batch1"
+    # the panel each batch must carry: both CD38 and b-Catenin1 only on the same-slide panel
+    assert mod.PANEL_OF_BATCH == {"batch1": {"CD38"}, "batch2": {"b_Catenin1", "neither"}, "pLNpanc": {"both"}}
+

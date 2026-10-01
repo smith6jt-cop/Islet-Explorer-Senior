@@ -170,3 +170,22 @@ def test_node_membership_reads_the_v3_centroids_like_the_tsv_cut(tmp_path):
     with pytest.raises(SystemExit, match="no \\*.parquet table"):
         (tmp_path / "empty").mkdir()
         N.read_centroids(tmp_path / "empty")
+
+
+def test_the_pln_lane_reads_the_layer_and_the_project_its_own_builders_use(monkeypatch):
+    """cluster_pln.py read the node-membership layer from a fixed /data/islet_layers while
+    build_pln_layer.py wrote it under $ISLET_LAYERS_DIR, and build_pln_layer.py looked for the
+    IO60pLN project where it no longer is."""
+    import importlib
+    sys.path.insert(0, str(REPO / "core/phenocycler/scripts/pln"))
+    sys.path.insert(0, str(REPO / "scripts/senior"))
+    monkeypatch.setenv("ISLET_LAYERS_DIR", "/somewhere/else")
+    import build_pln_layer as L
+    import cluster_pln as C
+    import derive_pln_node_membership as N
+    L, C = importlib.reload(L), importlib.reload(C)
+    assert C.PLN_LAYER == Path("/somewhere/else/pln") == L.DEFAULT_OUT
+    assert L.QP_PROJECT == N.QP_PROJECT and L.GEOJSON_DIR == N.GEOJSON_DIR
+    monkeypatch.delenv("ISLET_LAYERS_DIR")
+    assert importlib.reload(C).PLN_LAYER == Path("/data/islet_layers/pln") == importlib.reload(L).DEFAULT_OUT
+

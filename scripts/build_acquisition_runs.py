@@ -128,11 +128,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--images", type=pathlib.Path,
                         default=pathlib.Path.home() / "IO60panc2nd/Images")
+    parser.add_argument("--cohort-spec", type=pathlib.Path, default=COHORT_SPEC,
+                        help="the cohort specification whose images take their donor from it")
     parser.add_argument("--out", type=pathlib.Path,
                         default=REPO / "data/donor_acquisition_runs.csv")
     args = parser.parse_args()
 
-    frame = build(args.images)
+    frame = build(args.images, declared_donors(args.cohort_spec))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(args.out, index=False)
 
