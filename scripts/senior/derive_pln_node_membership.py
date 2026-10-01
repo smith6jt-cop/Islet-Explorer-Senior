@@ -10,10 +10,13 @@ annotation ROI. It is never taken from the TSV's `Parent` column, which reads
 
 Inputs
   core/phenocycler/data/integration/pln_node_annotations.csv   which annotation is the node
-  /data/IO60pLN/results/node_geojson/entry<N>.geojson          annotations, exported from the
+  <project>/results/v3/export/node_geojson/entry<N>.geojson    annotations, exported from the
       QuPath .qpdata by core/phenocycler/scripts/groovy/export_pln_node_annotations.groovy
-  /data/IO60pLN/data/<N>/server.json                           pixel size, to put the pixel-space
+      (<project> = ~/IO60pLN since the project moved; --project / --node-geojson override)
+  <project>/data/<N>/server.json                               pixel size, to put the pixel-space
       ROI into the micron space the centroids are recorded in
+  --centroids: the directory of per-slide Parquet tables of the v3 export
+      (<project>/results/v3/export/cells), or, as before:
   a 5-column cut of /data/IO60pLN/results/IO60pLN_cells.tsv    Image, Object ID, Parent,
       Centroid X µm, Centroid Y µm. The cut is not kept in the checkout; remake it in ~2 min.
       The micron columns are spelled with U+00B5 MICRO SIGN, not "um" and not U+03BC GREEK
@@ -63,8 +66,11 @@ from shapely.strtree import STRtree
 
 REPO = Path(__file__).resolve().parents[2]
 ANNOT_CSV = REPO / "core/phenocycler/data/integration/pln_node_annotations.csv"
-QP_PROJECT = Path("/data/IO60pLN")
-GEOJSON_DIR = QP_PROJECT / "results/node_geojson"
+#: The IO60pLN QuPath project. It moved from /data/IO60pLN to the home directory before the
+#: 2026-10-01 re-segmentation; the v3 exports (cells, outlines, node annotations) live under its
+#: results/v3/export. `--project` and `--node-geojson` override both for another export.
+QP_PROJECT = Path.home() / "IO60pLN"
+GEOJSON_DIR = QP_PROJECT / "results/v3/export/node_geojson"
 OUT_ROOT = REPO / "data/development/pln"
 
 # 6380 carries no pLN_* region; the maintainer's ruling is that its single Tissue annotation IS
@@ -77,6 +83,24 @@ def read_annot_csv() -> pd.DataFrame:
     df["node_classes"] = df["node_classes"].str.split(";")
     df["excluded"] = df["excluded"].astype(str).str.lower() == "true"
     return df
+
+
+def read_centroids(source: Path) -> pd.DataFrame:
+    """Image, Object ID and the two centroid columns, every value as text, as the TSV cut gives them.
+
+    `source` is that TSV cut, or a directory of per-slide Parquet tables (the v3 export) from
+    which only those columns are read.
+    """
+    if source.is_dir():
+        tables = sorted(source.glob("*.parquet"))
+        if not tables:
+            raise SystemExit(f"{source}: a directory with no *.parquet table in it")
+        wanted = ["Image", "Object ID", "Parent", "Centroid X \u00b5m", "Centroid Y \u00b5m"]
+        frames = [pq.read_table(t, columns=wanted).to_pandas() for t in tables]
+        return pd.concat(frames, ignore_index=True).astype(str)
+    cent = pd.read_csv(source, sep="\t", dtype=str)
+    cent.columns = [c.strip() for c in cent.columns]
+    return cent
 
 
 def pixel_size_um(entry: int) -> tuple[float, float]:
@@ -148,13 +172,25 @@ def node_annotations(row, annots: list[dict]) -> tuple[list[dict], list[dict]]:
 
 
 def main() -> int:
+    global QP_PROJECT, GEOJSON_DIR
     ap = argparse.ArgumentParser()
     ap.add_argument("--centroids", required=True,
                     help="TSV cut of IO60pLN_cells.tsv: Image, Object ID, Parent, "
                          "Centroid X \u00b5m, Centroid Y \u00b5m (U+00B5, as the export "
-                         "spells them)")
+                         "spells them) -- or the directory of per-slide Parquet tables of the "
+                         "v3 export (results/v3/export/cells)")
+    ap.add_argument("--project", default=None, help=f"the IO60pLN QuPath project (default {QP_PROJECT})")
+    ap.add_argument("--node-geojson", default=None,
+                    help="directory of entry<N>.geojson written by export_pln_node_annotations.groovy "
+                         "(default <project>/results/v3/export/node_geojson)")
     ap.add_argument("--out", default=str(OUT_ROOT))
     args = ap.parse_args()
+    if args.project:
+        QP_PROJECT = Path(args.project).expanduser()
+        GEOJSON_DIR = QP_PROJECT / "results/v3/export/node_geojson"
+    if args.node_geojson:
+        GEOJSON_DIR = Path(args.node_geojson).expanduser()
+    print(f"project {QP_PROJECT}; node annotations {GEOJSON_DIR}", flush=True)
     out_root = Path(args.out)
     out_root.mkdir(parents=True, exist_ok=True)
 
@@ -197,8 +233,7 @@ def main() -> int:
 
     # centroids, one image at a time
     print(f"reading {args.centroids}", flush=True)
-    cent = pd.read_csv(args.centroids, sep="\t", dtype=str)
-    cent.columns = [c.strip() for c in cent.columns]
+    cent = read_centroids(Path(args.centroids).expanduser())
     xcol = [c for c in cent.columns if c.startswith("Centroid X")][0]
     ycol = [c for c in cent.columns if c.startswith("Centroid Y")][0]
     cent["image_file"] = cent["Image"].str.split(" - resolution", regex=False).str[0]

@@ -140,3 +140,33 @@ def test_a_declared_slide_takes_its_donor_from_the_specification(tmp_path):
     # the name pattern alone cannot read a same-slide file name, which is why they had no row
     assert B.NAME.match("0080870_6533_pLNpanc_Scan3.er.qptiff") is None
     assert B.declared_donors(tmp_path / "absent.json") == {}
+
+
+def test_node_membership_reads_the_v3_centroids_like_the_tsv_cut(tmp_path):
+    """The IO60pLN project moved and its v3 export is one Parquet table per slide; the centroid
+    columns must come back exactly as the TSV cut gave them -- as text, micro sign and all."""
+    sys.path.insert(0, str(REPO / "scripts/senior"))
+    import derive_pln_node_membership as N
+    assert N.QP_PROJECT == Path.home() / "IO60pLN"
+    assert N.GEOJSON_DIR == N.QP_PROJECT / "results/v3/export/node_geojson"
+
+    rows = {"Image": ["a - resolution #1", "a - resolution #1", "b - resolution #1"],
+            "Object ID": ["u1", "u2", "u3"], "Parent": ["Annotation (Tissue)"] * 3,
+            "Centroid X µm": [10.5, 20.25, 30.0], "Centroid Y µm": [1.0, 2.0, 3.5],
+            "Cell: DAPI: Mean": [5.0, 6.0, 7.0]}                    # a column the reader must leave behind
+    frame = pd.DataFrame(rows)
+    tables = tmp_path / "cells"
+    tables.mkdir()
+    for image, part in frame.groupby("Image"):
+        part.to_parquet(tables / f"{image.split(' ')[0]}.parquet", index=False)
+    cut = tmp_path / "cut.tsv"
+    frame.drop(columns=["Cell: DAPI: Mean"]).to_csv(cut, sep="\t", index=False)
+
+    from_parquet, from_tsv = N.read_centroids(tables), N.read_centroids(cut)
+    assert list(from_parquet.columns) == list(from_tsv.columns)
+    assert from_parquet["Object ID"].tolist() == ["u1", "u2", "u3"]
+    assert from_parquet["Centroid X µm"].astype(float).tolist() == from_tsv["Centroid X µm"].astype(float).tolist()
+    assert all(isinstance(v, str) for v in from_parquet["Centroid Y µm"])
+    with pytest.raises(SystemExit, match="no \\*.parquet table"):
+        (tmp_path / "empty").mkdir()
+        N.read_centroids(tmp_path / "empty")
