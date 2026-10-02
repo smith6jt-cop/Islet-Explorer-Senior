@@ -20,6 +20,7 @@ sys.path.insert(0, str(HERE))
 import panel                                     # noqa: E402
 import rules as R                                # noqa: E402
 import score as SC                               # noqa: E402
+import alignment_block as AB                     # noqa: E402
 
 ALIGNED = panel.OUT / "uniform"
 OUT = panel.OUT / "calls"
@@ -78,12 +79,17 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
     Cohort-wide on purpose.  A per-donor scale would re-impose exactly the distribution
     matching Step 2 avoided, and the shift has already put the donors on one scale -- so one
     floor and one top per marker is the whole point of having done it.
+
+    Over each donor's pancreas block only, like the shift it follows (maintainer, 2026-10-02:
+    "UniFORM should be done on a same-block basis"): a different-block lymph node on the same
+    slide is another sample and adds nothing to the pancreas scale.
     """
     rng = np.random.default_rng(seed)
     pool: dict = {m: [] for m in markers}
     for d in donors:
-        t, have, _ = _read_donor(d, markers, ["qc_analysis_eligible"], ratio)
-        t = t[t["qc_analysis_eligible"]]
+        t, have, _ = _read_donor(d, markers, ["qc_analysis_eligible", "object_id", "cell_region"], ratio)
+        t = t[t["qc_analysis_eligible"].to_numpy(bool)
+              & AB.population(d, t["object_id"], t["cell_region"])]
         if len(t) > n_per_donor:
             t = t.iloc[rng.choice(len(t), n_per_donor, replace=False)]
         for m in have:

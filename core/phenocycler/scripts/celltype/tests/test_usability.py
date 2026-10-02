@@ -698,7 +698,7 @@ def test_a_variant_marker_does_not_cost_a_donor_its_cells():
     b = S1.donor_frame(without, mk)
     assert "CD38" in a.columns and "CD38" not in b.columns
     assert a.attrs["counts"]["complete"] > 0 and b.attrs["counts"]["complete"] > 0
-    assert b.attrs["counts"]["complete"] == b.attrs["counts"]["eligible"], \
+    assert b.attrs["counts"]["complete"] == b.attrs["counts"]["in_block"], \
         "a marker this donor lacks must not drop its cells"
 
 

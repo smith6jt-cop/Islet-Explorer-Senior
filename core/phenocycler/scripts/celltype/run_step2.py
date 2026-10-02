@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import io
 import json
 import pathlib
@@ -31,6 +32,7 @@ sys.path.insert(0, str(HERE))
 import panel                             # noqa: E402
 import usability as U                    # noqa: E402
 import uniform_adapter as UA             # noqa: E402
+import alignment_block as AB             # noqa: E402
 
 OUT = panel.OUT / "uniform"
 FIGS = panel.OUT / "figures_step2"
@@ -41,8 +43,23 @@ FIGS = panel.OUT / "figures_step2"
 BAR_MODE_SD = 0.10
 
 
+@functools.lru_cache(maxsize=None)
+def _sample_rows(donor: str, path: str) -> np.ndarray:
+    """Per row of a donor's expression file: analysis-eligible AND in the pancreas block.
+
+    The sample UniFORM aligns is the BLOCK (maintainer, 2026-10-02: "UniFORM should be done on a
+    same-block basis"): tissue plus any same-block lymph node, never a different-block node
+    that shares the slide.  Keyed on the file as well as the donor, and read once: the mask is
+    the same for every marker.
+    """
+    t = pq.ParquetFile(path).read(
+        columns=["object_id", "qc_analysis_eligible", "cell_region"]).to_pandas()
+    return (t["qc_analysis_eligible"].to_numpy(bool)
+            & AB.population(donor, t["object_id"], t["cell_region"]))
+
+
 def marker_values(marker: str, donors: list, unavailable: dict | None = None) -> dict:
-    """One marker's analysis-eligible values, for the donors that carry it.
+    """One marker's analysis-eligible values in each donor's pancreas block, for the donors that carry it.
 
     A panel-variant marker is aligned across its own donors -- CD38 over 15, b_Catenin1 over
     6 (2 of those donors carry both) -- and left alone on the rest.  Aligning it against
@@ -52,9 +69,9 @@ def marker_values(marker: str, donors: list, unavailable: dict | None = None) ->
     """
     out = {}
     for d in [x for x in donors if marker in set(panel.donor_markers(x))]:
-        t = pq.ParquetFile(panel.expression_path(d)).read(
-            columns=["qc_analysis_eligible", marker]).to_pandas()
-        values = t.loc[t["qc_analysis_eligible"], marker].to_numpy("float64")
+        path = panel.expression_path(d)
+        values = pq.ParquetFile(path).read(columns=[marker]).to_pandas()[marker] \
+            .to_numpy("float64")[_sample_rows(str(d), str(path))]
         finite = np.isfinite(values)
         if not np.any(finite & (values >= 1.0)):
             reason = (f"No finite values among {len(values)} QC-eligible cells." if not finite.any()
@@ -158,7 +175,14 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
 
 
 def apply_shift(shifts: dict, markers: list, donors: list, out: pathlib.Path = OUT) -> None:
-    """Write the normalised value per cell, keyed on object_id."""
+    """Write the normalised value per cell, keyed on object_id.
+
+    A cell of another block on the same slide (a different-block lymph node) was not part of the
+    sample the shift was estimated from, so it has NO aligned value here: every marker is written
+    unavailable (NaN) for it and ``in_alignment_block`` is False.  The row stays, so the table
+    still has one row per cell of the expression stage; what it must never carry is that cell's
+    raw value standing in a column of aligned ones.
+    """
     out.mkdir(parents=True, exist_ok=True)
     keep = ["donor_id", "object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid",
             "cell_region", "islet_num"]
@@ -172,10 +196,15 @@ def apply_shift(shifts: dict, markers: list, donors: list, out: pathlib.Path = O
             if d in shifts[m].get("unavailable_donors", {}):
                 continue                       # retain missing/raw input; no estimated scale
             df[m] = df[m].to_numpy("float64") * shifts[m]["scale"][d]
+        inside = AB.population(d, df["object_id"], df["cell_region"])
+        if not inside.all():
+            df.loc[~inside, got] = np.nan
+        df["in_alignment_block"] = inside
         p = out / f"donor_id={d}"
         p.mkdir(parents=True, exist_ok=True)
         df.to_parquet(p / "data.parquet", index=False)
-        print(f"  {d}: {len(df):,} rows -> {p/'data.parquet'}", flush=True)
+        print(f"  {d}: {len(df):,} rows ({int(inside.sum()):,} in the pancreas block) -> "
+              f"{p/'data.parquet'}", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
