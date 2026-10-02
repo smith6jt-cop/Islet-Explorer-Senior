@@ -219,6 +219,25 @@ biology and one derivation rule, both checkable by someone who has never seen th
   narrow, so a DC call resting on their co-occurrence has no support here. Whether dendritic
   cells are callable by some other combination is untested.
 
+## Two settings adjusted on 2026-10-02 (the 25-donor v3 cohort)
+
+The maintainer: *"UniFORM should be able to handle the different pixel intensity distributions, check
+if there are levers that need to be adjusted."* Every setting was measured over 71 markers × 25 donors
+(`scripts/v3/senior/uniform_levers.py` in the QuPath scripts repo). The floor of 1.0, the bin count, the
+weighting of donors and a landmark registration change nothing. Two settings did need adjusting:
+
+1. **When a marker is left unaligned** (`run_step2.REFUSED`). The acquisition-group flag alone used to
+   refuse a marker. With 25 donors in one cohort it refused CD8 (ratio 2.97), which UniFORM aligns to
+   0.065. A marker is now left unaligned only when its level steps with the acquisition group **and**
+   UniFORM's shift leaves the background modes over the 0.10 bar. CD8 is aligned; CD57 (0.345 after the
+   shift, under the floor on up to 91 % of a donor's cells) is still not. The statement below that a
+   flagged marker is refused "however good its shift statistic looks" described the rule before this.
+2. **The reference donor** (`run_step2.py --references-from <an earlier shifts.json>`). UniFORM's own
+   choice changes with the cohort — it changed for 18 of 59 markers — and the aligned values are in the
+   reference donor's unit, so a floor or top measured on one run said nothing about the next. Each marker
+   now keeps the reference donor of the 20-donor run: the frozen scale's floors are met within 10 % on 57
+   of 59 markers by all 25 donors.
+
 ## What Step 2 produced
 
 44 of 56 markers land at or under the 0.10 background-mode bar; median residual SD **0.048**.

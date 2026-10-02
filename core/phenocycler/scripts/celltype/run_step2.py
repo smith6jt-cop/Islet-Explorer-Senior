@@ -42,6 +42,26 @@ FIGS = panel.OUT / "figures_step2"
 #: cross-donor uniformity.
 BAR_MODE_SD = 0.10
 
+#: WHEN A MARKER IS LEFT UNALIGNED (adjusted 2026-10-02).
+#:
+#: Until then a marker whose median steps with the acquisition group (Step 1's ratio at or over
+#: ``usability.BARS['acq_ratio_flag']``) was refused outright, "however good its shift statistic
+#: looks", on the reading that such a step is a reagent change.  With all 25 donors in one cohort
+#: that rule refused CD8 for everyone -- and UniFORM's own registration puts CD8's background
+#: modes within 0.065 of each other, inside the bar above.  The maintainer, 2026-10-02: "UniFORM
+#: should be able to handle the different pixel intensity distributions, check if there are
+#: levers that need to be adjusted."  This rule was the lever: it is the lane's, not UniFORM's,
+#: and what it read as a reagent change is not something the files can establish (the scan
+#: files' clone entries are unreliable -- maintainer, same day).
+#:
+#: So the refusal now needs BOTH: the acquisition-group ratio at or over its flag AND UniFORM's
+#: shift leaving the background modes farther apart than ``BAR_MODE_SD``.  A flagged marker that
+#: UniFORM aligns within the bar is aligned like any other (and recorded ``acq_ratio_flagged``).
+#: CD57 is still refused under it: 0.345 after the shift, and under the floor of 1.0 on up to
+#: 91 % of a donor's cells.  The label written for a refusal is unchanged because
+#: ``typing/refine.py`` and ``kintsugi/features.py`` read it; it names the rule, not a finding.
+REFUSED = "refused_reagent_change"
+
 
 @functools.lru_cache(maxsize=None)
 def _sample_rows(donor: str, path: str) -> np.ndarray:
@@ -87,8 +107,18 @@ def marker_values(marker: str, donors: list, unavailable: dict | None = None) ->
 
 
 def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = True,
-           figs: pathlib.Path = FIGS) -> dict:
+           figs: pathlib.Path = FIGS, references: dict | None = None) -> dict:
+    """The shift per marker and donor.
+
+    ``references`` pins a marker's reference donor (UniFORM's own ``reference_samples``): the
+    donor every other donor is shifted onto, and so the unit the aligned values are in.  Left
+    to itself UniFORM picks the histogram closest to the cohort's mean one, which changes when
+    the cohort does -- and a floor or a top measured in one reference donor's unit says nothing
+    about values aligned onto another's.  A marker without a pinned donor, or whose pinned donor
+    carries no measurable histogram, falls back to UniFORM's choice and says so.
+    """
     reg, norm, _ = UA._import_uniform()
+    references = references or {}
     if save_figs:
         figs.mkdir(parents=True, exist_ok=True)
     flagged = set(usab.loc[usab["acq_ratio"] >= U.BARS["acq_ratio_flag"], "marker"])
@@ -123,9 +153,14 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
 
         hist = {m: {"counts": [counts[d] for d in have],
                     "bin_edges": [None] * len(have)}}
+        pinned = references.get(m)
+        if pinned is not None and pinned not in have:
+            print(f"  {m}: pinned reference donor {pinned} has no measurable histogram here -- "
+                  "UniFORM chooses", flush=True)
+            pinned = None
         with contextlib.redirect_stdout(io.StringIO()):     # UniFORM narrates per marker
             shift_map, refs, _ = reg.automatic_registration(
-                hist, [m], [m], have, None, None, UA.NUM_BINS)
+                hist, [m], [m], have, [pinned] if pinned is not None else None, None, UA.NUM_BINS)
         if save_figs:
             plt.gcf().savefig(figs / f"{m}.png", bbox_inches="tight", dpi=130)
         plt.close("all")
@@ -136,10 +171,9 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
             {m: ranges}, [m], UA.NUM_BINS, shift_map)[m]))
         scale = {d: float(np.exp(-log_shift[d])) if d in log_shift else 1.0 for d in donors}
 
-        # A rigid shift models a scale difference.  It does not model a different antibody
-        # clone: that changes specificity and background too, so aligning the modes would
-        # glue two different measurements together behind a good-looking statistic.
-        refused = m in flagged
+        # A marker is left unaligned only when its level steps with the acquisition group AND
+        # UniFORM's shift does not bring the background modes within the bar (see REFUSED).
+        refused = m in flagged and after["sd_log"] > BAR_MODE_SD
         if refused:
             scale = {d: 1.0 for d in donors}
         for d in unavailable:
@@ -153,11 +187,13 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
             "shift_bins": {d: int(bins[d]) for d in have},
             "shift_log": {d: float(log_shift[d]) for d in have},
             "scale": scale,
-            "provenance": ("refused_reagent_change" if refused else
+            "provenance": (REFUSED if refused else
                            "automatic_registration_over_bar" if over_bar else
                            "automatic_registration"),
+            "reference_source": "pinned" if pinned is not None else "uniform_choice",
             "over_bar": bool(over_bar),
             "acq_ratio": acq_ratio,
+            "acq_ratio_flagged": bool(m in flagged),
             "n_donors": len(have),
             "n_acquired_donors": len(have) + len(unavailable),
             "unavailable_donors": unavailable,
@@ -167,6 +203,8 @@ def derive(markers: list, donors: list, usab: pd.DataFrame, save_figs: bool = Tr
             "gmm_cutoff": UA.gmm_cutoff(np.concatenate(list(vals.values())), ranges),
         }
         tag = "REFUSED" if refused else ("ok" if after["sd_log"] <= BAR_MODE_SD else "OVER BAR")
+        if m in flagged and not refused:
+            tag += " (group ratio over its flag; UniFORM within the bar -- aligned)"
         print(f"  {m:<18} ref={refs[0]:<6} mode fold {before['fold']:8.2f} -> "
               f"{after['fold']:6.2f}   sd {before['sd_log']:.3f} -> {after['sd_log']:.3f}"
               f"   {tag}   {time.time() - t:.0f}s", flush=True)
@@ -220,6 +258,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--shifts-out", type=pathlib.Path, default=None,
                     help="Shift JSON path (default: shifts.json beside the historical uniform/ "
                          "output, or inside a custom --out directory).")
+    ap.add_argument("--references-from", type=pathlib.Path, default=None,
+                    help="A shifts.json of an earlier run: each marker keeps the reference donor "
+                         "recorded there, so the aligned values stay in that run's unit (and a "
+                         "scale measured on it still applies). Markers it does not carry, or whose "
+                         "donor is not in this cohort, are left to UniFORM's choice.")
     args = ap.parse_args(argv)
 
     cohort = panel.cohort()["donor_id"].tolist()
@@ -245,9 +288,24 @@ def main(argv: list[str] | None = None) -> int:
           f"{len(donors)} donors, {UA.NUM_BINS} bins")
     flagged = per_marker.loc[per_marker.acq_ratio >= U.BARS["acq_ratio_flag"], "marker"].tolist()
     if flagged:
-        print(f"  refusing to shift (acquisition-group structure): {', '.join(flagged)}")
+        print(f"  level steps with the acquisition group: {', '.join(flagged)} -- left unaligned "
+              f"only if UniFORM's shift also leaves the modes over the {BAR_MODE_SD} bar")
 
-    shifts = derive(markers, donors, per_marker, figs=figs)
+    references = {}
+    if args.references_from is not None:
+        canon = {str(int(d)) if d.isdecimal() else d: d for d in donors}       # 112 == 0112
+        earlier = json.loads(args.references_from.read_text())["shifts"]
+        for m in markers:
+            ref = str(earlier.get(m, {}).get("reference_donor", ""))
+            ref = canon.get(str(int(ref)) if ref.isdecimal() else ref)
+            if ref is not None:
+                references[m] = ref
+        print(f"  reference donor pinned from {args.references_from} for {len(references)} of "
+              f"{len(markers)} markers; UniFORM chooses for: "
+              f"{', '.join(m for m in markers if m not in references) or 'none'}")
+
+    shifts = (derive(markers, donors, per_marker, figs=figs, references=references) if references
+              else derive(markers, donors, per_marker, figs=figs))
 
     over = {m: v["mode_sd_after"] for m, v in shifts.items() if v.get("over_bar")}
     sd = [v["mode_sd_after"] for v in shifts.values()
@@ -282,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
         recorded_shifts[m] = record
     meta = {"uniform_commit": UA.UNIFORM_COMMIT, "num_bins": UA.NUM_BINS,
             "bar_mode_sd": BAR_MODE_SD, "donors": donors, "markers": markers,
+            "references_from": str(args.references_from) if args.references_from else None,
             "expression_inputs": expression_inputs, "shifts": recorded_shifts}
     shifts_out.write_text(json.dumps(meta, indent=2, sort_keys=True, allow_nan=False))
     print(f"\nwrote {shifts_out}")
