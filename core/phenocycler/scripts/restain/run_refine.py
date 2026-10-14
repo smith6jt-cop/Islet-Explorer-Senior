@@ -161,7 +161,7 @@ def candidates_for(data: dict, donor_dir: Path, *, if_image=None) -> list[RF.Can
         m = data["meta"]
         dx, dy, peak = RF.global_translation_by_image(
             seed, xen, if_image, um_per_px=float(m["if_um_per_px"]),
-            origin_um=float(m["if_origin_um"]))
+            origin_um=RI.export_origin_xy(m))
         out.append(RF.Candidate(
             "image_translation", RF.translated(seed, dx, dy),
             stages=["valis", "whole_section_ncc"],
@@ -170,7 +170,7 @@ def candidates_for(data: dict, donor_dir: Path, *, if_image=None) -> list[RF.Can
 
         px, py = RF.global_translation_by_phase(
             seed, xen, if_image, um_per_px=float(m["if_um_per_px"]),
-            origin_um=float(m["if_origin_um"]))
+            origin_um=RI.export_origin_xy(m))
         out.append(RF.Candidate(
             "phase_translation", RF.translated(seed, px, py),
             stages=["valis", "phase_correlation"],

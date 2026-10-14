@@ -24,3 +24,11 @@ donor_id,roi,xenium_serial,mode,evidence,note
 112,panc,,sequential,"donor 112 holds two pancreas designs; unqualified callers get the serial pair",disambiguates the wildcard away from the same-slide section
 112,panc,0041396,sequential,"MM036_Xenium_nPODBatch2 output-XETG00298__0041396__Pancreas__20241019 — serial section from the same block",pre-existing cohort pair
 112,panc,0081366,same_slide,"PhenoCycler 70-plex scan 0081366_HDL112_pLNpanc_Scan3.er.qptiff then Xenium output-XETG00298__0081366__panc__20260910__211918 on the same physical section",70-plex protein + stock Prime 5k RNA (5001 genes) on the same cells
+# Donor 112 pLN. Same shape as 112/panc: a 2024 nPOD serial pair on 0041396 and a 2026
+# same-slide pair on 0081366, both at roi pln_1, so the serial is part of the key.
+112,pln_1,,sequential,"donor 112 holds two pLN designs; unqualified callers get the serial pair",disambiguates the wildcard away from the same-slide section
+112,pln_1,0041396,sequential,"MM036_Xenium_nPODBatch2 output-XETG00298__0041396__pLN__20241019 — serial section from the same block",pre-existing cohort pair
+112,pln_1,0081366,same_slide,"PhenoCycler 70-plex scan 0081366_HDL112_pLNpanc_Scan3.er.qptiff (run name 6533_HDL112_pLNpanc_PhenoXeno, region_name pLN) then Xenium output-XETG00298__0081366__pLN__20260910__211918 on the same physical section; the scan covers pLN and pancreas in one qptiff",70-plex protein + stock Prime 5k RNA (5001 genes) on the same cells
+6533,pln_1,,sequential,"donor 6533 holds two pLN designs; unqualified callers get the serial pair",disambiguates the wildcard away from the same-slide section
+6533,pln_1,0041393,sequential,"MM036_Xenium_nPODBatch2 output-XETG00298__0041393__pLN__20241019 — serial section from the same block",pre-existing cohort pair
+6533,pln_1,0080870,same_slide,"PhenoCycler 70-plex scan 0080870_6533_pLNpanc_Scan3.er.qptiff (run name 6533_HDL112_pLNpanc_PhenoXeno, region_name pLN) then Xenium output-XETG00298__0080870__pLN__20260910__211918 on the same physical section; the scan covers pLN and pancreas in one qptiff",70-plex protein + stock Prime 5k RNA (5001 genes) on the same cells

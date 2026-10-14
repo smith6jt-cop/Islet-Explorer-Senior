@@ -185,12 +185,16 @@ def _resize_for_features(image: np.ndarray, native_um: float, mode: str):
     return _display_u8(small, mode), mask, scale
 
 
-def keypoints_um(keypoints, native_um: float, origin_um: float,
-                 resize_scale: float) -> np.ndarray:
-    """OpenCV resized-pixel keypoints -> exact exported-image micron centres."""
+def keypoints_um(keypoints, native_um: float, origin_um, resize_scale: float) -> np.ndarray:
+    """OpenCV resized-pixel keypoints -> exact exported-image micron centres.
+
+    ``origin_um`` is a scalar or a per-axis pair (a cropped PhenoCycler export offsets x and y
+    independently); it is resolved per axis so both forms are exact.
+    """
     p = np.asarray([point.pt for point in keypoints], dtype=np.float64)
     native_px = (p + 0.5) / float(resize_scale) - 0.5
-    return float(origin_um) + float(native_um) * native_px
+    ox, oy = RI.as_origin_xy(origin_um)
+    return np.asarray([ox, oy], dtype=np.float64) + float(native_um) * native_px
 
 
 def _similarity_metrics(affine: np.ndarray) -> dict:
@@ -259,7 +263,7 @@ def coarse_similarity(xenium: np.ndarray, if_image: np.ndarray, meta: dict):
         xum = keypoints_um(kx, float(meta["xenium_um_per_px"]),
                            float(meta["xenium_origin_um"]), sx)
         yum = keypoints_um(ky, float(meta["if_um_per_px"]),
-                           float(meta["if_origin_um"]), sy)
+                           RI.export_origin_xy(meta), sy)
         src = np.ascontiguousarray([xum[m.queryIdx] for m in matches], dtype=np.float64)
         dst = np.ascontiguousarray([yum[m.trainIdx] for m in matches], dtype=np.float64)
         affine, mask = cv2.estimateAffinePartial2D(
@@ -327,8 +331,8 @@ def _sample_xenium_patch(xenium: np.ndarray, affine: np.ndarray, meta: dict,
     inverse = np.linalg.inv(np.vstack([affine, [0.0, 0.0, 1.0]]))[:2]
     cols, rows = np.meshgrid(np.arange(x0, x0 + width), np.arange(y0, y0 + height))
     dst_um = np.stack([
-        float(meta["if_origin_um"]) + cols * float(meta["if_um_per_px"]),
-        float(meta["if_origin_um"]) + rows * float(meta["if_um_per_px"]),
+        RI.export_origin_xy(meta)[0] + cols * float(meta["if_um_per_px"]),
+        RI.export_origin_xy(meta)[1] + rows * float(meta["if_um_per_px"]),
     ], axis=-1)
     src_um = dst_um @ inverse[:, :2].T + inverse[:, 2]
     map_x = ((src_um[..., 0] - float(meta["xenium_origin_um"]))
@@ -360,8 +364,8 @@ def refine_with_ecc(coarse: np.ndarray, xenium: np.ndarray, if_image: np.ndarray
     if not finite.any():
         raise ImageSeedError("Xenium nucleus coordinates contain no finite points")
     warped_px = np.column_stack([
-        (warped[:, 0] - float(meta["if_origin_um"])) / if_um,
-        (warped[:, 1] - float(meta["if_origin_um"])) / if_um,
+        (warped[:, 0] - RI.export_origin_xy(meta)[0]) / if_um,
+        (warped[:, 1] - RI.export_origin_xy(meta)[1]) / if_um,
     ])
     lo = np.floor(np.nanmin(warped_px[finite], axis=0)).astype(int)
     hi = np.ceil(np.nanmax(warped_px[finite], axis=0)).astype(int)
@@ -404,8 +408,8 @@ def refine_with_ecc(coarse: np.ndarray, xenium: np.ndarray, if_image: np.ndarray
             if np.linalg.norm(shift_um) > ECC_MAX_SHIFT_UM:
                 continue
             center_um = np.array([
-                float(meta["if_origin_um"]) + cx * if_um,
-                float(meta["if_origin_um"]) + cy * if_um,
+                RI.export_origin_xy(meta)[0] + cx * if_um,
+                RI.export_origin_xy(meta)[1] + cy * if_um,
             ])
             rows.append({"center_um": center_um.tolist(), "cc": float(cc),
                          "inverse_shift_um": shift_um.tolist(),
@@ -555,14 +559,14 @@ def tile_aware_peaks(if_image: np.ndarray, seed: Transform, xenium_nuclei: np.nd
     import cv2
 
     um = float(meta["if_um_per_px"])
-    origin = float(meta["if_origin_um"])
+    ox, oy = RI.export_origin_xy(meta)
     fw, fh = int(camera["export_width_px"]), int(camera["export_height_px"])
     margin = max(2, int(round(DETECT_FIELD_MARGIN_UM / um)))
     sep = max(1, int(round(DETECT_MIN_SEPARATION_UM / um)))
     low = max(0.8, DETECT_LOW_SIGMA_UM / um)
     high = max(2.0 * low, DETECT_HIGH_SIGMA_UM / um)
     warped = seed.apply(xenium_nuclei)
-    px = np.column_stack([(warped[:, 0] - origin) / um, (warped[:, 1] - origin) / um])
+    px = np.column_stack([(warped[:, 0] - ox) / um, (warped[:, 1] - oy) / um])
     finite = np.isfinite(px).all(axis=1)
     keys = np.zeros((len(px), 2), dtype=np.int64)
     keys[finite] = np.floor(px[finite] / np.array([fw, fh])).astype(np.int64)
@@ -611,8 +615,8 @@ def tile_aware_peaks(if_image: np.ndarray, seed: Transform, xenium_nuclei: np.nd
             dc = _parabolic(dog[row, col - 1].astype(np.float64), v0,
                             dog[row, col + 1].astype(np.float64))
             points.append(np.column_stack([
-                origin + (x0 + col + dc) * um,
-                origin + (y0 + row + dr) * um,
+                ox + (x0 + col + dc) * um,
+                oy + (y0 + row + dr) * um,
             ]))
             responses.append(z)
             field_ids.extend([(ix, iy)] * len(row))
@@ -640,10 +644,10 @@ def enrichment_evidence(seed: Transform, xenium_nuclei: np.ndarray, peaks: np.nd
     from scipy.stats import binomtest
 
     um = float(meta["if_um_per_px"])
-    origin = float(meta["if_origin_um"])
+    ox, oy = RI.export_origin_xy(meta)
     fw, fh = int(camera["export_width_px"]), int(camera["export_height_px"])
     warped = seed.apply(xenium_nuclei)
-    px = np.column_stack([(warped[:, 0] - origin) / um, (warped[:, 1] - origin) / um])
+    px = np.column_stack([(warped[:, 0] - ox) / um, (warped[:, 1] - oy) / um])
     finite = np.isfinite(px).all(axis=1)
     rounded = np.zeros((len(px), 2), dtype=np.int64)
     rounded[finite] = np.rint(px[finite]).astype(np.int64)
@@ -785,7 +789,8 @@ def _required_metadata(meta: dict, xenium: np.ndarray, if_image: np.ndarray) -> 
     if missing:
         raise ImageSeedError(f"export.json is missing {missing}")
     for key in ("xenium_um_per_px", "if_um_per_px", "xenium_origin_um", "if_origin_um"):
-        if not np.isfinite(float(meta[key])):
+        # if_origin_um is a per-axis pair on a cropped export, so check every component.
+        if not all(np.isfinite(v) for v in RI.as_origin_xy(meta[key])):
             raise ImageSeedError(f"export.json records non-finite {key}={meta[key]}")
     if float(meta["xenium_um_per_px"]) <= 0 or float(meta["if_um_per_px"]) <= 0:
         raise ImageSeedError("exported pixel sizes must be positive")
@@ -818,7 +823,9 @@ def _required_metadata(meta: dict, xenium: np.ndarray, if_image: np.ndarray) -> 
         ("if_origin_um", "if", "origin_um"),
     )
     for top, plane, nested in consistency:
-        if not np.isclose(float(meta[top]), float(meta[plane][nested]), rtol=0, atol=1e-12):
+        # Compared per axis: an origin is a pair on a cropped export and a scalar otherwise.
+        if not np.allclose(RI.as_origin_xy(meta[top]), RI.as_origin_xy(meta[plane][nested]),
+                           rtol=0, atol=1e-12):
             raise ImageSeedError(
                 f"export.json contradicts itself: {top}={meta[top]} but "
                 f"{plane}.{nested}={meta[plane][nested]}")
@@ -851,9 +858,21 @@ def _required_metadata(meta: dict, xenium: np.ndarray, if_image: np.ndarray) -> 
     if not np.isclose(float(meta["if_um_per_px"]), float(meta["if_pixel_um"]) * if_factor,
                       rtol=0, atol=1e-12):
         raise ImageSeedError("export.json IF scale does not equal qptiff scale times factor")
-    if not np.isclose(float(meta["if_origin_um"]), float(meta["if_pixel_um"]) * if_factor / 2.0,
-                      rtol=0, atol=1e-12):
-        raise ImageSeedError("export.json IF box-mean-grid origin is not half an output pixel")
+    # The box-mean grid origin is half an output pixel -- UNLESS the export was cropped, when
+    # the crop offset is added into it by design. Then the invariant is that the origin sits on
+    # the grid: (origin - half pixel) is an exact multiple of the output pixel.
+    _ox, _oy = RI.export_origin_xy(meta)
+    _half = float(meta["if_pixel_um"]) * if_factor / 2.0
+    _step = float(meta["if_um_per_px"])
+    if meta.get("if_crop") is None:
+        if not np.isclose(_ox, _half, rtol=0, atol=1e-12):
+            raise ImageSeedError("export.json IF box-mean-grid origin is not half an output pixel")
+    else:
+        for _name, _o in (("x", _ox), ("y", _oy)):
+            _k = (_o - _half) / _step
+            if not np.isclose(_k, round(_k), rtol=0, atol=1e-9):
+                raise ImageSeedError(
+                    f"export.json cropped IF origin ({_name}={_o}) is not on the box-mean grid")
     if_shapes = meta.get("if_pyramid_shapes")
     if (not isinstance(if_shapes, list)
             or tuple(if_shapes[int(meta["if"]["level"])]) != recorded_if):
@@ -867,7 +886,7 @@ def _required_metadata(meta: dict, xenium: np.ndarray, if_image: np.ndarray) -> 
                        "origin_um": float(meta["xenium_origin_um"])},
             "if": {"shape": list(if_image.shape),
                    "um_per_px": float(meta["if_um_per_px"]),
-                   "origin_um": float(meta["if_origin_um"]),
+                   "origin_um": RI.export_origin_xy(meta)[0],
                    "base_um_per_px": float(meta["if_pixel_um"]),
                    "dapi_page": int(meta["if_dapi_page"]),
                    "qptiff": str(meta["qptiff"])}}

@@ -31,6 +31,7 @@ the residual this lane is chasing is itself a constant.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -147,9 +148,52 @@ def export_one(record: RI.RegistrationInput, *, out_root: Path = OUT / "valis") 
         if_origin = origin_um(pixel_um, f_if, averaged=True)      # measured: box mean, r=0.99992
         page = levels[lvl].pages[record.dapi_page]
         if_img = page.asarray()
+
+    # --- optional crop, in FULL-FRAME PhenoCycler microns --------------------------------
+    # A small ROI inside a large scan starves both seeders: the pLN Xenium region is ~1.2% of
+    # the 22668 x 9750 um scan, so nearly every feature VALIS or the ECC fallback finds sits on
+    # the other tissue, and they fail outright (SVD non-convergence; 0 patches above
+    # threshold). Cropping gives the two images a comparable field of view.
+    #
+    # The crop must not move any coordinate. Pixel (0,0) of the cropped array is full-frame
+    # micron (crop_x0, crop_y0) plus the pyramid's own half-pixel offset, so the offset is
+    # ADDED INTO the exported origin, which becomes a per-axis pair. Everything downstream
+    # keeps working in full-frame PhenoCycler microns and needs no crop-awareness beyond
+    # reading the origin through RI.export_origin_xy.
+    origin_x = origin_y = if_origin
+    crop_rec = None
+    if record.crop_um is not None:
+        x0_um, y0_um, x1_um, y1_um = record.crop_um
+        h, w = if_img.shape[-2:]
+        c0 = int(np.floor((x0_um - if_origin) / if_um)); c1 = int(np.ceil((x1_um - if_origin) / if_um))
+        r0 = int(np.floor((y0_um - if_origin) / if_um)); r1 = int(np.ceil((y1_um - if_origin) / if_um))
+        c0, r0 = max(c0, 0), max(r0, 0)
+        c1, r1 = min(c1, w), min(r1, h)
+        if c1 - c0 < 2 or r1 - r0 < 2:
+            raise ValueError(
+                f"crop {record.crop_um} um lands outside the PhenoCycler frame "
+                f"(level {lvl} is {w} x {h} px at {if_um:.4f} um/px)")
+        if_img = if_img[..., r0:r1, c0:c1]
+        origin_x = if_origin + c0 * if_um
+        origin_y = if_origin + r0 * if_um
+        crop_rec = {"requested_um": [float(v) for v in record.crop_um],
+                    "pixels": {"c0": c0, "c1": c1, "r0": r0, "r1": r1},
+                    "realised_um": [origin_x, origin_y,
+                                    origin_x + (c1 - c0) * if_um, origin_y + (r1 - r0) * if_um],
+                    "full_frame_px": [int(w), int(h)]}
+        print(f"[export] crop -> rows {r0}:{r1} cols {c0}:{c1} "
+              f"({(c1-c0)*if_um:.0f} x {(r1-r0)*if_um:.0f} um at origin "
+              f"({origin_x:.1f}, {origin_y:.1f}) um)", flush=True)
+
     rec["if"] = {"qptiff": str(qptiff), "level": int(lvl), "um_per_px": if_um,
-                 "factor": int(f_if), "origin_um": if_origin, "pyramid": "box_mean",
-                 "shape": list(if_img.shape), "dtype": str(if_img.dtype)}
+                 "factor": int(f_if),
+                 # EFFECTIVE origin of the exported array: the pyramid's half-pixel offset plus
+                 # any crop. Equal to the top-level if_origin_um by construction, which the
+                 # readers cross-check. The uncropped grid origin is kept separately because it
+                 # is a property of the pyramid, not of this export.
+                 "origin_um": (if_origin if crop_rec is None else [origin_x, origin_y]),
+                 "origin_um_grid": if_origin, "pyramid": "box_mean",
+                 "shape": list(if_img.shape), "dtype": str(if_img.dtype), "crop": crop_rec}
     _write_ome(slides / "02_if_dapi.ome.tiff", if_img, if_um)
     del if_img
 
@@ -191,7 +235,11 @@ def export_one(record: RI.RegistrationInput, *, out_root: Path = OUT / "valis") 
     (dst / "export.json").write_text(json.dumps(
         {"donor_id": donor, "serial": serial, "roi": roi,
          "xenium_um_per_px": xen_um, "if_um_per_px": if_um,
-         "xenium_origin_um": xen_origin, "if_origin_um": if_origin,
+         "xenium_origin_um": xen_origin,
+         # scalar when uncropped (unchanged for every existing export), a per-axis pair when
+         # cropped. Read it through RI.export_origin_xy, never float() directly.
+         "if_origin_um": (if_origin if crop_rec is None else [origin_x, origin_y]),
+         "if_crop": crop_rec,
          "xenium_bundle": str(bundle), "qptiff": str(qptiff),
          "if_pixel_um": pixel_um, "if_dapi_page": record.dapi_page,
          "if_channel_names": list(record.channel_names),
@@ -215,7 +263,19 @@ def main(argv=None) -> int:
     ap.add_argument("--xenium-paths", type=Path, default=RI.XENIUM_PATHS)
     ap.add_argument("--xenium-root", type=Path, default=RI.XENIUM_ROOT)
     ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--crop-um", default=None, metavar="X0,Y0,X1,Y1",
+                    help="override the inventory's crop for THIS run, in full-frame "
+                         "PhenoCycler microns. For probing which window registers before "
+                         "committing one to the inventory; the winner belongs in the "
+                         "crop_*_um columns, not in a shell history.")
     args = ap.parse_args(argv)
+    crop_override = None
+    if args.crop_um:
+        parts = [float(v) for v in str(args.crop_um).replace(" ", "").split(",")]
+        if len(parts) != 4:
+            print("--crop-um needs exactly X0,Y0,X1,Y1", file=sys.stderr)
+            return 2
+        crop_override = tuple(parts)
 
     records = RI.load_registration_inputs(
         args.inventory, args.xenium_paths, args.images_dir, args.geojson_dir,
@@ -224,6 +284,8 @@ def main(argv=None) -> int:
     for record in RI.select_registration_inputs(records, args.donors,
                                                 context="export_dapi"):
         RI.require_registration_files(record)
+        if crop_override is not None:
+            record = dataclasses.replace(record, crop_um=crop_override)
         donor = record.donor_id
         rec = export_one(record, out_root=args.out / "valis")
         c = rec["xenium_origin_check"]

@@ -27,3 +27,13 @@
 # allow_dtype: PhenoCycler Fusion writes uint16; uint8 is a post-Xenium IF cohort property.
 image_file,donor_id,roi,xenium_serial,provenance_source,pixel_um,allow_dtype
 0080870_6533_panc_Scan3.qptiff,6533,panc,0080870,sameslide_6533,0.507800,uint16
+# The pLN ROI of the SAME PhenoCycler scan. The scan is named "pLNpanc" and its qptiff covers
+# both tissues in one image, so image_file is the same file as the panc row -- the roi filter
+# in load_registration_inputs separates them, and the duplicate checks run after that filter.
+# It needs its own row because the Xenium pLN region is a SEPARATE output with its OWN
+# coordinate origin (pLN cells x 1.5..1228 / y 3.6..2011 um; panc x 4.2..6730 / y 35.7..13001 um),
+# so the panc transform -- and refined_field2, which is fitted only over the pancreas windows
+# (IF y 9750..22250 um) -- cannot serve it.
+# Outputs go to out_pln/ because <out>/valis/donor_id=6533 carries no roi and would otherwise
+# overwrite refined_field2 and the pancreas transform of record.
+0080870_6533_panc_Scan3.qptiff,6533,pln_1,0080870,sameslide_6533,0.507800,uint16

@@ -72,7 +72,7 @@ def _read_donor(donor: str, markers: list, extra: list, ratio: bool):
 
 
 def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
-                seed: int = 0, ratio: bool = NUCLEAR_RATIO) -> pd.DataFrame:
+                seed: int = 0, ratio: bool = False) -> pd.DataFrame:
     """Cohort-wide floor and top per marker, on the ALIGNED values.
 
     Cohort-wide on purpose.  A per-donor scale would re-impose exactly the distribution
@@ -212,7 +212,9 @@ def main() -> int:
     ratio = not args.no_nuclear_ratio
     print(f"  nuclear markers on DAPI: {'yes' if ratio else 'no'} "
           f"({', '.join(m for m in panel.NUCLEUS_MEASURED if m != 'DAPI')})")
-    scale = build_scale(donors, list(Rm.index), ratio=ratio)
+    # Mixed-compartment references consume raw nuclear means.  The ratio is a
+    # separate per-reference representation with its own lazily computed scale.
+    scale = build_scale(donors, list(Rm.index), ratio=False)
     reqs = None if args.no_gate else R.requirements(R.load_rules())
     if reqs is not None:
         n_all = int(np.median([len(v[0]) for v in reqs.values()]))

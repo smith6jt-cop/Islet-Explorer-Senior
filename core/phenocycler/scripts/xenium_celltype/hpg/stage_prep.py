@@ -37,15 +37,19 @@ import xenio                                          # noqa: E402
 import run_donor                                      # noqa: E402
 
 
-def load_at_site(donor: str, roi: str, xpaths: Path) -> "xenio.DonorData":
+def load_at_site(donor: str, roi: str, xpaths: Path,
+                 serial: str | None = None) -> "xenio.DonorData":
     """xenio.load_donor, but with the paths this site actually has.
 
     xenio hard-codes ``/data/xenium``; sites.py knows the two /orange trees and which of
     them is the only copy of MM046/MM047. Rather than fork the loader, the resolved
     locations are pushed into its module globals for the duration of the call -- one place,
     named, and reversed afterwards, so nothing else in the process sees a different root.
+
+    ``serial`` names WHICH section for a donor+roi carrying several bundles (6533, 112 at
+    roi=panc). Omitting it there raises out of ``sites.resolve`` rather than picking one.
     """
-    r = sites.resolve(donor, xpaths, roi=roi)
+    r = sites.resolve(donor, xpaths, roi=roi, serial=serial)
     if r.expression_source == "h5ad":
         import anndata as ad
         a = ad.read_h5ad(r.h5ad)
@@ -67,7 +71,9 @@ def load_at_site(donor: str, roi: str, xpaths: Path) -> "xenio.DonorData":
     xy = cells.loc[:, ["x_centroid", "y_centroid"]].to_numpy()[rows]
     return xenio.DonorData(donor_id=donor, cell_id=ids[ok], genes=genes,
                            counts=counts[ok].tocsr(), xy=xy, source=r.expression_source,
-                           n_dropped_no_spatial=int((~ok).sum()))
+                           n_dropped_no_spatial=int((~ok).sum()),
+                           serial=r.serial, bundle=r.bundle,
+                           h5ad_refused_reason=r.h5ad_refused_reason)
 
 
 def main(argv=None) -> int:
@@ -75,6 +81,11 @@ def main(argv=None) -> int:
     ap.add_argument("--run", type=Path, required=True)
     ap.add_argument("--donor", required=True)
     ap.add_argument("--roi", default="panc")
+    ap.add_argument("--serial", default=None,
+                    help="Xenium slide serial naming WHICH section (e.g. 0080870). Required "
+                         "for 6533 / 112 at roi=panc, which each carry a 2024 nPOD run and a "
+                         "2026 Pheno-Xeno run; taken from the run manifest's donor entry "
+                         "when it records one.")
     ap.add_argument("--n-jobs", type=int, default=16)
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args(argv)
@@ -92,8 +103,11 @@ def main(argv=None) -> int:
             print(f"[prep] {a.donor} already complete ({prev['n_cells']:,} cells) — skipping")
             return 0
 
-    dd = load_at_site(a.donor, a.roi, repo / "data" / "integration" / "xenium_paths.csv")
+    xpaths = repo / "data" / "integration" / "xenium_paths.csv"
     expected = next(d for d in man["donors"] if d["donor_id"] == a.donor)
+    # CLI wins, then whatever the manifest recorded for this donor. Neither invents one.
+    serial = a.serial or expected.get("serial") or None
+    dd = load_at_site(a.donor, a.roi, xpaths, serial=serial)
     if len(dd.cell_id) != expected["n_cells_expression"] - dd.n_dropped_no_spatial:
         raise SystemExit(
             f"[prep] {a.donor}: loaded {len(dd.cell_id):,} cells; the manifest recorded "
@@ -104,8 +118,9 @@ def main(argv=None) -> int:
     meta = run_donor.prepare(dd, dest, n_comps=n_comps, seed=seed)
     meta.update({"complete": True, "subsampled": False,
                  "n_available": int(len(dd.cell_id)), "n_used": int(len(dd.cell_id)),
-                 "site": sites.resolve(a.donor, repo / "data" / "integration" /
-                                       "xenium_paths.csv", roi=a.roi).site,
+                 "site": sites.resolve(a.donor, xpaths, roi=a.roi, serial=serial).site,
+                 "serial": dd.serial, "bundle": str(dd.bundle),
+                 "h5ad_refused_reason": dd.h5ad_refused_reason,
                  "run_manifest_created": man["created_at_utc"]})
     done.write_text(json.dumps(meta, indent=2))
     print(f"[prep] {a.donor}: {meta['n_cells']:,} cells from {meta['source']}; "

@@ -57,3 +57,5 @@ donor_id,roi,batch,source_path
 6579,pln_3,6KTRAF,HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN3__20241219__201934
 6533,panc,PhenoXeno,/blue/maigan/smith6jt/Xenium_Analysis/data/output-XETG00298__0080870__panc__20260910__211917
 112,panc,PhenoXeno,/blue/maigan/smith6jt/Xenium_Analysis/data/output-XETG00298__0081366__panc__20260910__211918
+112,pln_1,PhenoXeno,/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0081366__pLN__20260910__211918
+6533,pln_1,PhenoXeno,/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0080870__pLN__20260910__211918

@@ -200,7 +200,7 @@ def main() -> int:
     print(f"Islet residents — {len(intruders)} references may displace the endocrine prior")
     print(f"  excluded as implied by it: {excluded}")
 
-    scale = S3.build_scale(donors, list(Rm.index), ratio=ratio)
+    scale = S3.build_scale(donors, list(Rm.index), ratio=False)
     OUT.mkdir(parents=True, exist_ok=True)
     frames = []
     for d in donors:

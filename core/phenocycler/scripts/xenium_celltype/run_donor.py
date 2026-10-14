@@ -37,6 +37,8 @@ from collections.abc import Sequence
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -55,6 +57,13 @@ from nullgate import annotate_groups                   # noqa: E402
 
 DEV_ROOT = HERE.parents[3] / "data" / "development" / "xenium_celltype"
 ARMS = ("nonspatial", "spatial")
+
+#: Where KODAMA is installed. `hpg/setup_envs.sh` builds it here at a pinned commit and every
+#: SLURM stage gets it by sourcing `hpg/env.sh`; this module spawns `Rscript` directly and so
+#: got whatever R_LIBS_USER the calling shell happened to carry -- usually nothing, which
+#: fails as `there is no package called 'KODAMA'` well after the PCA has been computed. An
+#: already-exported R_LIBS_USER wins, so a caller who has sourced env.sh is not overridden.
+DEFAULT_R_LIBS_USER = "/blue/maigan/smith6jt/R_libs"
 
 #: Cells embedded per donor. KODAMA's cost grows as ~n^1.44 in this configuration -- measured
 #: on 50 PCs at landmarks=500, M=5: 5k = 44.7 s, 20k = 316.6 s, 50k = 1222.2 s -- so the full
@@ -159,12 +168,37 @@ def prepare(dd: "xenio.DonorData", out: Path, *, n_comps: int = 50, seed: int = 
     return meta
 
 
+def r_environment(env: dict | None = None) -> dict:
+    """The environment `Rscript` is spawned with: R_LIBS_USER pointed at the KODAMA install.
+
+    Checked rather than assumed. A missing library directory is a five-second failure here
+    with the path in the message, instead of an R error raised after `prepare` has already
+    spent the PCA.
+    """
+    e = dict(os.environ if env is None else env)
+    e.setdefault("R_LIBS_USER", DEFAULT_R_LIBS_USER)
+    if not Path(e["R_LIBS_USER"]).is_dir():
+        raise RuntimeError(
+            f"R_LIBS_USER={e['R_LIBS_USER']} is not a directory, so KODAMA cannot be on the "
+            f"library path. Build it with scripts/xenium_celltype/hpg/setup_envs.sh, or "
+            f"export R_LIBS_USER at the path it was installed to.")
+    # R itself comes from the `xenium_analysis` conda env (`xct_R` in hpg/env.sh). Checked
+    # here so a missing interpreter is named as such, rather than surfacing as a bare
+    # FileNotFoundError from subprocess after `prepare` has already spent the PCA.
+    if shutil.which("Rscript", path=e.get("PATH", os.defpath)) is None:
+        raise RuntimeError(
+            "Rscript is not on PATH, so the KODAMA step cannot run. Activate the env that "
+            "carries R (conda activate xenium_analysis), or source "
+            "scripts/xenium_celltype/hpg/env.sh and use its `xct_R` helper.")
+    return e
+
+
 def run_kodama(inp: Path, out: Path, arm: str, *, M: int, landmarks: int,
                n_cores: int, seed: int = 0) -> Path:
     cmd = ["Rscript", str(HERE / "run_kodama.R"), "--input", str(inp), "--output", str(out),
            "--arm", arm, "--M", str(M), "--landmarks", str(landmarks),
            "--n-cores", str(n_cores), "--seed", str(seed)]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, env=r_environment())
     emb = out / f"embedding_{arm}.csv"
     if not emb.exists():
         raise RuntimeError(f"run_kodama.R exited 0 but wrote no {emb.name}")
@@ -206,6 +240,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--donor", required=True)
     ap.add_argument("--roi", default="panc")
+    ap.add_argument("--serial", default=None,
+                    help="Xenium slide serial naming WHICH section to run, e.g. 0080870. "
+                         "Required for a donor+roi carrying several bundles: 6533 and 112 at "
+                         "roi=panc each have a 2024 nPOD run (0041393 / 0041396) and a 2026 "
+                         "Pheno-Xeno run (0080870 / 0081366). Omitting it for those donors "
+                         "is an error, not a default.")
     ap.add_argument("--xenium-paths", type=Path,
                     default=HERE.parents[1] / "data" / "integration" / "xenium_paths.csv")
     ap.add_argument("--out", type=Path, default=DEV_ROOT)
@@ -227,15 +267,43 @@ def main(argv=None) -> int:
     cfg = load_config(str(HERE.parents[1] / "config.ini"))
     tax = load_panel_taxonomy(cfg, "pancreas")
 
+    # Resolve before anything is written: which section this is belongs in the output path,
+    # because `donor_id=6533/roi=panc` alone names two different physical sections.
+    ref = xenio.resolve_bundle(a.donor, a.xenium_paths, roi=a.roi, serial=a.serial)
     dest = a.out / f"donor_id={a.donor}" / f"roi={a.roi}"
-    dd = xenio.load_donor(a.donor, a.xenium_paths, roi=a.roi)
+    if ref.n_candidates > 1:
+        dest = dest / f"serial={ref.serial}"
+
+    # WHERE the bundle is, as opposed to which one it is, is a site question, and hpg/sites.py
+    # already owns it: xenio's XENIUM_ROOT is /data/xenium, true of the workstation and of
+    # nowhere else, so on HiPerGator the four nPOD sections resolved to a path that does not
+    # exist and the run died in load_donor. sites.resolve tries every recorded layout and
+    # raises naming all of them; only if it cannot resolve at all do we fall back to xenio's
+    # own join, so the workstation behaves exactly as before.
+    site_bundle, site_name = None, ""
+    try:
+        from hpg import sites as _sites
+        res = _sites.resolve(a.donor, a.xenium_paths, roi=a.roi, serial=ref.serial)
+        site_bundle, site_name = res.bundle, res.site
+    except Exception as e:                       # noqa: BLE001 -- reported, never swallowed
+        print(f"[prep] site table did not resolve ({type(e).__name__}: {e}); "
+              f"falling back to XENIUM_ROOT={xenio.XENIUM_ROOT}")
+    dd = xenio.load_donor(a.donor, a.xenium_paths, roi=a.roi, serial=ref.serial,
+                          bundle=site_bundle)
     dd, sub_meta = subsample(dd, a.max_cells, a.seed)
     meta = prepare(dd, dest / "input", n_comps=a.n_comps, seed=a.seed)
     meta.update(sub_meta)
+    meta.update({"serial": ref.serial, "batch": ref.batch, "bundle": str(dd.bundle),
+                 "site": site_name,
+                 "bundle_n_candidates": ref.n_candidates,
+                 "h5ad_refused_reason": dd.h5ad_refused_reason})
     (dest / "input" / "prep.json").write_text(json.dumps(meta, indent=2))
-    print(f"[prep] {meta['donor_id']} {meta['n_used']:,} of {meta['n_available']:,} cells "
+    print(f"[prep] {meta['donor_id']} serial={ref.serial} ({ref.batch}) "
+          f"{meta['n_used']:,} of {meta['n_available']:,} cells "
           f"from {meta['source']}; {a.n_comps} PCs explain "
           f"{meta['explained_variance_ratio_sum']:.1%}")
+    if dd.h5ad_refused_reason:
+        print(f"[prep] h5ad not used: {dd.h5ad_refused_reason}")
     if a.prepare_only:
         return 0
 

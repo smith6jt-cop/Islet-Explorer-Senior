@@ -24,6 +24,8 @@ from pathlib import Path
 
 import numpy as np
 
+import registration_inputs as RI   # as_origin_xy: a cropped export offsets x and y independently
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1]))
@@ -227,7 +229,7 @@ def refine_local(seed: Transform, moving_xy: np.ndarray, fixed_xy: np.ndarray, *
 
 
 def global_translation_by_image(seed: Transform, moving_xy: np.ndarray, if_image: np.ndarray,
-                                *, um_per_px: float, origin_um: float,
+                                *, um_per_px: float, origin_um,
                                 search_um: float = 30.0,
                                 highpass_sigma_um: float = 15.0) -> tuple[float, float, float]:
     """Residual translation from INTENSITY, not points: ``(dx_um, dy_um, ncc_peak)``.
@@ -262,12 +264,13 @@ def global_translation_by_image(seed: Transform, moving_xy: np.ndarray, if_image
 
 
 def _nucleus_raster(seed: Transform, moving_xy: np.ndarray, shape, *,
-                    um_per_px: float, origin_um: float) -> np.ndarray:
+                    um_per_px: float, origin_um) -> np.ndarray:
     """Warped Xenium nuclei as a count raster on the IF image's own lattice."""
     h, w = shape
     warped = seed.apply(moving_xy)
-    col = np.rint((warped[:, 0] - origin_um) / um_per_px).astype(np.int64)
-    row = np.rint((warped[:, 1] - origin_um) / um_per_px).astype(np.int64)
+    ox, oy = RI.as_origin_xy(origin_um)
+    col = np.rint((warped[:, 0] - ox) / um_per_px).astype(np.int64)
+    row = np.rint((warped[:, 1] - oy) / um_per_px).astype(np.int64)
     keep = (col >= 0) & (col < w) & (row >= 0) & (row < h)
     if not keep.any():
         raise RefineError("no warped nucleus lands inside the IF image")
@@ -277,7 +280,7 @@ def _nucleus_raster(seed: Transform, moving_xy: np.ndarray, shape, *,
 
 
 def global_translation_by_phase(seed: Transform, moving_xy: np.ndarray, if_image: np.ndarray,
-                                *, um_per_px: float, origin_um: float,
+                                *, um_per_px: float, origin_um,
                                 upsample: int = 100,
                                 highpass_sigma_um: float = 15.0) -> tuple[float, float]:
     """The same question as :func:`global_translation_by_image`, asked by a third mechanism.

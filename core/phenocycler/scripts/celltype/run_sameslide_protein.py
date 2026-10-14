@@ -573,7 +573,7 @@ def main() -> int:
                if not any(panel._same_donor(d, s) for s in scale_donors)]
     if missing:
         raise SystemExit(f"donor(s) {missing} have no aligned partition under {S3.ALIGNED}")
-    scale = S3.build_scale(scale_donors, list(Rm.index), ratio=S3.NUCLEAR_RATIO)
+    scale = S3.build_scale(scale_donors, list(Rm.index), ratio=False)
     print(f"  cohort scale over {len(scale_donors)} aligned donor(s) {scale_donors}, "
           f"{int(scale['top'].notna().sum())} markers")
 

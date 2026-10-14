@@ -1,5 +1,15 @@
 # Islet Explorer Senior
 
+## Read first
+
+**2026-09-18:** `docs/HANDOFF_2026-09-18_SAMESLIDE_INTEGRATION.md` — current state of the
+same-slide Pheno-Xeno integration (6533, HDL112), 29 uncommitted files, and one thing to settle
+before anything else: `analysis/xenium/scripts/` and
+`/blue/maigan/smith6jt/Xenium_Analysis/scripts/` are TWO git-tracked forks of the same Xenium
+typing lane, diverged across six files (`hierarchical_phenotype.py` by 87 lines). They run in
+different conda envs. Know which one you are in.
+
+
 ## Project scope
 
 Three related but separate systems in one repository:

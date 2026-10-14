@@ -54,6 +54,10 @@ def main(argv=None) -> int:
     ap.add_argument("--run", type=Path, required=True)
     ap.add_argument("--donor", required=True)
     ap.add_argument("--roi", default="panc")
+    ap.add_argument("--serial", default=None,
+                    help="Xenium slide serial naming WHICH section (e.g. 0080870). Required "
+                         "for 6533 / 112 at roi=panc; taken from the run manifest's donor "
+                         "entry when it records one.")
     ap.add_argument("--arm", required=True, choices=["nonspatial", "spatial"])
     ap.add_argument("--k", type=int, nargs="+", default=list(DEFAULT_K))
     ap.add_argument("--n-draws", type=int, default=DEFAULT_DRAWS)
@@ -82,7 +86,10 @@ def main(argv=None) -> int:
     cores = {lin: tax.lineage_genes(lin)
              for lin in sorted({v for v in tax.panel_to_lineage.values() if v})}
 
-    dd = load_at_site(a.donor, a.roi, repo / "data" / "integration" / "xenium_paths.csv")
+    donor_entry = next((d for d in man["donors"] if d["donor_id"] == a.donor), {})
+    serial = a.serial or donor_entry.get("serial") or None
+    dd = load_at_site(a.donor, a.roi,
+                      repo / "data" / "integration" / "xenium_paths.csv", serial=serial)
     emb = pd.read_csv(emb_path).set_index("cell_id").loc[dd.cell_id].reset_index()
     Xn = xenio.lognorm(dd.counts)
 

@@ -78,7 +78,14 @@ def register_one(donor_dir: Path, *, micro: bool = True, micro_rigid: bool = Tru
     for key in ("xenium_origin_um", "if_origin_um"):
         if key not in meta:
             raise KeyError(f"{donor_dir/'export.json'} has no {key} -- re-run export_dapi.py")
-    xen_o, if_o = float(meta["xenium_origin_um"]), float(meta["if_origin_um"])
+    xen_o = float(meta["xenium_origin_um"])
+    # if_origin_um is a scalar for an uncropped export and a per-axis pair for a cropped one.
+    # This module runs in the VALIS venv and imports nothing from the repo, so it resolves the
+    # two forms inline rather than through registration_inputs.as_origin_xy.
+    _o = meta["if_origin_um"]
+    if_ox, if_oy = ((float(_o[0]), float(_o[1])) if isinstance(_o, (list, tuple))
+                    else (float(_o), float(_o)))
+    if_o = [if_ox, if_oy]
 
     kwargs = dict(
         image_type="fluorescence",          # both planes are DAPI, not brightfield
@@ -144,7 +151,8 @@ def register_one(donor_dir: Path, *, micro: bool = True, micro_rigid: bool = Tru
         # at different fractions of a level-0 pixel. Ignoring it leaves +0.39 um per axis in the
         # warped result -- a constant, which is the one kind of error this lane cannot absorb.
         px = (xy_um[i:i + CHUNK] - xen_o) / xen_um
-        warped_if_um[i:i + CHUNK] = xen.warp_xy_from_to(px, ifs) * if_um + if_o
+        warped_if_um[i:i + CHUNK] = (xen.warp_xy_from_to(px, ifs) * if_um
+                                     + np.asarray([if_ox, if_oy], dtype=np.float64))
     np.save(donor_dir / "warped_if_um.npy", warped_if_um)
 
     d = warped_if_um - xy_um

@@ -48,6 +48,67 @@ class RegistrationInput:
     pyramid_shapes: tuple[tuple[int, int], ...]
     provenance_source: str
     pixel_size_source: str = "qptiff XML PixelSizeMicrons"
+    #: Optional (x0, y0, x1, y1) in FULL-FRAME PhenoCycler microns. When set, export_dapi
+    #: materialises only that window of the PhenoCycler DAPI. It exists for a small ROI in a
+    #: large scan: the pLN Xenium region is ~1.2% of the 22668 x 9750 um scan area, and both
+    #: seeders fail on that ratio -- VALIS with `SVD did not converge`, the ECC fallback with
+    #: 0 patches above threshold -- because almost every feature they find is on the other
+    #: tissue. Cropping does NOT change any coordinate convention: the crop offset is written
+    #: into export.json's `if_origin_um` as a PER-AXIS pair, so every downstream micron is
+    #: still in the full PhenoCycler frame. Absent (the pancreas rows), the export is
+    #: byte-identical to before.
+    crop_um: tuple[float, float, float, float] | None = None
+
+
+#: Inventory columns naming an optional PhenoCycler-frame crop window, in microns.
+CROP_COLUMNS = ("crop_x0_um", "crop_y0_um", "crop_x1_um", "crop_y1_um")
+
+
+def _crop_um(row, inventory_csv, donor: str, roi: str):
+    """The optional crop window for one inventory row, or None. All four columns or none.
+
+    Half a crop is worse than no crop -- it would silently register against a window whose
+    other edge is the image edge -- so a partial specification is refused rather than
+    completed with a default.
+    """
+    raw = [getattr(row, column, None) for column in CROP_COLUMNS]
+    given = [value for value in raw if value not in (None, "") and pd.notna(value)]
+    if not given:
+        return None
+    if len(given) != 4:
+        raise RegistrationInputError(
+            f"{inventory_csv}: donor {donor} roi={roi} gives {len(given)} of "
+            f"{len(CROP_COLUMNS)} crop columns {CROP_COLUMNS}; give all four or none")
+    x0, y0, x1, y1 = (float(value) for value in raw)
+    if not (x1 > x0 and y1 > y0):
+        raise RegistrationInputError(
+            f"{inventory_csv}: donor {donor} roi={roi} crop ({x0}, {y0}, {x1}, {y1}) is empty "
+            f"or inverted; it must satisfy x1 > x0 and y1 > y0")
+    return (x0, y0, x1, y1)
+
+
+def as_origin_xy(value) -> tuple[float, float]:
+    """A pixel-origin that may be a scalar or a per-axis pair -> (x, y).
+
+    Uncropped exports write one number, because the pyramid's half-pixel offset is the same on
+    both axes. A cropped export writes a pair, because the crop offsets the axes
+    independently. Everything that converts pixels to microns goes through here so both forms
+    work and neither call site has to know which it got.
+    """
+    if isinstance(value, (list, tuple, np.ndarray)):
+        return float(value[0]), float(value[1])
+    return float(value), float(value)
+
+
+def export_origin_xy(meta: dict) -> tuple[float, float]:
+    """``export.json``'s ``if_origin_um`` as (x, y).
+
+    It was a scalar before crops existed -- the pyramid's own half-pixel offset, identical on
+    both axes -- and remains a scalar for every uncropped export. A cropped export writes a
+    pair, because the crop offsets x and y independently. Readers go through here so an old
+    export.json and a new one both work.
+    """
+    return as_origin_xy(meta["if_origin_um"])
 
 
 def _channel_name(description: str) -> str:
@@ -186,6 +247,7 @@ def load_registration_inputs(
         if len(geojsons) > 1:
             raise RegistrationInputError(f"serial {serial} has multiple GeoJSON exports: {geojsons}")
         bundle = xenium_root / str(hit.source_path).rstrip("/")
+        crop = _crop_um(row, inventory_csv, donor, roi)
         by_donor[donor] = RegistrationInput(
             donor_id=donor,
             serial=serial,
@@ -199,6 +261,7 @@ def load_registration_inputs(
             channel_names=tuple(facts["channel_names"]),
             pyramid_shapes=tuple(facts["pyramid_shapes"]),
             provenance_source=str(row.provenance_source),
+            crop_um=crop,
         )
 
     local = {path.name for path in images_dir.glob("*.qptiff")}

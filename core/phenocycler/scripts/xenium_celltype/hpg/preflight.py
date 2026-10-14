@@ -28,7 +28,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2]))          # core/phenocycler, for `phenocycler`
 
+sys.path.insert(0, str(HERE.parent))              # the lane root, for `xenio`
+
 import sites  # noqa: E402
+import xenio  # noqa: E402
 
 
 def n_cells_of(r: "sites.Resolved") -> tuple[int, int]:
@@ -48,6 +51,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--roi", default="panc")
     ap.add_argument("--site", default=None, help="key in sites.json; default = autodetect")
+    ap.add_argument("--serial", nargs="*", default=None, metavar="[DONOR=]SERIAL",
+                    help="Which SECTION to use for a donor carrying several Xenium bundles. "
+                         "6533 and 112 at roi=panc each have a 2024 nPOD run (0041393 / "
+                         "0041396) and a 2026 Pheno-Xeno run (0080870 / 0081366), and an "
+                         "unnamed one is a preflight failure, never a default. The choice is "
+                         "recorded per donor in the manifest, so every later stage inherits "
+                         "it instead of re-deciding: --serial 6533=0080870 112=0081366")
     ap.add_argument("--repo", type=Path, default=HERE.parents[2],
                     help="core/phenocycler")
     ap.add_argument("--out", type=Path, required=True, help="run directory")
@@ -71,16 +81,22 @@ def main(argv=None) -> int:
         raise SystemExit(f"cohort manifest lists centrally excluded donor(s): {blocked}")
 
     xpaths = a.repo / "data" / "integration" / "xenium_paths.csv"
+    serials = xenio.parse_serial_spec(a.serial)
     donors, failures = [], []
     for d in cohort:
         try:
-            r = sites.resolve(d, xpaths, roi=a.roi, site=a.site)
+            r = sites.resolve(d, xpaths, roi=a.roi, site=a.site,
+                              serial=xenio.serial_for(d, serials))
             n_expr, n_spatial = n_cells_of(r)
         except Exception as exc:                        # noqa: BLE001 — reported, not swallowed
             failures.append(f"{d}: {exc}")
             continue
         donors.append({
             "donor_id": d, "roi": a.roi, "site": r.site,
+            # The manifest records WHICH section, so stage_prep and stage_call inherit the
+            # choice made here instead of each re-deciding it from the CSV.
+            "serial": r.serial, "n_bundle_candidates": r.n_candidates,
+            "h5ad_refused_reason": r.h5ad_refused_reason,
             "bundle": str(r.bundle), "h5ad": str(r.h5ad) if r.h5ad else None,
             "expression_source": r.expression_source,
             "n_cells_expression": n_expr, "n_cells_spatial": n_spatial,

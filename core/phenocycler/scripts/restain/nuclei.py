@@ -134,7 +134,7 @@ def _parabolic_shift(vm1: np.ndarray, v0: np.ndarray, vp1: np.ndarray) -> np.nda
     return out
 
 
-def detect(image: np.ndarray, um_per_px: float, origin_um: float, *,
+def detect(image: np.ndarray, um_per_px: float, origin_um, *,
            nucleus_um: float = NUCLEUS_UM,
            min_separation_um: float = MIN_SEPARATION_UM,
            min_response_z: float = MIN_RESPONSE_Z,
@@ -142,6 +142,7 @@ def detect(image: np.ndarray, um_per_px: float, origin_um: float, *,
     """DAPI plane -> ``(xy_um, response_z)``, centroids in the image's own micron frame.
 
     ``origin_um`` is where pixel coordinate 0 sits in microns and comes from ``export.json``.
+    It is a scalar, or a per-axis pair when the PhenoCycler export was cropped to an ROI.
     Sub-pixel refinement is a parabolic fit on the band-pass response, which matters: at 1 um/px
     an integer peak carries +/-0.5 um of quantisation, and while that averages out of a fitted
     transform it does NOT average out of the per-cell distance this lane has to report.
@@ -167,8 +168,9 @@ def detect(image: np.ndarray, um_per_px: float, origin_um: float, *,
     dr = _parabolic_shift(dog[r - 1, c].astype(np.float64), v0, dog[r + 1, c].astype(np.float64))
     dc = _parabolic_shift(dog[r, c - 1].astype(np.float64), v0, dog[r, c + 1].astype(np.float64))
 
-    xy = np.column_stack([(c + dc) * um_per_px + origin_um,
-                          (r + dr) * um_per_px + origin_um])
+    ox, oy = RI.as_origin_xy(origin_um)
+    xy = np.column_stack([(c + dc) * um_per_px + ox,
+                          (r + dr) * um_per_px + oy])
     return xy, (v0 - med) / sigma
 
 
@@ -229,7 +231,26 @@ def if_plane(meta: dict, target_um: float | None):
                 f"export.json records if_dapi_page={dapi_page}, but qptiff level {lvl} has "
                 f"{len(levels[lvl].pages)} pages")
         img = levels[lvl].pages[dapi_page].asarray()
-    return img, pixel_um * f, ED.origin_um(pixel_um, f, averaged=True), int(lvl)
+    um = pixel_um * f
+    origin = ED.origin_um(pixel_um, f, averaged=True)
+    # This re-reads the QPTIFF, so a cropped export must be cropped again here -- otherwise
+    # asking for a finer plane silently swaps the ROI for the whole slide, and every detected
+    # nucleus lands in a frame the rest of the run does not share. The window is taken from
+    # export.json's own record so the two crops cannot drift apart.
+    crop = meta.get("if_crop")
+    if crop is not None:
+        x0, y0, x1, y1 = (float(v) for v in crop["requested_um"])
+        h, w = img.shape[-2:]
+        c0 = max(int(np.floor((x0 - origin) / um)), 0)
+        c1 = min(int(np.ceil((x1 - origin) / um)), w)
+        r0 = max(int(np.floor((y0 - origin) / um)), 0)
+        r1 = min(int(np.ceil((y1 - origin) / um)), h)
+        if c1 - c0 < 2 or r1 - r0 < 2:
+            raise NucleiError(f"export.json crop {crop['requested_um']} um is empty at "
+                              f"{um:.4f} um/px (level {lvl})")
+        img = img[..., r0:r1, c0:c1]
+        origin = (origin + c0 * um, origin + r0 * um)
+    return img, um, origin, int(lvl)
 
 
 def detect_one(donor_dir: Path, *, gj: Path | None = None,
@@ -248,7 +269,7 @@ def detect_one(donor_dir: Path, *, gj: Path | None = None,
 
     if if_target_um is None:
         if_img = tifffile.imread(str(donor_dir / "slides" / "02_if_dapi.ome.tiff"))
-        if_um, if_origin, lvl = (float(meta["if_um_per_px"]), float(meta["if_origin_um"]),
+        if_um, if_origin, lvl = (float(meta["if_um_per_px"]), RI.export_origin_xy(meta),
                                  int(meta.get("if", {}).get("level", -1)))
     else:
         if_img, if_um, if_origin, lvl = if_plane(meta, if_target_um)

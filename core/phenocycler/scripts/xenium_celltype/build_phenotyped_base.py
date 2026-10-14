@@ -45,7 +45,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -72,7 +71,9 @@ DENSITY_QUANTILE = 0.98
 
 #: The bundle directory name carries the slide serial, which is the sample id every downstream
 #: consumer keys on -- `manifest.py`'s h5ad discovery, and the existing integration fixture.
-_SERIAL = re.compile(r"output-XETG\d+__(\d+)__")
+#: The pattern now lives in `xenio` and is re-exported here: this module used to own a second
+#: copy, and two regexes that are supposed to agree about what a serial is eventually do not.
+_SERIAL = xenio.SERIAL_RE
 
 
 class BuildError(RuntimeError):
@@ -80,10 +81,11 @@ class BuildError(RuntimeError):
 
 
 def serial_of(source_path: str) -> str:
-    m = _SERIAL.search(str(source_path))
-    if not m:
-        raise BuildError(f"no XETG serial in bundle path {source_path!r}")
-    return m.group(1)
+    """The slide serial in a bundle path, raised as a `BuildError` for this lane's callers."""
+    try:
+        return xenio.serial_of(source_path)
+    except xenio.XeniumIOError as e:
+        raise BuildError(str(e)) from e
 
 
 def bundle_extras(bundle: Path, cell_ids: np.ndarray) -> pd.DataFrame:
@@ -109,6 +111,7 @@ def bundle_extras(bundle: Path, cell_ids: np.ndarray) -> pd.DataFrame:
 
 
 def qc_mask(counts: sp.csr_matrix, cell_area: np.ndarray, *,
+            nucleus_area: np.ndarray | None = None,
             gdna_lambda: np.ndarray | None = None,
             n_panel_genes: int | None = None) -> tuple[np.ndarray, dict]:
     """Decision #10's filter, returning the mask AND what it removed.
@@ -127,14 +130,24 @@ def qc_mask(counts: sp.csr_matrix, cell_area: np.ndarray, *,
     """
     n_counts = np.asarray(counts.sum(axis=1)).ravel()
     n_genes = np.asarray((counts > 0).sum(axis=1)).ravel()
-    density = np.divide(n_counts, cell_area, out=np.zeros_like(n_counts, dtype=float),
-                        where=cell_area > 0)
-    cap = float(np.quantile(density[np.isfinite(density)], DENSITY_QUANTILE))
+    cell_area = np.asarray(cell_area, dtype=float)
+    area_ok = np.isfinite(cell_area) & (cell_area > 0)
+    nucleus_ok = (np.ones(len(cell_area), bool) if nucleus_area is None else
+                  np.isfinite(nucleus_area) & (np.asarray(nucleus_area) > 0))
+    density = np.divide(n_counts, cell_area, out=np.full(len(n_counts), np.nan),
+                        where=area_ok)
+    eligible = area_ok & nucleus_ok
+    if not eligible.any():
+        raise BuildError("no cells have valid area and a measured nucleus")
+    cap = float(np.quantile(density[eligible], DENSITY_QUANTILE))
 
     info = {"min_genes": MIN_GENES, "min_counts": MIN_COUNTS,
             "density_quantile": DENSITY_QUANTILE, "density_cap_counts_per_um2": cap,
             "dropped_min_genes": int((n_genes < MIN_GENES).sum()),
-            "dropped_density": int((density > cap).sum())}
+            "dropped_density": int((density > cap).sum()),
+            "dropped_invalid_area": int((~area_ok).sum()),
+            "dropped_no_nucleus": int((~nucleus_ok).sum()),
+            "nucleus_required": nucleus_area is not None}
 
     if gdna_lambda is None or n_panel_genes is None:
         counts_for_floor = n_counts
@@ -150,7 +163,7 @@ def qc_mask(counts: sp.csr_matrix, cell_area: np.ndarray, *,
         })
     info["dropped_min_counts"] = int((counts_for_floor < MIN_COUNTS).sum())
 
-    keep = (n_genes >= MIN_GENES) & (counts_for_floor >= MIN_COUNTS) & (density <= cap)
+    keep = eligible & (n_genes >= MIN_GENES) & (counts_for_floor >= MIN_COUNTS) & (density <= cap)
     return keep, info
 
 
@@ -174,22 +187,46 @@ def _sha256(p: Path) -> str:
 
 
 def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
-              overwrite: bool = False) -> dict:
+              overwrite: bool = False, serial: str | None = None,
+              bundle: Path | None = None) -> dict:
+    """Build one SECTION. `serial` is required wherever a donor+roi carries more than one.
+
+    The bundle is resolved ONCE, here, and the resolved serial is then handed to
+    `xenio.load_donor` so both agree by construction. They used to resolve independently --
+    two `.iloc[0]` selections over the same CSV -- which meant the output path's serial and
+    the cells written under it were only ever equal by coincidence. For 6533 and 112 that
+    coincidence also picked the wrong section: `.iloc[0]` is the 2024 nPOD run (0041393 /
+    0041396), not the 2026 Pheno-Xeno bundle (0080870 / 0081366).
+    """
     import anndata as ad
 
-    xen = pd.read_csv(paths_csv, dtype=str)
-    hit = xen[(xen.donor_id == donor) & (xen.roi == roi)]
-    hit = hit[hit.source_path.notna() & (hit.source_path != "NA")]
-    if hit.empty:
-        raise BuildError(f"donor {donor} roi={roi} has no bundle path in {paths_csv}")
-    source_path = str(hit.iloc[0].source_path).rstrip("/")
-    serial = serial_of(source_path)
+    ref = None if bundle is not None else xenio.resolve_bundle(donor, paths_csv, roi=roi, serial=serial)
+    if bundle is not None:
+        bundle = Path(bundle).resolve()
+        found_serial = serial_of(str(bundle))
+        if serial is not None and serial != found_serial:
+            raise BuildError(f"serial {serial} disagrees with bundle {found_serial}")
+        source_path, serial = str(bundle), found_serial
+    else:
+        source_path, serial = ref.source_path, ref.serial
     out = out_root / serial / roi / f"{serial}_phenotyped.h5ad"
     if out.exists() and not overwrite:
         return {"donor_id": donor, "serial": serial, "status": "exists", "path": str(out)}
 
-    dd = xenio.load_donor(donor, paths_csv, roi=roi, prefer="bundle")
-    bundle = xenio.XENIUM_ROOT / source_path
+    # the resolved serial, not the caller's possibly-absent one -- one section, named twice
+    if bundle is not None:
+        ids, genes, matrix = xenio._read_bundle_matrix(bundle)
+        coordinates = pd.read_parquet(bundle / "cells.parquet").set_index("cell_id")
+        coordinates.index = coordinates.index.astype(str)
+        xy = coordinates.reindex(ids)[["x_centroid", "y_centroid"]].to_numpy()
+        if not np.isfinite(xy).all():
+            raise BuildError("bundle contains missing/non-finite cell coordinates")
+        dd = xenio.DonorData(donor_id=donor, cell_id=ids, genes=genes, counts=matrix,
+                            xy=xy, source="bundle", serial=serial, bundle=bundle,
+                            n_dropped_no_spatial=0)
+    else:
+        dd = xenio.load_donor(donor, paths_csv, roi=roi, prefer="bundle", serial=serial)
+        bundle = ref.path
     extras = bundle_extras(bundle, dd.cell_id)
 
     # Per-cell genomic-DNA background, from the bundle's own genomic control probes.
@@ -204,6 +241,7 @@ def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
         float(lam.mean()), comp["gene"], gdna_mod.vendor_metrics(bundle))
 
     keep, qc = qc_mask(dd.counts, extras.cell_area.to_numpy(),
+                       nucleus_area=extras.nucleus_area.to_numpy(),
                        gdna_lambda=lam, n_panel_genes=comp["gene"])
     counts = dd.counts[keep].tocsr().astype(np.float32)
     lognorm = xenio.lognorm(dd.counts[keep].tocsr()).astype(np.float32)
@@ -235,6 +273,7 @@ def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
     for c in ("cell_area", "nucleus_area", "transcript_counts",
               "total_counts", "genomic_control_counts"):
         obs[c] = extras[c].to_numpy()[keep]
+    obs["vendor_total_counts"] = extras["total_counts"].to_numpy()[keep]
     # The background every downstream detection decision has to know about. Carried on the
     # cell so no later stage has to re-open the bundle to find it.
     obs["gdna_lambda"] = lam[keep].astype(np.float32)
@@ -260,7 +299,11 @@ def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
         "built_by": "core/phenocycler/scripts/xenium_celltype/build_phenotyped_base.py",
         "source": dd.source,
         "bundle": source_path,
-        "xenium_paths_csv_sha256": _sha256(paths_csv),
+        "bundle_resolved_path": str(bundle),
+        "bundle_n_candidates": ref.n_candidates if ref is not None else 1,
+        "bundle_selected_by": "explicit bundle" if ref is None else "resolved serial",
+        "h5ad_refused_reason": dd.h5ad_refused_reason,
+        "xenium_paths_csv_sha256": _sha256(paths_csv) if ref is not None else "",
         "donor_id": donor, "roi": roi, "serial": serial,
         "n_cells_in": int(dd.counts.shape[0]),
         "n_cells_out": int(keep.sum()),
@@ -283,17 +326,53 @@ def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
             "n_cells_in": int(dd.counts.shape[0]), "n_cells_out": int(keep.sum()), **qc}
 
 
+def parse_serial_spec(spec) -> dict[str, str]:
+    """`--serial` -> {donor: serial}, as `xenio` defines it, raised as this lane's BuildError."""
+    try:
+        return xenio.parse_serial_spec(spec)
+    except xenio.XeniumIOError as e:
+        raise BuildError(str(e)) from e
+
+
+def preflight_serials(donors, *, roi: str, paths_csv: Path, serials: dict[str, str]) -> None:
+    """Resolve every donor BEFORE building any of them, and report all failures at once.
+
+    A cohort build takes hours. Discovering at donor 17 that 6533 needed a serial -- and
+    discovering it as a traceback from inside a worker process -- wastes the other sixteen.
+    Every donor is resolved here first, so an unnamed ambiguity is a refusal in the first
+    second naming every donor it affects and every serial each could mean.
+    """
+    problems = []
+    for d in donors:
+        try:
+            xenio.resolve_bundle(d, paths_csv, roi=roi, serial=xenio.serial_for(d, serials))
+        except xenio.XeniumIOError as e:
+            problems.append(f"  {d}: {e}")
+    if problems:
+        raise BuildError(
+            "these donors do not resolve to exactly one Xenium bundle, so nothing was "
+            "built:\n" + "\n".join(problems))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--donors", nargs="*", default=None,
                     help="default: the whole eligible cohort")
     ap.add_argument("--roi", default="panc")
+    ap.add_argument("--bundle", type=Path, help="explicit bundle for exactly one donor")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--xenium-paths", type=Path, default=DEFAULT_PATHS_CSV)
     ap.add_argument("--workers", type=int, default=1,
                     help="gzip-write bound, so parallelism helps; each worker peaks ~3 GB")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--serial", nargs="*", default=None, metavar="[DONOR=]SERIAL",
+                    help="Xenium slide serial naming WHICH section to build. Required for a "
+                         "donor+roi carrying several bundles -- 6533 and 112 at roi=panc each "
+                         "have a 2024 nPOD run and a 2026 Pheno-Xeno run. Either a bare "
+                         "serial applied to every donor built (--serial 0080870), or "
+                         "donor=serial pairs for a multi-donor run "
+                         "(--serial 6533=0080870 112=0081366).")
     args = ap.parse_args(argv)
 
     if args.donors:
@@ -304,18 +383,26 @@ def main(argv=None) -> int:
         donors = list(spec["expected_donors"])
     from phenocycler.cohort import ensure_eligible_donors
     donors = list(ensure_eligible_donors(donors, context="xenium phenotyped base"))
+    serials = parse_serial_spec(args.serial)
+    if args.bundle is not None:
+        if len(donors) != 1:
+            ap.error("--bundle requires exactly one --donors value")
+    else:
+        preflight_serials(donors, roi=args.roi, paths_csv=args.xenium_paths, serials=serials)
 
     print(f"building {len(donors)} donors  roi={args.roi}  -> {args.out}", flush=True)
     rows = []
     if args.workers <= 1:
         for d in donors:
             rows.append(build_one(d, roi=args.roi, out_root=args.out,
-                                  paths_csv=args.xenium_paths, overwrite=args.overwrite))
+                                  paths_csv=args.xenium_paths, overwrite=args.overwrite,
+                                  serial=xenio.serial_for(d, serials), bundle=args.bundle))
             print(f"  {rows[-1]}", flush=True)
     else:
         with ProcessPoolExecutor(max_workers=args.workers) as ex:
             fut = {ex.submit(build_one, d, roi=args.roi, out_root=args.out,
-                             paths_csv=args.xenium_paths, overwrite=args.overwrite): d
+                             paths_csv=args.xenium_paths, overwrite=args.overwrite,
+                             serial=xenio.serial_for(d, serials), bundle=args.bundle): d
                    for d in donors}
             for f in as_completed(fut):
                 rows.append(f.result())
