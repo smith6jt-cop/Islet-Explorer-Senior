@@ -172,3 +172,19 @@ lock:
 # The ledger of declared producers, one per tissue x modality (docs/PRODUCERS.md). Read-only.
 producers:
 	@cat docs/PRODUCERS.md
+
+# Isolated current-cohort analyses, not the app-layer rebuild. All paths are explicit.
+ANALYSIS_PY ?= $(PY)
+ANALYSIS_THROUGH ?= verify
+ANALYSIS_ARGS = --inputs "$(ANALYSIS_INPUTS)" --protocol "$(ANALYSIS_PROTOCOL)" --output "$(ANALYSIS_OUTPUT)"
+.PHONY: analysis-plan analysis-status analysis-run analysis-figures test-analysis
+analysis-plan analysis-status analysis-run:
+	@test -n "$(ANALYSIS_INPUTS)" -a -n "$(ANALYSIS_PROTOCOL)" -a -n "$(ANALYSIS_OUTPUT)" || \
+	  { echo "Set ANALYSIS_INPUTS, ANALYSIS_PROTOCOL and ANALYSIS_OUTPUT explicitly." >&2; exit 2; }
+	$(PYENV) $(ANALYSIS_PY) -m analysis.cohesive.driver $(patsubst analysis-%,%,$@) $(ANALYSIS_ARGS) --through "$(ANALYSIS_THROUGH)"
+
+analysis-figures:
+	@$(MAKE) --no-print-directory analysis-run ANALYSIS_THROUGH=figures
+
+test-analysis:
+	$(PYENV) $(ANALYSIS_PY) -m pytest -p no:cacheprovider -q analysis/cohesive/tests

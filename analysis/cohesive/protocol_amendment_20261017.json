@@ -1,0 +1,26 @@
+{
+  "amends": {
+    "family": "spatial_v2_20261006",
+    "sha256": "cf648db05063b4147c9bf510a984a0924562d5489fec16d9fc66effca0fa5ee8"
+  },
+  "ruled_UTC": "2026-10-17",
+  "ruled_by": "maintainer",
+  "rulings": [
+    {
+      "id": "no_support_cutoffs",
+      "verbatim": "These don't matter at all, get rid of all of them.  Most are irrelevant due to all donor's surpassing the thresholds",
+      "effect": "Every minimum_support gate is removed: islets per donor, ND/T1D donor counts, cells per islet, cells and edges per subtype, islet blocks, eligible cells, and paired donors relative to rank. Only computability remains: an endpoint whose denominator is zero, whose quantity has no variance, or whose design is rank-deficient is UNAVAILABLE for that donor and is reported as such, never as a measured null."
+    },
+    {
+      "id": "no_6579_exclusion_sensitivity",
+      "verbatim": "Remove it (Recommended)",
+      "effect": "sensitivity.pancreatitis is removed. 6579 is in every analysis; its pancreatitis is donor context."
+    },
+    {
+      "id": "refinement_is_phenotyping",
+      "verbatim": "Refined is not a sensitivity analysis, it is part of the basic cell phenotyping:  cells find their broad markers first to facilitate their true identity in a possible subclass",
+      "effect": "sensitivity.protein_identity is removed. A protein cell's identity is hierarchical: its accepted broad label (handoff semantic reader, eligible_for_broad_lineage), kept only where refined_class is that same lineage, then its subclass -- Alpha/Beta/Delta for endocrine, immune_class for immune. Wherever the plan says 'native' Beta/Alpha/Delta or T lineage, read this refined identity."
+    }
+  ],
+  "unchanged": "Hypotheses, estimands, conditional nulls, effect scales, contrasts, donor inference, statistics block (BH over six, permutations, bootstrap, null replicates, seed), and the remaining sensitivities (RNA depth, neighbourhood radius, H3 graph k, source overlap, acquisition) stand as written."
+}
