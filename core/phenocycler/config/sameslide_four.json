@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "expected_sections": 16,
+  "expected_shared_genes": 5001,
+  "analysis_unit": "donor_and_tissue",
+  "interpretation": "Descriptive same-donor different-section comparison; acquisition run, age and sex are confounded. No causal treatment-loss estimate.",
+  "metadata_source": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/data/donor_metadata_panc.xlsx",
+  "protein_recipe": "IO60panc2nd v3 C: InstanSeg step 0, raw compartment measurements step 2, C_cells, C_geojson; 6533 must complete this recipe before downstream protein analysis.",
+  "sections": [
+    {
+      "section_id": "112/panc/0081366",
+      "donor_id": "112",
+      "xenium_serial": "0081366",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "F",
+      "disease_status": "ND",
+      "age_years": 3.72,
+      "design": "same_slide",
+      "acquisition_run": "20260910__211837__6533_HDL112_pLNpanc_PhenoXeno",
+      "bundle": "/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0081366__panc__20260910__211918",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0081366_HDL112_pLNpanc_Scan3.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
+        }
+      },
+      "registration_candidates": [
+        {
+          "path": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/core/phenocycler/data/development/sameslide_112/out/refined.json",
+          "status": "candidate_requires_current_geometry_qc",
+          "previously_used": true
+        }
+      ]
+    },
+    {
+      "section_id": "112/panc/0041396",
+      "donor_id": "112",
+      "xenium_serial": "0041396",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "F",
+      "disease_status": "ND",
+      "age_years": 3.72,
+      "design": "xenium_only",
+      "acquisition_run": "MM036_Xenium_nPODBatch2",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM036_Xenium_nPODBatch2/output-XETG00298__0041396__Pancreas__20241019__205206",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "112/pln_1/0081366",
+      "donor_id": "112",
+      "xenium_serial": "0081366",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "F",
+      "disease_status": "ND",
+      "age_years": 3.72,
+      "design": "same_slide",
+      "acquisition_run": "20260910__211837__6533_HDL112_pLNpanc_PhenoXeno",
+      "bundle": "/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0081366__pLN__20260910__211918",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0081366_HDL112_pLNpanc_Scan3.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
+        }
+      },
+      "registration_candidates": []
+    },
+    {
+      "section_id": "112/pln_1/0041396",
+      "donor_id": "112",
+      "xenium_serial": "0041396",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "F",
+      "disease_status": "ND",
+      "age_years": 3.72,
+      "design": "xenium_only",
+      "acquisition_run": "MM036_Xenium_nPODBatch2",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM036_Xenium_nPODBatch2/output-XETG00298__0041396__pLN__20241019__205207",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6533/panc/0080870",
+      "donor_id": "6533",
+      "xenium_serial": "0080870",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "F",
+      "disease_status": "T1D",
+      "age_years": 3.75,
+      "design": "same_slide",
+      "acquisition_run": "20260910__211837__6533_HDL112_pLNpanc_PhenoXeno",
+      "bundle": "/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0080870__panc__20260910__211917",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080870_6533_pLNpanc_Scan3.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "pending_v3_export",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
+        }
+      },
+      "registration_candidates": [
+        {
+          "path": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/core/phenocycler/data/development/sameslide_6533/out/refined_field2.json",
+          "status": "candidate_requires_current_geometry_qc",
+          "previously_used": true
+        },
+        {
+          "path": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/core/phenocycler/data/development/sameslide_6533/out/refined_field4.json",
+          "status": "candidate_requires_current_geometry_qc",
+          "previously_used": false
+        }
+      ]
+    },
+    {
+      "section_id": "6533/panc/0041393",
+      "donor_id": "6533",
+      "xenium_serial": "0041393",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "F",
+      "disease_status": "T1D",
+      "age_years": 3.75,
+      "design": "xenium_only",
+      "acquisition_run": "MM036_Xenium_nPODBatch2",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM036_Xenium_nPODBatch2/output-XETG00298__0041393__Pancreas__20241019__205207",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6533/pln_1/0080870",
+      "donor_id": "6533",
+      "xenium_serial": "0080870",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "F",
+      "disease_status": "T1D",
+      "age_years": 3.75,
+      "design": "same_slide",
+      "acquisition_run": "20260910__211837__6533_HDL112_pLNpanc_PhenoXeno",
+      "bundle": "/orange/maigan/20260910__211837__6533_HDL112_pLNpanc_PhenoXeno/output-XETG00298__0080870__pLN__20260910__211918",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080870_6533_pLNpanc_Scan3.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "pending_v3_export",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
+        }
+      },
+      "registration_candidates": [
+        {
+          "path": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/core/phenocycler/data/development/sameslide_6533/out_pln_s1tight/refined.json",
+          "status": "historical_failed_registration",
+          "previously_used": false
+        }
+      ]
+    },
+    {
+      "section_id": "6533/pln_1/0041393",
+      "donor_id": "6533",
+      "xenium_serial": "0041393",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "F",
+      "disease_status": "T1D",
+      "age_years": 3.75,
+      "design": "xenium_only",
+      "acquisition_run": "MM036_Xenium_nPODBatch2",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM036_Xenium_nPODBatch2/output-XETG00298__0041393__pLN__20241019__205207",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6580/panc/0080502",
+      "donor_id": "6580",
+      "xenium_serial": "0080502",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "M",
+      "disease_status": "T1D",
+      "age_years": 9.25,
+      "design": "same_slide",
+      "acquisition_run": "20261002__185939__PhenoXeno_pLNpanc_6580_6347",
+      "bundle": "/orange/maigan/20261002__185939__PhenoXeno_pLNpanc_6580_6347/output-XETG00298__0080502__panc__20261002__190021",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080502_6580_pLNpanc_Scan1.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
+        }
+      },
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6580/panc/0041139",
+      "donor_id": "6580",
+      "xenium_serial": "0041139",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "M",
+      "disease_status": "T1D",
+      "age_years": 9.25,
+      "design": "xenium_only",
+      "acquisition_run": "MM037_Xenium_nPODBatch3",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM037_Xenium_nPODBatch3/output-XETG00298__0041139__Panc__20241025__204655",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6580/pln_1/0080502",
+      "donor_id": "6580",
+      "xenium_serial": "0080502",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "M",
+      "disease_status": "T1D",
+      "age_years": 9.25,
+      "design": "same_slide",
+      "acquisition_run": "20261002__185939__PhenoXeno_pLNpanc_6580_6347",
+      "bundle": "/orange/maigan/20261002__185939__PhenoXeno_pLNpanc_6580_6347/output-XETG00298__0080502__pLN__20261002__190021",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080502_6580_pLNpanc_Scan1.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
+        }
+      },
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6580/pln_1/0041139",
+      "donor_id": "6580",
+      "xenium_serial": "0041139",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "M",
+      "disease_status": "T1D",
+      "age_years": 9.25,
+      "design": "xenium_only",
+      "acquisition_run": "MM037_Xenium_nPODBatch3",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM037_Xenium_nPODBatch3/output-XETG00298__0041139__pLN__20241025__204655",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6347/panc/0080579",
+      "donor_id": "6347",
+      "xenium_serial": "0080579",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "M",
+      "disease_status": "Aab+",
+      "age_years": 8.5,
+      "design": "same_slide",
+      "acquisition_run": "20261002__185939__PhenoXeno_pLNpanc_6580_6347",
+      "bundle": "/orange/maigan/20261002__185939__PhenoXeno_pLNpanc_6580_6347/output-XETG00298__0080579__panc__20261002__190021",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080579_6347_pLNpanc_Scan1.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
+        }
+      },
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6347/panc/0041140",
+      "donor_id": "6347",
+      "xenium_serial": "0041140",
+      "roi": "panc",
+      "tissue": "pancreas",
+      "sex": "M",
+      "disease_status": "Aab+",
+      "age_years": 8.5,
+      "design": "xenium_only",
+      "acquisition_run": "MM037_Xenium_nPODBatch3",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM037_Xenium_nPODBatch3/output-XETG00298__0041140__Panc_pLN__20241025__204655",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6347/pln_1/0080579",
+      "donor_id": "6347",
+      "xenium_serial": "0080579",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "M",
+      "disease_status": "Aab+",
+      "age_years": 8.5,
+      "design": "same_slide",
+      "acquisition_run": "20261002__185939__PhenoXeno_pLNpanc_6580_6347",
+      "bundle": "/orange/maigan/20261002__185939__PhenoXeno_pLNpanc_6580_6347/output-XETG00298__0080579__pLN__20261002__190021",
+      "pixel_size_um": 0.2125,
+      "pheno": {
+        "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080579_6347_pLNpanc_Scan1.er.qptiff",
+        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
+        "pixel_size_um": 0.5078,
+        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "legacy_fallback": false,
+        "tissue_selection": {
+          "status": "pending_geometry_validation",
+          "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
+          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
+        }
+      },
+      "registration_candidates": []
+    },
+    {
+      "section_id": "6347/pln_1/0041140",
+      "donor_id": "6347",
+      "xenium_serial": "0041140",
+      "roi": "pln_1",
+      "tissue": "pancreatic_lymph_node",
+      "sex": "M",
+      "disease_status": "Aab+",
+      "age_years": 8.5,
+      "design": "xenium_only",
+      "acquisition_run": "MM037_Xenium_nPODBatch3",
+      "bundle": "/orange/maigan/Xenium_T1D_PancPLN/MM037_Xenium_nPODBatch3/output-XETG00298__0041140__pLN__20241025__204655",
+      "pixel_size_um": 0.2125,
+      "pheno": null,
+      "registration_candidates": []
+    }
+  ]
+}
