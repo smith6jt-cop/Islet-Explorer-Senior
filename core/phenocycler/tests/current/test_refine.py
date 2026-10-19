@@ -67,7 +67,7 @@ def matrix(spec: dict, seed: int = 0):
 
 
 def cells_frame(rows):
-    return pd.DataFrame(rows, columns=["object_id", "cell_class", "cell_region_20um",
+    return pd.DataFrame(rows, columns=["object_id", "cell_class", "cell_region",
                                        "islet_num", "qc_analysis_eligible"])
 
 

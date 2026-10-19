@@ -97,3 +97,10 @@ def test_h6_requires_h3_and_main_delivery_does_not_wait_for_external_owner():
     assert "h1" not in stages
     assert "same-slide" not in required_stages("verify")
     assert required_stages("atlas") == ["reconcile", "qualify", "atlas"]
+
+
+def test_parallel_map_runs_costliest_first_but_returns_input_order():
+    from analysis.cohesive.common import parallel_map
+    items = [-1, 4, -9, 16]
+    assert parallel_map(abs, items, 0.01, "test", cost=[1, 9, 3, 7]) == [1, 4, 9, 16]
+    assert parallel_map(abs, items, 0.01, "test") == [1, 4, 9, 16]

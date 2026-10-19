@@ -141,7 +141,7 @@ OFFSET_BLOCK = 200_000
 
 def immune_rules() -> tuple[pd.DataFrame, dict]:
     table = RULES.load_rules()
-    reqs = RULES.requirements(table, with_negatives=True)
+    reqs = S.shared_negatives(RULES.requirements(table, with_negatives=True))
     return table, reqs
 
 
@@ -552,6 +552,7 @@ def main() -> int:
 
         values = pq.read_table(S.ALIGNED / f"donor_id={donor}/data.parquet",
                                columns=["object_id"] + markers).to_pandas()
+        values = S.mask_fragment_hormones(values, donor)
         # The offset is a property of this donor's analysis-eligible cells, which is what
         # `cells/` already is -- a cell with no nucleus is not in it and does not enter the ranks.
         eligible = cells[["object_id"]].merge(values, on="object_id", how="left",

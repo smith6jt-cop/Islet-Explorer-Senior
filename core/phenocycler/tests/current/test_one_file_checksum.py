@@ -29,6 +29,8 @@ KEPT = {
         "the Xenium lane; imports phenocycler only inside one function",
     ("core/phenocycler/scripts/broadtype/arms/cosine_broad8.py", "_sha"):
         "never imports phenocycler; its interpreter is not evidenced",
+    ("core/phenocycler/scripts/celltype/alignment_block.py", "_sha256"):
+        "never imports phenocycler; its interpreter is not evidenced",
     ("core/phenocycler/scripts/broadtype/arms/kronos2_coral.py", "_sha256"):
         "never imports phenocycler; its interpreter is not evidenced",
     ("core/phenocycler/scripts/broadtype/arms/kronos2_worker.py", "_sha256"):
@@ -47,6 +49,30 @@ KEPT = {
         "a scvi-env file; imports phenocycler only inside one function",
     ("core/phenocycler/scripts/xenium_typing/pins.py", "sha256_file"):
         "a scvi-env lane; imports phenocycler only inside one function",
+    ("core/phenocycler/scripts/celltype/uniform_pln_nodes.py", "sha"):
+        "never imports phenocycler; its interpreter is not evidenced",
+    ("core/phenocycler/scripts/typing/run_calibration_arm.py", "sha256"):
+        "never imports phenocycler; its interpreter is not evidenced",
+    # Recovered byte for byte from the v3 checkout (analysis/cohesive/recovered_v3_producers_20261018.json);
+    # replacing a copy would break that record.
+    ("analysis/xenium/scripts/materialize_protein_analysis_assignments.py", "digest"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/analyze_protein_literature_endpoints.py", "file_sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/build_embedded_pln_typing.py", "sha256"):
+        "recovered from the v3 checkout, which records it by hash",
+    ("core/phenocycler/scripts/typing/build_endocrine_object_composition.py", "file_sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/build_nd_referenced_trajectories.py", "sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/build_pancreas_cell_release.py", "digest"):
+        "recovered from the v3 checkout; the release it writes pins this file by hash",
+    ("core/phenocycler/scripts/typing/export_qupath_cell_assignments.py", "sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/prepare_calibration_arms.py", "sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
+    ("core/phenocycler/scripts/typing/recompute_typing_scale.py", "sha256"):
+        "recovered from the v3 checkout; never imports phenocycler",
 }
 
 #: Shaped like a file checksum, and not the same function.  (artifacts.sha256_sampled_file hashes
@@ -54,6 +80,10 @@ KEPT = {
 NOT_EQUIVALENT = {
     ("scripts/retire/build_manifest.py", "sha256"):
         "answers 'dir' for a directory and 'skipped_large' above SHA_LIMIT",
+    ("analysis/cohesive/common.py", "binding"):
+        "answers path, digest and size, and refuses a file that changed while it was hashed",
+    ("core/phenocycler/scripts/typing/refine.py", "_log"):
+        "builds a donor's refinement log; its one digest is of the script's own source",
 }
 
 #: The copies replaced on 2026-09-24: each binds the one to its old local name, because other

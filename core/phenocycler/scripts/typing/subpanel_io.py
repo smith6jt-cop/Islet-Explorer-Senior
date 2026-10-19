@@ -29,6 +29,7 @@ from the values the classification was made on.
 from __future__ import annotations
 
 import pathlib
+import os
 import sys
 
 import numpy as np
@@ -66,11 +67,11 @@ RUN_ID = "30f6689e4d27d295f890"
 #: expression output exists nowhere else; refusing it would stop the typing lane, which is a
 #: method decision and not this module's to make.  Loud, not silent, is the requirement.
 RUN = guarded(REPO / "core/phenocycler/data/runs" / RUN_ID)
-ALIGNED = REPO / "data/development/celltype/uniform"
+ALIGNED = pathlib.Path(os.environ.get("IO60_ALIGNED_ROOT", REPO / "data/development/celltype/uniform"))
 #: NOT superseded, though it sits inside the withdrawn producer comparison's tree: this is the
 #: cohort floor/top per marker that the classification on disk was made on, and
 #: `superseded.EXEMPT` names it so no prefix can sweep it up.
-SCALE_CSV = REPO / "data/development/broadtype/scratch/cosine_scale.parquet"
+SCALE_CSV = pathlib.Path(os.environ.get("IO60_SCALE_PATH", REPO / "data/development/broadtype/scratch/cosine_scale.parquet"))
 
 #: GUARDED, and this is the one that matters.  Every module in this lane composes its paths from
 #: `S.OUT`, so every one of them now refuses the superseded artifacts under it without calling
@@ -78,7 +79,8 @@ SCALE_CSV = REPO / "data/development/broadtype/scratch/cosine_scale.parquet"
 #: fact that nothing in the repo produces it, and what to read instead.  `S.OUT / "cells"`,
 #: `S.OUT / "subpanel/subpanel_log.json"` and the rest are untouched -- the registry names
 #: artifacts, not directories it happens to be able to reach.
-OUT = guarded(REPO / "data/development/typing")
+OUT = guarded(pathlib.Path(os.environ.get("IO60_TYPING_ROOT", REPO / "data/development/typing")))
+GEOMETRY_ROOT = pathlib.Path(os.environ.get("IO60_GEOMETRY_ROOT", OUT))
 
 #: The v3 QuPath export root: what `IO60panc2nd/scripts/v3/run_v3.sh --out` writes for the 25
 #: images re-segmented on the Tissue annotations redrawn 2026-09-30.  ONE root for every object
@@ -94,9 +96,8 @@ GEOJSON = EXPORT / "structures"
 
 #: Islet outlines for this lane, one file per image, written by the export adapter
 #: (`IO60panc2nd/scripts/v3/islet_export_adapter.py`) from the reviewed QuPath objects: features
-#: named `Islet_<N>` with classification `Islet`, and `Islet_<N>_exp20um` where an expansion is
-#: declared -- the shape `islet_membership.outlines` and `build_islet_geometry.islet_outlines`
-#: have always read.
+#: named `Islet_<N>` with classification `Islet`. No expansion ring is exported or reconstructed.
+#: Continuous nearest-object distances remain in the per-cell geometry measurements.
 #:
 #: Read from the export where it LANDS, never a hand-copied folder inside the repo: `REPO/data/Islets`
 #: was that copy and went stale on 2026-09-15 (the re-exported outlines for 6523 and 6566 sat in
@@ -105,10 +106,26 @@ ISLETS = EXPORT / "typing_islets"
 
 #: The rebuild of the re-exported batch-2 donors. Authoritative for them: the historical run tree
 #: still holds the defective export whose islet detections were duplicated.
-REVISED = OUT / "revised_cells"
+REVISED = GEOMETRY_ROOT / "revised_cells"
+CROSSED = GEOMETRY_ROOT / "crossed"
+FUNDAMENTALS = GEOMETRY_ROOT / "qupath_fundamentals"
 
 #: Where the corrected typing is written.
 TYPING = OUT / "subpanel_rebuilt"
+
+#: Declared negatives no immune definition may veto with, because not every panel in the cohort
+#: acquired them. Ker8_18 is absent from the 70-channel same-slide panel (0112, 6347, 6533, 6580);
+#: while it was required measured-negative, no immune definition could fire on those four donors at
+#: all. Ruled 2026-10-18 ("Shared markers, all 25"): epithelium is excluded by E-cadherin, EpCAM and
+#: pan-cytokeratin on every donor, and Ker8_18 is a veto nowhere -- one rule and one marker set for
+#: the whole cohort, as the 2026-09-15 unshared-markers ruling implies. Positive uses are unchanged.
+UNSHARED_NEGATIVES = frozenset({"Ker8_18"})
+
+
+def shared_negatives(requirements: dict) -> dict:
+    """The same (all_of, [any_of groups], none_of) rules, with unshared markers left out of none_of."""
+    return {name: (all_of, any_of, [m for m in none_of if m not in UNSHARED_NEGATIVES])
+            for name, (all_of, any_of, none_of) in requirements.items()}
 
 
 def cell_source(donor: str) -> tuple[pathlib.Path, str]:
@@ -175,6 +192,30 @@ SUBPANEL: dict[str, tuple[str, ...]] = {
 #: islet subpanel but cannot hold a cell endocrine: when it wins the argmax the cell is not
 #: endocrine and continues down the ordinary chain.
 HORMONES: tuple[str, ...] = ("INS", "GCG", "SST")
+
+
+def fragment_coverage(object_ids: pd.Series, donor: str) -> pd.Series:
+    path = CROSSED / f"crossed_{donor}.parquet"
+    fractions = pd.read_parquet(path, columns=["object_id", "crossed_frac_hormone_fragment"])
+    if fractions.object_id.duplicated().any():
+        raise ValueError(f"{donor}: duplicate fragment-overlap cell IDs")
+    return object_ids.map(fractions.set_index("object_id").crossed_frac_hormone_fragment)
+
+
+def mask_fragment_hormones(frame: pd.DataFrame, donor: str) -> pd.DataFrame:
+    """Remove fragment-contaminated hormones by cell ID, retaining unmeasured as NaN.
+
+    Overlap must have been measured before typing; a missing/stale sidecar cannot
+    silently be interpreted as no fragments. Non-pancreas/unmeasured rows also
+    receive no usable hormone evidence.
+    """
+    hormones = [m for m in HORMONES if m in frame]
+    if not hormones:
+        return frame
+    coverage = fragment_coverage(frame.object_id, donor)
+    result = frame.copy()
+    result.loc[coverage.isna() | coverage.gt(0), hormones] = np.nan
+    return result
 
 #: The quantile of the reference population that sets every structure's level.
 REFERENCE_QUANTILE = 99.0

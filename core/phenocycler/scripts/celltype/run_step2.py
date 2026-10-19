@@ -268,7 +268,14 @@ def main(argv: list[str] | None = None) -> int:
     cohort = panel.cohort()["donor_id"].tolist()
     donors = cohort
     if args.donors is not None:
-        donors = list(dict.fromkeys(str(int(d)) if d.isdecimal() else d for d in args.donors))
+        def identity(value: str) -> str:
+            return str(int(value)) if value.isdecimal() else value
+        # Keep the cohort's authoritative spelling (e.g. `0112`) after resolving numeric
+        # aliases. Normalizing both sides to `112` used to reject the documented leading-zero
+        # alias because the roster deliberately preserves `0112`.
+        cohort_spelling = {identity(str(d)): str(d) for d in cohort}
+        donors = list(dict.fromkeys(cohort_spelling.get(identity(str(d)), str(d))
+                                    for d in args.donors))
         unknown = sorted(set(donors) - set(cohort))
         if unknown:
             ap.error(f"Donors are not in the eligible cohort: {', '.join(unknown)}")

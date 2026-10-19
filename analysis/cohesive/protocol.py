@@ -10,12 +10,14 @@ from .common import Context, binding, read_json, require, write_json
 
 
 AMENDMENT = Path(__file__).with_name("protocol_amendment_20261017.json")
+CROSS_STUDY_AMENDMENT = Path(__file__).with_name("protocol_amendment_20261018.json")
 
 # What each endpoint cannot be computed without. Not support cutoffs: a donor lacking one of these
 # is UNAVAILABLE for that endpoint because the quantity is undefined, not because it is small.
 COMPUTABILITY = {
-    "H1": "At least one true islet with a valid outline, admitted immune cells and structure-associated "
-          "cells around it, and a structural arc profile that varies around the boundary.",
+    "H1": "At least one single-part true islet with a valid outline, refined immune cells in its boundary "
+          "kernel, vascular and neural objects in the section, and a vascular-minus-neural proximity "
+          "profile that varies around the boundary.",
     "H2": "At least one true islet with refined Beta cells and at least one other refined endocrine "
           "subtype, so the composition-preserving shuffle is not the identity. Both components are "
           "reported; the joint prediction is claimed only where their directions agree.",
@@ -38,7 +40,7 @@ REQUIRED_RNA_GENES = {"H5": ("CCL19", "CCL21", "LTB"),
 
 def input_bindings(context: Context, operation: str) -> list[dict]:
     require(operation == "freeze", "Unknown protocol operation")
-    return [binding(AMENDMENT)]
+    return [binding(AMENDMENT), binding(CROSS_STUDY_AMENDMENT)]
 
 
 def amended(original: dict, amendment: dict) -> dict:
@@ -65,6 +67,18 @@ def amended(original: dict, amendment: dict) -> dict:
     return frozen
 
 
+def cross_study(frozen: dict, amendment: dict) -> dict:
+    """The 2026-10-18 rulings: 6551 stays everywhere and anchors a cross-study accuracy report."""
+    require(amendment["amends"]["after"] == AMENDMENT.name, "Cross-study amendment applies after 2026-10-17")
+    out = copy.deepcopy(frozen)
+    effects = {row["id"]: row["effect"] for row in amendment["rulings"]}
+    out["sensitivity"]["removed_source_overlap"] = out["sensitivity"].pop("source_overlap")
+    out["cross_study_accuracy"] = effects["literature_overlap_is_cross_study_accuracy"]
+    out["protein_identity_coverage"] = effects["four_same_slide_donors_typed_like_the_rest"]
+    out["second_amendment"] = amendment
+    return out
+
+
 def feasibility(context: Context) -> pd.DataFrame:
     qualified = context.task("qualify")
     markers = pd.read_csv(qualified / "protein_marker_support.csv", dtype={"donor_id": str})
@@ -87,7 +101,8 @@ def feasibility(context: Context) -> pd.DataFrame:
 
 
 def freeze(context: Context, stage: Path) -> dict:
-    frozen = amended(read_json(context.protocol), read_json(AMENDMENT))
+    frozen = cross_study(amended(read_json(context.protocol), read_json(AMENDMENT)),
+                         read_json(CROSS_STUDY_AMENDMENT))
     write_json(stage / "frozen_protocol.json", frozen)
     table = feasibility(context)
     table.to_csv(stage / "measurement_feasibility.csv", index=False)

@@ -13,13 +13,22 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from .common import Context, binding, read_json, require, unique_bindings, verify_binding, write_json
+from .common import (Context, binding, parallel_map, peak_rss_gib, read_json, require, threaded,
+                     unique_bindings, verify_binding, write_json)
 from .rna_measurements import exact_index, project_expression
 from .sources import audit_binding, original_reader, recorded_bindings
 
 
 MARKERS = ("INS", "GCG", "SST", "CD99", "HLA_A", "PD_L1", "PD_1",
-           "Granzyme_B", "CD107a", "CD3e", "CD31", "B3TUBB", "Collagen_IV")
+           "Granzyme_B", "CD107a", "CD3e", "CD31", "B3TUBB", "Collagen_IV", "E_cadherin", "EpCAM",
+           # Deeper phenotypes (2026-10-18): T-cell lineage and state, B/plasma, myeloid state.
+           "Pan_Cytokeratin", "CD4", "CD8", "FOXP3", "TCF_1", "TOX", "Ki67", "LAG3", "ICOS", "CD39", "Bcl_2",
+           "CD44", "CD57", "VISTA", "HLA_DR", "CD20", "CD79a", "CD38", "CD68", "Iba1", "CD163", "CD206",
+           "iNOS", "M2Gal3", "CD11c", "MPO", "CD56")
+#: The typing generation the lane reads, pinned by `typing_generation.py` once it is complete: Ker8_18 is
+#: a veto in no immune definition (2026-10-18), and CD8 carries UniFORM's shift in the refinement as in the
+#: primary calls (2026-10-19). A generated record, so it lives with the generation, not in the repository.
+GENERATION = Path("/data/io60-analysis/typing-20261019/run/contract.json")
 MEMBER_FLAGS = ("qualified_broad_endocrine", "qualified_broad_immune",
                 "qualified_structure_vascular", "qualified_structure_neural",
                 "qualified_structure_lymphatic", "qualified_identity_unresolved")
@@ -29,6 +38,16 @@ ENDOCRINE_LABELS = ("Alpha", "Beta", "Delta", "Endocrine (ambiguous subtype)",
 STRUCTURE_LABELS = {"Blood vessel-associated allocation": "vascular",
                     "Nerve-associated allocation": "neural",
                     "Lymphatic-associated allocation": "lymphatic"}
+# Per-task memory budgets for parallel_map: the largest peaks recorded in resource_usage.csv on
+# 2026-10-17 (protein 3.67 GiB, RNA 7.93 GiB) plus about a quarter for headroom.
+PROTEIN_GIB_PER_TASK = 5
+RNA_GIB_PER_TASK = 10
+# Measured 2026-10-17 on the largest tasks (6505: 2.95M rows in 37.7 s; an RNA section: 1.32M rows
+# in 4.9 s). Only the ordering uses them.
+PROTEIN_SECONDS_PER_ROW = 1.3e-5
+RNA_SECONDS_PER_ROW = 3.7e-6
+WORKER_THREADS = 2
+
 # The refined_class spelling of each broad label; "Identity unresolved" has none, so refinement
 # can never promote an unresolved cell.
 REFINED_NAME = {**{name: name for name in ENDOCRINE_LABELS + ("Immune",)},
@@ -39,6 +58,11 @@ REFINED_NAME = {**{name: name for name in ENDOCRINE_LABELS + ("Immune",)},
 
 def selection(context):
     return read_json(context.task("reconcile") / "selected_inputs.json")
+
+
+def typing_generation() -> dict:
+    require(GENERATION.is_file(), f"Typing generation contract missing: {GENERATION}")
+    return read_json(GENERATION)
 
 
 def data_bindings(context):
@@ -52,13 +76,11 @@ def data_bindings(context):
         vendor = row["native_geometry_bindings"].get("vendor_cell_table")
         if vendor is not None:
             records.append({"path": vendor["path"], "sha256": vendor["saved_sha256"]})
-    for scope in chosen["scopes"]:
-        if scope["lane"] == "pancreas_protein":
-            records.extend(({"path": scope["path"], "sha256": scope["sha256"]},
-                            {"path": scope["native_source_path"], "sha256": scope["native_source_sha256"]}))
-    # The selected release manifest names these files but does not hash its outputs.
-    # Bind their current full bytes, then independently join the already pinned assignments.
-    records.extend(binding(row["full_cell_release_path"]) for row in chosen["protein_records"])
+    # The protein release, admission and conservative labels come from the typing generation contract,
+    # each file pinned there by SHA-256.
+    records.append(binding(GENERATION))
+    for donor in typing_generation()["donors"].values():
+        records.extend(donor[key] for key in ("release", "admission", "candidate"))
     for row in chosen["protein_records"]:
         records.append(audit_binding(context, "protein_composition/qualified_broad_composition/"
                                      f"donor_id={row['donor_id']}/exact_member_evidence.parquet"))
@@ -113,16 +135,30 @@ def block_dependency_audit(context, stage):
     })
 
 
-def protein_donor(context, stage, record, scope, view):
+def generation_semantics(view, scope_id, candidate, columns, batch_size):
+    """The accepted reader's own code on the generation's candidate: its contract, with only the file's
+    path and SHA-256 replaced. Same column contract, same resolve_batch, same 6523 amendment."""
+    import physical_source_identity_amendment_view as amend
+    import protein_semantic_view as protein
+    import typing_release_view as release_view
+    overlay = view._base._overlay
+    scope = {**overlay.scopes[scope_id], "path": candidate["path"], "sha256": candidate["sha256"]}
+    for table in release_view.iter_scope_batches(scope, columns=columns, verify_file=True, batch_size=batch_size):
+        table = protein.resolve_batch(overlay, scope_id, table)
+        yield amend.amend_batch(view._base, scope_id, table) if scope_id == amend.SCOPE_ID else table
+
+
+def protein_donor(context, stage, record, scope, view, generated):
     donor = record["donor_id"]
     print(f"qualify protein {donor}: current semantic/nucleus/measurement join", flush=True)
-    full = pq.ParquetFile(record["full_cell_release_path"])
+    full = pq.ParquetFile(generated["release"]["path"])
     columns = ["object_id", "X_centroid", "Y_centroid", "nucleus_area_um2",
                "fundamentals_cell_area_um2", "qc_analysis_eligible", "endocrine_object_id",
                "endocrine_object_class", "cell_class", "immune_class", "hormone_measurement_state",
                "endocrine_subtype_status", "islet_route", "islet_stratum",
                "islet_cd99_level", "islet_elongation_level", "acq_run", "stain_group",
-               "refined_class", "refinement_state"]
+               "refined_class", "refinement_state", "immune_subtype", "immune_subtyping_state",
+               "signed_dist_islet_um"]
     require(set(columns).issubset(full.schema_arrow.names), f"Missing current source fields: {donor}")
     measured = [name for name in (["redsea_aligned_" + marker for marker in MARKERS] +
                                  ["typing_scaled_" + marker for marker in ("INS", "GCG", "SST", "CD99")])
@@ -130,7 +166,7 @@ def protein_donor(context, stage, record, scope, view):
     native = full.read(columns=columns + measured).to_pandas()
     source_index = pd.Index(native.object_id)
     require(source_index.is_unique and not source_index.hasnans, f"Duplicate native UUIDs: {donor}")
-    assignments = pq.ParquetFile(scope["native_source_path"]).read(
+    assignments = pq.ParquetFile(generated["admission"]["path"]).read(
         columns=["object_id", "X_centroid", "Y_centroid", "qc_analysis_eligible",
                  "analysis_eligible", "endocrine_object_id", "endocrine_object_class"]).to_pandas()
     positions = exact_index(source_index, assignments.object_id, donor + " pinned assignments")
@@ -162,8 +198,8 @@ def protein_donor(context, stage, record, scope, view):
     diameter_n = 0
     subtype_counts = Counter()
     try:
-        for batch in view.iter_annotations(scope["scope_id"], columns=["object_id", "candidate_cell_class"],
-                                           verify_file=False, batch_size=131072):
+        for batch in generation_semantics(view, scope["scope_id"], generated["candidate"],
+                                          ["object_id", "candidate_cell_class"], 131072):
             sem = batch.to_pandas()
             indices = exact_index(source_index, sem.object_id, donor + " current semantics")
             require(not seen[indices].any(), f"Repeated semantic UUID: {donor}")
@@ -261,13 +297,15 @@ def protein_donor(context, stage, record, scope, view):
     evidence = pd.concat(evidence_parts, ignore_index=True).set_index("object_id", verify_integrity=True)
     actual = evidence.reindex(members.object_id)
     require(not actual.biological.isna().any(), f"Original member UUID missing: {donor}")
-    require(np.array_equal(actual.biological, members.qualified_member), f"Member admission differs: {donor}")
-    for flag in MEMBER_FLAGS[:-1]:
-        require(np.array_equal(actual[flag], members[flag]), f"Current member semantic mismatch: {donor}/{flag}")
-    require(totals["source_rows"] == scope["expected_source_rows"] and
-            totals["QC_rows"] == scope["expected_QC_rows"] and
-            totals["admission_rows"] == scope["expected_additional_admission_rows"],
-            f"Current protein denominator mismatch: {donor}")
+    # Membership keys are the handoff's; admission and identity flags are this generation's. How they
+    # moved from the 2026-10-14 handoff is recorded, not required to be zero.
+    member_changes = {"admission": int((actual.biological.to_numpy(bool) != members.qualified_member.to_numpy(bool)).sum()),
+                      **{flag: int((actual[flag].to_numpy(bool) != members[flag].to_numpy(bool)).sum())
+                         for flag in MEMBER_FLAGS[:-1]}}
+    require(totals["source_rows"] == generated["expected_source_rows"] and
+            totals["QC_rows"] == generated["expected_QC_rows"] and
+            totals["admission_rows"] == generated["expected_additional_admission_rows"],
+            f"Generation protein denominator mismatch: {donor}")
     mask = evidence.reindex(native.object_id).biological.to_numpy(bool)
     for marker in MARKERS:
         column = "redsea_aligned_" + marker
@@ -281,6 +319,7 @@ def protein_donor(context, stage, record, scope, view):
         "donor_id": donor, "scope_id": scope["scope_id"], **dict(totals),
         "mean_cell_diameter_um": diameter_sum / diameter_n, "cell_area_support": diameter_n,
         "exact_original_members_reconciled": len(members),
+        "member_flags_changed_from_20261014_handoff": member_changes,
         "fitted_route_and_hormone_accounting": dict(subtype_counts),
         "new_biological_accuracy_claim": False,
     })
@@ -288,65 +327,93 @@ def protein_donor(context, stage, record, scope, view):
             **dict(subtype_counts), "mean_cell_diameter_um": diameter_sum / diameter_n}, marker_rows
 
 
-def qualify_rna(context, stage, chosen):
+def rna_reader(context):
     reader_path = context.inputs.parent / "identity_review"
     sys.path.insert(0, str(reader_path))
     reader = importlib.import_module("read_current_rna")
     require(Path(reader.__file__).resolve() == reader_path / "read_current_rna.py", "Foreign RNA reader")
+    return reader
+
+
+def rna_scope(task):
+    """One RNA section, in its own process; returns its rows and this process's peak memory."""
+    context, stage, export = task
+    pa.set_cpu_count(WORKER_THREADS)
+    reader = rna_reader(context)
     inventory = reader.load_inventory()
-    totals, counts, support = [], [], []
-    for export in chosen["rna_exports"]:
-        sid = export["scope_id"]
-        print(f"qualify RNA {sid}: exact native replay and raw measurements", flush=True)
-        original = reader.read_current_rna(inventory[sid], biological_only=True,
-                                           columns=["candidate_lineage", "candidate_common_lineage"],
-                                           verify_hashes=False)
-        saved = pq.ParquetFile(export["output"]["path"]).read(columns=original.column_names)
-        require(original.equals(saved), f"Current RNA export differs from exact native replay: {sid}")
-        frame = saved.to_pandas()
-        require(len(frame) == export["output_rows"], f"RNA biological denominator differs: {sid}")
-        named = frame.handoff_named_lineage_use_eligible
-        require(int(named.sum()) == export["named_lineage_eligible_rows"], f"RNA named denominator differs: {sid}")
-        for (label, admitted), part in frame.groupby(["candidate_lineage", "handoff_named_lineage_use_eligible"],
-                                                    dropna=False, observed=True):
-            counts.append({"scope_id": sid, "lane": export["lane"], "donor_id": export["donor_id"],
-                           "source_serial": export["source_serial"], "section_id": export["section_id"],
-                           "annotation": label, "named_lineage_eligible": bool(admitted),
-                           "cells": len(part), "biological_denominator": len(frame)})
-        measurement, audit = project_expression(export, frame)
-        destination = stage / "rna" / hashlib.sha256(sid.encode()).hexdigest()[:16]
-        destination.mkdir(parents=True)
-        measurement.to_parquet(destination / "cells.parquet", index=False, compression="zstd")
-        write_json(destination / "qualification.json", audit)
-        totals.append({"scope_id": sid, "lane": export["lane"], "donor_id": export["donor_id"],
-                       "section_id": export["section_id"], "source_serial": export["source_serial"],
-                       "source_rows": inventory[sid]["expected_source_rows"],
-                       "biological_rows": len(frame), "named_lineage_rows": int(named.sum()),
-                       "unresolved_or_not_named_rows": int((~named).sum()),
-                       "relative_data_path": str((destination / "cells.parquet").relative_to(stage)),
-                       "coordinates_available": audit["rows_with_finite_coordinates"]})
-        support.append(audit)
-    pd.DataFrame(totals).to_csv(stage / "rna_scope_qualification.csv", index=False)
-    pd.DataFrame(counts).to_csv(stage / "rna_annotation_counts.csv", index=False)
-    write_json(stage / "rna_measurement_support.json", support)
-    return totals
+    sid = export["scope_id"]
+    print(f"qualify RNA {sid}: exact native replay and raw measurements", flush=True)
+    original = reader.read_current_rna(inventory[sid], biological_only=True,
+                                       columns=["candidate_lineage", "candidate_common_lineage"],
+                                       verify_hashes=False)
+    saved = pq.ParquetFile(export["output"]["path"]).read(columns=original.column_names)
+    require(original.equals(saved), f"Current RNA export differs from exact native replay: {sid}")
+    frame = saved.to_pandas()
+    require(len(frame) == export["output_rows"], f"RNA biological denominator differs: {sid}")
+    named = frame.handoff_named_lineage_use_eligible
+    require(int(named.sum()) == export["named_lineage_eligible_rows"], f"RNA named denominator differs: {sid}")
+    counts = []
+    for (label, admitted), part in frame.groupby(["candidate_lineage", "handoff_named_lineage_use_eligible"],
+                                                dropna=False, observed=True):
+        counts.append({"scope_id": sid, "lane": export["lane"], "donor_id": export["donor_id"],
+                       "source_serial": export["source_serial"], "section_id": export["section_id"],
+                       "annotation": label, "named_lineage_eligible": bool(admitted),
+                       "cells": len(part), "biological_denominator": len(frame)})
+    measurement, audit = project_expression(export, frame)
+    destination = stage / "rna" / hashlib.sha256(sid.encode()).hexdigest()[:16]
+    destination.mkdir(parents=True)
+    measurement.to_parquet(destination / "cells.parquet", index=False, compression="zstd")
+    write_json(destination / "qualification.json", audit)
+    total = {"scope_id": sid, "lane": export["lane"], "donor_id": export["donor_id"],
+             "section_id": export["section_id"], "source_serial": export["source_serial"],
+             "source_rows": inventory[sid]["expected_source_rows"],
+             "biological_rows": len(frame), "named_lineage_rows": int(named.sum()),
+             "unresolved_or_not_named_rows": int((~named).sum()),
+             "relative_data_path": str((destination / "cells.parquet").relative_to(stage)),
+             "coordinates_available": audit["rows_with_finite_coordinates"]}
+    return total, counts, audit, {"task": "RNA " + sid, "rows": len(frame), "peak_rss_gib": peak_rss_gib()}
+
+
+def protein_scope(task):
+    """One protein donor, in its own process; the path-bound reader is opened where it runs."""
+    context, stage, record, scope, generated = task
+    pa.set_cpu_count(WORKER_THREADS)
+    result, markers = protein_donor(context, stage, record, scope, original_reader(context), generated)
+    return result, markers, {"task": "protein " + record["donor_id"], "rows": result["source_rows"],
+                             "peak_rss_gib": peak_rss_gib()}
+
+
+def qualify_task(task):
+    kind, arguments = task
+    return (protein_scope if kind == "protein" else rna_scope)(arguments)
 
 
 def qualify(context: Context, stage: Path) -> dict:
-    pa.set_cpu_count(4)
-    pa.set_io_thread_count(4)
     chosen = selection(context)
     block_dependency_audit(context, stage)
-    view = original_reader(context)
     scopes = {row["donor_id"]: row for row in chosen["scopes"] if row["lane"] == "pancreas_protein"}
-    protein, markers = [], []
-    for row in chosen["protein_records"]:
-        result, measured = protein_donor(context, stage, row, scopes[row["donor_id"]], view)
-        protein.append(result)
-        markers.extend(measured)
+    # One pool for both modalities, so RNA sections fill the processes the protein tail leaves idle.
+    generated = typing_generation()["donors"]
+    tasks = [("protein", (context, stage, row, scopes[row["donor_id"]], generated[row["donor_id"]]))
+             for row in chosen["protein_records"]]
+    tasks += [("rna", (context, stage, export)) for export in chosen["rna_exports"]]
+    cost = [scopes[row["donor_id"]]["expected_source_rows"] * PROTEIN_SECONDS_PER_ROW
+            for row in chosen["protein_records"]]
+    cost += [export["output_rows"] * RNA_SECONDS_PER_ROW for export in chosen["rna_exports"]]
+    done = parallel_map(qualify_task, tasks, max(PROTEIN_GIB_PER_TASK, RNA_GIB_PER_TASK), "qualify", cost)
+    split = len(chosen["protein_records"])
+    protein = [result for result, _, _ in done[:split]]
     pd.DataFrame(protein).to_csv(stage / "protein_scope_qualification.csv", index=False)
-    pd.DataFrame(markers).to_csv(stage / "protein_marker_support.csv", index=False)
-    rna = qualify_rna(context, stage, chosen)
+    pd.DataFrame([row for _, measured, _ in done[:split] for row in measured]).to_csv(
+        stage / "protein_marker_support.csv", index=False)
+    rna = [total for total, _, _, _ in done[split:]]
+    pd.DataFrame(rna).to_csv(stage / "rna_scope_qualification.csv", index=False)
+    pd.DataFrame([row for _, counts, _, _ in done[split:] for row in counts]).to_csv(
+        stage / "rna_annotation_counts.csv", index=False)
+    write_json(stage / "rna_measurement_support.json", [audit for _, _, audit, _ in done[split:]])
+    usage = [result[-1] for result in done]
+    # Measured per-task peaks, to size the next run's budgets below; not an analytical result.
+    pd.DataFrame(usage).to_csv(stage / "resource_usage.csv", index=False)
     write_json(stage / "qualification_summary.json", {
         "protein_pancreas_scopes": len(protein), "RNA_scopes": len(rna),
         "protein_admitted_positive_nucleus_observations": sum(row["biological_rows"] for row in protein),

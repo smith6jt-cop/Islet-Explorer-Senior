@@ -1,0 +1,183 @@
+{
+  "recovered_UTC": "2026-10-18T14:27:59.613827+00:00",
+  "source_worktree": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3",
+  "source_HEAD": "2714261a9e21cf2d575f97968bfd0e628089c152",
+  "why": "Uncommitted producer layer that made the 2026-10-08 typing generation; recovered byte-for-byte before the 2026-10-18 Ker8_18 change",
+  "files": [
+    {
+      "path": "core/phenocycler/scripts/celltype/panel.py",
+      "sha256": "cc8fb1932f782a76d51848f2b61aa978de2ffd79dc2d68d7279ab0346a26bef1",
+      "replaced_branch_sha256": "e619b5987325526ff9cf418ad1c8072f224a9cd59612c55142bd8fa224844a8f"
+    },
+    {
+      "path": "core/phenocycler/scripts/celltype/run_step2.py",
+      "sha256": "7e39e63c23a4756ef749101642028eee4abeae39b994ae38128fb6e07030e882",
+      "replaced_branch_sha256": "59a643b66df3fb6cb97c59edbc346c43b8d7b25a285a99effe69883d775d87d6"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/analyze_protein_literature_endpoints.py",
+      "sha256": "6d50dc1d7e91783b2eca6f8df046e44c03a31f96ab21c84125745fac76beb8ec",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_calibration_comparison.py",
+      "sha256": "04ef0abb67410abde0a233bd82cf0721e22961193535bb49d187217c321fc66f",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_cells.py",
+      "sha256": "579ff150348c0fa83b1c56014e82b62b28b43e336342457a24e12da0523cb929",
+      "replaced_branch_sha256": "d35edd6df9c92d49eaa96b2a9c5c340cf7dc9e9595b5fb817f24702af7fff944"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_crossed_fraction.py",
+      "sha256": "d358dbc042eb24b698e6123ed1502fa2cfd8cbe7d80023840be0aa28adcb8396",
+      "replaced_branch_sha256": "8ac688dfa69de77dd50126095fc8c94c3ce345cb8aae669f5f17febaf6a9c77d"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_current_input_manifest.py",
+      "sha256": "03968551e3db41a9097fa1ee4861409d41e285e41a1dee0b44623772895d9192",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_embedded_pln_typing.py",
+      "sha256": "fdc66c405d64ad082efed26b644670bf28837ce728e57411382426e93e5d1323",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_endocrine_object_composition.py",
+      "sha256": "a92ae29196b30f09ada196f8b33997fb6798d58a75ba3b2b4a8199a555ee021a",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_nd_referenced_trajectories.py",
+      "sha256": "10489cbd2369a37867c1a5b3a4b9ee4f1f2f3f3d725f67906f7e2eaea6665a73",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/build_pancreas_cell_release.py",
+      "sha256": "d5800086a27fe18145c3f5f3e851d589d2413551ca0c5fc4cbb0cf1dd79caf01",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/export_qupath_cell_assignments.py",
+      "sha256": "b05fe5b67cb936414df9b5a0989cf3542308ae0c17028f635db942be09e206aa",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/extract_qupath_fundamentals.py",
+      "sha256": "d07bd84e6f0cf8b1e36acb60be0c26131b935e802fee42cd27aa9c66a72952d3",
+      "replaced_branch_sha256": "320b18a737eb5a7283ee6fc301c4ca60c333e2b3247a0c077dbcf4296019fe70"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/immune_subtype.py",
+      "sha256": "0efbde0c64a3c6ee8cceec40062530fd9a6295614a37f5a97a802011b1584803",
+      "replaced_branch_sha256": "a79930c4dc4c5cc5ad34e80b5486fbd9cc0b50918e5b5628f38acfac681c830c"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/islet_identity.py",
+      "sha256": "3dd09dffa72dc01dc9d72a7afc6bc837af0a0181fa1c8824a951ff14fdf7d1a0",
+      "replaced_branch_sha256": "f99678c6c929ed45b7f012c9d6ad0920c586c9d835fb95724fe4caa672b4f323"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/islet_membership.py",
+      "sha256": "3697d1c9f89d727ba345f27505318612ff09ee382787d92ccb17a640e044d1bd",
+      "replaced_branch_sha256": "4570ddf3497c0833f221ba50eba2f6b1a7c0d03394212360555f90c215643d07"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/plot_donor_composition_readiness.py",
+      "sha256": "d1aa4cc9e1e09e06a7094553976538c65d9a91454ef6ef426ac8805ec14d3ff2",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/plot_nd_referenced_trajectories.py",
+      "sha256": "459e3a5be767f51bd2ab589e0d099c559b0ad379cab6bc92efb36c9975f318a4",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/plot_protein_literature_endpoints.py",
+      "sha256": "fe7e627e2d57fa789264511a51673ef7731babf330f31ef0e97692b50d9f5085",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/prepare_calibration_arms.py",
+      "sha256": "6daead4e8f8adc5013fe0a605cb4a857e81ccaf03d63325fa01a4e2b184a797a",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/protein_analysis_admission.py",
+      "sha256": "5f6ba8fa5f1804a4a6c82e9fe476f86b63c08884d9a21e38aedede92c0c6d256",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/rebuild_donor_from_revised_export.py",
+      "sha256": "eb0bc19e436bfeec7e003188f5a5997b074bb28bfe19fe04b1cb38cd4d512592",
+      "replaced_branch_sha256": "4d4ccf6710eb47d01d5fc520efea56995b79b5be8a10b0936be341a5cc45ccf7"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/recompute_typing_scale.py",
+      "sha256": "5db22655bc108744cbc154a6c9ee3b1219ac83572cd794f6ade340b1ef64b7e1",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/REFINEMENT.md",
+      "sha256": "2232f0e742adc5eb97dc58969455d4c2f7e8b4694ed4458fe63264fd8f69fd63",
+      "replaced_branch_sha256": "0ced962e5c0194f7300ffbc5043fa73ef03b689b86636daff276cf1e48e9fc20"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/refine.py",
+      "sha256": "0ca08447ca5af60e538ce04ac9bc0354e012a99aa81f23ad7a4f0bb10000d7cf",
+      "replaced_branch_sha256": "66f45f46d5aabd83e8503c5224ef2750bc71db1ae7383caf980e163f1395a93f"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/render_calibration_examples.py",
+      "sha256": "e13c72a0cf2b3af2e2afe0421fdd7768cb66f75c0d9e2df56befb871b0469391",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/run_calibration_arm.py",
+      "sha256": "5e7d8de4999fbd85da0405f8a5c429de54f5884870efa9ab82931eb4ebd73936",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/subpanel_io.py",
+      "sha256": "7b763801b56092d77b85aba820d56ed2dd0ab09b7392cd6453d0e38b3d884bd7",
+      "replaced_branch_sha256": "4920517ce91ffd64dfa72a23d3c395985971689d55733dd5267f7add872fba31"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/subpanel.py",
+      "sha256": "f6e49e749600627d9af6abf6371621b2368ab7ed0d975b481a0a76dcfd3ccde9",
+      "replaced_branch_sha256": "93e4490727479a71804faa30f15e0a8dcd378a2a756b3724e9a848affe8133ad"
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/summarize_calibration_review.py",
+      "sha256": "fd36a8e5f659bcb280d06936096882d343df3b9156ca42dc37bf7378c151d65d",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/scripts/typing/tests/test_endocrine_composition_metadata.py",
+      "sha256": "d3f6ef71c1d952d704b50600a3dab6113825384424668f9abafa7637dd0f886d",
+      "replaced_branch_sha256": null
+    },
+    {
+      "path": "core/phenocycler/tests/current/test_build_cells_carry.py",
+      "sha256": "04ac4be9b06bfaf0b42bc6079fe67531c88e77804a8b35293e5d63383d298d34",
+      "replaced_branch_sha256": "40881d5a6936f00e602ac0d83544fe13fabd41c060acfbd4ede699777e4fb333"
+    },
+    {
+      "path": "core/phenocycler/tests/current/test_islet_chain.py",
+      "sha256": "d793a1f06c0a0bbcc2af09f1cf6a05b6abf07ff8275a4eabf6876b923218823a",
+      "replaced_branch_sha256": "22a974275564ad0852daaeb4daeecf53cb017d931b69b09ac32c2c83cea10f12"
+    },
+    {
+      "path": "core/phenocycler/tests/current/test_refine.py",
+      "sha256": "87261f27931f7d031c7cc241072c772b19917a949ea034beaf3f575470324212",
+      "replaced_branch_sha256": "90162aef70e9684a7a60fd2c32b837ee24f3240280dd5ad2cff705330271475e"
+    },
+    {
+      "path": "analysis/xenium/scripts/materialize_protein_analysis_assignments.py",
+      "sha256": "74d51492f44c295359edce5e2aaca11aa3346c91292bc9263af75950f311a88b",
+      "replaced_branch_sha256": null
+    }
+  ]
+}

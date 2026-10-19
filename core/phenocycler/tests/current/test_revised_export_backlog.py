@@ -69,12 +69,20 @@ def lane(tmp_path, monkeypatch):
                            "6579,6579_Scan2.er.qptiff,True\n"
                            "6374,6374_Scan1.er.qptiff,False\n")
 
+    geometry_qc = tmp_path / "geometry_qc"
     for donor in ("0112", "115", "6374", "6457", "6579"):
         target = aligned / f"donor_id={donor}"
         target.mkdir(parents=True)
-        pd.DataFrame({"object_id": [f"uuid-{i:03d}" for i in range(12)],
-                      "CD3e": [1.0] * 12}).to_parquet(target / "data.parquet", index=False)
+        ids = [f"uuid-{i:03d}" for i in range(12)]
+        pd.DataFrame({"object_id": ids, "CD3e": [1.0] * 12}).to_parquet(target / "data.parquet", index=False)
+        # The source workflow's QC decisions a rebuild keeps: every synthetic cell passes.
+        qc = geometry_qc / f"donor_id={donor}"
+        qc.mkdir(parents=True)
+        pd.DataFrame({"object_id": ids, "analysis_eligible": [True] * 12, "estimation_eligible": [True] * 12,
+                      "analysis_reason": [""] * 12, "estimation_reason": [""] * 12}).to_parquet(
+            qc / "data.parquet", index=False)
 
+    monkeypatch.setattr(R, "GEOMETRY_QC", geometry_qc)
     monkeypatch.setattr(R, "REVISED", revised)
     monkeypatch.setattr(R, "OUT", out)
     monkeypatch.setattr(R, "SECTION_PARENTS", out / "section_parents.json")

@@ -27,6 +27,7 @@ Run with
 from __future__ import annotations
 
 import json
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -257,10 +258,7 @@ def test_the_producers_islet_number_is_kept_beside_this_files(tmp_path, monkeypa
 
 
 def test_a_peri_islet_cell_the_typing_does_not_number_is_not_a_conflict(tmp_path, monkeypatch):
-    """`membership` numbers a cell in the peri-islet expansion; the producer numbers only the
-    core.  Measured on donor 115: 72,824 cells, every one of them in the expansion, and 0 cells
-    where the two carry different non-empty numbers.  Counting those together would bury the
-    one case that IS a defect under a difference that is the definition."""
+    """The outline join records true core membership; distance remains a separate measurement."""
     calls = producer_frame(["Beta", "Exocrine"], ["cd99", "fallthrough"],
                            islet_num=["7", None])
     out = build(tmp_path, monkeypatch, calls, member=np.array(["7", "7"], dtype=object))
@@ -288,6 +286,7 @@ def _audit(tmp_path, levels) -> Path:
 def test_the_level_each_cell_was_measured_against_reaches_the_cell(tmp_path, monkeypatch):
     calls = producer_frame(["Beta", "Beta"], ["cd99", "cd99"], stratum=[">10", "4-10"])
     audit = _audit(tmp_path, {
+        "donor_reference_level": 0.0406,
         ">10": {"n_confirmed": 8927, "CD99": 0.0745, BC.SHAPE_FEATURE: 1.0890},
         "4-10": {"n_confirmed": 569, "CD99": 0.0324, BC.SHAPE_FEATURE: None}})
     out = build(tmp_path, monkeypatch, calls, audit=audit)
@@ -456,7 +455,14 @@ def test_the_refinement_columns_cannot_arrive_from_the_producer(tmp_path, monkey
 
 
 def test_the_unresolved_class_has_a_display_name_and_it_is_refines_own_label():
-    refine = pytest.importorskip("refine")
+    # There are several repository modules named `refine.py`. Load the typing producer by
+    # absolute path so the result cannot depend on whichever scripts directory pytest added
+    # to sys.path first.
+    refine_path = REPO / "core/phenocycler/scripts/typing/refine.py"
+    spec = importlib.util.spec_from_file_location("_typing_refine_for_carry_test", refine_path)
+    assert spec and spec.loader
+    refine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(refine)
     assert BC.UNRESOLVED == refine.UNRESOLVED
     assert BC.DISPLAY[BC.UNRESOLVED] == "Unresolved"
 
@@ -469,15 +475,15 @@ def test_the_shape_feature_is_the_producers():
 # 6. The corrections this file already made still hold.
 # --------------------------------------------------------------------------------------------
 
-def test_the_expansion_is_derived_from_the_signed_distance(tmp_path, monkeypatch):
+def test_no_expansion_region_is_derived_from_the_signed_distance(tmp_path, monkeypatch):
     calls = producer_frame(["Beta", "Exocrine", "Exocrine"],
                            ["cd99", "fallthrough", "fallthrough"],
                            islet_num=["1", None, None])
     out = build(tmp_path, monkeypatch, calls,
                 distance=np.array([-3.0, 19.9, 23.1]))
-    assert out["cell_region_20um"].tolist() == ["core", "expansion", "tissue"], (
-        "every expansion is 20 um by construction: one donor's annotation is drawn at 23.1 um "
-        "and carries the same _exp20um name")
+    assert "cell_region_20um" not in out
+    assert out["cell_region"].tolist() == ["core", "tissue", "tissue"]
+    assert out["signed_dist_islet_um"].tolist() == [-3.0, 19.9, 23.1]
 
 
 # --------------------------------------------------------------------------------------------

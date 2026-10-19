@@ -114,6 +114,7 @@ what a marker's units are; the bound says how much of it this donor's clear memb
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -183,7 +184,13 @@ UNTOUCHED = ("Excluded",)
 DROP_BY_NAME = ("CD38", "b_Catenin1")
 DROP_PROVENANCE = "refused_reagent_change"
 
-SHIFTS = S.REPO / "data/development/celltype/shifts.json"
+SHIFTS = pathlib.Path(os.environ.get(
+    "IO60_SHIFTS_PATH", S.REPO / "data/development/celltype/shifts.json"))
+#: How the pass reads CD8: with UniFORM's shift, like every other marker and like the primary calls.
+#: Ruled 2026-10-19 for all 25 donors ("Do the shift"); the typing compares markers within a cell,
+#: so one marker read in other units than the rest would skew those comparisons. ``unshifted``
+#: divides the shift back out and exists only to reproduce the 2026-10-08 refinement.
+CD8_ALIGNMENT = "aligned"
 CELLS = S.OUT / "cells"
 
 # --------------------------------------------------- the 2026-09-11 orphan, made unreadable
@@ -387,16 +394,62 @@ def load_cells(donor: str) -> pd.DataFrame:
     absence of one.
     """
     df = pq.read_table(CELLS / f"donor_id={donor}/data.parquet",
-                       columns=["object_id", "cell_class", "cell_region_20um", "islet_num",
+                       columns=["object_id", "cell_class", "cell_region", "islet_num",
                                 "qc_analysis_eligible"]).to_pandas()
-    core = ((df["cell_region_20um"] == "core") & (~df["cell_class"].isin(STRUCTURAL))
+    core = ((df["cell_region"] == "core") & (~df["cell_class"].isin(STRUCTURAL))
             & (df["cell_class"] != "Excluded"))
     size = df.loc[core].groupby("islet_num")["object_id"].size()
     n = df["islet_num"].map(size)
-    n = n.where(df["cell_region_20um"] == "core", other=np.nan)
+    n = n.where(df["cell_region"] == "core", other=np.nan)
     df["islet_cells"] = n.to_numpy(dtype=float)
     df["size_stratum"] = S.size_stratum(df["islet_cells"].to_numpy())
     return df
+
+
+def cd8_multiplier(donor: str, shifts: dict) -> float:
+    """Require this exact donor's finite positive CD8 multiplier."""
+    try:
+        multiplier = float(shifts["shifts"]["CD8"]["scale"][str(donor)])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"{donor}: matching CD8 alignment multiplier unavailable") from exc
+    if not np.isfinite(multiplier) or multiplier <= 0:
+        raise ValueError(f"{donor}: invalid CD8 alignment multiplier {multiplier}")
+    return multiplier
+
+
+def restore_unshifted_cd8(values: pd.DataFrame, donor: str, shifts: dict) -> pd.DataFrame:
+    """Reverse only CD8's declared multiplier, preserving keys and missing measurements.
+
+    The 2026-10-08 generation read shifted CD8 for primary calls and unshifted CD8
+    throughout refinement; since 2026-10-19 refinement reads the shift too, and this
+    survives only to reproduce that run. The matching alignment record is required: a donor
+    multiplier from another expression arm is not interchangeable. Other channels
+    and the primary aligned artifact remain unchanged.
+    """
+    if "CD8" not in values:
+        return values
+    multiplier = cd8_multiplier(donor, shifts)
+    result = values.copy()
+    result["CD8"] = result["CD8"] / multiplier
+    return result
+
+
+def scale_for_unshifted_cd8(scale: pd.DataFrame, donor: str, shifts: dict) -> pd.DataFrame:
+    """Express frozen CD8 floor/span in the same units as the restored measurement.
+
+    The immune fallback retains the frozen reference criterion. Dividing only the
+    measurement would compare an unshifted value to a shifted reference. Dividing
+    both by the same factor changes units without changing the criterion. The
+    neighborhood representation is separately fitted from unshifted measurements.
+    """
+    if "CD8" not in scale.index:
+        return scale
+    multiplier = cd8_multiplier(donor, shifts)
+    result = scale.copy()
+    for field in ("floor", "top", "span"):
+        if field in result.columns:
+            result.loc["CD8", field] = result.loc["CD8", field] / multiplier
+    return result
 
 
 def donor_values(donor: str, markers: list[str]) -> tuple[pd.DataFrame, list[str]]:
@@ -407,7 +460,18 @@ def donor_values(donor: str, markers: list[str]) -> tuple[pd.DataFrame, list[str
     raw aligned values, and the DAPI ratio is a per-reference decision that has no meaning for
     a "does this cell carry its own marker at all" test.
     """
-    df, have, _ = S3._read_donor(donor, markers, ["object_id", "qc_analysis_eligible"], False)
+    path = S.ALIGNED / f"donor_id={donor}/data.parquet"
+    file = pq.ParquetFile(path)
+    have = [m for m in markers if m in file.schema_arrow.names]
+    df = file.read(columns=["object_id"] + have).to_pandas()
+    if CD8_ALIGNMENT == "unshifted" and "CD8" in have:
+        df = restore_unshifted_cd8(df, donor, json.loads(SHIFTS.read_text()))
+    elif CD8_ALIGNMENT != "aligned" and CD8_ALIGNMENT != "unshifted":
+        raise ValueError(f"unknown refinement CD8 alignment mode {CD8_ALIGNMENT!r}")
+    geometry = pq.ParquetFile(S.cell_source(donor)[0]).read(
+        columns=["object_id", "qc_analysis_eligible"]).to_pandas()
+    df = df.merge(geometry, on="object_id", how="inner", validate="one_to_one")
+    df = S.mask_fragment_hormones(df, donor)
     return df, have
 
 
@@ -609,7 +673,7 @@ def immune_leaves() -> tuple[dict, list[str]]:
     the table, so a table that gains a leaf gains it here.
     """
     raw = R.load_rules()
-    reqs = R.requirements(raw, with_negatives=True)
+    reqs = S.shared_negatives(R.requirements(raw, with_negatives=True))
     phenotype = raw.columns[1]
     leaves = [p for p in raw[phenotype].astype(str)
               if p.startswith(("Imm-", "T-", "Mac-")) and p in reqs]
@@ -635,7 +699,10 @@ def immune_leaf(donor: str, markers: list[str] | None = None,
     markers = markers or derive_markers()
     t, have = donor_values(donor, markers)
     t = t[t["qc_analysis_eligible"]]
-    Xs = S.apply_scale(t[have].to_numpy("float32"), have, S.load_scale())
+    scale = S.load_scale()
+    if CD8_ALIGNMENT == "unshifted" and "CD8" in have:
+        scale = scale_for_unshifted_cd8(scale, donor, json.loads(SHIFTS.read_text()))
+    Xs = S.apply_scale(t[have].to_numpy("float32"), have, scale)
     ok = SC.meets_requirements(Xs, have, reqs, leaves, require_min).any(axis=1)
     return pd.DataFrame({"object_id": t["object_id"].to_numpy(), "immune_leaf": ok})
 
@@ -743,7 +810,9 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
     exo_dem = int((demoted & (labels == "Exocrine")).sum())
     oth = demoted & (labels != "Exocrine")
     core = (frame.loc[measurable, "size_stratum"].to_numpy() != "")
-    endo = np.isin(labels, ["Beta", "Alpha", "Delta"])
+    endocrine_uncertainty = ["Endocrine (unresolved subtype)",
+                             "Endocrine (ambiguous subtype)"]
+    endo = np.isin(labels, ["Beta", "Alpha", "Delta", *endocrine_uncertainty])
     return {
         "donor_id": donor,
         "rule": ("keep a class only if its own defining marker reaches the "
@@ -751,7 +820,30 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
                  f"(concordance >= {LOW}) in the same donor and size stratum; demoted cells "
                  "fall back to the complement"),
         "own_markers": {k: list(v) for k, v in OWN_MARKERS.items()},
+        "endocrine_subtype_uncertainty": {
+            "classes": endocrine_uncertainty,
+            "n_before": int(np.isin(labels, endocrine_uncertainty).sum()),
+            "n_after": int(np.isin(new, endocrine_uncertainty).sum()),
+            "subtype_defining_marker_test_applied": False,
+            "concordance_interpretation": (
+                "neighbour agreement for a retained broad endocrine class; "
+                "does not establish an Alpha, Beta or Delta subtype"),
+        },
         "markers_used": list(have),
+        "measurement_policy": {
+            "cd8_alignment": CD8_ALIGNMENT,
+            "aligned_root": str(S.ALIGNED),
+            "shifts_path": str(SHIFTS),
+            "shifts_sha256": hashlib.sha256(SHIFTS.read_bytes()).hexdigest()
+            if SHIFTS.is_file() else None,
+            "cd8_multiplier_reversed": float(json.loads(SHIFTS.read_text())
+                                             ["shifts"]["CD8"]["scale"][str(donor)])
+            if CD8_ALIGNMENT == "unshifted" and "CD8" in have else None,
+            "scale_path": str(S.SCALE_CSV),
+            "immune_fallback_cd8_scale": "frozen floor/top/span expressed in unshifted donor units"
+            if CD8_ALIGNMENT == "unshifted" else "declared aligned scale",
+            "primary_calls_unchanged": True,
+        },
         "neighbours": {"k": K, "scope": "within donor", "seconds": round(t_graph, 1)},
         "n_cells": int(len(frame)),
         "n_measured": int(measurable.sum()),
@@ -783,32 +875,63 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
 
 
 def main(argv=None) -> int:
+    global CD8_ALIGNMENT, SHIFTS
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", required=True, type=pathlib.Path,
                     help="directory to write donor_id=<d>/data.parquet and refine_log.json")
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--params", type=pathlib.Path, default=None,
                     help="cached representation parameters; built and written if absent")
+    ap.add_argument("--cd8-alignment", choices=["aligned", "unshifted"], default="aligned",
+                    help="'aligned' is the method (ruled 2026-10-19: UniFORM's CD8 shift on all 25 "
+                         "donors, as in the primary calls); 'unshifted' only reproduces the 2026-10-08 "
+                         "refinement")
+    ap.add_argument("--shifts", type=pathlib.Path, default=SHIFTS,
+                    help="matching UniFORM multiplier record for this aligned input")
     args = ap.parse_args(argv)
+    CD8_ALIGNMENT = args.cd8_alignment
+    SHIFTS = args.shifts.resolve()
+    if CD8_ALIGNMENT == "unshifted" and args.params:
+        raise ValueError("unshifted CD8 requires fresh representation parameters; "
+                         "omit --params to avoid reusing an aligned-CD8 representation")
 
     donors = args.donors or cohort_donors()
+    representation_donors = cohort_donors()
     markers = derive_markers()
     print(f"refinement: {len(donors)} donors, {len(markers)} markers, K={K}, "
           f"bound = p{BOUND_PCT:g} of each class's concordant members per donor x stratum")
 
-    if args.params and args.params.exists():
+    using_cached_params = bool(args.params and args.params.exists())
+    if using_cached_params:
         params = pd.read_parquet(args.params)
         print(f"  representation read from {args.params}")
     else:
         t0 = time.time()
-        params = representation_params(cohort_donors(), markers)
-        print(f"  representation built over {len(cohort_donors())} donors "
+        params = representation_params(representation_donors, markers)
+        print(f"  representation built over {len(representation_donors)} donors "
               f"({time.time() - t0:.0f}s)")
         if args.params:
             args.params.parent.mkdir(parents=True, exist_ok=True)
             params.to_parquet(args.params)
 
     args.out.mkdir(parents=True, exist_ok=True)
+    parameter_path = args.out / "representation_params.parquet"
+    params.to_parquet(parameter_path)
+    (args.out / "representation_provenance.json").write_text(json.dumps({
+        "fit_state": "provided_cache" if using_cached_params else "fresh",
+        "fit_donors": None if using_cached_params else representation_donors,
+        "aligned_root": str(S.ALIGNED),
+        "cd8_alignment": CD8_ALIGNMENT,
+        "shifts_path": str(SHIFTS),
+        "shifts_sha256": hashlib.sha256(SHIFTS.read_bytes()).hexdigest(),
+        "scale_path": str(S.SCALE_CSV),
+        "scale_sha256": hashlib.sha256(S.SCALE_CSV.read_bytes()).hexdigest(),
+        "parameter_path": str(parameter_path),
+        "parameter_sha256": hashlib.sha256(parameter_path.read_bytes()).hexdigest(),
+        "source_script_sha256": hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
+        "immune_fallback_cd8_scale": "frozen reference converted by inverse matching donor multiplier"
+        if CD8_ALIGNMENT == "unshifted" else "declared aligned scale",
+    }, indent=2) + "\n")
     logs = []
     for d in donors:
         t0 = time.time()

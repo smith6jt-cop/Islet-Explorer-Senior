@@ -385,6 +385,25 @@ def test_the_argmax_names_the_hormone_and_a_donor_without_one_is_refused():
         SUB.hormone_evidence(pd.DataFrame({"INS": [np.nan], "GCG": [np.nan], "SST": [np.nan]}))
 
 
+def test_direct_singles_exclude_no_evidence_and_clipped_ties_without_using_cd99():
+    values = pd.DataFrame({
+        "INS": [.8, np.nan, np.nan, 0., 1., .3],
+        "GCG": [.2, .6, np.nan, 0., 1., .3],
+        "SST": [.1, .1, np.nan, 0., .1, .3],
+        "CD99": [0., 0., 1., 1., 1., 1.]})
+    names, evidence = SUB.direct_single_identity(values, {"INS": "Beta", "GCG": "Alpha", "SST": "Delta"})
+    assert list(names) == ["Beta", "Alpha", "Excluded", "Excluded", "Excluded", "Excluded"]
+    assert list(evidence) == ["unique_highest_hormone", "unique_highest_hormone",
+                             "no_usable_hormone", "no_usable_hormone",
+                             "tied_highest_hormones", "tied_highest_hormones"]
+
+
+def test_direct_singles_with_no_hormone_columns_stay_explicitly_excluded():
+    names, evidence = SUB.direct_single_identity(pd.DataFrame({"CD99": [1.]}), {})
+    assert names.tolist() == ["Excluded"]
+    assert evidence.tolist() == ["no_usable_hormone"]
+
+
 # --------------------------------------------------------------------------------------------
 # Exocrine inside an islet outline, and the reason staying in the row.
 # --------------------------------------------------------------------------------------------

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import pathlib
 import warnings
 
@@ -49,7 +50,8 @@ EXPRESSION_CONTENT_SHA256 = "35fa90fa66887329a3fb90ce23c0c944ede2fa73594fb1caac7
 EXPRESSION_TOTAL_ROWS = 31_454_041
 # Keep the historical root available to older consumers; new reads resolve per donor.
 EXPRESSION = PKG / "data" / "runs" / RUN_ID / "expression"
-EXPRESSION_FLAT = PKG / "data" / "expression"
+_EXPRESSION_OVERRIDE = os.environ.get("IO60_EXPRESSION_ROOT")
+EXPRESSION_FLAT = pathlib.Path(_EXPRESSION_OVERRIDE) if _EXPRESSION_OVERRIDE else PKG / "data" / "expression"
 REDSEA = PKG / "data" / "runs" / RUN_ID / "redsea"
 OUT = REPO / "data" / "development" / "celltype"
 
@@ -64,7 +66,10 @@ def expression_path(donor: str) -> pathlib.Path:
         return str(int(value)) if value.isdecimal() else value
 
     donor = identity(str(donor))
-    for root in (EXPRESSION_FLAT, EXPRESSION):
+    # An explicit alternate input tree is strict: falling back to the default REDSEA-selected
+    # expression tree would silently mix policies in a raw-input calibration arm.
+    roots = (EXPRESSION_FLAT,) if _EXPRESSION_OVERRIDE else (EXPRESSION_FLAT, EXPRESSION)
+    for root in roots:
         matches = sorted(
             part / "data.parquet" for part in root.glob("donor_id=*")
             if identity(part.name.removeprefix("donor_id=")) == donor

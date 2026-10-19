@@ -22,7 +22,9 @@ STAGES = {
     "h5": ("rna_endpoints", "h5", ("protocol",)),
     "h6": ("rna_endpoints", "h6", ("protocol", "h3")),
     "inference": ("inference", "infer", ("h1", "h2", "h3", "h4", "h5", "h6")),
-    "figures": ("figures", "render", ("atlas", "inference")),
+    "crossstudy": ("crossstudy", "compare", ("protocol",)),
+    "cd8": ("cd8_roc", "roc_stage", ("reconcile",)),
+    "figures": ("figures", "render", ("atlas", "inference", "crossstudy", "cd8")),
     "verify": ("delivery", "verify", ("figures",)),
 }
 
@@ -80,10 +82,14 @@ def main() -> None:
             manifest = {"schema_version": 1, "created_UTC": utc_now(), "roots": roots,
                         "production_activation": False, "tasks": {}}
         context = Context(args.inputs.resolve(), args.protocol.resolve(), output, {})
+        imported = {}
         for name in stages:
             module_name, function, dependencies = STAGES[name]
             module = importlib.import_module(f".{module_name}", __package__)
-            files = [*roots.values(), binding(module.__file__), binding(Path(__file__).with_name("common.py"))]
+            code = binding(module.__file__)
+            require(imported.setdefault(module_name, code) == code,
+                    f"{module_name} changed on disk during this run; start a new run")
+            files = [*roots.values(), code, binding(Path(__file__).with_name("common.py"))]
             files.extend(module.input_bindings(context, function))
             files.extend(binding(context.task(dep) / "completion.json") for dep in dependencies)
             manifest["tasks"][name] = {"state": "running", "started_UTC": utc_now()}

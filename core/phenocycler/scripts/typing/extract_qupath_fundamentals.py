@@ -45,7 +45,7 @@ import pyarrow.parquet as pq
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 import subpanel_io as S
 
-OUT = S.OUT / "qupath_fundamentals"
+OUT = S.FUNDAMENTALS
 
 #: Carried verbatim from the export header. The exports differ in width (992 vs 994 columns) and
 #: in marker order, so every column is resolved BY NAME per file, never by position.

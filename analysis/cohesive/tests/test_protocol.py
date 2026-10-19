@@ -3,7 +3,7 @@ import json
 import pytest
 
 from analysis.cohesive.common import read_json
-from analysis.cohesive.protocol import AMENDMENT, COMPUTABILITY, amended
+from analysis.cohesive.protocol import AMENDMENT, COMPUTABILITY, CROSS_STUDY_AMENDMENT, amended, cross_study
 
 
 def archived_shape():
@@ -13,7 +13,7 @@ def archived_shape():
     return {"family": "spatial_v2_20261006", "hypotheses": hypotheses,
             "statistics": {"minimum_disease_support": "At least 4 T1D and 4 ND donors"},
             "sensitivity": {"pancreatitis": "Exclude6579", "protein_identity": "refined sensitivity",
-                            "cell_neighborhood": "50um primary"}}
+                            "cell_neighborhood": "50um primary", "source_overlap": "leave-overlap"}}
 
 
 def test_no_support_gate_or_6579_drop_survives_the_amendment():
@@ -24,7 +24,7 @@ def test_no_support_gate_or_6579_drop_survives_the_amendment():
         assert hypothesis["computability"] == COMPUTABILITY[hypothesis["id"]]
         assert "Native" not in hypothesis["eligibility"] and "native T" not in hypothesis["eligibility"]
     assert "minimum_disease_support" not in active["statistics"]
-    assert set(active["sensitivity"]) == {"cell_neighborhood"}
+    assert set(active["sensitivity"]) == {"cell_neighborhood", "source_overlap"}
     assert "Exclude6579" not in json.dumps({k: v for k, v in active.items()
                                             if k not in ("hypotheses", "statistics")})
     assert "refined_class" in active["protein_identity"]
@@ -34,3 +34,10 @@ def test_amendment_refuses_another_protocol():
     other = dict(archived_shape(), family="spatial_v1")
     with pytest.raises(ValueError, match="another protocol"):
         amended(other, read_json(AMENDMENT))
+
+
+def test_6551_is_never_removed_and_anchors_cross_study_accuracy():
+    frozen = cross_study(amended(archived_shape(), read_json(AMENDMENT)), read_json(CROSS_STUDY_AMENDMENT))
+    assert "source_overlap" not in frozen["sensitivity"]
+    assert "6551" in frozen["second_amendment"]["rulings"][0]["verbatim"]
+    assert "never a tuning" in frozen["cross_study_accuracy"]

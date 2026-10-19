@@ -168,13 +168,13 @@ def load(donor: str):
 
     cells = pq.read_table(
         paths["cells"],
-        columns=["object_id", "cell_class", "cell_region_20um", "islet_num"]).to_pandas()
+        columns=["object_id", "cell_class", "cell_region", "islet_num"]).to_pandas()
     marker = pq.read_table(paths["marker"], columns=["object_id"] + need).to_pandas()
     shape = derive_shape(pq.read_table(paths["shape"]).to_pandas())
 
     df = cells.merge(marker, on="object_id", how="inner", validate="one_to_one")
     df = df.merge(shape, on="object_id", how="left", validate="one_to_one")
-    df = df[(df["cell_region_20um"] == "core") & (~df["cell_class"].isin(STRUCTURAL))
+    df = df[(df["cell_region"] == "core") & (~df["cell_class"].isin(STRUCTURAL))
             & (df["cell_class"] != "Excluded")]
     if df.empty:
         return None
