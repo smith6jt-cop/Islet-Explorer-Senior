@@ -94,6 +94,7 @@ because a 49-transcript cell is weak substrate for a 5K-panel call whatever its 
 from __future__ import annotations
 
 import gc
+import hashlib
 import json
 import time
 from datetime import datetime
@@ -116,6 +117,61 @@ DETECTION_MIN_LOGNORM = float(np.log1p(1.0))
 Z_STANDOUT = 1.0
 Z_SENSITIVITY = (0.75, 1.0, 1.5)
 MIN_NAMING_STANDOUT = 1
+SHARED_SECRETORY_NAMING_GENES = frozenset({"XBP1", "FKBP11", "DERL3"})
+NAMING_POLICIES = ("native", "shared_er_exact_v1")
+
+
+def naming_policy_panels(panels: dict, policy: str) -> dict:
+    """Keep shared secretory genes measured as support, never as B identity.
+
+    The native policy is retained for provenance/reproduction. The selectable
+    repair changes only B naming-score/admission roles; embedding features and
+    full-core support diagnostics are unchanged.
+    """
+    if policy not in NAMING_POLICIES:
+        raise ValueError(f"unknown naming policy: {policy}")
+    if policy == "native":
+        return panels
+    out = dict(panels)
+    out["cores"] = dict(panels["cores"])
+    genes, naming = panels["cores"]["Immune_B_Plasma"]
+    out["cores"]["Immune_B_Plasma"] = (genes, [g for g in naming if g not in SHARED_SECRETORY_NAMING_GENES])
+    return out
+
+
+def exact_detection_q(dets: np.ndarray, sizes: np.ndarray) -> np.ndarray:
+    """Section-wide one-sided cluster-versus-rest detection test, BH corrected.
+
+    Every group × every measured naming-basis feature belongs to the declared
+    family. Clusters were selected from expression, so this is an exploratory
+    contrast after selection, not a guaranteed lineage false-discovery rate.
+    Statistical significance remains separate from program coherence.
+    """
+    from scipy.stats import hypergeom
+    sizes = np.asarray(sizes, dtype=np.int64)
+    if sizes.shape != (dets.shape[0],) or (sizes <= 0).any():
+        raise ValueError("Exact detection contrast requires positive exact group sizes")
+    if not np.isfinite(dets).all() or (dets < 0).any() or (dets > 1).any():
+        raise ValueError("Detection fractions must be finite and lie between zero and one")
+    detected = np.rint(dets * sizes[:, None]).astype(np.int64)
+    # Fresh native statistics use float32. Valid ratios in large parents can
+    # differ from their exact integer by >.01 purely through float32 rounding.
+    # The tolerance follows the input precision and stays strictly below half a
+    # count, so nearest-integer recovery remains unambiguous.
+    precision = np.finfo(dets.dtype).eps
+    tolerance = np.minimum(.49, np.maximum(.01, precision * sizes[:, None]))
+    if (np.abs(detected - dets * sizes[:, None]) > tolerance).any():
+        raise ValueError("Stored fractions do not recover exact integer detection counts")
+    total = detected.sum(axis=0)
+    p = hypergeom.sf(detected - 1, sizes.sum(), total[None, :], sizes[:, None])
+    p[sizes.sum() - sizes == 0] = 1
+    flat = p.ravel()
+    order = np.argsort(flat, kind="stable")
+    ranked = flat[order]
+    values = np.minimum.accumulate((ranked * len(flat) / np.arange(1, len(flat) + 1))[::-1])[::-1]
+    q = np.empty_like(values)
+    q[order] = np.minimum(values, 1)
+    return q.reshape(dets.shape)
 
 #: cluster QC, identical in spirit to the pLN clustering track: a cell with almost nothing
 #: measured cannot be partitioned on its measurements.  It is carried in the release as
@@ -409,7 +465,8 @@ def partition_stats(L, D, krow, n_groups):
     return means, dets, d_other, np.nan_to_num(z, nan=0.0), sizes
 
 
-def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_cols, nk_hint_cols):
+def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_cols, nk_hint_cols,
+           *, exact_detection_fdr=None, cluster_sizes=None):
     """Name every cluster of one partition by canonical enrichment against its siblings.
 
     A gene STANDS OUT in cluster k iff its cluster-mean lognorm is >= `thr` SD above the mean
@@ -464,6 +521,13 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
     so = (z >= thr) & (dets > d_other)
     bg = np.median(dets, axis=1)
     above_bg = dets > bg[:, None]
+    native_above_bg = above_bg.copy()
+    detection_q = None
+    if exact_detection_fdr is not None:
+        if not 0 < exact_detection_fdr < 1 or cluster_sizes is None:
+            raise ValueError("Exact admission requires declared FDR and exact cluster sizes")
+        detection_q = exact_detection_q(dets, cluster_sizes)
+        above_bg &= (bg[:, None] > 0) | (detection_q <= exact_detection_fdr)
     scores = np.column_stack([
         z[:, score_cols[c]].mean(axis=1) if score_cols[c].size else np.full(n_groups, -np.inf)
         for c in core_names
@@ -474,6 +538,10 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
     ])
     naming_ok = np.column_stack([
         (so[:, core_naming_cols[c]] & above_bg[:, core_naming_cols[c]]).sum(axis=1)
+        if core_naming_cols[c].size else np.zeros(n_groups, dtype=int) for c in core_names
+    ])
+    naming_before_exact = np.column_stack([
+        (so[:, core_naming_cols[c]] & native_above_bg[:, core_naming_cols[c]]).sum(axis=1)
         if core_naming_cols[c].size else np.zeros(n_groups, dtype=int) for c in core_names
     ])
     win = scores.argmax(axis=1)
@@ -487,7 +555,7 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
         if w == "Immune_T":
             t_out = bool(so[k, t_cols].any()) if t_cols.size else False
             nk_out = bool(so[k, nk_hint_cols].any()) if nk_hint_cols.size else False
-            if (not t_out) and nk_out and naming_ok[k, nk_j] >= MIN_NAMING_STANDOUT:
+            if (not t_out) and nk_out and naming_before_exact[k, nk_j] >= MIN_NAMING_STANDOUT:
                 w, moved = "Immune_NK_ILC", True
         j = core_names.index(w)
         if scores[k, j] <= 0:
@@ -498,14 +566,16 @@ def decide(z, dets, d_other, thr, core_names, score_cols, core_naming_cols, t_co
             reasons.append(REDIRECT_REASON if moved else "")
         elif naming_so[k, j] >= MIN_NAMING_STANDOUT:
             calls.append("Uncalled_no_naming_evidence")
-            reasons.append(f"winning_core_{w}_naming_standouts_at_or_below_cluster_own_background")
+            suffix = ("at_or_below_cluster_own_background" if detection_q is None
+                      else "at_or_below_cluster_own_background_or_failed_zero_background_exact_detection")
+            reasons.append(f"winning_core_{w}_naming_standouts_{suffix}")
         else:
             calls.append("Uncalled_no_naming_evidence")
             reasons.append(f"winning_core_{w}_has_zero_standout_naming_genes")
         redirected.append(moved)
     return {"standout": so, "scores": scores, "naming_so": naming_so, "naming_ok": naming_ok,
             "win": win, "margin": margin, "calls": calls, "reasons": reasons,
-            "redirected": redirected}
+            "redirected": redirected, "exact_detection_q": detection_q}
 
 
 def redirect_counts(dec: dict, sizes) -> dict:
@@ -535,10 +605,20 @@ def redirect_counts(dec: dict, sizes) -> dict:
 
 
 def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Path,
-                    score_on: str = SCORE_ON_DEFAULT) -> dict:
+                    score_on: str = SCORE_ON_DEFAULT, naming_policy: str = "native",
+                    uncertainty_decisions: Path | None = None, source_serial: str | None = None) -> dict:
     import anndata as ad
 
     t0 = time.time()
+    if naming_policy != "native" and score_on != "naming":
+        raise ValueError("Repaired secretory roles require the established naming-only score")
+    if naming_policy != "native" and not source_serial:
+        raise ValueError("Repaired generation requires an explicit acquisition source serial")
+    matrix_sha256 = None
+    if naming_policy != "native":
+        with h5ad.open("rb") as input_file:
+            matrix_sha256 = hashlib.file_digest(input_file, "sha256").hexdigest()
+    panels = naming_policy_panels(panels, naming_policy)
     adata = ad.read_h5ad(h5ad)
     cell_ids = adata.obs_names.to_numpy().astype(str)
     var_names = adata.var_names.to_numpy().astype(str)
@@ -559,6 +639,10 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
     depth_matches_obs = int(np.sum(np.abs(depth - obs_counts) < 0.5))
 
     nucleus_count, nucleus_source = nucleus_for(donor, cell_ids)
+    if naming_policy != "native":
+        serial_token = "__" + str(source_serial).zfill(7) + "__"
+        if not source_serial or serial_token not in nucleus_source:
+            raise ValueError("Reviewed source serial is not verified by the exact-key native vendor bundle")
     if nucleus_count is None:
         has_nucleus = np.ones(n_cells, dtype=bool)
         nucleus_measured = False
@@ -618,8 +702,10 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
     lookup = {c: i for i, c in enumerate(order)}
     krow = np.array([lookup[c] for c in parent_of_kept])
     means, dets, d_other, z, sizes = partition_stats(L, D, krow, len(order))
-    main = decide(z, dets, d_other, Z_STANDOUT, *dec_args)
-    per_thr = {thr: decide(z, dets, d_other, thr, *dec_args) for thr in Z_SENSITIVITY}
+    exact_parent = ({"exact_detection_fdr": .05, "cluster_sizes": sizes}
+                    if naming_policy == "shared_er_exact_v1" else {})
+    main = decide(z, dets, d_other, Z_STANDOUT, *dec_args, **exact_parent)
+    per_thr = {thr: decide(z, dets, d_other, thr, *dec_args, **exact_parent) for thr in Z_SENSITIVITY}
 
     # ---- REFINEMENT: a second partition inside each large parent, NAMED AGAINST THE SECTION --
     # Why two levels at all: at one level a lymphocyte cluster is a single group, the B core
@@ -664,8 +750,29 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
     flookup = {c: i for i, c in enumerate(forder)}
     frow = np.array([flookup[c] for c in sub_label])
     fmeans, fdets, fd_other, fz, fsizes = partition_stats(L, D, frow, len(forder))
-    fdec = decide(fz, fdets, fd_other, Z_STANDOUT, *dec_args)
-    fper_thr = {thr: decide(fz, fdets, fd_other, thr, *dec_args) for thr in Z_SENSITIVITY}
+    exact_final = ({"exact_detection_fdr": .05, "cluster_sizes": fsizes}
+                   if naming_policy == "shared_er_exact_v1" else {})
+    fdec = decide(fz, fdets, fd_other, Z_STANDOUT, *dec_args, **exact_final)
+    fper_thr = {thr: decide(fz, fdets, fd_other, thr, *dec_args, **exact_final) for thr in Z_SENSITIVITY}
+    if uncertainty_decisions is not None:
+        if naming_policy != "shared_er_exact_v1" or not source_serial:
+            raise ValueError("Keyed uncertainty decisions require repaired policy and explicit source serial")
+        adjudicated = pd.read_csv(uncertainty_decisions, dtype={"section_id": str, "source_serial": str})
+        required = {"section_id", "source_serial", "cluster_id", "n_cells", "candidate_uncertainty_state", "uncertainty_reason"}
+        if not required.issubset(adjudicated.columns):
+            raise ValueError("Uncertainty decisions must carry exact section/serial/partition/count keys")
+        here = adjudicated[adjudicated.section_id.eq(section)]
+        if not here.source_serial.eq(str(source_serial).zfill(7)).all() or here.cluster_id.duplicated().any():
+            raise ValueError("Uncertainty decision serial or partition identity differs")
+        for row in here.itertuples():
+            if row.cluster_id not in flookup or int(fsizes[flookup[row.cluster_id]]) != int(row.n_cells):
+                raise ValueError("Uncertainty partition absent or membership size differs")
+            k = flookup[row.cluster_id]
+            fdec["calls"][k] = row.candidate_uncertainty_state
+            fdec["reasons"][k] = row.uncertainty_reason
+            for sensitivity in fper_thr.values():
+                sensitivity["calls"][k] = row.candidate_uncertainty_state
+                sensitivity["reasons"][k] = row.uncertainty_reason
     final_call = np.array(fdec["calls"], dtype=object)[frow]
     final_reason = np.array(fdec["reasons"], dtype=object)[frow]
     parent_call = np.array([main["calls"][k] for k in krow], dtype=object)
@@ -691,8 +798,9 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
     # than being argued about: no threshold is invented here and nothing is withheld.
     fcall_j = np.array([core_names.index(x) if x in core_names else -1 for x in fdec["calls"]])
     naming_n_of_cluster = np.array([
-        int(fdec["naming_ok"][j, fcall_j[j]]) if fcall_j[j] >= 0 else -1
-        for j in range(len(forder))], dtype=np.int32)[frow]
+        int(fdec["naming_ok"][j, fcall_j[j]]) if fcall_j[j] >= 0 else
+        (np.nan if naming_policy == "shared_er_exact_v1" else -1)
+        for j in range(len(forder))], dtype=np.float64)[frow]
     cluster_median_depth = np.array([
         float(np.median(depth[kept][frow == j])) for j in range(len(forder))],
         dtype=np.float32)[frow]
@@ -794,6 +902,14 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
         "depth": depth.astype(np.int32),
         "n_genes_detected": obs_features.astype(np.int32),
     })
+    if naming_policy != "native":
+        calls["source_serial"] = str(source_serial).zfill(7)
+        calls["cell_key"] = section + "|" + calls.cell_id.astype(str)
+        calls["serial_qualified_cell_key"] = calls.source_serial + "|" + calls.cell_key
+        calls["naming_policy"] = naming_policy
+        calls["cell_core_argmax_policy"] = "descriptive_full_core_support_including_shared_ER_not_cell_identity"
+        calls["identity_uncertainty"] = calls.lineage.str.startswith("Unresolved_")
+        calls["lineage_analysis_eligible"] = calls.cluster_inherited & calls.lineage.isin(LINEAGE_CORES) & ~calls.identity_uncertainty
 
     # ---- parent-cluster frame ------------------------------------------------------------------
     het = []
@@ -855,6 +971,10 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
         "det_frac_rest_of_section": fd_other.ravel().astype(np.float32),
         "standout": fdec["standout"].ravel(),
     })
+    if naming_policy != "native":
+        gene_stats["exploratory_detection_q"] = fdec["exact_detection_q"].ravel()
+        gene_stats["B_shared_ER_support_only"] = gene_stats.gene.isin(SHARED_SECRETORY_NAMING_GENES)
+        gene_stats["B_identity_naming_gene_after_repair"] = gene_stats.gene.isin(panels["cores"]["Immune_B_Plasma"][1])
 
     sub_rows = []
     for j, sid in enumerate(forder):
@@ -966,6 +1086,17 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
         "called_cells_on_one_naming_gene_in_low_depth_cluster": int(np.sum(
             (fcall_j[frow] >= 0) & (naming_n_of_cluster <= 1) & (cluster_median_depth < 50))),
         "score_on": score_on,
+        "naming_policy": naming_policy,
+        "shared_secretory_genes_support_only": (sorted(SHARED_SECRETORY_NAMING_GENES)
+                                                 if naming_policy != "native" else []),
+        "median_zero_detection_fdr": .05 if naming_policy != "native" else None,
+        "uncertainty_decisions_path": str(uncertainty_decisions) if uncertainty_decisions else None,
+        "uncertainty_decisions_sha256": (hashlib.sha256(uncertainty_decisions.read_bytes()).hexdigest()
+                                           if uncertainty_decisions else None),
+        "source_serial": source_serial,
+        "input_matrix_sha256": matrix_sha256,
+        "exact_detection_inference_limit": "Exploratory detection contrast after expression-based clustering; not guaranteed lineage FDR or independent validation",
+        "cell_core_argmax_is_descriptive_full_core_support": True,
         "core_sizes": {c: {"n_genes_on_panel": int(core_cols[c].size),
                            "n_naming_on_panel": int(core_naming_cols[c].size)}
                        for c in core_names},
@@ -993,18 +1124,28 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
 
 def main() -> None:
     import argparse
+    global H5AD_DIR
     ap = argparse.ArgumentParser(description="one pancreas Xenium section: cluster, then name")
     ap.add_argument("--section", required=True)
     ap.add_argument("--work", required=True)
+    ap.add_argument("--h5ad-dir", type=Path, default=H5AD_DIR,
+                    help="directory of raw-count section h5ads")
     ap.add_argument("--score-on", choices=("naming", "all"), default=SCORE_ON_DEFAULT,
                     help="genes carrying a core's score; 'all' is the superseded whole-core mean")
+    ap.add_argument("--naming-policy", choices=NAMING_POLICIES, default="native",
+                    help="select shared_er_exact_v1 for support-only ER3 and exact median-zero admission")
+    ap.add_argument("--uncertainty-decisions", type=Path,
+                    help="reviewed CSV keyed by section, source serial, original final partition and exact size")
+    ap.add_argument("--source-serial", help="exact acquisition serial; required for shared_er_exact_v1")
     args = ap.parse_args()
+    H5AD_DIR = args.h5ad_dir
     panels = load_panels()
     for donor, section, h5ad in sections():
         if section != args.section:
             continue
         r = process_section(donor, section, h5ad, panels, Path(args.work),
-                            score_on=args.score_on)
+                            score_on=args.score_on, naming_policy=args.naming_policy,
+                            uncertainty_decisions=args.uncertainty_decisions, source_serial=args.source_serial)
         log(f"{section}: {r['n_cells_clustered_and_called']:,}/{r['n_cells_in_h5ad']:,} cells, "
             f"{r['cluster_meta']['n_clusters']} clusters, {r['seconds']}s")
         return
