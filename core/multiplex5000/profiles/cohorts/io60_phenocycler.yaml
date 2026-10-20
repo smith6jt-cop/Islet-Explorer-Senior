@@ -8,7 +8,8 @@ tissues: [pancreas, pancreatic_lymph_node]
 membership: core/multiplex5000/cohort-spec.json
 exclusions: multiplex5000.cohort.DONOR_EXCLUSIONS
 # Labels the recorded sources use for a donor that are not its id. Each is declared with where it
-# is seen, because a label is never read out of a filename (D2, 2026-10-20; the maintainer confirms):
+# is seen, because a label is never read out of a filename (D2; the maintainer confirmed all three
+# on 2026-10-20):
 #   0112 -- the id in cohort-spec.json and the QuPath manifest;
 #           112 in xenium_paths.csv and section_modes.csv;
 #           HDL112 in the donor notes and results/v3/pln_blocks.csv.
