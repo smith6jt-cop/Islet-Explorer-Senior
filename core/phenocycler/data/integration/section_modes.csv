@@ -24,3 +24,5 @@ donor_id,roi,xenium_serial,mode,evidence,note
 112,panc,,sequential,"donor 112 holds two pancreas designs; unqualified callers get the serial pair",disambiguates the wildcard away from the same-slide section
 112,panc,0041396,sequential,"MM036_Xenium_nPODBatch2 output-XETG00298__0041396__Pancreas__20241019 — serial section from the same block",pre-existing cohort pair
 112,panc,0081366,same_slide,"PhenoCycler 70-plex scan 0081366_HDL112_pLNpanc_Scan3.er.qptiff then Xenium output-XETG00298__0081366__panc__20260910__211918 on the same physical section",70-plex protein + stock Prime 5k RNA (5001 genes) on the same cells
+6347,panc,0080579,same_slide,"User confirmation dated 2026-10-05: PhenoCycler and Xenium share physical slide 0080579; local Xenium source locator pending",same-slide pair is in progress; do not infer cell-level registration from the relationship alone
+6580,panc,0080502,same_slide,"User confirmation dated 2026-10-05: PhenoCycler and Xenium share physical slide 0080502; local Xenium source locator pending",same-slide pair is in progress; do not infer cell-level registration from the relationship alone
