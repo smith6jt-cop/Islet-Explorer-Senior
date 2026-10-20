@@ -95,18 +95,35 @@ def area_prior(counts: np.ndarray, area: np.ndarray, n_bins: int = N_AREA_BINS
     Ranked before binning so ties in area cannot collapse a bin, matching the convention
     `nullgate.detection_deciles` already uses for detection rate.
     """
-    ok = np.isfinite(area)
-    rank = pd.Series(area).rank(method="first")
+    counts, area = np.asarray(counts, float), np.asarray(area, float)
+    if counts.ndim != 1 or area.shape != counts.shape or not len(counts):
+        raise GdnaError('counts and area must be nonempty matching vectors')
+    if not np.isfinite(counts).all() or (counts < 0).any() or (counts != np.floor(counts)).any():
+        raise GdnaError('genomic counts must be finite nonnegative integers')
+    if n_bins < 1:
+        raise GdnaError('n_bins must be positive')
+    ok = np.isfinite(area) & (area > 0)
+    if not ok.any():
+        raise GdnaError('no positive finite cell areas for the area prior')
+    # Small fixtures/cores cannot support ten independently estimated bins.
+    n_bins = min(n_bins, max(1, int(ok.sum()) // 50))
+    rank = pd.Series(np.where(ok, area, np.nan)).rank(method="average")
     try:
         b = pd.qcut(rank, n_bins, labels=False, duplicates="drop").to_numpy()
+        if not np.isfinite(b[ok]).any():
+            b[ok] = 0
     except ValueError as exc:                                          # pragma: no cover
         raise GdnaError(f"cannot bin cell_area into {n_bins} bins: {exc}") from exc
     b = np.where(ok, b, -1)
     mu = np.zeros(len(counts), float)
+    global_mean = float(counts[ok].mean())
     rows = []
     for k in np.unique(b[b >= 0]):
         m = b == k
         mean_k = float(counts[m].mean())
+        # A zero-count bin is insufficient evidence for exactly zero background.
+        if mean_k == 0 and global_mean > 0:
+            mean_k = global_mean
         mu[m] = mean_k
         rows.append({"bin": int(k), "n": int(m.sum()), "mean_area_um2": float(area[m].mean()),
                      "mean_genomic_counts": mean_k})
@@ -126,6 +143,10 @@ def background_rates(genomic_counts: np.ndarray, area: np.ndarray, n_probes: int
     """
     k = np.asarray(genomic_counts, dtype=float)
     a = float(n_probes if shrink_a is None else shrink_a)
+    if not np.isfinite(n_probes) or n_probes <= 0 or int(n_probes) != n_probes:
+        raise GdnaError('n_probes must be a positive integer')
+    if not np.isfinite(a) or a <= 0:
+        raise GdnaError('prior weight must be finite and positive')
     mu_counts, table = area_prior(k, np.asarray(area, dtype=float))
     r_prior = mu_counts / n_probes
     lam_raw = k / n_probes
@@ -147,6 +168,9 @@ def verify_against_vendor(lam_mean: float, n_genes: int, metrics: dict[str, floa
            "vendor_rate": metrics.get(VENDOR_RATE_KEY)}
     if stated is None:
         raise GdnaError(f"metrics_summary.csv has no {VENDOR_FP_KEY!r}")
+    if (not np.isfinite([lam_mean, n_genes, stated, tol]).all()
+            or lam_mean < 0 or n_genes <= 0 or stated < 0 or tol <= 0):
+        raise GdnaError('invalid background rate, panel size, vendor metric or tolerance')
     rel = abs(reproduced - stated) / max(abs(stated), 1e-12)
     out["relative_error"] = float(rel)
     if rel > tol:
@@ -181,7 +205,7 @@ def summarise(bundle: pathlib.Path, *, shrink_a: float | None = None) -> dict:
     lam, lam_raw, table, a = background_rates(
         cells["genomic_control_counts"].to_numpy(), cells["cell_area"].to_numpy(),
         n_probes, shrink_a=shrink_a)
-    check = verify_against_vendor(float(lam.mean()), n_genes, metrics)
+    check = verify_against_vendor(float(lam_raw.mean()), n_genes, metrics)
 
     return {
         "bundle": str(bundle),

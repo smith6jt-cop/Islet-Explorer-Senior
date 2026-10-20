@@ -45,6 +45,10 @@ KEPT = {
         "never imports phenocycler; its interpreter is not evidenced",
     ("core/phenocycler/scripts/restain/islet_annotations.py", "_sha256"):
         "never imports phenocycler, and the restain lane also runs under the VALIS venv",
+    ("core/phenocycler/scripts/sameslide/reprocess_6533.py", "digest"):
+        "the HiPerGator same-slide lane; never imports phenocycler",
+    ("core/phenocycler/scripts/sameslide/workflow.py", "sha"):
+        "the HiPerGator same-slide driver; never imports phenocycler",
     ("core/phenocycler/scripts/xenium_celltype/build_phenotyped_base.py", "_sha256"):
         "a scvi-env file; imports phenocycler only inside one function",
     ("core/phenocycler/scripts/xenium_typing/pins.py", "sha256_file"):

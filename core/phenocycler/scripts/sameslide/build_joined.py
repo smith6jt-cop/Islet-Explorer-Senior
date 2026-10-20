@@ -34,6 +34,56 @@ from phenocycler.integration.contract import (  # noqa: E402
 from phenocycler.integration.transform import Transform  # noqa: E402
 
 
+def require_unique_ids(table: pd.DataFrame, key: str) -> None:
+    if table[key].isna().any() or table[key].astype(str).eq("").any():
+        raise ValueError(f"null/empty {key} is not a QuPath UUID")
+    if table[key].astype(str).duplicated().any():
+        raise ValueError(f"duplicate {key}; UUID joins must be one-to-one")
+
+
+def overlap_edges(xids, xpolys, pheno_polygons: pd.DataFrame, transform):
+    """Positive-area edges, ordered by Xenium ID then immutable QuPath UUID."""
+    key = "object_id" if "object_id" in pheno_polygons else "cell_id"
+    require_unique_ids(pheno_polygons, key)
+    xw = shapely.transform(xpolys, lambda a: transform.apply(a))
+    pp = pheno_polygons.sort_values(key, kind="stable").reset_index(drop=True)
+    ppolys = shapely.from_wkb(pp["wkb"].to_numpy())
+    for arr in (xw, ppolys):
+        bad = ~shapely.is_valid(arr)
+        arr[bad] = shapely.make_valid(arr[bad])
+    xi, pi = shapely.STRtree(ppolys).query(xw, predicate="intersects")
+    area = shapely.area(shapely.intersection(xw[xi], ppolys[pi]))
+    keep = np.isfinite(area) & (area > 0)
+    edges = pd.DataFrame({"cell_id": np.asarray(xids)[xi[keep]],
+                          "object_id": pp[key].astype(str).to_numpy()[pi[keep]],
+                          "overlap_area_um2": area[keep]})
+    edges = edges.sort_values(["cell_id", "object_id"], kind="stable").reset_index(drop=True)
+    return edges, shapely.area(xw)
+
+
+def aggregate_features(xids, edges: pd.DataFrame, pheno: pd.DataFrame, *, include_denominators=False):
+    """Finite measurements have their own area denominator; missing stays missing."""
+    key = "object_id" if "object_id" in pheno else "cell_id"
+    require_unique_ids(pheno, key)
+    p = pheno.assign(**{key: pheno[key].astype(str)}).set_index(key)
+    e = edges[edges.object_id.isin(p.index)]
+    xi = pd.Index(xids).get_indexer(e.cell_id)
+    if (xi < 0).any():
+        raise ValueError("overlap edges contain unknown Xenium cells")
+    weights = e.overlap_area_um2.to_numpy(float)
+    out = {"cell_id": np.asarray(xids)}
+    for feature in feature_columns(pheno):
+        values = p[feature].reindex(e.object_id).to_numpy(float)
+        finite = np.isfinite(values)
+        numerator = np.bincount(xi[finite], weights=weights[finite] * values[finite], minlength=len(xids))
+        denominator = np.bincount(xi[finite], weights=weights[finite], minlength=len(xids))
+        out[feature] = np.divide(numerator, denominator, out=np.full(len(xids), np.nan),
+                                 where=denominator > 0).astype(np.float32)
+        if include_denominators:
+            out["support_area_um2__" + feature] = denominator.astype(np.float32)
+    return pd.DataFrame(out), e
+
+
 def xenium_polygons(bundle: Path) -> tuple[np.ndarray, np.ndarray]:
     """Xenium cell outlines (already microns), one polygon per cell_id."""
     b = pd.read_parquet(bundle / "cell_boundaries.parquet")
@@ -54,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pheno-polygons", required=True, type=Path)
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--transform-dir", required=True, type=Path)
-    ap.add_argument("--transform-stem", default="refined_field2")
+    ap.add_argument("--transform-stem", required=True)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--donor", required=True)
     ap.add_argument("--roi", default="panc")
@@ -67,52 +117,18 @@ def main(argv: list[str] | None = None) -> int:
 
     xids, xpolys = xenium_polygons(args.bundle)
     print(f"[joined] xenium polygons {len(xids):,} ({time.time()-t0:.0f}s)", flush=True)
-    # Warp Xenium FORWARD into the PhenoCycler frame. Transform.invert() drops the
-    # displacement field, so the inverse is a different transform, not just a slower one.
-    xw = shapely.transform(xpolys, lambda a: tf.apply(a))
-    xarea = shapely.area(xw)
-
     pp = pd.read_parquet(args.pheno_polygons)
-    ppolys = shapely.from_wkb(pp["wkb"].to_numpy())
-    pids = pp["cell_id"].to_numpy()
-    print(f"[joined] phenocycler polygons {len(pids):,} ({time.time()-t0:.0f}s)", flush=True)
-
-    # Warping through a displacement field can produce self-intersecting rings, and GEOS
-    # raises a TopologyException rather than returning a wrong area. Repair only the ones
-    # that are actually invalid -- make_valid on all 1.7M is needless work.
-    for name, arr in (("xenium", xw), ("phenocycler", ppolys)):
-        bad = ~shapely.is_valid(arr)
-        if bad.any():
-            arr[bad] = shapely.make_valid(arr[bad])
-            print(f"[joined] repaired {int(bad.sum()):,} invalid {name} polygons", flush=True)
-
-    tree = shapely.STRtree(ppolys)
-    xi, pi = tree.query(xw, predicate="intersects")
-    print(f"[joined] candidate pairs {len(xi):,} ({time.time()-t0:.0f}s)", flush=True)
-    inter = shapely.area(shapely.intersection(xw[xi], ppolys[pi]))
-    keep = inter > 0
-    xi, pi, inter = xi[keep], pi[keep], inter[keep]
-    print(f"[joined] overlapping pairs {len(xi):,} ({time.time()-t0:.0f}s)", flush=True)
-
     pheno = pd.read_parquet(args.pheno)
-    pos = pd.Series(np.arange(len(pheno)), index=pheno["cell_id"].to_numpy())
-    prow = pos.reindex(pids[pi]).to_numpy()
-    ok = np.isfinite(prow)
-    xi, pi, inter, prow = xi[ok], pi[ok], inter[ok], prow[ok].astype(int)
-
+    edges, xarea = overlap_edges(xids, xpolys, pp, tf)
+    df, eligible_edges = aggregate_features(xids, edges, pheno)
+    xi = pd.Index(xids).get_indexer(eligible_edges.cell_id)
+    inter = eligible_edges.overlap_area_um2.to_numpy(float)
     n = len(xids)
     wsum = np.bincount(xi, weights=inter, minlength=n)
     feats = feature_columns(pheno)
-    out = {"cell_id": xids}
-    vals = pheno[feats].to_numpy(dtype=np.float32)
-    for j, c in enumerate(feats):
-        num = np.bincount(xi, weights=inter * np.nan_to_num(vals[prow, j]), minlength=n)
-        with np.errstate(invalid="ignore", divide="ignore"):
-            out[c] = np.where(wsum > 0, num / np.maximum(wsum, 1e-12), np.nan).astype(np.float32)
     print(f"[joined] aggregated {len(feats)} features ({time.time()-t0:.0f}s)", flush=True)
 
     cent = shapely.centroid(xpolys)
-    df = pd.DataFrame(out)
     df["x_um"] = shapely.get_x(cent)
     df["y_um"] = shapely.get_y(cent)
     df["area_um2"] = shapely.area(xpolys)
@@ -124,8 +140,9 @@ def main(argv: list[str] | None = None) -> int:
                            profile=CONTRACT_PROFILE_GEOMETRY, roi=args.roi, tissue=args.tissue)
     args.out.mkdir(parents=True, exist_ok=True)
     path = write_cell_table(df, args.out / "joined_cells.parquet")
+    edges.to_parquet(args.out / "overlap_edges.parquet", index=False)
 
-    meta = {"n_xenium_cells": int(n), "n_pheno_cells": int(len(pids)),
+    meta = {"n_xenium_cells": int(n), "n_pheno_cells": int(len(pp)),
             "n_overlapping_pairs": int(len(xi)),
             "transform_stem": args.transform_stem,
             "n_protein_features": len(feats),

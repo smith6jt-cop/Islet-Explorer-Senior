@@ -35,11 +35,12 @@ add either back, and do not write a script that reads one.
 `data/development/typing/cells/` was rewritten on **2026-09-19** with the islet chain the
 maintainer ruled on 2026-09-18 applied to all 20 donors — 25,230,109 cells, eight classes plus
 `Excluded`. Measured 2026-09-24, every partition carries `islet_route` (cd99 / elongation / hormone)
-and `islet_stratum`. No cell carries `Unresolved`, the ninth class `run20_default.yml` declares:
-the refinement pass (`core/phenocycler/scripts/typing/refine.py`) was ruled in on 2026-09-23 and is
-wired as the `build_cells.py --refine` join, which writes `refined_class` **beside** `cell_class`,
-and that join has not run on disk. Every root script reads `cell_class`; whether any should read
-`refined_class` touches the islet chain and is asked, not inferred.
+and `islet_stratum`. There is one class per cell, reached in two steps (maintainer, 2026-10-19):
+`cell_class` is the first step's column, and `refined_class` -- written by the refinement
+(`core/phenocycler/scripts/typing/refine.py`) through the `build_cells.py --refine` join, which ran on
+2026-09-24 -- holds the result. `Unresolved`, the ninth entry `run20_default.yml` declares, is a value
+only the result reaches (1,063,097 cells). Every root script still reads `cell_class`, so none serves
+the finished class yet; changing them is a code change not yet made.
 
 `data/development/typing/subpanel/subpanel_calls.parquet` is the PREVIOUS generation (25,150,537
 rows, written Sep 11). `senior/build_distance_profiles.py` refuses it by path with the counts in the

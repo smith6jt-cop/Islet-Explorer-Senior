@@ -44,11 +44,56 @@ import shapely
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from build_joined import xenium_polygons                      # noqa: E402
+from build_joined import xenium_polygons, overlap_edges, require_unique_ids  # noqa: E402
 from phenocycler.integration.transform import Transform       # noqa: E402
 
 #: Columns carried across, when the call table has them.
 CARRY = ("call", "reason", "cell_region", "structure", "islet_endocrine", "islet_num")
+
+
+def transfer_calls(xids, edges, calls, xarea):
+    """Transfer using the same eligible UUID edges as the continuous measurements."""
+    key = "object_id" if "object_id" in calls else "cell_id"
+    require_unique_ids(calls, key)
+    calls = calls.copy()
+    calls[key] = calls[key].astype(str)
+    e = edges[edges.object_id.isin(calls[key])].copy()
+    if not np.isfinite(e.overlap_area_um2).all() or (e.overlap_area_um2 <= 0).any():
+        raise ValueError("overlap areas must be finite and positive")
+    if e.duplicated(["cell_id", "object_id"]).any():
+        raise ValueError("duplicate overlap edges")
+    xi = pd.Index(xids).get_indexer(e.cell_id)
+    if (xi < 0).any():
+        raise ValueError("overlap edges contain unknown Xenium cells")
+    area = np.asarray(xarea, float)
+    if area.shape != (len(xids),) or not np.isfinite(area).all() or (area <= 0).any():
+        raise ValueError("registered Xenium areas must be finite and positive")
+    total = np.bincount(xi, weights=e.overlap_area_um2, minlength=len(xids))
+    e = e.merge(calls, left_on="object_id", right_on=key, validate="many_to_one",
+                suffixes=("", "_protein"))
+    # Resolve equal areas by immutable UUID, not input row order.
+    winners = e.sort_values(["overlap_area_um2", "object_id"], ascending=[False, True],
+                            kind="stable").drop_duplicates("cell_id").set_index("cell_id")
+    winner = winners.reindex(xids)
+    out = pd.DataFrame({"cell_id": xids})
+    for col in (*CARRY, "status"):
+        if col in winner:
+            out[col] = winner[col].to_numpy()
+    if "status" not in out:
+        out["status"] = np.where(winner["call"].notna(), "awarded", "unavailable")
+    out["winning_object_id"] = winner.object_id.to_numpy()
+    out["call_share"] = np.divide(winner.overlap_area_um2.to_numpy(float), total,
+                                 out=np.full(len(xids), np.nan), where=total > 0)
+    winning_call = pd.Series(winner["call"].to_numpy(), index=xids)
+    agrees = e["call"].notna() & e["call"].eq(e.cell_id.map(winning_call))
+    numerator = np.bincount(pd.Index(xids).get_indexer(e.loc[agrees, "cell_id"]),
+                            weights=e.loc[agrees, "overlap_area_um2"], minlength=len(xids))
+    out["call_purity"] = np.divide(numerator, total, out=np.full(len(xids), np.nan),
+                                  where=total > 0)
+    out["n_pheno_cells"] = np.bincount(xi, minlength=len(xids))
+    out["overlap_fraction"] = total / area
+    out.loc[winner["call"].isna().to_numpy(), "status"] = "unavailable"
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,72 +110,23 @@ def main(argv: list[str] | None = None) -> int:
     t0 = time.time()
     tf = Transform.load(args.transform_dir, stem=args.transform_stem)
     xids, xpolys = xenium_polygons(args.bundle)
-    xw = shapely.transform(xpolys, lambda a: tf.apply(a))
-    xarea = shapely.area(xw)
     print(f"[lift] xenium polygons {len(xids):,} ({time.time()-t0:.0f}s)", flush=True)
 
     pp = pd.read_parquet(args.pheno_polygons)
-    ppolys = shapely.from_wkb(pp["wkb"].to_numpy())
-    pids = pp["cell_id"].astype(str).to_numpy()
-    for name, arr in (("xenium", xw), ("phenocycler", ppolys)):
-        bad = ~shapely.is_valid(arr)
-        if bad.any():
-            arr[bad] = shapely.make_valid(arr[bad])
-            print(f"[lift] repaired {int(bad.sum()):,} invalid {name} polygons", flush=True)
-
-    xi, pi = shapely.STRtree(ppolys).query(xw, predicate="intersects")
-    inter = shapely.area(shapely.intersection(xw[xi], ppolys[pi]))
-    keep = inter > 0
-    xi, pi, inter = xi[keep], pi[keep], inter[keep]
-    print(f"[lift] overlapping pairs {len(xi):,} ({time.time()-t0:.0f}s)", flush=True)
-
+    edges, xarea = overlap_edges(xids, xpolys, pp, tf)
     calls = pd.read_parquet(args.calls)
-    key = "object_id" if "object_id" in calls.columns else "cell_id"
-    pos = pd.Series(np.arange(len(calls)), index=calls[key].astype(str).to_numpy())
-    prow = pos.reindex(pids[pi]).to_numpy()
-    ok = np.isfinite(prow)
-    dropped = int((~ok).sum())
-    xi, inter, prow = xi[ok], inter[ok], prow[ok].astype(int)
-    print(f"[lift] {len(xi):,} pairs resolve to a called PhenoCycler cell "
-          f"({dropped:,} dropped: not in the call table, e.g. QC-ineligible)", flush=True)
-
+    if "qc_analysis_eligible" in calls:
+        calls = calls[calls.qc_analysis_eligible]
+    out = transfer_calls(xids, edges, calls, xarea)
     n = len(xids)
-    wsum = np.bincount(xi, weights=inter, minlength=n)
-
-    # Winner = largest shared area. np.maximum.at over a (cell, area) reduction rather than a
-    # sort: 2.3M pairs sorted by two keys is slower and needs no ordering guarantee here.
-    best = np.zeros(n)
-    np.maximum.at(best, xi, inter)
-    is_best = inter >= best[xi]                      # ties keep the first, deterministically
-    first = np.full(n, -1, dtype=np.int64)
-    sel = np.flatnonzero(is_best)
-    first[xi[sel[::-1]]] = sel[::-1]
-    has = first >= 0
-
-    out = pd.DataFrame({"cell_id": xids})
-    win = np.where(has, first, 0)
-    for c in CARRY:
-        if c not in calls.columns:
-            continue
-        v = calls[c].to_numpy()[prow[win]]
-        out[c] = np.where(has, v, None if v.dtype == object else np.nan)
-    out["call_share"] = np.where(has & (wsum > 0), inter[win] / np.maximum(wsum, 1e-12), np.nan)
-
-    # Purity: the share of overlapped area agreeing with the winner's call.
-    codes, _ = pd.factorize(calls["call"].astype(str))
-    agree = codes[prow] == codes[prow[win]][xi]
-    num = np.bincount(xi[agree], weights=inter[agree], minlength=n)
-    out["call_purity"] = np.where(wsum > 0, num / np.maximum(wsum, 1e-12), np.nan)
-
-    out["n_pheno_cells"] = np.bincount(xi, minlength=n)
-    out["overlap_fraction"] = np.where(xarea > 0, wsum / np.maximum(xarea, 1e-12), 0.0)
+    pairs = int(out.n_pheno_cells.sum())
 
     args.out.mkdir(parents=True, exist_ok=True)
     path = args.out / "protein_calls.parquet"
     out.to_parquet(path, index=False)
     meta = {
-        "n_xenium_cells": int(n), "n_with_call": int(has.sum()),
-        "n_pairs": int(len(xi)), "n_pairs_dropped_uncalled": dropped,
+        "n_xenium_cells": int(n), "n_with_call": int(out.winning_object_id.notna().sum()),
+        "n_pairs": pairs, "n_pairs_dropped_uncalled": len(edges) - pairs,
         "transform_stem": args.transform_stem,
         "call_share_median": float(np.nanmedian(out["call_share"])),
         "call_purity_median": float(np.nanmedian(out["call_purity"])),
