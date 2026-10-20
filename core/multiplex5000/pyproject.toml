@@ -31,6 +31,8 @@ dependencies = [
     "openpyxl",
     # multiplex5000/profiles.py reads the tissue, platform, panel and cohort profiles.
     "pyyaml",
+    # Every stage's gate draws its figures (multiplex5000/gates.py, MultiPlex5000 D3).
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +43,15 @@ gpu = ["cupy-cuda12x"]
 # integration extra, so the suite runs on `.[integration,test]`.
 test = ["pytest", "pyyaml", "igraph"]
 notebook = ["jupyterlab", "ipykernel", "ipywidgets", "matplotlib"]
+# The notebook route of MultiPlex5000 D3, run headless (the tests, and HiPerGator). Snakemake is
+# NOT here: it runs from its own small environment (requirements-graph.txt) and calls this
+# package's interpreter for every stage, because its pins (packaging<26, docutils>=0.20) would
+# otherwise decide this environment's.
+workflow = [
+    "nbformat==5.11.1",
+    "nbclient==0.11.0",
+    "ipykernel",
+]
 # PhenoCycler <-> Xenium integration (multiplex5000/integration/). The core pipeline never
 # imports these; every integration module degrades to a clear ImportError naming the extra.
 # `maxfuse` is deliberately absent — its only release is 0.0.2 (2023) with unpinned deps, so
@@ -107,10 +118,12 @@ utag = [
 # The old command name, kept while `phenocycler` is the import alias for `multiplex5000`. The
 # `mplx5k` command arrives with the stage commands (MultiPlex5000 D3).
 phenocycler = "multiplex5000.pipeline:main"
+# Run a stage, read and accept its gate, see where a release stands, run the graph (D3).
+mplx5k = "multiplex5000.cli:main"
 
 [tool.setuptools]
 # `phenocycler` is only the temporary import alias (phenocycler/__init__.py); the code is multiplex5000.
-packages = ["multiplex5000", "multiplex5000.integration", "phenocycler"]
+packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.stages", "phenocycler"]
 include-package-data = true
 
 [tool.setuptools.package-data]
@@ -119,6 +132,9 @@ multiplex5000 = [
     "broad_gates.json",
     "fundamental_pair_diagnostics.json",
     "marker_registry.json",
+    "workflow/Snakefile",
+    "workflow/profiles/local/config.yaml",
+    "workflow/profiles/hipergator/config.yaml",
 ]
 "multiplex5000.integration" = ["data/*.json"]
 
@@ -172,10 +188,11 @@ pythonpath = ["."]
 # The default lane is the synthetic one. Tests that read a built artifact or a source tree
 # carry @pytest.mark.data and are DESELECTED here (silently, unlike a skip); run them with
 # `pytest -m data` (or `make test-data` at the repo root).
-addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not data"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not data and not workflow"]
 markers = [
     "research: exploratory-method tests run explicitly, outside the default gate",
     "integration: optional cross-modal stack tests run in the integration CI job",
     "data: tests that require external imaging data and are not part of synthetic CI",
     "gpu: tests that need a GPU (HiPerGator only)",
+    "workflow: the Snakemake graph and the notebooks run headless; need the workflow extra",
 ]

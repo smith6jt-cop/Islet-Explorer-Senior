@@ -4,7 +4,8 @@
 # core/multiplex5000/pyproject.toml:162 asks for with -ra. -rfEs names failures, errors and skips.
 #
 #   make test            every suite, each run in its own process, continuing past failures
-#   make test-fast       the default lane without the data-state guards (-m "not data")
+#   make test-fast       the default lane without the data-state guards (-m "not data and not workflow")
+#   make test-workflow   both routes run the same code: the Snakemake graph and the notebooks (D3)
 #   make test-data       only the data-state guards, in every suite that has one (red = stale)
 #   make check           is every layer/app artifact newer than its inputs? (reads mtimes only)
 #   make plan            the rebuild the driver WOULD run, in order; runs nothing
@@ -39,7 +40,7 @@ export PATH := /opt/R/4.5.1/bin:/usr/local/bin:$(PATH)
 export LANG ?= C.UTF-8
 export LC_ALL ?= C.UTF-8
 
-.PHONY: help test _test-all test-core test-current test-integration test-research test-fast test-data test-lanes test-xenium test-follicle \
+.PHONY: help test _test-all test-core test-current test-integration test-research test-fast test-workflow test-data test-lanes test-xenium test-follicle \
         test-r test-r-parse test-r-app test-r-viewer test-r-panels test-scripts check plan geojson-outline rebuild env-check lock producers
 
 help:
@@ -69,7 +70,13 @@ test-research:
 	cd core/multiplex5000 && $(PYTEST) -q -rfEs tests/research
 
 test-fast:
-	cd core/multiplex5000 && $(PYTEST) -q -rfEs -m "not data" tests/current
+	cd core/multiplex5000 && $(PYTEST) -q -rfEs -m "not data and not workflow" tests/current
+
+# Snakemake runs from its own environment (core/multiplex5000/requirements-graph.txt); name it with
+# SNAKEMAKE=... or the site file's "snakemake".
+SNAKEMAKE ?=
+test-workflow:
+	cd core/multiplex5000 && MPLX5K_SNAKEMAKE=$(SNAKEMAKE) $(PYTEST) -q -rfEs -m workflow tests/current
 
 # The guards live in tests/current, in five of the script lanes and in analysis/xenium, so
 # this runs `-m data` in each place the default `-m "not data"` deselects them: every lane,

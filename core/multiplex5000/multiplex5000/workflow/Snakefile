@@ -1,0 +1,47 @@
+"""MultiPlex5000: one rule per stage of the project, calling the same code the notebooks call.
+
+    mplx5k graph [--profile local|hipergator] [--dry-run]
+
+Snakemake runs from its own environment and never imports MultiPlex5000: it asks the MultiPlex5000
+interpreter (``config["python"]``, which ``mplx5k graph`` passes) for the project's stages, and
+every rule runs a stage with that same interpreter. Each rule's inputs are the files its stage
+declares and, after the first stage, the previous stage's gate acceptance; its output is the
+stage's receipt. A stage whose gate has not been accepted stops the graph there: Snakemake
+reports the missing gate/accepted.json. The profiles change resources only, never a scientific
+step.
+
+MultiPlex5000 D3 (2026-10-20).
+"""
+
+import json
+import subprocess
+
+_spec = subprocess.run(
+    [config["python"], "-m", "multiplex5000.cli", "graph-spec", "--project", config["project"],
+     "--releases-root", config["releases_root"]],
+    check=True, capture_output=True, text=True)
+SPEC = json.loads(_spec.stdout)
+
+
+rule all:
+    input:
+        [stage["receipt"] for stage in SPEC["stages"]],
+
+
+for _stage in SPEC["stages"]:
+
+    rule:
+        name:
+            f"stage_{_stage['id']}"
+        input:
+            **_stage["inputs"],
+        output:
+            _stage["receipt"],
+        params:
+            python=config["python"],
+            stage=_stage["id"],
+            project=SPEC["project"],
+            releases_root=SPEC["releases_root"],
+        shell:
+            "{params.python} -m multiplex5000.cli stage run {params.stage} "
+            "--project {params.project} --releases-root {params.releases_root}"

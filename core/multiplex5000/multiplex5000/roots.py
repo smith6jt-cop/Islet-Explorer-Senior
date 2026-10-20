@@ -92,6 +92,12 @@ def read_site(path: Path) -> dict:
     layers = data.get("layers_dir")
     if layers is not None and not (isinstance(layers, str) and Path(layers).is_absolute()):
         raise SiteError(f"{path}: layers_dir, when given, must be an absolute path")
+    releases = data.get("releases_root")
+    if releases is not None and not (isinstance(releases, str) and Path(releases).is_absolute()):
+        raise SiteError(f"{path}: releases_root, when given, must be an absolute path")
+    snakemake = data.get("snakemake")
+    if snakemake is not None and not (isinstance(snakemake, str) and Path(snakemake).is_absolute()):
+        raise SiteError(f"{path}: snakemake, when given, must be an absolute path")
     sources = data.get("sources", {})
     if not isinstance(sources, dict) or not all(
             isinstance(k, str) and isinstance(v, str) and Path(v).is_absolute()
@@ -99,6 +105,8 @@ def read_site(path: Path) -> dict:
         raise SiteError(f"{path}: sources, when given, must map names to absolute paths")
     return {"site": data["site"], "data_root": data_root, "path": Path(path),
             "layers_dir": Path(layers) if layers else None,
+            "releases_root": Path(releases) if releases else None,
+            "snakemake": Path(snakemake) if snakemake else None,
             "sources": {k: Path(v) for k, v in sources.items()}}
 
 
@@ -123,6 +131,22 @@ DEVELOPMENT = DATA_ROOT / "development"
 
 #: The typing lane's outputs: ``cells``, ``app``, ``immune``, ``geometry`` and the rest.
 TYPING = DEVELOPMENT / "typing"
+
+
+#: Where releases are built and kept when the site does not say (the MultiPlex5000 plan's root).
+RELEASES_DEFAULT = Path("/data/io60-current/releases")
+RELEASES_ROOT_ENV = "MPLX5K_RELEASES_ROOT"
+
+
+def releases_root() -> Path:
+    """``$MPLX5K_RELEASES_ROOT``, else the site's ``releases_root``, else
+    ``/data/io60-current/releases``; read when called, not at import."""
+    named = os.environ.get(RELEASES_ROOT_ENV)
+    if named:
+        return Path(named)
+    if SITE is not None and SITE.get("releases_root") is not None:
+        return SITE["releases_root"]
+    return RELEASES_DEFAULT
 
 
 def source(name: str) -> Optional[Path]:

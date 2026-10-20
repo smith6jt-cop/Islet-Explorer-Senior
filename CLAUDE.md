@@ -84,6 +84,20 @@ section, a block or a slide comes only from what was recorded, through `multiple
 nothing. Tissue names have one authority, `profiles/tissues/*.yaml`, served by
 `integration/tissues.py`. No stage reads these yet; they are adopted from D4 on.
 
+**Stages, gates and receipts (D3, 2026-10-20).** A release is built stage by stage under the
+site's `releases_root` (`/data/io60-current/releases/<release>/<stage>/`), on either route: the
+Snakemake graph (`mplx5k graph`; Snakemake runs from its own environment,
+`/data/envs/mplx5k-graph`, and every rule runs a stage with the MultiPlex5000 interpreter) or the
+notebooks (`core/multiplex5000/notebooks/NN_<stage>.ipynb`). Both call `tasks.run_stage`, so the
+outputs are the same. A stage is complete only when its receipt says so; `--force` replaces a
+published stage and moves the old one aside, never deleting it; a file a stage reads without
+declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figures, `gate.html`):
+`mplx5k gate show <stage>`, then `mplx5k gate accept <stage> --by <name>`, refused while a blocking
+check fails. The next stage needs that acceptance; receipts record and never lock. The project
+file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
+so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
+its own stage logic until D4.
+
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
 
@@ -109,6 +123,7 @@ under the repo-root `data/development/` — a level above `core/`.
 | `make test-fast` | the default suite without the data-state guards (`-m "not data"`) |
 | `make test-data` | only the data-state guards; red means an artifact is stale |
 | `make test-lanes` | each development lane's own tests, lane by lane |
+| `make test-workflow` | both routes (Snakemake graph, notebooks) make the same outputs (D3) |
 | `make check` | is every layer/app artifact newer than its inputs? Reads mtimes only, and names every stale input, a run that did not finish, and a stale `typing/immune` |
 | `make plan` | the rebuild the driver would run, in order; runs nothing |
 | `make rebuild` | refuses unless `GO=1`; it writes `data/development/typing/app` and `/data/islet_layers` |

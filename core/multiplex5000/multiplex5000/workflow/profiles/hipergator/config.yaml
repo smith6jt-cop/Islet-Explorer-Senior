@@ -1,0 +1,20 @@
+# HiPerGator: each stage is a Slurm job. Resources only -- the scientific steps are the same as on
+# the workstation (MultiPlex5000 D3).
+#
+# maigan or clive, never their burst QOS (maintainer, 2026-10-01). CPU stages run on hpg-default.
+# GPU stages (from D4 on) ask for one partition per job, in the order RTX 6000 (hpg-rtx6000,
+# gpu:rtx_pro_6000), then B200 (hpg-b200), then L4 (hpg-turin, gpu:l4), and record the GPU model
+# in their receipt.
+executor: slurm
+jobs: 20
+latency-wait: 60
+printshellcmds: true
+keep-going: false
+rerun-triggers: [mtime, input, params]
+default-resources:
+  slurm_account: maigan
+  slurm_partition: hpg-default
+  slurm_extra: "'--qos=maigan'"
+  runtime: 120
+  mem_mb: 16000
+  cpus_per_task: 4

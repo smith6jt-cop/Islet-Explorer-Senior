@@ -375,13 +375,29 @@ def _conflicts(reading: Reading, copy: Optional[dict[str, DonorNote]]) -> list[C
     return out
 
 
+def _given(value, name: str):
+    """``None`` means the site's source; ``False`` means do not read one; else the path given."""
+    if value is None:
+        return roots.source(name)
+    return value or None
+
+
+#: Disagreements between the real sources that are known and explained. Stage 00's gate blocks
+#: on any other until someone has looked at it and added it here with the reason.
+KNOWN_DISAGREEMENTS: dict[tuple[str, str], str] = {
+    ("6457", "same_block pLN: the notes and pln_blocks.csv"):
+        "6457 is centrally excluded and was never processed, so no pln_blocks row was made",
+}
+
+
 def load(*, notes: Optional[Path] = None, notes_copy: Optional[Path] = None,
          pln_blocks: Optional[Path] = None, section_modes: Optional[Path] = None,
          aliases: Optional[dict[str, str]] = None, cohort_donors=None) -> Reading:
     """Read every recorded source this site names, relate them, and list where they disagree.
 
     A source the site does not name, and no argument gives, is reported as unknown -- the
-    reading goes on without it rather than inventing what it would have said.
+    reading goes on without it rather than inventing what it would have said. Pass ``False``
+    for a source that must not be read at all.
     """
     if aliases is None or cohort_donors is None:
         from . import profiles
@@ -391,9 +407,9 @@ def load(*, notes: Optional[Path] = None, notes_copy: Optional[Path] = None,
             import json
             cohort_donors = json.loads((profiles.REPO / cohort.membership).read_text()).get(
                 "expected_donors", [])
-    notes = notes or roots.source("donor_notes")
-    notes_copy = notes_copy or roots.source("donor_notes_copy")
-    pln_blocks = pln_blocks or roots.source("pln_blocks")
+    notes = _given(notes, "donor_notes")
+    notes_copy = _given(notes_copy, "donor_notes_copy")
+    pln_blocks = _given(pln_blocks, "pln_blocks")
     section_modes = section_modes or (roots.INTEGRATION / "section_modes.csv")
     reading = Reading()
     copy = None
