@@ -53,9 +53,11 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           grep -v -E '^(torch|torchvision|openslide-python)' scripts/requirements_HE_unet.txt > /tmp/follicle-requirements.txt
           pip install -r /tmp/follicle-requirements.txt
-          # tests/test_region_layer.py exercises scripts/build_region_layer_qupath.py, which imports
-          # shapely; requirements.txt declares it, requirements_HE_unet.txt does not.
-          pip install "shapely>=2.0"
+          # tests/test_region_layer.py loads scripts/build_region_layer_qupath.py (shapely) and
+          # analysis/data_utils.py (seaborn). Across tests/ and every local module they load, these
+          # two are the only module-level imports requirements_HE_unet.txt lacks; requirements.txt
+          # declares both.
+          pip install "shapely>=2.0" "seaborn>=0.13"
 
       - name: Syntax and static workflow checks
         run: |
