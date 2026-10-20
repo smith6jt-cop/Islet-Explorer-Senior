@@ -34,8 +34,8 @@ with the roster's own entry list (`qupath_entry` column, one per image):
     for e in 1 2 4 5 6 7 9 10 11 12 13 14 15 16 17 18 19 20 21; do
       echo "ENTRY=$e"
       JAVA_TOOL_OPTIONS="-Xmx48g" /home/smith6jt/QuPath/bin/QuPath script \
-        --args /data/IO60pLN/data/$e/data.qpdata \
-        --args /data/IO60pLN/results/node_geojson/entry$e.geojson "$G" \
+        --args ~/IO60pLN/data/$e/data.qpdata \
+        --args ~/IO60pLN/results/v3/export/node_geojson/entry$e.geojson "$G" \
         | grep -E '^(ANNOT|READ_MS)'
     done > "${ISLET_LAYERS_DIR:-/data/islet_layers}/pln/provenance/qupath_annotation_audit.log"
 
@@ -141,8 +141,10 @@ from phenocycler.cohort import (  # noqa: E402
 
 ROSTER = REPO / "core/phenocycler/data/integration/pln_node_annotations.csv"
 DERIVED = REPO / "data/development/pln"
-QP_PROJECT = pathlib.Path("/data/IO60pLN")
-GEOJSON_DIR = QP_PROJECT / "results/node_geojson"
+#: The IO60pLN project and its node outlines, where derive_pln_node_membership.py reads them (the
+#: project moved from /data/IO60pLN to ~/IO60pLN; the v3 node export writes under results/v3/export).
+QP_PROJECT = pathlib.Path.home() / "IO60pLN"
+GEOJSON_DIR = QP_PROJECT / "results/v3/export/node_geojson"
 INGEST_REPORT = REPO / "core/phenocycler/data/integration/cells_pln_ingest_report.json"
 CELLS_PLN = REPO / "core/phenocycler/data/integration/cells_pln"
 

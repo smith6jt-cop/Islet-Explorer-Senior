@@ -323,3 +323,37 @@ specifically, never settled as part of the wiring (`docs/PRODUCERS.md`, "Not dec
 
    Being told is not being wired: no cell carries the value today, because the pass has not been
    joined into a build. See the status banner at the top of this file.
+
+## October 8 implementation of the CD8 refinement ruling
+
+The October 3 `results/v3/release_20261003/production_calibration_ruling.json`
+specifies shifted CD8 for primary pancreas typing and unshifted CD8 for refinement.
+The historical selected arm did not implement that distinction. `refine.py` now
+accepts `--cd8-alignment unshifted --shifts <matching-arm-shifts.json>`; the
+calibration runner exposes `--refinement-cd8-alignment unshifted --shifts ...`.
+Comparison runs retain their declared aligned-input behavior unless this option is
+selected. This pancreas policy does not alter the dedicated pLN calibration.
+
+The shared refinement reader reverses only CD8's recorded donor multiplier. It
+preserves exact UUIDs, missing measurements, zeros, other channels and the primary
+aligned artifact. The restored values enter fresh representation fitting and the
+neighbor calculation. Immune fallback reads the restored measurement and converts
+the frozen CD8 floor/top/span by the same inverse factor: measurement and reference
+must use the same units. This preserves the frozen criterion instead of introducing
+an uncalibrated threshold after changing units.
+
+Unshifted mode refuses `--params`, so an aligned-CD8 representation cannot be reused.
+Every refinement run saves `representation_params.parquet` and a provenance record
+with its parameter hash, fit donors, source script, shifts, scale and CD8 policy.
+Use a fresh output directory with the intended full donor cohort. The arm runner
+rejects existing cell partitions outside the declared donor set. Before unshifting,
+verify recovered CD8 against the exact pre-alignment expression keys and block mask;
+recording a shifts path alone cannot prove it belongs to the aligned input.
+
+The October 8 verification recovered CD8 for 2,048 exact keys in each of all 25
+pancreas donors, matching the pre-alignment expression and recorded block mask.
+The receipt is
+`results/v3/islet_immune_reassessment_20261006/cell_typing_validation/provenance/CD8_refinement_input_parity_20261008.json`.
+Focused tests passed 39 cases, with one data test deselected. This verifies the
+measurement contract and its safeguards; it does not establish biological typing
+accuracy or validate previously generated refinement outputs.

@@ -87,6 +87,14 @@ file did that number come from" is otherwise unanswerable.
     core/phenocycler/scripts/pln/ingest_pln_cells.py --census-only
     core/phenocycler/scripts/pln/ingest_pln_cells.py --source data/pLN/IO60pLN_cells.tsv
     core/phenocycler/scripts/pln/ingest_pln_cells.py --limit 200000 --out /tmp/probe
+
+A DIRECTORY OF PER-SLIDE PARQUET TABLES IS A SOURCE TOO (the v3 QuPath export, 2026-10-01:
+`~/IO60pLN/results/v3/export/cells/`, one table per slide with QuPath's own column names). It is
+read only when `--source` names it -- never picked by the newest-candidate rule -- and it goes
+through the same SELECT, census, ledger and report as the TSV. A column a slide's table lacks is
+NULL for that slide (unavailable, not zero), and the report lists which slide lacks which column.
+
+    core/phenocycler/scripts/pln/ingest_pln_cells.py --source ~/IO60pLN/results/v3/export/cells
 """
 from __future__ import annotations
 
@@ -158,8 +166,16 @@ def resolve_source(override: str | None = None) -> tuple[pathlib.Path, list[dict
     disagree with no way to tell which read what.
     """
     seen = []
-    for candidate in ((pathlib.Path(override),) if override else SOURCE_CANDIDATES):
-        if candidate.exists():
+    for candidate in ((pathlib.Path(override).expanduser(),) if override else SOURCE_CANDIDATES):
+        if candidate.is_dir():
+            tables = parquet_tables(candidate)
+            if not tables:
+                raise SystemExit(f"[err] {candidate} is a directory with no *.parquet table in it")
+            newest = max(t.stat().st_mtime for t in tables)
+            seen.append({"path": str(candidate), "size_bytes": sum(t.stat().st_size for t in tables),
+                         "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(newest)),
+                         "mtime": newest, "parquet_tables": len(tables)})
+        elif candidate.exists():
             stat = candidate.stat()
             seen.append({"path": str(candidate), "size_bytes": stat.st_size,
                          "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
@@ -172,7 +188,25 @@ def resolve_source(override: str | None = None) -> tuple[pathlib.Path, list[dict
     return pathlib.Path(chosen["path"]), seen
 
 
+def parquet_tables(directory: pathlib.Path) -> list[pathlib.Path]:
+    return sorted(directory.glob("*.parquet"))
+
+
+def parquet_columns(directory: pathlib.Path) -> tuple[list[str], dict[str, list[str]]]:
+    """(every column any table carries, in first-seen order; table name -> columns it lacks)."""
+    import pyarrow.parquet as pq
+
+    per_table = {t.name: pq.ParquetFile(t).schema_arrow.names for t in parquet_tables(directory)}
+    union: list[str] = []
+    for names in per_table.values():
+        union.extend(name for name in names if name not in union)
+    lacking = {table: [c for c in union if c not in set(names)] for table, names in per_table.items()}
+    return union, {table: cols for table, cols in lacking.items() if cols}
+
+
 def read_header(path: pathlib.Path) -> list[str]:
+    if path.is_dir():
+        return parquet_columns(path)[0]
     with path.open(newline="", encoding="utf-8", errors="replace") as fh:
         return next(csv.reader(fh, delimiter="\t"))
 
@@ -363,11 +397,22 @@ def build(args) -> int:
     selects += [f'TRY_CAST("{orig}" AS DOUBLE) AS "Nucleus__{name}"'
                 for orig, name in nucleus_mm.items()]
 
-    read = (
-        f"read_csv({sql_string(str(source))}, header=true, delim='\\t', all_varchar=true, "
-        "ignore_errors=true, store_rejects=true, rejects_table='pln_rejects', "
-        "rejects_scan='pln_reject_scans', rejects_limit=10000)"
-    )
+    from_parquet = source.is_dir()
+    source_bytes = (sum(t.stat().st_size for t in parquet_tables(source)) if from_parquet
+                    else source.stat().st_size)
+    columns_lacking = parquet_columns(source)[1] if from_parquet else {}
+    for table, cols in columns_lacking.items():
+        print(f"[warn] {table} lacks {len(cols)} column(s) other tables carry; they are NULL "
+              f"for that slide: {cols[:6]}{' ...' if len(cols) > 6 else ''}")
+    if from_parquet:
+        # union_by_name: a column one slide's table lacks is NULL for that slide, never shifted
+        read = (f"read_parquet({sql_string(str(source / '*.parquet'))}, union_by_name=true)")
+    else:
+        read = (
+            f"read_csv({sql_string(str(source))}, header=true, delim='\\t', all_varchar=true, "
+            "ignore_errors=true, store_rejects=true, rejects_table='pln_rejects', "
+            "rejects_scan='pln_reject_scans', rejects_limit=10000)"
+        )
     inner = "SELECT\n  " + ",\n  ".join(selects) + f"\nFROM {read}"
     if args.limit:
         inner += f"\nLIMIT {args.limit}"
@@ -378,7 +423,8 @@ def build(args) -> int:
     con.execute(f"PRAGMA temp_directory={sql_string(args.temp_dir)}")
 
     started = time.time()
-    print(f"[info] scanning {source} ({source.stat().st_size / 1e9:.2f} GB, {len(header)} columns)")
+    print(f"[info] scanning {source} ({source_bytes / 1e9:.2f} GB, {len(header)} columns"
+          + (f", {len(parquet_tables(source))} Parquet tables)" if from_parquet else ")"))
     print(f"[info] keeping {len(selects)} columns: {len(cell_mm)} Cell means + "
           f"{len(nucleus_mm)} Nucleus means + {len(CONTEXT) + len(SHAPE)} context/geometry")
     con.execute(f"CREATE TABLE pln_cells AS {inner}")
@@ -386,7 +432,9 @@ def build(args) -> int:
     n_rows = con.execute("SELECT count(*) FROM pln_cells").fetchone()[0]
     print(f"[info] {n_rows:,} rows in {scanned / 60:.1f} min")
 
-    rejects = con.execute("SELECT count(*) FROM pln_rejects").fetchone()[0]
+    # a Parquet table has no malformed line to reject; the count stays in the report as a zero that
+    # was measured on a format where it cannot be anything else
+    rejects = 0 if from_parquet else con.execute("SELECT count(*) FROM pln_rejects").fetchone()[0]
     if rejects:
         print(f"[warn] CSV reader rejected {rejects} row(s); see the report")
 
@@ -563,7 +611,9 @@ def build(args) -> int:
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "source": {
             "path": str(source),
-            "size_bytes": source.stat().st_size,
+            "format": "parquet directory" if from_parquet else "tsv",
+            "size_bytes": source_bytes,
+            "columns_lacking_by_table": columns_lacking,
             "candidates_seen": [
                 {k: v for k, v in entry.items() if k != "mtime"} for entry in candidates
             ],

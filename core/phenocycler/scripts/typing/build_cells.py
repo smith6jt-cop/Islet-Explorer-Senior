@@ -8,9 +8,9 @@ calls on disk do not carry:
   G  no nucleus, no cell.  The calls already cover only ``qc_analysis_eligible`` cells, and a
      detection without a nucleus is never eligible, so this is satisfied by construction rather
      than by a filter.  The dropped count is recorded per donor so the denominator stays auditable.
-  F  every peri-islet expansion is 20 um.  Derived from the signed distance rather than read from
-     the annotation, because one donor's annotation is drawn at 23.1 um and is named ``_exp20um``
-     like every other, so nothing downstream can see the difference.
+  Spatial regions retain only true islet-core membership and ordinary tissue. Continuous
+     nearest-islet distance stays available as a measurement; no expansion ring or replacement
+     distance band is reconstructed here.
   C  which object a cell sits in, recorded.  The classification already uses object membership --
      including inside islets -- but ``context`` overwrites it with ``islet`` for every islet cell,
      so the evidence the call was made on is not in the output.  Kept as its own column.
@@ -98,9 +98,11 @@ DISPLAY = {
     "Alpha": "Alpha_cell", "Beta": "Beta_cell", "Delta": "Delta_cell",
     "Blood vessel": "Blood_Vessel", "Lymphatic": "Lymphatic", "Nerve": "Neural",
     "Immune": "Immune", "Exocrine": "Exocrine", "Excluded": "Excluded",
+    "Endocrine (unresolved subtype)": "Endocrine_unresolved",
+    "Endocrine (ambiguous subtype)": "Endocrine_ambiguous",
     UNRESOLVED: "Unresolved",
 }
-ENDOCRINE = ("Alpha", "Beta", "Delta")
+ENDOCRINE = ("Alpha", "Beta", "Delta", "Endocrine (unresolved subtype)", "Endocrine (ambiguous subtype)")
 
 #: The values ``subpanel.classify`` writes into ``resolved_by`` when the ISLET CHAIN calls a cell
 #: endocrine -- one per route, and the route is the evidence:
@@ -113,11 +115,12 @@ ENDOCRINE = ("Alpha", "Beta", "Delta")
 #:               Also the only route the pre-chain producer and ``--no-islet-chain`` ever write.
 #:
 #: ``is_endocrine`` is exactly "one of these three is written on this cell".
-ENDOCRINE_ROUTES = ("cd99", "elongation", "hormone")
+ENDOCRINE_ROUTES = ("cd99", "elongation", "hormone", "single_hormone")
 
 #: Everything else ``resolved_by`` can carry.  A value in NEITHER tuple stops the build: a route
 #: added upstream must not be able to arrive here and be silently counted as not-endocrine.
-NON_ENDOCRINE_RESOLVED = ("structure", "definition", "supporting", "fallthrough")
+NON_ENDOCRINE_RESOLVED = ("structure", "definition", "supporting", "fallthrough",
+                         "excluded_single_hormone")
 
 #: The producer's per-cell islet number is kept, under its own name, beside this file's.
 #:
@@ -138,7 +141,7 @@ RECONCILED = ("cell_region",)
 #: This file's own columns.  None of them may arrive from the producer: if one does, the producer
 #: has started deciding something this file also decides, and that has to be ruled on, not merged.
 DERIVED = ("X_centroid", "Y_centroid", "qc_analysis_eligible", "islet_num",
-           "signed_dist_islet_um", "cell_region_20um", "phenotype", "is_endocrine",
+           "signed_dist_islet_um", "phenotype", "is_endocrine",
            "endocrine_route", "islet_key", "combined_islet_id", "acq_run", "stain_group",
            "islet_cd99_level", "islet_elongation_level", "refined_phenotype")
 
@@ -383,9 +386,10 @@ def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame,
     if unmatched:
         raise AssertionError(f"{donor}: {unmatched} typed cells have no signed distance")
 
-    # --- correction F: the expansion is 20 um by construction ----------------------------
+    # Spatial membership has no peri-islet ring. Keep the continuous signed distance and
+    # distinguish true islet core from surrounding tissue without binning it.
     d = frame["signed_dist_islet_um"].to_numpy()
-    frame["cell_region_20um"] = np.where(d <= 0, "core", np.where(d <= 20, "expansion", "tissue"))
+    frame["cell_region"] = pd.Series(np.where(d <= 0, "core", "tissue"), index=frame.index).where(np.isfinite(d))
 
     # --- correction C: the object the call was actually made on ---------------------------
     # Carried through from the typing rather than recomputed. Recomputing it invited the two
@@ -438,14 +442,13 @@ def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame,
                 f"{donor}: --audit needs `islet_stratum` on the calls, and these calls predate "
                 "the islet chain. Rebuild the typing before attaching its levels.")
         levels = islet_levels(audit, donor)
-        # KNOWN DEFECT, named here rather than fixed in a documentation pass: `islet_levels`
-        # carries `donor_reference_level` -- a FLOAT -- beside the four stratum entries, and the
-        # comprehension below calls `.get` on every value, so `--audit` raises
-        # `AttributeError: 'float' object has no attribute 'get'` on any donor whose CD99
-        # ordinary-tissue level was fitted. It only survives when that level is None.
+        # The audit also carries a donor-wide reference level beside the nested size strata.
+        # Keep only the stratum mappings; the donor-wide level is not the level an islet cell
+        # was measured against.
         for column, key in (("islet_cd99_level", "CD99"),
                             ("islet_elongation_level", SHAPE_FEATURE)):
-            by_stratum = {s: (v or {}).get(key) for s, v in levels.items()}
+            by_stratum = {s: v.get(key) for s, v in levels.items()
+                          if isinstance(v, dict)}
             frame[column] = pd.to_numeric(frame["islet_stratum"].map(by_stratum),
                                           errors="coerce")
 
@@ -465,17 +468,9 @@ def build_donor(donor: str, pixel: dict, stem: dict, runs: pd.DataFrame,
         # asked, and a 0 in that column would read as a measured zero.
         found = {"refine_applied": False}
 
-    # The two islet numbers, counted apart rather than as one "differs".
-    #
-    # They mean different things and only ONE of the three ways they can part is a defect.
-    # `islet_membership.membership` numbers a cell in the peri-islet expansion as well; the
-    # producer keeps a number only where `in_islet` -- the core -- so "this file numbers it and
-    # the typing does not" is 72,824 cells on donor 115 and every one of them is an expansion
-    # cell, which is the columns working as defined.  A CONFLICT is two different non-empty
-    # numbers, which can only happen if the producer ran `--membership parent`: the cell would
-    # then be reported in one islet and have had its stratum counted in another.  And "the
-    # typing numbers it and this file does not" would mean the two disagree about membership
-    # itself.  Both are counted and neither is folded into the first.
+    # Compare the islet identity carried by the typing call with the current QuPath object
+    # membership. Continuous nearest-islet distance remains a separate measurement; no distance
+    # band is reconstructed here.
     counts = {"islet_num_only_here": 0, "islet_num_only_in_typing": 0, "islet_num_conflicts": 0}
     if "typing_islet_num" in frame.columns:
         theirs = frame["typing_islet_num"].fillna("").astype(str).str.strip()
@@ -526,12 +521,12 @@ def main() -> int:
         target.mkdir(parents=True, exist_ok=True)
         pq.write_table(pa.Table.from_pandas(frame, preserve_index=False),
                        target / "data.parquet", compression="zstd")
-        counts = frame["cell_region_20um"].value_counts()
+        counts = frame["cell_region"].value_counts()
         row = {
             "donor_id": donor, "typed_cells": len(frame),
             "dropped_no_nucleus": frame.attrs["dropped_no_nucleus"],
             "dropped_ineligible": frame.attrs["dropped_ineligible"],
-            "core": int(counts.get("core", 0)), "expansion": int(counts.get("expansion", 0)),
+            "core": int(counts.get("core", 0)),
             "tissue": int(counts.get("tissue", 0)),
             "in_object": int((frame["object_context"] != "tissue").sum()),
             "endocrine": int(frame["is_endocrine"].sum()),
@@ -540,7 +535,7 @@ def main() -> int:
                     if k not in ("dropped_no_nucleus", "dropped_ineligible")})
         ledger.append(row)
         print(f"  {donor}: {len(frame):>9,} cells "
-              f"(core {row['core']:,} / expansion {row['expansion']:,})  endocrine "
+              f"(islet core {row['core']:,} / surrounding tissue {row['tissue']:,})  endocrine "
               + " / ".join(f"{r} {frame.attrs[f'endocrine_{r}']:,}" for r in ENDOCRINE_ROUTES),
               flush=True)
 

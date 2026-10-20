@@ -1,0 +1,22 @@
+{
+  "amends": {
+    "family": "spatial_v2_20261006",
+    "sha256": "cf648db05063b4147c9bf510a984a0924562d5489fec16d9fc66effca0fa5ee8",
+    "after": "protocol_amendment_20261017.json"
+  },
+  "ruled_UTC": "2026-10-18",
+  "ruled_by": "maintainer",
+  "rulings": [
+    {
+      "id": "literature_overlap_is_cross_study_accuracy",
+      "verbatim": "Do not remove 6551, but rather use it to infer cross-study accuracy.",
+      "effect": "sensitivity.source_overlap no longer removes any donor. 6551 is in every analysis. The Peters et al. analysis of the same donor (bioRxiv 10.1101/2025.05.23.655848; its own per-cell export, T-cell state classes and gates) is compared with this pipeline's measurements of 6551 and reported as cross-study accuracy. It is audit context only: never a tuning, gating or release target, and agreement is not a verification of any biological finding."
+    },
+    {
+      "id": "four_same_slide_donors_typed_like_the_rest",
+      "verbatim": "clearly using common sense would allow them to get immune cell typing the same way the other sections did, and moreover the typing should allow for more accuracy and deeper phenotyping from the protein and transcript expression.",
+      "effect": "No donor's immune identity is treated as unmeasured: 0112, 6347, 6533 and 6580 are typed by the same immune definitions as every donor (typing generation 2026-10-18, epithelium excluded by the shared markers only). Deeper protein and RNA phenotypes are reported descriptively; the six primaries keep the identities they were frozen with."
+    }
+  ],
+  "unchanged": "Everything the 2026-10-17 amendment left standing, and its three rulings."
+}

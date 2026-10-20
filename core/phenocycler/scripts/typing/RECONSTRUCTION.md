@@ -462,7 +462,15 @@ decisions. What a reader of this file needs:
 * **It is applied once**, and that is encoded rather than documented: there is no step or iteration
   argument, and re-refining already-refined labels raises.
 * **It writes a sidecar keyed on `object_id`** (`donor_id=<d>/data.parquet` under `--out`, plus
-  `refine_log.json`) and does not rewrite `typing/cells/`.
+  `refine_log.json`) and does not rewrite `typing/cells/`. It also WRITES, under `--out`, the
+  representation it measured in: `representation_params.parquet` (cofactor, centre and spread per
+  marker) and `representation_provenance.json` (fresh fit or `--params` cache, fit donors, the
+  aligned root, the CD8 reading, and the SHA-256 of the shifts, the scale, the parameters and the
+  script). Neither is read back by the chain; `--params` reads a cached parameter table only when a
+  run is pointed at one.
+* **CD8 is read with UniFORM's shift, like every other marker** (ruled 2026-10-19, all 25 donors).
+  The 2026-10-08 generation divided the shift back out for this pass only; `--cd8-alignment
+  unshifted` survives solely to reproduce that run.
 * **What it READS, so a reader can tell a live input from a refused one.** `typing/cells/` for the
   classification; the donor's aligned expression table; the frozen cohort scale; and
   `data/development/celltype/shifts.json`, from which `derive_markers()` **derives** the marker

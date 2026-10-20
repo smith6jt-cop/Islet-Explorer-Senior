@@ -11,10 +11,10 @@ back, per cell and per structure:
 **This changes no call.** It adds a measurement beside the existing ones. Nothing here re-decides
 `cell_class`, which is final for these donors.
 
-Exact, not sampled: the cell outlines are the QuPath ones from `data/redsea_scratch/geojson/` (the
-only per-cell polygons in this checkout -- see RECONSTRUCTION.md) and the structure objects are the
-same `results/Geojson/` objects the classification used, so the intersection is of the two shapes
-QuPath itself drew. Both are in pixels; the ratio is dimensionless, so no conversion is needed --
+Exact, not sampled: the cell outlines are the QuPath ones the manifest declares for each image
+(`subpanel_io.cell_outlines`; the only per-cell polygons there are -- see RECONSTRUCTION.md) and the
+structure objects are the same objects the classification used (`subpanel_io.GEOJSON`), so the
+intersection is of the two shapes QuPath itself drew. Both are in pixels; the ratio is dimensionless, so no conversion is needed --
 but `cell_um2` is converted, as a cross-check against QuPath's own reported area.
 
 Scope: EVERY admitted cell in the tissue. This is an input to the structure call, which is asked
@@ -46,8 +46,7 @@ import cohort as COHORT
 import context as CX
 import subpanel_io as S
 
-CELL_GEOJSON = S.REPO / "data/redsea_scratch/geojson"
-OUT = S.OUT / "crossed"
+OUT = S.CROSSED
 
 #: The structure objects, and the column each becomes. The keys are context.py's own class names
 #: ("Blood vessel" with a space -- the folder is `Blood_vessel`, the class is not), so this reads
@@ -137,11 +136,9 @@ def measured_cells(donor: str) -> pd.DataFrame:
 
     `Excluded` cells stay out: they are excluded from every calculation.
     """
-    cells = pq.read_table(
-        S.OUT / f"cells/donor_id={donor}/data.parquet",
-        columns=["object_id", "cell_class", "cell_region_20um", "islet_key", "phenotype"],
-    ).to_pandas()
-    return cells[cells["cell_class"] != "Excluded"]
+    path, _ = S.cell_source(donor)
+    cells = pq.ParquetFile(path).read(columns=["object_id", "qc_analysis_eligible"]).to_pandas()
+    return cells.loc[cells.qc_analysis_eligible].copy()
 
 
 def main() -> int:
@@ -150,6 +147,8 @@ def main() -> int:
     parser.add_argument("--include-marginal", action="store_true")
     parser.add_argument("--force", action="store_true",
                         help="rebuild a donor whose crossed file is already present")
+    parser.add_argument("--coverage-out", type=__import__("pathlib").Path, default=None,
+                        help="write this worker's coverage ledger here (for disjoint donor workers)")
     args = parser.parse_args()
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
 
@@ -172,7 +171,8 @@ def main() -> int:
             # no longer islet-associated -- 19,959 missing on 6476 alone. The comparison is on
             # object_id, so it cannot be fooled by a count that happens to match.
             done = set(pd.read_parquet(target, columns=["object_id"])["object_id"])
-            if done == wanted:
+            has_fragments = "crossed_frac_hormone_fragment" in pq.ParquetFile(target).schema_arrow.names
+            if done == wanted and has_fragments:
                 print(f"  {donor}: {len(done):>7,} cells already measured -- skipped", flush=True)
                 coverage.append({"donor_id": donor, "cells_wanted": len(wanted),
                                  "cells_measured": len(done), "no_outline": 0,
@@ -181,12 +181,15 @@ def main() -> int:
             print(f"  {donor}: rebuilding -- the file on disk misses {len(wanted - done):,} of "
                   f"today's islet-associated cells and carries {len(done - wanted):,} that no "
                   f"longer are", flush=True)
-        matches = [p for p in CELL_GEOJSON.glob("cells__*.geojson") if stem[donor] in p.name]
+        # The outline file the manifest declares for this donor (`S.cell_outlines`), not a folder
+        # globbed for a name.
+        outline_file = S.cell_outlines(donor)
+        matches = [outline_file] if outline_file.is_file() else []
         if len(matches) != 1:
             # Named and carried on rather than raised: the cell outlines are the one input this
             # lane cannot substitute, and a donor that lacks them is a coverage fact the other
             # donors' measurements should not be lost to.
-            reason = f"{len(matches)} cell-outline exports match {stem[donor]!r} in {CELL_GEOJSON}"
+            reason = f"the cell-outline export {outline_file} is not on disk"
             print(f"  {donor}: NOT BUILT -- {reason}", flush=True)
             coverage.append({"donor_id": donor, "cells_wanted": len(wanted),
                              "cells_measured": 0, "no_outline": len(wanted),
@@ -194,6 +197,11 @@ def main() -> int:
             continue
 
         objects = {name: subdivide(CX.load_objects(stem[donor], name)) for name in STRUCTURES}
+        fragment_files = list((S.EXPORT / "typing_fragments").glob(f"Fragments__{stem[donor]}*.geojson"))
+        if len(fragment_files) != 1:
+            raise FileNotFoundError(f"{donor}: expected one current fragment export, found {fragment_files}")
+        fragment_shapes = [shape(f["geometry"]) for f in json.loads(fragment_files[0].read_text())["features"]]
+        objects["Hormone Fragment"] = subdivide(fragment_shapes)
         trees = {name: (STRtree(geoms) if geoms else None) for name, geoms in objects.items()}
         area_um2 = pixel[donor] ** 2
 
@@ -210,6 +218,9 @@ def main() -> int:
                 for name, column in STRUCTURES.items():
                     row[f"crossed_frac_{column}"] = covered_fraction(
                         trees[name], objects[name], outline, cell_area)
+                row["crossed_frac_hormone_fragment"] = (
+                    covered_fraction(trees["Hormone Fragment"], objects["Hormone Fragment"], outline, cell_area)
+                    if fragment_shapes else (0.0 if cell_area > 0 else float("nan")))
                 rows.append(row)
                 if len(rows) == len(wanted):
                     break
@@ -240,7 +251,10 @@ def main() -> int:
     table = pd.DataFrame(coverage)
     pd.set_option("display.width", 200)
     print("\n" + table.to_string(index=False))
-    table.to_parquet(OUT / "crossed_coverage.parquet", index=False)
+    coverage_path = args.coverage_out or (OUT / "crossed_coverage.parquet")
+    coverage_path.parent.mkdir(parents=True, exist_ok=True)
+    table.to_parquet(coverage_path, index=False)
+    print(f"Coverage ledger -> {coverage_path}")
     print(f"\n-> {OUT}")
     return 0
 

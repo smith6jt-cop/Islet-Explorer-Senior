@@ -402,9 +402,14 @@ def test_signed_encoding_resolves_phenotypes_that_zero_cannot():
 def test_the_acquisition_group_statistic_reproduces_from_the_cohort_table_alone():
     """Plan verification item 4.
 
-    CD57 must come back at ~35 and every other marker below the flag, derived from the donor
-    IDs and the group table -- not read from a stored result.  This is the one measurement
-    Step 2 acts on, so it is pinned rather than remembered.
+    CD57 must come back far over the flag, derived from the donor IDs and the group table --
+    not read from a stored result.  (35.1 on the 20 donors, 35.9 on the 25 of the v3 cohort.)
+
+    Until 2026-10-02 this also asserted that NO other marker is over the flag, because the flag
+    alone refused a marker.  With all 25 donors in one cohort CD8 is over it (2.97), and UniFORM
+    aligns CD8 to 0.065: the flag now refuses a marker only together with a shift that leaves
+    the background modes over the bar (``run_step2.REFUSED``).  What is pinned instead is that
+    rule, on whatever Step 2 last wrote.
     """
     out = panel.OUT / "marker_donor_usability.parquet"
     if not out.exists():
@@ -413,10 +418,23 @@ def test_the_acquisition_group_statistic_reproduces_from_the_cohort_table_alone(
     grp = panel.cohort().set_index("donor_id")["acq_group"]
     r = {m: U.acquisition_group_ratio(g.set_index("donor_id")["p50"], grp)["acq_ratio"]
          for m, g in d.groupby("marker")}
-    assert r["CD57"] == pytest.approx(35.1, abs=0.5)
-    others = {m: v for m, v in r.items() if m != "CD57" and np.isfinite(v)}
-    assert max(others.values()) < U.BARS["acq_ratio_flag"], \
-        f"a second marker steps with the group: {max(others, key=others.get)}"
+    assert r["CD57"] > 30, r["CD57"]
+    flagged = {m for m, v in r.items() if np.isfinite(v) and v >= U.BARS["acq_ratio_flag"]}
+    f = panel.OUT / "shifts.json"
+    if not f.exists():
+        pytest.skip("Step 2 has not been run on this machine")
+    import run_step2 as S2_
+    shifts = json.loads(f.read_text())["shifts"]
+    for m in flagged & set(shifts):
+        v = shifts[m]
+        if not isinstance(v.get("mode_sd_after"), float):
+            continue
+        over = v["mode_sd_after"] > S2_.BAR_MODE_SD
+        assert (v["provenance"] == S2_.REFUSED) == over, \
+            f"{m}: group ratio {r[m]:.2f}, modes {v['mode_sd_after']:.3f} after the shift, recorded {v['provenance']}"
+    for m, v in shifts.items():
+        if v["provenance"] == S2_.REFUSED:
+            assert m in flagged, f"{m} is refused without stepping with the acquisition group"
 
 
 @pytest.mark.data
@@ -698,7 +716,7 @@ def test_a_variant_marker_does_not_cost_a_donor_its_cells():
     b = S1.donor_frame(without, mk)
     assert "CD38" in a.columns and "CD38" not in b.columns
     assert a.attrs["counts"]["complete"] > 0 and b.attrs["counts"]["complete"] > 0
-    assert b.attrs["counts"]["complete"] == b.attrs["counts"]["eligible"], \
+    assert b.attrs["counts"]["complete"] == b.attrs["counts"]["in_block"], \
         "a marker this donor lacks must not drop its cells"
 
 

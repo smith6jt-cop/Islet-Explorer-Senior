@@ -201,3 +201,52 @@ def test_resolve_source_refuses_rather_than_reading_nothing(tmp_path, monkeypatc
     monkeypatch.setattr(I, "SOURCE_CANDIDATES", (tmp_path / "absent.tsv",))
     with pytest.raises(SystemExit, match="not found"):
         I.resolve_source()
+
+
+# ---- the v3 export: one Parquet table per slide ----------------------------------------------
+
+def _as_parquet(export: Path, directory: Path, drop: dict[str, list[str]] | None = None) -> Path:
+    """The fixture TSV rewritten as one Parquet table per image, numbers as numbers."""
+    import pandas as pd
+
+    frame = pd.read_csv(export, sep="\t", dtype=str, keep_default_na=False)
+    numeric = [c for c in frame.columns if c not in ("Image", "Object ID", "Object type", "Parent", "Classification")]
+    for column in numeric:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    directory.mkdir()
+    for image, part in frame.groupby("Image"):
+        part = part.drop(columns=(drop or {}).get(image, []))
+        part.to_parquet(directory / (image.replace(" ", "_").replace("#", "") + ".parquet"), index=False)
+    return directory
+
+
+def test_a_directory_of_parquet_tables_ingests_like_the_tsv(lane):
+    export, tmp_path = lane
+    from_tsv = run(lane)
+    tables = _as_parquet(export, tmp_path / "cells")
+    from_parquet = run((tables, tmp_path))
+    assert from_parquet["source"]["format"] == "parquet directory" and from_tsv["source"]["format"] == "tsv"
+    assert from_parquet["source"]["rows"] == from_tsv["source"]["rows"] == 9
+    assert from_parquet["source"]["csv_rejected_rows"] == 0
+    strip = lambda report: [{k: v for k, v in entry.items()} for entry in report["per_donor"]]   # noqa: E731
+    assert strip(from_parquet) == strip(from_tsv)                 # the same ledger, donor for donor
+    empty = {entry["donor_id"]: entry for entry in from_parquet["per_image"]}["6551"]
+    assert empty["all_null_measurement_columns"]                  # no measurement stays unavailable
+
+
+def test_a_column_one_slide_lacks_is_null_for_that_slide_and_named(lane):
+    export, tmp_path = lane
+    image = "6476pLN_Scan1.er.qptiff - resolution #1"
+    tables = _as_parquet(export, tmp_path / "cells", drop={image: ["Cell: CD3e: Mean"]})
+    report = run((tables, tmp_path))
+    lacking = report["source"]["columns_lacking_by_table"]
+    assert list(lacking.values()) == [["Cell: CD3e: Mean"]]
+    per_image = {entry["donor_id"]: entry for entry in report["per_image"]}
+    assert "CD3e" in per_image["6476"]["all_null_measurement_columns"]
+    assert "CD3e" not in per_image["6579"]["all_null_measurement_columns"]
+
+
+def test_an_empty_directory_is_refused(tmp_path):
+    (tmp_path / "cells").mkdir()
+    with pytest.raises(SystemExit, match="no \\*.parquet table"):
+        I.resolve_source(str(tmp_path / "cells"))

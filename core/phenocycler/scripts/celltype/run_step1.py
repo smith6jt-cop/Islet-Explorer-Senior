@@ -23,10 +23,16 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import panel                                      # noqa: E402
 import usability as U                             # noqa: E402
+import alignment_block as AB                      # noqa: E402
 
 
 def donor_frame(donor: str, markers: list) -> pd.DataFrame:
-    """Analysis-eligible cells for one donor, complete across the markers IT CARRIES.
+    """Analysis-eligible cells of one donor's PANCREAS BLOCK, complete across the markers IT CARRIES.
+
+    The block, not the slide (maintainer, 2026-10-02: "UniFORM should be done on a same-block
+    basis"): a same-block lymph node's cells are in, a different-block node's are another
+    sample and are out -- of this table, of the shift and of the scale alike
+    (``alignment_block.population``).
 
     Intersecting with ``panel.donor_markers`` rather than demanding the full list is what
     lets the panel-variant markers in at all: requiring CD38 of every donor would drop all
@@ -34,7 +40,7 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     that marker runs on fewer donors".
     """
     markers = [m for m in markers if m in set(panel.donor_markers(donor))]
-    cols = ["object_id", "qc_analysis_eligible", "X_centroid", "Y_centroid"] + markers
+    cols = ["object_id", "qc_analysis_eligible", "cell_region", "X_centroid", "Y_centroid"] + markers
     # Two separate reasons this line is what it is, found by two sessions on 2026-09-17.
     #
     # panel.expression_path, not a fixed path: it resolves the stable flat root first and falls
@@ -49,9 +55,12 @@ def donor_frame(donor: str, markers: list) -> pd.DataFrame:
     n_all = len(df)
     df = df[df["qc_analysis_eligible"]]
     n_elig = len(df)
+    df = df[AB.population(donor, df["object_id"], df["cell_region"])]
+    n_block = len(df)
     df = df[np.isfinite(df[markers].to_numpy("float32")).all(axis=1)]
     df = df[np.isfinite(df[["X_centroid", "Y_centroid"]].to_numpy()).all(axis=1)]
-    df.attrs["counts"] = {"rows": n_all, "eligible": n_elig, "complete": len(df)}
+    df.attrs["counts"] = {"rows": n_all, "eligible": n_elig, "in_block": n_block,
+                          "complete": len(df)}
     return df.reset_index(drop=True)
 
 
@@ -60,7 +69,7 @@ def stats_for_donor(donor: str, markers: list, partners: dict, controls: dict) -
     markers = [m for m in markers if m in df.columns]
     c = df.attrs["counts"]
     print(f"  {donor}: {c['rows']:,} rows -> {c['eligible']:,} eligible -> "
-          f"{c['complete']:,} complete", flush=True)
+          f"{c['in_block']:,} in the pancreas block -> {c['complete']:,} complete", flush=True)
     X = {m: df[m].to_numpy("float64") for m in markers}
     nbr = U.neighbour_graph(df[["X_centroid", "Y_centroid"]].to_numpy(), U.BARS["morans_k"])
 
@@ -76,7 +85,8 @@ def stats_for_donor(donor: str, markers: list, partners: dict, controls: dict) -
     rows = []
     for m in markers:
         r = {"donor_id": donor, "marker": m,
-             "n_eligible": c["eligible"], "n_complete": c["complete"], "morans_null": null}
+             "n_eligible": c["eligible"], "n_in_block": c["in_block"],
+             "n_complete": c["complete"], "morans_null": null}
         r |= U.shape_stats(X[m])
         r |= U.spatial_stats(X[m], nbr)
 

@@ -148,6 +148,7 @@ import gc
 import hashlib
 import json
 import math
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -167,7 +168,10 @@ from partial_run_guard import RunScope, write_scope_note  # noqa: E402
 PHENO_CELLS = REPO / "core/phenocycler/data/integration/cells_pln"
 XEN_H5AD_DIR = Path("/data/xenium/h5ad_out")
 XEN_CELLS = REPO / "core/phenocycler/data/integration/cells_xen"
-PLN_LAYER = Path("/data/islet_layers/pln")
+#: The node-membership layer build_pln_layer.py publishes, under the SAME root it writes to: this path
+#: was pinned to /data/islet_layers until 2026-10-01, so a build into another root ($ISLET_LAYERS_DIR)
+#: was clustered against the old root's membership -- other cells, joined by object id to nothing.
+PLN_LAYER = Path(os.environ.get("ISLET_LAYERS_DIR", "/data/islet_layers")) / "pln"
 ACQ_RUNS = REPO / "data/donor_acquisition_runs.csv"
 ACQ_BATCH = REPO / "data/donor_acquisition_batch.csv"
 OUT_ROOT = REPO / "data/development/typing/pln/clusters"

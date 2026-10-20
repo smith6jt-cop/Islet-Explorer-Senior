@@ -97,7 +97,9 @@ sys.path.insert(0, str(S.REPO / "core/phenocycler"))
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 REVISED = S.REPO / "data/RevisedQuPathExports"
-OUT = S.OUT / "revised_cells"
+OUT = S.REVISED
+#: The source workflow's geometry QC, whose raster and duplicate decisions a rebuild keeps.
+GEOMETRY_QC = S.REPO / "core/phenocycler/data/geometry_qc"
 
 #: The two tracked image -> donor manifests. Neither is complete on its own: the QuPath manifest
 #: names 0112 and 6533 and not 6579; the acquisition table names 6579 and not 0112 or 6533. They
@@ -384,16 +386,11 @@ def islet_number(parent: pd.Series) -> pd.Series:
 
 
 def region(dist: pd.Series) -> pd.Series:
-    """core / expansion / tissue, from the signed distance alone.
-
-    Negative or zero is inside the islet; (0, 20] is the peri-islet expansion; beyond that is
-    ordinary tissue. Built this way so every expansion is exactly 20 um by construction.
-    """
+    """True inside/outside membership; distance remains continuous, with no ring."""
     out = pd.Series(pd.NA, index=dist.index, dtype="object")
     finite = np.isfinite(dist)
     out[finite & (dist <= 0)] = "core"
-    out[finite & (dist > 0) & (dist <= EXPANSION_UM)] = "expansion"
-    out[finite & (dist > EXPANSION_UM)] = "tissue"
+    out[finite & (dist > 0)] = "tissue"
     return out
 
 
@@ -469,9 +466,26 @@ def rebuild(record: dict, thr: dict[str, float]) -> None:
     (df["qc_analysis_eligible"], df["analysis_reason"],
      df["qc_estimation_eligible"], df["estimation_reason"]) = eligibility(df, thr)
 
+    # The v3 source workflow has already evaluated raster and duplicate QC on the
+    # current segmentation. Preserve those decisions instead of repeating only
+    # the subset of tests possible from a measurement TSV.
+    qc_path = GEOMETRY_QC / f"donor_id={donor}/data.parquet"
+    qc = pq.ParquetFile(qc_path).read(columns=["object_id", "analysis_eligible", "estimation_eligible",
+                                             "analysis_reason", "estimation_reason"]).to_pandas()
+    existing = df.object_id.isin(qc.object_id)
+    if (df.loc[~existing, "cell_area"] >= thr["min_cell_area"]).any():
+        raise ValueError(f"{donor}: current export contains admitted-size cells missing from source geometry QC")
+    qc = qc.rename(columns={"analysis_eligible": "qc_analysis_eligible",
+                            "estimation_eligible": "qc_estimation_eligible"})
+    df = df.drop(columns=["qc_analysis_eligible", "qc_estimation_eligible", "analysis_reason", "estimation_reason"])
+    df = df.merge(qc, on="object_id", how="left", validate="one_to_one")
+    for role in ("analysis", "estimation"):
+        df[f"qc_{role}_eligible"] = df[f"qc_{role}_eligible"].fillna(False).astype(bool)
+        df[f"{role}_reason"] = df[f"{role}_reason"].fillna("cell_area_below_min_at_ingest")
+
     # ---- REDSEA-corrected, UniFORM-aligned marker values, BY object_id -------------------
     aligned_path = S.ALIGNED / f"donor_id={donor}/data.parquet"
-    aligned = pq.read_table(aligned_path).to_pandas()
+    aligned = pq.ParquetFile(aligned_path).read().to_pandas()
     markers = [c for c in aligned.columns
                if c not in {"donor_id", "object_id", "qc_analysis_eligible",
                             "X_centroid", "Y_centroid", "cell_region", "islet_num"}]
@@ -540,7 +554,7 @@ def main() -> int:
 
     thr = load_thresholds()
     print(f"\ngeometry thresholds from config.ini: {thr}")
-    print(f"expansion fixed at {EXPANSION_UM:.0f} um, derived from the signed distance\n")
+    print("No expansion regions; signed distances retained continuously.\n")
     OUT.mkdir(parents=True, exist_ok=True)
     for record in chosen:
         rebuild(record, thr)

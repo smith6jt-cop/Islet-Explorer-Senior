@@ -10,12 +10,13 @@ intersect because none had been built.
 
     non_endocrine = (islet core U expansion) - union(the endocrine cells' own segmented outlines)
 
-**The only per-cell polygons in this checkout are in ``data/redsea_scratch/geojson/``** (61 GB).  No
-PhenoCycler stage output carries any -- neither the current flat roots nor the historical
-``data/runs/`` tree, whose ``cells``, ``expression`` and ``geometry_qc`` stages have
-129, 69 and 15 columns and not one of them is geometry.  Those files are keyed by the QuPath UUID,
-so they join to ``object_id`` directly -- and they are on the Phase 10 archive list, which is why
-this is built before that phase runs rather than after.
+**The only per-cell polygons are the QuPath cell-outline exports the manifest declares**
+(``cell_geojson.path``; read through ``subpanel_io.cell_outlines``).  For the v2 cohort those are
+the 61 GB under ``data/redsea_scratch/geojson/``; for the v3 exports they are
+``results/v3/export/cell_geojson/``.  No PhenoCycler stage output carries any -- neither the
+current flat roots nor the historical ``data/runs/`` tree, whose ``cells``, ``expression`` and
+``geometry_qc`` stages have 129, 69 and 15 columns and not one of them is geometry.  Those files
+are keyed by the QuPath UUID, so they join to ``object_id`` directly.
 
 The files are single-line FeatureCollections of several GB, so they are streamed rather than read.
 
@@ -40,14 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cohort as COHORT
 import subpanel_io as S
 
-CELL_GEOJSON = S.REPO / "data/redsea_scratch/geojson"
 OUT = S.OUT / "geometry"
-
-#: donor -> the qptiff stem the scratch files are named for.
-def _stem_map() -> dict[str, str]:
-    raw = json.loads((S.REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
-    return {r["donor_id"]: r["image_id"].split(" - ")[0].replace(".qptiff", "")
-            for r in raw["images"]}
 
 
 def endocrine_ids(donor: str) -> tuple[set[str], pd.DataFrame]:
@@ -59,9 +53,7 @@ def endocrine_ids(donor: str) -> tuple[set[str], pd.DataFrame]:
     cells = cells[(cells["cell_class"] != "Excluded")
                   & cells["cell_region_20um"].isin(["core", "expansion"])
                   & cells["islet_key"].notna()]
-    areas = pq.read_table(S.RUN / f"cells/donor_id={donor}/data_0.parquet",
-                          columns=["object_id", "cell_area"]).to_pandas()
-    cells = cells.merge(areas, on="object_id", how="left", validate="one_to_one")
+    cells = cells.merge(S.cell_areas(donor), on="object_id", how="left", validate="one_to_one")
     return set(cells.loc[cells["is_endocrine"], "object_id"]), cells
 
 
@@ -104,7 +96,7 @@ def is_fresh(donor: str, cell_geojson: Path) -> bool:
         return False
     inputs = [
         S.OUT / f"cells/donor_id={donor}/data.parquet",
-        S.RUN / f"cells/donor_id={donor}/data_0.parquet",
+        S.cell_area_source(donor),
         cell_geojson,
         S.REPO / "core/phenocycler/data/qupath_manifest.json",
         Path(__file__).resolve(),
@@ -127,7 +119,6 @@ def main() -> int:
     args = parser.parse_args()
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
 
-    stems = _stem_map()
     # The scratch outlines are in PIXELS, like the islet outlines -- convert with each image's own
     # pixel size, exactly as build_islet_geometry.py does. An area left in px^2 looks plausible and
     # is wrong by a factor of ~4 here.
@@ -143,9 +134,10 @@ def main() -> int:
 
     skipped = []
     for donor in donors:
-        matches = [p for p in CELL_GEOJSON.glob("cells__*.geojson") if stems[donor] in p.name]
-        if len(matches) != 1:
-            raise FileNotFoundError(f"{donor}: {len(matches)} cell-outline files")
+        # the outline file the manifest declares for this donor, not a folder globbed for a name
+        matches = [S.cell_outlines(donor)]
+        if not matches[0].is_file():
+            raise FileNotFoundError(f"{donor}: cell-outline file {matches[0]} is not on disk")
 
         if not args.force and is_fresh(donor, matches[0]):
             print(f"{donor}: fresh -- skipped (--force to rebuild)", flush=True)

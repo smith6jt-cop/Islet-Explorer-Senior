@@ -56,9 +56,9 @@ THE ISLET CHAIN, as the maintainer ruled it (2026-09-18). Inside an islet outlin
     4. ELONGATION    a second ROUTE that can only ADD, in the large stratum only (islets of
                      STRICTLY more than ten admitted cells). ITS LEVEL IS NOT SETTLED -- see the
                      note below.
-    5. ENDOCRINE     -> the hormone argmax names Beta / Alpha / Delta. At least one hormone must
-                     have been READ first: argmax over three NaNs returns index 0, "Beta", every
-                     time.
+    5. ENDOCRINE     -> a complete, unique positive hormone winner names Beta / Alpha / Delta.
+                     Zero or incomplete comparisons retain broad endocrine admission with an
+                     unresolved subtype; positive exact ties retain an ambiguous subtype.
     6. NOT ENDOCRINE -> the ordinary tissue chain, unchanged. That population is the analysis.
 
 WHY CD99 SITS AT A LEVEL AND ELONGATION AT A SHAPE. Measured over 20 donors, 2026-09-18, with
@@ -128,6 +128,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 import time
@@ -147,6 +148,8 @@ import subpanel_io as S
 
 OUT = S.OUT / "subpanel"
 WORK = S.OUT / "scratch/subpanel_context"
+REGISTRY_LOG = pathlib.Path(os.environ.get(
+    "IO60_SUBPANEL_LOG", str(OUT / "subpanel_log.json")))
 
 #: Strongest first. Recovered from the calls rather than assumed -- see RECONSTRUCTION.md.
 STRUCTURES = ("Blood vessel", "Nerve", "Lymphatic")
@@ -301,8 +304,8 @@ SHAPE_FEATURE = "nucleus_elongation"
 SHAPE_FLOOR = 1.0
 
 #: Per-cell nucleus and cell morphology, written by `extract_qupath_fundamentals.py`.
-CROSSED = S.OUT / "crossed"
-FUNDAMENTALS = S.OUT / "qupath_fundamentals"
+CROSSED = S.CROSSED
+FUNDAMENTALS = S.FUNDAMENTALS
 
 #: A cell for which not one marker was measured. It carries no evidence of any kind, so it is
 #: not exocrine, not endocrine and not immune -- it is unmeasured, and inside an islet it is
@@ -315,7 +318,7 @@ FUNDAMENTALS = S.OUT / "qupath_fundamentals"
 NO_MEASUREMENT_REASON = "no_marker_values"
 
 
-def _log(): return json.loads((OUT / "subpanel_log.json").read_text())
+def _log(): return json.loads(REGISTRY_LOG.read_text())
 
 
 def crossed_area(donor: str, object_ids: pd.Series) -> dict[str, np.ndarray]:
@@ -361,9 +364,15 @@ def scaled_markers(donor: str, wanted: set[str], scale: pd.DataFrame,
     present = sorted(wanted & have)
     frame = pq.read_table(path, columns=["object_id"] + present).to_pandas()
     frame = object_ids.to_frame("object_id").merge(frame, on="object_id", how="left")
-    values = pd.DataFrame(S.apply_scale(frame[present].to_numpy(), present, scale),
-                          columns=present, index=frame.index)
-    for marker in sorted(wanted - have):
+    frame = S.mask_fragment_hormones(frame, donor)
+    # A historical frozen scale has no row for panel-variant markers added later. Keep those
+    # measured values available to the pre-scale identity comparison, but do not manufacture a
+    # normalized value for them: the marker is explicitly unavailable to rules that require the
+    # frozen feature scale. Recomputed-scale arms carry those markers when their own scale exists.
+    scalable = [m for m in present if m in scale.index]
+    values = pd.DataFrame(S.apply_scale(frame[scalable].to_numpy(), scalable, scale),
+                          columns=scalable, index=frame.index)
+    for marker in sorted((wanted - have) | (set(present) - set(scalable))):
         values[marker] = np.nan
     # The EXPRESSED values, before `apply_scale` put every marker on its own range. The structure
     # rule asks whether the object's own marker is "simply higher than all the rest", which is a
@@ -373,6 +382,7 @@ def scaled_markers(donor: str, wanted: set[str], scale: pd.DataFrame,
     for marker in sorted(wanted - have):
         raw[marker] = np.nan
     values.attrs["expressed"] = raw
+    values.attrs["scale_unavailable"] = sorted(set(present) - set(scalable))
     return values
 
 
@@ -413,6 +423,10 @@ def donor_context(donor: str, membership: str, pixel: dict, stem: dict) -> pd.Da
     frame = pd.DataFrame({"object_id": run["object_id"], "context": context,
                           "object_context": object_context, "in_islet": in_islet,
                           "islet_num": islet_num, "cell_region": run["cell_region"]})
+    if membership == "geometry":
+        for column in ("endocrine_object_class", "endocrine_object_id", "qupath_object_name"):
+            frame[column] = geo[column].to_numpy()
+    frame["hormone_fragment_fraction"] = S.fragment_coverage(frame.object_id, donor).to_numpy()
     # Per-structure membership, NOT the collapsed label: a cell inside both a vessel and a
     # lymphatic must be able to answer for both. See `context.memberships`.
     inside = CX.memberships(run["X_centroid"].to_numpy(), run["Y_centroid"].to_numpy(),
@@ -478,32 +492,54 @@ def fit_levels(donors: list[str], scale: pd.DataFrame, log: dict,
 
 def immune_rules() -> dict:
     """phenotype -> (all_of, [any_of groups], none_of), immune phenotypes only."""
-    table = RULES.requirements(RULES.load_rules(), with_negatives=True)
+    table = S.shared_negatives(RULES.requirements(RULES.load_rules(), with_negatives=True))
     return {k: v for k, v in table.items() if k.startswith(("Imm-", "T-"))}
 
 
-def fires(values: pd.DataFrame, rule: tuple) -> np.ndarray:
-    """Does each cell satisfy one immune definition, with its declared negatives enforced.
+def rule_evidence(values: pd.DataFrame, rule: tuple) -> tuple[np.ndarray, np.ndarray]:
+    """Return (satisfied, unavailable) for an immune definition's measured evidence.
 
-    A marker the donor does not carry is NaN, and every comparison against NaN is False. That
-    makes an all_of containing an absent marker unsatisfiable (correct -- the evidence is not
-    there) and an any_of fall back to whichever members ARE present (also correct).
+    Required positives and negatives need finite measurements. An OR group needs one observed
+    positive witness; unmeasured alternatives cannot invalidate that witness. Without a witness,
+    an unmeasured alternative leaves the group unknown. A measured contradiction in any required
+    term makes the definition false even if another term is unknown. No missing value is filled.
     """
     all_of, any_of, none_of = rule
-    ok = np.ones(len(values), dtype=bool)
+    n = len(values)
+    contradicted = np.zeros(n, dtype=bool)
+    unknown = np.zeros(n, dtype=bool)
     for marker in all_of:
-        ok &= (values[marker].to_numpy() >= IMMUNE_REQUIRE_MIN)
+        v = (values[marker].to_numpy(dtype=float) if marker in values
+             else np.full(n, np.nan))
+        measured = np.isfinite(v)
+        contradicted |= measured & (v < IMMUNE_REQUIRE_MIN)
+        unknown |= ~measured
     for group in any_of:
+        if not group:
+            contradicted[:] = True
+            continue
         members = [m for m in group if m in values.columns]
         if not members:
+            unknown[:] = True
             continue
-        ok &= (values[members].to_numpy() >= IMMUNE_REQUIRE_MIN).any(axis=1)
+        v = values[members].to_numpy(dtype=float)
+        measured = np.isfinite(v)
+        witness = (measured & (v >= IMMUNE_REQUIRE_MIN)).any(axis=1)
+        complete = measured.all(axis=1) & (len(members) == len(group))
+        contradicted |= ~witness & complete
+        unknown |= ~witness & ~complete
     for marker in none_of:
-        # A negative must be ABSENT. NaN is "not measured", which cannot demonstrate presence,
-        # so it does not veto -- the alternative silently kills every rule on a partial panel.
-        v = values[marker].to_numpy()
-        ok &= ~(v >= IMMUNE_REQUIRE_MIN)
-    return ok
+        v = (values[marker].to_numpy(dtype=float) if marker in values
+             else np.full(n, np.nan))
+        measured = np.isfinite(v)
+        contradicted |= measured & (v >= IMMUNE_REQUIRE_MIN)
+        unknown |= ~measured
+    return ~contradicted & ~unknown, ~contradicted & unknown
+
+
+def fires(values: pd.DataFrame, rule: tuple) -> np.ndarray:
+    """Does each cell satisfy an immune definition with observed required evidence?"""
+    return rule_evidence(values, rule)[0]
 
 
 def identity_argmax(values: pd.DataFrame) -> dict[str, np.ndarray]:
@@ -687,16 +723,21 @@ def hormone_evidence(values: pd.DataFrame) -> dict:
     unmeasured channel as a zero runner-up manufactures confidence out of an absence. Such a
     cell is simply not admitted to the reference the levels are fitted from.
     """
-    present = [h for h in S.HORMONES if h in values.columns and values[h].notna().any()]
+    present = [h for h in S.HORMONES if h in values.columns
+               and np.isfinite(values[h].to_numpy(dtype=float)).any()]
     if not present:
         raise ValueError("no hormone channel on this donor -- refusing to classify its islets")
-    m = values[present].to_numpy(dtype=float)
-    filled = np.nan_to_num(m, nan=-1.0)
+    # All three channels take part in completeness, including a wholly unmeasured or absent
+    # channel. Dropping it would turn an unknown competitor into a confident hormone winner.
+    m = values.reindex(columns=list(S.HORMONES)).to_numpy(dtype=float)
+    finite = np.isfinite(m)
+    filled = np.where(finite, m, -np.inf)
     order = np.sort(filled, axis=1)
     top = order[:, -1]
     runner_up = order[:, -2] if m.shape[1] >= 2 else np.full(len(m), 0.0)
-    which = np.array(present, dtype=object)[np.argmax(filled, axis=1)]
-    complete = ~np.isnan(m).any(axis=1)
+    which = np.array(S.HORMONES, dtype=object)[np.argmax(filled, axis=1)]
+    complete = finite.all(axis=1)
+    top_count = ((filled == top[:, None]) & finite).sum(axis=1)
     top = np.where(top < 0, np.nan, top)
     runner_up = np.where(runner_up < 0, 0.0, runner_up)
     # islet_identity's own definition of a confirmed endocrine cell, imported rather than
@@ -705,11 +746,11 @@ def hormone_evidence(values: pd.DataFrame) -> dict:
     # every level below is fitted from it.
     confirmed = (complete & (top >= ID.REFERENCE_MIN)
                  & (top >= ID.REFERENCE_MARGIN * np.maximum(runner_up, 1e-6)))
-    # `measured` is the floor under the whole islet chain: the argmax that would name this cell
-    # Beta, Alpha or Delta reads these three channels and nothing else, so with none of them
-    # measured the name would come from the tie-break order rather than from the tissue.
-    return {"top": top, "runner_up": runner_up, "which": which, "measured": ~np.isnan(m).all(1),
-            "complete": complete, "confirmed": confirmed, "present": present}
+    # `measured` remains the existing floor under endocrine admission. Subtype naming below
+    # separately requires a complete, unique positive comparison of all three hormones.
+    return {"top": top, "runner_up": runner_up, "which": which, "measured": finite.any(axis=1),
+            "complete": complete, "confirmed": confirmed, "present": present,
+            "top_count": top_count}
 
 
 def fit_islet_levels(donor_level: float | None, confirmed: np.ndarray, stratum: np.ndarray,
@@ -894,8 +935,10 @@ def _structure_calls(ctx: pd.DataFrame, values: pd.DataFrame, levels: dict, log:
 
 
 def _tissue_chain(values: pd.DataFrame, log: dict, rules: dict, cell_class: np.ndarray,
-                  definition: np.ndarray, resolved_by: np.ndarray) -> None:
-    """Steps 3-5 of the ordinary chain, UNCHANGED: immune definitions, supporting tier, Exocrine.
+                  definition: np.ndarray, resolved_by: np.ndarray,
+                  rule_audit: dict | None = None,
+                  unavailable_count: np.ndarray | None = None) -> None:
+    """The ordinary chain: observed immune definitions, supporting tier, Exocrine fallback.
 
     Mutates the three arrays in place. Every cell the islet chain does not call endocrine comes
     through here, which is the point: the non-endocrine cells inside an islet are the analysis,
@@ -904,7 +947,18 @@ def _tissue_chain(values: pd.DataFrame, log: dict, rules: dict, cell_class: np.n
     n = len(cell_class)
     unclaimed = cell_class == None  # noqa: E711
     for phenotype, rule in sorted(rules.items()):
-        hit = unclaimed & fires(values, rule)
+        satisfied, unavailable = rule_evidence(values, rule)
+        hit = unclaimed & satisfied
+        if unavailable_count is not None:
+            unavailable_count += unavailable.astype(unavailable_count.dtype)
+        if rule_audit is not None:
+            all_of, any_of, none_of = rule
+            required = set(all_of) | set(none_of) | {m for group in any_of for m in group}
+            rule_audit[phenotype] = {
+                "n_firing": int(satisfied.sum()), "n_called": int(hit.sum()),
+                "n_unavailable": int(unavailable.sum()),
+                "n_unclaimed_unavailable": int((unclaimed & unavailable).sum()),
+                "absent_columns": sorted(required - set(values.columns))}
         cell_class[hit] = "Immune"
         definition[hit] = phenotype
         resolved_by[hit] = "definition"
@@ -976,7 +1030,9 @@ def _finish(in_islet: np.ndarray, cell_class: np.ndarray,
 
 def _run_chain(values, log, rules, structure_class, structure_resolved, in_islet,
                endocrine: np.ndarray, endocrine_name: np.ndarray, endocrine_route: np.ndarray,
-               exocrine_measured: np.ndarray | None = None):
+               exocrine_measured: np.ndarray | None = None,
+               rule_audit: dict | None = None,
+               unavailable_count: np.ndarray | None = None):
     """One full pass: structures (given), the islet answer (given), then the ordinary chain."""
     cell_class = structure_class.copy()
     resolved_by = structure_resolved.copy()
@@ -984,9 +1040,68 @@ def _run_chain(values, log, rules, structure_class, structure_resolved, in_islet
     hit = endocrine & (cell_class == None)  # noqa: E711
     cell_class[hit] = endocrine_name[hit]
     resolved_by[hit] = endocrine_route[hit]
-    _tissue_chain(values, log, rules, cell_class, definition, resolved_by)
+    _tissue_chain(values, log, rules, cell_class, definition, resolved_by,
+                  rule_audit, unavailable_count)
     reason = _finish(in_islet, cell_class, exocrine_measured)
     return cell_class, definition, resolved_by, reason
+
+
+def direct_single_identity(values: pd.DataFrame, name_of: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Name a Single without CD99; exclude missing/tied subtypes per 2026-10-05."""
+    markers = [m for m in S.HORMONES if m in values]
+    names = np.full(len(values), "Excluded", dtype=object)
+    status = np.full(len(values), "no_usable_hormone", dtype=object)
+    if not markers:
+        return names, status
+    x = values[markers].to_numpy(float)
+    finite = np.isfinite(x)
+    safe = np.where(finite, x, -np.inf)
+    top = safe.max(axis=1)
+    # A zero left by floor clipping carries no subtype evidence.
+    usable = finite.any(axis=1) & (top > 0)
+    tied = ((safe == top[:, None]) & finite).sum(axis=1) > 1
+    unique = usable & ~tied
+    winner = safe.argmax(axis=1)
+    names[unique] = np.asarray([name_of[m] for m in markers], dtype=object)[winner[unique]]
+    names[usable & tied] = "Excluded"
+    status[unique] = "unique_highest_hormone"
+    status[usable & tied] = "tied_highest_hormones"
+    return names, status
+
+
+ORDINARY_ENDOCRINE_NAMES = ("Endocrine (unresolved subtype)",
+                           "Endocrine (ambiguous subtype)")
+
+
+def ordinary_endocrine_identity(values: pd.DataFrame, name_of: dict,
+                                evidence: dict | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """Name an ordinary endocrine cell only with a complete, unique positive hormone winner.
+
+    This names cells already admitted by the endocrine chain; it does not decide admission.
+    The separately ruled direct-Single policy stays in `direct_single_identity`.
+    """
+    names = np.full(len(values), ORDINARY_ENDOCRINE_NAMES[0], dtype=object)
+    status = np.full(len(values), "incomplete_hormone_comparison", dtype=object)
+    if evidence is None:
+        x = values.reindex(columns=list(S.HORMONES)).to_numpy(dtype=float)
+        finite = np.isfinite(x)
+        safe = np.where(finite, x, -np.inf)
+        top = safe.max(axis=1)
+        complete = finite.all(axis=1)
+        top_count = ((safe == top[:, None]) & finite).sum(axis=1)
+        which = np.asarray(S.HORMONES, dtype=object)[safe.argmax(axis=1)]
+    else:
+        top, complete, top_count, which = (evidence[k] for k in
+                                          ("top", "complete", "top_count", "which"))
+    positive = complete & np.isfinite(top) & (top > 0)
+    tied = positive & (top_count > 1)
+    unique = positive & (top_count == 1)
+    names[tied] = ORDINARY_ENDOCRINE_NAMES[1]
+    names[unique] = np.asarray([name_of[m] for m in which[unique]], dtype=object)
+    status[complete & ~positive] = "no_usable_hormone"
+    status[tied] = "tied_highest_hormones"
+    status[unique] = "unique_highest_hormone"
+    return names, status
 
 
 def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
@@ -1008,7 +1123,8 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
          The donor's ordinary-tissue CD99 level is carried and reported beside it, never
          substituted for it.
       4. ELONGATION as a second ROUTE that can only ADD, in the large stratum only.
-      5. ENDOCRINE -> the hormone argmax names Beta / Alpha / Delta.
+      5. ENDOCRINE -> a complete, unique positive hormone winner names Beta / Alpha / Delta;
+         incomplete/zero comparisons and positive ties retain explicit subtype uncertainty.
       6. NOT ENDOCRINE -> the ordinary tissue chain, unchanged.
 
     ISLET SIZE, which decides the stratum, is counted over the cells the analysis ADMITS: islet
@@ -1023,6 +1139,11 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     """
     rules = immune_rules()
     wanted = set(S.HORMONES) | {ID.MARKER}
+    # Correction C compares the classifier's creating marker with the complete declared
+    # lineage-marker set, using raw aligned inputs before the per-marker floor/top transform.
+    # These markers need to be loaded even when no other typing rule references them; otherwise
+    # an omitted lineage marker could never win the argmax and the comparison would be incomplete.
+    wanted |= set(IDENTITY_MARKERS)
     for markers in log["subpanels"].values():
         wanted |= set(markers)
     for all_of, any_of, none_of in rules.values():
@@ -1042,6 +1163,7 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     A["donor_id"] = donor
     A["n_cells"] = n
     A["n_in_islet"] = int(in_islet.sum())
+    A["scale_unavailable_markers"] = list(values.attrs.get("scale_unavailable", []))
 
     # Three readings of the identity argmax, computed side by side and all three written. Which
     # one correction C reads is `CORRECTION_C_COLUMN`, one line at module level, and it is left
@@ -1073,10 +1195,18 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     A["n_no_hormone_in_islet"] = int((in_islet & ~horm["measured"]).sum())
     A["n_no_exocrine_marker_in_islet"] = int((in_islet & ~exo_measured).sum())
     base_endocrine = in_islet & horm["measured"] & (horm["top"] >= levels["hormone"])
-    endocrine_name = np.array([name_of[w] for w in horm["which"]], dtype=object)
+    endocrine_name, endocrine_status = ordinary_endocrine_identity(values, name_of, horm)
+    endocrine_names = set(log["hormones"]) | set(ORDINARY_ENDOCRINE_NAMES)
+    rule_audit = A["immune_rule_evidence"] = {}
+    unavailable_count = np.zeros(n, dtype=np.int16)
+    A["immune_rule_evidence_semantics"] = (
+        "Unresolved rule truth after observed contradictions; an observed OR witness suffices. "
+        "Counts include all cells, including cells called by earlier structure/endocrine routes.")
     base_class, base_definition, base_resolved, base_reason = _run_chain(
         values, log, rules, structure_class, structure_resolved, in_islet,
-        base_endocrine, endocrine_name, np.full(n, "hormone", dtype=object), exo_measured)
+        base_endocrine, endocrine_name, np.full(n, "hormone", dtype=object), exo_measured,
+        rule_audit if not islet_chain else None,
+        unavailable_count if not islet_chain else None)
 
     # --- islet size, over the cells the analysis admits ----------------------------------------
     admitted = in_islet & ~structural & (base_class != "Excluded")
@@ -1093,6 +1223,11 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
         frame = _emit(donor, ctx, base_class, base_definition, base_resolved, base_reason,
                       islet_cells, stratum, np.full(n, "", dtype=object),
                       identity_columns, passed_through, detail)
+        endocrine_typed = np.isin(base_class, list(endocrine_names))
+        frame["endocrine_subtype_status"] = np.where(endocrine_typed, endocrine_status, "")
+        frame["immune_rules_unavailable_count"] = unavailable_count
+        A["ordinary_endocrine_subtype_status"] = {
+            str(k): int(v) for k, v in pd.Series(endocrine_status[endocrine_typed]).value_counts().items()}
         return frame
 
     # --- 3. CD99 at the donor x stratum level, and 4. elongation in the large stratum ----------
@@ -1154,7 +1289,33 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
 
     cell_class, definition, resolved_by, reason = _run_chain(
         values, log, rules, structure_class, structure_resolved, in_islet,
-        endocrine, endocrine_name, route, exo_measured)
+        endocrine, endocrine_name, route, exo_measured, rule_audit, unavailable_count)
+
+    single = ctx.get("endocrine_object_class", pd.Series("", index=ctx.index)).eq("EndocrineSingle").to_numpy()
+    single_name, single_status = direct_single_identity(values, name_of)
+    cell_class[single] = single_name[single]
+    resolved_by[single] = "single_hormone"
+    route[single] = "single_hormone"
+    endocrine[single] = True
+    definition[single] = ""
+    reason[single] = ""
+    # Human decision, 2026-10-05: exclude Singles without a unique usable
+    # hormone, rather than treating uncertainty statuses as biological types.
+    single_excluded = single & (single_status != "unique_highest_hormone")
+    cell_class[single_excluded] = "Excluded"
+    resolved_by[single_excluded] = "excluded_single_hormone"
+    route[single_excluded] = ""
+    endocrine[single_excluded] = False
+    reason[single_excluded] = np.asarray([
+        "endocrine_single_" + str(status) for status in single_status[single_excluded]
+    ], dtype=object)
+    A["direct_endocrine_singles"] = {str(k): int(v) for k, v in pd.Series(single_status[single]).value_counts().items()}
+    A["n_excluded_endocrine_singles"] = int(single_excluded.sum())
+    ordinary_endocrine = ~single & np.isin(cell_class, list(endocrine_names))
+    subtype_status = np.where(ordinary_endocrine, endocrine_status, "")
+    subtype_status[single] = single_status[single]
+    A["ordinary_endocrine_subtype_status"] = {
+        str(k): int(v) for k, v in pd.Series(endocrine_status[ordinary_endocrine]).value_counts().items()}
 
     # --- what moved ---------------------------------------------------------------------------
     A["islet_chain"] = True
@@ -1176,7 +1337,6 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     # islets: a cell the immune DEFINITIONS claimed before and the CD99/elongation criteria claim
     # now is an immune cell removed from that analysis, and it must never arrive as a footnote
     # inside a confusion table.
-    endocrine_names = set(log["hormones"])
     A["n_immune_to_endocrine"] = int(
         ((base_class == "Immune") & np.isin(cell_class, list(endocrine_names))).sum())
     A["n_excluded_to_endocrine"] = int(
@@ -1196,8 +1356,11 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
             "changed": int((changed & (stratum == s)).sum())}
         for s in S.SIZE_STRATA}
 
-    return _emit(donor, ctx, cell_class, definition, resolved_by, reason, islet_cells, stratum,
-                 route, identity_columns, passed_through, detail)
+    frame = _emit(donor, ctx, cell_class, definition, resolved_by, reason, islet_cells, stratum,
+                  route, identity_columns, passed_through, detail)
+    frame["endocrine_subtype_status"] = subtype_status
+    frame["immune_rules_unavailable_count"] = unavailable_count
+    return frame
 
 
 def _emit(donor, ctx, cell_class, definition, resolved_by, reason, islet_cells, stratum,
@@ -1217,6 +1380,9 @@ def _emit(donor, ctx, cell_class, definition, resolved_by, reason, islet_cells, 
         "islet_num": ctx["islet_num"].to_numpy(),
         "islet_cells": islet_cells, "islet_stratum": np.asarray(stratum, dtype=object),
         "islet_route": np.asarray(route, dtype=object)})
+    for column in ("endocrine_object_class", "endocrine_object_id", "qupath_object_name"):
+        if column in ctx:
+            frame[column] = ctx[column].to_numpy()
     if detail:
         frame["immune_definition"] = definition.astype(str)
         frame["resolved_by"] = resolved_by.astype(str)
@@ -1367,7 +1533,10 @@ def main() -> int:
     log = _log()
     scale = S.load_scale()
     pixel, stem = MEMBERSHIP._manifest()
-    every = sorted(p.name.split("=")[1] for p in (S.RUN / "expression").glob("donor_id=*"))
+    # Every donor that CAN be classified is one with aligned marker values. This read the
+    # historical run tree's expression partitions until 2026-10-01 -- the same 20 donors while that
+    # tree was the only source, and none at all in a checkout whose cells come from revised exports.
+    every = sorted(p.name.split("=")[1] for p in S.ALIGNED.glob("donor_id=*"))
     donors = args.donors or every
     work = pathlib.Path(args.work) if args.work else WORK
     work.mkdir(parents=True, exist_ok=True)

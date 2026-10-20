@@ -51,10 +51,6 @@ import subpanel_io as S
 DISTANCE = S.REPO / "data/development/kintsugi/distance"
 OUT = S.OUT / "islet_membership"
 
-#: Suffix QuPath gives the 20 um expansion annotation of `Islet_N`.
-EXPANSION_SUFFIX = "_exp20um"
-
-
 def _manifest() -> tuple[dict, dict]:
     raw = json.loads((S.REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
     return ({r["donor_id"]: r["pixel_size_um_x"] for r in raw["images"]},
@@ -62,11 +58,8 @@ def _manifest() -> tuple[dict, dict]:
              for r in raw["images"]})
 
 
-def outlines(stem: str) -> tuple[dict, dict]:
-    """(core outlines, expansion outlines), each `islet number -> geometry`, in PIXELS.
-
-    Keyed by the bare number rather than the name, so a core and its expansion carry the same key
-    and a cell in either resolves to the same islet.
+def outlines(stem: str) -> dict:
+    """`islet number -> actual core geometry`, in pixels.
 
     The file is chosen by ``build_islet_geometry.islet_export``, which searches the export
     directory RECURSIVELY, takes the newest matching annotation export and refuses a detection
@@ -75,7 +68,7 @@ def outlines(stem: str) -> tuple[dict, dict]:
     ``islet_geometry`` could read two different sets of outlines for the same donor and nothing
     would say so. One resolver, one answer.
     """
-    core, expansion = {}, {}
+    core = {}
     for feature in json.loads(GEOM.islet_export(stem).read_text())["features"]:
         properties = feature.get("properties") or {}
         name = str(properties.get("name") or "")
@@ -84,13 +77,14 @@ def outlines(stem: str) -> tuple[dict, dict]:
         geometry = shape(feature["geometry"])
         if not geometry.is_valid:
             geometry = geometry.buffer(0)
-        is_expansion = name.endswith(EXPANSION_SUFFIX)
-        number = name[len("Islet_"):].removesuffix(EXPANSION_SUFFIX)
-        (expansion if is_expansion else core)[number] = geometry
+        if name.endswith("_exp20um"):
+            raise ValueError(f"{stem}: stale expansion outline {name}; regenerate the no-expansion export")
+        number = name[len("Islet_"):]
+        core[number] = geometry
     if not core:
         raise ValueError(f"{stem}: no `Islet_N` core outlines in "
                          f"{GEOM.islet_export(stem).name}")
-    return core, expansion
+    return core
 
 
 def _contain(store: dict, pts) -> tuple[np.ndarray, np.ndarray, int]:
@@ -122,28 +116,31 @@ def _contain(store: dict, pts) -> tuple[np.ndarray, np.ndarray, int]:
 
 def membership(donor: str, x_um: np.ndarray, y_um: np.ndarray,
                pixel_size_um: float, stem: str) -> pd.DataFrame:
-    """Per cell: is it in an islet core, in that islet's expansion, and which islet.
+    """Per cell: whether its centroid is inside an endocrine-object core and which object.
 
-    `in_islet` is the thing that decides which question the typing asks of the cell, and it means
-    exactly "the centroid is inside an `Islet_N` core outline". The expansion is recorded beside
-    it, never folded into it -- conflating the two is the original defect.
+    Only true core membership is categorical. Signed distance remains continuous in the cell
+    table; it is not converted into a peri-object band here.
     """
-    core, expansion = outlines(stem)
+    core = outlines(stem)
     pts = points(np.column_stack([np.asarray(x_um) / pixel_size_um,
                                   np.asarray(y_um) / pixel_size_um]))
     in_core, core_num, multi_core = _contain(core, pts)
-    in_exp, exp_num, multi_exp = _contain(expansion, pts)
-
-    number = np.where(in_core, core_num, np.where(in_exp, exp_num, None))
+    number = np.where(in_core, core_num, None)
+    metadata = {}
+    for feature in json.loads(GEOM.islet_export(stem).read_text())["features"]:
+        props = feature.get("properties") or {}
+        key = str(props.get("name", "")).removeprefix("Islet_")
+        metadata[key] = {"endocrine_object_class": props.get("size_class", "Islet"),
+                         "endocrine_object_id": feature.get("id"),
+                         "qupath_object_name": props.get("qupath_name", props.get("name"))}
     frame = pd.DataFrame({
         "in_islet": in_core,
-        "in_expansion_outline": in_exp & ~in_core,
         "islet_num": number,
     })
+    for column in ("endocrine_object_class", "endocrine_object_id", "qupath_object_name"):
+        frame[column] = [metadata.get(str(k), {}).get(column) for k in number]
     frame.attrs["n_core_outlines"] = len(core)
-    frame.attrs["n_expansion_outlines"] = len(expansion)
     frame.attrs["overlapping_core"] = multi_core
-    frame.attrs["overlapping_expansion"] = multi_exp
     return frame
 
 
@@ -226,12 +223,10 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> tuple[pd.DataFrame, dict
         "cells": len(frame),
         "eligible": int(eligible.sum()),
         "core_outlines": geo.attrs["n_core_outlines"],
-        "expansion_outlines": geo.attrs["n_expansion_outlines"],
         # BOTH counts carry the same eligibility filter. They did not in the first version, and
         # the resulting table showed geometry finding FEWER islet cells than Parent on 12 of 13
         # donors -- an artefact of comparing an eligible count against a raw one.
         "in_islet_geometry": int((frame["in_islet"] & eligible).sum()),
-        "in_expansion_geometry": int((frame["in_expansion_outline"] & eligible).sum()),
         # Islets that actually hold an eligible cell -- not the outline count. 146 outlines in
         # this cohort contain no cell at all, so the two are different numbers and the app's
         # denominator is this one.
@@ -246,7 +241,7 @@ def build_donor(donor: str, pixel: dict, stem: dict) -> tuple[pd.DataFrame, dict
         if len(disagree) else 0.0,
         "overlapping_core": geo.attrs["overlapping_core"],
     }
-    keep = ["object_id", "in_islet", "in_expansion_outline", "islet_num",
+    keep = ["object_id", "in_islet", "endocrine_object_class", "endocrine_object_id", "qupath_object_name", "islet_num",
             "islet_num_parent", "signed_dist_islet_um"]
     return frame[keep], report
 

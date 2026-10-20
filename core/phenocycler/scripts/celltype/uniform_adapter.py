@@ -60,9 +60,12 @@ stated rather than left implicit: **for these markers a single cohort-wide cutof
 valid even after alignment**, and only within-donor rank statistics are safe.
 
 **What a shift cannot repair.**  A rigid shift models a per-donor scale difference.  It does
-not model a different antibody clone, which differs in specificity and background as well as
-gain.  Step 1 flags such markers by their acquisition-group ratio, and this step refuses to
-normalise them as though they were a scale problem however good the shift statistic looks.
+not model a different measurement, which differs in specificity and background as well as
+gain.  Step 1 flags markers whose level steps with the acquisition group, and Step 2 leaves
+such a marker unaligned when UniFORM's shift does not bring its background modes within the
+bar either (``run_step2.REFUSED``; adjusted 2026-10-02 -- until then the flag alone refused
+the marker, which with 25 donors in one cohort refused CD8 although UniFORM aligns it to
+0.065).
 """
 from __future__ import annotations
 

@@ -196,7 +196,9 @@ def test_a_summary_without_the_state_column_derives_it_from_the_calls(v3, tmp_pa
 # ---------------------------------------------------------------------------
 def test_nucleus_measured_as_strings_is_refused_at_the_boundary(v3):
     flags = pd.Series(["False"] * 4)
-    assert flags.dtype == object
+    # object under pandas 2, the str (StringDtype) default under pandas 3; both have kind "O"
+    # and both reach the same refusal in nucleus_flags_of.
+    assert flags.dtype.kind == "O"
     with pytest.raises(ValueError, match="object") as err:
         v3.nucleus_rule_of(flags)
     assert "nucleus_measured" in str(err.value) and "'False'" in str(err.value), (

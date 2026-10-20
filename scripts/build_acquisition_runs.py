@@ -50,8 +50,27 @@ REPO = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "core" / "phenocycler"))
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
-#: `<donor>[panc|pacn]_Scan<n>.er.qptiff`, plus the HDL-prefixed lymph-node scan.
+#: `<donor>[panc|pacn]_Scan<n>.er.qptiff`, plus the HDL-prefixed lymph-node scan.  Used ONLY for a
+#: slide the cohort specification does not declare (6457, which is listed nowhere because it is
+#: excluded); a declared slide takes its donor from the specification -- see `declared_donors`.
 NAME = re.compile(r"(?:HDL)?(\d+)(?:panc|pacn)?(?:LN)?_Scan\d+\.er\.qptiff$")
+
+#: The tracked cohort specification: the one place an image is assigned to a donor.
+COHORT_SPEC = REPO / "core" / "phenocycler" / "cohort-spec.json"
+
+
+def declared_donors(spec: pathlib.Path = COHORT_SPEC) -> dict[str, str]:
+    """qptiff file name -> donor id, for every image the cohort specification declares.
+
+    The same-slide images carry a slide number before the donor (`0080870_6533_pLNpanc_Scan3`),
+    which the name pattern above does not read -- so they had no row here, and a lane that needs a
+    donor's acquisition run (`build_cells.py`) refused them.  Their donor is declared, not parsed.
+    """
+    import json
+    if not spec.is_file():
+        return {}
+    return {os.path.basename(row["qptiff"]): str(row["donor_id"])
+            for row in json.loads(spec.read_text())["images"]}
 
 
 def _read_header(path: str) -> dict:
@@ -71,17 +90,21 @@ def _read_header(path: str) -> dict:
     }
 
 
-def build(images: pathlib.Path) -> pd.DataFrame:
+def build(images: pathlib.Path, declared: dict[str, str] | None = None) -> pd.DataFrame:
+    declared = declared_donors() if declared is None else declared
     rows = []
     for path in sorted(glob.glob(str(images / "*.qptiff"))):
-        match = NAME.match(os.path.basename(path))
-        if not match:
-            continue
+        name = os.path.basename(path)
+        donor = declared.get(name)
+        if donor is None:
+            match = NAME.match(name)
+            if not match:
+                continue
+            donor = match.group(1)
         header = _read_header(path)
         if not header["scan_time"]:
             raise ValueError(f"{path}: no TIFF DateTime tag -- cannot place it in a run")
-        rows.append({"donor_id": match.group(1),
-                     "image_file": os.path.basename(path), **header})
+        rows.append({"donor_id": donor, "image_file": name, **header})
     frame = pd.DataFrame(rows)
     frame["scan_time"] = pd.to_datetime(frame["scan_time"], format="%Y:%m:%d %H:%M:%S")
     frame = frame.sort_values("scan_time").reset_index(drop=True)
@@ -105,11 +128,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--images", type=pathlib.Path,
                         default=pathlib.Path.home() / "IO60panc2nd/Images")
+    parser.add_argument("--cohort-spec", type=pathlib.Path, default=COHORT_SPEC,
+                        help="the cohort specification whose images take their donor from it")
     parser.add_argument("--out", type=pathlib.Path,
                         default=REPO / "data/donor_acquisition_runs.csv")
     args = parser.parse_args()
 
-    frame = build(args.images)
+    frame = build(args.images, declared_donors(args.cohort_spec))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(args.out, index=False)
 
