@@ -3,7 +3,7 @@
 
 WHAT THIS EXISTS FOR.  The app reads ONE of the four cells of the grid
 (pancreas/protein): every app composition artifact is built by a
-``core/phenocycler/scripts/typing/`` builder off ``typing/cells``, over that
+``core/multiplex5000/scripts/typing/`` builder off ``typing/cells``, over that
 builder's own ``COHORT.resolve``.  Three other cells have calls and no reader at
 all.  This builder does not widen the pancreas immune lane; it reads each of the
 four call trees directly, harmonises their labels through the GENERATED
@@ -252,11 +252,11 @@ PANC_CLASS_COUNTED_ELSEWHERE = ("Immune", "Excluded")
 
 #: `cell_class` values that are NOT a lineage and must never be given one.
 #:
-#: AUTHORITY.  The class vocabulary is `core/phenocycler/scripts/typing/refine.py`
+#: AUTHORITY.  The class vocabulary is `core/multiplex5000/scripts/typing/refine.py`
 #: (`OWN_MARKERS` + `UNTOUCHED` + `UNRESOLVED`) -- restated here rather than imported for the
-#: same reason `core/phenocycler/scripts/typing/build_cells.py` restates `UNRESOLVED`:
+#: same reason `core/multiplex5000/scripts/typing/build_cells.py` restates `UNRESOLVED`:
 #: importing `refine` pulls in the whole celltype scoring stack.  The ruling on what such a
-#: label IS belongs to `core/phenocycler/phenocycler/integration/vocab.py`, which is imported
+#: label IS belongs to `core/multiplex5000/multiplex5000/integration/vocab.py`, which is imported
 #: above and declares `PHENO_UNRESOLVED` in `NON_CALLS` under reason_id
 #: `no_identity_evidence`: the producer looked and resolved no identity.  vocab rules that a
 #: recorded non-call takes the EMPTY common lineage and must NOT be folded into

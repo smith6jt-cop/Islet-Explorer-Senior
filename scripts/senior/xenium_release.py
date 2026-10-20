@@ -59,7 +59,7 @@ WHAT THIS MODULE PROMISES.
   never infers.
 
 WHAT IT DOES NOT DO.  It does not filter the cohort.  ``DONOR_EXCLUSIONS`` lives
-once, in ``core/phenocycler/phenocycler/cohort.py``, and the builders apply it;
+once, in ``core/multiplex5000/multiplex5000/cohort.py``, and the builders apply it;
 restating it here would be a second copy.  It does not type anything, does not
 move the ``NO_VERIFIED_TYPING`` latch, and reads no result as a target.
 """

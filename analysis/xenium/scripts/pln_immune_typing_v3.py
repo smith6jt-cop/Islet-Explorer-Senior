@@ -107,7 +107,7 @@ XENIUM_ROOT = Path("/data/xenium")
 XENIUM_PATHS = REPO / "core/phenocycler/data/integration/xenium_paths.csv"
 PHENO_CALLS = REPO / "data/development/typing/pln/pheno"
 
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/pln"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/pln"))
 from partial_run_guard import RunScope, write_scope_note  # noqa: E402
 
 SCHEMA_VERSION = 1
@@ -570,7 +570,7 @@ def cluster_module():
     code the clustering track uses -- the only difference being which cells go in.
     """
     spec = importlib.util.spec_from_file_location(
-        "cluster_pln_for_v3", REPO / "core/phenocycler/scripts/pln/cluster_pln.py"
+        "cluster_pln_for_v3", REPO / "core/multiplex5000/scripts/pln/cluster_pln.py"
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -637,7 +637,7 @@ def sections() -> list[tuple[str, str, Path]]:
     tomorrow is picked up by re-running.  The central cohort exclusion is asked for, not
     restated.
     """
-    sys.path.insert(0, str(REPO / "core/phenocycler"))
+    sys.path.insert(0, str(REPO / "core/multiplex5000"))
     from phenocycler.cohort import filter_eligible_donors
 
     found = []
@@ -651,7 +651,7 @@ def sections() -> list[tuple[str, str, Path]]:
 
 
 def refused_donors() -> list[str]:
-    sys.path.insert(0, str(REPO / "core/phenocycler"))
+    sys.path.insert(0, str(REPO / "core/multiplex5000"))
     from phenocycler.cohort import filter_eligible_donors
 
     found = set()

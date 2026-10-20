@@ -228,7 +228,7 @@ trajectory_server <- function(id, prepared, selected_islet, forced_image, active
       #   "combined" -> dpt_pseudotime_combined  (core + peri-islet features)
       # WHAT THOSE FEATURES ARE depends on the domain, and only the COLUMN NAMES are shared.
       # The legacy CODEX H5AD was fitted on scVI features. The run cohort's is not: its
-      # producer is core/phenocycler/scripts/typing/trajectory_islet.py, which runs a diffusion
+      # producer is core/multiplex5000/scripts/typing/trajectory_islet.py, which runs a diffusion
       # pseudotime over the islet COMPOSITION in additive-log-ratio form -- obsm
       # "X_composition_alr" for core and "X_composition_alr_combined" for core + peri. So this
       # toggle switches which representation the ordering came from, not scVI-versus-scVI, and

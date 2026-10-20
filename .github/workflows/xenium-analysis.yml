@@ -73,5 +73,5 @@ jobs:
       - name: Test suite
         # analysis/xenium/pyproject.toml:15-17 already sets testpaths = ["tests"] and
         # addopts = "-q"; a second -q would suppress the summary line (Makefile:84). pytest's
-        # rootdir is analysis/xenium here, so core/phenocycler's config does not reach it.
+        # rootdir is analysis/xenium here, so core/multiplex5000's config does not reach it.
         run: pytest -rs

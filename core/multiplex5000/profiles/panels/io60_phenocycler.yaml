@@ -1,0 +1,6 @@
+schema: multiplex5000-profile/1
+kind: panel
+id: io60_phenocycler
+platform: phenocycler
+# The one file that defines the panel's markers and compartments. Never restated here.
+authority: core/multiplex5000/multiplex5000/marker_registry.json

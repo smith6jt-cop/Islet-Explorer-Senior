@@ -39,7 +39,7 @@ from analysis.cohesive.common import binding, require
 GEN = Path("/data/io60-calibration/own_compartment_frozen_reference_repair_20261008")
 V3 = Path("/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3")
 BRANCH = Path(__file__).resolve().parents[2]
-TYPING_SRC = BRANCH / "core/phenocycler/scripts/typing"
+TYPING_SRC = BRANCH / "core/multiplex5000/scripts/typing"
 PY = "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/.venv/bin/python"
 ROOT = Path("/data/io60-analysis/typing-20261019/run")
 PRIMARY_FROM = Path("/data/io60-analysis/typing-20261018/run/typing")

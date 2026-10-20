@@ -17,7 +17,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from protein_analysis_admission import DEFAULT_EXCLUSIONS, load_protein_exclusions
 
 FIELDS = ["cell_id", "object_id", "donor_id", "cell_class", "refined_class", "phenotype",

@@ -279,7 +279,7 @@ def sections() -> list[tuple[str, str, Path]]:
     The exclusion is derived from ``phenocycler.cohort.DONOR_EXCLUSIONS``, never from a literal.
     """
     import sys
-    sys.path.insert(0, str(REPO / "core/phenocycler"))
+    sys.path.insert(0, str(REPO / "core/multiplex5000"))
     from phenocycler.cohort import filter_eligible_donors
 
     out = []

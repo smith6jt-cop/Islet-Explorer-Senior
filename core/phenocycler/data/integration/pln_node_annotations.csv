@@ -22,7 +22,7 @@
 #
 # `excluded` withholds ONE IMAGE, for a reason about that image, and `excluded_reason` says
 # which. It is NOT a place to restate the central cohort exclusions: those live once, in
-# core/phenocycler/phenocycler/cohort.py, and every builder asks that module rather than this
+# core/multiplex5000/multiplex5000/cohort.py, and every builder asks that module rather than this
 # column. A flag here that merely echoed cohort.py went stale exactly that way -- 6579 carried
 # excluded=True on the central pancreatitis-outlier exclusion, cohort.py moved 6579 to
 # REINSTATED on 2026-09-17, and this file went on withholding 1,231,818 cells from a decision

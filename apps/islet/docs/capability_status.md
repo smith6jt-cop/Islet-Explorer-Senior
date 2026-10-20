@@ -17,7 +17,7 @@
 >
 > **What this file does NOT cover:** the typing itself. A tab verdict here says a card drew; it
 > says nothing about how the cells under it were named. For that, read
-> `core/phenocycler/scripts/typing/RECONSTRUCTION.md` and the header of
+> `core/multiplex5000/scripts/typing/RECONSTRUCTION.md` and the header of
 > `apps/islet/config/run20_default.yml`. The one typing fact a reader of this file needs is below,
 > under "What the run cohort's cells were typed by".
 
@@ -83,7 +83,7 @@ from older text:
   `typing/app` artifact and `/data/islet_layers` layer was rebuilt from it on 2026-09-26 (Step 7;
   `make check` 24 fresh, 0 not fresh).
 - **The ninth vocabulary entry, `Unresolved`, is carried by no served artifact.** It is an *absence*, not a
-  class — what the refinement pass (`core/phenocycler/scripts/typing/refine.py`, producer label
+  class — what the refinement pass (`core/multiplex5000/scripts/typing/refine.py`, producer label
   `Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. The pass was ruled in
   on 2026-09-23 and is wired as the `build_cells.py --refine` join, which adds `refined_class`
   beside `cell_class`; the join ran on disk 2026-09-24 (1,063,097 cells carry it in `refined_class`

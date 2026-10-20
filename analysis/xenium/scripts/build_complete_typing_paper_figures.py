@@ -24,7 +24,7 @@ import pandas as pd
 from scipy.cluster.hierarchy import dendrogram, linkage
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from protein_analysis_admission import DEFAULT_EXCLUSIONS, load_protein_exclusions, protein_analysis_mask
 ANALOG = REPO / "results/v3/literature_figure_reproduction_20261005"
 TRAJECTORY = Path("/data/io60-calibration/nd_referenced_trajectory_production_all_exclusions_20261005")

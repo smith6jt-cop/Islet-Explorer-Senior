@@ -1,0 +1,558 @@
+{
+  "absent_from_vocabulary": {
+    "CardiacMuscle": {
+      "lineage": "Stromal",
+      "note": "In lineage_mapping.yaml but not in the model's 51 classes; the model can never emit it."
+    },
+    "Myofibroblast": {
+      "lineage": "Stromal",
+      "note": "In lineage_mapping.yaml but not in the model's 51 classes; the model can never emit it."
+    },
+    "Nerve": {
+      "lineage": "Nerve",
+      "note": "In lineage_mapping.yaml but not in the model's 51 classes; the model can never emit it."
+    },
+    "Thrombocyte": {
+      "lineage": "Other",
+      "note": "In lineage_mapping.yaml but not in the model's 51 classes; the model can never emit it."
+    }
+  },
+  "broad_classes": [
+    "Immune",
+    "Endothelial",
+    "Epithelial",
+    "Neural",
+    "Mesenchymal",
+    "Other"
+  ],
+  "description": "DeepCellTypes class -> this project's broad compartment. A NAMING alignment so model output can be read in the vocabulary the repo already uses. It is not a gate, not a threshold, and not a revival of the retired RESTORE broad-gate apparatus: the five compartment NAMES are borrowed from phenocycler/broad_gates.json, none of its marker membership is.",
+  "entries": {
+    "AlphaCell": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Islet endocrine. Upstream lineage is Epithelial, which agrees with this project putting GCG/INS under the Epithelial compartment.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Astrocyte": {
+      "broad_class": "Neural",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Nerve",
+      "panel_supported": true,
+      "reason": "CNS macroglia. There is no central nervous system in a pancreas section; pancreatic glia are Schwann cells, which the model calls Glial.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Basophil": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_unsupported_by_panel",
+      "expected_in_pancreas": true,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "Vocabulary markers for this class are CD123, FCERG1A and CD294; none is acquired.",
+      "panel_supported": false,
+      "reason": "Granulocyte. Absent from the upstream map; assigned by lineage, not by expectation.",
+      "source": "assigned-here"
+    },
+    "Bcell": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "BetaCell": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Islet endocrine. Same note as AlphaCell.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "BloodVesselEndothelial": {
+      "broad_class": "Endothelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Endothelial",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "CD4T": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "CD8T": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Club": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Airway secretory epithelium (lung).",
+      "source": "assigned-here"
+    },
+    "CollectingDuct": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Renal collecting-duct epithelium. Pancreatic ducts are a different epithelium and land on the generic Epithelial class.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Dendritic": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Myeloid",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "EVT": {
+      "broad_class": "Other",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Other",
+      "panel_supported": true,
+      "reason": "Extravillous trophoblast. Placenta only.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Endocrine": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Generic endocrine parent of AlphaCell/BetaCell in this vocabulary; not a hierarchy parent in CELL_TYPE_HIERARCHY, which only collapses Tcell and Stromal.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Endothelial": {
+      "broad_class": "Endothelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Endothelial",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Enterocyte": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Small/large intestinal absorptive epithelium. Gut only -- but a pancreas-HEAD block can contain duodenum, so this exclusion is verified per donor against the QuPath Tissue annotation, not assumed.",
+      "requires_per_donor_tissue_check": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Eosinophil": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_unsupported_by_panel",
+      "expected_in_pancreas": true,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "Vocabulary markers for this class are CD294, Galectin9 and MBP; none is acquired.",
+      "panel_supported": false,
+      "reason": "Granulocyte. Absent from the upstream map; assigned by lineage, not by expectation.",
+      "source": "assigned-here"
+    },
+    "Epithelial": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Erythrocyte": {
+      "broad_class": "Other",
+      "exclusion_reason": "class_unsupported_by_panel",
+      "expected_in_pancreas": true,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "The vocabulary marker is GlycophorinA; it is not acquired. Red cells are certainly present in the tissue, but the panel carries nothing that evidences one.",
+      "panel_supported": false,
+      "reason": "Upstream files it under Myeloid, but a red cell is erythroid and is NOT an immune cell. Counting it as Immune would inflate the exact quantity this study measures.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Fibroblast": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Foveolar": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Gastric surface mucous epithelium.",
+      "requires_per_donor_tissue_check": true,
+      "source": "assigned-here"
+    },
+    "Glial": {
+      "broad_class": "Neural",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Nerve",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Goblet": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Intestinal and airway mucin-secreting epithelium. Gut/airway only -- same per-donor duodenum check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "HSEC": {
+      "broad_class": "Endothelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Endothelial",
+      "panel_supported": true,
+      "reason": "Hepatic sinusoidal endothelial cell. Liver only.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Hepatocyte": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Liver parenchyma.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "ICC": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "reason": "Interstitial cell of Cajal, the GI muscularis pacemaker. Gut only -- same per-donor duodenum check as Enterocyte.",
+      "requires_per_donor_tissue_check": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Keratocyte": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "reason": "CORNEAL keratocyte -- a stromal fibroblast-like cell. Not the epidermal keratinocyte; the corpus carries eye tissue (Photoreceptor, M-Opsin, ArrestinC, CHX10).",
+      "source": "assigned-here"
+    },
+    "Langerhans": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "Vocabulary markers for this class are CD207, CD1b and CD1c; none is acquired. Excluded on tissue grounds first -- this is a second, independent ground.",
+      "panel_supported": false,
+      "reason": "The LANGERHANS CELL -- an epidermal dendritic cell, lineage Myeloid. NOT the islet of Langerhans. In a pancreas project this is a mislabel waiting to happen.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "LittoralCell": {
+      "broad_class": "Endothelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Endothelial",
+      "panel_supported": true,
+      "reason": "Splenic red-pulp sinus lining cell. Spleen only.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "LymphaticEndothelial": {
+      "broad_class": "Endothelial",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Endothelial",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Macrophage": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Myeloid",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Mast": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_unsupported_by_panel",
+      "expected_in_pancreas": true,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "Vocabulary markers for this class are Tryptase, Chymase and c-kit; none is acquired.",
+      "panel_supported": false,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Melanocyte": {
+      "broad_class": "Other",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Other",
+      "panel_supported": true,
+      "reason": "Neural-crest pigment cell of skin, uvea and mucosa. Not a pancreatic resident.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Mesangial": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "reason": "Renal glomerular mesangial cell. Kidney only.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Microglial": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_supported": true,
+      "reason": "CNS-resident macrophage. A pancreatic macrophage should come back as Macrophage.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Monocyte": {
+      "broad_class": "Immune",
+      "exclusion_reason": "class_unsupported_by_panel",
+      "expected_in_pancreas": true,
+      "in_label_space": false,
+      "lineage": "Myeloid",
+      "panel_reason": "Vocabulary markers for this class are CD14, CD16 and CD33; none is acquired. The panel's myeloid markers (CD68, CD163, CD206, Iba1, CD11c) are macrophage/DC markers and cannot separate a monocyte from a macrophage.",
+      "panel_supported": false,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "NK": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "NKT": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Neuron": {
+      "broad_class": "Neural",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Nerve",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Neutrophil": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Myeloid",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Paneth": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Small-intestinal crypt-base secretory cell. Gut only -- same per-donor duodenum check as Enterocyte. NB its dense antimicrobial granules are what the ptft checkpoint confuses MPO-high and CD8-high cells with.",
+      "requires_per_donor_tissue_check": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Pericyte": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Photoreceptor": {
+      "broad_class": "Neural",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Nerve",
+      "panel_supported": true,
+      "reason": "Retinal sensory neuron.",
+      "source": "assigned-here"
+    },
+    "Plasma": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Podocyte": {
+      "broad_class": "Epithelial",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Epithelial",
+      "panel_supported": true,
+      "reason": "Renal glomerular visceral epithelium. Kidney only.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "SmoothMuscle": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Stellate": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "reason": "Pancreatic stellate cells are expected here; do not confuse with hepatic stellate.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Stromal": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Tcell": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Telocyte": {
+      "broad_class": "Mesenchymal",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Stromal",
+      "panel_supported": true,
+      "reason": "Interstitial cell with telopodes.",
+      "source": "assigned-here"
+    },
+    "Treg": {
+      "broad_class": "Immune",
+      "exclusion_reason": null,
+      "expected_in_pancreas": true,
+      "in_label_space": true,
+      "lineage": "Lymphocyte",
+      "panel_supported": true,
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    },
+    "Tumor": {
+      "broad_class": "Other",
+      "exclusion_reason": "class_not_present_in_tissue",
+      "expected_in_pancreas": false,
+      "in_label_space": false,
+      "lineage": "Tumor",
+      "panel_supported": true,
+      "reason": "A Tumor call in a T1D/ND pancreas cohort is a signal that something is wrong, not a finding.",
+      "source": "deepcelltypes-lineage_mapping.yaml"
+    }
+  },
+  "lineage_to_broad": {
+    "Endothelial": "Endothelial",
+    "Epithelial": "Epithelial",
+    "Lymphocyte": "Immune",
+    "Myeloid": "Immune",
+    "Nerve": "Neural",
+    "Other": "Other",
+    "Stromal": "Mesenchymal",
+    "Tumor": "Other"
+  },
+  "method_version": "dct-broad-class-2026-08-24",
+  "policy": {
+    "expected_in_pancreas": "CHANGED 2026-08-24, and the change is the point. Until then this field was REPORT ONLY and was explicitly forbidden to 'remap, suppress, re-weight or relabel a call'. It now RESTRICTS THE LABEL SPACE: a class flagged false is removed before the argmax. The flags themselves are FROZEN as authored 2026-08-21 -- three days before any inference output existed -- so their content cannot have been fitted to a result. Changing any class's flag from here on requires a dated, reasoned amendment in this file. The forbidden thing is unchanged and still forbidden: no class may be excluded, included, re-weighted or re-ordered because of how often it was called, how uniform it is across donors, or how it orders by disease.",
+    "label_space": "in_label_space = expected_in_pancreas AND panel_supported. 26 of 51. Restriction is implemented as a renormalization of the returned softmax over the kept columns, which is exactly equivalent to masking the excluded logits before the softmax. Every cell keeps p_impossible_mass (the probability removed), restricted_call and unrestricted_call, and every figure and gate line reports the restricted and unrestricted numbers side by side -- because the restriction moves some anchors up and others down, and applying it silently would hide that.",
+    "no_unassigned_bucket": "Every one of the 51 classes has a broad_class, and every excluded one carries a written reason plus an exclusion_reason code. Nothing lands in a catch-all for want of a decision; 'Other' here is a stated lineage answer, not a shrug. A cell whose removed mass exceeds its surviving top class is 'ambiguous', reason 'mass_on_impossible_classes' -- a comparison between two quantities the model produced, not a tuned cut.",
+    "panel_supported": "Judged against the 51-marker cross-donor INTERSECTION (all 20 donors; the union adds only CD38 and Beta-catenin, which are the batch-confounded pair). A class is unsupported only when NONE of the markers the model's own 278-marker vocabulary carries for it is acquired -- a statement about the panel, never about frequencies. Two corrections against the 2026-08-20 plan's list of seven, both recorded here rather than propagated: NKT is KEPT (CD3e and CD56 are both acquired) and Plasma is KEPT (CD79a is acquired), while Erythrocyte is ADDED (GlycophorinA is not acquired, so red cells are present in the tissue but unevidenced by the panel).",
+    "per_donor_tissue_check": "Enterocyte, Goblet, Paneth, Foveolar and ICC are excluded on the premise that the section contains no duodenum or stomach. nPOD pancreas-HEAD blocks can contain duodenum and this cohort already has a documented mixed-tissue case (donor 115, pancreas + pLN). Verify per donor against the QuPath Tissue annotation and record the answer before trusting the exclusion on that donor."
+  },
+  "schema_version": 1,
+  "source": {
+    "broad_class_names": "core/multiplex5000/multiplex5000/broad_gates.json (names only)",
+    "class_order": "deepcell_types vocab.json cell_type_mapping (51 classes), commit 59d74a9",
+    "lineage_mapping": {
+      "commit": "4a06e97",
+      "note": "Covers 44 of the 51 vocabulary classes. Seven classes the model CAN emit had no lineage and are assigned here; four entries it carries (CardiacMuscle, Myofibroblast, Nerve, Thrombocyte) name classes the model CANNOT emit and are recorded below as absent rather than silently dropped.",
+      "path": "data/lineage_mapping.yaml",
+      "repo": "https://github.com/vanvalenlab/DeepCellTypes-2026_Wang_et_al"
+    }
+  }
+}

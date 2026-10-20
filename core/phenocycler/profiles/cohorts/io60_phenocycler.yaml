@@ -1,9 +1,0 @@
-schema: multiplex5000-profile/1
-kind: cohort
-id: io60_phenocycler
-platform: phenocycler
-tissues: [pancreas, pancreatic_lymph_node]
-# Membership and exclusions each have one authority; a cohort profile names them and never lists
-# donors (CLAUDE.md: no lane may restate the exclusion list).
-membership: core/phenocycler/cohort-spec.json
-exclusions: phenocycler.cohort.DONOR_EXCLUSIONS

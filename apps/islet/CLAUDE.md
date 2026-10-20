@@ -29,7 +29,7 @@ into a string.
 
 **The run cohort's vocabulary has nine entries and eight cell types.** `Unresolved` is the ninth
 entry in `config/run20_default.yml`, and it is an *absence*, not a class: it is what the typing's
-second step (`core/phenocycler/scripts/typing/refine.py`, producer label
+second step (`core/multiplex5000/scripts/typing/refine.py`, producer label
 `Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. There is one class per
 cell, reached in two steps; `cell_class` and `refined_class` are the steps' columns, not two classes.
 Since the `build_cells.py --refine` join ran (2026-09-24) the result, `refined_class`, carries it on

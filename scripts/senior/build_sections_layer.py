@@ -22,7 +22,7 @@ declared:
 ``same_block``   the donor's PhenoCycler pancreas image carries a pLN annotation beside the
                  pancreas tissue annotation. Read from the per-image annotation census
                  ``data/development/typing/revised_cells/section_parents.json``, which
-                 ``core/phenocycler/scripts/typing/rebuild_donor_from_revised_export.py``
+                 ``core/multiplex5000/scripts/typing/rebuild_donor_from_revised_export.py``
                  writes from the export's own ``Parent`` column. Measured on 6533:
                  ``Annotation (pLN)`` 34,841 cells beside ``Annotation (Tissue)`` 931,910
                  in ``0080870_6533_pLNpanc_Scan3.er.qptiff``.
@@ -82,7 +82,7 @@ REPO = Path(__file__).resolve().parents[2]
 #: `source_domain_root` against domain_data_root()). Same value the grid and compartment
 #: builders record.
 DOMAIN_ROOT = REPO / "data" / "development" / "typing" / "app"
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 
 from phenocycler.cohort import filter_eligible_donors
 from phenocycler.integration.manifest import parse_bundle_path

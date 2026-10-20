@@ -1,6 +1,6 @@
 name: Panel taxonomy (R)
 
-# core/panels/tests had no workflow before this file. phenocycler-ci.yml lists core/panels/**
+# core/panels/tests had no workflow before this file. multiplex5000-ci.yml lists core/panels/**
 # in its path filters (lines 16, 22) but only checks that one file exists (line 142); the only
 # runner was Makefile:110-112, which is also where the cwd rule below comes from:
 # tests/testthat.R calls test_check(), which looks for ./testthat relative to the cwd, so the

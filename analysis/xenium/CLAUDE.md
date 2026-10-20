@@ -5,7 +5,7 @@
 > [`README.md`](README.md); this file is the durable architectural guide.
 >
 > **The numbered decisions #1–#17 below are carried across intact, with their numbering
-> preserved.** Other documents in this repo and in `core/phenocycler/` cite them by number,
+> preserved.** Other documents in this repo and in `core/multiplex5000/` cite them by number,
 > so renumbering would break those references. Where a decision no longer describes this
 > machine, a dated standing note is added *beside* it — the decision itself is not silently
 > rewritten. The Tier A/B/C/D framing at the end does the pruning, not renumbering.
@@ -30,7 +30,7 @@
 - **Two roots.** `ROOT` (code) and `DATA_ROOT` (h5ads, default `/data/xenium`) are separate
   and must stay separate; see README for why collapsing them puts 60 GB inside the repo.
 - **Cohort.** The pipeline below is written for samples `0041323` / `0041326`. The monorepo
-  cohort is the **20 nPOD donors** in `core/phenocycler/cohort-spec.json`, whose Xenium
+  cohort is the **20 nPOD donors** in `core/multiplex5000/cohort-spec.json`, whose Xenium
   bundles are at `/data/xenium/HuPrime5kPanTissue/`. The *method* carries across; the sample
   ids in the tables below do not.
 
@@ -126,10 +126,10 @@ pass**; these notes sit beside them, per the rule at the top of this file.
   stand as records of the HiPerGator workflow; do not look for those files under `scripts/` here.
   `notebooks/`, `utils/`, `scripts/benchmark/` and `scripts/tissue_markers/` are as described.
 
-- **The 2026-08-28 cohort note, made exact.** `core/phenocycler/cohort-spec.json` declares **21** expected
+- **The 2026-08-28 cohort note, made exact.** `core/multiplex5000/cohort-spec.json` declares **21** expected
   donors, not 20 — the extra is **6533**, which carries an extra panel and has **no partition
   in `data/development/typing/cells/`**; the typed PhenoCycler cohort there is 20 donors. Donor
-  `6457` is centrally excluded in `core/phenocycler/phenocycler/cohort.py`; **`6579`'s exclusion was
+  `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`; **`6579`'s exclusion was
   lifted on 2026-09-17** and it is not yet a 21st donor in any stage root. Derive the list from
   `DONOR_EXCLUSIONS` / `REINSTATED`, never from a literal here.
 

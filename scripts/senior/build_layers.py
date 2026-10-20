@@ -2,8 +2,8 @@
 """One driver for the layer artifacts, and the staleness gate that was missing.
 
 Nine layer builders -- eight under ``scripts/senior/`` and ``pln``, which is
-``core/phenocycler/scripts/pln/build_pln_layer.py`` -- and the ``typing/app`` artifact builders
-under ``core/phenocycler/scripts/typing/`` were each invoked by hand, in an order that existed
+``core/multiplex5000/scripts/pln/build_pln_layer.py`` -- and the ``typing/app`` artifact builders
+under ``core/multiplex5000/scripts/typing/`` were each invoked by hand, in an order that existed
 only in prose.  Every artifact therefore sat at whatever donor set and whatever input generation it
 happened to be built against, and nothing compared the two.  This file declares the graph once --
 ``(name, command, inputs, outputs)`` per node -- so the comparison can be made by a command rather
@@ -170,12 +170,12 @@ REPO = Path(__file__).resolve().parents[2]
 VENV_PYTHON = REPO / ".venv" / "bin" / "python"
 
 #: The historical content-addressed run tree, spelled ONCE and taken from the one table that
-#: knows it is historical -- core/phenocycler/scripts/typing/superseded.py -- rather than typed
+#: knows it is historical -- core/multiplex5000/scripts/typing/superseded.py -- rather than typed
 #: out again here. `build_islet_geometry.py` really does read it (the 20-donor cohort output
 #: lives nowhere else), so it is a declared input of `islet_geometry` and has to stay one; what
 #: it must NOT be is a second, unattributed spelling of a path this repository has already
 #: recorded as superseded, drifting from it.
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from superseded import REGISTRY as _SUPERSEDED_REGISTRY  # noqa: E402
 
 _RUNS_ROOT = next(r for r in _SUPERSEDED_REGISTRY if r.key == "content_addressed_runs").fragments[0]
@@ -204,39 +204,39 @@ SUPERSEDED_MARK = ".superseded-"
 #: than leaving the reader to grep for it.
 SOURCE_PRODUCERS = {
     "data/development/typing/geometry":
-        "core/phenocycler/scripts/typing/build_nonendocrine_outline.py -- run ON DEMAND, not as "
+        "core/multiplex5000/scripts/typing/build_nonendocrine_outline.py -- run ON DEMAND, not as "
         "a node: it streams 61 GB of per-cell GeoJSON for numbers the cell matrix already holds "
         "(see WHAT IS DELIBERATELY NOT A NODE). Only the drawn outline needs it",
     "data/development/typing/cells":
-        "core/phenocycler/scripts/typing/build_cells.py (the subpanel classification lane; "
-        "see core/phenocycler/scripts/typing/RECONSTRUCTION.md), with the refinement joined: "
+        "core/multiplex5000/scripts/typing/build_cells.py (the subpanel classification lane; "
+        "see core/multiplex5000/scripts/typing/RECONSTRUCTION.md), with the refinement joined: "
         "refine.py --out data/development/typing/refine, then build_cells.py --include-marginal "
         "--refine data/development/typing/refine (a plain build_cells.py run first after new "
         "subpanel.py calls, because refine.py reads typing/cells; see REFINEMENT.md)",
     "data/development/typing/islet_membership":
-        "core/phenocycler/scripts/typing/islet_membership.py",
+        "core/multiplex5000/scripts/typing/islet_membership.py",
     "data/development/typing/immune":
-        "core/phenocycler/scripts/typing/immune_subtype.py",
+        "core/multiplex5000/scripts/typing/immune_subtype.py",
     "data/development/typing/crossed":
-        "core/phenocycler/scripts/typing/build_crossed_fraction.py",
+        "core/multiplex5000/scripts/typing/build_crossed_fraction.py",
     "data/development/celltype/uniform":
         "the UniFORM alignment lane",
     "data/development/typing/trajectory/singlecell_pseudotime.parquet":
-        "core/phenocycler/scripts/typing/trajectory_singlecell.R (R 4.5.1)",
+        "core/multiplex5000/scripts/typing/trajectory_singlecell.R (R 4.5.1)",
     "data/development/typing/trajectory/singlecell_features.parquet":
-        "core/phenocycler/scripts/typing/trajectory_singlecell_features.py",
+        "core/multiplex5000/scripts/typing/trajectory_singlecell_features.py",
     "core/phenocycler/data/integration/cells_xen":
         "the Xenium ingest",
     "core/phenocycler/data/integration/cells_pln":
-        "core/phenocycler/scripts/pln/ingest_pln_cells.py (reads /data/IO60pLN/results/"
+        "core/multiplex5000/scripts/pln/ingest_pln_cells.py (reads /data/IO60pLN/results/"
         "IO60pLN_cells.tsv; no node here -- it takes a 43.7 GB TSV and a duckdb temp dir)",
     "data/development/typing/revised_cells":
-        "core/phenocycler/scripts/typing/rebuild_donor_from_revised_export.py (takes a donor "
+        "core/multiplex5000/scripts/typing/rebuild_donor_from_revised_export.py (takes a donor "
         "list; no node here)",
     "data/development/typing/pln/pheno":
-        "core/phenocycler/scripts/typing/build_pln_immune_pheno.py",
+        "core/multiplex5000/scripts/typing/build_pln_immune_pheno.py",
     "data/development/restain":
-        "the post-Xenium IF registration lane: core/phenocycler/scripts/restain/ and "
+        "the post-Xenium IF registration lane: core/multiplex5000/scripts/restain/ and "
         "phenocycler.integration.postxen",
     "data/development/xenium_typing":
         "the Xenium typing releases (pln_immune_typing_v3.py and its predecessors); selected by "
@@ -251,13 +251,13 @@ SOURCE_PRODUCERS = {
     HISTORICAL_RUN_CELLS:
         "the historical content-addressed run tree; nothing has written to it since the run "
         "framework was removed 2026-09-16, and reading it announces itself through "
-        "core/phenocycler/scripts/typing/superseded.py",
+        "core/multiplex5000/scripts/typing/superseded.py",
     "results/Geojson/Islets":
         "QuPath, as an export made by hand",
     "results/AnnotationsMeasurements.csv":
         "QuPath, as an export made by hand",
     "/data/IO60pLN/results/node_geojson":
-        "core/phenocycler/scripts/groovy/export_pln_node_annotations.groovy",
+        "core/multiplex5000/scripts/groovy/export_pln_node_annotations.groovy",
     "/data/islet_layers/pln/provenance/qupath_annotation_audit.log":
         "the captured stdout of export_pln_node_annotations.groovy; it lives under the pln "
         "artifact root but it is an input, not something build_pln_layer.py writes",
@@ -272,7 +272,7 @@ SOURCE_PRODUCERS = {
 #: typing/cells (build_grid_composition.py:102, :585).
 SOURCE_CHECKS = {
     "data/development/typing/immune": (
-        "core/phenocycler/scripts/typing/immune_subtype.py",
+        "core/multiplex5000/scripts/typing/immune_subtype.py",
         "data/development/typing/cells",
         "data/development/celltype/uniform",
         "data/development/broadtype/scratch/cosine_scale.parquet",
@@ -345,8 +345,8 @@ def _tokens(repo: Path, layers_dir: Path) -> dict[str, str]:
         "app": str(typing / "app"),
         "integration": str(repo / "core/phenocycler/data/integration"),
         "senior": str(repo / "scripts/senior"),
-        "typingscripts": str(repo / "core/phenocycler/scripts/typing"),
-        "plnscripts": str(repo / "core/phenocycler/scripts/pln"),
+        "typingscripts": str(repo / "core/multiplex5000/scripts/typing"),
+        "plnscripts": str(repo / "core/multiplex5000/scripts/pln"),
         # The QuPath export tree sits beside the checkout, exactly as subpanel_io.py resolves it.
         "qupath_results": str(repo.parent / "results"),
         "py": str(VENV_PYTHON),

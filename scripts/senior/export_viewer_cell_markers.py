@@ -13,7 +13,7 @@ this checkout: the legacy producer named in the old text here,
 ``scripts/senior/build_composition_and_tissue.py``, is a recorded orphan whose own
 input is gone, so with the default ``--data-dir`` every donor falls through to the
 legacy CSVs. The run-cohort domain's tissue partitions are written by
-``core/phenocycler/scripts/typing/build_app_data.py`` and live at
+``core/multiplex5000/scripts/typing/build_app_data.py`` and live at
 ``data/development/typing/app/parquet/tissue``; pass
 ``--data-dir data/development/typing/app`` to read them. The two domains are never
 merged — they share five donors and no vocabulary — so pick one per run.
@@ -65,7 +65,7 @@ def read_parquet_tissue(parquet_root: Path, case_id: str):
 
     This is the same source `spatial_helpers.R::load_donor_tissue()` prefers. For
     the run-cohort domain it is written with exactly these columns by
-    `core/phenocycler/scripts/typing/build_app_data.py`; the legacy CODEX copy came
+    `core/multiplex5000/scripts/typing/build_app_data.py`; the legacy CODEX copy came
     from `scripts/senior/build_composition_and_tissue.py`, which is a recorded
     orphan and cannot be re-run. pandas is imported lazily so the legacy path and
     the coverage logic stay usable without it.

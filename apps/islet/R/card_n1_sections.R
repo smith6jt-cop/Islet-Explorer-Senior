@@ -6,7 +6,7 @@
 # recorded by hand in core/phenocycler/data/integration/pln_node_annotations.csv,
 # and it is not something a builder or this card may infer. The card shows that
 # record beside what the pLN layer MEASURED from the same annotations
-# (<ISLET_LAYERS_DIR>/pln, built by core/phenocycler/scripts/pln/build_pln_layer.py)
+# (<ISLET_LAYERS_DIR>/pln, built by core/multiplex5000/scripts/pln/build_pln_layer.py)
 # and beside the sections the sections layer carries for the same pLN
 # (<ISLET_LAYERS_DIR>/sections, built by scripts/senior/build_sections_layer.py --
 # which until now had no reader anywhere in the app).
@@ -33,7 +33,7 @@
 # from. The legacy CODEX build and the run cohort share five donors and no
 # vocabulary, so a matching donor id is not a licence to read.
 
-.n1_builder_layer <- "core/phenocycler/scripts/pln/build_pln_layer.py"
+.n1_builder_layer <- "core/multiplex5000/scripts/pln/build_pln_layer.py"
 .n1_builder_sections <- "scripts/senior/build_sections_layer.py"
 .n1_record_rel <- "core/phenocycler/data/integration/pln_node_annotations.csv"
 
@@ -355,7 +355,7 @@ card_n1_sections_read <- function(layers_dir = .n1_layers_dir(),
         if (isTRUE(excluded)) "excluded=True" else if (isFALSE(excluded)) "excluded=False"
         else "unavailable"),
         artifact = layer$coverage$value$source,
-        builder = "core/phenocycler/scripts/pln/ingest_pln_cells.py"))
+        builder = "core/multiplex5000/scripts/pln/ingest_pln_cells.py"))
     }
     stranded <- as.character(coverage[["ingested_but_not_in_this_layer"]])
     for (donor in stranded) {

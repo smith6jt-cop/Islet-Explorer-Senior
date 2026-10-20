@@ -101,7 +101,7 @@ section describes THIS workstation and nothing else. On any other host the two s
 
 ## Known, not fixed here
 
-- **The Viewer lists 16 images, including donors 6457 and 6579.** `core/phenocycler/phenocycler/
+- **The Viewer lists 16 images, including donors 6457 and 6579.** `core/multiplex5000/multiplex5000/
   cohort.py` centrally excludes 6457; 6579's exclusion was lifted on 2026-09-17, but it has no
   typing yet. `discover_islet_assets()` is a plain
   listing of `www/local_images` with no cohort filter, so the dropdown offers donors that are

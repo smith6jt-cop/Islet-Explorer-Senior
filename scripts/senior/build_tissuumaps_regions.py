@@ -60,7 +60,7 @@ from shapely.geometry import mapping, shape
 from shapely.geometry.polygon import orient
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 
 import build_islet_geometry as GEO  # noqa: E402
 import cohort as COHORT  # noqa: E402

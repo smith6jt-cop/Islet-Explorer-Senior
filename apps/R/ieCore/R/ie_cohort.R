@@ -1,8 +1,8 @@
 # One cohort definition, read by both languages.
 #
-# `core/phenocycler/phenocycler/cohort.py` is the authority for donor exclusions (pinned by
-# `core/phenocycler/tests/current/test_cohort.py`). `scripts/senior/build_cohort_roster.py`
-# reads that authority and `core/phenocycler/cohort-spec.json` to emit
+# `core/multiplex5000/multiplex5000/cohort.py` is the authority for donor exclusions (pinned by
+# `core/multiplex5000/tests/current/test_cohort.py`). `scripts/senior/build_cohort_roster.py`
+# reads that authority and `core/multiplex5000/cohort-spec.json` to emit
 # `apps/islet/config/cohort.json`. This file reads that JSON and filters a donor vector -- it
 # never retypes an exclusion or its reason.
 #

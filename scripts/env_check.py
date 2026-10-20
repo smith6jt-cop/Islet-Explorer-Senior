@@ -5,7 +5,8 @@ Two things go wrong silently when several checkouts share one virtual environmen
 happened here on 2026-09-21:
 
 * an editable install records an ABSOLUTE path, so whichever checkout last ran
-  ``pip install -e`` owns ``import phenocycler`` for every checkout sharing the .venv -- it was a
+  ``pip install -e`` owns ``import phenocycler`` (now ``import multiplex5000``, with ``phenocycler``
+  its temporary alias) for every checkout sharing the .venv -- it was a
   deleted worktree, 56 commits stale, and ``from phenocycler.cohort import DONOR_EXCLUSIONS``
   returned a donor list that had been superseded five days earlier (and on 2026-10-03 it happened
   again: the shared .venv was re-installed from the v3 worktree);
@@ -20,12 +21,12 @@ environment (phase D1).
 The import is probed from ``/tmp`` with an empty environment, which is how scripts, notebooks and
 cron jobs actually import -- pytest's own ``pythonpath = ["."]`` would hide the fault.  A shebang
 counts as this environment's when the directory holding its interpreter resolves to this
-environment's ``bin/`` (so ``core/phenocycler/../../.venv/bin/python`` counts); resolving the whole
+environment's ``bin/`` (so ``core/multiplex5000/../../.venv/bin/python`` counts); resolving the whole
 interpreter path instead would collapse every venv on the same base Python into one.  Binaries
 (``ruff``) and non-python scripts are skipped.
 
-Finally it reports where ``phenocycler.roots`` takes its data roots from: a site file
-(``core/phenocycler/sites/``), or the checkout fallback. The fallback is reported, not failed --
+Finally it reports where ``multiplex5000.roots`` takes its data roots from: a site file
+(``core/multiplex5000/sites/``), or the checkout fallback. The fallback is reported, not failed --
 it is right for CI and a fresh clone.
 """
 from __future__ import annotations
@@ -50,12 +51,20 @@ def _probe(code: str) -> subprocess.CompletedProcess:
 
 
 def import_resolves_here() -> bool:
-    expect = str(REPO / "core" / "phenocycler" / "phenocycler")
-    out = _probe("import os, phenocycler; print(os.path.dirname(phenocycler.__file__))")
-    got = out.stdout.strip()
+    """``multiplex5000`` and its temporary alias ``phenocycler`` both read THIS checkout."""
+    expect = str(REPO / "core" / "multiplex5000" / "multiplex5000")
+    out = _probe("import os, multiplex5000, phenocycler; "
+                 "print(os.path.dirname(multiplex5000.__file__)); "
+                 "print(os.path.dirname(phenocycler.__file__))")
+    got = out.stdout.strip().splitlines()
     print(f"environment {sys.prefix}")
-    print(f"phenocycler -> {got or out.stderr.strip()}")
-    if got != expect:
+    if len(got) != 2:
+        print(f"multiplex5000 -> {out.stderr.strip() or out.stdout.strip()}")
+        print(f"WRONG CHECKOUT: expected {expect}")
+        return False
+    print(f"multiplex5000 -> {got[0]}")
+    print(f"phenocycler (alias) -> {got[1]}")
+    if got != [expect, expect]:
         print(f"WRONG CHECKOUT: expected {expect}")
         return False
     return True
@@ -86,7 +95,7 @@ def shebangs_are_this_interpreter() -> bool:
 
 def data_roots_report() -> bool:
     out = _probe("import warnings; warnings.simplefilter('ignore'); "
-                 "import phenocycler.roots as r; "
+                 "import multiplex5000.roots as r; "
                  "print(getattr(r, 'DATA_ROOT_SOURCE', 'this checkout predates site files'))")
     source = out.stdout.strip() or out.stderr.strip().splitlines()[-1]
     print(f"data roots -> {source}")

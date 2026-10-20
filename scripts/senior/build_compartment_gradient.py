@@ -126,7 +126,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
-sys.path.insert(0, str(REPO / "core" / "phenocycler" / "scripts" / "typing"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000" / "scripts" / "typing"))
 
 import build_cells as TYPING_CELLS  # noqa: E402  -- the declared cell_class table
 
@@ -181,7 +181,7 @@ PANC_LINEAGE_OUTSIDE_VOCABULARY_REASON = (
     "neither as immune nor as any non-immune class; its lineage is unavailable and it is "
     "outside n_cells")
 #: The ``cell_class`` vocabulary is the one declared table, ``DISPLAY`` in
-#: core/phenocycler/scripts/typing/build_cells.py, whose KEYS are what ``typing/cells``
+#: core/multiplex5000/scripts/typing/build_cells.py, whose KEYS are what ``typing/cells``
 #: carries ('Alpha', 'Blood vessel', 'Nerve', ...): build_cells.py:394 maps those keys to
 #: the display labels and build_cells.py:396 reports a value the table lacks.  It is
 #: derived here, never restated, so the two cannot drift.  ``Immune`` is the immune
@@ -444,7 +444,7 @@ def pancreas_donor(donor: str, min_islet_cells: int) -> dict:
                 k: int((null_lineage["kind"] == k).sum()) for k in PANC_LINEAGE_KINDS},
             "cell_class_values_outside_vocabulary": _outside_vocabulary_values(null_lineage),
             "cell_class_vocabulary_from":
-                "core/phenocycler/scripts/typing/build_cells.py: DISPLAY (keys)",
+                "core/multiplex5000/scripts/typing/build_cells.py: DISPLAY (keys)",
             "immune_calls_not_in_crosswalk": unmapped,
             "acq_run": _one(df["acq_run"]),
             "stain_group": _one(df["stain_group"]),
@@ -640,7 +640,7 @@ def pln_phenocycler(donor: str) -> tuple[list[dict], dict]:
 
     # Eligibility is filtered on the row where the partition carries it, with
     # the pancreas path's filter verbatim.  Today's partitions carry neither
-    # column: core/phenocycler/scripts/typing/build_pln_immune_pheno.py applies
+    # column: core/multiplex5000/scripts/typing/build_pln_immune_pheno.py applies
     # ``qc_analysis_eligible`` before it writes and records n_rows / n_eligible
     # in per_donor_counts.csv and per_donor_status.csv beside the tree.  Which
     # of the two happened is written into the diagnostics, never assumed.

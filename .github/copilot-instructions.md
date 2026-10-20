@@ -6,7 +6,7 @@ Follow those guides when changing the systems summarized here. Paths are repo-re
 
 ## Repository map
 
-- `core/phenocycler/`: upstream QuPath measurements, preserving UUIDs as `object_id`.
+- `core/multiplex5000/`: upstream QuPath measurements, preserving UUIDs as `object_id`.
   The current workflow ends at expression: ingest → geometry QC → REDSEA → expression.
   Run from this directory with its sole `config.ini`; never add a root `config.ini`.
 - `analysis/xenium/`: separate Xenium 5K spatial-transcriptomics lane; use `scvi-env`.
@@ -47,7 +47,7 @@ hold the modules and helpers. Put tab changes in the corresponding module.
 - The legacy application H5AD is not connected to current content-addressed source
   runs. Do not present its rebuild as a supported bridge from current Phenocycler.
   A future adapter must join by donor and `object_id` and preserve run/manifest IDs.
-- Donor `6457` is centrally excluded in `core/phenocycler/phenocycler/cohort.py`.
+- Donor `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`.
   Derive from `DONOR_EXCLUSIONS`, never from a literal, and no lane may restate the list.
   **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED` with why;
   the pancreatitis it was excluded for is a disease context, not a reason to drop it.

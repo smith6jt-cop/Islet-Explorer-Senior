@@ -26,7 +26,7 @@ REPO = Path(D.REPO)
 # The table is the one BESIDE THIS SCRIPT -- resolved from __file__, never from D.REPO, which is
 # one checkout's absolute path: from a worktree that would import another checkout's registry
 # and stamp its text into the notes.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core/multiplex5000/scripts/typing"))
 import superseded as SUP  # noqa: E402
 
 # The current artifact in each stacked directory, stated once.  A note is written BESIDE the
@@ -65,7 +65,7 @@ CURRENT = {
     "data/development/typing/subpanel": (
         "NOTHING HERE IS CURRENT for cell calls. See ../cells/.\n"
         "    subpanel_log.json IS current: it is one of the two parameter sidecars that\n"
-        "    typed-orbit Phase 0 rebuilds core/phenocycler/scripts/typing/subpanel.py from."),
+        "    typed-orbit Phase 0 rebuilds core/multiplex5000/scripts/typing/subpanel.py from."),
 }
 
 EXTRA = {

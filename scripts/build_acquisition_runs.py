@@ -47,7 +47,7 @@ import pandas as pd
 import tifffile
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 #: `<donor>[panc|pacn]_Scan<n>.er.qptiff`, plus the HDL-prefixed lymph-node scan.  Used ONLY for a
@@ -56,7 +56,7 @@ from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 NAME = re.compile(r"(?:HDL)?(\d+)(?:panc|pacn)?(?:LN)?_Scan\d+\.er\.qptiff$")
 
 #: The tracked cohort specification: the one place an image is assigned to a donor.
-COHORT_SPEC = REPO / "core" / "phenocycler" / "cohort-spec.json"
+COHORT_SPEC = REPO / "core" / "multiplex5000" / "cohort-spec.json"
 
 
 def declared_donors(spec: pathlib.Path = COHORT_SPEC) -> dict[str, str]:

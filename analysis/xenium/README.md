@@ -3,7 +3,7 @@
 Absorbed from [`smith6jt-cop/Xenium_Analysis`](https://github.com/smith6jt-cop/Xenium_Analysis)
 at commit `8062e554` (consolidation Phase 3). This is the **Xenium half** of the
 PhenoCycler ↔ Xenium work; the protein half and the integration layer live in
-`core/phenocycler/`, and the panel taxonomy lives in `core/panels/`.
+`core/multiplex5000/`, and the panel taxonomy lives in `core/panels/`.
 
 The durable architectural guide — including the numbered do-not-regress decisions #1–#17 that
 other documents cite by number — is [`CLAUDE.md`](CLAUDE.md).
@@ -84,8 +84,8 @@ mandatory — any value > 0 deadlocks the scANVI finetune at epoch 1 with the GP
 
 | dropped | reason |
 |---|---|
-| `config.ini` | Its `[phenotyping]` block mirrored **retired** panels — `Epsilon = GHRL` is the single-gene argmax that mislabelled ~150K cells and that decision #12 exists to prevent; `Acinar = AMY1A` is the 1-gene panel `pancreas.py` documents fixing. Root `CLAUDE.md`: there is exactly one `config.ini`, and it is `core/phenocycler/config.ini`. A reference mirror that contradicts the canonical method is worse than none. |
-| `notebooks/06_xenium_phenocycler_integration.ipynb` | An **unrun skeleton**: placeholder `SAMPLE_NAME`, a segmentation mask stamped from discs at cell centroids, one global `phase_cross_correlation` shift. Superseded by `core/phenocycler/phenocycler/integration/register.py`, which has two registration tracks, a px→µm scale fitted from the data, and vertex-wise polygon warping. |
+| `config.ini` | Its `[phenotyping]` block mirrored **retired** panels — `Epsilon = GHRL` is the single-gene argmax that mislabelled ~150K cells and that decision #12 exists to prevent; `Acinar = AMY1A` is the 1-gene panel `pancreas.py` documents fixing. Root `CLAUDE.md`: there is exactly one `config.ini`, and it is `core/multiplex5000/config.ini`. A reference mirror that contradicts the canonical method is worse than none. |
+| `notebooks/06_xenium_phenocycler_integration.ipynb` | An **unrun skeleton**: placeholder `SAMPLE_NAME`, a segmentation mask stamped from discs at cell centroids, one global `phase_cross_correlation` shift. Superseded by `core/multiplex5000/multiplex5000/integration/register.py`, which has two registration tracks, a px→µm scale fitted from the data, and vertex-wise polygon warping. |
 | `xenium_paths.csv` | Superseded by `core/phenocycler/data/integration/xenium_paths.csv`, the de-brusko'd site-neutral relative-path version. Importing this one would reintroduce `/orange/brusko/...`, which was removed to zero references. |
 | `donor_metadata_panc.xlsx` | It is data. Now at `core/phenocycler/data/raw/`, untracked, where `config.py` already points. |
 | `environment.yml` | Names the broken `xenium_analysis` env (above). |

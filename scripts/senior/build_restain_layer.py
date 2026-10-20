@@ -33,7 +33,7 @@ import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 from phenocycler.cohort import filter_eligible_donors  # noqa: E402
 
 sys.path.insert(0, str(REPO))

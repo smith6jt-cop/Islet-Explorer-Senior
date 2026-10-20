@@ -1078,7 +1078,7 @@ NUCLEAR_CHANNELS = {"DAPI", "HOECHST", "DRAQ5"}
 # against each slide's own OME-XML (read_channel_names -> page index), never by
 # index and never by this string; nothing reads a layer name back.
 MARKER_REGISTRY = (Path(__file__).resolve().parents[2]
-                   / "core" / "phenocycler" / "phenocycler" / "marker_registry.json")
+                   / "core" / "multiplex5000" / "multiplex5000" / "marker_registry.json")
 
 EXCLUSION_LABELS = {
     "failed_marker": "FAILED STAIN - not readable",

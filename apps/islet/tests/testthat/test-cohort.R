@@ -3,7 +3,7 @@
 # `scripts/senior/build_cohort_roster.py`; this test checks that roster against a *live* call
 # into `phenocycler.cohort` so a stale JSON cannot pass silently.
 
-.cohort_authority_path <- .find_repo_file("core/phenocycler/phenocycler/cohort.py")
+.cohort_authority_path <- .find_repo_file("core/multiplex5000/multiplex5000/cohort.py")
 .cohort_repo_root <- dirname(dirname(dirname(dirname(.cohort_authority_path))))
 .cohort_json_path <- .find_repo_file("apps/islet/config/cohort.json")
 
@@ -14,7 +14,7 @@
 .python_excluded_donors <- function(repo_root) {
   python_bin <- Sys.which("python3")
   if (!nzchar(python_bin)) skip("python3 not available to run the parity check")
-  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "phenocycler"))
+  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "multiplex5000"))
   script <- sprintf(
     paste("import sys, json",
           "sys.path.insert(0, %s)",
@@ -33,7 +33,7 @@
   python_bin <- Sys.which("python3")
   if (!nzchar(python_bin)) skip("python3 not available to run the parity check")
 
-  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "phenocycler"))
+  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "multiplex5000"))
   script <- sprintf(
     paste(
       "import sys, json",

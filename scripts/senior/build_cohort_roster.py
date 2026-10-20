@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Emit `apps/islet/config/cohort.json` — one cohort roster, read by R and Python alike.
 
-The authority for *who is excluded* is `core/phenocycler/phenocycler/cohort.py`
-(`DONOR_EXCLUSIONS`), pinned by `core/phenocycler/tests/current/test_cohort.py`. This builder
+The authority for *who is excluded* is `core/multiplex5000/multiplex5000/cohort.py`
+(`DONOR_EXCLUSIONS`), pinned by `core/multiplex5000/tests/current/test_cohort.py`. This builder
 never retypes an exclusion or its reason; it imports the authority module and asks it.
 
 The authority for *who is a candidate* is two git-tracked, non-generated sources:
 
-  - `core/phenocycler/cohort-spec.json` `expected_donors` — the vetted panc-cohort roster
+  - `core/multiplex5000/cohort-spec.json` `expected_donors` — the vetted panc-cohort roster
     (already excludes 6457/6579 by omission, since the spec was written after they were pulled).
   - `DONOR_EXCLUSIONS.keys()` from the authority itself — so an excluded donor still appears in
     the roster (as an excluded entry, with its measured reason) rather than silently vanishing.
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PHENOCYCLER_ROOT = REPO_ROOT / "core" / "phenocycler"
+PHENOCYCLER_ROOT = REPO_ROOT / "core" / "multiplex5000"
 COHORT_SPEC_PATH = PHENOCYCLER_ROOT / "cohort-spec.json"
 DEFAULT_OUT = REPO_ROOT / "apps" / "islet" / "config" / "cohort.json"
 
@@ -81,7 +81,7 @@ def build_roster(spec_path: Path = COHORT_SPEC_PATH) -> dict:
         "sources": {
             "candidate_donors": str(spec_path.relative_to(REPO_ROOT)),
             "exclusion_authority": str(
-                (PHENOCYCLER_ROOT / "phenocycler" / "cohort.py").relative_to(REPO_ROOT)
+                (PHENOCYCLER_ROOT / "multiplex5000" / "cohort.py").relative_to(REPO_ROOT)
             ),
         },
         "all_donors": all_donors,
