@@ -32,9 +32,19 @@ with a pointer README — phase G), **owned** (another session's; not touched he
   `/scratch/io60/work/wt-{benchmark,driver,islet}` removed, after confirming `wt-islet`'s five
   untracked step-1c files are byte-identical on `preserve/wt-islet-20261019`.
 
-Still waiting: the merges of #25, #26 (after #25), #27, #28 and IO60panc2nd-v3 #4; then
-`v3/typing-inputs`, `analysis/cohesive-finish` and the `consolidate/*` branches are tagged and
-removed, and that repository's remaining `v3/*` branches likewise.
+**Merged later on 2026-10-20** (at the maintainer's request): #25 (45b02c8), #27 (3bedc11), #28
+(9bd008c), #26 (be97b1d, after all 17 checks passed) and IO60panc2nd-v3 #4 (6b1cf6c, a merge commit,
+so 340bf0c keeps its SHA). Then tagged `archive/branch/<name>-20261019` and removed: the
+`consolidate/b2-v3-salvage`, `b4-red-checks` and `b5-dispositions` branches and worktrees, and the
+GitHub `analysis/cohesive-finish` branch — its local branch and worktree stay, because the Codex
+papers session reads that worktree. IO60panc2nd-v3's `v3/integration`, `v3/driver`,
+`v3/islet-method` and `v3/benchmark-tools` were removed (each covered by an `archive/` tag).
+`v3/typing-inputs` stays: it is checked out in the v3 worktree, which is removed last.
+
+**Scope change, maintainer 2026-10-20: Panc Floyd is out of scope** — no push request, no frozen
+CODEX release, no archiving of its copies. Its repo, ported scripts, data and session are left
+alone, and its data never appears on a deletion list. The A1 bundle of its repo stays as a passive
+copy.
 
 ## Gate B answers (maintainer, 2026-10-20)
 
@@ -91,12 +101,12 @@ another maintained route. Closed with comments and tagged the same day:
 
 | branch | tip | vs main | PR | disposition |
 |---|---|---|---|---|
-| `main` | e0374fe | — | — | integration target |
-| `analysis/cohesive-finish` | 026315e | +9 | #25 | **merge** (B1; CI green; the maintainer merges) |
-| `consolidate/b2-v3-salvage` | 2f18f62 | +15 (6 own) | #26 | **merge** after #25 (B2; stacked) |
-| `consolidate/b4-red-checks` | 2f568d6 | +3 | #27 | **merge** (B4) |
+| `main` | be97b1d | — | — | integration target |
+| `analysis/cohesive-finish` | 026315e | merged | #25 | **merged** (B1); GitHub branch removed, local branch + worktree kept for the papers session |
+| `consolidate/b2-v3-salvage` | 25da443 | merged | #26 | **merged** (B2); tagged and removed |
+| `consolidate/b4-red-checks` | 2f568d6 | merged | #27 | **merged** (B4); tagged and removed |
 | `v3/sameslide-four` (GitHub only) | de6c142 | +1 | — | **merge** (B3) after the HPG session commits and pushes its uncommitted work |
-| `v3/typing-inputs` (local only) | 2714261 | +6 | — | tag + delete once #25 merges (all 6 commits are in it); its worktree stays (data) |
+| `v3/typing-inputs` (local only) | 2714261 | merged | — | its 6 commits are on main via #25; the branch stays checked out in the v3 worktree until that worktree is removed (last) |
 | `v3/uniform-audit`, `v3/sameslide-islet-metrics`, `v3/qc`, `v3/galectin`, `v3/raw-expression` | — | — | #18–#21, #24 closed | **record** (tags above); branches tag + delete in phase C; remove `/scratch/io60/work/senior-raw` |
 | `v3/uniform-pin` | 60a4166 / GitHub bed51d0 | +2 | #22 closed | tag + delete (closed by ruling: the pin stays 7c33396) |
 | `preserve/worktree-2026-10-14` (GitHub) | 9eb1b39 | +1, 91 behind | — | **record**, never merged whole; the pLN rows are ported at stage 08 after HPG verification |
@@ -127,7 +137,7 @@ another maintained route. Closed with comments and tagged the same day:
 | **SpleenFollicleCounterQP** (absorbed as `analysis/follicle`) | **untouched for now** (maintainer, 2026-10-20): its three branches and its HPG clone stay as they are |
 | **LymphVizkit** (absorbed as `ieCore` + `apps/lymph`) | its only other branch is one empty "Initial plan" commit with no files — nothing to port; **archive** |
 | **KINTSUGI** | separate package, kept and pinned once (D1); `external/KINTSUGI` 716d1eb is 50 behind; HPG clone's 2 stashes preserved by the HPG session (A4); `/data/KINTSUGI__` (109 dirty files, 2025-03) and `/data/KINTSUGI_alt` (3 dirty) are not in any bundle — preserve before any deletion; none is scheduled |
-| **Islet-Explorer (Panc Floyd)** | **owned** by its session; separate app; its branch must be pushed (A4); its CODEX payload becomes the frozen CODEX namespace (D12); its ported processing copies are archived after the freeze |
+| **Islet-Explorer (Panc Floyd)** | **out of scope** (maintainer, 2026-10-20): its repo, ported copies, data and session are left alone; nothing in this plan reads, moves, freezes, archives or deletes them |
 | HPG `Islet-Explorer-Senior-main` | owned by the HPG session; commit + push (A4), then B3 |
 | HPG `Xenium_Celltype/code`, `~/IO60panc2nd/scripts`, `Phenocycler_Analysis` clones | remove at G after content checks (all their commits are on GitHub or in A1 bundles) |
 

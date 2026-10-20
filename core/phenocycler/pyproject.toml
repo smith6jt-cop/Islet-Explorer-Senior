@@ -29,6 +29,8 @@ dependencies = [
     "duckdb",
     # integration/manifest.py reads the donor metadata workbook.
     "openpyxl",
+    # phenocycler/profiles.py reads the tissue, platform, panel and cohort profiles.
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
