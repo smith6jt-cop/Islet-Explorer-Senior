@@ -531,7 +531,7 @@ card_n1_sections_server <- function(
       # Collapsed by default. The measured state below -- the record table, the named exceptions,
       # the withheld donors -- stays visible; only the standing explanation of HOW membership is
       # derived is behind the toggle, which is the rule test_app_text_is_collapsed_by_default pins.
-      ieCore::ie_explain(
+      ie_explain(
         label = "How node membership is decided",
         shiny::tags$p(
           paste0("The node is the lymph node's structural unit, and which annotation delimits it ",
