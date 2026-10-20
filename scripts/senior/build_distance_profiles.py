@@ -143,6 +143,8 @@ from superseded import (  # noqa: E402
     refuse_if_superseded,
 )
 from superseded import notice as superseded_notice  # noqa: E402
+# The tissue names have one authority, the tissue profiles (MultiPlex5000 D2).
+from multiplex5000.integration import tissues as _tissues  # noqa: E402
 from superseded import match as superseded_match  # noqa: E402
 
 TYPING = REPO / "data" / "development" / "typing"
@@ -183,9 +185,10 @@ PLN_INGEST = INTEGRATION / "cells_pln"
 # now stated once, in xenium_release.Release.partitioning(), and the copy that
 # used to sit here (defined, never called) is gone rather than left to drift.
 
-PLN_TISSUE = "pancreatic_lymph_node"
-# The release's own tissue tag, which is not the crosswalk's vocabulary.
-RELEASE_TISSUE_ALIAS = {"pln": PLN_TISSUE, "pancreatic_lymph_node": PLN_TISSUE}
+PLN_TISSUE = _tissues.LYMPH_NODE
+# The release's own tissue tag, which is not the crosswalk's vocabulary: exactly these two
+# tags declare a pLN release (any other answers None, as it always has).
+RELEASE_TISSUE_ALIAS = {tag: PLN_TISSUE for tag in ("pln", PLN_TISSUE)}
 
 # A Xenium pLN release resolves immune membership in stage 1 and identity in
 # stage 2. These are the stage-1 answers that resolve; anything else (Ambiguous,
@@ -196,7 +199,7 @@ NO_PLN_PHENO = "phenocycler_pln_calls_absent"
 NO_XEN_PLN_RELEASE = "xenium_pln_release_absent"
 
 PANCREAS_ROI = "panc"
-PANCREAS_TISSUE = "pancreas"
+PANCREAS_TISSUE = _tissues.PANCREAS
 
 # --------------------------------------------------------------------------
 # The pancreas Xenium arm's named absences. Each one is the FIRST missing link

@@ -1,20 +1,21 @@
-"""Profiles: tissue, platform, panel and cohort facts as data (MultiPlex5000 plan, phase D1).
+"""Profiles: tissue, platform, panel and cohort facts as data (MultiPlex5000 D1; authority since D2).
 
 Today these facts are Python constants scattered across the package (tissue names alone are spelled
 seven ways). A profile is one small YAML file under ``core/multiplex5000/profiles/<kind>s/<id>.yaml``
 holding the facts for one thing, so a new tissue or platform is a new file, not an edit in seven
 places. This module defines the schema and refuses any file that does not meet it.
 
-**Profiles do not yet replace the constants.** Until phase D2 makes them the authority, every value
-a profile carries is a *mirror* of the constant it names under ``sources``, and
-``tests/current/test_profiles.py`` fails if the two ever disagree -- so there is never a second,
-silently diverging copy.
+**The tissue profiles are the authority** (since D2, 2026-10-20): ``integration/tissues.py`` reads
+them and keeps no copy, and ``tests/current/test_one_tissue_list.py`` fails on any other list of
+tissue names. Before D2 every profile value was a *mirror* of a constant, named under ``sources``;
+the platform, panel and cohort profiles still say where their values are also used.
 
 Two kinds of fact are deliberately *referenced*, never restated, because they already have one
 authority: a cohort names its membership file and the exclusion constant
-(``phenocycler.cohort.DONOR_EXCLUSIONS``); a panel names its marker registry or the panel-role table
-in ``core/panels``. A cohort profile that lists donors, or a panel profile that lists markers, is
-refused.
+(``multiplex5000.cohort.DONOR_EXCLUSIONS``); a panel names its marker registry or the panel-role
+table in ``core/panels``. A cohort profile that lists donors, or a panel profile that lists markers,
+is refused. A cohort may declare ``donor_aliases`` -- labels a recorded source uses for a donor that
+are not its id -- because an alias must never be read out of a filename.
 """
 
 from __future__ import annotations
@@ -76,6 +77,9 @@ class CohortProfile:
     tissues: tuple[str, ...]
     membership: str         # repository-relative path of the membership authority
     exclusions: str         # dotted name of the exclusion constant; never a list
+    #: Donor labels a recorded source uses that are not the donor id (``HDL112`` -> ``0112``).
+    #: Declared, with their evidence, because an alias must never be read out of a filename.
+    donor_aliases: dict = field(default_factory=dict)
     sources: dict = field(default_factory=dict)
 
 
@@ -88,7 +92,7 @@ _KINDS: dict[str, tuple[type, tuple[str, ...], tuple[str, ...]]] = {
     "platform": (PlatformProfile, ("id", "display_name", "pixel_size_um"), ("sources",)),
     "panel": (PanelProfile, ("id", "platform", "authority"), ("sources",)),
     "cohort": (CohortProfile, ("id", "platform", "tissues", "membership", "exclusions"),
-               ("sources",)),
+               ("donor_aliases", "sources")),
 }
 
 _LISTS = {"aliases", "roi_prefixes", "tissue_only_panels", "structures", "comparable_lineages",
@@ -133,6 +137,16 @@ def load_profile(path: Path) -> Any:
         elif key == "sources":
             if not isinstance(value, dict):
                 raise ProfileError(f"{path}: sources must be a mapping of key -> where it is defined")
+        elif key == "donor_aliases":
+            # Both sides must be text: an unquoted 0112 in YAML is the number 112, and the leading
+            # zero -- which IS the donor id -- would be gone without a word.
+            if not isinstance(value, dict) or not all(
+                    isinstance(k, str) and k.strip() and isinstance(v, str) and v.strip()
+                    for k, v in value.items()):
+                raise ProfileError(f"{path}: donor_aliases must map text labels to quoted donor ids")
+            if set(value) & set(value.values()):
+                raise ProfileError(f"{path}: a donor id cannot also be an alias")
+            body[key] = dict(value)
         elif not isinstance(value, str) or not value.strip():
             raise ProfileError(f"{path}: {key} must be a non-empty string")
     if body["id"] != path.stem:

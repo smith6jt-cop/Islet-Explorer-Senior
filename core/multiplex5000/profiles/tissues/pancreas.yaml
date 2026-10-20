@@ -16,13 +16,5 @@ structures: [islet, duct, vessel]
 comparable_lineages: [Endocrine, Exocrine, Stromal, Vascular, T_NK, B_Plasma, Myeloid, Neural]
 # The tissue plugin (logic that differs, not numbers): the islet chain. Written in phase D6.
 plugin: pancreas
-# Until phase D2 these values MIRROR the constants below; tests/current/test_profiles.py fails if
-# they disagree.
-sources:
-  display_name: phenocycler/integration/tissues.py DISPLAY_NAME
-  aliases: phenocycler/integration/tissues.py normalize()
-  roi_prefixes: phenocycler/integration/tissues.py ROI_PREFIX_TO_TISSUE
-  panel_tissue_dir: phenocycler/integration/tissues.py PANEL_TISSUE_DIR
-  tissue_only_panels: phenocycler/integration/tissues.py PANCREAS_ONLY_PANELS
-  structures: phenocycler/integration/tissues.py STRUCTURE_KINDS
-  comparable_lineages: phenocycler/integration/tissues.py COMPARABLE_LINEAGES
+# This profile is the authority for the tissue (since D2, 2026-10-20):
+# multiplex5000/integration/tissues.py reads it, and no other code lists tissue names.

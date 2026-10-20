@@ -3,5 +3,10 @@
   "site": "sn4622120742",
   "data_root": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data",
   "layers_dir": "/data/islet_layers",
+  "sources": {
+    "donor_notes": "/home/smith6jt/IO60panc2nd/ProcessingNotes.txt",
+    "donor_notes_copy": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/IO60panc2nd Notes.md",
+    "pln_blocks": "/home/smith6jt/IO60panc2nd/results/v3/pln_blocks.csv"
+  },
   "note": "The workstation. data_root is the MAIN checkout's gitignored data/ tree, whichever checkout or worktree the code runs from. Install as ~/.config/multiplex5000/site.json, or name it with $MPLX5K_SITE_FILE."
 }

@@ -1,6 +1,9 @@
 """
 What each tissue supports — the single place that knows pancreas from lymph node.
 
+Since D2 (2026-10-20) the values come from the tissue profiles
+(``core/multiplex5000/profiles/tissues/*.yaml``); this module reads them and holds the logic.
+
 The package supports pancreas and pancreatic lymph node, but support is not a claim that both
 modalities measured every section. The current PhenoCycler run has 20 pancreas sections and
 no pLN sections; the manifest keeps Xenium-only pLN rows explicit. When both tissues are
@@ -31,34 +34,66 @@ from __future__ import annotations
 
 from typing import Optional
 
-#: Canonical tissue identifiers. Anything else is rejected at import rather than silently
-#: creating a third tissue nobody configured.
+from .. import profiles as _profiles
+
+
+class TissueError(ValueError):
+    """An unknown or unsupported tissue."""
+
+
+def _load_tissue_profiles() -> dict[str, _profiles.TissueProfile]:
+    """Every tissue profile, by id. Since D2 (2026-10-20) they are the authority, not a mirror."""
+    loaded = _profiles.load_all()
+    found = {pid: prof for (kind, pid), prof in loaded.items() if kind == "tissue"}
+    if not found:
+        raise TissueError(f"no tissue profiles under {_profiles.PROFILES_DIR}; the tissue names "
+                          "are read from there, and MultiPlex5000 runs from a checkout that has them")
+    return dict(sorted(found.items()))
+
+
+#: The tissue profiles (``profiles/tissues/*.yaml``), by id, in id order.
+PROFILES: dict[str, _profiles.TissueProfile] = _load_tissue_profiles()
+
+#: Canonical tissue identifiers. Anything else is rejected rather than silently creating a third
+#: tissue nobody configured. These two are named because the code holds logic that differs by
+#: tissue (the plugins); each must have a profile.
 PANCREAS = "pancreas"
 LYMPH_NODE = "pancreatic_lymph_node"
-TISSUES: tuple[str, ...] = (PANCREAS, LYMPH_NODE)
+for _named in (PANCREAS, LYMPH_NODE):
+    if _named not in PROFILES:
+        raise TissueError(f"tissue {_named!r} has no profile under {_profiles.PROFILES_DIR}")
+TISSUES: tuple[str, ...] = tuple(PROFILES)
 
 #: Human-readable, for figures and reports.
-DISPLAY_NAME = {PANCREAS: "pancreas", LYMPH_NODE: "pancreatic lymph node"}
+DISPLAY_NAME = {t: prof.display_name for t, prof in PROFILES.items()}
+
+#: Every accepted spelling -> its tissue. Lowercased, with spaces and hyphens as underscores.
+_SPELLINGS: dict[str, str] = {}
+for _t, _prof in PROFILES.items():
+    for _spelling in (_t, *_prof.aliases):
+        if _SPELLINGS.setdefault(_spelling, _t) != _t:
+            raise TissueError(f"{_spelling!r} is an alias of two tissues: "
+                              f"{_SPELLINGS[_spelling]} and {_t}")
 
 #: ROI prefix -> tissue. One donor has one pancreas ROI and up to three lymph-node ROIs.
-ROI_PREFIX_TO_TISSUE = {"pan": PANCREAS, "pln": LYMPH_NODE, "ln": LYMPH_NODE}
+ROI_PREFIX_TO_TISSUE = {prefix: t for t, prof in PROFILES.items() for prefix in prof.roi_prefixes}
 
 #: The XeniumPanelExplorer tissue directory backing each tissue's identity cores.
 #: ``None`` means "no tissue-specific cores — use the shared pool", which is the right answer
 #: for lymph node rather than a degraded one.
-PANEL_TISSUE_DIR: dict[str, Optional[str]] = {PANCREAS: "pancreas", LYMPH_NODE: None}
+PANEL_TISSUE_DIR: dict[str, Optional[str]] = {t: prof.panel_tissue_dir
+                                              for t, prof in PROFILES.items()}
 
-#: Identity cores that are pancreas-specific and must NOT be applied to lymph node.
-PANCREAS_ONLY_PANELS = frozenset({
-    "01_pancreas_endocrine", "02_pancreas_exocrine", "13_fibroblast_stellate",
-})
+#: Identity cores each tissue owns, which must NOT be applied to any other tissue.
+TISSUE_ONLY_PANELS: dict[str, frozenset[str]] = {t: frozenset(prof.tissue_only_panels)
+                                                 for t, prof in PROFILES.items()}
+#: The pancreas-specific cores, under the name the integration layer has always used.
+PANCREAS_ONLY_PANELS = TISSUE_ONLY_PANELS[PANCREAS]
 
 #: Structure kinds each tissue supports. Empty tuple = the structure level does not run, and
 #: everything gated on it (S6 islet matching, the islet QC metric) is skipped for that tissue.
-STRUCTURE_KINDS: dict[str, tuple[str, ...]] = {
-    PANCREAS: ("islet", "duct", "vessel"),
-    LYMPH_NODE: (),
-}
+STRUCTURE_KINDS: dict[str, tuple[str, ...]] = {t: tuple(prof.structures)
+                                               for t, prof in PROFILES.items()}
 
 #: Seed definition per structure kind, as (common lineage, description). The registry exists
 #: so adding follicles later is a one-line change here plus a config flag, not a redesign.
@@ -69,22 +104,13 @@ STRUCTURE_SEEDS: dict[str, tuple[str, str]] = {
     # "follicle": ("B_Plasma", "B-cell follicles") — deliberately not enabled; see module docstring.
 }
 
-#: Common lineages worth comparing per tissue. A lymph node has no endocrine or exocrine
-#: compartment, so reporting a near-zero fraction for those would be noise dressed as a
-#: finding; a pancreas has all of them.
-#: Granulocyte is absent from both: neither modality calls it at broad level (PhenoCycler
-#: folds MPO into Immune, Xenium folds granulocytes into Myeloid), so it is `fine_only` on
-#: both sides and `donor.comparable_for` would drop it anyway. Listing it here would suggest
-#: a lymph-node comparison that cannot be made.
-COMPARABLE_LINEAGES: dict[str, tuple[str, ...]] = {
-    PANCREAS: ("Endocrine", "Exocrine", "Stromal", "Vascular",
-               "T_NK", "B_Plasma", "Myeloid", "Neural"),
-    LYMPH_NODE: ("Stromal", "Vascular", "T_NK", "B_Plasma", "Myeloid"),
-}
-
-
-class TissueError(ValueError):
-    """An unknown or unsupported tissue."""
+#: Common lineages worth comparing per tissue (the profile's ``comparable_lineages``). A lymph
+#: node has no endocrine or exocrine compartment, so reporting a near-zero fraction for those
+#: would be noise dressed as a finding; a pancreas has all of them. Granulocyte is absent from
+#: both: neither modality calls it at broad level, so it is `fine_only` on both sides and
+#: `donor.comparable_for` would drop it anyway.
+COMPARABLE_LINEAGES: dict[str, tuple[str, ...]] = {t: tuple(prof.comparable_lineages)
+                                                   for t, prof in PROFILES.items()}
 
 
 def normalize(tissue: str) -> str:
@@ -97,12 +123,8 @@ def normalize(tissue: str) -> str:
     t = str(tissue).strip().lower().replace(" ", "_").replace("-", "_")
     if not t:
         raise TissueError("tissue is empty; it must be declared when the dataset is imported")
-    if t in TISSUES:
-        return t
-    if t in {"pln", "lymph_node", "ln", "pancreatic_ln", "panc_lymph_node"}:
-        return LYMPH_NODE
-    if t in {"panc", "pan", "pancreatic"}:
-        return PANCREAS
+    if t in _SPELLINGS:
+        return _SPELLINGS[t]
     raise TissueError(f"unknown tissue {tissue!r}; expected one of {TISSUES}")
 
 
@@ -164,9 +186,8 @@ def applies(tissue: str, panel_stem: str) -> bool:
     not merely be uninformative — it would put weight on an endocrine axis that cannot exist
     there, and the broad call is an argmax over those axes.
     """
-    if normalize(tissue) == PANCREAS:
-        return True
-    return panel_stem not in PANCREAS_ONLY_PANELS
+    t = normalize(tissue)
+    return not any(panel_stem in owned for other, owned in TISSUE_ONLY_PANELS.items() if other != t)
 
 
 def describe(tissue: str) -> str:

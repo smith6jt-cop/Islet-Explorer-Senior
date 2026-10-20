@@ -75,6 +75,7 @@ import pandas as pd
 
 from ..config import PipelineConfig
 from ..marker_taxonomy import PROCESS, TYPE
+from . import tissues as _tissues
 from .phenospace import PhenotypeSpace, load_phenotype_space
 
 # --------------------------------------------------------------------------- #
@@ -432,7 +433,7 @@ IMMUNE_UNRESOLVED_LINEAGES: tuple[str, ...] = ("Unassigned",)
 
 #: The tissues in which :data:`IMMUNE_LINEAGES` carry an immune identity, per the ruling.
 #: Names match ``PipelineConfig.tissue_list`` / ``tissue_for_roi``.
-IMMUNE_TISSUE_SCOPE: tuple[str, ...] = ("pancreas", "pancreatic_lymph_node")
+IMMUNE_TISSUE_SCOPE: tuple[str, ...] = (_tissues.PANCREAS, _tissues.LYMPH_NODE)
 
 _IMMUNE_NOTES = {
     "yes": ("immune lineage; immune identity holds in {scope} "

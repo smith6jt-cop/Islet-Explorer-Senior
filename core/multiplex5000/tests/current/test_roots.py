@@ -129,3 +129,23 @@ def test_the_layers_dir_is_read_when_asked_not_at_import(monkeypatch, tmp_path, 
     module, _ = reload_roots()
     monkeypatch.delenv("ISLET_LAYERS_DIR", raising=False)
     assert module.layers_dir() == Path("/data/islet_layers")  # neither: the default
+
+
+def test_a_site_names_the_recorded_sources_that_live_outside_the_repo(monkeypatch, tmp_path,
+                                                                       reload_roots):
+    data = tmp_path / "data"
+    data.mkdir()
+    notes = tmp_path / "notes.txt"
+    monkeypatch.setenv(roots.SITE_FILE_ENV, str(_site(
+        tmp_path, site="test", data_root=str(data), sources={"donor_notes": str(notes)})))
+    module, _ = reload_roots()
+    assert module.source("donor_notes") == notes
+    assert module.source("pln_blocks") is None, "a source the site does not name is unknown"
+
+
+def test_a_source_given_as_a_relative_path_is_refused(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    path = _site(tmp_path, site="test", data_root=str(data), sources={"donor_notes": "notes.txt"})
+    with pytest.raises(roots.SiteError, match="sources"):
+        roots.read_site(path)
