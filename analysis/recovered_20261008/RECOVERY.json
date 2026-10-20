@@ -1,0 +1,806 @@
+{
+  "what": "Files brought onto the branch from the v3 worktree (/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3, v3/typing-inputs @ 2714261 plus its working tree) and from one data folder, by phase B2 of the MultiPlex5000 plan.",
+  "written_UTC": "2026-10-20T13:57:37.274304+00:00",
+  "not_committed": {
+    "why": "cohesive-finish (022ec5d) edited these after recovering them on 2026-10-18; v3's copies predate the Ker8_18 and CD8 rulings, and committing them would undo both.",
+    "files": [
+      "core/phenocycler/scripts/typing/immune_subtype.py",
+      "core/phenocycler/scripts/typing/rebuild_donor_from_revised_export.py",
+      "core/phenocycler/scripts/typing/refine.py",
+      "core/phenocycler/scripts/typing/subpanel.py",
+      "core/phenocycler/scripts/typing/subpanel_io.py",
+      "core/phenocycler/scripts/typing/build_calibration_comparison.py",
+      "core/phenocycler/scripts/typing/run_calibration_arm.py"
+    ]
+  },
+  "everything_else_in_v3": "preserved byte for byte in /data/io60-archive/code_bundles_20261019/untracked_source/ (MANIFEST.tsv lists every file and its sha256)",
+  "files": [
+    {
+      "destination": "CLAUDE.md",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/CLAUDE.md",
+      "sha256": "9ffa141920e2e89015c5aa004d4187bd34a8d2c6d7d19a6f2003a40f7ba98f22",
+      "bytes": 21314,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/build_conservative_full27_candidate_r2.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/build_conservative_full27_candidate_r2.py",
+      "sha256": "1469d4c5356d43a801b23e84f76d9e60317c428ada7b37b6a680f776c83bcb8f",
+      "bytes": 14112,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/candidate_release_r2/release.json"
+      ],
+      "receipts_recording_sha256": [
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/candidate_release_r2/release.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/summarize_native_pln_full_panel_evidence.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/summarize_native_pln_full_panel_evidence.py",
+      "sha256": "68288a96f6e7cd6af6a44a8f6557bda8910fb6113a1a3fb9644c21f6f976415c",
+      "bytes": 16073,
+      "reason": "writes all27_stage1_stage2_partition_reference_evidence.csv and pLN_full_panel_evidence_manifest.json, the two inputs of build_conservative_full27_candidate_r2.py; that manifest records script_sha256 68288a96f6e7cd6a..., equal to this file",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/protein/build_conservative_protein_candidate.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/protein/build_conservative_protein_candidate.py",
+      "sha256": "9c699ed9cbbdb46ff49edfc97b9cba251ea7af7a66482f1227fcf929ee244214",
+      "bytes": 11591,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/generation.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/conservative_assignment_candidate/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/generation.json",
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/protein/conservative_assignment_candidate/executed_builder_snapshot_receipt.json",
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/protein/conservative_assignment_candidate/manifest.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/rna/combined_PAN_pLN_positive_annotation_writer_preparation_r1/materialize_exact_positive_annotations.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/rna/combined_PAN_pLN_positive_annotation_writer_preparation_r1/materialize_exact_positive_annotations.py",
+      "sha256": "93fb85920d0108275a65428664e003bfa6be0f6ec5cfeeba42c2e5ebf7fb210b",
+      "bytes": 38170,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/candidate_release_r10/release.json",
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/rna/candidate_release_r13/release.json"
+      ],
+      "receipts_recording_sha256": [
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/pln_rna/candidate_release_r10/release.json",
+        "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/cell_typing_validation/peer_review_typing_20261008/rna/candidate_release_r13/release.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/audit_protein_candidate_missing_negatives.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/audit_protein_candidate_missing_negatives.py",
+      "sha256": "76df0c5c82e30cacfea9b8a62a1d5505b7d176d33d0bdbf1582a2020493174d2",
+      "bytes": 6926,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/audit_protein_repaired_primary_evidence.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/audit_protein_repaired_primary_evidence.py",
+      "sha256": "7581848fe93ab3f50a1c8d4ecaaddbd9baddeb50adabfac7aef6e90a594a7633",
+      "bytes": 7148,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/combine_spatial_hypotheses_v2.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/combine_spatial_hypotheses_v2.py",
+      "sha256": "a26e1c75f5dc948f88e9181aa6fb6650442f9aff0b2a0ada20e8d2d3a9edc05b",
+      "bytes": 11690,
+      "reason": "named by analysis/cohesive/sources.py, whose reconcile stage snapshots it; H1-H6 stay disabled by the 2026-10-19 ruling",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/complete_corrected_protein_release.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/complete_corrected_protein_release.py",
+      "sha256": "a3960c5fb2a1e66581b63ae55c4cce5e57ce24433e8a49c83d043a6ef702d73c",
+      "bytes": 16635,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/complete_protein_compartment_refinement.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/complete_protein_compartment_refinement.py",
+      "sha256": "5acd23de495dba4b81e0b2e2dc8bed56812fa23abb832f8e27f5aed2a03b2525",
+      "bytes": 12192,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/complete_protein_own_frozen_reference_repair.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/complete_protein_own_frozen_reference_repair.py",
+      "sha256": "a04b96c77596171f315934b4703ed8f10a8da85495bbf944f701d517745e4c99",
+      "bytes": 9995,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/independent_finalizer_metadata_review_20261008.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/independent_finalizer_receipt_preservation_review_20261008.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/independent_generation_design_review.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/independent_finalizer_receipt_preservation_review_20261008.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/evaluate_corrected_protein_programs.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/evaluate_corrected_protein_programs.py",
+      "sha256": "7bcc49ba5672433fe87078484f9bd9963ad69432bd6eb6049bdb310dc958616a",
+      "bytes": 21710,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/program_ROI_runs.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/program_ROI_evidence_cell_class/evidence_manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/program_ROI_evidence_refined_class/evidence_manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/program_ROI_runs.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_H1_H2.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_H1_H2.py",
+      "sha256": "66ab070bf6e5b79bc1bf7aa3cfc2039729ce5dcafd038cfd1aade7cd552aba5a",
+      "bytes": 39978,
+      "reason": "named by analysis/cohesive/sources.py, whose reconcile stage snapshots it; H1-H6 stay disabled by the 2026-10-19 ruling",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_H3_H4.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_H3_H4.py",
+      "sha256": "955748d5a277c63ff406b52789052667c741184e1d601a085e414b8a76bcf26d",
+      "bytes": 20986,
+      "reason": "named by analysis/cohesive/sources.py, whose reconcile stage snapshots it; H1-H6 stay disabled by the 2026-10-19 ruling",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_RNA_H5_H6.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/evaluate_spatial_RNA_H5_H6.py",
+      "sha256": "eb68440e5b4254223a7312ae2ebe91a546d9e192753c1763d6163fde7287ca6c",
+      "bytes": 42990,
+      "reason": "named by analysis/cohesive/sources.py, whose reconcile stage snapshots it; H1-H6 stay disabled by the 2026-10-19 ruling",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/recover_corrected_protein_object_composition.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/recover_corrected_protein_object_composition.py",
+      "sha256": "423a1aa8ea2605f0371b4bed97b6c676d9edf2028cd0b49af520ce70bb1205f4",
+      "bytes": 13650,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_recovery_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_recovery_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/reprocess_protein_own_compartment_candidate.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/reprocess_protein_own_compartment_candidate.py",
+      "sha256": "da95010aebb71215da715a617ba293dba7c0ae651bc2230103363becd1195a62",
+      "bytes": 22290,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/resume_protein_compartment_candidate.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/resume_protein_compartment_candidate.py",
+      "sha256": "2985af239f39d0f8a1a56c0c749aa7875841c13badbf6915d73a034b456e9a50",
+      "bytes": 14699,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/run_protein_own_frozen_reference_repair.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/run_protein_own_frozen_reference_repair.py",
+      "sha256": "887578dec1410009fd60c27ba24fe0ba658853e9d5ee4af164ce0896a3d86779",
+      "bytes": 22969,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run_initial_source_preparation_terminal.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/verify_protein_candidate_expression_sources.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/verify_protein_candidate_expression_sources.py",
+      "sha256": "5dc3ac9e48c520f3b9542243018a13d27bfe2ca7d0b4a27aec816fd544b25b29",
+      "bytes": 5137,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/verify_protein_candidate_primary_integrity.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/verify_protein_candidate_primary_integrity.py",
+      "sha256": "c7744f38851cf9c6ac08400ec6d81938ddc800ac35a1e497dc08610bc6c5a07e",
+      "bytes": 4603,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/generation_config_initial_source_preparation.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run_primary_preserved.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/verify_protein_own_CD8_finite_units.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/results/v3/islet_immune_reassessment_20261006/scripts/verify_protein_own_CD8_finite_units.py",
+      "sha256": "9f45023ffd4e01730ddfd35af28c1280e004b97d3df039eed9b0bbfce879fc43",
+      "bytes": 3935,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-analysis/typing-20261019/run/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-analysis/typing-20261019/run/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/CD8_finite_own_source_unit_parity.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/own_compartment/typing/run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/pancreas_cell_release_current_generation/manifest.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/refinement_run.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/recovered_20261008/typing-validation/current_defensible_handoff_20261014_183339/identity_review/read_current_rna.py",
+      "source": "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/read_current_rna.py",
+      "sha256": "a68ac05037ebfa0e08dfc59c38127af66d223836f41f02a08a2ce6ad5703d023",
+      "bytes": 7845,
+      "reason": "loaded by analysis/cohesive/qualification.py (rna_reader) from the 10-14 handoff folder; its bytes are recorded in LATEST_DEFENSIBLE_INPUTS.json's folder receipts",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/RNA_analysis_annotations/export_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/RNA_analysis_annotations/export_manifest_before_nullable_obs_index_header_fix.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/delivery_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/delivery_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/rna_join_reader_verification.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/RNA_analysis_annotations/export_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/RNA_analysis_annotations/export_manifest_before_nullable_obs_index_header_fix.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/delivery_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/delivery_manifest.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/rna_join_reader_verification.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/build_physical_source_identity_amendment.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/build_physical_source_identity_amendment.py",
+      "sha256": "f5f72fbccf73a829c81b967f0c4569e18e75476c6f17dbc5175d4d6aa41426c5",
+      "bytes": 1967,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/conditional_cell_typing_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/conditional_cell_typing_view.py",
+      "sha256": "cb7bbafa739ef245b435a1b52fa543f3e80a896ec6e051830649632c93614373",
+      "bytes": 23146,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/physical_source_identity_amendment_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/physical_source_identity_amendment_view.py",
+      "sha256": "1326770d98dbcbb592756090a49a3adace0e55fc5199c7e4d81413a6abdf968d",
+      "bytes": 18559,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/LATEST_DEFENSIBLE_INPUTS.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/qualified_broad_composition/completion.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/qualified_broad_composition/completion.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/protein_semantic_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/protein_semantic_view.py",
+      "sha256": "b6bb743754d14a22273f71ac7ee0d55c04b9a52daaae91fbce56a0f6d0ba9db4",
+      "bytes": 20497,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/qualified_broad_composition/completion.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/qualified_broad_composition/completion.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/tests/test_physical_source_identity_amendment_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/tests/test_physical_source_identity_amendment_view.py",
+      "sha256": "e29aa9b8da8b4a8c555fe8cc9b2568e251a7ed25bdbeb37dded460086292c6eb",
+      "bytes": 10517,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/shared/tests/test_protein_semantic_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/tests/test_protein_semantic_view.py",
+      "sha256": "e6b2f4334afbf6b350d1fc4327904425fabd57dde443ea3ddfed7d6ca99a6c00",
+      "bytes": 17058,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/shared/tests/test_typing_release_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/tests/test_typing_release_view.py",
+      "sha256": "e15cbfcd54d18c437ce3968caf640a2b8322a1857ff82eef5f530df3e749880b",
+      "bytes": 4411,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/shared/tests/test_typing_semantic_selection_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/tests/test_typing_semantic_selection_view.py",
+      "sha256": "43f75697170e3ea8a5d956b8a32b43bb18916e2d85bb66f8ec151a54719c2779",
+      "bytes": 18975,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/shared/typing_release_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/typing_release_view.py",
+      "sha256": "cb86761147480bfa588bcc091b34462b474551ce3d9334d389ba240e7b301464",
+      "bytes": 8517,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/shared/typing_semantic_selection_view.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/shared/typing_semantic_selection_view.py",
+      "sha256": "6c2d66a5acdd4ab0d9cd423a5c2d0c784a725b21084245b5944a4f5391da7704",
+      "bytes": 17724,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/identity_review/identity_review_status.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/handoff.json",
+        "/data/typing-validation/current_defensible_handoff_20261014_183339/protein_composition/verification_checks.json"
+      ]
+    },
+    {
+      "destination": "analysis/xenium/scripts/build_complete_typing_paper_figures.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/build_complete_typing_paper_figures.py",
+      "sha256": "c52da9df6312d59d2c29a4136d6e7017bc1df8c50f42a2752f7a2c761722e4d1",
+      "bytes": 68804,
+      "reason": "no receipt names it; core/phenocycler/tests/current/test_protein_analysis_admission.py loads it (test_aggregate_marker_profiles_retain_uncertainty_only_from_an_admitted_source)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/xenium/scripts/panc_xenium_cluster_name.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/panc_xenium_cluster_name.py",
+      "sha256": "a383b52dece2052b5bfaadb74ea71c0522ef71cdb0953f3c9d23379ea9aa5f9f",
+      "bytes": 61814,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/xenium_typing/panc_20261003_bundle/release/release.json",
+        "/data/xenium_typing/panc_corrected_RNA_release_20261008_r4/release.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/xenium_typing/panc_corrected_RNA_release_20261008_r4/release.json"
+      ]
+    },
+    {
+      "destination": "analysis/xenium/scripts/panc_xenium_release.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/panc_xenium_release.py",
+      "sha256": "6ed11c611fb42ff6b9c2ac25b8cc683fc7b57aa9a98ca0b13849298b57684d92",
+      "bytes": 40184,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/xenium_typing/panc_20261003_bundle/release/release.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/xenium_typing/panc_20261003_bundle/release/release.json"
+      ]
+    },
+    {
+      "destination": "analysis/xenium/scripts/pln_immune_typing_v3.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/pln_immune_typing_v3.py",
+      "sha256": "73b056be42d5e33753f81f574eafdb29e42b6ea34d35b337414b5579c6338c3b",
+      "bytes": 117370,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/xenium_typing/pln_20261003/release.json"
+      ],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "analysis/xenium/scripts/prepare_native_typing_display.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/prepare_native_typing_display.py",
+      "sha256": "75e863c1bc9a4a6c458e5663af96b82fc382138b9dbd5cc851878e224c46244f",
+      "bytes": 4890,
+      "reason": "named by a current receipt",
+      "receipts_naming_path": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_recovery_run.json",
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/io60-calibration/own_compartment_frozen_reference_repair_20261008/protein_release_followup_run.json"
+      ]
+    },
+    {
+      "destination": "analysis/xenium/scripts/release_corrected_frozen_pancreas_RNA.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/analysis/xenium/scripts/release_corrected_frozen_pancreas_RNA.py",
+      "sha256": "1274c29bff747481c0569c74051a2f18d88c8f6ff0f23cb0338e710ddaa8edfc",
+      "bytes": 32524,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [
+        "/data/xenium_typing/panc_corrected_RNA_release_20261008_r4/release.json"
+      ],
+      "receipts_recording_sha256": [
+        "/data/xenium_typing/panc_corrected_RNA_release_20261008_r4/release.json"
+      ]
+    },
+    {
+      "destination": "core/phenocycler/data/integration/section_modes.csv",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/data/integration/section_modes.csv",
+      "sha256": "e5565d8299c21a542462ad7f7a4f103eac9775ad8b9a7a7eea7dae9e26256b23",
+      "bytes": 2971,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/export_dapi.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/export_dapi.py",
+      "sha256": "eea11bfc4de349a04b369533844e6c387aa9f7fdad93725df54b5b0c8d5f01f9",
+      "bytes": 14808,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/protein_rna.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/protein_rna.py",
+      "sha256": "7e0593867681ea3876ffbaa30678ba7957628980673a92e6ba3cb4ca3d7c4614",
+      "bytes": 50484,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/run_refine.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/run_refine.py",
+      "sha256": "ed476f1e3cbb387dde7f590101cdd51de17ad3d44975cfc6e549200dc9e6587c",
+      "bytes": 16834,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/run_register.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/run_register.py",
+      "sha256": "ba543d36f7b8ba7257bb621c824b4f9dc9440a38e8fc8d3b571357a0489827ec",
+      "bytes": 9600,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/tests/test_protein_rna_channels.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/tests/test_protein_rna_channels.py",
+      "sha256": "da71fc9ab891e237e061d3b80494642ce12bca7111ceeebef7c285ae0781192f",
+      "bytes": 22526,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/scripts/restain/validate.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/scripts/restain/validate.py",
+      "sha256": "d09f5f21472e0161095f03c8db0e00b5acbc3b8bd45193b7227955f9527a1ce4",
+      "bytes": 5784,
+      "reason": "edit to a tracked file (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_composition_exact_cell_exclusion_routing.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_composition_exact_cell_exclusion_routing.py",
+      "sha256": "1224b47cf326c9d381b86b602b69fc0a07728ab5d69dbf471b96070faae6d2f6",
+      "bytes": 5511,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_nd_trajectory_feature_groups.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_nd_trajectory_feature_groups.py",
+      "sha256": "2cb5fee221651a9d94248c2d8af82ab41ff299a901f212cb39225402faf5f0af",
+      "bytes": 4680,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_protein_analysis_admission.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_protein_analysis_admission.py",
+      "sha256": "b0fc5d2cc73c32fe5ee5dbe056415c543d0ad2c62facb398a75c6dfdc4afe443",
+      "bytes": 11538,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_refinement_cd8_measurement.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_refinement_cd8_measurement.py",
+      "sha256": "e45d32d6a41ec393a06a3ba0867dd753f2600480ca3da44f91f68c5cb5dd9d13",
+      "bytes": 5629,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_subpanel_endocrine_identity.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_subpanel_endocrine_identity.py",
+      "sha256": "dfea6da002a5de3a76b5f07ed307224c94e1f1b33757f6c50a9d52d18233c55f",
+      "bytes": 8010,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "core/phenocycler/tests/current/test_subpanel_rule_evidence.py",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/core/phenocycler/tests/current/test_subpanel_rule_evidence.py",
+      "sha256": "fd976d613602aa06f86dd6a2cce81ac20c2dbd0d18eba03f16deab71dcdfedc5",
+      "bytes": 4281,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    },
+    {
+      "destination": "docs/DEFERRED_EXCLUDED_CELL_RESOLUTION_2026-10-05.md",
+      "source": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3/docs/DEFERRED_EXCLUDED_CELL_RESOLUTION_2026-10-05.md",
+      "sha256": "bae9756a6da49f098791c687f35d2bdc6914b6f3229b9261512e23076b455dd6",
+      "bytes": 19619,
+      "reason": "untracked in v3 (exists nowhere else)",
+      "receipts_naming_path": [],
+      "receipts_recording_sha256": []
+    }
+  ]
+}
