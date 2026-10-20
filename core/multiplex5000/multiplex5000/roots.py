@@ -92,8 +92,14 @@ def read_site(path: Path) -> dict:
     layers = data.get("layers_dir")
     if layers is not None and not (isinstance(layers, str) and Path(layers).is_absolute()):
         raise SiteError(f"{path}: layers_dir, when given, must be an absolute path")
+    sources = data.get("sources", {})
+    if not isinstance(sources, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and Path(v).is_absolute()
+            for k, v in sources.items()):
+        raise SiteError(f"{path}: sources, when given, must map names to absolute paths")
     return {"site": data["site"], "data_root": data_root, "path": Path(path),
-            "layers_dir": Path(layers) if layers else None}
+            "layers_dir": Path(layers) if layers else None,
+            "sources": {k: Path(v) for k, v in sources.items()}}
 
 
 _SITE_PATH = site_file()
@@ -117,6 +123,14 @@ DEVELOPMENT = DATA_ROOT / "development"
 
 #: The typing lane's outputs: ``cells``, ``app``, ``immune``, ``geometry`` and the rest.
 TYPING = DEVELOPMENT / "typing"
+
+
+def source(name: str) -> Optional[Path]:
+    """Where this site keeps a recorded source that lives outside the repository (the site file's
+    ``sources``), or ``None`` when the site does not say -- which is unknown, not absent."""
+    if SITE is None:
+        return None
+    return SITE["sources"].get(name)
 
 
 def layers_dir() -> Path:

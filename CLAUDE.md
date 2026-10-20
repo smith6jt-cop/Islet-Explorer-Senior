@@ -74,6 +74,16 @@ moves. Nothing inside `multiplex5000` imports the alias. **The data did not move
 until phase H, and `core/multiplex5000/data` is a tracked link to it. Documents dated before
 2026-10-20, and every receipt, name the old code paths.
 
+**Identity, recorded relationships and tissue names (D2, 2026-10-20).** A cell's key is
+`multiplex5000.identity.cell_uid(acquisition, segmentation, native id)`; the QuPath UUID stays
+`object_id` and is the native id, and uniqueness is checked, never assumed. Which pieces share a
+section, a block or a slide comes only from what was recorded, through `multiplex5000.relationships`
+(the donor notes' donor and post-Xenium IF sections, `results/v3/pln_blocks.csv`,
+`section_modes.csv`; their paths come from the site file) -- never from co-imaging or a filename.
+`python -m multiplex5000.relationships` prints the transcription and every disagreement and writes
+nothing. Tissue names have one authority, `profiles/tissues/*.yaml`, served by
+`integration/tissues.py`. No stage reads these yet; they are adopted from D4 on.
+
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
 
