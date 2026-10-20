@@ -3,11 +3,11 @@ name: Repo-root script tests
 # scripts/test_build_acquisition_batch_table.py and scripts/test_build_tissuumaps_h5ad_wiring.py
 # had no workflow before this file: `grep -rn 'scripts/test_' .github/workflows/` found only
 # islet-r.yml:221 (the R viewer-helper test) on 2026-09-21 (census), and the only runner was
-# Makefile:116-118. They cannot ride in phenocycler-ci.yml: that file sets
-# defaults.run.working-directory to core/phenocycler, and these modules live at the repo root
+# Makefile:116-118. They cannot ride in multiplex5000-ci.yml: that file sets
+# defaults.run.working-directory to core/multiplex5000, and these modules live at the repo root
 # and load what they test by path (test_build_tissuumaps_h5ad_wiring.py:22-30). No pytest
 # config applies at the repo root -- no pyproject.toml, pytest.ini, setup.cfg, tox.ini or
-# conftest.py there -- so core/phenocycler/pyproject.toml's addopts, including the
+# conftest.py there -- so core/multiplex5000/pyproject.toml's addopts, including the
 # `-m "not data"` the step3/guards branch adds, do not reach this job. It needs none of them:
 # nothing here reads data/.
 #
@@ -23,10 +23,10 @@ name: Repo-root script tests
 # imports numpy at :19 and importorskips anndata and pandas at :36-37 and :99 -- without them
 # its 5 tests skip, which is why both are installed rather than left to -rs. The regions check
 # imports scripts/senior/build_tissuumaps_regions.py at :148, which imports shapely at :59-60
-# and core/phenocycler/scripts/typing/build_islet_geometry.py at :63-65, which imports
+# and core/multiplex5000/scripts/typing/build_islet_geometry.py at :63-65, which imports
 # pyarrow.parquet at :33: run with pytest, numpy, pandas, anndata and zarr alone it died at
 # build_tissuumaps_regions.py:59 with "No module named 'shapely'" (measured 2026-09-22). That
-# import chain is why the path filter also watches core/phenocycler/scripts/typing/. The export
+# import chain is why the path filter also watches core/multiplex5000/scripts/typing/. The export
 # check is stdlib only and drives scripts/senior/export_viewer_cell_markers.py by subprocess
 # against a tempdir (check_export_viewer_cell_markers.py:58-95).
 #
@@ -43,13 +43,13 @@ on:
     branches: [main]
     paths:
       - 'scripts/**'
-      - 'core/phenocycler/scripts/typing/**'
+      - 'core/multiplex5000/scripts/typing/**'
       - '.github/workflows/script-tests.yml'
   pull_request:
     branches: [main]
     paths:
       - 'scripts/**'
-      - 'core/phenocycler/scripts/typing/**'
+      - 'core/multiplex5000/scripts/typing/**'
       - '.github/workflows/script-tests.yml'
   workflow_dispatch:
 

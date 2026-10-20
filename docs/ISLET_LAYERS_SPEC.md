@@ -81,7 +81,7 @@ write your own.
 
 ### 0.4 Excluded donors are filtered at the build side
 
-**Only `6457`** is centrally excluded in `core/phenocycler/phenocycler/cohort.py`. **6579's
+**Only `6457`** is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`. **6579's
 exclusion was LIFTED 2026-09-17** and it is recorded in `REINSTATED` there — the pancreatitis it
 was excluded for is still a disease context, so stratify or report it separately, but do not
 drop it. (Corrected 2026-09-18: this line named 6579 as excluded, which line 384 of this same

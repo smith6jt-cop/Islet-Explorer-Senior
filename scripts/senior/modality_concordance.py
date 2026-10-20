@@ -182,11 +182,11 @@ PANC_PHENO_CLASS_TO_COMMON = {
 # `qc_analysis_eligible`): 316,752 cells -- Lymphatic 122,884 and Excluded 193,868 -- were
 # counted in `n_cells` and appeared in no column at all.  They are now counted by name.
 #
-# AUTHORITY.  The class vocabulary is `core/phenocycler/scripts/typing/refine.py`
+# AUTHORITY.  The class vocabulary is `core/multiplex5000/scripts/typing/refine.py`
 # (`OWN_MARKERS` + `UNTOUCHED` + `UNRESOLVED`), restated here rather than imported for the
-# reason `core/phenocycler/scripts/typing/build_cells.py` gives for restating `UNRESOLVED`:
+# reason `core/multiplex5000/scripts/typing/build_cells.py` gives for restating `UNRESOLVED`:
 # importing `refine` pulls in the whole celltype scoring stack.  What a non-call IS belongs to
-# `core/phenocycler/phenocycler/integration/vocab.py` (`PHENO_UNRESOLVED`, `NON_CALLS`), which
+# `core/multiplex5000/multiplex5000/integration/vocab.py` (`PHENO_UNRESOLVED`, `NON_CALLS`), which
 # is imported above; `check_pancreas_class_vocabulary` checks these spellings against it and
 # refuses a non-call vocab records and this file does not name.  Together with the
 # reconciliation in `panc_protein_counts`, a class added upstream can no longer arrive unnamed:
@@ -218,7 +218,7 @@ PANC_PHENO_CLASS_NOT_COMPARED = {
 #: The not-compared labels that NOTHING CAN WRITE into `cell_class` today, so their count is
 #: UNAVAILABLE rather than zero.
 #:
-#: `Unresolved (no lineage evidence)` is produced only by `core/phenocycler/scripts/typing/
+#: `Unresolved (no lineage evidence)` is produced only by `core/multiplex5000/scripts/typing/
 #: refine.py`, through the `build_cells.py --refine` join (ruled in 2026-09-23, not yet run),
 #: and `build_cells._join_refinement` adds
 #: `refined_class` BESIDE `cell_class` without overwriting it.  Printing 0 here would say "this

@@ -272,7 +272,7 @@ TIER4 = [
 #   code_orphan          : no import / source() / subprocess reference from outside
 #                          CODE_RETIRING (the union of c1 and c2) and outside the file itself
 #   code_orphan_and_config_blank(key)
-#                        : code_orphan, AND core/phenocycler/config.ini has `key` blank. For an
+#                        : code_orphan, AND core/multiplex5000/config.ini has `key` blank. For an
 #                          apparatus whose class column reaches the graph through a bound
 #                          RELEASE DIRECTORY, which a walk over .py names cannot see.
 #   candidate_orphan     : code_orphan with CODE_CANDIDATE treated as internal too; run on every
@@ -304,23 +304,23 @@ def _c(path, tier, produces=(), superseded_by="-", evidence="", check="code_orph
                 blocked_by=tuple(blocked_by))
 
 
-TYPING = f"{REPO}/core/phenocycler/scripts/typing"
+TYPING = f"{REPO}/core/multiplex5000/scripts/typing"
 XSCRIPTS = f"{REPO}/analysis/xenium/scripts"
 SENIOR = f"{REPO}/scripts/senior"
 ROOTS = f"{REPO}/scripts"
-CELLTYPE = f"{REPO}/core/phenocycler/scripts/celltype"
-RESTAIN = f"{REPO}/core/phenocycler/scripts/restain"
-XCT = f"{REPO}/core/phenocycler/scripts/xenium_celltype"
-HPG = f"{REPO}/core/phenocycler/scripts/xenium_celltype/hpg"
-XTYPING = f"{REPO}/core/phenocycler/scripts/xenium_typing"
-SAMESLIDE = f"{REPO}/core/phenocycler/scripts/sameslide"
-PKG = f"{REPO}/core/phenocycler/phenocycler"
+CELLTYPE = f"{REPO}/core/multiplex5000/scripts/celltype"
+RESTAIN = f"{REPO}/core/multiplex5000/scripts/restain"
+XCT = f"{REPO}/core/multiplex5000/scripts/xenium_celltype"
+HPG = f"{REPO}/core/multiplex5000/scripts/xenium_celltype/hpg"
+XTYPING = f"{REPO}/core/multiplex5000/scripts/xenium_typing"
+SAMESLIDE = f"{REPO}/core/multiplex5000/scripts/sameslide"
+PKG = f"{REPO}/core/multiplex5000/multiplex5000"
 
 #: The one prerequisite the Xenium pancreas comparison apparatus (CODE_TIER2, xenium_typing/*)
 #: shares. Met 2026-09-23 (Step 5); the check still reads the binding on every run and
 #: refuses again if it is ever re-bound.
 XTYPING_PREREQ = (
-    "Prerequisite MET 2026-09-23 (Step 5): `xenium_identity_release` at core/phenocycler/"
+    "Prerequisite MET 2026-09-23 (Step 5): `xenium_identity_release` at core/multiplex5000/"
     "config.ini:153 is blank, so nothing attaches this apparatus's class column to cells_xen "
     "(import_xenium.py:454-456 -> phenospace.load_release_or_none returns None), and the "
     "availability and distance_profiles nodes read Xenium calls from the declared releases "
@@ -360,7 +360,7 @@ CODE_TIER1 = [
                 "is overturned below), so retiring this file takes nothing else with it. "
                 "data/development/typing/tacit is already TIER2 above."),
     _c(f"{TYPING}/tacit_run.R", 1,
-       superseded_by=f"{REPO}/core/phenocycler/scripts/broadtype/arms/tacit_run.R",
+       superseded_by=f"{REPO}/core/multiplex5000/scripts/broadtype/arms/tacit_run.R",
        evidence="An unused second copy. run_tacit.py:50 points at broadtype/arms/tacit_run.R, not "
                 "at this one, and the two differ (md5 b97f0254... vs 512d8147...). Nothing in the "
                 "tree names this path."),
@@ -372,7 +372,7 @@ CODE_TIER1 = [
     _c(f"{XSCRIPTS}/pln_immune_typing.py", 1,
        superseded_by=f"{XSCRIPTS}/pln_immune_typing_v3.py",
        evidence="Zero references outside its own usage block. _v3 does not import it (its only "
-                "cross-module import is core/phenocycler/scripts/pln/partial_run_guard.py)."),
+                "cross-module import is core/multiplex5000/scripts/pln/partial_run_guard.py)."),
     _c(f"{XSCRIPTS}/pln_immune_typing_v2.py", 1,
        superseded_by=f"{XSCRIPTS}/pln_immune_typing_v3.py",
        evidence="Zero references outside its own usage block. "
@@ -419,7 +419,7 @@ CODE_TIER1 = [
               "is on this list; both move together or neither does",
        evidence="Zero importers. Writes data/islets_{core,peri}_senior.h5ad, neither of which "
                 "exists. NOT the same file as "
-                "core/phenocycler/scripts/typing/aggregate_islets.py, which "
+                "core/multiplex5000/scripts/typing/aggregate_islets.py, which "
                 "scripts/senior/build_layers.py:302-304 runs (node aggregate_islets) and which "
                 "stays."),
     _c(f"{SENIOR}/compute_islet_markers.py", 1,
@@ -546,7 +546,7 @@ CODE_TIER2 = [
     #    panc_xenium_release.py:86-91 declares that it SUPERSEDES data/development/xenium_typing/
     #    release (the scANVI-per-donor arm over 6436 and 6442, column lineage_native). Until
     #    2026-09-23 the release was BOUND, which is why the group is c2 with a prerequisite and
-    #    not c1: core/phenocycler/config.ini:153 `xenium_identity_release = ../../data/development/
+    #    not c1: core/multiplex5000/config.ini:153 `xenium_identity_release = ../../data/development/
     #    xenium_typing/release` -> integration/import_xenium.py:454-456 load_release_or_none /
     #    attach_release_identity -> integration/phenospace.py:532-533 wrote lineage_native and
     #    lineage_common onto cells_xen -> the availability and distance_profiles nodes read them
@@ -666,26 +666,26 @@ CODE_TIER2 = [
 
 # --- code tier 3: proposed and OVERTURNED. Untouched. -------------------------------------
 CODE_TIER3 = [
-    (f"{REPO}/core/phenocycler/scripts/broadtype",
+    (f"{REPO}/core/multiplex5000/scripts/broadtype",
      "STILL IMPORTED BY LIVE CODE, measured 2026-09-18. "
-     "core/phenocycler/scripts/kronos2_doc/run.py:35-40 puts scripts/broadtype and "
+     "core/multiplex5000/scripts/kronos2_doc/run.py:35-40 puts scripts/broadtype and "
      "scripts/broadtype/arms on sys.path and imports declarations, pins, kronos2_coral and "
      "kronos_clusters. kronos2_doc is not a closed lane: its output "
-     "data/development/kronos2_documented/ is read by core/phenocycler/scripts/report/"
+     "data/development/kronos2_documented/ is read by core/multiplex5000/scripts/report/"
      "kronos2_doc_fig.py:33, which run_report.py:83-84 renders as a report section. "
      "The approved plan lists broadtype as 6 dead entrypoints; measured, it is 47 files, 20 with "
      "a __main__ block, and one of them is a live dependency. NOTE the near miss: "
      "scripts/report/{bakeoff,identity_io}.py also `import pins`, but they insert their own "
      "directory first and mean scripts/report/pins.py -- three lanes carry a pins.py, and a "
      "basename match would have read those as broadtype importers too."),
-    (f"{REPO}/core/phenocycler/scripts/dct",
+    (f"{REPO}/core/multiplex5000/scripts/dct",
      "OVERTURNED BY THE ABOVE. dct/regions.py is imported by "
-     "core/phenocycler/scripts/broadtype/frame.py:34 (`import regions as dct_regions`) and "
+     "core/multiplex5000/scripts/broadtype/frame.py:34 (`import regions as dct_regions`) and "
      "broadtype/pins.py:20 puts scripts/dct on sys.path; with broadtype staying, dct is imported "
      "by code that stays. Everything else about it is clear: 22 files, 7 with a __main__ block, "
      "no importer outside dct/ and broadtype/, and the prerequisite in scripts/CLAUDE.md:111-112 "
      "is ALREADY SATISFIED -- gates.py and tiff_window.py live only in "
-     "core/phenocycler/scripts/common/ (dct/ holds neither), and dct/{arms,concordance_gate,"
+     "core/multiplex5000/scripts/common/ (dct/ holds neither), and dct/{arms,concordance_gate,"
      "feasibility_tile,plane_identity}.py already resolve them by putting scripts/common on "
      "sys.path. So the move scripts/CLAUDE.md asks for is done; what blocks dct now is broadtype."),
     (f"{XTYPING}/joint_model.py",
@@ -693,21 +693,21 @@ CODE_TIER3 = [
      "pancreas comparison (joint_model.py:51 ARM = pins.ARM_JOINT; :62 OUT = "
      "pins.OUT/'joint_model'; :289 writes lineage_native + celltype_fine; the one scvi-env "
      "entrypoint in the set, :7-8). "
-     "No live module imports it, but core/phenocycler/scripts/report/xen_identity.py:159-164 "
+     "No live module imports it, but core/multiplex5000/scripts/report/xen_identity.py:159-164 "
      "reads joint_model/train_latent.npy and train_obs.parquet to render the X05 latent figure "
      "that run_report.py drives. Its sibling arms X1/X3 and release.py are CODE_TIER2 with a "
      "named prerequisite; this file is held back separately because moving it makes a rendered "
      "report input producerless. It also imports the declared library "
      "analysis/xenium/scripts/tissue_markers/pancreas.py at :250."),
     (f"{TYPING}/export_qupath.py",
-     "Imported at four sites in core/phenocycler/scripts/typing/tests/test_typing.py (203, 214, "
+     "Imported at four sites in core/multiplex5000/scripts/typing/tests/test_typing.py (203, 214, "
      "257, 617). That file is a single suite that also covers compartments.py, lineages.py, "
      "metacluster.py and call.py, which are NOT retiring, so it cannot move with the module. "
      "Prerequisite before this can be promoted to c1: split those four tests out of test_typing.py."),
     (f"{TYPING}/validate.py",
-     "Imported at two sites in core/phenocycler/scripts/typing/tests/test_typing.py (457, 467); "
+     "Imported at two sites in core/multiplex5000/scripts/typing/tests/test_typing.py (457, 467); "
      "same prerequisite as export_qupath.py. NOTE: the six `import validate as VAL` lines under "
-     "core/phenocycler/scripts/restain/ resolve to restain/validate.py, a DIFFERENT module, and "
+     "core/multiplex5000/scripts/restain/ resolve to restain/validate.py, a DIFFERENT module, and "
      "are not evidence about this file."),
 ]
 
@@ -861,8 +861,8 @@ CODE_LIBRARY = [
      "mod`) and by importlib at xenium_typing/scanvi_replicates.py:46 "
      "('scripts.tissue_markers.pancreas'); its tables are declared consumed by "
      "hierarchical_phenotype.py at pancreas.py:427,490,609."),
-    (f"{REPO}/core/phenocycler/tests/current/test_no_duplicate_tracked_data.py",
-     "A live default-lane test: collected by Makefile:59 (`cd core/phenocycler && $(PYTEST) "
+    (f"{REPO}/core/multiplex5000/tests/current/test_no_duplicate_tracked_data.py",
+     "A live default-lane test: collected by Makefile:59 (`cd core/multiplex5000 && $(PYTEST) "
      "-q -rfEs tests/current`). Tests are collected, not imported; nothing needs to name it."),
     (f"{REPO}/docs/XENIUM_PIPELINE.md",
      "The Xenium method of record, cited by code and records: "
@@ -876,12 +876,12 @@ CODE_LIBRARY = [
      "typer. Its header (:3-6) reads RETIRED -- NOT A FALLBACK, and what stops it producing is "
      "code: the `type` stage is blocked by NO_VERIFIED_TYPING (root CLAUDE.md, 'that latch has "
      "not moved'). Live importers, both inside the installed package by bare module name: "
-     "phenocycler/pipeline.py:75-78 (`from .simultaneous_typing import BroadGatePolicy, "
+     "multiplex5000/pipeline.py:75-78 (`from .simultaneous_typing import BroadGatePolicy, "
      "load_broad_gate_policy`; :182 records it as a source string) and "
-     "phenocycler/production_typing.py:21-25 (METHOD_VERSION, BroadGatePolicy, "
+     "multiplex5000/production_typing.py:21-25 (METHOD_VERSION, BroadGatePolicy, "
      "type_simultaneous_cells). Retiring it breaks the package's own pipeline import -- a "
      "failure the code_orphan check only sees when the walk searches the bare module name."),
-    (f"{REPO}/core/phenocycler/scripts/pln/cluster_pln.py",
+    (f"{REPO}/core/multiplex5000/scripts/pln/cluster_pln.py",
      "The clearest library in the set: it writes a PARTITION (cluster_pln.py:173 OUT_ROOT = "
      "data/development/typing/pln/clusters; cluster_id at :595,:784) and no class column, and "
      "it is upstream of BOTH declared pLN producers. build_pln_immune_pheno.py:166 CLUSTERS "
@@ -961,7 +961,7 @@ _RULED_TO_TIER2_2026_09_23 = [
      "(:76). The former reason ('the branch develops it') lapsed with the merge."),
     (f"{XCT}/context.py",
      "In-tree only: the sole reference is eval_detection.py:77 (`import context as CTX`), a "
-     "candidate. DUP BASENAME with core/phenocycler/scripts/typing/context.py, which owns every "
+     "candidate. DUP BASENAME with core/multiplex5000/scripts/typing/context.py, which owns every "
      "typing-lane hit."),
     (f"{XCT}/detect.py",
      "In-tree only: the sole reference is eval_detection.py:78 (`import detect as DET`), a "

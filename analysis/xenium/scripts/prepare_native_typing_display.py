@@ -17,7 +17,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from protein_analysis_admission import DEFAULT_EXCLUSIONS, load_protein_exclusions, protein_analysis_mask
 
 MARKERS = ["INS", "GCG", "SST", "CD99", "CD3e", "CD4", "CD8", "CD20",

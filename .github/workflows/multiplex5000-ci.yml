@@ -1,0 +1,268 @@
+name: MultiPlex5000
+
+# Hoisted from Phenocycler_Analysis/.github/workflows/ci.yml when that repo was imported as
+# the core/multiplex5000 subtree. GitHub only reads .github/workflows/ at the repository root,
+# so the copy inside the subtree was inert and has been removed rather than left to drift.
+#
+# The panel taxonomy is now the in-repo core/panels subtree rather than a private submodule,
+# which removes the non-fatal fetch + PANEL_EXPLORER_TOKEN workaround this file used to carry:
+# the taxonomy is always present, so its absence is once again a hard error.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/multiplex5000/**'
+      # The PhenoCycler lane's tracked data inputs stay here until phase H (2026-10-20 rename).
+      - 'core/phenocycler/**'
+      - 'core/panels/**'
+      - '.github/workflows/multiplex5000-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'core/multiplex5000/**'
+      # The PhenoCycler lane's tracked data inputs stay here until phase H (2026-10-20 rename).
+      - 'core/phenocycler/**'
+      - 'core/panels/**'
+      - '.github/workflows/multiplex5000-ci.yml'
+  workflow_dispatch:
+
+# Tag pushes are deliberately absent: multiplex5000-release.yml owns tag events, and combining
+# push.tags with push.paths is unreliable.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: core/multiplex5000
+
+jobs:
+  lint:
+    name: Fatal Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # Repo-root-relative on purpose: defaults.run.working-directory applies to `run:`
+          # steps only, never to a step's `with:` inputs.
+          cache-dependency-path: core/multiplex5000/requirements-ci.txt
+      - run: python -m pip install --upgrade pip && pip install -r requirements-ci.txt
+      - name: Syntax and undefined-name gate
+        run: ruff check --select E9,F63,F7,F82 --output-format=github .
+      - name: Full ruff check (advisory)
+        continue-on-error: true
+        run: ruff check --output-format=github .
+      - name: ruff format --check (advisory)
+        continue-on-error: true
+        run: ruff format --check .
+
+  current:
+    name: Current workflow (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # setuptools-scm needs history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install the core package alone
+        # The suite's extras go in after the lean-import check below, so that check sees the
+        # core dependencies and nothing else.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Version and stage contract
+        run: |
+          python -c "import multiplex5000; v = multiplex5000.__version__; print('version:', v); assert v != '0.0.0+unknown', 'setuptools-scm did not resolve a version (check [tool.setuptools_scm] root)'"
+          python -c "import multiplex5000, phenocycler, phenocycler.pipeline as p; assert phenocycler is multiplex5000 and p is multiplex5000.pipeline, 'the phenocycler import alias'"
+          python -c "from multiplex5000.pipeline import DEFAULT_STAGE_ORDER, STAGE_ORDER; assert DEFAULT_STAGE_ORDER == ('ingest', 'geometry', 'redsea', 'expression'), DEFAULT_STAGE_ORDER; print('all stages:', STAGE_ORDER)"
+      - name: Core pipeline imports in the lean environment
+        # The integration layer must not leak dependencies into the core pipeline. If this
+        # step fails, something in multiplex5000/ started importing scanpy/spatialdata at
+        # module load and the lean environment is broken.
+        #
+        # Discovered with pkgutil rather than a hardcoded list: the list form silently rots
+        # when a module is added, and hard-fails when one is retired.
+        run: |
+          python -c "import importlib, pkgutil, multiplex5000; names = [m.name for m in pkgutil.iter_modules(multiplex5000.__path__) if m.name != 'integration']; [importlib.import_module(f'multiplex5000.{name}') for name in names]; print('live core modules import OK:', ', '.join(names))"
+      - name: Install the suite's dependencies
+        # tests/current reaches the typing and senior scripts, which import shapely, anndata,
+        # h5py and pynndescent: the integration extra, as the script lanes already install.
+        # With `.[test]` alone, nine modules failed to import (2026-09-15 on), and a collection
+        # error aborts the whole run, so nothing ran at all.
+        run: pip install -e '.[integration,test]'
+      - name: Fast deterministic default suite
+        # testpaths = tests/current. -rs reports skip reasons: a silently skipped test reads
+        # exactly like a passing one in the summary line.
+        run: pytest -q -rs
+
+  research:
+    name: Research-method tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+      - name: Explicit research suite
+        run: pytest -q -rs tests/research
+
+  integration:
+    name: Integration tests (no silent skips)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the declared integration stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[integration,test]'
+      - name: Dependency preflight
+        # These are declared dependencies of the integration extra, not optional niceties.
+        # Several integration tests guard on importorskip, so a missing one would skip them
+        # and still report green.
+        run: |
+          python -c "import anndata, cv2, geopandas, h5py, scanpy, shapely, SimpleITK, spatialdata, spatialdata_io, zarr; print('integration dependency preflight OK')"
+      - name: Panel taxonomy is present
+        # No longer a submodule that might fail to clone: core/panels is part of this
+        # repository, so a missing taxonomy means the tree is broken. Hard failure.
+        run: test -f "$GITHUB_WORKSPACE/core/panels/data/panel_roles.csv"
+      - name: Explicit integration suite
+        # Zero skips is the contract. Everything this suite needs is now either a declared
+        # dependency (checked above) or in-repo, so a skip means real lost coverage.
+        run: |
+          pytest -q -rs tests/integration --junitxml=integration-results.xml
+          python -c "import xml.etree.ElementTree as ET; suites = ET.parse('integration-results.xml').getroot().iter('testsuite'); skipped = sum(int(s.get('skipped', '0')) for s in suites); assert skipped == 0, f'integration suite silently skipped {skipped} tests'"
+      - name: Integration status surfaces load without data
+        run: |
+          python -m multiplex5000.integration.pipeline --status
+          python -m multiplex5000.integration.manifest --report
+
+  scripts:
+    name: Script lane (${{ matrix.lane }})
+    runs-on: ubuntu-latest
+    # `core/multiplex5000/scripts/*/tests` (46 files, 10 lanes) was run by NO workflow before
+    # this job, which is why five stubs in the restain lane sat red unnoticed. It cannot be
+    # added as one `pytest scripts` step: every lane does `sys.path.insert(0, <its own dir>)`
+    # and same-named modules across lanes (`geo`, `panel`, `hormone`, `pins`, ...) shadow each
+    # other once collected together -- `typing` passes 46/46 run alone and fails inside a
+    # collective `pytest scripts`. Each lane is therefore its own matrix entry, run against
+    # only its own `tests/` directory, so a failure names the lane and lanes never collide.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Six lanes are green today and are required.
+          - lane: common
+            required: true
+          - lane: kintsugi
+            required: true
+          - lane: report
+            required: true
+          - lane: restain
+            required: true
+          - lane: typing
+            required: true
+          - lane: xenium_celltype
+            required: true
+          # scripts/xenium_celltype/hpg/tests is one level deeper than every other lane, so the
+          # `scripts/<lane>/tests` shape never reached it; the Makefile's test-lanes target already
+          # runs it as its own step after the LANES loop. Spelling the lane with its subdirectory is the whole
+          # fix: the run step below interpolates it verbatim, and a `/` is legal in a job name.
+          # Measured 2026-09-22 on a bare git worktree of main (nothing gitignored present):
+          # 4 passed in 0.56s. test_nullgate_fast.py builds its fixtures with sp.random (:20-30),
+          # reads no file, and imports nothing beyond numpy/pandas/scipy.sparse and the two
+          # nullgate modules (:4-17).
+          - lane: xenium_celltype/hpg
+            required: true
+          # The four lanes below were listed here as "red, being fixed on work/N-broadtype,
+          # work/O-celltype, work/P-dct". Measured instead, none is red for want of a fix:
+          #   workstation, every gitignored tree present (census, 2026-09-21):
+          #     broadtype 198 passed / 1 xfailed    celltype 85 passed
+          #     dct 56 passed                       xenium_typing 13 passed (not 3)
+          #   bare git worktree of main -- no data/, no external/, no run tree, which is the
+          #   runner's condition (2026-09-22, repo .venv, `pytest -q -rfEs scripts/<lane>/tests`):
+          #     broadtype      161 passed, 11 skipped, 1 xfailed, 2 ERRORS: both users of the
+          #                    synthetic_uniform fixture (test_tiering.py:73), whose
+          #                    panel.donor_markers("6436") falls through panel.py:302-308 to
+          #                    markers_on_disk -> expression_path and raises at :84 for want of
+          #                    data/donor_acquisition_batch.csv (.gitignore:9) and an expression
+          #                    partition (core/phenocycler/.gitignore:20). The 11 skips name
+          #                    external/.venv-som (8), .venv-nimbus, the KRONOS2 snapshot and
+          #                    the records layer (test_tiering.py:337).
+          #     dct            39 passed, 2 skipped, 2 FAILED: test_concordance_gate.py:36
+          #                    (derive_anchors) and :65 both read the gitignored
+          #                    core/phenocycler/data/qupath_manifest.json.
+          #     xenium_typing  12 passed, 1 FAILED: test_pins_serial_and_run_maps_cover_the_cohort
+          #                    (test_xenium_typing.py:19); pins.donors() raises PinError at
+          #                    pins.py:98-99 on the same absent manifest.
+          #     celltype       71 passed, 3 skipped, 11 FAILED: 3 import the gitignored
+          #                    external/UniFORM or external/utag checkout (uniform_adapter.py:92-96,
+          #                    utag_adapter.py:50-51; .gitignore:80) and 8 read the cohort table,
+          #                    the run tree or an expression partition (test_usability.py:123-662).
+          # Since 2026-09-22 every data-state read in these lanes carries `pytest.mark.data`
+          # (both broadtype tests, both dct tests, celltype's eleven -- the three external
+          # checkouts skip by name when absent -- and xenium_typing's one), and
+          # core/multiplex5000/pyproject.toml's addopts deselects that marker, so the default run
+          # is the synthetic suite. Measured on the merged tree, bare worktree, 2026-09-22:
+          #   broadtype 161 passed / 9 skipped / 4 deselected / 1 xfailed    celltype 71 passed / 14 deselected
+          #   dct 40 passed / 16 deselected    xenium_typing 12 passed / 1 deselected    kintsugi 13 passed / 1 skipped / 9 deselected
+          # The guards run on the workstation with `make test-data`; a runner never sees them.
+          - lane: broadtype
+            required: true    # 161 passed / 9 skipped / 4 deselected / 1 xfailed on a bare worktree, 2026-09-22
+          - lane: celltype
+            required: true    # 71 passed / 14 deselected on a bare worktree, 2026-09-22 (the checkout and data reads are `data`-marked)
+          # dct passes on a runner largely by skipping: deepcell_types is absent there (the dct
+          # extra needs Python >= 3.11 and checkpoints pip does not install, pyproject.toml:62-64),
+          # so test_panels.py:33's module-level importorskip reports that whole file (14 tests
+          # locally) as one skip; test_deepcell_crosswalk.py's dct_utils fixture (:41) skips the
+          # 6 tests that take it and :69 skips 2 pin checks; test_regions.py:116 skips 1. Census
+          # estimate 2026-09-21: about 32 pass, about 10 skip, 0 fail; `-rs` prints each skip.
+          - lane: dct
+            required: true    # green largely by skipping (deepcell_types absent on a runner); 40 passed / 16 deselected on a bare worktree, 2026-09-22
+          - lane: xenium_typing
+            required: true    # 12 passed / 1 deselected on a bare worktree, 2026-09-22 (the one data-state test is `data`-marked)
+    continue-on-error: ${{ !matrix.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the declared integration stack
+        # Several lanes (report, celltype, xenium_celltype, ...) reach into
+        # phenocycler.integration.* for shared figure/vocab helpers, so this mirrors the
+        # `integration` job's install rather than the leaner `test`-only extra.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[integration,test]'
+      - name: Run scripts/${{ matrix.lane }}/tests in isolation
+        run: pytest -q -rs "scripts/${{ matrix.lane }}/tests"

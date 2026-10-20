@@ -2,8 +2,8 @@
 
 ## Ownership
 
-`core/phenocycler/` owns the raw QuPath-to-expression workflow; its development lanes live under
-`core/phenocycler/scripts/`. Root `scripts/` builds application data and viewer assets.
+`core/multiplex5000/` owns the raw QuPath-to-expression workflow; its development lanes live under
+`core/multiplex5000/scripts/`. Root `scripts/` builds application data and viewer assets.
 
 Root scripts must not invent marker thresholds, positivity frequencies, or alternate typing rules.
 Where a level is needed, it comes from a reference population that a lane already fitted.
@@ -37,7 +37,7 @@ maintainer ruled on 2026-09-18 applied to all 20 donors — 25,230,109 cells, ei
 `Excluded`. Measured 2026-09-24, every partition carries `islet_route` (cd99 / elongation / hormone)
 and `islet_stratum`. There is one class per cell, reached in two steps (maintainer, 2026-10-19):
 `cell_class` is the first step's column, and `refined_class` -- written by the refinement
-(`core/phenocycler/scripts/typing/refine.py`) through the `build_cells.py --refine` join, which ran on
+(`core/multiplex5000/scripts/typing/refine.py`) through the `build_cells.py --refine` join, which ran on
 2026-09-24 -- holds the result. `Unresolved`, the ninth entry `run20_default.yml` declares, is a value
 only the result reaches (1,063,097 cells). Every root script still reads `cell_class`, so none serves
 the finished class yet; changing them is a code change not yet made.
@@ -48,7 +48,7 @@ error. That tree stacks generations side by side, so check mtimes before reading
 it.
 
 **No `typing/app` artifact reads `data/development/typing/immune`.** That second pass
-(`core/phenocycler/scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898
+(`core/multiplex5000/scripts/typing/immune_subtype.py`, rewritten 2026-09-17, 20 donors, 2,934,898
 Immune cells) adds a finer subtype over the `Immune` class only and never modifies `cell_class`;
 each app builder's coverage comes from its own `COHORT.resolve`. One layer does read it:
 `senior/build_grid_composition.py` takes the fine subtype for `fine.csv` (:585), and
@@ -73,7 +73,7 @@ them is written against is [`docs/ISLET_LAYERS_SPEC.md`](../docs/ISLET_LAYERS_SP
 | `trajectory/` | `senior/build_trajectory_layer.py` |
 | `compartments/` | `senior/build_compartment_gradient.py` |
 | `grid_composition/` | `senior/build_grid_composition.py` |
-| `pln/` | `core/phenocycler/scripts/pln/build_pln_layer.py` — the one that does not live here |
+| `pln/` | `core/multiplex5000/scripts/pln/build_pln_layer.py` — the one that does not live here |
 
 `senior/derive_pln_node_membership.py` writes into `pln/` as well; it derives node membership
 geometrically and is upstream of the layer, not a tenth layer.
@@ -114,12 +114,12 @@ screens, the GMM/Otsu gate searches, ordered-residual broad-lineage assignment, 
 and `data/restore*` as source roots, and the broad-typing producer comparison withdrawn 2026-09-08.
 Git history has all of it.
 
-`core/phenocycler/scripts/dct/` is a closed lane. One of its modules is still imported from outside
+`core/multiplex5000/scripts/dct/` is a closed lane. One of its modules is still imported from outside
 it: `regions.py` (the hash rule), by `broadtype/frame.py:34` — move it before deleting anything
 there. The two symbols this line used to name, `gates.require_evidence` and
-`tiff_window.read_window`, already live in `core/phenocycler/scripts/common/`.
+`tiff_window.read_window`, already live in `core/multiplex5000/scripts/common/`.
 
-The QuPath handoff is `core/phenocycler/scripts/groovy/import_cell_assignments.groovy`: UUID-keyed,
+The QuPath handoff is `core/multiplex5000/scripts/groovy/import_cell_assignments.groovy`: UUID-keyed,
 preserves uncertainty, verifies each CSV's size and SHA-256 against its manifest before changing a
 classification, and records each detection's previous class.
 

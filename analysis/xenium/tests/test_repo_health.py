@@ -17,7 +17,7 @@ that do not exist in the monorepo:
 * `config.ini` — dropped on absorption. Its `[phenotyping]` block mirrored *retired* marker
   panels (`Epsilon = GHRL`, the single-gene argmax that mislabelled ~150K cells and that
   decision #12 exists to prevent; `Acinar = AMY1A`). The root `CLAUDE.md` says there is
-  exactly one `config.ini` and it is `core/phenocycler/config.ini`.
+  exactly one `config.ini` and it is `core/multiplex5000/config.ini`.
 * the SLURM `xenium_analysis` env assertion — the batch scripts moved to `hpc/` and are
   HiPerGator-only. Their shell hygiene is still checked; which env they name is a cluster
   question this repo cannot answer.
@@ -107,7 +107,7 @@ def test_the_pipeline_notebooks_are_present_and_06_is_not():
     # 06_xenium_phenocycler_integration.ipynb was an UNRUN skeleton -- placeholder
     # SAMPLE_NAME, a segmentation mask stamped from discs at the cell centroids, and one
     # global phase_cross_correlation shift. It is superseded by
-    # core/phenocycler/phenocycler/integration/register.py (two registration tracks, a
+    # core/multiplex5000/multiplex5000/integration/register.py (two registration tracks, a
     # fitted px->um scale, vertex-wise polygon warping). Dropped on absorption so there is
     # not a second, worse, runnable answer to the same question.
     assert "06_xenium_phenocycler_integration.ipynb" not in names

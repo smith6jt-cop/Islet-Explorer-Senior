@@ -134,10 +134,10 @@ from scripts.senior import xenium_release
 from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
 
 # The refusal below is no longer this builder's own. It comes from the one table that knows
-# which artifacts are superseded -- core/phenocycler/scripts/typing/superseded.py -- so that a
+# which artifacts are superseded -- core/multiplex5000/scripts/typing/superseded.py -- so that a
 # path this builder has never heard of is still refused by the same measured counts, and so
 # that a second reader does not have to copy the message to get it right.
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from superseded import (  # noqa: E402
     SupersededArtifactError,
     refuse_if_superseded,
@@ -240,7 +240,7 @@ XEN_BORDER_COLUMNS = ("wkb", "geometry", "outline_wkb", "border_wkb")
 
 #: Kept as a name, but the text is DERIVED from the shared registry rather than restated here.
 #: The counts in it live in exactly one place -- the record 'subpanel_calls' in
-#: core/phenocycler/scripts/typing/superseded.py, whose frozen-file constants every reader
+#: core/multiplex5000/scripts/typing/superseded.py, whose frozen-file constants every reader
 #: imports -- and are not restated here, so they cannot drift between the readers that quote them.
 SUPERSEDED = superseded_notice(
     superseded_match("data/development/typing/subpanel/subpanel_calls.parquet"),

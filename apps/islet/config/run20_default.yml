@@ -6,10 +6,10 @@
 # are never merged -- a cross-donor comparison spanning both would compare methods, not biology.
 #
 # COHORT: 20 donors -- `cohort.CLEAN` (17) + `cohort.MARGINAL` (3), the two lists in
-# core/phenocycler/scripts/typing/cohort.py, which is the authority. The summary below is a
+# core/multiplex5000/scripts/typing/cohort.py, which is the authority. The summary below is a
 # reading aid and nothing in this app derives from it; if the two ever disagree, cohort.py is
 # right and these lines are stale. Donor exclusion is a separate question with its own single
-# authority -- core/phenocycler/phenocycler/cohort.py, where only 6457 is excluded (6579's
+# authority -- core/multiplex5000/multiplex5000/cohort.py, where only 6457 is excluded (6579's
 # exclusion was lifted 2026-09-17) -- and no config may restate that list either.
 #
 #   CLEAN (17)     zero missed islets under all six detection settings swept, and zero duplicated
@@ -39,7 +39,7 @@
 # is one label. Nothing here may be split further without a marker that can split it.
 #
 # THE NINTH ENTRY IS NOT A NINTH CELL TYPE. `Unresolved` is what the refinement pass
-# (core/phenocycler/scripts/typing/refine.py, label `Unresolved (no lineage evidence)`) writes
+# (core/multiplex5000/scripts/typing/refine.py, label `Unresolved (no lineage evidence)`) writes
 # on a cell it demoted out of Exocrine: Exocrine is the complement class, so there is no
 # complement beneath it and the cell is left with no lineage evidence at all. That is the
 # ABSENCE of a call, not a split of one, and the rule above still holds -- nothing here has
@@ -131,7 +131,7 @@ regions:
 # The eight classes the subpanels decide, then the one recorded absence -- and nothing else.
 phenotypes:
   # Shown in the Plot tab's measure-group headings. Not scVI: these eight classes come from the
-  # subpanel classification (core/phenocycler/scripts/typing/RECONSTRUCTION.md).
+  # subpanel classification (core/multiplex5000/scripts/typing/RECONSTRUCTION.md).
   classifier_label: subpanel classification
   # Order: the eight classes first, in the order they were established, then the absence LAST.
   # An absence is not a member of the vocabulary it sits beside, so it never sorts among it.

@@ -134,7 +134,7 @@ not multiplied by 5,001.
 ### Stage 1 — `scripts/xenium_celltype/gdna.py`  ✅ IMPLEMENTED, VALIDATED
 
 ```bash
-cd core/phenocycler
+cd core/multiplex5000
 python3 scripts/xenium_celltype/gdna.py \
     --bundle /path/to/output-XETG00298__0080870__panc__20260910__211917 \
     --out data/development/xenium_celltype/gdna_0080870.json
@@ -236,13 +236,13 @@ gate (quarantined 2026-09-23 under data/ARCHIVE_2026-09-15/quarantine/ with the 
 
 ### Stage 5 — protein arm  ✅ IMPLEMENTED, VALIDATED
 
-`core/phenocycler/scripts/celltype/run_sameslide_protein.py`. Reads the same-slide lane's own
+`core/multiplex5000/scripts/celltype/run_sameslide_protein.py`. Reads the same-slide lane's own
 `expression/donor_id=<d>/data.parquet` — REDSEA spillover-corrected whole-cell means for the
 corrected markers, raw QuPath *nucleus* mean for the eight in `panel.NUCLEUS_MEASURED`,
 verified column by column against `redsea/` and `cells/`.
 
 ```bash
-python core/phenocycler/scripts/celltype/run_sameslide_protein.py            # both donors
+python core/multiplex5000/scripts/celltype/run_sameslide_protein.py            # both donors
 SAMESLIDE_PHENO_DATA=<dir> python .../run_sameslide_protein.py --donors 6533
 ```
 

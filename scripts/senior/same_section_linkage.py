@@ -13,7 +13,7 @@ is this Xenium cell" is many-to-one in both directions. That is measured here.
 
 **The same-slide lane (6533, 112).** Full PhenoCycler then Xenium on one section, with the
 protein CALL carried onto Xenium cells by largest shared area
-(``core/phenocycler/scripts/sameslide/lift_calls.py``, read not run here). That transfer is
+(``core/multiplex5000/scripts/sameslide/lift_calls.py``, read not run here). That transfer is
 many-to-one by construction and the lifted call is a protein statement about overlapping area,
 not a measurement of the Xenium cell.
 
@@ -60,7 +60,7 @@ NN_CAP_UM = 3.5
 
 
 def donor_exclusions() -> set[str]:
-    sys.path.insert(0, str(ROOT / "core/phenocycler"))
+    sys.path.insert(0, str(ROOT / "core/multiplex5000"))
     from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
     return {str(d) for d in DONOR_EXCLUSIONS}
 
@@ -187,7 +187,7 @@ def fanout(donors: list[str]) -> pd.DataFrame:
         # centroids -- both wrong here: a cell centroid is displaced from its own nucleus,
         # and the valis warp is superseded by the refined one (measured on 6442: mean 1.37 um,
         # max 119 um apart). Warp the Xenium nuclei with the refined transform instead.
-        sys.path.insert(0, str(ROOT / "core/phenocycler"))
+        sys.path.insert(0, str(ROOT / "core/multiplex5000"))
         from phenocycler.integration.transform import Transform  # noqa: E402
         ifn = np.load(fi)
         xnuc = Transform.load(dd, stem="refined").apply(np.load(xn))
@@ -247,7 +247,7 @@ def nucleus_match_class(d: str) -> pd.Series:
     be reported with and without it and the difference read directly.
     """
     dd = VALIS / f"donor_id={d}"
-    sys.path.insert(0, str(ROOT / "core/phenocycler"))
+    sys.path.insert(0, str(ROOT / "core/multiplex5000"))
     from phenocycler.integration.transform import Transform  # noqa: E402
     ifn = np.load(dd / "if_nuclei_um.npy")
     xnuc = Transform.load(dd, stem="refined").apply(np.load(dd / "xenium_nuclei_um.npy"))

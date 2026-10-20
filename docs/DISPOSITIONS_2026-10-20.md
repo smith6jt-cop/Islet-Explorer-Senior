@@ -41,6 +41,13 @@ papers session reads that worktree. IO60panc2nd-v3's `v3/integration`, `v3/drive
 `v3/islet-method` and `v3/benchmark-tools` were removed (each covered by an `archive/` tag).
 `v3/typing-inputs` stays: it is checked out in the v3 worktree, which is removed last.
 
+Then **#29** (82ad1a6, D1 without moving files: site-set data roots, the new environment, the env
+check, the profile schema) and **#30** (4f802d4, **B3**: the HPG session's same-slide lane, 37f9311,
+plus one test-only commit, 11654d3, naming the lane's two sha256 helpers in the checksum guard;
+the maintainer accepted its CLAUDE.md edits as they are). Both branches were tagged
+`archive/branch/<name>-20261019` and removed. **Phase B is complete.** The D1 rename
+(`core/phenocycler` → `core/multiplex5000`) follows in its own PR.
+
 **Scope change, maintainer 2026-10-20: Panc Floyd is out of scope** — no push request, no frozen
 CODEX release, no archiving of its copies. Its repo, ported scripts, data and session are left
 alone, and its data never appears on a deletion list. The A1 bundle of its repo stays as a passive
@@ -101,11 +108,14 @@ another maintained route. Closed with comments and tagged the same day:
 
 | branch | tip | vs main | PR | disposition |
 |---|---|---|---|---|
-| `main` | be97b1d | — | — | integration target |
+| `main` | 4f802d4 | — | — | integration target |
 | `analysis/cohesive-finish` | 026315e | merged | #25 | **merged** (B1); GitHub branch removed, local branch + worktree kept for the papers session |
 | `consolidate/b2-v3-salvage` | 25da443 | merged | #26 | **merged** (B2); tagged and removed |
 | `consolidate/b4-red-checks` | 2f568d6 | merged | #27 | **merged** (B4); tagged and removed |
-| `v3/sameslide-four` (GitHub only) | de6c142 | +1 | — | **merge** (B3) after the HPG session commits and pushes its uncommitted work |
+| `consolidate/b5-dispositions` | 2dc9cef | merged | #28 | **merged** (B5, this ledger); tagged and removed |
+| `consolidate/d1-site-env-profiles` | 9e03a09 | merged | #29 | **merged** (D1, no file moves); tagged and removed |
+| `consolidate/d1-rename-multiplex5000` | — | +1 | its own PR | **merge** (D1, the rename to `core/multiplex5000`) |
+| `v3/sameslide-four` | 11654d3 | merged | #30 | **merged** (B3, 4f802d4): the HPG session committed and pushed its same-slide work (37f9311), and one test-only commit (11654d3) named the lane's two sha256 helpers in the checksum guard; tagged and removed |
 | `v3/typing-inputs` (local only) | 2714261 | merged | — | its 6 commits are on main via #25; the branch stays checked out in the v3 worktree until that worktree is removed (last) |
 | `v3/uniform-audit`, `v3/sameslide-islet-metrics`, `v3/qc`, `v3/galectin`, `v3/raw-expression` | — | — | #18–#21, #24 closed | **record** (tags above); branches tag + delete in phase C; remove `/scratch/io60/work/senior-raw` |
 | `v3/uniform-pin` | 60a4166 / GitHub bed51d0 | +2 | #22 closed | tag + delete (closed by ruling: the pin stays 7c33396) |
@@ -131,14 +141,14 @@ another maintained route. Closed with comments and tagged the same day:
 | repository | disposition |
 |---|---|
 | **IO60panc2nd-v3** (QuPath workflow; `~/IO60panc2nd/scripts`; public) | local `v3/plan-2026-10-01` preserved as `preserve/plan-2026-10-01-20261019`; merge it into that repo's main (C); close PR #2 (29 of its 36 files are identical on the plan branch, 7 are older) and PR #3 (it carries the withdrawn detector `1_panc_objects_v3.groovy`, removed by e3a43f2); PR #1 closed as a record (above); tag + delete `v3/{integration,driver,islet-method,benchmark-tools}`; remove `/scratch/io60/work/wt-{benchmark,driver,islet}` (step-1c files preserved as `preserve/wt-islet-20261019`); imported into `core/multiplex5000` at D9, then **archive** |
-| **Phenocycler_Analysis** (absorbed as `core/phenocycler`) | **archive** (G); `Phenocycler_Analysis.preserved` and `.git/modules/Phenocycler_Analysis` deleted at G with approval (bundled) |
+| **Phenocycler_Analysis** (absorbed as `core/phenocycler`, renamed `core/multiplex5000` in D1) | **archive** (G); `Phenocycler_Analysis.preserved` and `.git/modules/Phenocycler_Analysis` deleted at G with approval (bundled) |
 | **XeniumPanelExplorer** (absorbed as `core/panels`) | **archive** (G); its dependabot branch bumps workflows deliberately left out — delete |
 | **Xenium_Analysis** (absorbed as `analysis/xenium`) | HPG clone: unpushed 5d2d4ee plus uncommitted edits → preserved by the HPG session (A4); no older-lane edit (Gate B); then **archive** |
 | **SpleenFollicleCounterQP** (absorbed as `analysis/follicle`) | **untouched for now** (maintainer, 2026-10-20): its three branches and its HPG clone stay as they are |
 | **LymphVizkit** (absorbed as `ieCore` + `apps/lymph`) | its only other branch is one empty "Initial plan" commit with no files — nothing to port; **archive** |
 | **KINTSUGI** | separate package, kept and pinned once (D1); `external/KINTSUGI` 716d1eb is 50 behind; HPG clone's 2 stashes preserved by the HPG session (A4); `/data/KINTSUGI__` (109 dirty files, 2025-03) and `/data/KINTSUGI_alt` (3 dirty) are not in any bundle — preserve before any deletion; none is scheduled |
 | **Islet-Explorer (Panc Floyd)** | **out of scope** (maintainer, 2026-10-20): its repo, ported copies, data and session are left alone; nothing in this plan reads, moves, freezes, archives or deletes them |
-| HPG `Islet-Explorer-Senior-main` | owned by the HPG session; commit + push (A4), then B3 |
+| HPG `Islet-Explorer-Senior-main` | owned by the HPG session; its same-slide work was pushed (37f9311) and merged as #30 (B3). The session switches the clone to `main` before its next commit and, once the D1 rename merges, reinstalls the package from `core/multiplex5000` |
 | HPG `Xenium_Celltype/code`, `~/IO60panc2nd/scripts`, `Phenocycler_Analysis` clones | remove at G after content checks (all their commits are on GitHub or in A1 bundles) |
 
 ## Evidence behind the Gate B items (as presented 2026-10-20)

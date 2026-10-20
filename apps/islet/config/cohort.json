@@ -2,8 +2,8 @@
   "spec_version": 1,
   "generated_at": "2026-09-17T21:48:31+00:00",
   "sources": {
-    "candidate_donors": "core/phenocycler/cohort-spec.json",
-    "exclusion_authority": "core/phenocycler/phenocycler/cohort.py"
+    "candidate_donors": "core/multiplex5000/cohort-spec.json",
+    "exclusion_authority": "core/multiplex5000/multiplex5000/cohort.py"
   },
   "all_donors": [
     "115",

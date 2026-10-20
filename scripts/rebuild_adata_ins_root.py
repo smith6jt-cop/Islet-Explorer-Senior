@@ -8,7 +8,7 @@ path. Four scripts in this tree name a file by that name and this is the only on
   `<repo>/data/adata_ins_root.h5ad` from `islet_analysis/` and
   `single_cell_analysis/CODEX_scvi_BioCov_phenotyped_newDuctal.h5ad` -- the legacy CODEX lane, and
   none of those three paths exists in this checkout, so neither can run.
-* `core/phenocycler/scripts/typing/trajectory_islet.py` used to target it and no longer does. It
+* `core/multiplex5000/scripts/typing/trajectory_islet.py` used to target it and no longer does. It
   fits the POOLED islet-composition ordering, and on 2026-09-17 it REFUSED to write the deployed
   file: that ordering failed its own `pseudotime_is_not_mostly_donor` check (donor eta-squared
   0.444 within T1D, 0.314 within Aab+, against a 0.15 ceiling). It is the behaviour that script
@@ -57,7 +57,7 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 
 from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED  # noqa: E402
 
@@ -94,7 +94,7 @@ def resolve_frame() -> Path:
     raise SystemExit(
         "no rejected pooled frame found. Looked, in order, at:\n  "
         + "\n  ".join(str(c) for c in FRAME_CANDIDATES)
-        + "\nRun core/phenocycler/scripts/typing/trajectory_islet.py --out-dir "
+        + "\nRun core/multiplex5000/scripts/typing/trajectory_islet.py --out-dir "
         + str(FRAME_CANDIDATES[0].parent) + " first, or pass --frame."
     )
 

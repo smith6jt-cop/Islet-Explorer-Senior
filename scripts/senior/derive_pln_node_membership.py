@@ -11,7 +11,7 @@ annotation ROI. It is never taken from the TSV's `Parent` column, which reads
 Inputs
   core/phenocycler/data/integration/pln_node_annotations.csv   which annotation is the node
   <project>/results/v3/export/node_geojson/entry<N>.geojson    annotations, exported from the
-      QuPath .qpdata by core/phenocycler/scripts/groovy/export_pln_node_annotations.groovy
+      QuPath .qpdata by core/multiplex5000/scripts/groovy/export_pln_node_annotations.groovy
       (<project> = ~/IO60pLN since the project moved; --project / --node-geojson override)
   <project>/data/<N>/server.json                               pixel size, to put the pixel-space
       ROI into the micron space the centroids are recorded in
@@ -48,7 +48,7 @@ unavailable with the measured reason, never as zero cells.
 
 This is the measurement, and it is a development lane. The published layer artifact --
 $ISLET_LAYERS_DIR (default /data/islet_layers) then /pln, with its MANIFEST and the QuPath
-cross-check -- is built from this output by core/phenocycler/scripts/pln/build_pln_layer.py.
+cross-check -- is built from this output by core/multiplex5000/scripts/pln/build_pln_layer.py.
 """
 from __future__ import annotations
 

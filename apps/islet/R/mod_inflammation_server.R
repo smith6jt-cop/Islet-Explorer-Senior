@@ -40,7 +40,7 @@
 # EVERY NAME IN IT IS THE LEGACY CODEX VOCABULARY, and so are the cohort numbers above -- 5
 # donors per stage, 15 in total, 21 phenotypes. The PhenoCycler run cohort resolves immune as ONE
 # label: its eight classes contain `Immune` and no subset of it, because no lane has established
-# an immune subtyping for release (the second pass in core/phenocycler/scripts/typing/
+# an immune subtyping for release (the second pass in core/multiplex5000/scripts/typing/
 # immune_subtype.py never modifies cell_class, and no app artifact reads its output). Under that
 # domain six of these seven names match nothing, the family collapses to `Immune` alone, and the
 # floor figures quoted above do not apply. Do not restate this list as though it were a

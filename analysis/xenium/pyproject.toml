@@ -1,7 +1,7 @@
 # Tool configuration only — deliberately no [project] table.
 #
 # A second distribution in the monorepo would confuse setuptools-scm, which already derives
-# core/phenocycler's version from git. This file exists so ruff and pytest behave the same
+# core/multiplex5000's version from git. This file exists so ruff and pytest behave the same
 # here as they did upstream, nothing more.
 
 [tool.ruff]
@@ -12,7 +12,7 @@ target-version = "py310"
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
-# This is its own pytest rootdir, so core/phenocycler's marker table does not reach it: the
+# This is its own pytest rootdir, so core/multiplex5000's marker table does not reach it: the
 # `data` marker is registered here too, and the default run deselects it the same way.
 # `make test-data` passes `-m data` on the command line, which overrides the one in addopts.
 [tool.pytest.ini_options]

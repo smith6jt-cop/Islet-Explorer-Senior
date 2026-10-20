@@ -1,0 +1,181 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multiplex5000"
+# Version is derived from git tags by setuptools-scm — see [tool.setuptools_scm] below.
+# Deliberately NOT a literal: a hardcoded string and a git tag drift apart the moment
+# someone forgets one, and an analysis pipeline whose recorded version does not match the
+# commit that produced the results is worse than having no version at all. This branch
+# already hashes the source tree into every run_id for the same reason.
+dynamic = ["version"]
+description = "MultiPlex5000: manifest-driven ingest, geometry, REDSEA and expression workflow (formerly phenocycler-analysis)"
+readme = "README.md"
+requires-python = ">=3.10"
+# Runtime bounds remain unpinned here so editable installs can share an existing
+# scientific Python environment.  The reproducible conda reference versions
+# live in environment.yml.
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "scipy",
+    "scikit-image",
+    "scikit-learn",
+    "statsmodels",
+    "tifffile",
+    "imagecodecs",
+    "duckdb",
+    # integration/manifest.py reads the donor metadata workbook.
+    "openpyxl",
+    # multiplex5000/profiles.py reads the tissue, platform, panel and cohort profiles.
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+gpu = ["cupy-cuda12x"]
+# tests/current/test_no_typing_leak.py reads YAML, and test_trajectory_leiden_only.py runs
+# scanpy's leiden with flavor="igraph". The rest of what tests/current reaches through the
+# typing and senior scripts (shapely, anndata, h5py, scanpy's pynndescent) is the
+# integration extra, so the suite runs on `.[integration,test]`.
+test = ["pytest", "pyyaml", "igraph"]
+notebook = ["jupyterlab", "ipykernel", "ipywidgets", "matplotlib"]
+# PhenoCycler <-> Xenium integration (multiplex5000/integration/). The core pipeline never
+# imports these; every integration module degrades to a clear ImportError naming the extra.
+# `maxfuse` is deliberately absent — its only release is 0.0.2 (2023) with unpinned deps, so
+# multiplex5000.integration.crossmodal implements the algorithm directly instead.
+integration = [
+    "anndata",
+    "scanpy",
+    "spatialdata",
+    "spatialdata-io",
+    "zarr",
+    "geopandas",
+    "shapely",
+    "opencv-python-headless",
+    "SimpleITK",
+    "h5py",
+]
+
+# DeepCellTypes cell-type inference (scripts/dct/). Pinned BY COMMIT, not by version:
+# `deepcell_types.__version__` reports '0.1.0' on every master commit, so an unpinned
+# reinstall could silently change `resolve_supported_marker`, the crop/normalization path
+# or the abstention default with nothing in the output able to show it. Hashes are the
+# ones actually installed (read from each dist-info `direct_url.json`); 59d74a9 was
+# upstream master on 2026-08-21.
+#
+# NOTE: deepcell-types requires Python >=3.11, above this package's own >=3.10 floor, so
+# this extra does not resolve on 3.10. The repo `.venv` (3.12.3) is the supported target.
+# The model checkpoints are NOT installed by pip — see scripts/dct/README.md.
+dct = [
+    "deepcell-types @ git+https://github.com/vanvalenlab/deepcell-types.git@59d74a97711848dabc30fc01e242b6b1e4d3d3dc",
+    "deepcell-auth @ git+https://github.com/vanvalenlab/deepcell-auth.git@523a4dd5d29941e076ffd378c6b032122589bdb2",
+    "torch>=2.0",
+]
+
+# UniFORM feature-level normalization (scripts/celltype/). Only the DEPENDENCIES are pinned
+# here: the UniFORM repo carries no setup.py or pyproject.toml, so `pip install git+...`
+# cannot resolve it. Its source is a gitignored checkout under /external/ at a pinned
+# commit, following this repo's existing convention for cloned third-party code
+# (.gitignore:74). `scripts/celltype/uniform_adapter.py` asserts that commit at import, so a
+# drifted checkout stops the lane instead of silently changing the shift.
+#
+#   git clone https://github.com/smith6jt-cop/UniFORM.git external/UniFORM
+#   git -C external/UniFORM checkout 7c33396d12e5a19dc0b36e46a94c3293de0cd814
+uniform = [
+    "scikit-fda",
+    "anndata",
+    "plotly",
+]
+
+# UTAG tissue-domain discovery (scripts/celltype/run_step4.py). Dependencies only, for the
+# same reason as [uniform]: the UTAG repo is importable but not published to an index, so its
+# source is a gitignored checkout under /external/ at a pinned commit and
+# scripts/celltype/utag_adapter.py asserts that commit at import.
+#
+#   git clone https://github.com/smith6jt-cop/utag.git external/utag
+#   git -C external/utag checkout 056cb87ee90aa850450b806b075033bc8c50703a
+utag = [
+    "scanpy",
+    "squidpy",
+    "parmap",
+    "leidenalg",
+]
+
+[project.scripts]
+# The old command name, kept while `phenocycler` is the import alias for `multiplex5000`. The
+# `mplx5k` command arrives with the stage commands (MultiPlex5000 D3).
+phenocycler = "multiplex5000.pipeline:main"
+
+[tool.setuptools]
+# `phenocycler` is only the temporary import alias (phenocycler/__init__.py); the code is multiplex5000.
+packages = ["multiplex5000", "multiplex5000.integration", "phenocycler"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+multiplex5000 = [
+    "adoption_compatibility.json",
+    "broad_gates.json",
+    "fundamental_pair_diagnostics.json",
+    "marker_registry.json",
+]
+"multiplex5000.integration" = ["data/*.json"]
+
+[tool.setuptools_scm]
+# Version comes from the nearest git tag. A tagged commit gives a clean release version
+# (`v0.4.0` -> `0.4.0`); anything after it gets a dev suffix carrying the distance and commit
+# (`0.4.1.dev3+g2fc0002`), so a result can always be traced back to the exact tree.
+version_file = "multiplex5000/_version.py"
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+# Working from a tarball or a shallow clone with no tags (CI, HiPerGator scratch) must not
+# be a hard failure — fall back rather than refusing to build.
+fallback_version = "0.0.0+unknown"
+
+# This package lives at core/multiplex5000 inside the monorepo, so the git root is two levels
+# up. setuptools-scm does NOT walk up to find it: without this it silently produced
+# fallback_version, which CI asserts against.
+root = "../.."
+
+# Confine the version to THIS project's own tags. The monorepo carries unrelated history and
+# archive/* tags, so an unfiltered `git describe` would count every commit in the repository
+# -- including R changes under apps/ -- and the version would stop being a fact about this
+# package. Tags are namespaced `multiplex5000-v0.4.0` (`phenocycler-v*` until the 2026-10-20
+# rename; none was ever cut).
+tag_regex = '^multiplex5000-v(?P<version>[vV]?\d+(?:\.\d+){0,2}[^\+]*)(?:\+.*)?$'
+git_describe_command = "git describe --dirty --tags --long --match multiplex5000-v*"
+
+# --------------------------------------------------------------------------- #
+# Lint
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["notebooks", "data", "figures", "logs", "external"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length — scientific kwargs and long literals make this noisy
+    "B008",  # function call in default arg — Path() defaults are idiomatic here
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests redefine fixtures, shadow builtins, and use bare asserts freely.
+"tests/**/*.py" = ["B011", "B018"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests/current"]
+pythonpath = ["."]
+# The default lane is the synthetic one. Tests that read a built artifact or a source tree
+# carry @pytest.mark.data and are DESELECTED here (silently, unlike a skip); run them with
+# `pytest -m data` (or `make test-data` at the repo root).
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not data"]
+markers = [
+    "research: exploratory-method tests run explicitly, outside the default gate",
+    "integration: optional cross-modal stack tests run in the integration CI job",
+    "data: tests that require external imaging data and are not part of synthetic CI",
+    "gpu: tests that need a GPU (HiPerGator only)",
+]

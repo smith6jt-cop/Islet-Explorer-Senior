@@ -265,13 +265,13 @@ card_n2_pln_immune_read <- function(layers_dir = .n2_layers_dir(), active_domain
   nodes <- layer$nodes
   if (!ie_is_measured(nodes$value)) {
     return(.n2_note_ui(.n2_note(nodes$value$reason, nodes$value$state, nodes$value$source,
-                                "core/phenocycler/scripts/pln/build_pln_layer.py")))
+                                "core/multiplex5000/scripts/pln/build_pln_layer.py")))
   }
   row <- nodes$totals[nodes$totals$donor_id == donor, , drop = FALSE]
   if (!nrow(row)) {
     return(.n2_note_ui(.n2_note("no_lymph_node_annotation_for_this_donor_in_the_node_layer",
                                 "blank", nodes$value$source,
-                                "core/phenocycler/scripts/pln/build_pln_layer.py")))
+                                "core/multiplex5000/scripts/pln/build_pln_layer.py")))
   }
   .n2_fact(sprintf(paste0("The node annotations on this donor's PhenoCycler slide hold %s cells, ",
                           "placed by point-in-polygon on the QuPath object_id. That is the ",

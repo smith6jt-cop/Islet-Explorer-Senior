@@ -51,7 +51,7 @@ apps/islet/R/APP_LOADED_FLAG
 
 # Temporary files
 tmp/
-# Anchored: unanchored, this hid core/phenocycler/docs/HANDOFF_*.md at any depth --
+# Anchored: unanchored, this hid core/multiplex5000/docs/HANDOFF_*.md at any depth --
 # and the consolidation docs reference those by name.
 /HANDOFF*
 scratch_recovered*

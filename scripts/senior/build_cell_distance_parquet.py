@@ -14,7 +14,7 @@ CANNOT RUN HERE. Everything below it describes a lane that no longer exists:
     ``data/cells``, ``data/parquet/tissue`` and ``data/islets_core_senior.h5ad``.
     Only ``data/restore_gated_redsea`` is still on disk.
   * The run-cohort domain's ``parquet/cell_distance`` is written by
-    ``core/phenocycler/scripts/typing/build_app_data.py::write_cell_distance_parquet``,
+    ``core/multiplex5000/scripts/typing/build_app_data.py::write_cell_distance_parquet``,
     which deliberately omits the ``_pos`` columns for the reason above. The
     CODEX domain has no ``parquet/cell_distance`` at all.
 
@@ -64,7 +64,7 @@ DATA = REPO / "data"
 # file could still be run and would still write an artifact out of a convention this project
 # retired on 2026-08-14. The registry refuses it by name, with the measured counts and what to
 # build instead.
-sys.path.insert(0, str(REPO / "core/phenocycler/scripts/typing"))
+sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/typing"))
 from superseded import refuse_if_superseded  # noqa: E402
 
 CELLS_ROOT = DATA / "cells"                          # donor_id=<case>/*.parquet (dist + object_id)

@@ -423,8 +423,8 @@ def assemble(work: Path, out: Path, score_on: str, secs) -> dict:
     inputs += [{"kind": "identity_core", "path": str(p.relative_to(REPO)),
                 "sha256": sha256_of(p)} for p in panel_files]
     inputs.append({"kind": "cohort_exclusions",
-                   "path": "core/phenocycler/phenocycler/cohort.py",
-                   "sha256": sha256_of(REPO / "core/phenocycler/phenocycler/cohort.py"),
+                   "path": "core/multiplex5000/multiplex5000/cohort.py",
+                   "sha256": sha256_of(REPO / "core/multiplex5000/multiplex5000/cohort.py"),
                    "note": "DONOR_EXCLUSIONS is read from here; no literal donor list is used"})
 
     pdf = pd.DataFrame(per_donor)

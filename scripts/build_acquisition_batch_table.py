@@ -30,7 +30,7 @@ skipped by name; any other filename stops the run rather than being parsed into 
     python scripts/build_acquisition_batch_table.py \
         --images /path/to/Images \
         --donor-metadata /path/to/donor_metadata_panc.xlsx \
-        [--cohort-spec core/phenocycler/cohort-spec.json]
+        [--cohort-spec core/multiplex5000/cohort-spec.json]
     -> data/donor_acquisition_batch.csv
 """
 
@@ -46,11 +46,11 @@ from pathlib import Path
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
-# The package lives in the `core/phenocycler/` subtree (it was the `Phenocycler_Analysis` submodule
-# until Phase 2 dissolved it), so the script runs without `pip install -e core/phenocycler`.
+# The package lives in the `core/multiplex5000/` subtree (it was the `Phenocycler_Analysis` submodule
+# until Phase 2 dissolved it), so the script runs without `pip install -e core/multiplex5000`.
 # Index 0 pre-dates the subtree move and is kept: the checkout wins over any installed copy, so the
 # exclusions enforced below are the ones readable in this tree rather than in some older wheel.
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 from phenocycler.cohort import DONOR_EXCLUSIONS                                # noqa: E402
 
 sys.path.insert(0, str(REPO / "scripts"))

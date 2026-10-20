@@ -148,7 +148,7 @@ project_root <- tryCatch(normalizePath(file.path("..", ".."), mustWork = FALSE),
 # ---- DuckDB-backed data backend (Phase 1) ---------------------------------
 # A single read-only DuckDB connection is created once at app startup and
 # shared across all sessions. Parquet files produced by
-# `core/phenocycler/scripts/typing/build_parquet_views.py` (a node of
+# `core/multiplex5000/scripts/typing/build_parquet_views.py` (a node of
 # `scripts/senior/build_layers.py`, which is the only thing that knows the
 # order) are exposed as virtual views so each module can write lazy dbplyr
 # pipelines (collect() only when an R-only function needs materialised data).
@@ -276,7 +276,7 @@ if (isTRUE(USE_MIRAI)) {
 #'
 #' The selector used to check EVERY non-excluded marker, which is 50-odd boxes and a heatmap tall
 #' enough to push everything else off the screen. Six, chosen as the most specific marker of each
-#' major lineage the pancreas panel resolves at broad level (core/phenocycler/scripts/typing/
+#' major lineage the pancreas panel resolves at broad level (core/multiplex5000/scripts/typing/
 #' lineages.py::LINEAGE_MARKERS, first entry of each):
 #'
 #'   INS              Endocrine        Pan_Cytokeratin  Exocrine

@@ -4,8 +4,9 @@
 
 Three related but separate systems in one repository:
 
-1. **`core/phenocycler/`** — the PhenoCycler source workflow, from QuPath exports to one
-   authoritative intensity per marker, plus the development lanes under `scripts/`.
+1. **`core/multiplex5000/`** — MultiPlex5000, the PhenoCycler source workflow, from QuPath exports
+   to one authoritative intensity per marker, plus the development lanes under `scripts/`. It was
+   `core/phenocycler/` until 2026-10-20; see *The rename* below.
 2. **`analysis/xenium/`** — the Xenium 5K lane (absorbed 2026-08-28). Two-tier identity-core →
    scANVI typer, the panel machinery reading `core/panels`, a dormant spatial-domain benchmark, a
    HiPerGator-only `hpc/`. Runs in `scvi-env`, **not** `xenium_analysis`. Its numbered
@@ -27,7 +28,7 @@ a second copy of those CSVs; never hand-edit the snapshot.
 - Preserve the QuPath UUID as `object_id` throughout. Never substitute centroid matching, row order,
   filenames or donor-name parsing.
 - A missing measurement is unavailable — not zero, not negative.
-- Donor `6457` is centrally excluded in `core/phenocycler/phenocycler/cohort.py`. Configuration
+- Donor `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`. Configuration
   must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
   from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
   alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
@@ -54,14 +55,24 @@ comparison*, never "arm" or "bake-off". You cannot indict a marker, only a metho
 QuPath cohort manifest -> ingest -> geometry QC -> REDSEA -> expression
 ```
 
-Run it **from `core/phenocycler/`**, which owns the only `config.ini`. A repo-root `config.ini` is a
+Run it **from `core/multiplex5000/`**, which owns the only `config.ini`. A repo-root `config.ini` is a
 bug — one existed until 2026-08-10 and silently supplied stale defaults.
 
 ```bash
-python -m pip install -e core/phenocycler
-cd core/phenocycler
-python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
+python -m pip install -e core/multiplex5000
+cd core/multiplex5000
+python -m multiplex5000.pipeline run --config config.ini --pipelined --through expression
 ```
+
+**The rename (2026-10-20, MultiPlex5000 D1).** The code moved from `core/phenocycler/` to
+`core/multiplex5000/` with `git mv`, and the package from `phenocycler` to `multiplex5000`
+(distribution `multiplex5000`, tags `multiplex5000-v*`). `phenocycler` is a temporary import
+alias: `import phenocycler.<x>` returns the module `multiplex5000.<x>` itself, and
+`python -m phenocycler.<x>` still runs, so code that says the old name keeps working until it
+moves. Nothing inside `multiplex5000` imports the alias. **The data did not move:**
+`core/phenocycler/data/` (the tracked integration inputs and the local stage outputs) stays
+until phase H, and `core/multiplex5000/data` is a tracked link to it. Documents dated before
+2026-10-20, and every receipt, name the old code paths.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
@@ -91,7 +102,7 @@ under the repo-root `data/development/` — a level above `core/`.
 | `make check` | is every layer/app artifact newer than its inputs? Reads mtimes only, and names every stale input, a run that did not finish, and a stale `typing/immune` |
 | `make plan` | the rebuild the driver would run, in order; runs nothing |
 | `make rebuild` | refuses unless `GO=1`; it writes `data/development/typing/app` and `/data/islet_layers` |
-| `make env-check` | the `.venv` resolves `phenocycler` to this checkout |
+| `make env-check` | the `.venv` (or `PY=…`) resolves `multiplex5000` and its `phenocycler` alias to this checkout |
 | `make producers` | prints `docs/PRODUCERS.md` |
 
 ## Cell typing, as it stands
@@ -178,7 +189,7 @@ generations side by side with nothing marking which is which, so check mtimes be
 in it. `scripts/senior/build_distance_profiles.py` refuses the superseded file by path, with the
 counts in the error.
 
-- **How it works:** `core/phenocycler/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
+- **How it works:** `core/multiplex5000/scripts/typing/RECONSTRUCTION.md` — recovered by reproducing
   the calls from their inputs and verified against them. Read it rather than re-deriving it.
 - **Immune subtyping is a second pass over the `Immune` class only**
   (`scripts/typing/immune_subtype.py`, rewritten 2026-09-17, rerun 2026-09-26 over the current
@@ -216,7 +227,7 @@ counts in the error.
 - **Never claim acinar or ductal.** The 60-plex carries no amylase, trypsin, CPA1 or elastase, and
   no CK19, CA19-9, SOX9, HNF1B, CFTR or MUC1. Exocrine is one label.
 
-Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `DATA_README.md`,
+Authoritative documentation, all relative to `core/multiplex5000/`: `README.md`, `DATA_README.md`,
 `docs/WORKFLOW.md`, `docs/METHOD_HISTORY.md`; and at repo level `docs/WORKFLOW_2026-09-02_MAP.md`
 (what runs today),
 `docs/PLAN_2026-09-02_AUXILIARY_PACKAGES.md`, `docs/EXTERNAL_PACKAGES.md`.
@@ -225,15 +236,15 @@ Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `
 
 | tissue × modality | producer | writes |
 |---|---|---|
-| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — one class in two steps: `cell_class` (the groups), then `refined_class` (the result, joined 2026-09-24); builders still read `cell_class` |
+| pancreas × PhenoCycler | `core/multiplex5000/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — one class in two steps: `cell_class` (the groups), then `refined_class` (the result, joined 2026-09-24); builders still read `cell_class` |
 | pancreas × Xenium | `analysis/xenium/scripts/panc_xenium_cluster_name.py`, run by `panc_xenium_release.py` | `/data/xenium_typing/panc_2026-09-17/release` — `lineage`, `common_lineage` |
 | pLN × Xenium | `analysis/xenium/scripts/pln_immune_typing_v3.py` | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
-| pLN × PhenoCycler | `core/phenocycler/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
+| pLN × PhenoCycler | `core/multiplex5000/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
 
 Everything else that writes a class column is retired, quarantined or a declared library;
 `docs/PRODUCERS.md` has each one with its evidence, and
-`core/phenocycler/tests/current/test_declared_producers.py` holds the graph to these four. The
-same-slide lane (four donors, `core/phenocycler/scripts/sameslide/`) types nothing and is not one
+`core/multiplex5000/tests/current/test_declared_producers.py` holds the graph to these four. The
+same-slide lane (four donors, `core/multiplex5000/scripts/sameslide/`) types nothing and is not one
 of them: it transfers each tissue's class, typed on the workstation and delivered keyed by
 `object_id`. Every cell is typed; a cell type the lymph node shares with the pancreas is typed by
 the pancreas methods (maintainer, 2026-10-19).
@@ -279,8 +290,8 @@ App-specific UI, viewer, deployment and reticulate guidance: `apps/islet/CLAUDE.
 
 ## Source control
 
-- No submodules. `Phenocycler_Analysis` and `XeniumPanelExplorer` became the `core/phenocycler` and
-  `core/panels` subtrees; one commit covers a change and its tests.
+- No submodules. `Phenocycler_Analysis` and `XeniumPanelExplorer` became the `core/phenocycler`
+  (now `core/multiplex5000`) and `core/panels` subtrees; one commit covers a change and its tests.
 - Never commit generated `data/`, run manifests, executed notebooks, caches, or local model paths.
 - **`git reset --hard` and `git clean -xfd` are unsafe here** — hundreds of GB of untracked,
   gitignored data live under `data/` and `core/phenocycler/data/`, and none of it is in Git. Roll

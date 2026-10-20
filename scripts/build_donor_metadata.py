@@ -35,7 +35,7 @@ import sys
 import pandas as pd
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "core" / "phenocycler"))
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
 
 COHORT_XLSX = pathlib.Path.home() / "IO60panc2nd" / "donor_metadata_panc.xlsx"

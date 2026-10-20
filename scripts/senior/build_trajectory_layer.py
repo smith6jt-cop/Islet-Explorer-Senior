@@ -19,7 +19,7 @@ rank-uniform on (0, 1) by construction; pooling donors inside a status then give
 group the same mean and an eta squared of 0. A zero that arithmetic forces is not evidence
 that batch was removed, and printing it beside the word "batch" would read as exactly that.
 The cross-donor relation is measured where it can be measured, with a permutation null, by
-core/phenocycler/scripts/typing/trajectory_crossdonor_relation.py.
+core/multiplex5000/scripts/typing/trajectory_crossdonor_relation.py.
 
 Run with .venv/bin/python. --check builds and round-trips the artifact in memory without
 creating files. Otherwise only $ISLET_LAYERS_DIR/trajectory/data.parquet is written.

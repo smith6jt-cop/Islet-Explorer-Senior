@@ -229,17 +229,21 @@ above.
 
 The upstream source workflow is the manifest-controlled
 QuPath → ingest → geometry QC → REDSEA → expression pipeline in
-[core/phenocycler/README.md](core/phenocycler/README.md). It stops after
+[core/multiplex5000/README.md](core/multiplex5000/README.md). It stops after
 expression: marker calling and typing are blocked until a verified typing
-workflow exists (root `CLAUDE.md`). Run it from `core/phenocycler/`, which owns
+workflow exists (root `CLAUDE.md`). Run it from `core/multiplex5000/`, which owns
 the only `config.ini`:
 
 ```bash
-python -m pip install -e core/phenocycler
-cd core/phenocycler
-python -m phenocycler.pipeline run --config config.ini --pipelined --through expression
-python -m phenocycler.pipeline status --config config.ini
+python -m pip install -e core/multiplex5000
+cd core/multiplex5000
+python -m multiplex5000.pipeline run --config config.ini --pipelined --through expression
+python -m multiplex5000.pipeline status --config config.ini
 ```
+
+The package was `phenocycler` at `core/phenocycler/` until 2026-10-20 (MultiPlex5000 D1).
+`phenocycler` still imports, as a temporary alias for `multiplex5000`; the lane's data stays at
+`core/phenocycler/data/` until phase H, and `core/multiplex5000/data` links to it.
 
 What runs today, lane by lane, is mapped in
 [docs/WORKFLOW_2026-09-02_MAP.md](docs/WORKFLOW_2026-09-02_MAP.md).
@@ -250,17 +254,17 @@ marker calls or cell identities. **The content-addressed run framework that
 formerly wrote these outputs under
 `core/phenocycler/data/runs/<run_id>/` was removed on 2026-09-16**; there is
 no run ID, stage manifest, or fingerprint check any more (see
-[core/phenocycler/README.md](core/phenocycler/README.md#outputs)). Runs made
+[core/multiplex5000/README.md](core/multiplex5000/README.md#outputs)). Runs made
 before 2026-09-16 remain, untouched, in that historical `data/runs/<run_id>/`
 tree.
 
 **Cell typing is a development lane, and it is not part of that workflow.** The subpanel
-classification lives in `core/phenocycler/scripts/typing/` and writes **outside** the package, to
+classification lives in `core/multiplex5000/scripts/typing/` and writes **outside** the package, to
 the repo-root `data/development/typing/`: `typing/cells/` was rewritten on 2026-09-19 with the
 islet chain applied to all 20 donors — 25,230,109 cells, eight classes plus `Excluded` (measured
 2026-09-24). Nothing there is a release, the
 `NO_VERIFIED_TYPING` latch is unmoved, and `typing/subpanel/subpanel_calls.parquet` is a SUPERSEDED
-earlier generation. How it works is `core/phenocycler/scripts/typing/RECONSTRUCTION.md`; read it
+earlier generation. How it works is `core/multiplex5000/scripts/typing/RECONSTRUCTION.md`; read it
 rather than re-deriving it.
 
 The application aggregation below is a **separate, legacy lane**. It consumes a
@@ -337,7 +341,8 @@ Islet-Explorer-Senior/
 ├── scripts/                       # App-data and viewer-asset scripts; see scripts/CLAUDE.md
 │   └── senior/                    # The nine layer builders + build_layers.py, which owns their order
 ├── islet_analysis/                # Generated islet-level H5ADs (gitignored)
-├── core/phenocycler/              # Subtree: QuPath→expression workflow, development lanes, integration
+├── core/multiplex5000/            # Subtree: QuPath→expression workflow, development lanes, integration
+├── core/phenocycler/data/         # That workflow's data, kept in place until phase H (linked as core/multiplex5000/data)
 ├── core/panels/                   # Subtree: XeniumPanelExplorer — the one panel-taxonomy authority
 ├── analysis/xenium/               # Xenium 5K lane (absorbed 2026-08-28)
 ├── analysis/follicle/             # Spleen follicle lane (absorbed 2026-09-03)

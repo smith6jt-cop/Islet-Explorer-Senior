@@ -71,12 +71,13 @@ def read_exclusions() -> tuple[dict[str, str], str]:
     an excluded donor is exactly the outcome the central list exists to prevent.
 
     Both layouts are tried. The package lived at `Phenocycler_Analysis/` as a
-    submodule before it was dissolved into the `core/phenocycler/` subtree, and a
+    submodule before it was dissolved into the `core/phenocycler/` subtree (renamed
+    `core/multiplex5000/` on 2026-10-20), and a
     working tree part-way through that move should still find it rather than
     refuse to run.
     """
-    for root in (REPO / "core" / "phenocycler", REPO / "Phenocycler_Analysis"):
-        if not (root / "phenocycler" / "cohort.py").is_file():
+    for root in (REPO / "core" / "multiplex5000", REPO / "Phenocycler_Analysis"):
+        if not any((root / pkg / "cohort.py").is_file() for pkg in ("multiplex5000", "phenocycler")):
             continue
         sys.path.insert(0, str(root))
         try:
@@ -197,7 +198,7 @@ def main() -> int:
     excluded, source = read_exclusions()
     if not excluded:
         log(f"ERROR: could not import the central donor exclusions ({source}). "
-            f"Refusing to guess — check that core/phenocycler/phenocycler/cohort.py is "
+            f"Refusing to guess — check that core/multiplex5000/multiplex5000/cohort.py is "
             f"present and importable, or pass --cases explicitly if you know what you "
             f"are doing.")
         if not args.cases:

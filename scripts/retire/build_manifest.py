@@ -192,7 +192,7 @@ def check_sibling_name_under(p: Path, arg):
 #          unique in the repo, or an occurrence on a comment line. Reported, never blocking.
 #
 # Resolution is by PATH, not by basename. `scripts/senior/aggregate_islets.py` and
-# `core/phenocycler/scripts/typing/aggregate_islets.py` are different files, and the second is a
+# `core/multiplex5000/scripts/typing/aggregate_islets.py` are different files, and the second is a
 # live node in `scripts/senior/build_layers.py`'s DAG; a basename match would have retired the
 # wrong one.
 #
@@ -402,7 +402,7 @@ def check_candidate_orphan(p: Path, arg):
                         "outside the retiring and candidate sets")
 
 
-CONFIG_INI = Path(D.REPO) / "core/phenocycler/config.ini"
+CONFIG_INI = Path(D.REPO) / "core/multiplex5000/config.ini"
 
 
 def _config_binding(ini: Path, key: str) -> tuple[int, str] | None:
@@ -418,7 +418,7 @@ def check_code_orphan_and_config_blank(p: Path, arg):
     """The orphan walk, AND the config.ini key ``arg`` must be blank.
 
     For the Xenium pancreas comparison apparatus the walk is not enough: its importers are all
-    inside the retiring set, but core/phenocycler/config.ini binds the RELEASE DIRECTORY it
+    inside the retiring set, but core/multiplex5000/config.ini binds the RELEASE DIRECTORY it
     writes, and that binding is what carries its class column into cells_xen and two build_layers
     nodes. A directory binding is invisible to a reference walk over .py names, so the
     prerequisite is checked by name here; the entry failed closed until Step 5 blanked the

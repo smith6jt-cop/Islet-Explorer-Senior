@@ -13,7 +13,7 @@
 #
 # Two things this wrapper exists to get right, both of which it got wrong until 2026-09-18:
 #
-#   1. THE CONFIG. core/phenocycler/ owns the only config.ini. The default here pointed at a
+#   1. THE CONFIG. core/multiplex5000/ owns the only config.ini. The default here pointed at a
 #      repo-root ${REPO}/config.ini, which does not exist; root CLAUDE.md records that one DID
 #      exist until 2026-08-10 and silently supplied stale defaults, so a repo-root config.ini is
 #      a bug rather than a fallback. Set PHENOCYCLER_CONFIG to use a different configuration.
@@ -26,14 +26,14 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PACKAGE_DIR="${REPO}/core/phenocycler"
+PACKAGE_DIR="${REPO}/core/multiplex5000"
 CONFIG="${PHENOCYCLER_CONFIG:-${PACKAGE_DIR}/config.ini}"
 PYTHON="${REPO}/.venv/bin/python"
 [[ -x "${PYTHON}" ]] || PYTHON="python"
 
 if [[ ! -f "${CONFIG}" ]]; then
     echo "$0: no configuration at ${CONFIG}" >&2
-    echo "  core/phenocycler/ owns the only config.ini; set PHENOCYCLER_CONFIG to use another." >&2
+    echo "  core/multiplex5000/ owns the only config.ini; set PHENOCYCLER_CONFIG to use another." >&2
     exit 2
 fi
 
@@ -52,6 +52,6 @@ case "$COMMAND" in
         ;;
 esac
 
-# The workflow runs FROM core/phenocycler, which owns the config and the data roots it names.
+# The workflow runs FROM core/multiplex5000, which owns the config and the data roots it names.
 cd "${PACKAGE_DIR}"
 exec "${PYTHON}" -m phenocycler.pipeline "$COMMAND" --config "$CONFIG" "$@"

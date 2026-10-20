@@ -1,0 +1,144 @@
+name: MultiPlex5000 release
+
+# Cutting a release is exactly one action: push an annotated tag.
+#
+#     git tag -a multiplex5000-v0.4.0 -m "Xenium integration + pLN cohort"
+#     git push origin multiplex5000-v0.4.0
+#
+# Tags are NAMESPACED because this is a monorepo: an unfiltered tag would move this
+# package's version, and this package's tag must not move anything else. See
+# [tool.setuptools_scm] tag_regex in core/multiplex5000/pyproject.toml.
+#
+# setuptools-scm reads that tag, so the built artifacts carry `0.4.0` with no file to edit
+# and nothing to keep in sync. Between tags the version is `0.4.1.devN+g<sha>`, which means
+# any analysis output can be traced back to the exact tree that produced it — the reason this
+# repo derives the version rather than declaring it.
+#
+# Tags are validated against PEP 440 before anything is published: a malformed tag would
+# otherwise produce a release whose version does not match its own name.
+
+on:
+  push:
+    tags: ["multiplex5000-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build a release for, e.g. multiplex5000-v0.4.0"
+        required: true
+
+permissions:
+  contents: write        # needed to create the GitHub release
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    # Scoped to this job only: the `test` job installs the built wheel OUTSIDE the source
+    # tree on purpose and does not check the repository out at all.
+    defaults:
+      run:
+        working-directory: core/multiplex5000
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0          # setuptools-scm needs the full tag history
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Resolve and check the version
+        id: version
+        run: |
+          python -m pip install setuptools-scm
+          VERSION=$(python -m setuptools_scm)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "built version: $VERSION"
+
+          # A tagged build must produce a clean release version. A dev/local suffix here
+          # means the tag was not on HEAD, or the tree was dirty — either way the artifact
+          # would not match the release it is about to be attached to.
+          case "$VERSION" in
+            *dev*|*+*)
+              echo "::error::tagged build produced a non-release version '$VERSION' — the tag is not on HEAD or the tree is dirty"
+              exit 1 ;;
+          esac
+
+      - name: Artifacts match the tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          if [ "${TAG#multiplex5000-v}" != "$VERSION" ]; then
+            echo "::error::tag '$TAG' and built version '$VERSION' disagree"
+            exit 1
+          fi
+          ls -l dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          # Repo-root-relative: working-directory does not apply to `with:` inputs.
+          path: core/multiplex5000/dist/
+
+  test:
+    name: Smoke-test the built wheel
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install the wheel outside the source tree
+        run: |
+          python -m pip install --upgrade pip
+          pip install dist/*.whl
+          mkdir -p /tmp/multiplex5000-wheel-smoke
+          cd /tmp/multiplex5000-wheel-smoke
+          python -c "import multiplex5000; from multiplex5000.pipeline import DEFAULT_STAGE_ORDER, STAGE_ORDER; assert DEFAULT_STAGE_ORDER == ('ingest', 'geometry', 'redsea', 'expression'); print('installed version:', multiplex5000.__version__, 'stages:', STAGE_ORDER)"
+          python -c "import multiplex5000, phenocycler; assert phenocycler is multiplex5000, 'the phenocycler import alias'"
+          python -c "from importlib.resources import files; names = ('adoption_compatibility.json', 'broad_gates.json', 'fundamental_pair_diagnostics.json', 'marker_registry.json'); missing = [name for name in names if not files('multiplex5000').joinpath(name).is_file()]; assert not missing, f'missing wheel package data: {missing}'; print('package data OK')"
+          phenocycler --help
+
+  release:
+    name: Publish GitHub release
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: multiplex5000 ${{ needs.build.outputs.version }}
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            Built from tag `${{ github.event.inputs.tag || github.ref_name }}`
+            (version `${{ needs.build.outputs.version }}`, derived by setuptools-scm).
+
+            ```bash
+            pip install multiplex5000-${{ needs.build.outputs.version }}-py3-none-any.whl
+            pip install 'multiplex5000[integration] @ .'   # for the Xenium integration layer
+            ```
+
+            See [core/multiplex5000/docs/INTEGRATION.md](core/multiplex5000/docs/INTEGRATION.md) for the PhenoCycler ↔ Xenium layer.

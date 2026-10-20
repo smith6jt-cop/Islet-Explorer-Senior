@@ -1,7 +1,7 @@
 # One entry point for testing, checking and (gated) rebuilding this repository.
 #
 # pytest -r: the last -r wins, so a bare -rs would hide the failure names that
-# core/phenocycler/pyproject.toml:162 asks for with -ra. -rfEs names failures, errors and skips.
+# core/multiplex5000/pyproject.toml:162 asks for with -ra. -rfEs names failures, errors and skips.
 #
 #   make test            every suite, each run in its own process, continuing past failures
 #   make test-fast       the default lane without the data-state guards (-m "not data")
@@ -22,7 +22,7 @@
 #
 # The ten script lanes run one at a time on purpose: each does sys.path.insert(0, <its own dir>)
 # and same-named modules across lanes shadow each other when collected together
-# (.github/workflows/phenocycler-ci.yml, job `scripts`).
+# (.github/workflows/multiplex5000-ci.yml, job `scripts`).
 
 SHELL   := /bin/bash
 REPO    := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -57,19 +57,19 @@ _test-all: test-core test-lanes test-xenium test-follicle test-r test-scripts
 test-core: test-current test-integration test-research
 
 test-current:
-	@echo "== core/phenocycler tests/current"
-	cd core/phenocycler && $(PYTEST) -q -rfEs tests/current
+	@echo "== core/multiplex5000 tests/current"
+	cd core/multiplex5000 && $(PYTEST) -q -rfEs tests/current
 
 test-integration:
-	@echo "== core/phenocycler tests/integration"
-	cd core/phenocycler && $(PYTEST) -q -rfEs tests/integration
+	@echo "== core/multiplex5000 tests/integration"
+	cd core/multiplex5000 && $(PYTEST) -q -rfEs tests/integration
 
 test-research:
-	@echo "== core/phenocycler tests/research"
-	cd core/phenocycler && $(PYTEST) -q -rfEs tests/research
+	@echo "== core/multiplex5000 tests/research"
+	cd core/multiplex5000 && $(PYTEST) -q -rfEs tests/research
 
 test-fast:
-	cd core/phenocycler && $(PYTEST) -q -rfEs -m "not data" tests/current
+	cd core/multiplex5000 && $(PYTEST) -q -rfEs -m "not data" tests/current
 
 # The guards live in tests/current, in five of the script lanes and in analysis/xenium, so
 # this runs `-m data` in each place the default `-m "not data"` deselects them: every lane,
@@ -81,11 +81,11 @@ test-fast:
 # is run here without editing this file.
 test-data:
 	@status=0; \
-	echo "== core/phenocycler tests/current (-m data)"; \
-	(cd core/phenocycler && $(PYTEST) -q -rfEs -m data tests/current) || status=1; \
+	echo "== core/multiplex5000 tests/current (-m data)"; \
+	(cd core/multiplex5000 && $(PYTEST) -q -rfEs -m data tests/current) || status=1; \
 	for lane in $(LANES); do \
 	  echo "== lane $$lane (-m data)"; \
-	  (cd core/phenocycler && $(PYTEST) -q -rfEs -m data scripts/$$lane/tests); rc=$$?; \
+	  (cd core/multiplex5000 && $(PYTEST) -q -rfEs -m data scripts/$$lane/tests); rc=$$?; \
 	  if [ $$rc -ne 0 ] && [ $$rc -ne 5 ]; then status=1; fi; \
 	done; \
 	echo "== analysis/xenium (scvi-env, -m data)"; \
@@ -95,10 +95,10 @@ test-data:
 test-lanes:
 	@status=0; for lane in $(LANES); do \
 	  echo "== lane $$lane"; \
-	  (cd core/phenocycler && $(PYTEST) -q -rfEs scripts/$$lane/tests) || status=1; \
+	  (cd core/multiplex5000 && $(PYTEST) -q -rfEs scripts/$$lane/tests) || status=1; \
 	done; \
 	echo "== lane xenium_celltype/hpg"; \
-	(cd core/phenocycler && $(PYTEST) -q -rfEs scripts/xenium_celltype/hpg/tests) || status=1; \
+	(cd core/multiplex5000 && $(PYTEST) -q -rfEs scripts/xenium_celltype/hpg/tests) || status=1; \
 	exit $$status
 
 # analysis/xenium/pyproject.toml already sets addopts = "-q"; a second -q would hide the summary.
@@ -153,7 +153,7 @@ geojson-outline:
 	  echo "Run it deliberately: 'GO=1 make geojson-outline' (DONORS=\"115 6374\" to limit)." >&2; \
 	  exit 2; \
 	fi
-	$(PY) core/phenocycler/scripts/typing/build_nonendocrine_outline.py --include-marginal $(if $(DONORS),--donors $(DONORS),)
+	$(PY) core/multiplex5000/scripts/typing/build_nonendocrine_outline.py --include-marginal $(if $(DONORS),--donors $(DONORS),)
 
 rebuild:
 	@if [ "$(GO)" != "1" ]; then \

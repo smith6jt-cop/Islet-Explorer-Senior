@@ -64,7 +64,7 @@ LOG_FIELDS = ["retired_utc", "kind", "tier", "path", "bytes", "action", "superse
 
 def under_protected_tree(path: str) -> str | None:
     """The declared-library DIRECTORY a path sits under, if any. A test file added inside
-    core/phenocycler/scripts/xenium_celltype/tests/ after the list was written is still
+    core/multiplex5000/scripts/xenium_celltype/tests/ after the list was written is still
     protected, because the directory is the library entry."""
     for tree, _ in D.CODE_LIBRARY:
         if path.startswith(tree.rstrip("/") + "/"):
