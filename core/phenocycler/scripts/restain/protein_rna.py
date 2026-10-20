@@ -707,7 +707,8 @@ def polygons_per_cell(bundle: Path, compartment: str, cell_ids) -> list:
 
 def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
                 out_dir: Path = OUT, um_per_px: float = PROTEIN_UM_PER_PX,
-                roles: ChannelRoles | None = None) -> dict:
+                roles: ChannelRoles | None = None,
+                transform_stem: str = "refined") -> dict:
     """One section measured. ``roles`` is resolved here when the caller has not resolved it.
 
     The channel assignment and the pixel size used to come from ``restain_sections.csv`` through
@@ -722,7 +723,7 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
     from phenocycler.integration.rasterize import GridSpec
     from rasterize_labels import rasterize_labels
     import validate as VAL
-    from run_align import _refined_transform
+    from run_align import _saved_transform
     from run_register import SUBPANELS
 
     donor = donor_of(serial, XENIUM_PATHS)
@@ -737,7 +738,7 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
     if not qptiff.exists():
         raise ProteinRnaError(f"{qptiff} is absent")
     base_um = float(roles.pixel_size_um)
-    transform = _refined_transform(donor, roi, out_dir)
+    transform = _saved_transform(donor, transform_stem, out_dir)
 
     dd = xenio.load_donor(donor, XENIUM_PATHS, roi=roi, prefer="bundle")
     bundle = xenio._bundle_dir(donor, XENIUM_PATHS, roi)
@@ -755,7 +756,10 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
 
     rec = {"donor_id": donor, "xenium_serial": serial, "roi": roi,
            "qptiff": str(qptiff), "xenium_bundle": str(bundle),
-           "transform_source": "refined", "protein_um_per_px": um_per_px,
+           "transform_source": transform_stem,
+           "alignment_gate": str(out_dir / "valis" / f"donor_id={donor}"
+                                 / f"alignment_{transform_stem}.json"),
+           "protein_um_per_px": um_per_px,
            "pyramid_level": lvl, "pyramid_factor": factor,
            # Recorded PER ROW, because it is not one value across the cohort: the 20x images
            # read 0.25 um/px and the two 10x ones read 0.5, and the CSV declares 0.2505 for all.
@@ -846,35 +850,23 @@ def measure_one(serial: str, sections: pd.DataFrame, *, roi: str = "panc",
     return rec
 
 
-def registered_serials(roi: str = "panc") -> dict[str, str]:
-    """serial -> donor, for every donor whose registration PASSED its gate.
+def registered_transform_records(roi: str = "panc", *, out_dir: Path = OUT) -> dict[str, dict]:
+    """serial -> exact donor transform whose named all-window gate passed.
 
     This is what the module actually needs: a refined transform that cleared the release gate.
     It used to enumerate from the QuPath GeoJSON directory -- three files -- while stating in three
     places that it reads no annotation, so ten donors with a PASS gate were skipped in silence and
-    the lane looked like a registration failure. The gate verdict is the honest predicate, and it
-    lives in the donor directory next to the transform it certifies.
+    the lane looked like a registration failure. A gate admits only the exact saved transform it
+    names and hashes; a PASS for another candidate cannot certify the file this consumer measures.
+    A passing ``refined`` transform is preferred, followed by a separately passing ``image_seed``.
     """
     import json as _json
-    out: dict[str, str] = {}
-    root = OUT / "valis"
+    out: dict[str, dict] = {}
+    root = Path(out_dir) / "valis"
     if not root.is_dir():
         return out
     for donor_dir in sorted(root.glob("donor_id=*")):
         donor = donor_dir.name.split("=", 1)[1]
-        if not (donor_dir / "refined.json").exists():
-            continue
-        verdicts = []
-        for gate in sorted(donor_dir.glob("alignment_*.json")):
-            try:
-                j = _json.loads(gate.read_text())
-            except (OSError, ValueError):
-                continue
-            v = j.get("verdict") or (j.get("alignment") or {}).get("verdict")
-            if v:
-                verdicts.append(str(v))
-        if "PASS" not in verdicts:
-            continue
         try:
             export = _json.loads((donor_dir / "export.json").read_text())
         except (OSError, ValueError):
@@ -883,8 +875,40 @@ def registered_serials(roi: str = "panc") -> dict[str, str]:
             continue
         serial = str(export.get("serial") or "")
         if serial:
-            out[serial] = donor
+            # Fail closed when different transforms passed; the extractor's choice must be
+            # deterministic, recorded, and bound to its own exact PASS gate.
+            for stem in ("refined", "image_seed"):
+                transform = donor_dir / f"{stem}.json"
+                gate = donor_dir / f"alignment_{stem}.json"
+                if not transform.is_file() or not gate.is_file():
+                    continue
+                try:
+                    record = _json.loads(gate.read_text())
+                    alignment = record.get("alignment", record)
+                except (OSError, ValueError):
+                    continue
+                if str(alignment.get("verdict", "")).upper() != "PASS":
+                    continue
+                certified = alignment.get("transform_file")
+                if not certified or Path(certified).resolve() != transform.resolve():
+                    continue
+                expected_sha = alignment.get("transform_sha256")
+                if not expected_sha:
+                    continue
+                from phenocycler.artifacts import sha256_file
+                if sha256_file(transform) != expected_sha:
+                    continue
+                out[serial] = {"donor_id": donor, "transform_stem": stem,
+                               "gate": str(gate.resolve()),
+                               "transform_sha256": expected_sha}
+                break
     return out
+
+
+def registered_serials(roi: str = "panc", *, out_dir: Path = OUT) -> dict[str, str]:
+    """serial -> donor for cells admitted by their exact passing transform gate."""
+    return {serial: record["donor_id"]
+            for serial, record in registered_transform_records(roi, out_dir=out_dir).items()}
 
 
 def main(argv=None) -> int:
@@ -899,7 +923,8 @@ def main(argv=None) -> int:
     sections = HZ.load_section_map(SECTIONS)
     (args.out / "protein_rna").mkdir(parents=True, exist_ok=True)
 
-    serials = registered_serials(args.roi)
+    registrations = registered_transform_records(args.roi, out_dir=args.out)
+    serials = {serial: record["donor_id"] for serial, record in registrations.items()}
     resolved = resolve_all(serials, sections=sections)
     report = channel_assignment_report(resolved, roi=args.roi)
     report_path = write_channel_assignment(report, args.out)
@@ -924,9 +949,12 @@ def main(argv=None) -> int:
             skipped.append(donor)
             continue
         rec = measure_one(serial, sections, roi=args.roi, out_dir=args.out,
-                          um_per_px=args.um_per_px, roles=roles)
+                          um_per_px=args.um_per_px, roles=roles,
+                          transform_stem=registrations[serial]["transform_stem"])
         rec.setdefault("serial", serial)
         rec.setdefault("donor", donor)
+        rec["registration_gate"] = registrations[serial]["gate"]
+        rec["registration_transform_sha256"] = registrations[serial]["transform_sha256"]
         recs[serial] = rec
     if not recs:
         print(f"no donor measured; {len(skipped)} skipped for a named reason "

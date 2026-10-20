@@ -51,7 +51,7 @@ from phenocycler.integration import register as RG             # noqa: E402
 GEOJSON_DIR = Path.home() / "IO60panc2nd" / "PostXeniumIHC" / "geojson"
 XENIUM_PATHS = HERE.parents[1] / "data" / "integration" / "xenium_paths.csv"
 OUT = HERE.parents[3] / "data" / "development" / "restain"
-SUBPANELS = HERE.parents[3] / "data" / "development" / "xenium_panels" / "subpanels"
+SUBPANELS = HERE.parents[3] / "core" / "panels" / "data"
 
 #: Registration grid.  10 um is ~2 cell diameters -- fine enough that a tissue edge is sharp,
 #: coarse enough that the ECC search is seconds rather than minutes.

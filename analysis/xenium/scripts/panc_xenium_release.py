@@ -203,10 +203,11 @@ def redirect_summary(calls: pd.DataFrame, subs: pd.DataFrame) -> dict:
     }
 
 
-def run_one(section: str, work: str, score_on: str) -> tuple[str, int, str]:
+def run_one(section: str, work: str, score_on: str, h5ad_dir: str) -> tuple[str, int, str]:
     t0 = time.time()
     proc = subprocess.run(
         [sys.executable, str(WORKER), "--section", section, "--work", work,
+         "--h5ad-dir", h5ad_dir,
          "--score-on", score_on],
         capture_output=True, text=True,
     )
@@ -229,7 +230,8 @@ def stage_sections(work: Path, score_on: str, jobs: int, only: list[str] | None,
     if todo:
         work.mkdir(parents=True, exist_ok=True)
         with ProcessPoolExecutor(max_workers=jobs) as ex:
-            futs = [ex.submit(run_one, s, str(work), score_on) for s in todo]
+            futs = [ex.submit(run_one, s, str(work), score_on,
+                              str(worker.H5AD_DIR)) for s in todo]
             for f in futs:
                 section, rc, tail = f.result()
                 log(f"{'OK ' if rc == 0 else 'FAIL'} {section}: {tail}")
@@ -682,12 +684,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", default="/data/xenium_typing/panc_2026-09-17/_work")
     ap.add_argument("--release", default="/data/xenium_typing/panc_2026-09-17/release")
+    ap.add_argument("--h5ad-dir", type=Path, default=worker.H5AD_DIR,
+                    help="directory of raw-count section h5ads; defaults to /data/xenium/h5ad_out")
     ap.add_argument("--score-on", choices=("naming", "all"), default=worker.SCORE_ON_DEFAULT)
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--sections", nargs="*", default=None)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--assemble-only", action="store_true")
     args = ap.parse_args()
+    worker.H5AD_DIR = args.h5ad_dir
     work, out = Path(args.work), Path(args.release)
     if args.assemble_only:
         secs = worker.sections()

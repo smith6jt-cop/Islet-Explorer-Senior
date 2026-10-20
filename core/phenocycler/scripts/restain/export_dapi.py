@@ -221,11 +221,44 @@ def main(argv=None) -> int:
         args.inventory, args.xenium_paths, args.images_dir, args.geojson_dir,
         args.xenium_root, roi=args.roi)
     rows = []
+    failures = []
     for record in RI.select_registration_inputs(records, args.donors,
                                                 context="export_dapi"):
-        RI.require_registration_files(record)
         donor = record.donor_id
-        rec = export_one(record, out_root=args.out / "valis")
+        try:
+            # A missing transferred morphology/nucleus file is donor-local. Record it and
+            # continue so one incomplete acquisition cannot block otherwise usable sections.
+            RI.require_registration_files(record)
+            donor_dir = args.out / "valis" / f"donor_id={donor}"
+            prior = donor_dir / "export.json"
+            if prior.is_file():
+                existing = json.loads(prior.read_text())
+                complete_files = all((donor_dir / "slides" / name).is_file()
+                                     for name in ("01_xenium_dapi.ome.tiff",
+                                                  "02_if_dapi.ome.tiff"))
+                same_inputs = (
+                    str(existing.get("donor_id")) == donor
+                    and str(existing.get("serial")) == record.serial
+                    and str(existing.get("roi")) == record.roi
+                    and str(existing.get("qptiff")) == str(record.qptiff)
+                    and str(existing.get("xenium_bundle")) == str(record.bundle)
+                    and bool(existing.get("xenium_origin_check", {}).get("brackets_cell_table"))
+                )
+                if complete_files and same_inputs:
+                    existing["state"] = "complete"
+                    rows.append(existing)
+                    print(f"[{donor}] reusing exact, complete DAPI export", flush=True)
+                    continue
+            rec = export_one(record, out_root=args.out / "valis")
+        except (RI.RegistrationInputError, FileNotFoundError, ValueError) as exc:
+            failure = {"donor_id": donor, "serial": record.serial, "roi": record.roi,
+                       "state": "unavailable", "reason": type(exc).__name__,
+                       "detail": str(exc)}
+            failures.append(failure)
+            rows.append(failure)
+            print(f"[{donor}] unavailable -- {type(exc).__name__}: {exc}", flush=True)
+            continue
+        rec["state"] = "complete"
         c = rec["xenium_origin_check"]
         print(f"[{donor}] xenium origin check: image {np.round(c['image_extent_um'],0).tolist()} um "
               f"vs cells {np.round(c['cell_extent_um'],0).tolist()} um -> "
@@ -236,8 +269,12 @@ def main(argv=None) -> int:
         return 1
     p = args.out / "valis" / f"export_{args.roi}.json"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(rows, indent=2))
-    print(f"-> {p}", flush=True)
+    summary = {"roi": args.roi, "n_selected": len(rows),
+               "n_complete": sum(row.get("state") == "complete" for row in rows),
+               "n_unavailable": len(failures), "donors": rows}
+    p.write_text(json.dumps(summary, indent=2))
+    print(f"-> {p} ({summary['n_complete']} complete, {len(failures)} unavailable)",
+          flush=True)
     return 0
 
 

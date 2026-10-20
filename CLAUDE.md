@@ -139,6 +139,15 @@ survive only so `subpanel.py --gate` can reproduce it.
 6. **Not endocrine** takes the ordinary chain: immune definitions, the supporting tier, then
    Exocrine.
 
+**Current Single exception (human decisions, October 2026):** EndocrineSingle
+uses its unique highest usable hormone directly, without CD99. On 2026-10-05
+the human superseded retention of missing/tied subtypes with exclusion: the 25
+current cases are excluded from identity analyses, object compositions and
+trajectory fitting/graphs. Original object classes/counts and native measurements
+remain in the audit. `Excluded` is an analysis status, never a biological type.
+See the versioned `protein_analysis_exclusion_manifest.json` in the current atlas
+typing audit; its keyed overlay is mandatory when using historical native calls.
+
 **What is on disk carries that chain.** `data/development/typing/cells/` was rewritten on 2026-09-19
 with the chain applied to all 20 donors — **25,230,109 cells**, `cell_class` eight classes plus
 `Excluded`, no `Unresolved`. Measured 2026-09-26: every partition carries `islet_route` (cd99
@@ -268,3 +277,35 @@ App-specific UI, viewer, deployment and reticulate guidance: `apps/islet/CLAUDE.
   gitignored data live under `data/` and `core/phenocycler/data/`, and none of it is in Git. Roll
   back with `git revert`.
 - When replacing a workflow, remove the obsolete entrypoint rather than leaving two runnable ones.
+
+### Excluded-cell evidence review, 2026-10-05
+
+Latest human ruling: identify observed patterns, exclude ALL 11,484 reviewed
+cells from ALL analyses, and defer identity resolution to a future task.
+All 11,459 native
+Excluded cells were ordinary-chain fallthroughs inside endocrine outlines; the
+reason did not require epithelial positivity and refinement skipped them. Do not
+interpret the Excluded label as an exocrine biological class. Versioned evidence
+review and exact existing workflow prerequisites are at
+`/data/io60-calibration/excluded_cell_identity_review_20261005`.
+
+Current package adds a candidate-evidence table and separate reviewed_identity
+for three donor6579 broad immune cases (exact identifiers are in
+`source_tables/reviewed_broad_immune_assignments_20261005.csv`). Their observed
+broad immune rule, donor-matched marker resemblance, localized CD11c/MPO images
+and zero structural overlaps support broad identity only. No fine immune
+subtype/state is assigned. Native primary/refined fields and strict analysis
+exclusions are retained. All three reviewed cells remain excluded, including
+from sensitivity analyses; the old three-cell inclusion sensitivity is superseded.
+Every pancreas analytical denominator, comparator and cell-derived aggregate
+uses exact-key analysis_eligible masks (31,385,695 retained cells); 31,397,179
+assay-QC cells is provenance only. Original object counts/geometry remain metadata.
+Future local task: 01a10dd3-8d09-7fd0-90bc-c10290fe4dcf, "Resolve excluded IO60 cell identities".
+Candidate families
+elsewhere are qualified evidence, not production overrides. Missing negatives,
+fragment masks, CD99/shape and structural body rules remain authoritative.
+
+Reference-label resemblance is not independent biological validation. The
+reference group holdout does not make queried cells spatially independent.
+No expansion rings, replacement distance-band features or new trajectory floor
+are introduced.

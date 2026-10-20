@@ -14,6 +14,7 @@ count that a rename would move.
 from __future__ import annotations
 
 import json
+import hashlib
 import pathlib
 import sys
 
@@ -373,6 +374,53 @@ def test_measure_one_refuses_by_name_instead_of_raising_indexerror(monkeypatch):
                            image_file="0037354_Scan1.qptiff")
     with pytest.raises(PR.ProteinRnaError, match=PR.CHANNELS_NOT_YET_ASSIGNED):
         PR.measure_one("0037354", pd.DataFrame(), roles=roles)
+
+
+def test_registered_serials_uses_the_requested_output_root(tmp_path):
+    donor = tmp_path / "valis" / "donor_id=6436"
+    donor.mkdir(parents=True)
+    transform = donor / "refined.json"
+    transform.write_text("{}")
+    (donor / "export.json").write_text(json.dumps({"roi": "panc", "serial": "0059907"}))
+    (donor / "alignment_refined.json").write_text(json.dumps({
+        "alignment": {"verdict": "PASS", "transform_file": str(transform),
+                      "transform_sha256": hashlib.sha256(transform.read_bytes()).hexdigest()}}))
+
+    failed = tmp_path / "valis" / "donor_id=6442"
+    failed.mkdir()
+    (failed / "refined.json").write_text("{}")
+    (failed / "export.json").write_text(json.dumps({"roi": "panc", "serial": "0059947"}))
+    (failed / "alignment_refined.json").write_text(json.dumps({
+        "alignment": {"verdict": "FAIL"}}))
+
+    # A passing seed does not certify the refined transform consumed by protein_rna.py.
+    seed_only = tmp_path / "valis" / "donor_id=6482"
+    seed_only.mkdir()
+    (seed_only / "refined.json").write_text("{}")
+    (seed_only / "image_seed.json").write_text("{}")
+    (seed_only / "export.json").write_text(json.dumps({"roi": "panc", "serial": "0037354"}))
+    (seed_only / "alignment_image_seed.json").write_text(json.dumps({
+        "alignment": {"verdict": "PASS", "transform_file": str(seed_only / "image_seed.json"),
+                      "transform_sha256": hashlib.sha256(
+                          (seed_only / "image_seed.json").read_bytes()).hexdigest()}}))
+
+    assert PR.registered_serials("panc", out_dir=tmp_path) == {
+        "0059907": "6436", "0037354": "6482"}
+    records = PR.registered_transform_records("panc", out_dir=tmp_path)
+    assert records["0059907"]["transform_stem"] == "refined"
+    assert records["0037354"]["transform_stem"] == "image_seed"
+
+
+def test_endocrine_core_reads_the_current_authoritative_panel_layout(tmp_path):
+    import validate as VAL
+
+    panel = tmp_path / "tissues" / "pancreas" / "identity_core"
+    panel.mkdir(parents=True)
+    (panel / "01_pancreas_endocrine.csv").write_text(
+        "gene,subtype_hint\nINS,beta\nGCG,alpha\n")
+    genes, by_hint = VAL.endocrine_core(tmp_path)
+    assert genes == ["INS", "GCG"]
+    assert by_hint == {"beta": ["INS"], "alpha": ["GCG"]}
 
 
 # --------------------------------------------------------------- the real project, properties only

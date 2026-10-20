@@ -49,7 +49,13 @@ NULL_DRAWS = 20
 
 def endocrine_core(subpanel_dir: Path) -> tuple[list[str], dict[str, list[str]]]:
     """The 18-gene pancreas endocrine identity core, and its ``subtype_hint`` split."""
-    p = Path(subpanel_dir) / "identity_core" / "pancreas" / "01_pancreas_endocrine.csv"
+    root = Path(subpanel_dir)
+    candidates = (
+        root / "tissues" / "pancreas" / "identity_core" / "01_pancreas_endocrine.csv",
+        root / "identity_core" / "pancreas" / "01_pancreas_endocrine.csv",
+        root / "pancreas" / "identity_core" / "01_pancreas_endocrine.csv",
+    )
+    p = next((candidate for candidate in candidates if candidate.is_file()), candidates[0])
     rows = list(csv.DictReader(p.read_text().splitlines()))
     by_hint: dict[str, list[str]] = {}
     for r in rows:

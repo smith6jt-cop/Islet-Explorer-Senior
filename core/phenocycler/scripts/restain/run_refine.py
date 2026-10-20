@@ -297,8 +297,17 @@ def main(argv=None) -> int:
 
     rows = []
     for record in selected:
-        rows.append(refine_one(args.out / "valis" / f"donor_id={record.donor_id}",
-                               with_image=not args.no_image))
+        try:
+            row = refine_one(args.out / "valis" / f"donor_id={record.donor_id}",
+                             with_image=not args.no_image)
+            row["state"] = "complete"
+        except Exception as exc:  # keep an unavailable section from stopping other donors
+            row = {"donor_id": record.donor_id, "serial": record.serial,
+                   "roi": record.roi, "state": "unavailable",
+                   "reason": type(exc).__name__, "detail": str(exc)}
+            print(f"[{record.donor_id}] refinement unavailable -- "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+        rows.append(row)
     if not rows:
         print("no donor matched", file=sys.stderr)
         return 1
@@ -306,6 +315,8 @@ def main(argv=None) -> int:
     p.write_text(json.dumps(rows, indent=2))
     print(f"-> {p}", flush=True)
     for r in rows:
+        if r.get("state") != "complete":
+            continue
         w = next(c for c in r["candidates"] if c["name"] == r["winner"])
         print(f"[{r['donor_id']}] WINNER {r['winner']}: pair p50 "
               f"{w['score']['pair_distance_um']['p50']:.3f} um, "

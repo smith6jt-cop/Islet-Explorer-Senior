@@ -86,6 +86,17 @@ import pandas as pd
 import scipy.sparse as sp
 
 REPO = Path(__file__).resolve().parents[3]
+
+
+def display_path(path: Path) -> str:
+    """Prefer repository-relative provenance, but support releases on data/scratch mounts."""
+    resolved = Path(path).resolve()
+    try:
+        return str(resolved.relative_to(REPO))
+    except ValueError:
+        return str(resolved)
+
+
 H5AD_DIR = Path("/data/xenium/h5ad_out")
 OUT_ROOT = REPO / "data/development/xenium_typing/release_pln_immune_v3"
 V2 = REPO / "data/development/xenium_typing/release_pln_immune_v2"
@@ -1576,7 +1587,7 @@ def run_calls(args) -> None:
                                      "(B/Plasma, Myeloid); its ceiling is its rate in T_NK. "
                                      "Both per section in controls.csv.",
             "gdna_rate_per_donor": {d: gdna.get(d, "UNMEASURED") for d in donors},
-            "gdna_source": str(GDNA.relative_to(REPO)) if GDNA.exists() else "UNMEASURED",
+            "gdna_source": display_path(GDNA) if GDNA.exists() else "UNMEASURED",
         },
         "nucleus_rule": {
             "rule": "a cell with no nucleus is excluded from every calculation -- including the "
@@ -2049,11 +2060,13 @@ def run_cross(args) -> None:
                         "PhenoCycler and Xenium pLN sections are different sections of "
                         "different blocks; they are joined on donor_id and on nothing else. No "
                         "cell is matched to a cell and no spatial claim is made. Fractions are "
-                        "compared, never counts.",
+                        "compared, never counts. The immune-share denominators differ by assay: "
+                        "Xenium uses nucleated cells and PhenoCycler uses analysis-eligible cells; "
+                        "the first fraction is not a direct calibration of the second.",
         "what_this_is_not": "not a validation of either side, and not a target. Neither side "
                             "was tuned to move the agreement, and no number here was accepted "
                             "because it agreed.",
-        "xenium": {"release": str(OUT_ROOT.relative_to(REPO)),
+        "xenium": {"release": display_path(OUT_ROOT),
                    "donors": int(len(xf)),
                    "nk_estimates": {
                        "cellgate": "per-cell: CD3E and CD3G both undetected on that cell and "
@@ -2066,7 +2079,7 @@ def run_cross(args) -> None:
                                      f"{NK_MIN_NAMING} NK-exclusive naming genes stand up. The "
                                      "POPULATION estimate, and the one comparable with the "
                                      "PhenoCycler side, which is also a cluster-level call."}},
-        "phenocycler": {"source": str(pheno_counts.relative_to(REPO)),
+        "phenocycler": {"source": display_path(pheno_counts),
                         "mtime_utc": ph_mtime, "sha256": ph_sha,
                         "donors": int(len(phf)),
                         "t_nk_split_present": bool(ph_has_tnk),
@@ -2100,6 +2113,10 @@ def run_cross(args) -> None:
         "PhenoCycler side's residue is small. Comparisons are therefore made on fractions "
         "WITHIN what each side resolved (CD8 share of CD4+CD8, Treg share of resolved T) as "
         "well as on fractions of the whole compartment, and the two answer different questions.")
+    note["caveats"].append(
+        "immune-share denominators are assay-defined: Xenium uses nucleated cells and "
+        "PhenoCycler uses analysis-eligible cells. Their percentage-point difference is "
+        "descriptive and is not a direct calibration estimate.")
     if ph_has_tnk and float(ph[PH_TNK["NK_ILC"]].sum()) == 0:
         note["caveats"].append(
             "the PhenoCycler side reports 0 NK/ILC on every donor in the file read here; the "
@@ -2188,7 +2205,14 @@ def run_compare(args) -> None:
 
 
 def main() -> None:
+    global H5AD_DIR, OUT_ROOT, RELEASE_ID
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--h5ad-dir", type=Path, default=H5AD_DIR,
+                    help="directory of raw-count section h5ads")
+    ap.add_argument("--out-root", type=Path, default=OUT_ROOT,
+                    help="isolated output root for this development release")
+    ap.add_argument("--release-id", default=RELEASE_ID,
+                    help="release identifier written into release.json")
     ap.add_argument("--stage",
                     choices=["partition", "call", "tnk", "cross", "compare"], default="call")
     ap.add_argument("--sections", default="",
@@ -2197,6 +2221,9 @@ def main() -> None:
     ap.add_argument("--force", action="store_true",
                     help="redo a section that is already partitioned")
     args = ap.parse_args()
+    H5AD_DIR = args.h5ad_dir
+    OUT_ROOT = args.out_root
+    RELEASE_ID = args.release_id
     requested = tuple(s for s in args.sections.split(",") if s.strip())
     set_scope(RunScope.undiscovered("section", requested))
     if args.stage == "partition":

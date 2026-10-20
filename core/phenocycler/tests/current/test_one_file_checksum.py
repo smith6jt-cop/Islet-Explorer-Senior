@@ -73,6 +73,33 @@ KEPT = {
         "recovered from the v3 checkout; never imports phenocycler",
     ("core/phenocycler/scripts/typing/recompute_typing_scale.py", "sha256"):
         "recovered from the v3 checkout; never imports phenocycler",
+    # Recovered byte for byte on 2026-10-20 (analysis/recovered_20261008/RECOVERY.json): a record of
+    # what ran on 2026-10-08, not run from the repo; editing a copy would break the sha256 its
+    # receipts record.
+    **{(f"analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/{rel}", "sha"):
+       "recovered byte for byte; a current receipt records these bytes"
+       for rel in (
+           "cell_typing_validation/peer_review_typing_20261008/protein/build_conservative_protein_candidate.py",
+           "cell_typing_validation/peer_review_typing_20261008/rna/"
+           "combined_PAN_pLN_positive_annotation_writer_preparation_r1/materialize_exact_positive_annotations.py",
+           "scripts/audit_protein_candidate_missing_negatives.py",
+           "scripts/audit_protein_repaired_primary_evidence.py",
+           "scripts/evaluate_corrected_protein_programs.py",
+           "scripts/reprocess_protein_own_compartment_candidate.py",
+           "scripts/verify_protein_candidate_expression_sources.py",
+           "scripts/verify_protein_candidate_primary_integrity.py",
+       )},
+    **{(f"analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/{name}", "sha"):
+       "recovered byte for byte; the cohesive lane's reconcile stage snapshots it by hash"
+       for name in ("combine_spatial_hypotheses_v2.py", "evaluate_spatial_H1_H2.py",
+                    "evaluate_spatial_H3_H4.py", "evaluate_spatial_RNA_H5_H6.py")},
+    ("analysis/recovered_20261008/typing-validation/current_defensible_handoff_20261014_183339/"
+     "identity_review/read_current_rna.py", "sha256"):
+        "recovered byte for byte; the cohesive lane loads it from the 10-14 handoff folder",
+    ("analysis/shared/typing_release_view.py", "sha256"):
+        "copied from the v3 checkout; the cohesive lane imports it there and checks its hash",
+    ("analysis/xenium/scripts/build_complete_typing_paper_figures.py", "sha"):
+        "copied from the v3 checkout with the test that loads it; never imports phenocycler",
 }
 
 #: Shaped like a file checksum, and not the same function.  (artifacts.sha256_sampled_file hashes
