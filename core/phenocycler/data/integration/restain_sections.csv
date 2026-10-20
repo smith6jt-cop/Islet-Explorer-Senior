@@ -46,7 +46,7 @@
 # differ by a factor of 2. The maintainer's declared 0.2505 is within 0.2% of the XML's 0.25
 # for the three 20x images and is half the XML's 0.5 for the two 10x ones.
 #
-# Note `core/multiplex5000/scripts/restain/geo.py` hard-codes PIXEL_UM = 0.25, matching the XML.
+# Note `core/phenocycler/scripts/restain/geo.py` hard-codes PIXEL_UM = 0.25, matching the XML.
 # That lane is internally consistent at 0.25, so a builder converting its IF-frame coordinates
 # at 0.2505 sits ~0.2% off the frame the fitted transform targets -- about 10 um across 5 mm.
 #

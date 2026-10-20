@@ -344,6 +344,23 @@ def test_code_is_never_deleted_by_this_script():
 
 
 
+def _as_now(path: str) -> str:
+    """Where a path the log recorded before the 2026-10-20 rename is now.
+
+    The code moved from ``core/phenocycler`` to ``core/multiplex5000`` (the package directory
+    from ``phenocycler`` to ``multiplex5000``) and ``core/phenocycler/data`` stayed where it was.
+    The log is a record and keeps the paths it was written with; the tables it is checked against
+    name the files where they are now.
+    """
+    old = f"{D.REPO}/core/phenocycler/"
+    if not path.startswith(old) or path.startswith(old + "data/"):
+        return path
+    rest = path[len(old):]
+    if rest.startswith("phenocycler/"):
+        rest = "multiplex5000/" + rest[len("phenocycler/"):]
+    return f"{D.REPO}/core/multiplex5000/{rest}"
+
+
 def _moved_by_the_ledger() -> set[str]:
     """Paths the retirement log records as quarantined (kind=code). Read from the real log,
     never written: an entry that is absent from disk AND recorded here is a retirement that
@@ -351,7 +368,7 @@ def _moved_by_the_ledger() -> set[str]:
     if not R.LOG.exists():
         return set()
     with R.LOG.open(newline="") as handle:
-        return {row["path"] for row in csv.DictReader(handle) if row.get("kind") == "code"}
+        return {_as_now(row["path"]) for row in csv.DictReader(handle) if row.get("kind") == "code"}
 
 
 # --------------------------------------------------- resolution is by path ----
