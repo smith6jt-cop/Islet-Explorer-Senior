@@ -7,7 +7,7 @@
     "donor_notes": "/home/smith6jt/IO60panc2nd/ProcessingNotes.txt",
     "donor_notes_copy": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/IO60panc2nd Notes.md",
     "pln_blocks": "/home/smith6jt/IO60panc2nd/results/v3/pln_blocks.csv",
-    "qupath_manifest": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler/data/qupath_manifest.json"
+    "qupath_manifest": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler/data/qupath_manifest_v3.json"
   },
   "releases_root": "/data/io60-current/releases",
   "snakemake": "/data/envs/mplx5k-graph/bin/snakemake",
