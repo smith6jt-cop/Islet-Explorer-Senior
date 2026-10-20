@@ -1,0 +1,8 @@
+schema: multiplex5000-profile/1
+kind: platform
+id: phenocycler
+display_name: PhenoCycler
+# Full-resolution pixel size of the IO60 qptiffs.
+pixel_size_um: 0.5078
+sources:
+  pixel_size_um: apps/islet/config/run20_default.yml pixel_size_um (the QuPath preflight declares the same)

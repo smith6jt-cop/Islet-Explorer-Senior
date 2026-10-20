@@ -1,0 +1,23 @@
+schema: multiplex5000-profile/1
+kind: tissue
+id: pancreatic_lymph_node
+display_name: pancreatic lymph node
+aliases: [pancreatic_lymph_node, pln, lymph_node, ln, pancreatic_ln, panc_lymph_node]
+roi_prefixes: [pln, ln]
+# No lymph-node directory in core/panels: the shared identity pool is the right answer.
+panel_tissue_dir: null
+tissue_only_panels: []
+# No structure level: lymph nodes have no islets, and follicles are deliberately not enabled
+# (see the docstring of phenocycler/integration/tissues.py).
+structures: []
+comparable_lineages: [Stromal, Vascular, T_NK, B_Plasma, Myeloid]
+# Node membership and the lymph-node typing (typed against the LN phenotyping sheets, ruled
+# 2026-10-19). Written in phase D6.
+plugin: lymph_node
+sources:
+  display_name: phenocycler/integration/tissues.py DISPLAY_NAME
+  aliases: phenocycler/integration/tissues.py normalize()
+  roi_prefixes: phenocycler/integration/tissues.py ROI_PREFIX_TO_TISSUE
+  panel_tissue_dir: phenocycler/integration/tissues.py PANEL_TISSUE_DIR
+  structures: phenocycler/integration/tissues.py STRUCTURE_KINDS
+  comparable_lineages: phenocycler/integration/tissues.py COMPARABLE_LINEAGES
