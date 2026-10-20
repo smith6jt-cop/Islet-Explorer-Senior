@@ -104,3 +104,8 @@ logs/
 NEEDS.md
 FIX.md
 BRIEF.md
+
+# Generated trees inside a checkout (v3 results/, PDF output/, spreadsheets outputs/); never committed.
+/results/
+/output/
+/outputs/
