@@ -1,0 +1,14 @@
+schema: multiplex5000-project/1
+id: io60
+# The release this project builds. It stays a candidate until D7 makes a release active.
+release: io60-candidate-1
+# The 25 donors of the 10-19 typing, on the v3 re-segmentation (maintainer, 2026-10-20).
+cohort: io60_v3
+# The stages this release runs, in the plan's order. Only built stages can be named.
+stages: [00_inventory]
+# Stages whose gate accepts itself when every blocking check passes: none (maintainer,
+# 2026-10-20, Gate D). Every stage waits for acceptance.
+automatic_gates: []
+settings:
+  # Where xenium_paths.csv's relative bundle paths resolve (config.ini [integration] xenium_root).
+  xenium_root: /data/xenium

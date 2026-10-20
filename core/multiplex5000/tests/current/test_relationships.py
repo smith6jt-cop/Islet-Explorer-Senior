@@ -197,12 +197,9 @@ def test_what_nobody_recorded_is_unknown_with_the_reason(sources):
                                                    "pln_blocks: not named by this site"}
 
 
-#: Disagreements between the real sources that are known and explained. A new one fails here
-#: until someone has looked at it.
-KNOWN = {
-    ("6457", "same_block pLN: the notes and pln_blocks.csv"):
-        "6457 is centrally excluded and was never processed, so no pln_blocks row was made",
-}
+#: The known disagreements are kept once, beside the reader; a new one fails here until someone
+#: has looked at it.
+KNOWN = R.KNOWN_DISAGREEMENTS
 
 
 @pytest.mark.data

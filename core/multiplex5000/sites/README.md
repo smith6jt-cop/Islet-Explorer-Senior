@@ -17,7 +17,9 @@ D1).
 | `site` | yes | the machine's name, reported by `make env-check` |
 | `data_root` | yes | absolute path of the repository-level `data/` tree (`data/development` lives under it) |
 | `layers_dir` | no | absolute path of the app layer artifacts; `$ISLET_LAYERS_DIR` still wins when set |
-| `sources` | no | recorded sources that live outside the repository, by name: `donor_notes` (the maintainer's donor notes; only their donor and post-Xenium IF sections are read), `donor_notes_copy` (the repo-root copy, compared with it) and `pln_blocks` (`results/v3/pln_blocks.csv`). Read by `multiplex5000.relationships`; a source the site does not name is unknown, not absent |
+| `sources` | no | recorded sources that live outside the repository, by name: `donor_notes` (the maintainer's donor notes; only their donor and post-Xenium IF sections are read), `donor_notes_copy` (the repo-root copy, compared with it), `pln_blocks` (`results/v3/pln_blocks.csv`) and `qupath_manifest` (the generated, untracked QuPath manifest in the main checkout). Read by `multiplex5000.relationships`; a source the site does not name is unknown, not absent |
+| `releases_root` | no | where releases are built, one folder per release (D3); default `/data/io60-current/releases`; `$MPLX5K_RELEASES_ROOT` still wins when set |
+| `snakemake` | no | the `snakemake` of the graph's own environment (`requirements-graph.txt`), for `mplx5k graph`; else the one on PATH |
 | `note` | no | free text |
 
 Files here are templates, one per machine; copy the right one to `~/.config/multiplex5000/site.json`.

@@ -1,0 +1,18 @@
+schema: multiplex5000-profile/1
+kind: cohort
+id: io60_v3
+platform: phenocycler
+tissues: [pancreas, pancreatic_lymph_node]
+# The 25 donors of the 10-19 typing (typing-20261019) on the v3 re-segmentation
+# (qupath-0.7.0__instanseg-fluorescence_nuclei_and_cells-0.1.1__v3-13ch) and its exports under
+# /home/smith6jt/IO60panc2nd/results/v3/export. The release reads this cohort. io60_phenocycler
+# (23 donors, the earlier segmentation) stays only for the app and the old pipeline until D4 and
+# D11 move them; then it goes (maintainer, 2026-10-20).
+membership: core/multiplex5000/cohort-spec-v3.json
+exclusions: multiplex5000.cohort.DONOR_EXCLUSIONS
+# The same labels as io60_phenocycler's, confirmed by the maintainer on 2026-10-20; they stay here
+# when that profile goes.
+donor_aliases:
+  "112": "0112"
+  HDL112: "0112"
+  HDL115: "115"

@@ -1,0 +1,9 @@
+# The Snakemake environment of MultiPlex5000 (D3, 2026-10-20). It runs the graph and nothing else;
+# every stage runs in the MultiPlex5000 environment, whose interpreter `mplx5k graph` passes in.
+# Kept apart because Snakemake's own pins (packaging<26, docutils>=0.20,<0.23) clash with that
+# environment's. Pinned, each release over a month old. Python 3.11 or newer.
+#
+#   python3.12 -m venv /data/envs/mplx5k-graph
+#   /data/envs/mplx5k-graph/bin/python -m pip install -r core/multiplex5000/requirements-graph.txt
+snakemake==9.27.0
+snakemake-executor-plugin-slurm==2.8.0
