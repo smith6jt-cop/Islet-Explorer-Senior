@@ -12,6 +12,30 @@ or kept unmerged, preserved by an `archive/…` tag), **tag + delete** (an
 or clone, after checking it holds no ignored data), **archive** (a GitHub repository made read-only
 with a pointer README — phase G), **owned** (another session's; not touched here).
 
+## Done on 2026-10-20 (phase C, the parts that do not wait on a merge)
+
+- **Monorepo branches.** 22 branches tagged `archive/branch/<name>-20261019` (pushed): the 19
+  merged ones listed below as tag + delete, plus `v3/ingest`, `v3/ci-repair` and `v3/uniform-pin`.
+  Deleted from GitHub: `fix/serial-registration-tissue-outline`, `stage0/groundwork`, `v3/ingest`,
+  `v3/ci-repair`, `v3/uniform-pin`, and the closed-PR branches `v3/uniform-audit`,
+  `v3/sameslide-islet-metrics`, `v3/qc`, `v3/galectin`, `v3/raw-expression` (each kept by its
+  `archive/pr-*-20261020` tag). Deleted locally: the 19 merged branches, `v3/uniform-pin`,
+  `v3/raw-expression`. Every deletion was checked first: an ancestor of `main`, or covered by a tag.
+- **Worktrees removed** (each clean, holding only caches): `.worktrees/are-you-able-to-see-the-plan-and`,
+  `/scratch/io60/work/senior-main`, `senior-pr17`, `senior-raw`.
+- **Remote `hpg` removed** (its only ref, 990c5b2, is recorded in the A1 bundles); `origin` is the
+  one remote.
+- **IO60panc2nd-v3:** PRs #2 and #3 closed and tagged (`archive/pr-2-driver-20261020`,
+  `archive/pr-3-islet-method-20261020`) after re-checking that every shared file was changed later on
+  the plan branch and that #3's one unique file is the detector e3a43f2 withdrew; `v3/plan-2026-10-01`
+  pushed and opened as **PR #4** into main (a fast-forward, 50 ahead, 0 behind); its worktrees
+  `/scratch/io60/work/wt-{benchmark,driver,islet}` removed, after confirming `wt-islet`'s five
+  untracked step-1c files are byte-identical on `preserve/wt-islet-20261019`.
+
+Still waiting: the merges of #25, #26 (after #25), #27, #28 and IO60panc2nd-v3 #4; then
+`v3/typing-inputs`, `analysis/cohesive-finish` and the `consolidate/*` branches are tagged and
+removed, and that repository's remaining `v3/*` branches likewise.
+
 ## Gate B answers (maintainer, 2026-10-20)
 
 **Merge none of the four draft PRs as written; tag and close them, and carry the useful pieces into
