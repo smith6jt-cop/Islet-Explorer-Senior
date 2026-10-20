@@ -11,7 +11,8 @@
 #   make geojson-outline REFUSES unless GO=1; the on-demand 61 GB GeoJSON outline pass, which
 #                        writes data/development/typing/geometry (DONORS="115 6374" to limit)
 #   make rebuild         REFUSES unless GO=1; then build_layers.py --run (skips fresh nodes)
-#   make env-check       the .venv resolves phenocycler to THIS checkout and no script names another
+#   make env-check       the environment (PY=, default .venv) resolves phenocycler to THIS checkout,
+#                        no script names another, and where the data roots come from (site file)
 #   make lock            regenerate requirements.lock from the .venv (pip freeze, editables excluded)
 #   make producers       print docs/PRODUCERS.md: the one declared producer per tissue x modality
 #
