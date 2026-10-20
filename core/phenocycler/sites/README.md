@@ -1,0 +1,51 @@
+# Site files
+
+A site file says where a machine keeps its **data**, so that which checkout the code is installed
+from never decides which data it reads. `phenocycler/roots.py` reads it (MultiPlex5000 plan, phase
+D1).
+
+- **Where it is looked for:** the file named by `$MPLX5K_SITE_FILE`, else
+  `~/.config/multiplex5000/site.json`. With neither, the data roots fall back to the checkout's own
+  `data/` and a `SiteFallbackWarning` says so — the right behaviour for CI and a fresh clone.
+- **What is refused:** a named file that is missing, unreadable JSON, a different `schema`, a
+  relative `data_root`, or a `data_root` that is not a directory. An explicit setting that cannot
+  be honoured is an error, never a fallback.
+- **Format** (`"schema": "multiplex5000-site/1"`):
+
+| key | required | meaning |
+|---|---|---|
+| `site` | yes | the machine's name, reported by `make env-check` |
+| `data_root` | yes | absolute path of the repository-level `data/` tree (`data/development` lives under it) |
+| `layers_dir` | no | absolute path of the app layer artifacts; `$ISLET_LAYERS_DIR` still wins when set |
+| `note` | no | free text |
+
+Files here are templates, one per machine; copy the right one to `~/.config/multiplex5000/site.json`.
+They hold paths only — no accounts, credentials or scientific settings. Tracked inventories
+(`core/phenocycler/data/integration`) are not site data: they are versioned with the code and follow
+the checkout.
+
+| file | machine |
+|---|---|
+| `sn4622120742.json` | the workstation |
+
+A HiPerGator file is written when the HPG lane moves onto MultiPlex5000 (phase F).
+
+## The MultiPlex5000 environment
+
+The repo `.venv` is shared by several checkouts and, since 2026-10-03, imports `phenocycler` from
+the v3 worktree (`make env-check` reports WRONG CHECKOUT). Rather than reinstall it under the
+sessions still using it, phase D1 builds a second environment at a new path, with this checkout
+installed editable:
+
+```bash
+/usr/bin/python3.12 -m venv /data/envs/multiplex5000
+/data/envs/multiplex5000/bin/python -m pip install "pip==26.2.1"
+/data/envs/multiplex5000/bin/python -m pip install -r requirements-multiplex5000.lock
+/data/envs/multiplex5000/bin/python -m pip install --no-deps -e core/phenocycler
+make env-check PY=/data/envs/multiplex5000/bin/python
+```
+
+`requirements-multiplex5000.lock` is `requirements.lock` without the three pins its header names
+(the retired dct lane, which cannot be installed from it, and the TissUUmaps viewer fork, which
+stays in the repo `.venv`). Run anything in this repository with this interpreter by passing
+`PY=` to `make`, for example `make test-fast PY=/data/envs/multiplex5000/bin/python`.

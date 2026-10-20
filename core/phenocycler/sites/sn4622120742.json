@@ -1,0 +1,7 @@
+{
+  "schema": "multiplex5000-site/1",
+  "site": "sn4622120742",
+  "data_root": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/data",
+  "layers_dir": "/data/islet_layers",
+  "note": "The workstation. data_root is the MAIN checkout's gitignored data/ tree, whichever checkout or worktree the code runs from. Install as ~/.config/multiplex5000/site.json, or name it with $MPLX5K_SITE_FILE."
+}
