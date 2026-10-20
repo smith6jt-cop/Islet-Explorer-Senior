@@ -137,8 +137,16 @@ def _undeclared(opened: set, inputs: list[Input], staging: Path) -> list[str]:
             continue
         if any(path == root or path.startswith(root.rstrip("/") + "/") for root in free):
             continue
+        if _is_package_metadata(path):
+            continue
         out.append(path)
     return out
+
+
+def _is_package_metadata(path: str) -> bool:
+    """A distribution's own metadata (``*.dist-info``, or the ``*.egg-info`` an editable install
+    leaves beside its source), which importlib reads whenever entry points are scanned."""
+    return any(part.endswith((".dist-info", ".egg-info")) for part in Path(path).parts[:-1])
 
 
 # ----------------------------------------------------------------------------- the task ----

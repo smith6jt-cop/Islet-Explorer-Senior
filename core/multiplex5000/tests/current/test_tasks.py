@@ -123,6 +123,19 @@ def test_reading_a_file_the_stage_did_not_declare_fails_it(tmp_path):
     assert not (project.release_dir / "s1").exists()
 
 
+def test_package_metadata_is_not_an_input_but_a_file_beside_it_is(tmp_path):
+    """An editable install leaves ``<name>.egg-info`` beside its source, and scanning entry points
+    reads it; that is the package describing itself, not data the stage depends on."""
+    metadata = tmp_path / "multiplex5000.egg-info"
+    metadata.mkdir()
+    (metadata / "entry_points.txt").write_text("[console_scripts]\n")
+    beside = _source(tmp_path, "beside.csv")
+    opened = {("read", os.path.realpath(metadata / "entry_points.txt")),
+              ("read", os.path.realpath(beside))}
+    stray = tasks._undeclared(opened, [], tmp_path / "staging")
+    assert stray == [os.path.realpath(beside)]
+
+
 def test_asking_for_an_undeclared_input_by_name_fails(tmp_path):
     task = tasks.Task("s1", "r1", tmp_path, {})
     with pytest.raises(tasks.TaskError, match="did not declare"):
