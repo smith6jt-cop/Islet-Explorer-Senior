@@ -63,11 +63,13 @@ jobs:
       - name: Install the pip-only test closure
         run: |
           python -m pip install --upgrade pip
-          pip install pytest numpy pandas anndata zarr
+          pip install pytest numpy pandas pyarrow anndata zarr
       - name: Dependency preflight
         # test_xenium_explorer_export.py:19-20 importorskips anndata and zarr. A missing one
         # would skip that whole file and still print green; fail here by name instead.
-        run: python -c "import anndata, zarr; print('preflight OK')"
+        # test_pln_v3_denominators.py writes parquet (:171, :303), which pandas cannot do
+        # without pyarrow.
+        run: python -c "import anndata, zarr, pyarrow; print('preflight OK')"
       - name: Test suite
         # analysis/xenium/pyproject.toml:15-17 already sets testpaths = ["tests"] and
         # addopts = "-q"; a second -q would suppress the summary line (Makefile:84). pytest's
