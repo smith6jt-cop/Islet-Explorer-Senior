@@ -96,9 +96,16 @@ under the repo-root `data/development/` — a level above `core/`.
 
 ## Cell typing, as it stands
 
-The current typing is the **subpanel classification**: context from QuPath objects, then one
-question per context answered by the markers that can answer it, against reference levels drawn from
-the ordinary tissue.
+There is **one class per cell, reached in two steps** (maintainer, 2026-10-19). First, cells are
+put in large groups by identifying features that a priori knowledge makes mutually exclusive; then
+the full marker set is used in targeted ways inside each group. `cell_class` and `refined_class` are
+the two steps' columns on disk, not two classes: never offer them as alternatives, compare them as
+two calls, or search unsupervised for impossible combinations the exclusive features already rule
+out.
+
+The first step is the **subpanel classification**: context from QuPath objects, then one question
+per context answered by the markers that can answer it, against reference levels drawn from the
+ordinary tissue.
 
 A **reference level** is the p99 of that marker set's max over the reference population — that
 donor's cells in no pixel-classified object and outside every islet — and it is **fitted per
@@ -145,8 +152,8 @@ with the chain applied to all 20 donors — **25,230,109 cells**, `cell_class` e
 408,934 · elongation 29,047 · hormone 190,571) and `islet_stratum` (`1` / `2-3` / `4-10` / `>10`),
 and the endocrine triple is Beta 235,046 / Alpha 294,496 / Delta 99,010. The row count equals the
 2026-09-15 pre-chain build's, so a count cannot tell the two apart; `islet_route` can. On 2026-09-24
-the `--refine` join rewrote every partition to add `refined_class` and the pass's columns beside
-`cell_class`; the count, the triple and the routes were unchanged by it. On 2026-09-26 donor 6374
+the `--refine` join rewrote every partition to add the second step's result, `refined_class`, and
+its per-cell columns; the count, the triple and the routes were unchanged by it. On 2026-09-26 donor 6374
 alone was retyped (crossed fraction → `subpanel.py` → build → refine → join) on its re-exported
 Nerve / Blood vessel / Lymphatic objects: 2,477 of its 2,132,181 cells changed `cell_class`, the
 other 19 donors are identical row for row, and the numbers above are that build's. `RECONSTRUCTION.md`
@@ -173,24 +180,23 @@ counts in the error.
   `typing/app` artifact reads `typing/immune`** — the four app builders contain no reference to it,
   and coverage comes from each builder's own `COHORT.resolve`. The `grid_composition` layer does, for
   `fine.csv` (`scripts/senior/build_grid_composition.py:585`).
-- **The refinement pass is part of the typing, through the `--refine` join only (ruled
-  2026-09-23).** `scripts/typing/refine.py` (concordance / demotion / immune leaf, documented in
-  `REFINEMENT.md`) writes a keyed sidecar under `data/development/typing/refine`, and
-  `build_cells.py --refine` joins `refined_class` and the pass's per-cell columns **beside**
-  `cell_class`; the islet chain's `cell_class`, `is_endocrine` and `endocrine_route` are not
-  touched. Its marker set is 54, not 21, and its 5th-percentile bound demotes about 5% of every
-  class by construction — not revisited by the ruling. **[ON DISK] the join ran 2026-09-24** on
-  all 20 partitions (rerun 2026-09-26 with 6374's retyping), and every layer and app artifact was
-  rebuilt from the joined tree on 2026-09-26 (Step 7, `make check` 24 fresh) — but every builder
-  still reads `cell_class`, so what they serve is the islet chain's class, not `refined_class`.
-  Whether any builder should read `refined_class` instead touches the islet chain, so it is
-  asked, never inferred.
-- **The ninth class is declared; only the join produces it.** `Unresolved (no lineage evidence)`
-  is in `apps/islet/config/run20_default.yml`; `refine.py` writes it into `refined_class` for a
-  demoted Exocrine cell, never into `cell_class`. Since the join, 1,063,097 cells carry it in
-  `refined_class` and none in `cell_class`.
-- Still open, and not to be resolved in prose: which class the builders serve now that the join
-  has run, elongation's weight, and the size stratification. `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
+- **The refinement is the typing's second step, not a second class** (part of the typing,
+  2026-09-23; part of the phenotyping, 2026-10-17; "the two designations are just steps to the
+  same result", 2026-10-19). `scripts/typing/refine.py` (documented in `REFINEMENT.md`) reads each
+  group's cells with the full marker set — 54 markers, not 21 — and writes a keyed sidecar under
+  `data/development/typing/refine`; `build_cells.py --refine` joins its result, `refined_class`,
+  and its per-cell columns into the partition. The first step's `cell_class`, `is_endocrine` and
+  `endocrine_route` are not touched. Its 5th-percentile bound demotes about 5% of every group by
+  construction — not revisited by the ruling. **[ON DISK] the join ran 2026-09-24** on all 20
+  partitions (rerun 2026-09-26 with 6374's retyping), and every layer and app artifact was rebuilt
+  from the joined tree on 2026-09-26 (Step 7, `make check` 24 fresh) — but every builder still
+  reads `cell_class`, the first step's column, so what they serve is not yet the finished class.
+  Pointing them at the result is a code change that has not been made.
+- **`Unresolved (no lineage evidence)` is a value only the second step reaches.** It is declared in
+  `apps/islet/config/run20_default.yml`; `refine.py` writes it for a demoted Exocrine cell, so
+  since the join 1,063,097 cells carry it in `refined_class` and none in `cell_class`.
+- Still open, and not to be resolved in prose: elongation's weight and the size stratification.
+  `islet_identity_mixture.py` was run for the first time on 2026-09-18 (20 donors,
   outputs under `data/development/typing/islet_identity/`); in the large stratum 14 of 20 donors
   were testable, and CD99 is the strongest feature at 5 of 10 donors firing. That is evidence about
   the question, not an answer to it.
@@ -210,7 +216,7 @@ Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `
 
 | tissue × modality | producer | writes |
 |---|---|---|
-| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — `cell_class`, and `refined_class` beside it (joined 2026-09-24; builders read `cell_class`) |
+| pancreas × PhenoCycler | `core/phenocycler/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — one class in two steps: `cell_class` (the groups), then `refined_class` (the result, joined 2026-09-24); builders still read `cell_class` |
 | pancreas × Xenium | `analysis/xenium/scripts/panc_xenium_cluster_name.py`, run by `panc_xenium_release.py` | `/data/xenium_typing/panc_2026-09-17/release` — `lineage`, `common_lineage` |
 | pLN × Xenium | `analysis/xenium/scripts/pln_immune_typing_v3.py` | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
 | pLN × PhenoCycler | `core/phenocycler/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
@@ -218,7 +224,10 @@ Authoritative documentation, all relative to `core/phenocycler/`: `README.md`, `
 Everything else that writes a class column is retired, quarantined or a declared library;
 `docs/PRODUCERS.md` has each one with its evidence, and
 `core/phenocycler/tests/current/test_declared_producers.py` holds the graph to these four. The
-same-slide lane (6533, 0112) is typed on its own and is not one of them.
+same-slide lane (four donors, `core/phenocycler/scripts/sameslide/`) types nothing and is not one
+of them: it transfers each tissue's class, typed on the workstation and delivered keyed by
+`object_id`. Every cell is typed; a cell type the lymph node shares with the pancreas is typed by
+the pancreas methods (maintainer, 2026-10-19).
 
 ## The app
 

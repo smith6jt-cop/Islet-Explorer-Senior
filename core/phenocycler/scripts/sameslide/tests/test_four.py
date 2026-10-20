@@ -135,3 +135,205 @@ def test_join_dominant_partner_breaks_ties_by_uuid():
     ids,share=dominant_partner(pd.Index(['x','y','z']),edges)
     assert ids[:2].tolist()==['a','d'] and pd.isna(ids[2])
     assert share[:2].tolist()==[.5,.75] and np.isnan(share[2])
+
+
+def test_delivery_checksums_and_donor_spelling(tmp_path):
+    import import_alignment as IA
+    (tmp_path/'a.json').write_text('{}')
+    digest=workflow.sha(tmp_path/'a.json')
+    (tmp_path/'SHA256SUMS').write_text(f'{digest}  ./a.json\n{"0"*64}  ./b.json\n')
+    sums=IA.checksums(tmp_path)
+    assert IA.verified(tmp_path,'a.json',sums)['sha256']==digest
+    (tmp_path/'b.json').write_text('{}')
+    with pytest.raises(ValueError):IA.verified(tmp_path,'b.json',sums)
+    assert IA.delivery_donor(['0112','115','6347'],'112')=='0112'
+    with pytest.raises(ValueError):IA.delivery_donor(['115'],'112')
+
+
+def test_alignment_frames_never_share_a_column():
+    import import_alignment as IA
+    lane=pd.DataFrame({'object_id':['p','n','gone'],'qc_analysis_eligible':[True,True,True],
+                       'nucleus_area_um2':[10.,10.,10.]})
+    cohort=pd.DataFrame({'object_id':['p','n'],'qc_analysis_eligible':[True,True],'cell_region':['tissue','pLN'],
+                         'islet_num':['',''],'in_alignment_block':[True,False],'CD3e':[5.,np.nan]})
+    node=pd.DataFrame({'object_id':['n'],'qc_analysis_eligible_with_nucleus':[True],'annotation_uuid':['u'],'CD3e':[7.]})
+    t=IA.frame_table(lane,cohort,node,['CD3e'],['CD3e']).set_index('object_id')
+    assert t.alignment_frame.tolist()==['pancreas_cohort','pln_tissue','']
+    assert t.loc['p','CD3e']==5 and np.isnan(t.loc['p','pln__CD3e'])
+    assert np.isnan(t.loc['n','CD3e']) and t.loc['n','pln__CD3e']==7
+    # A prepared cell the delivery lacks is unavailable, never zero, and never eligible.
+    assert t.loc['gone',['CD3e','pln__CD3e']].isna().all() and not t.loc['gone','analysis_eligible']
+    both=node.assign(object_id='p')
+    with pytest.raises(ValueError):IA.frame_table(lane,cohort,both,['CD3e'],['CD3e'])
+
+
+def test_join_records_contributing_frames():
+    from join_four import frame_of_cells
+    xi=np.array([0,0,1,2,2]);frames=np.array(['pancreas_cohort','pancreas_cohort','pln_tissue','pln_tissue','pancreas_cohort'])
+    assert frame_of_cells(xi,frames,4).tolist()==['pancreas_cohort','pln_tissue','mixed','']
+    # The same rule names the tissue a cell's contributors lie in: a node a pancreas region images is pLN.
+    tissue=np.array(['pancreas','pancreas','pLN','pLN','pancreas'])
+    assert frame_of_cells(xi,tissue,4,('pancreas','pLN')).tolist()==['pancreas','pLN','mixed','']
+
+
+def test_delivered_calls_read_by_donor_spelling_and_refuse_duplicates(tmp_path):
+    import calls_four
+    pd.DataFrame({'donor_id':['0112','0112','6580'],'object_id':['a','b','c'],'cell_class':['Beta','Excluded','Immune']}
+                 ).to_parquet(tmp_path/'calls.parquet')
+    calls,records=calls_four.delivered_calls(tmp_path,'112')
+    assert calls.object_id.tolist()==['a','b'] and len(records)==1
+    with pytest.raises(ValueError):calls_four.delivered_calls(tmp_path,'6347')
+    pd.DataFrame({'donor_id':['0112'],'object_id':['a'],'cell_class':['Alpha']}).to_parquet(tmp_path/'again.parquet')
+    with pytest.raises(ValueError):calls_four.delivered_calls(tmp_path,'112')
+
+
+def test_one_class_and_its_levels_only_inside_their_group(tmp_path):
+    import calls_four
+    t=pd.DataFrame({'object_id':list('abcd'),'refined_class':['Immune','Exocrine','Immune',None],
+                    'immune_class':['Imm-T-cell','Imm-macrophage',None,None]})
+    out,record=calls_four.one_class(t,'refined_class',{'Immune':['immune_class']})
+    # One class column; a subclass outside its group is dropped, a group without one stays unresolved.
+    assert out.call.tolist()[:3]==['Immune','Exocrine','Immune'] and pd.isna(out.call.iloc[3])
+    assert out.immune_class.tolist()[0]=='Imm-T-cell' and out.immune_class.iloc[1:].isna().all()
+    assert record['immune_class']=={'group':'Immune','set_outside_group':1,'missing_inside_group':1}
+    for kind,rows in (('pancreas',['a']),('nodes',['b'])):
+        (tmp_path/kind).mkdir();pd.DataFrame({'donor_id':['0112'],'object_id':rows}).to_parquet(tmp_path/kind/'data.parquet')
+    assert calls_four.delivered_calls(tmp_path,'112','pancreas')[0].object_id.tolist()==['a']
+
+
+def test_each_targeted_level_belongs_to_one_table():
+    import calls_four
+    ok={'tables':{'pancreas':{'tissue':'pancreas','class_column':'refined_class','within':{'Immune':['immune_class']},'carry':['producer']},
+                  'nodes':{'tissue':'pLN','class_column':'immune_class','within':{'T_cell':['t_nk_class']},'carry':['producer']}}}
+    assert set(calls_four.table_specs(ok))=={'pancreas','nodes'}
+    with pytest.raises(ValueError):calls_four.table_specs({'tables':{'a':{'within':{'X':['level']}},'b':{'within':{'Y':['level']}}}})
+    with pytest.raises(ValueError):calls_four.table_specs({'tables':{'a':{'within':{'X':['level']}},'b':{'carry':['level']}}})
+
+
+def test_node_cells_without_a_class_are_counted_by_the_producers_reason():
+    import nodes_four
+    out=nodes_four.why(['T_cell','','','','Uncalled',None],[True,False,pd.NA,True,True,None],{'','Uncalled'})
+    assert out[0]=='' and out[1].startswith('not immune') and out[2]=='no lineage marker named'
+    assert out[3]=='immune, no label' and out[4].startswith('Uncalled') and out[5]=='protein call unavailable'
+
+
+def test_node_depth_is_positive_inside_and_negative_outside():
+    import shapely
+    import nodes_four
+    d=nodes_four.depth(np.array([[50.,50],[10,50],[-5,50]]),shapely.box(0,0,100,100))
+    assert np.allclose(d,[50,10,-5],atol=nodes_four.EDGE_STEP_UM/2)
+
+
+def test_node_summaries_apply_to_a_pancreas_section_that_imaged_a_node(tmp_path):
+    import completion_four as C
+    panc={'section_id':'1/panc/9','donor_id':'1','roi':'panc','xenium_serial':'9','tissue':'pancreas','design':'same_slide'}
+    assert C.applies(tmp_path,panc,'islets') and not C.applies(tmp_path,panc,'node_summaries')
+    calls=C.receipt_path(tmp_path,panc,'calls');calls.parent.mkdir(parents=True)
+    calls.write_text(json.dumps({'summary':{'status_by_winning_tissue':{'pancreas|awarded':5}}}))
+    assert not C.applies(tmp_path,panc,'node_summaries')
+    calls.write_text(json.dumps({'summary':{'status_by_winning_tissue':{'pancreas|awarded':5,'pLN|awarded':2}}}))
+    assert C.applies(tmp_path,panc,'node_summaries')
+    pln={**panc,'roi':'pln_1','tissue':'pancreatic_lymph_node'}
+    assert C.applies(tmp_path,pln,'node_summaries') and not C.applies(tmp_path,pln,'islets')
+
+
+def test_figure_call_status_covers_every_cell_and_names_the_gate_windows():
+    import figures_four as F
+    summary={'n_xenium_cells':100,'status_by_winning_tissue':{'pancreas|awarded':50,'pLN|awarded':20,'none|unavailable':4,
+             'pLN|unavailable':1,'pancreas|not_a_class':2,'pLN|not_a_class':23},
+             'not_a_class_by_label':{'pancreas|Excluded|nan':2,'nodes|""|False':15,'nodes|""|<NA>':3,'nodes|Uncalled|True':5}}
+    s=F.call_status(summary)
+    assert abs(sum(s.values())-1)<1e-12 and s['node: not immune']==.15 and s['no protein partner']==.04
+    with pytest.raises(ValueError):F.call_status({**summary,'n_xenium_cells':101})
+    assert F.short('only 7/14 islets (50%) were measurable; a verdict needs 60%')=='DAPI gate: 7 of 14 windows measurable, a verdict needs 60%'
+    assert F.short('join: registration: no overlap; registration_recheck: x')=='no overlap'
+
+
+def test_figure_writes_a_part_too_thin_to_see_beneath_its_bar():
+    import matplotlib.pyplot as plt
+    import figures_four as F
+    assert [F.share_text(w) for w in (.0014,.01,1/13034,.45)]==['0.14 %','1 %','0.0077 %','45 %']
+    fig,ax=plt.subplots()
+    F.stacked(ax,[{'Exocrine':.9986,'Lymphatic':.0014},{'Exocrine':.995,'Nerve':.005,'Lymphatic':0.},{'Exocrine':.98,'Nerve':.02},None],
+              ['Exocrine','Lymphatic','Nerve'],{'Exocrine':'k','Lymphatic':'m','Nerve':'y'},names={'Nerve':'nerve'})
+    assert [t.get_text() for t in ax.texts]==['under 1 %: Lymphatic (0.14 %)','under 1 %: nerve (0.5 %)']
+    plt.close(fig)
+
+
+def test_islet_regions_come_from_the_signed_distance():
+    import shapely
+    import islets_four as I
+    polys=np.array([shapely.box(0,0,100,100),shapely.box(300,0,310,10)])
+    xy=np.array([[50.,50],[99,50],[110,50],[120.5,50],[305,5],[200,50]])
+    d,idx=I.signed_distance(xy,polys)
+    assert np.allclose(d,[-50,-1,10,20.5,-5,100]) and idx.tolist()==[0,0,0,0,1,0]
+    # Core or tissue, as the approved pipeline: no expansion, however close to the outline.
+    assert I.region_of(np.array([-3.,0,.01,20,20.01])).tolist()==['core','core','tissue','tissue','tissue']
+    # Coverage reads the outline alone: a fully imaged object reads 1, one imaged on one side only less.
+    grid=np.array([[x,y] for x in range(0,101,5) for y in range(0,101,5)],float)
+    assert I.coverage(polys[:1],grid)[0]==1.0
+    assert I.coverage(polys[:1],grid[grid[:,0]<50])[0]<.6
+    cells=pd.DataFrame({'region':['core','tissue'],'object_class':['Islet','Islet'],'call':['Beta','Exocrine']})
+    assert I.in_object(cells).object_class.isna().tolist()==[False,True]
+
+
+def test_association_auroc_shift_and_quantile_ties():
+    from scipy.stats import rankdata
+    import associate_four as AS
+    v=np.array([1.,2,3,4]);assert AS.auroc(rankdata(v),[0,0,1,1])==1 and AS.auroc(rankdata(v),[1,1,0,0])==0
+    assert AS.auroc(rankdata(np.ones(4)),[0,1,0,1])==.5 and np.isnan(AS.auroc(rankdata(v),[1,1,1,1]))
+    xy=np.array([[0.,0],[25,0],[50,0],[0,40]])
+    assert AS.shifted_partner(xy).tolist()==[1,2,-1,-1]
+    rows=AS.conditional(np.r_[np.zeros(50),np.arange(1.,51)],np.r_[np.zeros(50,bool),np.ones(50,bool)])
+    # Fifty equal values are one bin, never split by row order.
+    assert rows[0]['n']==50 and rows[0]['n_detected']==0 and sum(r['n'] for r in rows)==100
+
+
+def test_comparison_ratios_need_detection_in_both_sections(tmp_path):
+    import compare_sections as CS
+    for design,rates in (('same_slide',[.2,.002,.0]),('xenium_only',[.1,.2,.0])):
+        d=tmp_path/design;d.mkdir()
+        pd.DataFrame({'gene':['A','B','C'],'n_cells':100,'observed_counts':[40,5,0],'signed_excess':[30,1,-1],
+                      'corrected_detection_rate':rates,'raw_detection_rate':rates,'below_section_background':False}
+                     ).to_parquet(d/'gene_summary.parquet')
+    g,one=CS.gene_table({'same_slide':tmp_path/'same_slide','xenium_only':tmp_path/'xenium_only'},{'g':['A','B']})
+    g=g.set_index('gene');assert one=={'same_slide':[],'xenium_only':[]}
+    assert g.loc['A','log2_rate_ratio']==1 and g[['log2_rate_ratio']].loc[['B','C']].isna().all().all()
+    assert g.loc['A','identity_groups']=='g' and g.loc['C','identity_groups']==''
+    groups=CS.identity_groups('pancreas')
+    assert 'pancreas_endocrine' in groups and 'pancreas_exocrine' in groups and 'immune_T_cell' in groups
+    assert 'pancreas_endocrine' not in CS.identity_groups('pancreatic_lymph_node')
+
+
+def test_recheck_reads_the_gate_that_judged_the_transform(tmp_path):
+    import recheck_nuclei as RN
+    (tmp_path/'alignment_four_refined_odd.json').write_text(json.dumps({'alignment':{'threshold_pass_um':1.65}}))
+    (tmp_path/'alignment_other.json').write_text(json.dumps({'alignment':{'threshold_pass_um':9.0}}))
+    assert RN.gate_threshold(tmp_path,'four_refined')[0]==1.65
+    with pytest.raises(ValueError):RN.gate_threshold(tmp_path,'missing')
+
+
+def test_completion_staleness_is_data_not_code_and_never_self(tmp_path):
+    import completion_four as C
+    data=tmp_path/'upstream.json';data.write_text('{}');code=tmp_path/'stage.py';code.write_text('x=1')
+    own=tmp_path/'current.json';own.write_text('{}')
+    r={'inputs':{'up':workflow.identity(data),'code':workflow.identity(code),'source':workflow.identity(own)}}
+    own.write_text('{"rewritten": true}')
+    assert C.changed(r,own=own)==([],[])
+    code.write_text('x=20');assert C.changed(r,own=own)==([],['changed '+tmp_path.name+'/stage.py'])
+    data.write_text('{"new": 1}');assert C.changed(r,own=own)[0]==['changed '+tmp_path.name+'/upstream.json']
+
+
+def test_completion_marks_a_stage_of_the_other_tissue_not_applicable():
+    import completion_four as C
+    assert C.TISSUE_ONLY['islets']=='pancreas' and C.TISSUE_ONLY['node_summaries']=='pancreatic_lymph_node'
+    assert set(C.TISSUE_ONLY)<=set(C.SAME_SLIDE) and 'islets' in C.SECTION_STAGES
+
+
+def test_a_reprepared_segmentation_is_answered_by_the_recheck_not_staleness(tmp_path):
+    import completion_four as C
+    prep=tmp_path/'preparation';prep.mkdir();cur=prep/'current.json';cur.write_text('{}')
+    reg=tmp_path/'registration';reg.mkdir()
+    (reg/'current.json').write_text(json.dumps({'status':'validated_complete','inputs':{'preparation':workflow.identity(cur)}}))
+    cur.write_text('{"re-prepared": true}')
+    assert C.cell(reg/'current.json')['status']=='validated_complete'

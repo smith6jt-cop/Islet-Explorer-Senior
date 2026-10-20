@@ -28,12 +28,13 @@ from the loaded data or the DOMAIN; never write a cohort's size, its donor ids o
 into a string.
 
 **The run cohort's vocabulary has nine entries and eight cell types.** `Unresolved` is the ninth
-entry in `config/run20_default.yml`, and it is an *absence*, not a class: it is what the refinement
-pass (`core/phenocycler/scripts/typing/refine.py`, producer label
-`Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. **No cell carries it
-today**: that pass was ruled in on 2026-09-23 and is wired as the `build_cells.py --refine` join,
-which writes it into `refined_class` beside `cell_class`, and the join has not run on disk; every
-`data/development/typing/app` builder reads `cell_class`, eight classes plus `Excluded`. A tab asks
+entry in `config/run20_default.yml`, and it is an *absence*, not a class: it is what the typing's
+second step (`core/phenocycler/scripts/typing/refine.py`, producer label
+`Unresolved (no lineage evidence)`) writes on a cell demoted out of Exocrine. There is one class per
+cell, reached in two steps; `cell_class` and `refined_class` are the steps' columns, not two classes.
+Since the `build_cells.py --refine` join ran (2026-09-24) the result, `refined_class`, carries it on
+1,063,097 cells, but every `data/development/typing/app` builder still reads `cell_class`, the first
+step's column — eight classes plus `Excluded` — so **no cell the app shows carries it yet**. A tab asks
 `ieCore::ie_absence_phenotypes()` and `ieCore::ie_absence_class_color()` rather than matching the
 string; `tests/testthat/test-ninth-class.R` asserts that pairing. Do not render it as a population,
 and do not report its count as zero — it is declared ahead of its data so a card meets a named

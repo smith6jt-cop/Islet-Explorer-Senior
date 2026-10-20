@@ -69,6 +69,7 @@ def prepare(manifest_path,donor,root):
     if len(entries)!=2:raise ValueError('requires one pancreas and one pLN record')
     ph=entries[0]['pheno'];measurement=Path(ph['measurements']);geo=Path(ph['geometry'])
     inputs={k:identity(ph[k]) for k in ('measurements','geometry')}
+    if ph.get('annotations'):inputs['annotations']=identity(ph['annotations'])
     inputs['source']=identity(__file__)
     receipts={}
     for step in ('0','2','C_cells','C_geojson'):
@@ -86,8 +87,13 @@ def prepare(manifest_path,donor,root):
             'upstream':receipts,'job_id':os.environ.get('SLURM_JOB_ID'),'attempt':str(out)}
     write_json(out/'receipt.json',record)
     try:
-        image=Path(ph['image']).name+' - resolution #1'
-        ann_path,ann_meta=annotations(image,out)
+        if ph.get('annotations'):
+            # A segmentation made at another site comes with that project's own Tissue and pLN
+            # objects; they are read as delivered, never re-exported from this site's project.
+            ann_path=Path(ph['annotations']);ann_meta={'source':'delivered','file':identity(ann_path)}
+        else:
+            image=Path(ph['image']).name+' - resolution #1'
+            ann_path,ann_meta=annotations(image,out)
         px=float(ph['pixel_size_um'])
         anns=json.loads(ann_path.read_text())['features']
         geoms={}

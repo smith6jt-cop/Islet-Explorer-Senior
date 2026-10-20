@@ -6,6 +6,64 @@
   "interpretation": "Descriptive same-donor different-section comparison; acquisition run, age and sex are confounded. No causal treatment-loss estimate.",
   "metadata_source": "/blue/maigan/smith6jt/Islet-Explorer-Senior-main/data/donor_metadata_panc.xlsx",
   "protein_recipe": "IO60panc2nd v3 C: InstanSeg step 0, raw compartment measurements step 2, C_cells, C_geojson; 6533 must complete this recipe before downstream protein analysis.",
+  "protein_alignment": {
+    "ruling": "Maintainer, 2026-10-18: protein is the full-dataset UniFORM alignment run on the workstation (sn4622120742), not this lane's four-acquisition calibration. Different-block nodes are aligned among pLN tissue; the two unit systems are never pooled on one scale.",
+    "cohort": "/blue/maigan/smith6jt/io60_cohort_uniform_20261018",
+    "pln_nodes": "/blue/maigan/smith6jt/io60_pln_node_alignment_20261018"
+  },
+  "protein_calls": {
+    "root": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/calls",
+    "ruling": "Maintainer, 2026-10-19: there is one class. The typing identifies large groups of cells from identifying features that are mutually exclusive by a priori knowledge, then uses the full marker set in targeted ways inside each group; the broad and refined designations are steps to the same result. Each table's class_column holds that result, and no second class column is carried.",
+    "tables": {
+      "pancreas": {
+        "tissue": "pancreas",
+        "class_column": "refined_class",
+        "within": {
+          "Immune": [
+            "immune_class",
+            "immune_subtype"
+          ]
+        },
+        "carry": [
+          "excluded_reason",
+          "endocrine_object_id",
+          "endocrine_object_class",
+          "islet_key",
+          "islet_route",
+          "islet_stratum",
+          "producer"
+        ],
+        "not_a_class": [
+          "Excluded"
+        ],
+        "exposed": {
+          "immune_subtype": "T-CD8 and T-CD4-helper set CD8 against CD4 in one cell. UniFORM's factors are per marker, so on these four donors CD8 is multiplied 3.7-19x as much as CD4; a within-donor step is not ruled (delivery README, 2026-10-19)."
+        }
+      },
+      "nodes": {
+        "tissue": "pLN",
+        "class_column": "immune_class",
+        "within": {
+          "T_cell": [
+            "t_nk_class"
+          ]
+        },
+        "carry": [
+          "is_immune",
+          "typing_status",
+          "stage2_reason",
+          "pln_annotation_id",
+          "block_relationship",
+          "producer"
+        ],
+        "not_a_class": [
+          "",
+          "Uncalled"
+        ],
+        "ruling": "Maintainer, 2026-10-19: 'pLN is not a class it is a tissue that needs to have cell typing done based on the lymph node cell types in the phenotyping spreadsheets for lymph node', and later the same day: 'typing needs to happen for all cells so for cells that exist in both pancreas and lymph node, use the pancreas typing methods.' Delivered so far: build_pln_immune_pheno.py, which 'types immune cells using the lineage marker sets (core/phenocycler/scripts/typing/lineages.py:23) and shared identity panels' (core/panels/data/identity_core), run on the workstation for these four donors. It names immune lineages only, so it is not the finished node typing: every node cell is to be typed, the cell types the node shares with the pancreas by the pancreas typing methods (HANDOFF_2026-10-19.md, item D). Until that arrives the lane carries this table in the pancreas's shape: the lineage immune_class (T_cell, Myeloid, B_Plasma, Granulocyte), with the T/NK subset t_nk_class carried inside T_cell. Not a class: the producer's empty label, on a cell whose cluster read structural (is_immune false) or named no lineage (is_immune null), and Uncalled, an immune cell that no subpanel named (stage2_reason says why). The node table's immune_subtype is the subtype hint of the marker that named the cluster, not the cell's own, and is not carried."
+      }
+    }
+  },
   "sections": [
     {
       "section_id": "112/panc/0081366",
@@ -32,7 +90,10 @@
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
           "note": "Use explicit tissue geometry; no donor-only or row-order selection."
-        }
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.tsv",
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson"
       },
       "registration_candidates": [
         {
@@ -83,7 +144,10 @@
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
           "note": "Use explicit tissue geometry; no donor-only or row-order selection."
-        }
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.tsv",
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0081366_HDL112_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson"
       },
       "registration_candidates": []
     },
@@ -118,17 +182,25 @@
       "pixel_size_um": 0.2125,
       "pheno": {
         "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080870_6533_pLNpanc_Scan3.er.qptiff",
-        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
-        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
-        "status": "pending_v3_export",
+        "measurements": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
         "pixel_size_um": 0.5078,
-        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "provenance": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/sn4622120742",
         "legacy_fallback": false,
         "tissue_selection": {
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
-          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
-        }
+          "note": "2026-10-02 annotation set: Tissue 77be100c and pLN 733e19b4 (different block, three pieces in one object)."
+        },
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "segmentation_source": {
+          "site": "sn4622120742",
+          "ruling": "Maintainer, 2026-10-19: the workstation sends its segmentation of 6347 and 6533 -- the objects the 2026-10-18 cohort alignment and the 2026-10-19 calls are about -- and the lane re-prepares these donors on it. The validated image-to-image transforms are kept and rechecked against the new nuclei with the unchanged gate.",
+          "delivery": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019"
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.tsv"
       },
       "registration_candidates": [
         {
@@ -174,17 +246,25 @@
       "pixel_size_um": 0.2125,
       "pheno": {
         "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080870_6533_pLNpanc_Scan3.er.qptiff",
-        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
-        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
-        "status": "pending_v3_export",
+        "measurements": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cells/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cell_geojson/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "status": "ready",
         "pixel_size_um": 0.5078,
-        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/hpg",
+        "provenance": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/provenance/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1/sn4622120742",
         "legacy_fallback": false,
         "tissue_selection": {
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
-          "note": "Use explicit tissue geometry; no donor-only or row-order selection."
-        }
+          "note": "2026-10-02 annotation set: Tissue 77be100c and pLN 733e19b4 (different block, three pieces in one object)."
+        },
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "segmentation_source": {
+          "site": "sn4622120742",
+          "ruling": "Maintainer, 2026-10-19: the workstation sends its segmentation of 6347 and 6533 -- the objects the 2026-10-18 cohort alignment and the 2026-10-19 calls are about -- and the lane re-prepares these donors on it. The validated image-to-image transforms are kept and rechecked against the new nuclei with the unchanged gate.",
+          "delivery": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019"
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080870_6533_pLNpanc_Scan3.er.qptiff_-_resolution_1.tsv"
       },
       "registration_candidates": [
         {
@@ -235,7 +315,10 @@
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
           "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
-        }
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.tsv",
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson"
       },
       "registration_candidates": []
     },
@@ -280,7 +363,10 @@
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
           "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
-        }
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.tsv",
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080502_6580_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson"
       },
       "registration_candidates": []
     },
@@ -315,17 +401,25 @@
       "pixel_size_um": 0.2125,
       "pheno": {
         "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080579_6347_pLNpanc_Scan1.er.qptiff",
-        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
-        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "measurements": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
         "status": "ready",
         "pixel_size_um": 0.5078,
-        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "provenance": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/sn4622120742",
         "legacy_fallback": false,
         "tissue_selection": {
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
-          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
-        }
+          "note": "2026-10-02 annotation set: Tissue 7580db10 and two pLN objects, ed8f8a13 (different block) and f0939722 (same block); Tissue and pLN do not overlap."
+        },
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "segmentation_source": {
+          "site": "sn4622120742",
+          "ruling": "Maintainer, 2026-10-19: the workstation sends its segmentation of 6347 and 6533 -- the objects the 2026-10-18 cohort alignment and the 2026-10-19 calls are about -- and the lane re-prepares these donors on it. The validated image-to-image transforms are kept and rechecked against the new nuclei with the unchanged gate.",
+          "delivery": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019"
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.tsv"
       },
       "registration_candidates": []
     },
@@ -360,17 +454,25 @@
       "pixel_size_um": 0.2125,
       "pheno": {
         "image": "/blue/maigan/smith6jt/Xenium_Analysis/data/phenocycler/0080579_6347_pLNpanc_Scan1.er.qptiff",
-        "measurements": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
-        "geometry": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "measurements": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cells/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.parquet",
+        "geometry": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/cell_geojson/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
         "status": "ready",
         "pixel_size_um": 0.5078,
-        "provenance": "/blue/maigan/smith6jt/IO60panc2nd_v3/results/v3/export/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/hpg",
+        "provenance": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/segmentation/provenance/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1/sn4622120742",
         "legacy_fallback": false,
         "tissue_selection": {
           "status": "pending_geometry_validation",
           "method": "registered_nuclear_geometry_and_explicit_tissue_regions",
-          "note": "Identify surviving physical section; two pLN annotations; contained pLN overlaps Tissue for 6347."
-        }
+          "note": "2026-10-02 annotation set: Tissue 7580db10 and two pLN objects, ed8f8a13 (different block) and f0939722 (same block); Tissue and pLN do not overlap."
+        },
+        "annotations": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "segmentation_source": {
+          "site": "sn4622120742",
+          "ruling": "Maintainer, 2026-10-19: the workstation sends its segmentation of 6347 and 6533 -- the objects the 2026-10-18 cohort alignment and the 2026-10-19 calls are about -- and the lane re-prepares these donors on it. The validated image-to-image transforms are kept and rechecked against the new nuclei with the unchanged gate.",
+          "delivery": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019"
+        },
+        "islets": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/islets/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.geojson",
+        "islet_table": "/blue/maigan/smith6jt/io60_sameslide_inputs_20261019/annotations/0080579_6347_pLNpanc_Scan1.er.qptiff_-_resolution_1.tsv"
       },
       "registration_candidates": []
     },
