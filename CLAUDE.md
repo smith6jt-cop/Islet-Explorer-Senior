@@ -78,8 +78,9 @@ until phase H, and `core/multiplex5000/data` is a tracked link to it. Documents 
 `multiplex5000.identity.cell_uid(acquisition, segmentation, native id)`; the QuPath UUID stays
 `object_id` and is the native id, and uniqueness is checked, never assumed. Which pieces share a
 section, a block or a slide comes only from what was recorded, through `multiplex5000.relationships`
-(the donor notes' donor and post-Xenium IF sections, `results/v3/pln_blocks.csv`,
-`section_modes.csv`; their paths come from the site file) -- never from co-imaging or a filename.
+(the donor notes' donor lines -- since 2026-10-21 the file holds nothing else; a post-Xenium IF
+section is read where one is present -- `results/v3/pln_blocks.csv`, `section_modes.csv`; their
+paths come from the site file) -- never from co-imaging or a filename.
 `python -m multiplex5000.relationships` prints the transcription and every disagreement and writes
 nothing. Tissue names have one authority, `profiles/tissues/*.yaml`, served by
 `integration/tissues.py`. No stage reads these yet; they are adopted from D4 on.
@@ -96,7 +97,9 @@ declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figure
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
 so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
-its own stage logic until D4.
+its own stage logic until D4. Its coverage shows, beside each pancreas image, the pLN/lymphoid the
+donor notes designate for that pancreas, same-block or different-block, checked against
+`pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
