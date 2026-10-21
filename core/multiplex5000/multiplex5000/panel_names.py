@@ -7,6 +7,8 @@
   ``69MetSI``, and the dedicated pLN slides' panel is ``55 markers``.
 * **Xenium** -- ``5kOnly`` for the predesigned 5K panel alone, or ``5k+<custom genes>(<custom
   panel code>)`` for an add-on panel, e.g. ``5k+100(6KTRAF)``.
+* **post-Xenium IF** -- one panel for every image (maintainer, 2026-10-21): ``INS, GCG, failed
+  marker, AF``. Where an image's channel roles are recorded, they must be that panel.
 
 The facts each rule needs -- which markers are not counted, which single markers carry the sign,
 which markers are the metabolic spike-in, what a predesigned panel is called -- are data in the
@@ -61,3 +63,15 @@ def xenium(record: dict, rule: dict) -> str:
     if not design:
         raise PanelNameError("an add-on panel without a design id")
     return f"{base}+{custom}({design})"
+
+
+def post_xenium_if(rule: dict, roles: Iterable[str] | None = None) -> str:
+    """The post-Xenium IF panel's name. ``roles`` are the channel roles recorded for one image,
+    where any are; a recorded panel that is not the declared one is refused, never renamed."""
+    channels = list(rule["channels"])
+    if roles is not None:
+        recorded = sorted(set(roles) - set(rule["not_named"]))
+        if recorded != sorted(channels):
+            raise PanelNameError(f"the channel roles recorded are {recorded}, not the panel every "
+                                 f"post-Xenium IF image carries, {sorted(channels)}")
+    return ", ".join(rule["written"].get(c, c) for c in channels)

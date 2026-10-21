@@ -13,7 +13,8 @@ import pytest
 
 from multiplex5000 import acquisition_records, panel_names, profiles
 
-RULES = {p: profiles.load_all()[("platform", p)].panel_names for p in ("phenocycler", "xenium")}
+RULES = {p: profiles.load_all()[("platform", p)].panel_names
+         for p in ("phenocycler", "xenium", "post_xenium_if")}
 
 #: The 57 markers every IO60 pancreas panel shares, and DAPI.
 BASE = ["DAPI"] + [f"M{i}" for i in range(55)] + ["IAPP", "Ker8-18"]
@@ -70,3 +71,13 @@ def test_slides_scanned_under_one_experiment_on_one_day_are_one_run():
                _header("d", "Other", "d2", "2026-04-01 15:10:00", "Slide1")]   # another experiment
     runs = acquisition_records.phenocycler_runs(headers)
     assert [[h.path for h in group] for group in runs.values()] == [["a", "b"], ["c"], ["d"]]
+
+
+def test_every_post_xenium_if_image_has_the_one_panel_and_another_is_refused():
+    rule = RULES["post_xenium_if"]
+    assert panel_names.post_xenium_if(rule) == "INS, GCG, failed marker, AF"
+    # as restain_sections.csv records the channel roles: DAPI's is not part of the name
+    assert panel_names.post_xenium_if(rule, ["NUCLEUS", "GCG", "FAILED", "INS", "AF"]) == (
+        "INS, GCG, failed marker, AF")
+    with pytest.raises(panel_names.PanelNameError, match="SST"):
+        panel_names.post_xenium_if(rule, ["NUCLEUS", "GCG", "SST", "INS", "AF"])

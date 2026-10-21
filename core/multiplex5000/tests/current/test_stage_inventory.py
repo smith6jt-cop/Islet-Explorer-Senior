@@ -48,8 +48,8 @@ def test_the_inventory_lists_every_acquisition_by_its_recorded_name(synthetic_pr
     assert acquisitions["phenocycler:6374_Scan1 - resolution #1"]["size_matches_record"] == "True"
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.XENIUM)] == "5k+100(6KTRAF); 2024-01-01 with 6374"
-    assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.POST_XENIUM_IF)] == "IF", (
-        "no channel roles recorded for it")
+    assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.POST_XENIUM_IF)] == (
+        "INS, GCG, failed marker, AF"), "no channel roles recorded for it: the one IF panel"
     kinds = {r["kind"] for r in _rows(folder / "relationships.csv")}
     assert {"same_section", "serial_section", "different_block", "shared_slide"} <= kinds
     assert all(c["passed"] for c in checks.values() if c["blocking"])
@@ -169,7 +169,8 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
                    for v in r.values()), "nothing is left to a question mark or a footnote star"
     assert checks["PhenoCycler slides run alone"]["value"] == ["6374 pLN, 2026-01-09"]
     assert checks["panels, as recorded and named"]["value"] == {
-        "phenocycler": {"2 markers": 1, "2+ CD38": 2}, "xenium": {"5k+100(6KTRAF)": 3}}
+        "phenocycler": {"2 markers": 1, "2+ CD38": 2}, "xenium": {"5k+100(6KTRAF)": 3},
+        "if": {"INS, GCG, failed marker, AF": 1}}
     assert all(c["passed"] for c in checks.values() if c["blocking"])
     assert (folder / "gate" / "runs.png").stat().st_size > 1000
 
@@ -359,3 +360,25 @@ def test_a_xenium_run_on_a_phenocycler_slide_with_no_output_listed_is_shown_and_
     check = checks["Xenium run on a PhenoCycler slide with no output listed"]
     assert check["value"] == ["0112: slide 0041999 (section_modes.csv: the maintainer)"]
     assert not check["blocking"]
+
+
+ROLES = ("image_file,donor_id,roi,xenium_serial,channel_dapi,channel_opal520,channel_opal570,"
+         "channel_opal690,channel_sampleaf\n")
+
+
+@pytest.mark.parametrize("roles, passed", [
+    ("NUCLEUS,GCG,FAILED,INS,AF", True),          # the declared panel, as restain_sections.csv records it
+    ("NUCLEUS,GCG,SST,INS,AF", False),            # another panel: refused, never renamed
+])
+def test_every_post_xenium_if_image_carries_the_one_declared_panel(synthetic_project, roles,
+                                                                    passed):
+    _, folder, checks = _run(synthetic_project(
+        restain_sections__csv=ROLES + f"if_6374.qptiff,6374,panc,0041000,{roles}\n"))
+    acquisition = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}[
+        "if:if_6374.qptiff"]
+    check = checks["every panel is named by its platform's naming rule"]
+    assert check["passed"] is passed
+    if passed:
+        assert acquisition["panel"] == "INS, GCG, failed marker, AF"
+    else:
+        assert "SST" in acquisition["panel_error"] and check["value"][0].startswith("if:if_6374")

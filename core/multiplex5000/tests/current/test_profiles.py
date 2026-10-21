@@ -105,6 +105,16 @@ def test_the_phenocycler_pixel_size_mirrors_the_app_config():
     assert SHIPPED[("platform", "phenocycler")].pixel_size_um == config["pixel_size_um"]
 
 
+def test_the_post_xenium_if_pixel_size_mirrors_restain_sections():
+    import csv
+
+    path = REPO / "core/phenocycler/data/integration/restain_sections.csv"
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(line for line in handle if not line.startswith("#")))
+    declared = SHIPPED[("platform", "post_xenium_if")].pixel_size_um
+    assert rows and {float(r["pixel_size_um"]) for r in rows} == {declared}
+
+
 def test_panels_and_cohorts_reference_their_authority_and_a_known_platform():
     platforms = {i for k, i in SHIPPED if k == "platform"}
     for (kind, _), profile in SHIPPED.items():

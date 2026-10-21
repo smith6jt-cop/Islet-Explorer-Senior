@@ -98,6 +98,8 @@ DESIGNS = {relationships.SEQUENTIAL: "sequential",
 #: projects (every slide there can be another's run partner), and the copies of the records of
 #: Xenium outputs this machine holds only in part.
 QPTIFF_FOLDERS = ("pancreas_qptiffs", "pln_qptiffs")
+#: The platform profile that names each platform's panels.
+PANEL_PROFILES = {"phenocycler": "phenocycler", "xenium": "xenium", "if": "post_xenium_if"}
 XENIUM_RECORDS = ("experiment.xenium", "gene_panel.json", "metrics_summary.csv")
 
 #: Xenium output folders that name a region other than the one their experiment.xenium records,
@@ -254,7 +256,8 @@ def _instrument_records(task: Task) -> dict:
 
 def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
                   records: dict) -> list[dict]:
-    rules = {p: profiles.load_all()[("platform", p)].panel_names for p in ("phenocycler", "xenium")}
+    loaded = profiles.load_all()
+    rules = {p: loaded[("platform", profile)].panel_names for p, profile in PANEL_PROFILES.items()}
     out = []
     spec_images = {i["image_id"] for i in spec.get("images", [])}
     panels = {p["panel_id"]: p for p in manifest.get("panels", [])}
@@ -340,16 +343,19 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
     sections = {r["image_file"]: r for r in _rows(task.input("restain_sections"))}
     for index, row in enumerate(_rows(task.input("restain_registration_inputs")), start=1):
         roles = sections.get(row["image_file"])
-        stains = [roles[c] for c in ("channel_opal520", "channel_opal570", "channel_opal690")
-                  if roles and roles.get(c) and roles[c] not in ("FAILED", "NUCLEUS", "AF")]
+        recorded = [roles[c] for c in roles if c.startswith("channel_") and roles[c]] if roles else []
+        fields = {}
+        try:
+            fields["panel"] = panel_names.post_xenium_if(rules["if"], recorded or None)
+        except panel_names.PanelNameError as err:
+            fields["panel_error"] = str(err)
         out.append(dict(
-            acquisition_id=f"if:{row['image_file']}", platform="if", tissue=PANCREAS,
-            stains=", ".join(stains),
+            acquisition_id=f"if:{row['image_file']}", platform="if", tissue=PANCREAS, **fields,
             roi=row["roi"], donor_id=aliases.get(row["donor_id"], row["donor_id"]),
             donor_label=row["donor_id"], source="restain_registration_inputs", source_row=index,
             path=None, exists=None, xenium_serial=row.get("xenium_serial"),
-            note=("channel roles recorded in restain_sections.csv" if roles
-                  else "no channel roles recorded")))
+            note=("channel roles recorded in restain_sections.csv" if recorded
+                  else "no channel roles recorded; the panel is the one every image carries")))
     return out
 
 
@@ -493,9 +499,11 @@ def _run_text(a: dict) -> str:
 
 
 def _acquisition_text(a: dict) -> str:
-    """What an acquisition's cell says: its panel and its run, or the stains for post-Xenium IF."""
+    """What an acquisition's cell says: its panel and its run. A post-Xenium IF image has no
+    recorded run; its panel's channels go two to a line."""
     if a["platform"] == "if":
-        return a.get("stains") or "IF"
+        channels = a.get("panel", "").split(", ")
+        return "\n".join(", ".join(channels[i:i + 2]) for i in range(0, len(channels), 2))
     return "\n".join(part for part in (a.get("panel", ""), _run_text(a)) if part)
 
 
@@ -664,8 +672,8 @@ def _cell_text(cell: dict | None, column: str, kind: str) -> str:
         return ""
     if cell["missing"]:
         return cell["text"]
-    if kind == "acquisition":
-        text = cell["text"].replace("\n", "; ")
+    if kind == "acquisition":       # an IF panel's channels wrap; a panel and its run are two parts
+        text = cell["text"].replace("\n", ", " if column == POST_XENIUM_IF else "; ")
     elif column in (SAME_BLOCK, DIFFERENT_BLOCK):
         text = f"{cell['text']} pLN"
     else:
@@ -783,7 +791,7 @@ def run(task: Task) -> dict:
                                  for a in acquisitions if a.get("panel_error")),
         "panels": {p: dict(sorted(Counter(a["panel"] for a in acquisitions
                                           if a["platform"] == p and a.get("panel")).items()))
-                   for p in ("phenocycler", "xenium")},
+                   for p in PANEL_PROFILES},
         "xenium_records_missing": sorted(f"{k}: {', '.join(v)}"
                                          for k, v in records["missing"].items()),
         "xenium_records_unreadable": sorted(f"{k}: {v}" for k, v in records["unreadable"].items()
@@ -831,7 +839,7 @@ DAMAGED = "#b3261e"
 _HEADERS = {SAME_BLOCK: "same-block\npLN/lymphoid", DIFFERENT_BLOCK: "different-block\npLN/lymphoid",
             POST_XENIUM_IF: "post-Xenium\nIF"}
 _SECTION_WIDTH = {PANCREAS_SECTION: 0.66, SAME_BLOCK: 0.92, DIFFERENT_BLOCK: 0.92}
-_ACQUISITION_WIDTH = {POST_XENIUM_IF: 0.98}
+_ACQUISITION_WIDTH = {POST_XENIUM_IF: 1.12}
 _GAP, _GROUP_GAP, _ROW, _LINE, _LEFT = 0.3, 0.34, 0.4, 0.118, 1.85
 
 
