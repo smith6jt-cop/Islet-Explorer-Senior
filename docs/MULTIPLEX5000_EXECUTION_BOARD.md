@@ -8,7 +8,7 @@ Do not advance a phase because its PR merely merged.
 
 | Work | Observed state | Exit still required |
 | --- | --- | --- |
-| A, preserve | Ten verified bundles and checksummed untracked-source archives are recorded under `/data/io60-archive/code_bundles_20261019/`. | Recheck the HPG Xenium and KINTSUGI preservation items before any related cleanup. |
+| A, preserve | The ten bundles under `/data/io60-archive/code_bundles_20261019/` pass `git bundle verify`; all 20 entries across its bundle and untracked-source `SHA256SUMS` pass (rechecked 2026-10-21). | Recheck the HPG Xenium and KINTSUGI preservation items before any related cleanup. |
 | B, recover code | Complete per `DISPOSITIONS_2026-10-20.md`; PRs #25–#28 and #30 are merged. | Preserve the recovery manifests and producer receipts during later moves. |
 | C, reconcile branches | Most stale branches were tagged and removed; the `hpg` remote is gone. | External repos and remaining worktrees wait for the later archive and data checks. |
 | D1–D2 | Package rename, site settings, identity and relationships merged in PRs #29 and #31–#33. | Keep the temporary `phenocycler` alias until its callers move. |
