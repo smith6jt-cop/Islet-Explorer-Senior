@@ -36,6 +36,14 @@ not deleted. The active release has not been switched to this candidate.
 
 ## Stage 00 review items
 
+- **HiPerGator same-slide sources are present.** PR #38 says 6347 and 6580
+  have no Xenium output under the two locations it searched. Their pancreas
+  and pLN bundles are present under the separate October 2 run directory on
+  `/orange/maigan`; the four-slide inputs and validated receipts are on
+  `/blue/maigan/smith6jt`. Reconcile the four missing region rows and their
+  instrument records before Stage 00 acceptance, and distinguish a missing
+  workstation copy from a missing source. The verified paths and receipt
+  limits are in [the same-slide source locator](SAMESLIDE_SOURCE_LOCATION_2026-10-21.md).
 - **Missing is not zero.** At PR #38's tip, coverage formats a pLN designation
   with `if stated else ""`. The notes reader distinguishes `0` from `None`, but this
   expression renders both blank. Restore a visible zero for an explicit `no pLN`;
@@ -56,8 +64,8 @@ not deleted. The active release has not been switched to this candidate.
   but accepts an empty slide ID. Require that field and test its absence.
 - **Recorded relationships.** A section's block and a renamed Xenium region
   need a specific recorded source. A cohort-level "mostly different block"
-  statement cannot fill an unknown section. The uncommitted `_blocks` edit in
-  the PR #38 worktree currently assigns `different block` when a donor note is
+  statement cannot fill an unknown section. PR #38's `_blocks` currently
+  assigns `different block` when a donor note is
   absent or the Xenium design is not sequential; that fallback must not land.
   Keep unresolved relationships visibly unknown and blocking where a later
   join would depend on them.
