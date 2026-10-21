@@ -91,6 +91,16 @@ def test_each_donor_line_is_read_as_written(sources):
     assert donors["0112"].cautions == ("area of pLN is about the same as panc",)
 
 
+@pytest.mark.parametrize("preamble", ["", "\n", "Processing notes\n", "Processing notes\n\n"])
+def test_donor_lines_do_not_require_a_particular_heading(tmp_path, preamble):
+    path = tmp_path / "notes.txt"
+    path.write_text(preamble + NOTES.removeprefix("IO60panc2nd Notes\n"))
+    donors, _ = R.read_donor_notes(path, ALIASES)
+    assert len(donors) == 7
+    assert (donors["6347"].same_block_pln, donors["6347"].different_block_pln) == (1, 1)
+    assert donors["6457"].post_xenium_if == "too much punctate background, not exported, skipped"
+
+
 def test_a_count_in_free_text_is_kept_as_stated_and_flagged(sources):
     donors, _ = R.read_donor_notes(sources["notes.txt"], ALIASES)
     d = donors["6457"]
@@ -135,7 +145,7 @@ def test_two_labels_for_one_donor_or_a_stray_if_note_are_refused(tmp_path):
     with pytest.raises(R.RelationshipError, match="no donor line"):
         R.read_donor_notes(path, ALIASES)
     path.write_text("Some other file\n")
-    with pytest.raises(R.RelationshipError, match="header"):
+    with pytest.raises(R.RelationshipError, match="no donor lines"):
         R.read_donor_notes(path, ALIASES)
 
 
