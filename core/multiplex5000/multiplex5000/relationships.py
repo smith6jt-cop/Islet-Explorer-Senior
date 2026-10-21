@@ -54,9 +54,9 @@ KINDS = (SAME_SECTION, SERIAL_SECTION, SAME_BLOCK, DIFFERENT_BLOCK, SHARED_SLIDE
 SEQUENTIAL = "sequential"
 SAME_SECTION_AFTER_PHENOCYCLER = "same_section_after_phenocycler"
 
-NOTES_HEADER = "IO60panc2nd Notes"
 IF_HEADER = "Post-Xenium IF Notes"
 _DONOR_LINE = re.compile(r"^(?P<label>[A-Za-z]*\d+): (?P<body>.+)$")
+_UNDELIMITED_DONOR_LINE = re.compile(r"^[A-Za-z]*\d+\s")
 _IF_LINE = re.compile(r"^(?P<label>[A-Za-z]*\d+): post-Xenium IF (?P<note>.+)$")
 _DESIGN_SUFFIX = {", sequential Xenium": SEQUENTIAL,
                   ", same-slide post-phenocycler Xenium": SAME_SECTION_AFTER_PHENOCYCLER}
@@ -154,7 +154,7 @@ def _alias(label: str, aliases: dict[str, str]) -> str:
 
 def read_donor_notes(path: Path, aliases: dict[str, str], *, source: str = "donor_notes"
                      ) -> tuple[dict[str, DonorNote], Evidence]:
-    """The donor and post-Xenium IF sections of the notes, and nothing after them.
+    """The donor and post-Xenium IF sections of the notes, with any introductory text.
 
     The file is read line by line and reading stops at the first line that belongs to neither
     section; the digest is of the lines read, so it changes only when they do.
@@ -164,16 +164,19 @@ def read_donor_notes(path: Path, aliases: dict[str, str], *, source: str = "dono
     donors: dict[str, dict] = {}
     if_notes: dict[str, tuple[str, int]] = {}
     with path.open(encoding="utf-8") as handle:
-        lines = iter(handle)
-        first = next(lines, "")
-        read.append(first)
-        if first.rstrip("\n").strip() != NOTES_HEADER:
-            raise RelationshipError(f"{path}:1: expected the header {NOTES_HEADER!r}")
-        number = 1
-        section = "donors"
-        for raw in lines:
-            number += 1
+        section = "before_donors"
+        for number, raw in enumerate(handle, start=1):
             line = raw.rstrip("\n").rstrip()
+            if section == "before_donors":
+                if _DONOR_LINE.match(line):
+                    section = "donors"
+                elif _UNDELIMITED_DONOR_LINE.match(line):
+                    raise RelationshipError(f"{path}:{number}: not a donor line: {line!r}")
+                elif line == IF_HEADER:
+                    raise RelationshipError(f"{path}:{number}: post-Xenium IF notes precede donors")
+                else:
+                    read.append(raw)
+                    continue
             if section == "donors":
                 if not line:
                     section = "between"
@@ -206,6 +209,8 @@ def read_donor_notes(path: Path, aliases: dict[str, str], *, source: str = "dono
                                             f"no donor line")
                 if_notes[m["label"]] = (m["note"], number)
                 read.append(raw)
+    if not donors:
+        raise RelationshipError(f"{path}: no donor lines found")
     digest = _sha("".join(read).encode("utf-8"))
     evidence = Evidence(source, str(path), digest, f"lines 1-{len(read)}")
     out = {}
