@@ -539,10 +539,12 @@ def _pln_composition(
                  if "nucleus_count" in names else "TRUE")
     # read_parquet, not a registered Arrow dataset: these files carry
     # large_string columns and the Arrow scan path fails on a partition still
-    # being written by the producing lane.
+    # being written by the producing lane. Every one-row read in this file is
+    # fetchall()[0]: fetchone() leaves the result open, and DuckDB 2.0 then
+    # refuses register() and relation reads on the connection.
     total, with_nucleus = con.execute(
         f"SELECT count(*), count(*) FILTER (WHERE {nucleated}) FROM read_parquet(?)",
-        [paths]).fetchone()
+        [paths]).fetchall()[0]
     by_stage1: dict[str, int] = {}
     if "stage1" in names:
         by_stage1 = {
@@ -932,7 +934,7 @@ def _panc_xenium_measure(
     kept, missing = con.execute(
         f"SELECT count(*), count(*) FILTER (WHERE x.cell_id IS NULL) "
         f"FROM read_parquet(?) r LEFT JOIN read_parquet(?) x ON r.cell_id = x.cell_id "
-        f"WHERE {nucleated}", [call_paths, coordinate_paths]).fetchone()
+        f"WHERE {nucleated}", [call_paths, coordinate_paths]).fetchall()[0]
     rows = con.execute(
         f"SELECT r.cell_id, trim(coalesce(r.{lineage_column}, '')) AS lineage, "
         f"       x.x_um, x.y_um "
@@ -1210,7 +1212,7 @@ def build_distance_profiles(
                 SELECT count(*), count(DISTINCT object_id),
                        count(*) FILTER (WHERE object_id IS NULL OR trim(object_id) = '')
                 FROM members
-            """).fetchone()
+            """).fetchall()[0]
             if missing or n != unique:
                 raise ValueError("islet_membership has missing or duplicate object_id values")
 
@@ -1233,7 +1235,7 @@ def build_distance_profiles(
                 SELECT count(*), count(DISTINCT object_id),
                        count(*) FILTER (WHERE object_id IS NULL OR trim(object_id) = '')
                 FROM cells
-            """).fetchone()
+            """).fetchall()[0]
             if missing or n != unique:
                 raise ValueError(f"{donor}: typing/cells has missing or duplicate object_id values")
             con.execute("""
@@ -1254,7 +1256,7 @@ def build_distance_profiles(
                            OR resolved_by IS NULL OR trim(resolved_by) = ''),
                        count(*) FILTER (WHERE in_islet != (signed_dist_islet_um <= 0))
                 FROM joined
-            """).fetchone()
+            """).fetchall()[0]
             audit[donor] = {"source_cells": n, "eligible_cells": total,
                             "omitted_qc_or_excluded": n - total,
                             "missing_membership": unmatched, "invalid_membership": invalid,

@@ -123,7 +123,8 @@ def test_the_typing_numbers_the_root_claude_md_states_are_on_disk():
     routes = _stated(r"cd99 ([\d,]+) · elongation ([\d,]+) · hormone ([\d,]+)", text)
     source = (f"read_parquet('{cells}/donor_id=*/data.parquet', hive_partitioning=true)")
     con = duckdb.connect()
-    n, donors = con.execute(f"select count(*), count(distinct donor_id) from {source}").fetchone()
+    n, donors = con.execute(
+        f"select count(*), count(distinct donor_id) from {source}").fetchall()[0]
     assert (n, donors) == (rows, 20)
     measured = dict(con.execute(f"select cell_class, count(*) from {source} "
                                 f"where cell_class in ('Beta', 'Alpha', 'Delta') group by 1").fetchall())
@@ -132,5 +133,5 @@ def test_the_typing_numbers_the_root_claude_md_states_are_on_disk():
                                 f"in ('cd99', 'elongation', 'hormone') group by 1").fetchall())
     assert (by_route["cd99"], by_route["elongation"], by_route["hormone"]) == routes
     routed = con.execute(f"select count(distinct donor_id) from {source} "
-                         f"where islet_route in ('cd99', 'elongation', 'hormone')").fetchone()[0]
+                         f"where islet_route in ('cd99', 'elongation', 'hormone')").fetchall()[0][0]
     assert routed == donors, "the doc says the chain is applied to every donor"
