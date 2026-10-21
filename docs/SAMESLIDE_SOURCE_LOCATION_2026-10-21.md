@@ -32,11 +32,18 @@ pancreas bundle names are:
 - `output-XETG00298__0080502__panc__20261002__190021`
 
 Each has a sibling `__pLN__` bundle. These are source acquisitions, not
-unavailable data. By contrast, the *analysis* for 6533's pLN remains
-scientifically unavailable under the registration gate. The lane's
-`completion/current.json` reports `validated_complete` for the completion
+missing files. **Maintainer decision, 2026-10-21:** the 6533 pLN tissue was
+damaged after the PhenoCycler scan and before Xenium. Its paired same-slide
+analysis is unavailable, does **not** hold up any consolidation stage, gate,
+or release, and may never be done. Inventory the acquisition and its damage;
+carry the analytical result as unavailable rather than zero or an inferred
+negative. Do not rerun or relax registration to manufacture a result. The
+lane's `completion/current.json` reports `validated_complete` for the completion
 task, with 115 validated items, 6 scientifically unavailable items, and 1 not
-run. That receipt does not turn the 6533 pLN result into a passing result.
+run. Its 6533 pLN registration, join, calls, context and node-summary receipts
+are `scientifically_unavailable`; RNA and RNA-description receipts are
+`validated_complete`. Source presence does not imply paired analysis is
+possible.
 
 HiPerGator home is limited to 40 GB, and [UF Research Computing's storage
 guidance](https://docs.rc.ufl.edu/quickstart/practical_storage/) directs job
@@ -57,8 +64,8 @@ acquisition inventory with exact serial, tissue and source path. Check whether
 other `xenium_paths.csv` readers assume one row per donor and ROI before adding
 the six rows there; a dedicated acquisition inventory may be necessary. If
 Stage 00 runs on the workstation, copy only the small instrument-record files
-it reads, record their HiPerGator source paths and SHA-256 values, and check the local copies
-against those values. Keep `remote source exists` distinct from `full bundle
+it reads, record their HiPerGator source paths and SHA-256 values, and check
+the local copies against those values. Keep `remote source exists` distinct from `full bundle
 present locally`; regenerate run, slide and coverage counts and figures after
 the six rows are admitted.
 

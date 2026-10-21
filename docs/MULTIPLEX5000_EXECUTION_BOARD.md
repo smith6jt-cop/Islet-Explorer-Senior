@@ -21,6 +21,14 @@ The current `io60-candidate-1/00_inventory` output has a receipt and a passing t
 gate but **no `accepted.json`**. It predates PR #38. The prior output was moved aside,
 not deleted. The active release has not been switched to this candidate.
 
+**Maintainer decision, 2026-10-21:** 6533's same-slide pLN was damaged after
+PhenoCycler and before Xenium. Its paired analysis is not a prerequisite for
+any later phase, stage gate or release; it may never be done. Inventory the
+source and damage, then show the analytical result as unavailable. Keep the
+other sections moving without treating missingness as zero or changing the
+registration gate to force a result. The [source locator](SAMESLIDE_SOURCE_LOCATION_2026-10-21.md)
+records the separate paths and receipts.
+
 ## Immediate sequence
 
 1. Finish review of PR #38 as a Stage 00 change. Its green CI proves the code passes
@@ -43,8 +51,8 @@ not deleted. The active release has not been switched to this candidate.
   `/blue/maigan/smith6jt`. The 112/6533 same-slide pLN regions are also absent
   from `xenium_paths.csv`, making six missing rows in all. Reconcile all eight
   same-slide regions and their instrument records before Stage 00 acceptance,
-  and distinguish a missing workstation copy from a missing source. The verified paths and receipt
-  limits are in [the same-slide source locator](SAMESLIDE_SOURCE_LOCATION_2026-10-21.md).
+  and distinguish a missing workstation copy from a missing source. The
+  verified paths and receipt limits are in [the same-slide source locator](SAMESLIDE_SOURCE_LOCATION_2026-10-21.md).
 - **Missing is not zero.** At PR #38's tip, coverage formats a pLN designation
   with `if stated else ""`. The notes reader distinguishes `0` from `None`, but this
   expression renders both blank. Restore a visible zero for an explicit `no pLN`;
