@@ -36,6 +36,16 @@ def test_a_gate_is_written_with_every_check_and_a_page(tmp_path):
     assert "coverage.png" in page and "mplx5k gate accept s1" in page
 
 
+def test_the_page_calls_a_reported_check_a_note_however_it_came_out(tmp_path):
+    """Only a blocking check passes or fails; a reported one is shown, never ticked off."""
+    shown = gates.Check("raw files not found", 5, "reported", True, blocking=False)
+    stage = _write(tmp_path, PASS, FAIL, NOTE, shown)
+    page = (stage / gates.GATE_DIR / "gate.html").read_text()
+    states = [line.split("</td>")[0].rsplit(">", 1)[1]
+              for line in page.split("<tr class=")[1:]]
+    assert states == ["pass", "FAIL", "note", "note"]
+
+
 def test_a_gate_that_names_a_missing_figure_is_refused(tmp_path):
     with pytest.raises(gates.GateError, match="figure"):
         gates.write(tmp_path / "s1", gates.Gate("s1", "x", [PASS], ["missing.png"]), release="r1")
