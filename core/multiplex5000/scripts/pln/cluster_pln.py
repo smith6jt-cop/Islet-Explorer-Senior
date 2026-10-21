@@ -2236,12 +2236,16 @@ def xenium_batch_by_donor(paths_csv: Path = XEN_PATHS) -> pd.Series:
     """The Xenium instrument batch per donor, from the pLN rows of xenium_paths.csv.
 
     Only `roi` beginning `pln` is read: a donor's pancreas section can sit in a different batch
-    from its node, and the quantities here are node quantities.  A donor whose pLN sections
-    disagree on batch has no single batch, and gets NaN rather than one of the two -- it is
-    dropped from that grouping, never pooled into a level invented for it.
+    from its node, and the quantities here are node quantities.  A ``PhenoXeno`` row is never
+    read: it is a same-slide acquisition (Xenium on the PhenoCycler slide), not one of the
+    cohort bundles whose nodes this lane clusters -- xenium_typing/pins.py keeps them out for the
+    same reason.  A donor whose pLN sections disagree on batch has no single batch, and gets NaN
+    rather than one of the two -- it is dropped from that grouping, never pooled into a level
+    invented for it.
     """
     frame = pd.read_csv(paths_csv, dtype=str)
-    pln = frame[frame["roi"].fillna("").str.startswith("pln")]
+    pln = frame[frame["roi"].fillna("").str.startswith("pln")
+                & (frame["batch"].fillna("").str.strip() != "PhenoXeno")]
     out = {}
     for donor, grp in pln.groupby("donor_id"):
         batches = sorted(set(grp["batch"].dropna()))

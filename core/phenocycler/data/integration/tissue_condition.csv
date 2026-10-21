@@ -14,6 +14,9 @@
 # damaged before xenium"; the 6533 slide is the PhenoXeno section (confirmed the same day, and in
 # core/multiplex5000/scripts/sameslide/HANDOFF_2026-10-18.md: damaged after the PhenoCycler run, so
 # Xenium imaged only undamaged partial regions). 6450's is its only Xenium pancreas output.
+# 6533's Xenium pancreas and pLN are two region outputs of that run (/orange/maigan/
+# 20260910__211837__6533_HDL112_pLNpanc_PhenoXeno), so each has its own row.
 acquisition_id,donor_id,tissue,condition,when,detail,recorded_by,recorded_on
 xenium:0080824:Region_1,6450,pancreas,damaged,before Xenium,"the Xenium pancreas section (run MM046_XeniumBatch12, 2025-10-30)",smith6jt,2026-10-21
-xenium:0080870:panc,6533,pancreas; pLN,damaged,before Xenium,"the PhenoXeno section: damaged after its PhenoCycler scan, so Xenium (run 2026-09-10) imaged only undamaged partial regions of its pancreas and its three different-block pLN pieces; the PhenoCycler image is intact",smith6jt,2026-10-21
+xenium:0080870:panc,6533,pancreas,damaged,before Xenium,"the PhenoXeno section's pancreas: damaged after its PhenoCycler scan, so Xenium (run 2026-09-10) imaged only undamaged partial regions of it; the PhenoCycler image is intact",smith6jt,2026-10-21
+xenium:0080870:pLN,6533,pLN,damaged,before Xenium,"the PhenoXeno section's three different-block pLN pieces: damaged after its PhenoCycler scan, so Xenium (run 2026-09-10) imaged only undamaged partial regions of them; the PhenoCycler image is intact",smith6jt,2026-10-21
