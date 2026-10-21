@@ -429,12 +429,13 @@ def build(args) -> int:
           f"{len(nucleus_mm)} Nucleus means + {len(CONTEXT) + len(SHAPE)} context/geometry")
     con.execute(f"CREATE TABLE pln_cells AS {inner}")
     scanned = time.time() - started
-    n_rows = con.execute("SELECT count(*) FROM pln_cells").fetchone()[0]
+    n_rows = con.execute("SELECT count(*) FROM pln_cells").fetchall()[0][0]
     print(f"[info] {n_rows:,} rows in {scanned / 60:.1f} min")
 
     # a Parquet table has no malformed line to reject; the count stays in the report as a zero that
     # was measured on a format where it cannot be anything else
-    rejects = 0 if from_parquet else con.execute("SELECT count(*) FROM pln_rejects").fetchone()[0]
+    rejects = (0 if from_parquet
+               else con.execute("SELECT count(*) FROM pln_rejects").fetchall()[0][0])
     if rejects:
         print(f"[warn] CSV reader rejected {rejects} row(s); see the report")
 

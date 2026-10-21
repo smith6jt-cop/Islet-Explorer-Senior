@@ -338,16 +338,16 @@ def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
         c, x = _parquet_literal(cells), _parquet_literal(context)
         n_cells, u_cells = con.execute(
             f'SELECT count(*), count(DISTINCT "Object ID") FROM {c}'
-        ).fetchone()
+        ).fetchall()[0]
         n_ctx, u_ctx = con.execute(
             f'SELECT count(*), count(DISTINCT "Object ID") FROM {x}'
-        ).fetchone()
+        ).fetchall()[0]
         # Count and sample in DuckDB: a mispaired donor differs by millions of UUIDs, and only
         # the count and five examples are reported, so neither set is brought into Python.
         differences = []
         for left, right in ((c, x), (x, c)):
             diff = f'(SELECT "Object ID" FROM {left} EXCEPT SELECT "Object ID" FROM {right})'
-            (n,) = con.execute(f"SELECT count(*) FROM {diff} AS d").fetchone()
+            (n,) = con.execute(f"SELECT count(*) FROM {diff} AS d").fetchall()[0]
             sample = con.execute(
                 f'SELECT "Object ID" FROM {diff} AS d ORDER BY "Object ID" LIMIT 5'
             ).fetchall()
