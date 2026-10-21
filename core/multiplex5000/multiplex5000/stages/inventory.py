@@ -69,9 +69,16 @@ _PANT_IS_PLN = ("run MM044: the instrument named this region PanT; on HiPerGator
                 "keeps that name, and this workstation's copy was renamed pLN. Its "
                 "analysis_summary.html shows lymph node, as the folder name says (maintainer, "
                 "2026-10-21)")
+_MM046 = ("run MM046: the instrument named the regions Region_1 and Region_2; the folders, on "
+          "HiPerGator and on this workstation, were renamed by tissue after export. Region_1 is the "
+          "pancreas and Region_2 the lymph node, as the folder names say (maintainer, 2026-10-21)")
 KNOWN_RENAMED_FOLDERS: dict[str, str] = {
     "output-XETG00298__0059865__pLN__20250328__202338": _PANT_IS_PLN,      # 6539
     "output-XETG00298__0059907__pLN__20250328__202338": _PANT_IS_PLN,      # 6436
+    "output-XETG00298__0080824__6450_Panc__20251030__175543": _MM046,     # 6450, Region_1
+    "output-XETG00298__0080824__6450_pLN__20251030__175544": _MM046,      # 6450, Region_2
+    "output-XETG00298__0080836__6505_Panc__20251030__175544": _MM046,     # 6505, Region_1
+    "output-XETG00298__0080836__6505_pLN__20251030__175544": _MM046,      # 6505, Region_2
 }
 
 #: The pLN/lymphoid the donor notes designate for each pancreas, by block: (coverage column,
