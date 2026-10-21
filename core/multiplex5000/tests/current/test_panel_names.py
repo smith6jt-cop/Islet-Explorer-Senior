@@ -3,8 +3,8 @@
     .venv/bin/python -m pytest core/multiplex5000/tests/current/test_panel_names.py -q
 
 The marker sets are the five the IO60 qptiffs record, written as the images write them; the
-expected names are the ones the maintainer chose: 57, 58+ (CD38), 58- (b-catenin1), 69MetSI and
-55 for the dedicated pLN slides; and 5kOnly or 5k+100(<custom panel code>) for Xenium.
+expected names are the ones the maintainer chose: 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI
+and 55 markers for the dedicated pLN slides; and 5kOnly or 5k+100(<custom panel code>) for Xenium.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ METABOLIC = ["ASCT2", "ATP5A", "CS", "G6PD", "GLUT1", "HK1", "IDH2", "LDHA", "SD
 
 
 @pytest.mark.parametrize("markers, name", [
-    (BASE, "57"),
-    (BASE + ["CD38"], "58+"),
-    (BASE + ["b-Catenin1"], "58-"),          # the image spells it with a hyphen
+    (BASE, "57 markers"),
+    (BASE + ["CD38"], "58+ CD38"),
+    (BASE + ["b-Catenin1"], "58- b-Catenin1"),          # as the image spells it
     ([m for m in BASE if m not in ("IAPP", "Ker8-18")] + METABOLIC
      + ["CD38", "b_Catenin1", "CD141", "CD21", "Histone H3 (p Ser28)"], "69MetSI"),
-    (["DAPI"] + [f"N{i}" for i in range(55)], "55"),
+    (["DAPI"] + [f"N{i}" for i in range(55)], "55 markers"),
 ])
 def test_phenocycler_panels_are_named_the_maintainers_way(markers, name):
     assert panel_names.phenocycler(markers, RULES["phenocycler"]) == name

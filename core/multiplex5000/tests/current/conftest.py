@@ -63,9 +63,10 @@ NAMES = {"xenium_paths.csv": "xenium_paths", "section_modes.csv": "section_modes
          "tissue_condition.csv": "tissue_condition",
          "cohort_spec.json": "cohort_spec", "qupath_manifest.json": "qupath_manifest"}
 
-#: The synthetic panels: "2+" (CD3e and CD38, DAPI not counted) and the pLN slides' "1".
+#: The synthetic panels: "2+ CD38" (CD3e and CD38, DAPI not counted) and the pLN slides'
+#: "2 markers".
 PANCREAS_MARKERS = ("DAPI", "CD3e", "CD38")
-PLN_MARKERS = ("DAPI", "CD3e")
+PLN_MARKERS = ("DAPI", "CD3e", "CD20")
 
 
 def write_qptiff(path: Path, *, slide: str, experiment: str, position: str,

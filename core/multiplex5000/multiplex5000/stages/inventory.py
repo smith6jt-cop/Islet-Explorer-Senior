@@ -52,13 +52,17 @@ from ..tasks import Input, Task
 
 STAGE = "00_inventory"
 
-#: The coverage columns: one per kind of acquisition a donor can have.
-COLUMNS = ("PhenoCycler pancreas", "PhenoCycler pLN slide", "Xenium pancreas", "Xenium pLN",
-           "post-Xenium IF")
-PANELS = " panel"      # suffix of the coverage column that names those acquisitions' panels
-_KINDS = {("phenocycler", PANCREAS): COLUMNS[0], ("phenocycler", LYMPH_NODE): COLUMNS[1],
-          ("xenium", PANCREAS): COLUMNS[2], ("xenium", LYMPH_NODE): COLUMNS[3],
-          ("if", PANCREAS): COLUMNS[4]}
+#: The coverage columns, left to right, one acquisition per cell (or the notes' designation) --
+#: never a count; the number of acquisitions is the last column. Xenium pLN columns follow the
+#: region numbers xenium_paths.csv records (pln_1, pln_2, ...). A Xenium pancreas output is on the
+#: PhenoCycler section where section_modes.csv declares that section same_slide.
+PC_PANCREAS = "PhenoCycler pancreas"
+PC_PLN = "PhenoCycler pLN slide"
+XENIUM_SERIAL = "Xenium pancreas, serial section"
+XENIUM_SAME = "Xenium pancreas, PhenoCycler section"
+XENIUM_PLN = "Xenium pLN"
+POST_XENIUM_IF = "post-Xenium IF"
+TOTAL = "acquisitions"
 
 #: Where stage 00 reads what the instruments recorded: the qptiff folders of both PhenoCycler
 #: projects (every slide there can be another's run partner), and the copies of the records of
@@ -91,10 +95,6 @@ DIFFERENT_BLOCK = "different-block pLN/lymphoid"
 DESIGNATIONS = ((SAME_BLOCK, relationships.SAME_BLOCK, "same_block_pln"),
                 (DIFFERENT_BLOCK, relationships.DIFFERENT_BLOCK, "different_block_pln"))
 ANNOTATED = " in pln_blocks.csv"     # suffix of the column that holds pln_blocks.csv's pieces
-
-#: The figure's columns, left to right: the pancreas image, what the notes designate with it,
-#: then the other acquisitions.
-SHOWN = (COLUMNS[0], SAME_BLOCK, DIFFERENT_BLOCK, *COLUMNS[1:])
 
 _TRACKED = {  # name -> file name under core/phenocycler/data/integration
     "xenium_paths": "xenium_paths.csv", "section_modes": "section_modes.csv",
@@ -309,8 +309,11 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
     sections = {r["image_file"]: r for r in _rows(task.input("restain_sections"))}
     for index, row in enumerate(_rows(task.input("restain_registration_inputs")), start=1):
         roles = sections.get(row["image_file"])
+        stains = [roles[c] for c in ("channel_opal520", "channel_opal570", "channel_opal690")
+                  if roles and roles.get(c) and roles[c] not in ("FAILED", "NUCLEUS", "AF")]
         out.append(dict(
             acquisition_id=f"if:{row['image_file']}", platform="if", tissue=PANCREAS,
+            stains=", ".join(stains),
             roi=row["roi"], donor_id=aliases.get(row["donor_id"], row["donor_id"]),
             donor_label=row["donor_id"], source="restain_registration_inputs", source_row=index,
             path=None, exists=None, xenium_serial=row.get("xenium_serial"),
@@ -399,48 +402,79 @@ def _donor_order(donor_id: str) -> tuple:
     return (not donor_id.isdigit(), donor_id.zfill(8))
 
 
+def _column(a: dict, same_section: set) -> str:
+    """The coverage column an acquisition's cell is in."""
+    if a["platform"] == "phenocycler":
+        return PC_PANCREAS if a["tissue"] == PANCREAS else PC_PLN
+    if a["platform"] == "if":
+        return POST_XENIUM_IF
+    if a["tissue"] == PANCREAS:
+        return XENIUM_SAME if (a["donor_id"], a.get("recorded_slide")) in same_section else XENIUM_SERIAL
+    return f"{XENIUM_PLN} {a['roi'].rsplit('_', 1)[-1]}" if a["roi"].startswith("pln_") else XENIUM_PLN
+
+
+def _text(a: dict) -> str:
+    """What an acquisition's cell says: its panel; for post-Xenium IF the stains recorded for it."""
+    if a["platform"] == "if":
+        return a.get("stains") or "IF"
+    if a["acquisition_id"].startswith("xenium:unrecorded:"):
+        return "unavailable"
+    return a.get("panel", "")
+
+
+def coverage_columns(rows: list[dict]) -> list[str]:
+    """The columns a coverage table has, in order: as many Xenium pLN columns as regions recorded."""
+    plns = sorted({c for r in rows for c in r if c.startswith(XENIUM_PLN + " ")
+                   and not c.endswith(ANNOTATED)}, key=lambda c: int(c.rsplit(" ", 1)[1]))
+    if any(XENIUM_PLN in r for r in rows):
+        plns.insert(0, XENIUM_PLN)
+    return [PC_PANCREAS, SAME_BLOCK, DIFFERENT_BLOCK, PC_PLN, XENIUM_SERIAL, XENIUM_SAME, *plns,
+            POST_XENIUM_IF, TOTAL]
+
+
 def _coverage(acquisitions, reading, spec) -> list[dict]:
-    """One row per donor: its acquisitions by kind with the panels they were acquired with and,
-    beside the pancreas image, the notes' pLN/lymphoid designations -- blank where the line does
-    not say -- with the pieces ``pln_blocks.csv`` annotates for the same block, so a difference
-    shows. A panel no record names is ``?``."""
-    counts: dict[str, Counter] = {}
-    named: dict[str, dict[str, Counter]] = {}
+    """One row per donor, one acquisition per cell: its panel (the stains, for post-Xenium IF),
+    ``(damaged)`` where the maintainer recorded damage; beside the pancreas image the notes'
+    pLN/lymphoid designations, empty where the line does not say; and the number of acquisitions.
+    The pieces ``pln_blocks.csv`` annotates are kept beside the designations, for the disagreement
+    check."""
+    same_section = {(m.donor_id, m.xenium_serial) for m in reading.modes
+                    if m.mode == "same_slide" and m.roi == "panc" and m.xenium_serial}
+    cells: dict[str, dict[str, list[str]]] = {}
+    totals: Counter = Counter()
     for a in acquisitions:
-        column = _KINDS[(a["platform"], a["tissue"])]
-        counts.setdefault(a["donor_id"], Counter())[column] += 1
-        if a["platform"] != "if":
-            unrecorded = a["acquisition_id"].startswith("xenium:unrecorded:")
-            label = "NA" if unrecorded else (a.get("panel") or "?")
-            if a.get("condition"):
-                label += f" ({a['condition']})"
-            named.setdefault(a["donor_id"], {}).setdefault(column, Counter())[label] += 1
+        text = _text(a) + (f" ({a['condition']})" if a.get("condition") else "")
+        cells.setdefault(a["donor_id"], {}).setdefault(_column(a, same_section), []).append(text)
+        if not a["acquisition_id"].startswith("xenium:unrecorded:"):
+            totals[a["donor_id"]] += 1
     for donor in reading.donors:
-        counts.setdefault(donor, Counter())
+        cells.setdefault(donor, {})
     annotated: Counter = Counter()
     for ann in reading.pln:
-        counts.setdefault(ann.donor_id, Counter())
+        cells.setdefault(ann.donor_id, {})
         annotated[(ann.donor_id, ann.block)] += ann.pieces
     cohort = set(map(str, spec.get("expected_donors", [])))
     rows = []
-    for d in sorted(counts, key=_donor_order):
+    for d in sorted(cells, key=_donor_order):
         note = reading.donors.get(d)
         row = dict(donor_id=d, in_cohort_spec=d in cohort, centrally_excluded=d in DONOR_EXCLUSIONS)
-        row[COLUMNS[0]] = counts[d].get(COLUMNS[0], 0)
+        for column, texts in cells[d].items():
+            row[column] = "; ".join(texts)
         for column, _, field in DESIGNATIONS:
             stated = getattr(note, field) if note is not None else None
-            row[column] = "" if stated is None else stated
-        row.update({c: counts[d].get(c, 0) for c in COLUMNS[1:]})
-        for column in COLUMNS[:4]:
-            row[column + PANELS] = "; ".join(
-                label if n == 1 else f"{label} ({n})"
-                for label, n in sorted(named.get(d, {}).get(column, Counter()).items()))
+            row[column] = f"{stated} pLN" if stated else ""
+        row[TOTAL] = totals[d]
         for column, block, _ in DESIGNATIONS:
             row[column + ANNOTATED] = annotated[(d, block)]
         row["designation read from free text"] = bool(note is not None and note.pln_from_caution)
         row["caution in the notes"] = bool(note is not None and note.cautions)
         rows.append(row)
-    return rows
+    columns = coverage_columns(rows)
+    return [{**{k: r[k] for k in ("donor_id", "in_cohort_spec", "centrally_excluded")},
+             **{c: r.get(c, "") for c in columns},
+             **{k: v for k, v in r.items() if k not in columns
+                and k not in ("donor_id", "in_cohort_spec", "centrally_excluded")}}
+            for r in rows]
 
 
 def _designations(reading) -> list[str]:
@@ -585,29 +619,32 @@ def run(task: Task) -> dict:
     }
 
 
-#: The figure's colour for each column: acquisitions blue, the notes' designations by block.
-_MAPS = {SAME_BLOCK: "Greens", DIFFERENT_BLOCK: "Oranges"}
+#: The cell colour says what kind of acquisition a column holds -- never how many.
+KIND_COLOURS = {"PhenoCycler": "#cfe0f3", "Xenium": "#cdebe2", "post-Xenium IF": "#e4dcf3",
+                SAME_BLOCK: "#d9efcf", DIFFERENT_BLOCK: "#fbe0c6"}
+DAMAGED = "#b3261e"
 
 
-def _cell(row: dict, column: str) -> tuple:
-    """(value for the colour, the text, whether the notes and pln_blocks.csv differ)."""
-    if column not in _MAPS:
-        value = row[column]
-        if not value:
-            return 0, "–", False
-        named = row.get(column + PANELS, "")
-        if not named:
-            return value, f"{value}", False
-        lines = [line.replace(" (damaged)", "\n(damaged)") if len(line) > 16 else line
-                 for line in named.split("; ")]
-        return value, "\n".join(lines), False
-    stated, annotated = row[column], row[column + ANNOTATED]
-    if stated == "":
-        return 0, "?", False
-    text = f"{stated}" if stated else "–"
-    if stated != annotated:
-        return stated, f"{stated} / {annotated}", True
-    return stated, text, False
+def _kind(column: str) -> str | None:
+    if column in (PC_PANCREAS, PC_PLN):
+        return "PhenoCycler"
+    if column.startswith("Xenium"):
+        return "Xenium"
+    if column == POST_XENIUM_IF:
+        return "post-Xenium IF"
+    return column if column in (SAME_BLOCK, DIFFERENT_BLOCK) else None
+
+
+def _cell(row: dict, column: str) -> tuple[str, str | None, bool]:
+    """(the text, the kind that colours it, whether it is damaged) for one coverage cell."""
+    value = row.get(column, "")
+    if column == TOTAL:
+        return str(value), None, False
+    if value == "" or value is None:
+        return "", None, False
+    damaged = "(damaged)" in str(value)
+    text = str(value).replace(" (damaged)", "").replace("; ", "\n")
+    return text, _kind(column), damaged
 
 
 def _figure(task: Task, coverage: list[dict]) -> None:
@@ -615,54 +652,52 @@ def _figure(task: Task, coverage: list[dict]) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
-    from matplotlib.patches import Rectangle
+    from matplotlib.patches import Patch, Rectangle
 
-    donors = [r["donor_id"] for r in coverage]
-    cells = [[_cell(r, c) for c in SHOWN] for r in coverage]
-    # one colour scale for the acquisition counts and one for the designations
-    top = {False: 2.0, True: 2.0}
-    for row in cells:
-        for column, (value, _, _) in zip(SHOWN, row, strict=True):
-            top[column in _MAPS] = max(top[column in _MAPS], float(value))
-    image = np.ones((len(coverage), len(SHOWN), 4))
-    for i, row in enumerate(cells):
-        for j, (value, _, _) in enumerate(row):
-            if value:
-                image[i, j] = plt.get_cmap(_MAPS.get(SHOWN[j], "Blues"))(
-                    value / top[SHOWN[j] in _MAPS])
-    fig, ax = plt.subplots(figsize=(12.5, 0.38 * max(len(donors), 4) + 2.4))
-    ax.imshow(image, aspect="auto")
-    for i, row in enumerate(cells):
-        for j, (value, text, differs) in enumerate(row):
-            scale = top[SHOWN[j] in _MAPS]
-            ink = "0.55" if not value else ("white" if value >= 0.6 * scale else "black")
-            ax.text(j, i, text, ha="center", va="center", fontsize=7 if "\n" in text else 7.5,
-                    color=ink, linespacing=1.0)
-            if differs:
-                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
-                                       edgecolor="#b3261e", linewidth=1.8))
-            elif "(damaged)" in text:
+    columns = coverage_columns(coverage)
+    n, m = len(coverage), len(columns)
+    fig, ax = plt.subplots(figsize=(1.05 * m + 1.6, 0.34 * max(n, 4) + 1.9))
+    ax.set_xlim(-0.5, m - 0.5)
+    ax.set_ylim(n - 0.5, -0.5)
+    for i, row in enumerate(coverage):
+        for j, column in enumerate(columns):
+            text, kind, damaged = _cell(row, column)
+            if kind:
+                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor=KIND_COLOURS[kind],
+                                       edgecolor="white", linewidth=1.5))
+            if damaged:
+                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, hatch="////",
+                                       edgecolor=DAMAGED, linewidth=0))
                 ax.add_patch(Rectangle((j - 0.47, i - 0.47), 0.94, 0.94, fill=False,
-                                       edgecolor="#b3261e", linewidth=1.4, linestyle="--"))
+                                       edgecolor=DAMAGED, linewidth=1.4))
+            ax.text(j, i, text, ha="center", va="center", linespacing=1.0,
+                    fontsize=7.5 if column != TOTAL else 8.5,
+                    fontweight="bold" if column == TOTAL else "normal",
+                    color="0.45" if row["centrally_excluded"] else "black",
+                    bbox=(dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none")
+                          if damaged else None))
     labels = [f"{r['donor_id']}{' (excluded)' if r['centrally_excluded'] else ''}"
-              f"{' †' if r['caution in the notes'] else ''}"
-              f"{'' if r['in_cohort_spec'] else ' *'}" for r in coverage]
-    ax.set_yticks(range(len(donors)), labels, fontsize=8)
-    ax.set_xticks(range(len(SHOWN)), [c.replace(" pLN/", "\npLN/") for c in SHOWN],
-                  rotation=25, ha="right", fontsize=8)
-    ax.set_title("Recorded sources per donor (stage 00)", fontsize=10)
-    ax.set_xlabel(
-        "Blue: acquisitions of each kind, named by the panel their instrument recorded; the shade is"
-        " the count.\n"
-        "(n) = n acquisitions share the panel; ? = no record names it; NA = xenium_paths.csv records"
-        " no bundle; (damaged), dashed red edge = damage the maintainer recorded.\n"
-        "Green / orange: the pLN/lymphoid the donor notes designate for each pancreas, same-block /"
-        " different-block, checked against pln_blocks.csv;\n"
-        "'n / m' (red edge) = notes / pln_blocks.csv where they differ; ? = the notes do not say."
-        " † = the notes carry a caution, quoted on the gate. * = not in the cohort spec.",
-        fontsize=7.5)
-    fig.tight_layout()
+              f"{' †' if r['caution in the notes'] else ''}" for r in coverage]
+    ax.set_yticks(range(n), labels, fontsize=8)
+    for tick, row in zip(ax.get_yticklabels(), coverage, strict=True):
+        if row["centrally_excluded"]:
+            tick.set_color("0.45")
+    headers = [c.replace(", ", ",\n").replace(" pLN/", "\npLN/").replace("PhenoCycler ", "PhenoCycler\n")
+               .replace("post-Xenium IF", "post-Xenium\nIF") for c in columns]
+    ax.set_xticks(range(m), headers, fontsize=7.5)
+    ax.xaxis.tick_top()
+    ax.tick_params(length=0)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_title("Sources per donor (stage 00)", fontsize=10, pad=46)
+    handles = [Patch(facecolor=KIND_COLOURS[k], label=k) for k in
+               ("PhenoCycler", "Xenium", "post-Xenium IF")]
+    handles += [Patch(facecolor=KIND_COLOURS[SAME_BLOCK], label="same-block pLN/lymphoid"),
+                Patch(facecolor=KIND_COLOURS[DIFFERENT_BLOCK], label="different-block pLN/lymphoid"),
+                Patch(facecolor="white", edgecolor=DAMAGED, hatch="////", label="damaged before Xenium"),
+                Patch(facecolor="white", edgecolor="white", label="† caution in the donor notes")]
+    fig.legend(handles=handles, loc="lower center", ncol=4, fontsize=7.5, frameon=False)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
     fig.savefig(gates.figure_path(task, "coverage.png"), dpi=150)
     plt.close(fig)
 

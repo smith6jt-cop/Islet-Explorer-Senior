@@ -1,10 +1,10 @@
 """How a recorded panel is written in every output (maintainer, 2026-10-21).
 
 * **PhenoCycler** -- the number of markers the image records, DAPI not counted; then ``+`` or
-  ``-`` for the one marker that tells two panels of that size apart; or ``MetSI`` where the
-  metabolic spike-in is in the panel. So 57 markers with neither marker is ``57``, 58 with CD38
-  is ``58+``, 58 with b-catenin1 is ``58-``, the 69-marker metabolic panel is ``69MetSI`` and the
-  dedicated pLN slides' 55 markers are ``55``.
+  ``-`` and the one marker that tells two panels of that size apart, as the image spells it; or
+  ``MetSI`` where the metabolic spike-in is in the panel; a number with neither is followed by the
+  word ``markers``. So the IO60 panels are ``57 markers``, ``58+ CD38``, ``58- b-Catenin1`` and
+  ``69MetSI``, and the dedicated pLN slides' panel is ``55 markers``.
 * **Xenium** -- ``5kOnly`` for the predesigned 5K panel alone, or ``5k+<custom genes>(<custom
   panel code>)`` for an add-on panel, e.g. ``5k+100(6KTRAF)``.
 
@@ -30,17 +30,22 @@ def marker_name(name: str) -> str:
 
 
 def phenocycler(markers: Iterable[str], rule: dict) -> str:
-    names = {marker_name(m) for m in markers}
+    recorded = {marker_name(m): m for m in markers}       # one spelling -> as the image writes it
+    names = set(recorded)
     counted = len(names - {marker_name(m) for m in rule["not_counted"]})
     spike = {marker_name(m) for m in rule["metabolic_spike_in"]}
     if spike & names:
         if not spike <= names:
             raise PanelNameError(f"part of the metabolic spike-in: {sorted(spike & names)}")
         return f"{counted}{rule['metabolic_suffix']}"
-    signs = [sign for sign, marker in rule["single_marker"].items() if marker_name(marker) in names]
+    signs = [(sign, recorded[marker_name(marker)]) for sign, marker in rule["single_marker"].items()
+             if marker_name(marker) in names]
     if len(signs) > 1:
         raise PanelNameError(f"both single markers without the metabolic spike-in: {signs}")
-    return f"{counted}{signs[0] if signs else ''}"
+    if signs:
+        sign, marker = signs[0]
+        return f"{counted}{sign} {marker}"
+    return f"{counted} {rule['count_word']}"
 
 
 def xenium(record: dict, rule: dict) -> str:

@@ -42,7 +42,8 @@ def test_the_inventory_lists_every_acquisition_by_its_recorded_name(synthetic_pr
     assert acquisitions["xenium:0041001:pLN"]["tissue"] == "pancreatic_lymph_node"
     assert acquisitions["phenocycler:6374_Scan1 - resolution #1"]["size_matches_record"] == "True"
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert coverage["0112"]["Xenium pLN"] == "1" and coverage["6374"]["post-Xenium IF"] == "1"
+    assert coverage["0112"]["Xenium pLN 1"] == "5k+100(6KTRAF)"
+    assert coverage["6374"]["post-Xenium IF"] == "IF", "no channel roles recorded for it"
     kinds = {r["kind"] for r in _rows(folder / "relationships.csv")}
     assert {"same_section", "serial_section", "different_block", "shared_slide"} <= kinds
     assert all(c["passed"] for c in checks.values() if c["blocking"])
@@ -66,8 +67,8 @@ def test_coverage_carries_the_notes_designations_beside_each_pancreas(synthetic_
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert list(coverage["6374"])[3:6] == ["PhenoCycler pancreas", STAGE.SAME_BLOCK,
                                            STAGE.DIFFERENT_BLOCK]
-    assert (coverage["6374"][STAGE.SAME_BLOCK], coverage["6374"][STAGE.DIFFERENT_BLOCK]) == ("1", "0")
-    assert (coverage["0112"][STAGE.SAME_BLOCK], coverage["0112"][STAGE.DIFFERENT_BLOCK]) == ("0", "1")
+    assert (coverage["6374"][STAGE.SAME_BLOCK], coverage["6374"][STAGE.DIFFERENT_BLOCK]) == ("1 pLN", "")
+    assert (coverage["0112"][STAGE.SAME_BLOCK], coverage["0112"][STAGE.DIFFERENT_BLOCK]) == ("", "1 pLN")
     assert coverage["6374"][STAGE.SAME_BLOCK + STAGE.ANNOTATED] == "1"
     assert coverage["6374"]["caution in the notes"] == "True"
     designated = checks["pLN/lymphoid the donor notes designate, by pancreas"]
@@ -79,13 +80,15 @@ def test_coverage_carries_the_notes_designations_beside_each_pancreas(synthetic_
     assert all(c["passed"] for c in checks.values() if c["blocking"])
 
 
-def test_the_figure_shows_a_difference_and_what_the_notes_leave_unsaid():
-    row = {STAGE.SAME_BLOCK: 3, STAGE.SAME_BLOCK + STAGE.ANNOTATED: 0,
-           STAGE.DIFFERENT_BLOCK: "", STAGE.DIFFERENT_BLOCK + STAGE.ANNOTATED: 0,
-           "Xenium pLN": 2}
-    assert STAGE._cell(row, STAGE.SAME_BLOCK) == (3, "3 / 0", True)       # notes / pln_blocks
-    assert STAGE._cell(row, STAGE.DIFFERENT_BLOCK) == (0, "?", False)     # the line does not say
-    assert STAGE._cell(row, "Xenium pLN") == (2, "2", False)
+def test_a_coverage_cell_says_what_it_holds_never_a_count_and_marks_only_its_damage():
+    row = {STAGE.SAME_BLOCK: "3 pLN", STAGE.DIFFERENT_BLOCK: "",
+           STAGE.XENIUM_SERIAL: "5k+100(6KTRAF)", STAGE.XENIUM_SAME: "5kOnly (damaged)",
+           STAGE.TOTAL: 5}
+    assert STAGE._cell(row, STAGE.SAME_BLOCK) == ("3 pLN", STAGE.SAME_BLOCK, False)
+    assert STAGE._cell(row, STAGE.DIFFERENT_BLOCK) == ("", None, False)   # the line does not say
+    assert STAGE._cell(row, STAGE.XENIUM_SERIAL) == ("5k+100(6KTRAF)", "Xenium", False)
+    assert STAGE._cell(row, STAGE.XENIUM_SAME) == ("5kOnly", "Xenium", True)
+    assert STAGE._cell(row, STAGE.TOTAL) == ("5", None, False)
 
 
 def test_the_receipt_binds_every_source_it_read(synthetic_project):
@@ -115,12 +118,12 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     _, folder, checks = _run(synthetic_project())
     acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
     pancreas = acquisitions["phenocycler:6374_Scan1 - resolution #1"]
-    assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == ("2+", "2026-01-02",
-                                                                                   "Slide1")
+    assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == (
+        "2+ CD38", "2026-01-02", "Slide1")
     assert pancreas["run_partners"] == "0112 pancreas (Slide2)"
     assert pancreas["markers_match_manifest_panel"] == "True"
     pln = acquisitions["phenocycler:6374pLN_Scan1.qptiff"]
-    assert (pln["panel"], pln["run_partners"]) == ("1", "run alone")
+    assert (pln["panel"], pln["run_partners"]) == ("2 markers", "run alone")
     xenium = acquisitions["xenium:0041001:pLN"]
     assert (xenium["panel"], xenium["run"], xenium["run_date"]) == ("5k+100(6KTRAF)",
                                                                     "xenium:R1_synthetic",
@@ -134,11 +137,16 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides"] == "2"
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert "donor notes" not in coverage["6374"]
-    assert (coverage["0112"]["PhenoCycler pancreas panel"], coverage["0112"]["Xenium pLN panel"]) == (
-        "2+", "5k+100(6KTRAF)")
+    assert (coverage["0112"]["PhenoCycler pancreas"], coverage["0112"]["Xenium pLN 1"]) == (
+        "2+ CD38", "5k+100(6KTRAF)")
+    # 0112's Xenium pancreas is on its PhenoCycler section (section_modes.csv), 6374's a serial one
+    assert coverage["0112"][STAGE.XENIUM_SAME] and coverage["6374"][STAGE.XENIUM_SERIAL]
+    assert (coverage["6374"][STAGE.TOTAL], coverage["0112"][STAGE.TOTAL]) == ("4", "3")
+    assert not any(v in ("?", "*") or v.endswith((" ?", " *")) for r in coverage.values()
+                   for v in r.values()), "nothing is left to a question mark or a footnote star"
     assert checks["PhenoCycler slides run alone"]["value"] == ["6374 pLN, 2026-01-09"]
     assert checks["panels, as recorded and named"]["value"] == {
-        "phenocycler": {"1": 1, "2+": 2}, "xenium": {"5k+100(6KTRAF)": 3}}
+        "phenocycler": {"2 markers": 1, "2+ CD38": 2}, "xenium": {"5k+100(6KTRAF)": 3}}
     assert all(c["passed"] for c in checks.values() if c["blocking"])
     assert (folder / "gate" / "runs.png").stat().st_size > 1000
 
@@ -254,7 +262,8 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     assert acquisitions["xenium:0041001:Pancreas"]["known_condition"] == "pancreas damaged before Xenium"
     assert not acquisitions["xenium:0041001:pLN"].get("known_condition")
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert coverage["0112"]["Xenium pancreas panel"] == "5k+100(6KTRAF) (damaged)"
+    assert coverage["0112"][STAGE.XENIUM_SAME] == "5k+100(6KTRAF) (damaged)"
+    assert coverage["0112"]["Xenium pLN 1"] == "5k+100(6KTRAF)", "only the damaged one is marked"
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
     assert "0112 pancreas + pLN [pancreas damaged before Xenium]" in runs["xenium:R1_synthetic"][
         "slides_run_together"]

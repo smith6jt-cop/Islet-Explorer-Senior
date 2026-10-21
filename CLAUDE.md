@@ -101,8 +101,9 @@ its own stage logic until D4. Its coverage shows, beside each pancreas image, th
 donor notes designate for that pancreas, same-block or different-block, checked against
 `pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted. Every acquisition
 also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
-without DAPI, `+`/`-` for CD38/b-catenin1, `MetSI` for the metabolic spike-in -- 57, 58+, 58-,
-69MetSI, 55 for the pLN slides; Xenium: `5kOnly` or `5k+100(<code>)`), its run, the run's date and
+without DAPI, `+ CD38` / `- b-Catenin1` for the one marker that differs, `MetSI` for the metabolic
+spike-in, else `markers` -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, 55 markers for the pLN
+slides; Xenium: `5kOnly` or `5k+100(<code>)`), its run, the run's date and
 the slide run with it: PhenoCycler slides scanned under one experiment on one day were run together
 (two per run; one alone means an odd number in the staining batch), Xenium slides share a run name.
 These come from each qptiff's first page and each Xenium output's records; the complete Xenium
