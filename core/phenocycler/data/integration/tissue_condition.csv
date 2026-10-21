@@ -1,0 +1,18 @@
+# Known damage to a tissue section, by the acquisition it affects.
+#
+# HAND-RECORDED BY THE MAINTAINER, never inferred: a damaged region cannot be told from a real
+# absence of tissue by any measurement, so only someone who saw the section can say it. Stage 00
+# reads this table, marks each acquisition in its coverage, runs and gate, and blocks on a row that
+# names no acquisition. What a later stage does with a damaged acquisition is its own question.
+#
+# acquisition_id is stage 00's id for the acquisition (xenium:<slide>:<region as experiment.xenium
+# records it>; phenocycler:<QuPath image or pLN image file>). tissue says which tissue on that
+# acquisition is damaged; when says at which step.
+#
+# Transcribed 2026-10-21 from the maintainer: "6450panc damaged before xenium and 6533 panc and pLN
+# damaged before xenium"; the 6533 slide is the PhenoXeno section (confirmed the same day, and in
+# core/multiplex5000/scripts/sameslide/HANDOFF_2026-10-18.md: damaged after the PhenoCycler run, so
+# Xenium imaged only undamaged partial regions). 6450's is its only Xenium pancreas output.
+acquisition_id,donor_id,tissue,condition,when,detail,recorded_by,recorded_on
+xenium:0080824:Region_1,6450,pancreas,damaged,before Xenium,"the Xenium pancreas section (run MM046_XeniumBatch12, 2025-10-30)",smith6jt,2026-10-21
+xenium:0080870:panc,6533,pancreas and pLN,damaged,before Xenium,"the PhenoXeno section: damaged after its PhenoCycler scan, so Xenium (run 2026-09-10) imaged only undamaged partial regions of its pancreas and its three different-block pLN pieces; the PhenoCycler image is intact",smith6jt,2026-10-21

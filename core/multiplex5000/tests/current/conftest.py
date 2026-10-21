@@ -43,6 +43,11 @@ SOURCES = {
                                 "6374pLN_Scan1.qptiff,6374,pln_1,1,pLN,1,100,False,t,2026-01-01,\n",
     "notes.txt": NOTES,
     "notes_copy.md": NOTES,
+    "tissue_condition.csv": "# synthetic\n"
+                            "acquisition_id,donor_id,tissue,condition,when,detail,recorded_by,"
+                            "recorded_on\n"
+                            "xenium:0041001:Pancreas,112,pancreas,damaged,before Xenium,x,t,"
+                            "2026-01-01\n",
     "pln_blocks.csv": "image,entry_id,donor,pln_annotation,object_id,pieces,area_mm2,"
                       "overlap_with_tissue_um2,gap_to_tissue_um,measured_relation,"
                       "block_from_notes,notes\n"
@@ -55,6 +60,7 @@ NAMES = {"xenium_paths.csv": "xenium_paths", "section_modes.csv": "section_modes
          "restain_registration_inputs.csv": "restain_registration_inputs",
          "pln_node_annotations.csv": "pln_node_annotations", "notes.txt": "donor_notes",
          "notes_copy.md": "donor_notes_copy", "pln_blocks.csv": "pln_blocks",
+         "tissue_condition.csv": "tissue_condition",
          "cohort_spec.json": "cohort_spec", "qupath_manifest.json": "qupath_manifest"}
 
 #: The synthetic panels: "2+" (CD3e and CD38, DAPI not counted) and the pLN slides' "1".

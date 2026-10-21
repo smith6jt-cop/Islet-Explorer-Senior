@@ -108,7 +108,10 @@ the slide run with it: PhenoCycler slides scanned under one experiment on one da
 These come from each qptiff's first page and each Xenium output's records; the complete Xenium
 outputs are on HiPerGator (`/orange/maigan/Xenium_T1D_PancPLN`, the PhenoXeno slides under
 `/blue/maigan/smith6jt/Xenium_Analysis/data`), and `/data/xenium_records` holds copies of the
-records of those this machine holds only in part.
+records of those this machine holds only in part. Known damage is what the maintainer records, by
+acquisition, in the tracked `core/phenocycler/data/integration/tissue_condition.csv` -- 6450's
+Xenium pancreas, and 6533's PhenoXeno pancreas and pLN, both damaged before Xenium -- and stage 00
+marks it; what a later stage does with a damaged acquisition is that stage's question.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.

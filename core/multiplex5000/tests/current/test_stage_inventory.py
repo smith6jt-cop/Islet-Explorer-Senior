@@ -94,7 +94,8 @@ def test_the_receipt_binds_every_source_it_read(synthetic_project):
     inputs = {i["name"]: i for i in receipt["inputs"]}
     tables = {"cohort_spec", "qupath_manifest", "xenium_paths", "section_modes", "donor_notes",
               "pln_blocks", "pln_node_annotations", "restain_sections",
-              "restain_registration_inputs", "donor_notes_copy", "xenium_records_manifest"}
+              "restain_registration_inputs", "donor_notes_copy", "xenium_records_manifest",
+              "tissue_condition"}
     qptiffs = {"qptiff:6374.qptiff", "qptiff:0112.qptiff", "qptiff:6374pLN_Scan1.qptiff"}
     outputs = ("output-XETG00298__0041000__Pan__20240101__000000",
                "output-XETG00298__0041001__Pancreas__20240101__000000",
@@ -125,7 +126,8 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
                                                                     "xenium:R1_synthetic",
                                                                     "2024-01-01")
     assert xenium["local_copy"] == "partial" and xenium["records_read_from"].startswith("copy of hpg:")
-    assert acquisitions["xenium:0041000:Pan"]["run_partners"] == "0112 pancreas + pLN"
+    assert acquisitions["xenium:0041000:Pan"]["run_partners"] == (
+        "0112 pancreas + pLN [pancreas damaged before Xenium]")
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
     assert set(runs) == {"phenocycler:Synthetic_Pancreas:2026-01-02",
                          "phenocycler:Synthetic_pLN:2026-01-09", "xenium:R1_synthetic"}
@@ -244,3 +246,22 @@ def test_the_stage_needs_its_sources(synthetic_project, monkeypatch):
     monkeypatch.setattr(P.roots, "source", lambda name: None)
     with pytest.raises(RelationshipError, match="pln_blocks"):
         STAGE.inputs(stripped)
+
+
+def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthetic_project):
+    _, folder, checks = _run(synthetic_project())
+    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
+    assert acquisitions["xenium:0041001:Pancreas"]["known_condition"] == "pancreas damaged before Xenium"
+    assert not acquisitions["xenium:0041001:pLN"].get("known_condition")
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    assert coverage["0112"]["Xenium pancreas panel"] == "5k+100(6KTRAF) (damaged)"
+    runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
+    assert "0112 pancreas + pLN [pancreas damaged before Xenium]" in runs["xenium:R1_synthetic"][
+        "slides_run_together"]
+    assert checks["known damaged tissue"]["value"] == [
+        "xenium:0041001:Pancreas (0112): pancreas damaged before Xenium"]
+    _, _, checks = _run(synthetic_project(release="r2", tissue_condition__csv=(
+        "acquisition_id,donor_id,tissue,condition,when,detail,recorded_by,recorded_on\n"
+        "xenium:9999999:Panc,7000,pancreas,damaged,before Xenium,x,t,2026-01-01\n")))
+    check = checks["every recorded tissue condition names an acquisition"]
+    assert not check["passed"] and check["value"] == ["xenium:9999999:Panc (7000)"]

@@ -16,6 +16,9 @@ What the release is built from, before anything is computed from it:
   and the slide or slides run with it; ``runs.csv`` and the ``runs.png`` figure list every run. A
   Xenium output this machine holds only in part is read from the copy of its records taken from
   the complete output (the site's ``xenium_records``, ``MANIFEST.tsv`` beside them).
+* **known damage** -- the damage the maintainer recorded, by acquisition, in the tracked
+  ``tissue_condition.csv``; marked in the acquisitions, coverage and runs, and listed on the gate.
+  A row that names no acquisition blocks it.
 * **relationships** -- what ``multiplex5000.relationships`` reads from the donor notes,
   ``pln_blocks.csv`` and ``section_modes.csv``, with every disagreement between them.
 * **coverage** -- for each donor, how many sources of each kind there are and, beside its pancreas
@@ -98,6 +101,7 @@ _TRACKED = {  # name -> file name under core/phenocycler/data/integration
     "restain_sections": "restain_sections.csv",
     "restain_registration_inputs": "restain_registration_inputs.csv",
     "pln_node_annotations": "pln_node_annotations.csv",
+    "tissue_condition": "tissue_condition.csv",
 }
 
 
@@ -315,14 +319,33 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
     return out
 
 
+def _conditions(acquisitions: list[dict], rows: list[dict]) -> list[str]:
+    """Mark each acquisition the maintainer recorded damage on (tissue_condition.csv); return the
+    rows that name no acquisition."""
+    by_id = {a["acquisition_id"]: a for a in acquisitions}
+    unmatched = []
+    for row in rows:
+        a = by_id.get(row["acquisition_id"])
+        if a is None:
+            unmatched.append(f"{row['acquisition_id']} ({row.get('donor_id', '')})")
+            continue
+        a["condition"] = row["condition"]
+        a["known_condition"] = f"{row['tissue']} {row['condition']} {row['when']}"
+        a["condition_detail"] = row.get("detail", "")
+    return unmatched
+
+
 def _slide_label(acquisitions: list[dict]) -> str:
-    """'6482 pancreas', or '6539 pancreas + pLN' for a Xenium slide with two tissues."""
+    """'6482 pancreas', or '6539 pancreas + pLN' for a Xenium slide with two tissues, with any
+    recorded damage after it."""
     tissues = []
     for a in acquisitions:
         name = "pancreas" if a["tissue"] == PANCREAS else "pLN"
         if name not in tissues:
             tissues.append(name)
-    return f"{acquisitions[0]['donor_id']} {' + '.join(tissues)}"
+    damage = sorted({a["known_condition"] for a in acquisitions if a.get("known_condition")})
+    return (f"{acquisitions[0]['donor_id']} {' + '.join(tissues)}"
+            + (f" [{'; '.join(damage)}]" if damage else ""))
 
 
 def _runs(acquisitions: list[dict], records: dict) -> list[dict]:
@@ -388,8 +411,10 @@ def _coverage(acquisitions, reading, spec) -> list[dict]:
         counts.setdefault(a["donor_id"], Counter())[column] += 1
         if a["platform"] != "if":
             unrecorded = a["acquisition_id"].startswith("xenium:unrecorded:")
-            named.setdefault(a["donor_id"], {}).setdefault(column, Counter())[
-                "NA" if unrecorded else (a.get("panel") or "?")] += 1
+            label = "NA" if unrecorded else (a.get("panel") or "?")
+            if a.get("condition"):
+                label += f" ({a['condition']})"
+            named.setdefault(a["donor_id"], {}).setdefault(column, Counter())[label] += 1
     for donor in reading.donors:
         counts.setdefault(donor, Counter())
     annotated: Counter = Counter()
@@ -458,6 +483,7 @@ def run(task: Task) -> dict:
         aliases=cohort.donor_aliases, cohort_donors=spec.get("expected_donors", []))
     records = _instrument_records(task)
     acquisitions = _acquisitions(task, spec, manifest, cohort.donor_aliases, records)
+    unmatched = _conditions(acquisitions, _rows(task.input("tissue_condition")))
     runs = _runs(acquisitions, records)
     coverage = _coverage(acquisitions, reading, spec)
     _write_csv(task.output("acquisitions.csv"), acquisitions)
@@ -550,6 +576,9 @@ def run(task: Task) -> dict:
                                        if len(r["slides"]) > 2),
         "slides_run_alone": sorted(f"{r['slides'][0]['label']}, {r['date']}" for r in runs
                                    if r["platform"] == "phenocycler" and len(r["slides"]) == 1),
+        "conditions_unmatched": unmatched,
+        "conditions": sorted(f"{a['acquisition_id']} ({a['donor_id']}): {a['known_condition']}"
+                             for a in acquisitions if a.get("known_condition")),
         "partners_outside_this_inventory": sorted(
             f"{s['label']}, run with {', '.join(o['label'] for o in r['slides'] if o is not s)}"
             for r in runs for s in r["slides"] if not s["acquisitions"]),
@@ -567,7 +596,11 @@ def _cell(row: dict, column: str) -> tuple:
         if not value:
             return 0, "–", False
         named = row.get(column + PANELS, "")
-        return value, (named.replace("; ", "\n") if named else f"{value}"), False
+        if not named:
+            return value, f"{value}", False
+        lines = [line.replace(" (damaged)", "\n(damaged)") if len(line) > 16 else line
+                 for line in named.split("; ")]
+        return value, "\n".join(lines), False
     stated, annotated = row[column], row[column + ANNOTATED]
     if stated == "":
         return 0, "?", False
@@ -609,6 +642,9 @@ def _figure(task: Task, coverage: list[dict]) -> None:
             if differs:
                 ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
                                        edgecolor="#b3261e", linewidth=1.8))
+            elif "(damaged)" in text:
+                ax.add_patch(Rectangle((j - 0.47, i - 0.47), 0.94, 0.94, fill=False,
+                                       edgecolor="#b3261e", linewidth=1.4, linestyle="--"))
     labels = [f"{r['donor_id']}{' (excluded)' if r['centrally_excluded'] else ''}"
               f"{' †' if r['caution in the notes'] else ''}"
               f"{'' if r['in_cohort_spec'] else ' *'}" for r in coverage]
@@ -617,9 +653,10 @@ def _figure(task: Task, coverage: list[dict]) -> None:
                   rotation=25, ha="right", fontsize=8)
     ax.set_title("Recorded sources per donor (stage 00)", fontsize=10)
     ax.set_xlabel(
-        "Blue: acquisitions of each kind, named by the panel their instrument recorded (count in"
-        " brackets where several share one; ? = no record names it; NA = xenium_paths.csv records"
-        " no bundle); the shade is the count.\n"
+        "Blue: acquisitions of each kind, named by the panel their instrument recorded; the shade is"
+        " the count.\n"
+        "(n) = n acquisitions share the panel; ? = no record names it; NA = xenium_paths.csv records"
+        " no bundle; (damaged), dashed red edge = damage the maintainer recorded.\n"
         "Green / orange: the pLN/lymphoid the donor notes designate for each pancreas, same-block /"
         " different-block, checked against pln_blocks.csv;\n"
         "'n / m' (red edge) = notes / pln_blocks.csv where they differ; ? = the notes do not say."
@@ -717,6 +754,8 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           summary["xenium_records_disagree"], "none", not summary["xenium_records_disagree"]),
         C("no run holds more than two slides", summary["runs_over_two_slides"], "none",
           not summary["runs_over_two_slides"]),
+        C("every recorded tissue condition names an acquisition", summary["conditions_unmatched"],
+          "none", not summary["conditions_unmatched"], detail="tissue_condition.csv"),
         C("every Xenium output folder names the region its experiment.xenium records",
           summary["xenium_folders_renamed"], "none", not summary["xenium_folders_renamed"],
           detail="the acquisition id takes the recorded region; the tissue is xenium_paths.csv's. "
@@ -742,6 +781,8 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         C("panels, as recorded and named", summary["panels"], "reported", True, blocking=False),
         C("runs per platform", summary["runs"], "reported", True, blocking=False,
           detail="every run, its date, panel and slides: runs.csv and runs.png"),
+        C("known damaged tissue", summary["conditions"], "reported", True, blocking=False,
+          detail="as the maintainer recorded it in tissue_condition.csv"),
         C("PhenoCycler slides run alone", summary["slides_run_alone"], "reported", True,
           blocking=False, detail="an odd number in the staining batch (the maintainer)"),
         C("run partners that are no acquisition here", summary["partners_outside_this_inventory"],
