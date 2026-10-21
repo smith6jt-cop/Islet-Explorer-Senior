@@ -65,7 +65,14 @@ XENIUM_RECORDS = ("experiment.xenium", "gene_panel.json", "metrics_summary.csv")
 
 #: Xenium output folders that name a region other than the one their experiment.xenium records,
 #: with the reason, once someone has looked. The gate blocks on any other.
-KNOWN_RENAMED_FOLDERS: dict[str, str] = {}
+_PANT_IS_PLN = ("run MM044: the instrument named this region PanT; on HiPerGator the complete output "
+                "keeps that name, and this workstation's copy was renamed pLN. Its "
+                "analysis_summary.html shows lymph node, as the folder name says (maintainer, "
+                "2026-10-21)")
+KNOWN_RENAMED_FOLDERS: dict[str, str] = {
+    "output-XETG00298__0059865__pLN__20250328__202338": _PANT_IS_PLN,      # 6539
+    "output-XETG00298__0059907__pLN__20250328__202338": _PANT_IS_PLN,      # 6436
+}
 
 #: The pLN/lymphoid the donor notes designate for each pancreas, by block: (coverage column,
 #: the block as relationships names it, the DonorNote field that holds the notes' count).
