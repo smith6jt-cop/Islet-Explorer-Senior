@@ -1,0 +1,17 @@
+schema: multiplex5000-profile/1
+kind: platform
+id: xenium
+display_name: Xenium
+# Pixel size every IO60 Xenium output's experiment.xenium records (pixel_size).
+pixel_size_um: 0.2125
+# How a Xenium panel is named (maintainer, 2026-10-21): 5kOnly for the predesigned 5K panel alone,
+# or 5k+<custom genes>(<custom panel code>) for an add-on, e.g. 5k+100(6KTRAF). Read from each
+# output's experiment.xenium (panel_num_targets_predesigned, panel_num_targets_custom,
+# panel_design_id) and applied by multiplex5000.panel_names.
+panel_names:
+  predesigned:
+    "5001": 5k
+  alone_suffix: Only
+sources:
+  pixel_size_um: experiment.xenium pixel_size, the same in every IO60 output
+  panel_names: the maintainer's naming, 2026-10-21

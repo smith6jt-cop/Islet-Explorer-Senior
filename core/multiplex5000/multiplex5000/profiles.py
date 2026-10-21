@@ -59,6 +59,8 @@ class PlatformProfile:
     id: str
     display_name: str
     pixel_size_um: float
+    #: The facts multiplex5000.panel_names needs to write this platform's panel names.
+    panel_names: dict = field(default_factory=dict)
     sources: dict = field(default_factory=dict)
 
 
@@ -89,7 +91,8 @@ _KINDS: dict[str, tuple[type, tuple[str, ...], tuple[str, ...]]] = {
                ("id", "display_name", "aliases", "roi_prefixes", "panel_tissue_dir",
                 "tissue_only_panels", "structures", "comparable_lineages", "plugin"),
                ("sources",)),
-    "platform": (PlatformProfile, ("id", "display_name", "pixel_size_um"), ("sources",)),
+    "platform": (PlatformProfile, ("id", "display_name", "pixel_size_um"),
+                 ("panel_names", "sources")),
     "panel": (PanelProfile, ("id", "platform", "authority"), ("sources",)),
     "cohort": (CohortProfile, ("id", "platform", "tissues", "membership", "exclusions"),
                ("donor_aliases", "sources")),
@@ -137,6 +140,9 @@ def load_profile(path: Path) -> Any:
         elif key == "sources":
             if not isinstance(value, dict):
                 raise ProfileError(f"{path}: sources must be a mapping of key -> where it is defined")
+        elif key == "panel_names":
+            if not isinstance(value, dict) or not value:
+                raise ProfileError(f"{path}: panel_names must be a mapping of the naming rule's facts")
         elif key == "donor_aliases":
             # Both sides must be text: an unquoted 0112 in YAML is the number 112, and the leading
             # zero -- which IS the donor id -- would be gone without a word.

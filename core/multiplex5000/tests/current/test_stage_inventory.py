@@ -91,11 +91,119 @@ def test_the_figure_shows_a_difference_and_what_the_notes_leave_unsaid():
 def test_the_receipt_binds_every_source_it_read(synthetic_project):
     _, folder, _ = _run(synthetic_project())
     receipt = json.loads((folder / "receipt.json").read_text())
-    names = {i["name"] for i in receipt["inputs"]}
-    assert {"cohort_spec", "qupath_manifest", "xenium_paths", "section_modes", "donor_notes",
-            "pln_blocks", "pln_node_annotations", "restain_sections",
-            "restain_registration_inputs", "donor_notes_copy"} == names
-    assert all(i.get("sha256") for i in receipt["inputs"])
+    inputs = {i["name"]: i for i in receipt["inputs"]}
+    tables = {"cohort_spec", "qupath_manifest", "xenium_paths", "section_modes", "donor_notes",
+              "pln_blocks", "pln_node_annotations", "restain_sections",
+              "restain_registration_inputs", "donor_notes_copy", "xenium_records_manifest"}
+    qptiffs = {"qptiff:6374.qptiff", "qptiff:0112.qptiff", "qptiff:6374pLN_Scan1.qptiff"}
+    outputs = ("output-XETG00298__0041000__Pan__20240101__000000",
+               "output-XETG00298__0041001__Pancreas__20240101__000000",
+               "output-XETG00298__0041001__pLN__20240101__000000")
+    records = {f"xenium:{o}:{f}" for o in outputs for f in STAGE.XENIUM_RECORDS}
+    assert set(inputs) == tables | qptiffs | records
+    assert all(inputs[n].get("sha256") for n in tables | records), "tables and records are hashed"
+    # a qptiff is bound by size and time, with the digest the QuPath manifest records for it
+    assert all(inputs[n]["bytes"] and not inputs[n].get("sha256") for n in qptiffs)
+    assert inputs["qptiff:6374.qptiff"]["recorded_sha256"] == "0" * 64
+    # the output held here only in part is read from the copy of the complete output's records
+    held = inputs[f"xenium:{outputs[2]}:experiment.xenium"]["path"]
+    assert "xenium_records" in held and "bundles" in inputs[f"xenium:{outputs[0]}:experiment.xenium"]["path"]
+
+
+def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_project):
+    _, folder, checks = _run(synthetic_project())
+    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
+    pancreas = acquisitions["phenocycler:6374_Scan1 - resolution #1"]
+    assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == ("2+", "2026-01-02",
+                                                                                   "Slide1")
+    assert pancreas["run_partners"] == "0112 pancreas (Slide2)"
+    assert pancreas["markers_match_manifest_panel"] == "True"
+    pln = acquisitions["phenocycler:6374pLN_Scan1.qptiff"]
+    assert (pln["panel"], pln["run_partners"]) == ("1", "run alone")
+    xenium = acquisitions["xenium:0041001:pLN"]
+    assert (xenium["panel"], xenium["run"], xenium["run_date"]) == ("5k+100(6KTRAF)",
+                                                                    "xenium:R1_synthetic",
+                                                                    "2024-01-01")
+    assert xenium["local_copy"] == "partial" and xenium["records_read_from"].startswith("copy of hpg:")
+    assert acquisitions["xenium:0041000:Pan"]["run_partners"] == "0112 pancreas + pLN"
+    runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
+    assert set(runs) == {"phenocycler:Synthetic_Pancreas:2026-01-02",
+                         "phenocycler:Synthetic_pLN:2026-01-09", "xenium:R1_synthetic"}
+    assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides"] == "2"
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    assert "donor notes" not in coverage["6374"]
+    assert (coverage["0112"]["PhenoCycler pancreas panel"], coverage["0112"]["Xenium pLN panel"]) == (
+        "2+", "5k+100(6KTRAF)")
+    assert checks["PhenoCycler slides run alone"]["value"] == ["6374 pLN, 2026-01-09"]
+    assert checks["panels, as recorded and named"]["value"] == {
+        "phenocycler": {"1": 1, "2+": 2}, "xenium": {"5k+100(6KTRAF)": 3}}
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
+    assert (folder / "gate" / "runs.png").stat().st_size > 1000
+
+
+def _edit_json(path, **changes):
+    data = json.loads(path.read_text())
+    data.update(changes)
+    path.write_text(json.dumps(data))
+
+
+def test_a_run_of_more_than_two_slides_blocks_and_names_a_partner_outside_the_inventory(
+        synthetic_project, tmp_path):
+    import datetime
+
+    from conftest import PANCREAS_MARKERS, write_qptiff
+
+    path = synthetic_project()
+    write_qptiff(tmp_path / "raw" / "9999_Scan1.qptiff", slide="9999",
+                 experiment="Synthetic_Pancreas", position="Slide3",
+                 experiment_date="2025-12-01T09:00:00Z",
+                 scanned=datetime.datetime(2026, 1, 2, 14, 40), markers=PANCREAS_MARKERS)
+    _, _, checks = _run(path)
+    assert checks["no run holds more than two slides"]["value"] == [
+        "phenocycler:Synthetic_Pancreas:2026-01-02: 3 slides"]
+    assert not checks["no run holds more than two slides"]["passed"]
+    assert checks["run partners that are no acquisition here"]["value"][0].startswith(
+        "9999 (9999_Scan1.qptiff, no acquisition here)")
+
+
+@pytest.mark.parametrize("edit, check", [
+    (lambda root: (root / "xenium_records" / "output-XETG00298__0041001__pLN__20240101__000000"
+                   / "experiment.xenium").unlink(),
+     "every listed Xenium output has its three instrument records"),
+    (lambda root: (root / "xenium" / "bundles" / "output-XETG00298__0041000__Pan__20240101__000000"
+                   / "metrics_summary.csv").write_text(
+        "run_name,region_name,panel_design_id\nanother_run,Pan,6KTRAF\n"),
+     "each Xenium output's records agree with each other and with its slide"),
+    (lambda root: _edit_json(root / "sources" / "qupath_manifest.json", panels=[
+        {"panel_id": "panel", "channels": [{"marker": "DAPI"}, {"marker": "CD3e"}]}]),
+     "every pancreas image records the markers of its QuPath-manifest panel"),
+])
+def test_what_the_instrument_records_block(synthetic_project, tmp_path, edit, check):
+    path = synthetic_project()
+    edit(tmp_path)
+    _, _, checks = _run(path)
+    assert not checks[check]["passed"] and checks[check]["blocking"]
+
+
+def test_a_renamed_xenium_folder_blocks_until_its_reason_is_known(synthetic_project, tmp_path,
+                                                                   monkeypatch):
+    path = synthetic_project()
+    output = "output-XETG00298__0041000__Pan__20240101__000000"
+    _edit_json(tmp_path / "xenium" / "bundles" / output / "experiment.xenium", region_name="Region_1")
+    (tmp_path / "xenium" / "bundles" / output / "metrics_summary.csv").write_text(
+        "run_name,region_name,panel_design_id\nR1_synthetic,Region_1,6KTRAF\n")
+    _, folder, checks = _run(path)
+    check = checks["every Xenium output folder names the region its experiment.xenium records"]
+    assert not check["passed"] and check["value"] == [
+        f"{output}: experiment.xenium names region Region_1"]
+    ids = {r["acquisition_id"] for r in _rows(folder / "acquisitions.csv")}
+    assert "xenium:0041000:Region_1" in ids, "the id takes the region the instrument recorded"
+    monkeypatch.setitem(STAGE.KNOWN_RENAMED_FOLDERS, output, "renamed after export")
+    tasks.run_stage(STAGE, P.load(path), force=True)
+    checks = {c["name"]: c for c in gates.load(folder)["checks"]}
+    assert checks["every Xenium output folder names the region its experiment.xenium records"]["passed"]
+    assert checks["Xenium output folders renamed, with their known reason"]["value"] == [
+        f"{output} (renamed after export)"]
 
 
 @pytest.mark.parametrize("replace, check", [

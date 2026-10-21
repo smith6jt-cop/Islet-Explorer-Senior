@@ -99,7 +99,16 @@ file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the
 so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
 its own stage logic until D4. Its coverage shows, beside each pancreas image, the pLN/lymphoid the
 donor notes designate for that pancreas, same-block or different-block, checked against
-`pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted.
+`pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted. Every acquisition
+also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
+without DAPI, `+`/`-` for CD38/b-catenin1, `MetSI` for the metabolic spike-in -- 57, 58+, 58-,
+69MetSI, 55 for the pLN slides; Xenium: `5kOnly` or `5k+100(<code>)`), its run, the run's date and
+the slide run with it: PhenoCycler slides scanned under one experiment on one day were run together
+(two per run; one alone means an odd number in the staining batch), Xenium slides share a run name.
+These come from each qptiff's first page and each Xenium output's records; the complete Xenium
+outputs are on HiPerGator (`/orange/maigan/Xenium_T1D_PancPLN`, the PhenoXeno slides under
+`/blue/maigan/smith6jt/Xenium_Analysis/data`), and `/data/xenium_records` holds copies of the
+records of those this machine holds only in part.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
