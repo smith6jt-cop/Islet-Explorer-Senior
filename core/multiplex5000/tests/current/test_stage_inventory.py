@@ -60,10 +60,9 @@ BLOCKS = ("image,entry_id,donor,pln_annotation,object_id,pieces,area_mm2,overlap
 
 
 def test_coverage_carries_the_notes_designations_beside_each_pancreas(synthetic_project):
-    # the notes as the maintainer keeps them since 2026-10-21: no header, a blank first line
     _, folder, checks = _run(synthetic_project(
-        notes__txt="\n" + DESIGNATED, notes_copy__md="IO60panc2nd Notes\n" + DESIGNATED,
-        pln_blocks__csv=BLOCKS))
+        notes__txt="IO60panc2nd Notes\n" + DESIGNATED,
+        notes_copy__md="IO60panc2nd Notes\n" + DESIGNATED, pln_blocks__csv=BLOCKS))
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert list(coverage["6374"])[3:6] == ["PhenoCycler pancreas", STAGE.SAME_BLOCK,
                                            STAGE.DIFFERENT_BLOCK]

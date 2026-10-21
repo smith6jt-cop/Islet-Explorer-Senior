@@ -9,12 +9,10 @@ annotations appearing in one image. It is what the maintainer recorded, and noth
 Three recorded sources, read as they are:
 
 * **The donor notes** (site source ``donor_notes``, ``ProcessingNotes.txt``): one line per donor --
-  the pancreas region, its lymph nodes and their block, and the Xenium design -- then, where the
-  file has them, the post-Xenium IF notes. (Since 2026-10-21 the maintainer's file holds the
-  donor lines alone, without the ``IO60panc2nd Notes`` header.) Only those two sections are
-  parsed. The reader stops at the first line after them, so nothing else in the file is parsed,
-  kept or copied. The repo-root copy (``donor_notes_copy``) must say the same thing, donor by
-  donor.
+  the pancreas region, its lymph nodes and their block, and the Xenium design -- then the
+  post-Xenium IF notes. Only those two sections are parsed. The reader stops at the first line
+  after them, so nothing else in the file is parsed, kept or copied. The repo-root copy
+  (``donor_notes_copy``) must say the same thing, donor by donor.
 * **pln_blocks.csv** (site source ``pln_blocks``, ``results/v3/pln_blocks.csv``): one row per pLN
   annotation on a pancreas-project image, with its QuPath UUID, its block as the notes record it
   and the measured gap to the Tissue annotation, which stays a measurement. The maintainer
@@ -158,31 +156,24 @@ def read_donor_notes(path: Path, aliases: dict[str, str], *, source: str = "dono
                      ) -> tuple[dict[str, DonorNote], Evidence]:
     """The donor and post-Xenium IF sections of the notes, and nothing after them.
 
-    The donor lines stand under the ``IO60panc2nd Notes`` header or, as the maintainer's file has
-    held them since 2026-10-21, alone after a blank first line; the IF section may be absent. The
-    first line that is not blank must be the header or a donor line, and a file with no donor line
-    is refused. The file is read line by line and reading stops at the first line that belongs to
-    neither section; the digest is of the lines read, so it changes only when they do.
+    The file is read line by line and reading stops at the first line that belongs to neither
+    section; the digest is of the lines read, so it changes only when they do.
     """
     path = Path(path)
     read: list[str] = []
     donors: dict[str, dict] = {}
     if_notes: dict[str, tuple[str, int]] = {}
-    with path.open(encoding="utf-8-sig") as handle:
-        section = "start"                               # blank lines, then the header or a donor
-        for number, raw in enumerate(handle, start=1):
+    with path.open(encoding="utf-8") as handle:
+        lines = iter(handle)
+        first = next(lines, "")
+        read.append(first)
+        if first.rstrip("\n").strip() != NOTES_HEADER:
+            raise RelationshipError(f"{path}:1: expected the header {NOTES_HEADER!r}")
+        number = 1
+        section = "donors"
+        for raw in lines:
+            number += 1
             line = raw.rstrip("\n").rstrip()
-            if section == "start":
-                if not line:
-                    read.append(raw)
-                    continue
-                section = "donors"
-                if line.strip() == NOTES_HEADER:
-                    read.append(raw)
-                    continue
-                if not _DONOR_LINE.match(line):
-                    raise RelationshipError(f"{path}:{number}: expected the header "
-                                            f"{NOTES_HEADER!r} or a donor line, not {line!r}")
             if section == "donors":
                 if not line:
                     section = "between"
@@ -215,8 +206,6 @@ def read_donor_notes(path: Path, aliases: dict[str, str], *, source: str = "dono
                                             f"no donor line")
                 if_notes[m["label"]] = (m["note"], number)
                 read.append(raw)
-    if not donors:
-        raise RelationshipError(f"{path}: no donor lines")
     digest = _sha("".join(read).encode("utf-8"))
     evidence = Evidence(source, str(path), digest, f"lines 1-{len(read)}")
     out = {}
