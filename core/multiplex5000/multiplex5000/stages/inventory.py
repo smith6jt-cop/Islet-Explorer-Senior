@@ -11,8 +11,11 @@ What the release is built from, before anything is computed from it:
   modification time; nothing large is read.
 * **relationships** -- what ``multiplex5000.relationships`` reads from the donor notes,
   ``pln_blocks.csv`` and ``section_modes.csv``, with every disagreement between them.
-* **coverage** -- for each donor, how many sources of each kind there are, as a table and the gate
-  figure.
+* **coverage** -- for each donor, how many sources of each kind there are and, beside its pancreas
+  image, the pLN/lymphoid the donor notes designate for that pancreas, same-block or
+  different-block, checked against ``pln_blocks.csv``; as a table and the gate figure. The notes'
+  cautions are marked on the figure and quoted word for word on the gate; nothing in them is
+  counted or designated.
 
 The gate blocks on: a repeated acquisition id, a cohort donor the notes do not describe, a cohort
 image the QuPath manifest does not have, a raw image whose size is not its record's, and any
@@ -39,6 +42,18 @@ STAGE = "00_inventory"
 #: The coverage columns: one per kind of source a donor can have.
 COLUMNS = ("PhenoCycler pancreas", "PhenoCycler pLN slide", "Xenium pancreas", "Xenium pLN",
            "post-Xenium IF", "donor notes")
+
+#: The pLN/lymphoid the donor notes designate for each pancreas, by block: (coverage column,
+#: the block as relationships names it, the DonorNote field that holds the notes' count).
+SAME_BLOCK = "same-block pLN/lymphoid"
+DIFFERENT_BLOCK = "different-block pLN/lymphoid"
+DESIGNATIONS = ((SAME_BLOCK, relationships.SAME_BLOCK, "same_block_pln"),
+                (DIFFERENT_BLOCK, relationships.DIFFERENT_BLOCK, "different_block_pln"))
+ANNOTATED = " in pln_blocks.csv"     # suffix of the column that holds pln_blocks.csv's pieces
+
+#: The figure's columns, left to right: the pancreas image, what the notes designate with it,
+#: then the other acquisitions.
+SHOWN = (COLUMNS[0], SAME_BLOCK, DIFFERENT_BLOCK, *COLUMNS[1:])
 
 _TRACKED = {  # name -> file name under core/phenocycler/data/integration
     "xenium_paths": "xenium_paths.csv", "section_modes": "section_modes.csv",
@@ -146,7 +161,14 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict) -> list
     return out
 
 
+def _donor_order(donor_id: str) -> tuple:
+    return (not donor_id.isdigit(), donor_id.zfill(8))
+
+
 def _coverage(acquisitions, reading, spec) -> list[dict]:
+    """One row per donor: its acquisitions by kind, its donor-notes line and, beside the pancreas
+    image, the notes' pLN/lymphoid designations -- blank where the line does not say -- with the
+    pieces ``pln_blocks.csv`` annotates for the same block, so a difference shows."""
     counts: dict[str, Counter] = {}
     kind = {("phenocycler", PANCREAS): COLUMNS[0], ("phenocycler", LYMPH_NODE): COLUMNS[1],
             ("xenium", PANCREAS): COLUMNS[2], ("xenium", LYMPH_NODE): COLUMNS[3],
@@ -155,10 +177,44 @@ def _coverage(acquisitions, reading, spec) -> list[dict]:
         counts.setdefault(a["donor_id"], Counter())[kind[(a["platform"], a["tissue"])]] += 1
     for donor in reading.donors:
         counts.setdefault(donor, Counter())[COLUMNS[5]] += 1
+    annotated: Counter = Counter()
+    for ann in reading.pln:
+        counts.setdefault(ann.donor_id, Counter())
+        annotated[(ann.donor_id, ann.block)] += ann.pieces
     cohort = set(map(str, spec.get("expected_donors", [])))
-    return [dict(donor_id=d, in_cohort_spec=d in cohort, centrally_excluded=d in DONOR_EXCLUSIONS,
-                 **{c: counts[d].get(c, 0) for c in COLUMNS})
-            for d in sorted(counts, key=lambda x: (not x.isdigit(), x.zfill(8)))]
+    rows = []
+    for d in sorted(counts, key=_donor_order):
+        note = reading.donors.get(d)
+        row = dict(donor_id=d, in_cohort_spec=d in cohort, centrally_excluded=d in DONOR_EXCLUSIONS)
+        row[COLUMNS[0]] = counts[d].get(COLUMNS[0], 0)
+        for column, _, field in DESIGNATIONS:
+            stated = getattr(note, field) if note is not None else None
+            row[column] = "" if stated is None else stated
+        row.update({c: counts[d].get(c, 0) for c in COLUMNS[1:]})
+        for column, block, _ in DESIGNATIONS:
+            row[column + ANNOTATED] = annotated[(d, block)]
+        row["designation read from free text"] = bool(note is not None and note.pln_from_caution)
+        row["caution in the notes"] = bool(note is not None and note.cautions)
+        rows.append(row)
+    return rows
+
+
+def _designations(reading) -> list[str]:
+    """Each pancreas the notes give any pLN/lymphoid -- or leave a block unsaid -- as written."""
+    out = []
+    for note in sorted(reading.donors.values(), key=lambda n: _donor_order(n.donor_id)):
+        said = []
+        for _, block, field in DESIGNATIONS:
+            name = block.replace("_", "-")
+            count = getattr(note, field)
+            if count is None:
+                said.append(f"{name} not stated")
+            elif count:
+                said.append(f"{count} {name}")
+        if said:
+            out.append(f"{note.donor_id}: {', '.join(said)}"
+                       + (" (read from the line's free text)" if note.pln_from_caution else ""))
+    return out
 
 
 def _write_csv(path: Path, rows: list[dict]) -> None:
@@ -224,7 +280,29 @@ def run(task: Task) -> dict:
                                     if a.get("mtime_matches_record") is False),
         "raw_not_found": sorted(a["acquisition_id"] for a in acquisitions
                                 if a.get("exists") is False),
+        "pln_designations": _designations(reading),
+        "cautions": [f"{n.donor_id}: {'; '.join(n.cautions)}"
+                     for n in sorted(reading.donors.values(), key=lambda n: _donor_order(n.donor_id))
+                     if n.cautions],
     }
+
+
+#: The figure's colour for each column: acquisitions blue, the notes' designations by block.
+_MAPS = {SAME_BLOCK: "Greens", DIFFERENT_BLOCK: "Oranges"}
+
+
+def _cell(row: dict, column: str) -> tuple:
+    """(value for the colour, the text, whether the notes and pln_blocks.csv differ)."""
+    if column not in _MAPS:
+        value = row[column]
+        return value, (f"{value}" if value else "–"), False
+    stated, annotated = row[column], row[column + ANNOTATED]
+    if stated == "":
+        return 0, "?", False
+    text = f"{stated}" if stated else "–"
+    if stated != annotated:
+        return stated, f"{stated} / {annotated}", True
+    return stated, text, False
 
 
 def _figure(task: Task, coverage: list[dict]) -> None:
@@ -233,24 +311,45 @@ def _figure(task: Task, coverage: list[dict]) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import numpy as np
+    from matplotlib.patches import Rectangle
 
     donors = [r["donor_id"] for r in coverage]
-    grid = np.array([[r[c] for c in COLUMNS] for r in coverage], dtype=float)
-    fig, ax = plt.subplots(figsize=(8.5, 0.32 * max(len(donors), 4) + 1.6))
-    shown = np.where(grid > 0, grid, np.nan)
-    top = max(2.0, float(np.nanmax(grid)) if np.isfinite(shown).any() else 2.0)
-    ax.imshow(shown, aspect="auto", cmap="Blues", vmin=0, vmax=top)
-    for (i, j), value in np.ndenumerate(grid):
-        ink = "0.55" if not value else ("white" if value >= 0.6 * top else "black")
-        ax.text(j, i, f"{int(value)}" if value else "–", ha="center", va="center", fontsize=8,
-                color=ink)
+    cells = [[_cell(r, c) for c in SHOWN] for r in coverage]
+    # one colour scale for the acquisition counts and one for the designations
+    top = {False: 2.0, True: 2.0}
+    for row in cells:
+        for column, (value, _, _) in zip(SHOWN, row, strict=True):
+            top[column in _MAPS] = max(top[column in _MAPS], float(value))
+    image = np.ones((len(coverage), len(SHOWN), 4))
+    for i, row in enumerate(cells):
+        for j, (value, _, _) in enumerate(row):
+            if value:
+                image[i, j] = plt.get_cmap(_MAPS.get(SHOWN[j], "Blues"))(
+                    value / top[SHOWN[j] in _MAPS])
+    fig, ax = plt.subplots(figsize=(10.5, 0.32 * max(len(donors), 4) + 2.4))
+    ax.imshow(image, aspect="auto")
+    for i, row in enumerate(cells):
+        for j, (value, text, differs) in enumerate(row):
+            scale = top[SHOWN[j] in _MAPS]
+            ink = "0.55" if not value else ("white" if value >= 0.6 * scale else "black")
+            ax.text(j, i, text, ha="center", va="center", fontsize=8, color=ink)
+            if differs:
+                ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False,
+                                       edgecolor="#b3261e", linewidth=1.8))
     labels = [f"{r['donor_id']}{' (excluded)' if r['centrally_excluded'] else ''}"
+              f"{' †' if r['caution in the notes'] else ''}"
               f"{'' if r['in_cohort_spec'] else ' *'}" for r in coverage]
     ax.set_yticks(range(len(donors)), labels, fontsize=8)
-    ax.set_xticks(range(len(COLUMNS)), COLUMNS, rotation=25, ha="right", fontsize=8)
-    ax.set_title("Recorded sources per donor (stage 00). * = not in the cohort spec", fontsize=10)
-    ax.set_xlabel("count of acquisitions of each kind; the last column is the donor-notes line",
-                  fontsize=8)
+    ax.set_xticks(range(len(SHOWN)), [c.replace(" pLN/", "\npLN/") for c in SHOWN],
+                  rotation=25, ha="right", fontsize=8)
+    ax.set_title("Recorded sources per donor (stage 00)", fontsize=10)
+    ax.set_xlabel(
+        "Blue: acquisitions of each kind; the last column is the donor-notes line.\n"
+        "Green / orange: the pLN/lymphoid the donor notes designate for each pancreas, same-block /"
+        " different-block, checked against pln_blocks.csv;\n"
+        "'n / m' (red edge) = notes / pln_blocks.csv where they differ; ? = the notes do not say."
+        " † = the notes carry a caution, quoted on the gate. * = not in the cohort spec.",
+        fontsize=7.5)
     fig.tight_layout()
     fig.savefig(gates.figure_path(task, "coverage.png"), dpi=150)
     plt.close(fig)
@@ -282,6 +381,13 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           detail=", ".join(summary["raw_mtime_differs"][:6])),
         C("raw files not found on this machine", len(summary["raw_not_found"]), "reported", True,
           blocking=False, detail=", ".join(summary["raw_not_found"][:6])),
+        C("pLN/lymphoid the donor notes designate, by pancreas", summary["pln_designations"],
+          "reported", True, blocking=False,
+          detail="same-block or different-block as each line writes it; a pancreas not listed "
+                 "has none in its line. Checked against pln_blocks.csv by the disagreement check "
+                 "above"),
+        C("cautions in the donor notes, quoted", summary["cautions"], "reported", True,
+          blocking=False, detail="word for word; nothing in them is counted or designated"),
         C("acquisitions per platform", summary["acquisitions"], "reported", True,
           blocking=False),
     ]

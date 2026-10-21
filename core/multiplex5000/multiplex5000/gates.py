@@ -83,7 +83,8 @@ def write(stage_dir: Path, gate: Gate, *, release: str) -> Path:
 def _html(record: dict) -> str:
     rows = []
     for c in record["checks"]:
-        state = "pass" if c["passed"] else ("FAIL" if c["blocking"] else "note")
+        # a reported check is a note whatever its value; only a blocking one passes or fails
+        state = ("pass" if c["passed"] else "FAIL") if c["blocking"] else "note"
         rows.append(f"<tr class='{state.lower()}'><td>{state}</td><td>{html.escape(c['name'])}</td>"
                     f"<td>{html.escape(json.dumps(c['value'], default=str))}</td>"
                     f"<td>{html.escape(c['expect'])}</td>"

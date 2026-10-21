@@ -49,6 +49,46 @@ def test_the_inventory_lists_every_acquisition_by_its_recorded_name(synthetic_pr
     assert (folder / "gate" / "coverage.png").stat().st_size > 1000
 
 
+DESIGNATED = ("6374: pancTail and 1 pLN same-block; bulk T and B cell aggregates kept in Tissue, "
+              "sequential Xenium\n"
+              "HDL112: pancTail and 1 pLN different-block, area of pLN is about the same as panc, "
+              "same-slide post-phenocycler Xenium\n")
+BLOCKS = ("image,entry_id,donor,pln_annotation,object_id,pieces,area_mm2,overlap_with_tissue_um2,"
+          "gap_to_tissue_um,measured_relation,block_from_notes,notes\n"
+          "img112,1,HDL112,1,uuid-1,1,1.0,0.0,664.7,separate,different-block,x\n"
+          "img6374,2,6374,1,uuid-2,1,1.0,0.0,0.0,abuts Tissue (gap 0),same-block,x\n")
+
+
+def test_coverage_carries_the_notes_designations_beside_each_pancreas(synthetic_project):
+    # the notes as the maintainer keeps them since 2026-10-21: no header, a blank first line
+    _, folder, checks = _run(synthetic_project(
+        notes__txt="\n" + DESIGNATED, notes_copy__md="IO60panc2nd Notes\n" + DESIGNATED,
+        pln_blocks__csv=BLOCKS))
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    assert list(coverage["6374"])[3:6] == ["PhenoCycler pancreas", STAGE.SAME_BLOCK,
+                                           STAGE.DIFFERENT_BLOCK]
+    assert (coverage["6374"][STAGE.SAME_BLOCK], coverage["6374"][STAGE.DIFFERENT_BLOCK]) == ("1", "0")
+    assert (coverage["0112"][STAGE.SAME_BLOCK], coverage["0112"][STAGE.DIFFERENT_BLOCK]) == ("0", "1")
+    assert coverage["6374"][STAGE.SAME_BLOCK + STAGE.ANNOTATED] == "1"
+    assert coverage["6374"]["caution in the notes"] == "True"
+    designated = checks["pLN/lymphoid the donor notes designate, by pancreas"]
+    assert designated["value"] == ["0112: 1 different-block", "6374: 1 same-block"]
+    quoted = checks["cautions in the donor notes, quoted"]
+    assert quoted["value"] == ["0112: area of pLN is about the same as panc",
+                               "6374: bulk T and B cell aggregates kept in Tissue"]
+    assert not designated["blocking"] and not quoted["blocking"]
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
+
+
+def test_the_figure_shows_a_difference_and_what_the_notes_leave_unsaid():
+    row = {STAGE.SAME_BLOCK: 3, STAGE.SAME_BLOCK + STAGE.ANNOTATED: 0,
+           STAGE.DIFFERENT_BLOCK: "", STAGE.DIFFERENT_BLOCK + STAGE.ANNOTATED: 0,
+           "Xenium pLN": 2}
+    assert STAGE._cell(row, STAGE.SAME_BLOCK) == (3, "3 / 0", True)       # notes / pln_blocks
+    assert STAGE._cell(row, STAGE.DIFFERENT_BLOCK) == (0, "?", False)     # the line does not say
+    assert STAGE._cell(row, "Xenium pLN") == (2, "2", False)
+
+
 def test_the_receipt_binds_every_source_it_read(synthetic_project):
     _, folder, _ = _run(synthetic_project())
     receipt = json.loads((folder / "receipt.json").read_text())

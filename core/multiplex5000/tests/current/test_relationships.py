@@ -112,6 +112,22 @@ def test_reading_stops_after_the_if_section(sources):
     assert all(PLANTED not in repr(d) for d in donors.values())
 
 
+def test_the_header_and_the_if_section_may_be_absent(sources, tmp_path):
+    """Since 2026-10-21 the maintainer's notes hold the donor lines alone, after a blank line."""
+    bare = tmp_path / "bare.txt"
+    bare.write_text("\n" + "".join(NOTES.splitlines(keepends=True)[1:8]))
+    donors, evidence = R.read_donor_notes(bare, ALIASES)
+    full, _ = R.read_donor_notes(sources["notes.txt"], ALIASES)
+    assert {k: d.body for k, d in donors.items()} == {k: d.body for k, d in full.items()}
+    assert all(d.post_xenium_if is None for d in donors.values())
+    assert evidence.where == "lines 1-8"
+    reading = _load(sources, notes=bare, notes_copy=sources["notes.txt"])
+    assert not [c for c in reading.conflicts if "copies" in c.what], "the header is not content"
+    bare.write_text("\n\n")
+    with pytest.raises(R.RelationshipError, match="no donor lines"):
+        R.read_donor_notes(bare, ALIASES)
+
+
 @pytest.mark.parametrize("bad, message", [
     ("6374 pancTail no pLN, sequential Xenium", "not a donor line"),
     ("6374: pancTail no pLN, Xenium later", "does not end with a Xenium design"),
