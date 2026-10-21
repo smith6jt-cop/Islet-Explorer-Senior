@@ -56,8 +56,11 @@ not deleted. The active release has not been switched to this candidate.
   but accepts an empty slide ID. Require that field and test its absence.
 - **Recorded relationships.** A section's block and a renamed Xenium region
   need a specific recorded source. A cohort-level "mostly different block"
-  statement cannot fill an unknown section. Keep unresolved relationships
-  visibly unknown and blocking where a later join would depend on them.
+  statement cannot fill an unknown section. The uncommitted `_blocks` edit in
+  the PR #38 worktree currently assigns `different block` when a donor note is
+  absent or the Xenium design is not sequential; that fallback must not land.
+  Keep unresolved relationships visibly unknown and blocking where a later
+  join would depend on them.
 - **Figure review.** Check every pancreas's same-block and different-block
   pLN designation, the run partners and dates, panel labels, the six known
   Xenium folder/record name differences, the two tissue-condition rows, the
