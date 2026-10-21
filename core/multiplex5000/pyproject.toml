@@ -26,7 +26,9 @@ dependencies = [
     "statsmodels",
     "tifffile",
     "imagecodecs",
-    "duckdb",
+    # The current Senior distance-profile builder fails with DuckDB 2.0.0's
+    # connection result lifecycle. Keep the last green major until that builder moves.
+    "duckdb<2",
     # integration/manifest.py reads the donor metadata workbook.
     "openpyxl",
     # multiplex5000/profiles.py reads the tissue, platform, panel and cohort profiles.
