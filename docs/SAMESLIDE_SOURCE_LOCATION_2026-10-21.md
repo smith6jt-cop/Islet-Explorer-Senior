@@ -46,16 +46,21 @@ check cannot establish that a HiPerGator acquisition is absent.
 
 ## Required Stage 00 correction
 
-`xenium_paths.csv` currently lists 112 and 6533's same-slide outputs but has
-no rows for 6347/6580's October 2 outputs. PR #38 describes the latter as
-having no HiPerGator output; that statement is false. Before accepting Stage
-00, reconcile all four October 2 **region** bundles into its acquisition
-inventory with exact serial, tissue and source path. If Stage 00 runs on the
-workstation, copy only the small instrument-record files it reads, record
-their HiPerGator source paths and SHA-256 values, and check the local copies
+`xenium_paths.csv` currently lists only 112 and 6533's same-slide **pancreas**
+outputs (via `/blue` copies). Their same-slide pLN outputs are absent from that
+table, as are both regions for 6347 and 6580: **six region rows are missing**.
+The table does contain separate 2024 pLN sections for all four donors; those
+must not be mistaken for the 2026 same-slide pLN regions. PR #38 describes
+6347/6580 as having no HiPerGator output; that statement is false. Before
+accepting Stage 00, reconcile all eight same-slide region bundles into its
+acquisition inventory with exact serial, tissue and source path. Check whether
+other `xenium_paths.csv` readers assume one row per donor and ROI before adding
+the six rows there; a dedicated acquisition inventory may be necessary. If
+Stage 00 runs on the workstation, copy only the small instrument-record files
+it reads, record their HiPerGator source paths and SHA-256 values, and check the local copies
 against those values. Keep `remote source exists` distinct from `full bundle
 present locally`; regenerate run, slide and coverage counts and figures after
-the four rows are admitted.
+the six rows are admitted.
 
 The lane's old `registration_candidates` paths are historical optional
 candidates; four no longer exist. They are not the current registration

@@ -40,9 +40,10 @@ not deleted. The active release has not been switched to this candidate.
   have no Xenium output under the two locations it searched. Their pancreas
   and pLN bundles are present under the separate October 2 run directory on
   `/orange/maigan`; the four-slide inputs and validated receipts are on
-  `/blue/maigan/smith6jt`. Reconcile the four missing region rows and their
-  instrument records before Stage 00 acceptance, and distinguish a missing
-  workstation copy from a missing source. The verified paths and receipt
+  `/blue/maigan/smith6jt`. The 112/6533 same-slide pLN regions are also absent
+  from `xenium_paths.csv`, making six missing rows in all. Reconcile all eight
+  same-slide regions and their instrument records before Stage 00 acceptance,
+  and distinguish a missing workstation copy from a missing source. The verified paths and receipt
   limits are in [the same-slide source locator](SAMESLIDE_SOURCE_LOCATION_2026-10-21.md).
 - **Missing is not zero.** At PR #38's tip, coverage formats a pLN designation
   with `if stated else ""`. The notes reader distinguishes `0` from `None`, but this
