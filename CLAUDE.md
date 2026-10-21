@@ -97,10 +97,17 @@ declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figure
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
 so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
-its own stage logic until D4. Its coverage shows, beside each pancreas image, the pLN/lymphoid the
-donor notes designate for that pancreas, same-block or different-block, checked against
-`pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted. Every acquisition
-also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
+its own stage logic until D4. Its coverage is laid out by physical slide: the PhenoCycler pancreas
+slide (its pancreas, the pLN/lymphoid the donor notes put on it -- same-block or different-block,
+checked against `pln_blocks.csv` -- its PhenoCycler scan and, where Xenium ran on that same slide
+after PhenoCycler, that Xenium), the Xenium slide (its regions, its run, the IF scanned after it)
+and the dedicated pLN slide, with each donor's datasets and slides counted -- one acquisition is
+one dataset, so a Xenium slide counts once however many regions it has -- and the rows of the
+sequential and same-slide donors apart. Each section is marked by the block it was cut from
+(maintainer, 2026-10-21): pancreas sections from the pancreas block, a dedicated pLN slide from a
+pLN block, a Xenium pLN section from a different block except on a sequential section whose notes
+line gives same-block pLN, where it is that same-block pLN. The notes' cautions are quoted on its
+gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
 without DAPI, `+ CD38` / `- b-Catenin1` for the one marker that differs, `MetSI` for the metabolic
 spike-in, else `markers` -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, 55 markers for the pLN
 slides; Xenium: `5kOnly` or `5k+100(<code>)`), its run, the run's date and
@@ -110,9 +117,10 @@ These come from each qptiff's first page and each Xenium output's records; the c
 outputs are on HiPerGator (`/orange/maigan/Xenium_T1D_PancPLN`, the PhenoXeno slides under
 `/blue/maigan/smith6jt/Xenium_Analysis/data`), and `/data/xenium_records` holds copies of the
 records of those this machine holds only in part. Known damage is what the maintainer records, by
-acquisition, in the tracked `core/phenocycler/data/integration/tissue_condition.csv` -- 6450's
-Xenium pancreas, and 6533's PhenoXeno pancreas and pLN, both damaged before Xenium -- and stage 00
-marks it; what a later stage does with a damaged acquisition is that stage's question.
+acquisition and tissue, in the tracked `core/phenocycler/data/integration/tissue_condition.csv` --
+6450's Xenium pancreas, and 6533's PhenoXeno pancreas and pLN, both damaged before Xenium -- and
+stage 00 marks exactly those sections; what a later stage does with a damaged acquisition is that
+stage's question.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
