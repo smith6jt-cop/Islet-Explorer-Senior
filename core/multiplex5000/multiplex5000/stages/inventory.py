@@ -16,6 +16,10 @@ What the release is built from, before anything is computed from it:
   and the slide or slides run with it; ``runs.csv`` and the ``runs.png`` figure list every run. A
   Xenium output this machine holds only in part is read from the copy of its records taken from
   the complete output (the site's ``xenium_records``, ``MANIFEST.tsv`` beside them).
+* **disease status and batches** -- each donor's disease status (ND, Aab+, T1D), from the
+  project's donor metadata, else nPOD's case export, checked against each other where both have
+  the donor; and the batch number each Xenium run name carries. Donors with no PhenoCycler
+  acquisition and no notes line are Xenium-only, their rows kept apart in the coverage.
 * **known damage** -- the damage the maintainer recorded, by acquisition and tissue, in the
   tracked ``tissue_condition.csv``; marked on exactly the damaged sections in the coverage, in the
   acquisitions and runs, and listed on the gate.
@@ -40,7 +44,8 @@ image the QuPath manifest does not have, a raw image whose size is not its recor
 disagreement between the sources that is not one already known and explained, an instrument
 record that is missing, unreadable or at odds with itself, a pancreas image whose markers are not
 its manifest panel's, a panel the naming rule does not cover, a run of more than two slides, a
-recorded tissue condition that names no acquisition or an unknown tissue, a Xenium pLN section
+recorded tissue condition that names no acquisition or an unknown tissue, a donor with no
+recorded disease status or two sources that disagree on it, a Xenium pLN section
 whose block the notes leave unsettled, and a Xenium output folder that names a region its record
 does not, until the reason is known.
 
@@ -91,9 +96,17 @@ OTHER_BLOCK = "different block"
 #: section whose block the rule does not settle.
 NOT_LISTED = "no output listed"
 UNSETTLED = "block not settled"
-#: The Xenium design each donor's notes line gives; the coverage separates its rows by it.
+#: The Xenium design each donor's notes line gives; the coverage separates its rows by it. A
+#: donor with no PhenoCycler acquisition and no notes line has Xenium only (6512 and 6618, added
+#: by the maintainer 2026-10-22).
 DESIGNS = {relationships.SEQUENTIAL: "sequential",
            relationships.SAME_SECTION_AFTER_PHENOCYCLER: "same slide"}
+XENIUM_ONLY = "Xenium only"
+#: Where each donor's disease status is read, in order -- the project's donor metadata, then
+#: nPOD's case export for a donor the metadata does not have -- and its id and status columns.
+#: The spellings each uses are the cohort profile's disease_status.
+STATUS_SOURCES = (("donor_metadata", "donor_id", "disease.status"),
+                  ("npod_cases", "case_id", "donor_type"))
 
 #: Where stage 00 reads what the instruments recorded: the qptiff folders of both PhenoCycler
 #: projects (every slide there can be another's run partner), and the copies of the records of
@@ -153,8 +166,10 @@ def inputs(project) -> list[Input]:
     ]
     found += [Input(n, _path(project, n, roots.INTEGRATION / f)) for n, f in _TRACKED.items()]
     for name, required in (("donor_notes", True), ("donor_notes_copy", False),
-                           ("pln_blocks", True)):
+                           ("pln_blocks", True), ("donor_metadata", True)):
         found.append(Input(name, _needed(project, name), required=required))
+    if project.source("npod_cases"):
+        found.append(Input("npod_cases", project.source("npod_cases"), required=False))
     found += _instrument_inputs(project, found)
     return found
 
@@ -323,6 +338,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             fields = dict(run=f"xenium:{record.run_name}", run_date=record.run_date,
                           run_start=record.run_start, recorded_slide=record.slide_id,
                           cassette_name=record.experiment.get("cassette_name", ""),
+                          batch_number=_batch_number(record.run_name),
                           recorded_region=record.region, folder_region=folder_region,
                           local_copy=("complete" if Path(path, XENIUM_RECORDS[0]).is_file()
                                       else "partial" if exists else "not on this machine"),
@@ -359,6 +375,48 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             note=("channel roles recorded in restain_sections.csv" if recorded
                   else "no channel roles recorded; the panel is the one every image carries")))
     return out
+
+
+def _batch_number(run_name: str) -> str:
+    """The batch number a Xenium run name carries -- MM035_Xenium-npodBatch1 is batch 1,
+    MM48_batch14 batch 14 -- or "" for a run whose name carries none (the PhenoXeno runs)."""
+    m = re.search(r"[Bb]atch[_-]?(\d+)", run_name or "")
+    return str(int(m.group(1))) if m else ""
+
+
+def _statuses(task: Task, cohort, donors: set) -> tuple[dict, list[str], list[str]]:
+    """Each donor's disease status, as a level of the cohort profile's disease_status: from the
+    project's donor metadata, else from nPOD's case export. Returns ({donor: (status, source)},
+    the donors whose two sources disagree, the recorded spellings no level names)."""
+    import pandas as pd
+
+    if not cohort.disease_status:
+        raise profiles.ProfileError(f"cohort profile {cohort.id} declares no disease_status; "
+                                    f"{STAGE} reads each donor's status in its spellings")
+    spellings = cohort.disease_status["spellings"]
+    found: dict[str, tuple[str, str]] = {}
+    disagree, unknown = [], []
+    for source, id_column, status_column in STATUS_SOURCES:
+        if source not in task.inputs:
+            continue
+        frame = pd.read_excel(task.input(source), dtype=str)
+        missing = [c for c in (id_column, status_column) if c not in frame.columns]
+        if missing:
+            raise ValueError(f"{task.input(source)} has no {' or '.join(missing)} column")
+        for label, value in zip(frame[id_column], frame[status_column], strict=True):
+            if pd.isna(label):
+                continue
+            donor = cohort.donor_aliases.get(str(label).strip(), str(label).strip())
+            if donor not in donors or pd.isna(value):
+                continue
+            level = spellings.get(str(value).strip())
+            if level is None:
+                unknown.append(f"{source} {donor}: {str(value).strip()!r}")
+            elif donor not in found:
+                found[donor] = (level, source)
+            elif found[donor][0] != level:
+                disagree.append(f"{donor}: {found[donor][1]} {found[donor][0]}, {source} {level}")
+    return found, disagree, unknown
 
 
 def _cassette_carries_donor(a: dict) -> bool:
@@ -427,7 +485,7 @@ def _runs(acquisitions: list[dict], records: dict) -> list[dict]:
                                acquisitions=[acq["acquisition_id"]] if acq else [],
                                panel=acq.get("panel", "") if acq else ""))
         out.append(dict(platform="phenocycler", run=f"phenocycler:{experiment}:{day}",
-                        run_name=experiment, date=day, slides=slides))
+                        run_name=experiment, batch="", date=day, slides=slides))
     xenium: dict[str, list[dict]] = {}
     for a in acquisitions:
         if a["platform"] == "xenium" and a.get("run"):
@@ -442,6 +500,7 @@ def _runs(acquisitions: list[dict], records: dict) -> list[dict]:
                        panel="; ".join(sorted({a.get("panel", "") for a in group})))
                   for s, group in sorted(by_slide.items())]
         out.append(dict(platform="xenium", run=run, run_name=run.split(":", 1)[1],
+                        batch=_batch_number(run.split(":", 1)[1]),
                         date=min(a["run_date"] for a in members), slides=slides))
     out.sort(key=lambda r: (r["platform"] != "phenocycler", r["date"], r["run"]))
     partners, run_with = {}, {}
@@ -515,14 +574,15 @@ def _acquisition_text(a: dict) -> str:
     if a["platform"] == "if":
         channels = a.get("panel", "").split(", ")
         return "\n".join(", ".join(channels[i:i + 2]) for i in range(0, len(channels), 2))
-    return "\n".join(part for part in (a.get("panel", ""), _run_text(a)) if part)
+    batch = f"batch {a['batch_number']}" if a.get("batch_number") else ""
+    return "\n".join(part for part in (a.get("panel", ""), batch, _run_text(a)) if part)
 
 
 def _pln_order(column: str) -> tuple:
     return (column != PLN_SECTION, int(column.rsplit(" ", 1)[1]) if " " in column else 0)
 
 
-def _coverage(acquisitions: list[dict], reading, spec) -> dict:
+def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
     """The coverage, by physical slide.
 
     ``cells`` maps (donor, slide, column) to what that cell holds: its ``text``, the ``kind`` that
@@ -635,11 +695,13 @@ def _coverage(acquisitions: list[dict], reading, spec) -> dict:
                 (XENIUM_SLIDE, XENIUM, "acquisition"), (XENIUM_SLIDE, POST_XENIUM_IF, "acquisition"),
                 (PLN_SLIDE, PLN_SECTION, "section"), (PLN_SLIDE, PHENOCYCLER, "acquisition")]
 
-    order = list(DESIGNS.values())
+    order = [*DESIGNS.values(), XENIUM_ONLY]
+    pheno = {a["donor_id"] for a in acquisitions if a["platform"] == "phenocycler"}
     grouped: dict[str, list[str]] = {}
     for donor in sorted(donors, key=_donor_order):
         note = reading.donors.get(donor)
-        label = DESIGNS.get(note.xenium_design if note else "", "no Xenium design in the notes")
+        label = (DESIGNS.get(note.xenium_design, "no Xenium design in the notes") if note
+                 else XENIUM_ONLY if donor not in pheno else "no Xenium design in the notes")
         grouped.setdefault(label, []).append(donor)
     groups = sorted(grouped.items(),
                     key=lambda kv: order.index(kv[0]) if kv[0] in order else len(order))
@@ -652,7 +714,9 @@ def _coverage(acquisitions: list[dict], reading, spec) -> dict:
     for label, members in groups:
         for donor in members:
             note = reading.donors.get(donor)
-            row = dict(donor_id=donor, design=label, in_cohort_spec=donor in cohort,
+            status, source = statuses.get(donor, ("", ""))
+            row = dict(donor_id=donor, design=label, disease_status=status,
+                       disease_status_source=source, in_cohort_spec=donor in cohort,
                        centrally_excluded=donor in DONOR_EXCLUSIONS)
             for group, column, kind in columns:
                 row[f"{group}: {column}"] = _cell_text(cells.get((donor, group, column)), column, kind)
@@ -735,11 +799,15 @@ def run(task: Task) -> dict:
     unmatched = _conditions(acquisitions, _rows(task.input("tissue_condition")))
     _blocks(acquisitions, reading)
     runs = _runs(acquisitions, records)
-    coverage = _coverage(acquisitions, reading, spec)
+    donors = ({a["donor_id"] for a in acquisitions} | set(reading.donors)
+              | {ann.donor_id for ann in reading.pln})
+    statuses, status_disagree, status_unknown = _statuses(task, cohort, donors)
+    coverage = _coverage(acquisitions, reading, spec, statuses)
     _write_csv(task.output("acquisitions.csv"), acquisitions)
     _write_csv(task.output("coverage.csv"), coverage["table"])
     _write_csv(task.output("runs.csv"), [dict(
-        platform=r["platform"], run=r["run"], run_name=r["run_name"], date=r["date"],
+        platform=r["platform"], run=r["run"], run_name=r["run_name"], batch=r["batch"],
+        date=r["date"],
         slides=len(r["slides"]), panels="; ".join(sorted({s["panel"] for s in r["slides"]} - {""})),
         slides_run_together=" | ".join(
             s["label"] + (f" ({s['position']})" if s["position"] else "") for s in r["slides"]),
@@ -768,6 +836,7 @@ def run(task: Task) -> dict:
     ids = Counter(a["acquisition_id"] for a in acquisitions)
     spec_images = [i["image_id"] for i in spec.get("images", [])]
     in_manifest = {i["image_id"] for i in manifest.get("images", [])}
+    xenium_cell = f"{XENIUM_SLIDE}: {XENIUM}"
     return {
         "acquisitions": dict(platforms), "donors_in_notes": len(reading.donors),
         "relationships": dict(Counter(r.kind for r in reading.relationships)),
@@ -830,6 +899,17 @@ def run(task: Task) -> dict:
         "slides_run_alone": sorted(f"{r['slides'][0]['label']}, {r['date']}" for r in runs
                                    if r["platform"] == "phenocycler" and len(r["slides"]) == 1),
         "conditions_unmatched": unmatched,
+        "donors_without_status": sorted(d for d in donors if d not in statuses) + status_unknown,
+        "status_disagreements": status_disagree,
+        "disease_status": {level: sorted((d for d, (s, _) in statuses.items() if s == level),
+                                         key=_donor_order)
+                           for level in cohort.disease_status["levels"]},
+        "xenium_only_donors": [f"{r['donor_id']} ({r[xenium_cell]})" for r in coverage["table"]
+                               if r["design"] == XENIUM_ONLY],
+        "xenium_batches": [f"batch {r['batch']}: {r['run_name']}, "
+                           + " and ".join(s["donor"] for s in r["slides"])
+                           for r in sorted(runs, key=lambda r: int(r["batch"] or 0))
+                           if r["platform"] == "xenium" and r["batch"]],
         "xenium_pln_blocks_unsettled": sorted(
             f"{a['acquisition_id']} ({a['donor_id']})" for a in acquisitions
             if a["platform"] == "xenium" and a["tissue"] == LYMPH_NODE and a.get("block") == ""),
@@ -854,7 +934,7 @@ _HEADERS = {SAME_BLOCK: "same-block\npLN/lymphoid", DIFFERENT_BLOCK: "different-
             POST_XENIUM_IF: "post-Xenium\nIF"}
 _SECTION_WIDTH = {PANCREAS_SECTION: 0.66, SAME_BLOCK: 0.92, DIFFERENT_BLOCK: 0.92}
 _ACQUISITION_WIDTH = {POST_XENIUM_IF: 1.12}
-_GAP, _GROUP_GAP, _ROW, _LINE, _LEFT = 0.3, 0.34, 0.4, 0.118, 1.85
+_GAP, _GROUP_GAP, _ROW, _LINE, _LEFT, _STATUS = 0.3, 0.34, 0.4, 0.118, 1.85, 0.55
 
 
 def _width(column: str, kind: str) -> float:
@@ -875,7 +955,8 @@ def _figure(task: Task, layout: dict) -> None:
     from matplotlib.patches import Patch, Rectangle
 
     cells, columns, groups = layout["cells"], layout["columns"], layout["groups"]
-    xs, x = [], _LEFT + 0.1
+    status_x = _LEFT + 0.1
+    xs, x = [], status_x + _STATUS + _GAP / 2
     for i, (group, column, kind) in enumerate(columns):
         if i and group != columns[i - 1][0]:
             x += _GAP
@@ -915,6 +996,7 @@ def _figure(task: Task, layout: dict) -> None:
                 color="0.35", linewidth=0.9)
     for (x0, w), name in zip(totals, (DATASETS, SLIDES), strict=True):
         ax.text(x0 + w / 2, 1.13, name, ha="center", va="center", fontsize=7.3)
+    ax.text(status_x + _STATUS / 2, 1.13, "status", ha="center", va="center", fontsize=7.3)
     for label, members in groups:
         y0, y1 = ys[members[0]][0], sum(ys[members[-1]])
         ax.text(0.2, (y0 + y1) / 2, label, rotation=90, ha="center", va="center", fontsize=8.6)
@@ -927,6 +1009,9 @@ def _figure(task: Task, layout: dict) -> None:
         ink = "0.5" if faded else "black"
         ax.text(_LEFT, y0 + h / 2, donor + (" (excluded)" if faded else ""), ha="right",
                 va="center", fontsize=8, color=ink)
+        ax.text(status_x + _STATUS / 2, y0 + h / 2,
+                layout["table_by_donor"][donor]["disease_status"], ha="center", va="center",
+                fontsize=8, color=ink)
         for (group, column, kind), (x0, w) in zip(columns, xs, strict=True):
             cell = cells.get((donor, group, column))
             if cell is None:
@@ -994,20 +1079,20 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
     rows = []
     for r in runs:
         rows.append((r["date"], "PhenoCycler" if r["platform"] == "phenocycler" else "Xenium",
-                     r["run_name"],
+                     r["run_name"], r["batch"],
                      "; ".join(sorted({s["panel"] for s in r["slides"]} - {""})),
                      "   |   ".join(s["label"] + (f" ({s['position']})" if s["position"] else "")
                                     for s in r["slides"]),
                      len(r["slides"])))
     palette = plt.get_cmap("tab20")
-    colour = {name: palette(i % 20) for i, name in enumerate(sorted({row[3] for row in rows}))}
+    colour = {name: palette(i % 20) for i, name in enumerate(sorted({row[4] for row in rows}))}
     n = max(len(rows), 1)
     fig, ax = plt.subplots(figsize=(14.5, 0.25 * (n + 2) + 1.4))
     ax.set_axis_off()
     step = 1.0 / (n + 1)
-    columns = (0.0, 0.075, 0.155, 0.36, 0.475)
-    for x, head in zip(columns, ("run date", "platform", "run", "panel", "slides run together"),
-                       strict=True):
+    columns = (0.0, 0.075, 0.155, 0.335, 0.385, 0.50)
+    for x, head in zip(columns, ("run date", "platform", "run", "batch", "panel",
+                                 "slides run together"), strict=True):
         ax.text(x, 1 - step / 2, head, fontsize=8, fontweight="bold", va="center",
                 transform=ax.transAxes)
     for i, row in enumerate(rows):
@@ -1015,13 +1100,13 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
         if i % 2:
             ax.add_patch(Rectangle((0, y - step / 2), 1, step, transform=ax.transAxes,
                                    color="0.95", zorder=0))
-        ax.add_patch(Rectangle((columns[3] - 0.004, y - 0.4 * step), 0.11, 0.8 * step,
-                               transform=ax.transAxes, color=colour[row[3]], alpha=0.35, zorder=1))
-        alone = row[5] == 1
-        for x, value in zip(columns, row[:5], strict=True):
+        ax.add_patch(Rectangle((columns[4] - 0.004, y - 0.4 * step), 0.11, 0.8 * step,
+                               transform=ax.transAxes, color=colour[row[4]], alpha=0.35, zorder=1))
+        alone = row[6] == 1
+        for x, value in zip(columns, row[:6], strict=True):
             ax.text(x, y, value, fontsize=7.2, va="center", transform=ax.transAxes, zorder=2,
-                    color="#9a4a00" if alone and x == columns[4] else "black",
-                    style="italic" if alone and x == columns[4] else "normal")
+                    color="#9a4a00" if alone and x == columns[5] else "black",
+                    style="italic" if alone and x == columns[5] else "normal")
     ax.set_title("Runs (stage 00): the slides run together, the panel and the run's date", fontsize=10)
     fig.text(0.01, 0.005,
              "PhenoCycler: slides scanned under one experiment on one day were run together; the"
@@ -1072,6 +1157,12 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           summary["conditions_unmatched"], "none", not summary["conditions_unmatched"],
           detail="tissue_condition.csv; tissues in any spelling the tissue profiles accept, "
                  "';'-separated"),
+        C("every donor has a recorded disease status", summary["donors_without_status"], "none",
+          not summary["donors_without_status"],
+          detail="the project's donor metadata, else nPOD's case export, in the spellings the "
+                 "cohort profile's disease_status names"),
+        C("the donor metadata and nPOD's case export agree on each donor's disease status",
+          summary["status_disagreements"], "none", not summary["status_disagreements"]),
         C("every Xenium pLN section's block is settled by the donor notes",
           summary["xenium_pln_blocks_unsettled"], "none",
           not summary["xenium_pln_blocks_unsettled"],
@@ -1098,6 +1189,13 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                  "above"),
         C("cautions in the donor notes, quoted", summary["cautions"], "reported", True,
           blocking=False, detail="word for word; nothing in them is counted or designated"),
+        C("disease status, by donor", summary["disease_status"], "reported", True,
+          blocking=False, detail="each donor's source is in coverage.csv"),
+        C("Xenium-only donors", summary["xenium_only_donors"], "reported", True, blocking=False,
+          detail="no PhenoCycler acquisition and no line in the donor notes"),
+        C("Xenium batches", summary["xenium_batches"], "reported", True, blocking=False,
+          detail="the batch number each Xenium run name carries; the PhenoXeno runs carry none, "
+                 "and no PhenoCycler record carries one"),
         C("datasets, by the slide and platform they came from", summary["datasets"], "reported",
           True, blocking=False,
           detail=f"{summary['slides']} slides; one Xenium slide is one dataset however many "

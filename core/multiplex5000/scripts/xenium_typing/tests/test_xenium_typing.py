@@ -98,6 +98,19 @@ def test_cohort_bundles_are_selected_even_with_same_slide_rows(tmp_path, bundle_
         assert path.endswith(f"__{serial}__panc")
 
 
+def test_a_xenium_only_donor_is_never_read_as_a_cohort_bundle(tmp_path, bundle_rows):
+    """A donor outside the cohort is recorded where its complete output is, an absolute path
+    with no MM0xx run segment; every map must pass over it rather than refuse the whole file."""
+    csv = tmp_path / "xenium_paths.csv"
+    extra = pd.DataFrame([{"donor_id": "6512", "roi": "panc", "batch": "XeniumOnly",
+                           "source_path": "/orange/x/output-XETG00298__0041323__Region_1__1"}])
+    pd.concat([bundle_rows, extra], ignore_index=True).to_csv(csv, index=False)
+    assert pins.serial_map(csv) == {"6533": "0041393", "112": "0041396"}
+    assert pins.run_map(csv) == {"6533": "MM036", "112": "MM036"}
+    with pytest.raises(pins.PinError, match="0 bundle rows"):
+        pins.source_path("6512", csv)
+
+
 def test_same_slide_cannot_replace_an_absent_cohort_bundle(tmp_path, bundle_rows):
     csv = tmp_path / "xenium_paths.csv"
     bundle_rows[bundle_rows.batch == "PhenoXeno"].to_csv(csv, index=False)

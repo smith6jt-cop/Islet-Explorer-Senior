@@ -50,6 +50,9 @@ def test_the_inventory_lists_every_acquisition_by_its_recorded_name(synthetic_pr
     assert coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.XENIUM)] == "5k+100(6KTRAF); 2024-01-01 with 6374"
     assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.POST_XENIUM_IF)] == (
         "INS, GCG, failed marker, AF"), "no channel roles recorded for it: the one IF panel"
+    # disease status from the project's metadata (112 as 0112, by its declared alias)
+    assert [(coverage[d]["disease_status"], coverage[d]["disease_status_source"])
+            for d in ("6374", "0112")] == [("T1D", "donor_metadata"), ("ND", "donor_metadata")]
     kinds = {r["kind"] for r in _rows(folder / "relationships.csv")}
     assert {"same_section", "serial_section", "different_block", "shared_slide"} <= kinds
     assert all(c["passed"] for c in checks.values() if c["blocking"])
@@ -72,7 +75,9 @@ def test_coverage_carries_the_notes_designations_beside_each_pancreas(synthetic_
         notes_copy__md="IO60panc2nd Notes\n" + DESIGNATED, pln_blocks__csv=BLOCKS))
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     same, different = (_at(STAGE.PC_SLIDE, c) for c in (STAGE.SAME_BLOCK, STAGE.DIFFERENT_BLOCK))
-    assert list(coverage["6374"])[4:7] == [_at(STAGE.PC_SLIDE, "pancreas"), same, different]
+    columns = list(coverage["6374"])
+    first = columns.index(_at(STAGE.PC_SLIDE, "pancreas"))
+    assert columns[first:first + 3] == [_at(STAGE.PC_SLIDE, "pancreas"), same, different]
     assert (coverage["6374"][same], coverage["6374"][different]) == ("1 pLN", "")
     assert (coverage["0112"][same], coverage["0112"][different]) == ("", "1 pLN")
     assert (coverage["6374"]["design"], coverage["0112"]["design"]) == ("sequential", "same slide")
@@ -111,7 +116,7 @@ def test_the_receipt_binds_every_source_it_read(synthetic_project):
     tables = {"cohort_spec", "qupath_manifest", "xenium_paths", "section_modes", "donor_notes",
               "pln_blocks", "pln_node_annotations", "restain_sections",
               "restain_registration_inputs", "donor_notes_copy", "xenium_records_manifest",
-              "tissue_condition"}
+              "tissue_condition", "donor_metadata", "npod_cases"}
     qptiffs = {"qptiff:6374.qptiff", "qptiff:0112.qptiff", "qptiff:6374pLN_Scan1.qptiff"}
     outputs = ("output-XETG00298__0041000__Pan__20240101__000000",
                "output-XETG00298__0041001__Pancreas__20240101__000000",
@@ -405,4 +410,51 @@ def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthe
         "output-XETG00298__0041001__Pancreas__20240101__000000: cassette nPOD6553, listed as "
         "donor 112"]
     assert not check["blocking"]
+
+
+@pytest.mark.parametrize("run, batch", [
+    ("MM035_Xenium-npodBatch1", "1"), ("MM036_XeniumBatch2_ReRun", "2"), ("MM44_batch10", "10"),
+    ("MM48_batch14", "14"), ("6533_HDL112_pLNpanc_PhenoXeno", ""),
+    ("PhenoXeno_pLNpanc_6580_6347", ""),
+])
+def test_a_xenium_run_names_its_batch_number_or_none(run, batch):
+    assert STAGE._batch_number(run) == batch
+
+
+def test_two_sources_that_disagree_on_a_disease_status_block(synthetic_project):
+    _, _, checks = _run(synthetic_project(npod=[{"case_id": "6374", "donor_type": "No Diabetes"}]))
+    check = checks["the donor metadata and nPOD's case export agree on each donor's disease status"]
+    assert not check["passed"] and check["value"] == ["6374: donor_metadata T1D, npod_cases ND"]
+
+
+def test_a_donor_with_no_recorded_disease_status_blocks(synthetic_project):
+    _, _, checks = _run(synthetic_project(metadata=[{"donor_id": "6374",
+                                                     "disease.status": "T1D"}]))
+    check = checks["every donor has a recorded disease status"]
+    assert not check["passed"] and check["value"] == ["0112"]
+
+
+def test_a_xenium_only_donor_has_its_own_rows_status_and_batch(synthetic_project, tmp_path):
+    from conftest import NPOD_ROWS, SOURCES, write_xenium_records
+
+    output = "output-XETG00298__0049999__Region_1__20260416__180001"
+    path = synthetic_project(
+        npod=[*NPOD_ROWS, {"case_id": "7000", "donor_type": "Autoantibody Positive"}],
+        xenium_paths__csv=SOURCES["xenium_paths.csv"] + f"7000,panc,XeniumOnly,bundles/{output}\n")
+    write_xenium_records(tmp_path / "xenium" / "bundles" / output, run="MM48_batch14",
+                         start="2026-04-16T17:59:37Z", slide="0049999", region="Region_1",
+                         design="Y9QRJ6", cassette="7000")
+    _, folder, checks = _run(path)
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    row = coverage["7000"]
+    assert (row["design"], row["disease_status"], row["disease_status_source"]) == (
+        "Xenium only", "Aab+", "npod_cases")
+    assert row[_at(STAGE.XENIUM_SLIDE, STAGE.XENIUM)] == "5k+100(Y9QRJ6); batch 14; 2026-04-16 alone"
+    assert (row[STAGE.DATASETS], row[STAGE.SLIDES]) == ("1", "1")
+    assert checks["Xenium-only donors"]["value"] == [
+        "7000 (5k+100(Y9QRJ6); batch 14; 2026-04-16 alone)"]
+    assert checks["Xenium batches"]["value"] == ["batch 14: MM48_batch14, 7000"]
+    assert checks["disease status, by donor"]["value"] == {"ND": ["0112"], "Aab+": ["7000"],
+                                                           "T1D": ["6374"]}
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
 

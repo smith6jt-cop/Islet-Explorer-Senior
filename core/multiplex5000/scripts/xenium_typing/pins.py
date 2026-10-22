@@ -80,6 +80,8 @@ _SERIAL = re.compile(r"output-XETG\d+__(\d+)__")
 _RUN = re.compile(r"^(MM\d{3})")
 
 ROI = "panc"
+#: xenium_paths.csv batches that are not the cohort bundles this lane types (see paths_table).
+NOT_COHORT_BUNDLES = ("PhenoXeno", "XeniumOnly")
 
 
 class PinError(RuntimeError):
@@ -112,13 +114,15 @@ def paths_table(csv: pathlib.Path = XENIUM_PATHS, roi: str = ROI):
     ``PhenoXeno`` rows describe separate same-slide acquisitions, not the MM0xx
     cohort bundles this lane types. A donor may have both in ``xenium_paths.csv``;
     those rows must never replace the cohort serial or introduce a second match.
+    ``XeniumOnly`` rows are donors outside the PhenoCycler cohort (Xenium alone, recorded
+    where the complete output is, not under XENIUM_ROOT); this lane types the cohort.
     Whitespace and trailing slashes are stripped: the hand-maintained file carries both.
     """
     import pandas as pd
     if not pathlib.Path(csv).exists():
         raise PinError(f"{csv} is absent; it is the donor -> bundle manifest this lane keys on")
     t = pd.read_csv(csv, dtype=str)
-    t = t[(t["roi"] == roi) & (t["batch"].str.strip() != "PhenoXeno")
+    t = t[(t["roi"] == roi) & ~t["batch"].str.strip().isin(NOT_COHORT_BUNDLES)
           & t["source_path"].notna() & (t["source_path"].str.strip() != "NA")].copy()
     t["source_path"] = t["source_path"].str.strip().str.rstrip("/")
     t["donor_id"] = t["donor_id"].str.strip()

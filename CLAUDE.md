@@ -106,8 +106,13 @@ one dataset, so a Xenium slide counts once however many regions it has -- and th
 sequential and same-slide donors apart. Each section is marked by the block it was cut from
 (maintainer, 2026-10-21): pancreas sections from the pancreas block, a dedicated pLN slide from a
 pLN block, a Xenium pLN section from a different block except on a sequential section whose notes
-line gives same-block pLN, where it is that same-block pLN. The notes' cautions are quoted on its
-gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
+line gives same-block pLN, where it is that same-block pLN. Each donor carries its disease status
+(ND, Aab+, T1D) from `donor_metadata_panc.xlsx`, else nPOD's case export (site sources
+`donor_metadata`, `npod_cases`; the spellings are the cohort profile's `disease_status`), and each
+Xenium acquisition the batch number its run name carries. 6512 and 6618 (run MM48_batch14, batch
+14) are Xenium-only donors, listed in `xenium_paths.csv` with batch `XeniumOnly` (maintainer,
+2026-10-22) and kept out of the Xenium typing lane, which types the PhenoCycler cohort. The notes'
+cautions are quoted on its gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
 without DAPI, `+ CD38` / `- b-Catenin1` for the one marker that differs, `MetSI` for the metabolic
 spike-in, else `markers` -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, 55 markers for the pLN
 slides; Xenium: `5kOnly` or `5k+100(<code>)`; post-Xenium IF: one panel for every image, INS,

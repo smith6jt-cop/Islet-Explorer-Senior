@@ -61,7 +61,13 @@ NAMES = {"xenium_paths.csv": "xenium_paths", "section_modes.csv": "section_modes
          "pln_node_annotations.csv": "pln_node_annotations", "notes.txt": "donor_notes",
          "notes_copy.md": "donor_notes_copy", "pln_blocks.csv": "pln_blocks",
          "tissue_condition.csv": "tissue_condition",
+         "donor_metadata.xlsx": "donor_metadata", "npod_cases.xlsx": "npod_cases",
          "cohort_spec.json": "cohort_spec", "qupath_manifest.json": "qupath_manifest"}
+
+#: Disease status as the project's donor metadata and nPOD's case export record it: 112 is in
+#: the metadata only, as an HDL donor is; on 6374 the two agree.
+METADATA_ROWS = [{"donor_id": "6374", "disease.status": "T1D"}, {"donor_id": "112", "disease.status": "ND"}]
+NPOD_ROWS = [{"case_id": "6374", "donor_type": "Type 1 Diabetes"}]
 
 #: The synthetic panels: "2+ CD38" (CD3e and CD38, DAPI not counted) and the pLN slides'
 #: "2 markers".
@@ -105,7 +111,8 @@ def write_xenium_records(folder: Path, *, run: str, start: str, slide: str, regi
 
 @pytest.fixture
 def synthetic_project(tmp_path):
-    def build(*, release="r1", automatic=(), stages=("00_inventory",), **replace) -> Path:
+    def build(*, release="r1", automatic=(), stages=("00_inventory",), metadata=METADATA_ROWS,
+              npod=NPOD_ROWS, **replace) -> Path:
         source = tmp_path / "sources"
         raw = tmp_path / "raw"
         pln = tmp_path / "pln_images"
@@ -158,6 +165,11 @@ def synthetic_project(tmp_path):
         files.update({k.replace("__", "."): v for k, v in replace.items()})
         for name, text in files.items():
             (source / name).write_text(text)
+        import pandas as pd
+
+        for name, rows in (("donor_metadata.xlsx", metadata), ("npod_cases.xlsx", npod)):
+            pd.DataFrame(rows).to_excel(source / name, index=False)
+            files[name] = None
         project = {"schema": "multiplex5000-project/1", "id": "synthetic", "release": release,
                    "cohort": "io60_phenocycler", "stages": list(stages),
                    "automatic_gates": list(automatic),

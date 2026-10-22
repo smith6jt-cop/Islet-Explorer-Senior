@@ -197,6 +197,27 @@ def test_donor_aliases_are_quoted_text_and_never_an_id(tmp_path, aliases, messag
         profiles.load_profile(path)
 
 
+@pytest.mark.parametrize("cohort", ["io60_phenocycler", "io60_v3"])
+def test_the_cohort_declares_its_disease_statuses_in_order_and_their_spellings(cohort):
+    status = SHIPPED[("cohort", cohort)].disease_status
+    assert status["levels"] == ("ND", "Aab+", "T1D")
+    assert status["spellings"]["AAB"] == status["spellings"]["Autoantibody Positive"] == "Aab+"
+
+
+@pytest.mark.parametrize("status, message", [
+    ({"levels": ["ND", "T1D"], "spellings": {"AAB": "Aab+"}}, "name no level"),
+    ({"levels": [], "spellings": {"ND": "ND"}}, "needs levels"),
+    (["ND", "T1D"], "needs levels"),
+])
+def test_disease_status_spellings_must_name_a_level(tmp_path, status, message):
+    path = _write(tmp_path, "cohort", "c", {
+        "id": "c", "platform": "phenocycler", "tissues": ["pancreas"],
+        "membership": "core/multiplex5000/cohort-spec.json",
+        "exclusions": "multiplex5000.cohort.DONOR_EXCLUSIONS", "disease_status": status})
+    with pytest.raises(profiles.ProfileError, match=message):
+        profiles.load_profile(path)
+
+
 def test_the_cohort_declares_its_donor_aliases():
     assert SHIPPED[("cohort", "io60_phenocycler")].donor_aliases == {
         "112": "0112", "HDL112": "0112", "HDL115": "115"}

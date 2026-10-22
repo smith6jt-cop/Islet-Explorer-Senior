@@ -82,6 +82,9 @@ class CohortProfile:
     #: Donor labels a recorded source uses that are not the donor id (``HDL112`` -> ``0112``).
     #: Declared, with their evidence, because an alias must never be read out of a filename.
     donor_aliases: dict = field(default_factory=dict)
+    #: The disease statuses in their order (``levels``) and every spelling a recorded source
+    #: uses for one (``spellings``: ``AAB`` and ``Autoantibody Positive`` are ``Aab+``).
+    disease_status: dict = field(default_factory=dict)
     sources: dict = field(default_factory=dict)
 
 
@@ -95,7 +98,7 @@ _KINDS: dict[str, tuple[type, tuple[str, ...], tuple[str, ...]]] = {
                  ("panel_names", "sources")),
     "panel": (PanelProfile, ("id", "platform", "authority"), ("sources",)),
     "cohort": (CohortProfile, ("id", "platform", "tissues", "membership", "exclusions"),
-               ("donor_aliases", "sources")),
+               ("donor_aliases", "disease_status", "sources")),
 }
 
 _LISTS = {"aliases", "roi_prefixes", "tissue_only_panels", "structures", "comparable_lineages",
@@ -143,6 +146,19 @@ def load_profile(path: Path) -> Any:
         elif key == "panel_names":
             if not isinstance(value, dict) or not value:
                 raise ProfileError(f"{path}: panel_names must be a mapping of the naming rule's facts")
+        elif key == "disease_status":
+            levels, spellings = (value.get("levels"), value.get("spellings")) if isinstance(
+                value, dict) else (None, None)
+            if (not isinstance(levels, list) or not levels
+                    or not all(isinstance(v, str) and v.strip() for v in levels)
+                    or not isinstance(spellings, dict) or not spellings
+                    or not all(isinstance(k, str) and k.strip() for k in spellings)):
+                raise ProfileError(f"{path}: disease_status needs levels (a list) and spellings "
+                                   "(a mapping of each recorded spelling to a level)")
+            stray = sorted({str(v) for v in spellings.values()} - set(levels))
+            if stray:
+                raise ProfileError(f"{path}: disease_status spellings name no level: {stray}")
+            body[key] = {"levels": tuple(levels), "spellings": dict(spellings)}
         elif key == "donor_aliases":
             # Both sides must be text: an unquoted 0112 in YAML is the number 112, and the leading
             # zero -- which IS the donor id -- would be gone without a word.
