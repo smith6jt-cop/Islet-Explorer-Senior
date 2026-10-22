@@ -83,11 +83,14 @@ PLN_SLIDE = "PhenoCycler pLN slide"
 PHENOCYCLER = "PhenoCycler"
 XENIUM = "Xenium"
 POST_XENIUM_IF = "post-Xenium IF"
+SLIDE_NUMBER = "slide"
 PANCREAS_SECTION = "pancreas"
 PLN_SECTION = "pLN"
 DATASETS = "datasets"
 SLIDES = "slides"
 ACQUISITION_COLUMNS = (PHENOCYCLER, XENIUM, POST_XENIUM_IF)
+#: Columns that are not a section of the slide, so recorded damage never falls on them.
+NOT_SECTIONS = (*ACQUISITION_COLUMNS, SLIDE_NUMBER)
 #: The block a section was cut from: the pancreas block (a pLN in it is same-block) or another --
 #: the "different block" of a different-block pLN, and the pLN block of a dedicated pLN slide.
 PANCREAS_BLOCK = "pancreas block"
@@ -285,7 +288,8 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
         fields = dict(scan_time=header.scan_time, experiment=header.experiment,
                       experiment_date=header.experiment_date, run_position=header.position,
                       run=f"phenocycler:{header.experiment}:{header.scan_date}",
-                      run_date=header.scan_date, software=header.software, qptiff=file)
+                      run_date=header.scan_date, software=header.software, qptiff=file,
+                      slide_id=header.slide_id)
         try:
             fields["panel"] = panel_names.phenocycler(header.markers, rules["phenocycler"])
         except panel_names.PanelNameError as err:
@@ -419,13 +423,22 @@ def _statuses(task: Task, cohort, donors: set) -> tuple[dict, list[str], list[st
     return found, disagree, unknown
 
 
-def _cassette_carries_donor(a: dict) -> bool:
-    """Whether the cassette name the operator typed at the Xenium instrument carries the listed
-    donor's number -- HDL112, nPOD6591 and 6347pLNpanc carry 112, 6591 and 6347. It is a label, so
-    it is compared, never used to name the donor."""
-    numbers = {int(n) for n in re.findall(r"\d+", a.get("cassette_name") or "")}
-    return any(int(n) in numbers for label in (a["donor_id"], a.get("donor_label", ""))
-               for n in re.findall(r"\d+", label))
+def _label_carries_donor(label: str, a: dict) -> bool:
+    """Whether a label typed at an instrument -- a Xenium cassette name, a PhenoCycler SlideID --
+    carries the listed donor's number: HDL112, nPOD6591 and 0080579_6347_pLNpanc carry 112, 6591
+    and 6347. It is a label, so it is compared, never used to name the donor."""
+    numbers = {int(n) for n in re.findall(r"\d+", label or "")}
+    return any(int(n) in numbers for donor in (a["donor_id"], a.get("donor_label", ""))
+               for n in re.findall(r"\d+", donor))
+
+
+def _slide_entry(s: dict) -> str:
+    """One slide of a run as the runs sheet writes it: whose, its position in the PhenoCycler
+    experiment, and the slide number the instrument recorded (a qptiff's SlideID, a Xenium
+    slide's serial)."""
+    where = ", ".join(part for part in (s["position"], f"slide {s['slide']}" if s["slide"] else "")
+                      if part)
+    return s["label"] + (f" ({where})" if where else "")
 
 
 def _conditions(acquisitions: list[dict], rows: list[dict]) -> list[str]:
@@ -638,6 +651,10 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         if a["platform"] == "xenium":
             put(donor, group, XENIUM, _acquisition_text(a), XENIUM)
             datasets.setdefault(donor, set()).add((group, XENIUM, key))
+            serial = a.get("recorded_slide") or key
+            numbered = cells.get((donor, group, SLIDE_NUMBER))
+            if serial and not (numbered and any(serial in part for part in numbered["parts"])):
+                put(donor, group, SLIDE_NUMBER, serial, None)
             if group == XENIUM_SLIDE:
                 block = a.get("block", "")
                 put(donor, group, _section_column(a), "" if block else UNSETTLED, block or None,
@@ -645,6 +662,8 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
             continue
         column = PHENOCYCLER if a["platform"] == "phenocycler" else POST_XENIUM_IF
         put(donor, group, column, _acquisition_text(a), column)
+        if a["platform"] == "phenocycler" and a.get("slide_id"):
+            put(donor, group, SLIDE_NUMBER, a["slide_id"], None)
         datasets.setdefault(donor, set()).add((group, column, a["acquisition_id"]))
         if group == PLN_SLIDE:
             put(donor, group, PLN_SECTION, "", a.get("block") or OTHER_BLOCK)
@@ -679,21 +698,23 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         group = (slide(a) or (XENIUM_SLIDE, None))[0]
         damaged = set(a["condition_tissues"].split("; "))
         for (donor, g, column), cell in cells.items():
-            if (donor == a["donor_id"] and g == group and column not in ACQUISITION_COLUMNS
+            if (donor == a["donor_id"] and g == group and column not in NOT_SECTIONS
                     and _section_tissue(column) in damaged and not cell["missing"]):
                 cell["damaged"] = True
 
     plns = sorted({c for (_, g, c) in cells if g == XENIUM_SLIDE and c.startswith(PLN_SECTION)},
                   key=_pln_order)
-    columns = [(PC_SLIDE, PANCREAS_SECTION, "section"), (PC_SLIDE, SAME_BLOCK, "section"),
+    columns = [(PC_SLIDE, SLIDE_NUMBER, "slide"),
+               (PC_SLIDE, PANCREAS_SECTION, "section"), (PC_SLIDE, SAME_BLOCK, "section"),
                (PC_SLIDE, DIFFERENT_BLOCK, "section"), (PC_SLIDE, PHENOCYCLER, "acquisition"),
                (PC_SLIDE, XENIUM, "acquisition")]
     if any(g == PC_SLIDE and c == POST_XENIUM_IF for (_, g, c) in cells):
         columns.append((PC_SLIDE, POST_XENIUM_IF, "acquisition"))
-    columns += [(XENIUM_SLIDE, PANCREAS_SECTION, "section"),
+    columns += [(XENIUM_SLIDE, SLIDE_NUMBER, "slide"), (XENIUM_SLIDE, PANCREAS_SECTION, "section"),
                 *[(XENIUM_SLIDE, c, "section") for c in plns],
                 (XENIUM_SLIDE, XENIUM, "acquisition"), (XENIUM_SLIDE, POST_XENIUM_IF, "acquisition"),
-                (PLN_SLIDE, PLN_SECTION, "section"), (PLN_SLIDE, PHENOCYCLER, "acquisition")]
+                (PLN_SLIDE, SLIDE_NUMBER, "slide"), (PLN_SLIDE, PLN_SECTION, "section"),
+                (PLN_SLIDE, PHENOCYCLER, "acquisition")]
 
     order = [*DESIGNS.values(), XENIUM_ONLY]
     pheno = {a["donor_id"] for a in acquisitions if a["platform"] == "phenocycler"}
@@ -747,6 +768,8 @@ def _cell_text(cell: dict | None, column: str, kind: str) -> str:
         return ""
     if cell["missing"]:
         return cell["text"]
+    if kind == "slide":
+        return cell["text"].replace("\n", "; ")
     if kind == "acquisition":       # an IF panel's channels wrap; a panel and its run are two parts
         text = cell["text"].replace("\n", ", " if column == POST_XENIUM_IF else "; ")
     elif column in (SAME_BLOCK, DIFFERENT_BLOCK):
@@ -809,8 +832,8 @@ def run(task: Task) -> dict:
         platform=r["platform"], run=r["run"], run_name=r["run_name"], batch=r["batch"],
         date=r["date"],
         slides=len(r["slides"]), panels="; ".join(sorted({s["panel"] for s in r["slides"]} - {""})),
-        slides_run_together=" | ".join(
-            s["label"] + (f" ({s['position']})" if s["position"] else "") for s in r["slides"]),
+        slide_numbers="; ".join(s["slide"] for s in r["slides"] if s["slide"]),
+        slides_run_together=" | ".join(_slide_entry(s) for s in r["slides"]),
         acquisitions="; ".join(a for s in r["slides"] for a in s["acquisitions"]))
         for r in runs])
     _write_csv(task.output("donors.csv"), [dict(
@@ -890,7 +913,11 @@ def run(task: Task) -> dict:
             if a.get("output") in KNOWN_RENAMED_FOLDERS),
         "xenium_cassettes_differ": sorted(
             f"{a['output']}: cassette {a['cassette_name']}, listed as donor {a['donor_label']}"
-            for a in xenium if a.get("cassette_name") and not _cassette_carries_donor(a)),
+            for a in xenium if a.get("cassette_name")
+            and not _label_carries_donor(a["cassette_name"], a)),
+        "phenocycler_slide_labels_differ": sorted(
+            f"{a['qptiff']}: SlideID {a['slide_id']}, listed as donor {a['donor_label']}"
+            for a in pheno if a.get("slide_id") and not _label_carries_donor(a["slide_id"], a)),
         "xenium_held_in_part": sorted(f"{a['output']} ({a['local_copy']})" for a in xenium
                                       if a.get("local_copy") and a["local_copy"] != "complete"),
         "runs": {p: sum(r["platform"] == p for r in runs) for p in ("phenocycler", "xenium")},
@@ -938,6 +965,8 @@ _GAP, _GROUP_GAP, _ROW, _LINE, _LEFT, _STATUS = 0.3, 0.34, 0.4, 0.118, 1.85, 0.5
 
 
 def _width(column: str, kind: str) -> float:
+    if kind == "slide":
+        return 0.92
     if kind == "section":
         return _SECTION_WIDTH.get(column, 0.56)
     return _ACQUISITION_WIDTH.get(column, 1.36)
@@ -970,8 +999,8 @@ def _figure(task: Task, layout: dict) -> None:
             separators.append(y + _GROUP_GAP / 2)
             y += _GROUP_GAP
         for donor in members:
-            lines = max([c["text"].count("\n") + 1 for k, c in cells.items()
-                         if k[0] == donor and c["text"]] or [1])
+            lines = max([sum(1 + (len(part) > 12 and "_" in part) for part in c["text"].split("\n"))
+                         for k, c in cells.items() if k[0] == donor and c["text"]] or [1])
             ys[donor] = (y, max(_ROW, _LINE * lines + 0.16))
             y += ys[donor][1]
     totals_y = y + 0.16
@@ -1024,6 +1053,12 @@ def _figure(task: Task, layout: dict) -> None:
                 text = "\n".join(cell["text"].rsplit(" ", 1)) if kind == "section" else cell["text"]
                 ax.text(*middle, text, ha="center", va="center", fontsize=6.2, color="0.4",
                         linespacing=1.1)
+                continue
+            if kind == "slide":
+                text = "\n".join(part.replace("_", "\n", 1) if len(part) > 12 else part
+                                 for part in cell["text"].split("\n"))
+                ax.text(*middle, text, ha="center", va="center", color=ink, fontsize=6.6,
+                        linespacing=1.15)
                 continue
             ax.add_patch(Rectangle(*box, facecolor=FILLS[cell["kind"]], edgecolor="none",
                                    alpha=0.5 if faded else 1.0))
@@ -1081,13 +1116,12 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
         rows.append((r["date"], "PhenoCycler" if r["platform"] == "phenocycler" else "Xenium",
                      r["run_name"], r["batch"],
                      "; ".join(sorted({s["panel"] for s in r["slides"]} - {""})),
-                     "   |   ".join(s["label"] + (f" ({s['position']})" if s["position"] else "")
-                                    for s in r["slides"]),
+                     "   |   ".join(_slide_entry(s) for s in r["slides"]),
                      len(r["slides"])))
     palette = plt.get_cmap("tab20")
     colour = {name: palette(i % 20) for i, name in enumerate(sorted({row[4] for row in rows}))}
     n = max(len(rows), 1)
-    fig, ax = plt.subplots(figsize=(14.5, 0.25 * (n + 2) + 1.4))
+    fig, ax = plt.subplots(figsize=(17.0, 0.25 * (n + 2) + 1.4))
     ax.set_axis_off()
     step = 1.0 / (n + 1)
     columns = (0.0, 0.075, 0.155, 0.335, 0.385, 0.50)
@@ -1110,9 +1144,11 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
     ax.set_title("Runs (stage 00): the slides run together, the panel and the run's date", fontsize=10)
     fig.text(0.01, 0.005,
              "PhenoCycler: slides scanned under one experiment on one day were run together; the"
-             " date is the scan day; (SlideN) is the slide's position in the experiment. A slide"
-             " alone in its run (italic) means an odd number in its staining batch.\n"
-             "Xenium: slides with one run name in experiment.xenium; the date is its run_start_time."
+             " date is the scan day; SlideN is the slide's position in the experiment, and slide the"
+             " SlideID typed at the scanner. A slide alone in its run (italic) means an odd number"
+             " in its staining batch.\n"
+             "Xenium: slides with one run name in experiment.xenium; the date is its run_start_time,"
+             " slide the slide's serial, batch the number its run name carries."
              " Panels are named the maintainer's way (multiplex5000.panel_names).", fontsize=7)
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(gates.figure_path(task, "runs.png"), dpi=150)
@@ -1223,6 +1259,10 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           detail="their records are read from the copy taken from the complete output: "
                  + ", ".join(summary["xenium_held_in_part"][:4])
                  + (" ..." if len(summary["xenium_held_in_part"]) > 4 else "")),
+        C("PhenoCycler slide labels that do not carry the listed donor",
+          summary["phenocycler_slide_labels_differ"], "reported", True, blocking=False,
+          detail="the SlideID typed when the slide was scanned (the qptiff's first page); the "
+                 "donor stays the one the QuPath manifest or pln_node_annotations.csv lists"),
         C("Xenium cassette names that do not carry the listed donor",
           summary["xenium_cassettes_differ"], "reported", True, blocking=False,
           detail="the cassette name is the label typed at the instrument (experiment.xenium); "

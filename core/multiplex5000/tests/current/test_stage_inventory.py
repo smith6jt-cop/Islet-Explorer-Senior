@@ -162,6 +162,16 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.XENIUM)] == (
         "5k+100(6KTRAF); 2024-01-01 with 0112")
     assert coverage["6374"][_at(STAGE.PLN_SLIDE, STAGE.PHENOCYCLER)] == "2 markers; 2026-01-09 alone"
+    # each slide's number as its instrument recorded it: a qptiff's SlideID, a Xenium serial --
+    # and 0112's PhenoCycler slide is also Xenium slide 0041001
+    slide = STAGE.SLIDE_NUMBER
+    assert [coverage["6374"][_at(group, slide)] for group in (STAGE.PC_SLIDE, STAGE.XENIUM_SLIDE,
+                                                                 STAGE.PLN_SLIDE)] == [
+        "6374", "0041000", "6374pLN"]
+    assert coverage["0112"][_at(STAGE.PC_SLIDE, slide)] == "0112; 0041001"
+    assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides_run_together"] == (
+        "6374 pancreas (Slide1, slide 6374) | 0112 pancreas (Slide2, slide 0112)")
+    assert runs["xenium:R1_synthetic"]["slide_numbers"] == "0041000; 0041001"
     # a dataset is an acquisition, never a section: 0112's one Xenium run covers its pancreas and
     # its pLN, on the slide its PhenoCycler scan is of
     assert [(coverage[d][STAGE.DATASETS], coverage[d][STAGE.SLIDES]) for d in ("6374", "0112")] == [
@@ -457,4 +467,21 @@ def test_a_xenium_only_donor_has_its_own_rows_status_and_batch(synthetic_project
     assert checks["disease status, by donor"]["value"] == {"ND": ["0112"], "Aab+": ["7000"],
                                                            "T1D": ["6374"]}
     assert all(c["passed"] for c in checks.values() if c["blocking"])
+
+
+def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(synthetic_project,
+                                                                           tmp_path):
+    import datetime
+
+    from conftest import PANCREAS_MARKERS, write_qptiff
+
+    path = synthetic_project()
+    write_qptiff(tmp_path / "raw" / "6374.qptiff", slide="6623panc",
+                 experiment="Synthetic_Pancreas", position="Slide1",
+                 experiment_date="2025-12-01T09:00:00Z",
+                 scanned=datetime.datetime(2026, 1, 2, 14, 0), markers=PANCREAS_MARKERS)
+    _, _, checks = _run(path)
+    check = checks["PhenoCycler slide labels that do not carry the listed donor"]
+    assert check["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
+    assert not check["blocking"]
 
