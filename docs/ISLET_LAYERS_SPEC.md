@@ -88,6 +88,14 @@ drop it. (Corrected 2026-09-18: this line named 6579 as excluded, which line 384
 file already contradicted.) Derive from `DONOR_EXCLUSIONS`, never a literal, and filter in the
 builder, not in the card. A card must never be the thing that remembers an exclusion.
 
+**An exclusion can cover one platform only** (`cohort.EXCLUDED_PLATFORMS`). 6457's covers its
+PhenoCycler data — the maintainer, 2026-10-22: "the xenium for 6457 is not excluded" — so a builder
+asks `cohort.excluded_on(donor, platform)` for the platform each part of its layer reads. A Xenium
+or post-Xenium IF row of 6457 is written like any donor's; a PhenoCycler part it would otherwise
+carry is written `withheld`, with the exclusion's reason, and its PhenoCycler files are never
+read (`availability`, `grid_composition`). The sections, re-stain and distance-profile Xenium
+arms gate on `xenium` / `if`; every PhenoCycler-only builder still refuses the donor outright.
+
 ### 0.5 Every coordinate column carries a frame
 
 Frames are identities, not scales — `apps/R/ieCore/R/ie_frames.R`. A builder that writes

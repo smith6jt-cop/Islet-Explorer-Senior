@@ -34,7 +34,7 @@ import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
-from phenocycler.cohort import filter_eligible_donors  # noqa: E402
+from phenocycler.cohort import excluded_on  # noqa: E402
 
 sys.path.insert(0, str(REPO))
 from scripts.senior.availability_states import AVAILABILITY_STATES  # noqa: E402
@@ -48,6 +48,16 @@ STATES = AVAILABILITY_STATES
 def norm_donor(value: str) -> str:
     """The shared spelling prescribed by spec §0.3: '0112' -> '112'."""
     return str(value).strip().lstrip("0") or "0"
+
+
+def admitted(donor: str) -> bool:
+    """No central exclusion covers this donor's Xenium or its post-Xenium IF.
+
+    The overlay is Xenium cells carrying IF read on the same slide; no PhenoCycler data enters
+    it. 6457's exclusion covers its PhenoCycler data only (maintainer, 2026-10-22), so it is
+    admitted here.
+    """
+    return not (excluded_on(donor, "xenium") or excluded_on(donor, "if"))
 
 
 def read_sections(path: Path) -> pd.DataFrame:
@@ -87,7 +97,7 @@ def source_inventory(root: Path) -> dict[str, list[Path]]:
         if len(identities) != 1:
             raise ValueError(f"{path}: expected one recorded donor/roi per source partition")
         row = identities.iloc[0]
-        if row.roi == "panc" and filter_eligible_donors([row.donor_id]):
+        if row.roi == "panc" and admitted(row.donor_id):
             inventory.setdefault(row.donor_id, []).append(path)
     return inventory
 
@@ -98,7 +108,7 @@ def warp_inventory(root: Path) -> dict[str, Path]:
     for path in sorted(root.glob("*/export.json")):
         record = json.loads(path.read_text())
         donor = norm_donor(record["donor_id"])
-        if record["roi"] != "panc" or not filter_eligible_donors([donor]):
+        if record["roi"] != "panc" or not admitted(donor):
             continue
         if donor in found:
             raise ValueError(f"Duplicate pancreas warp exports for donor {donor}")
@@ -279,9 +289,8 @@ def build_restain_layer(*, cells_xen_root: Path, restain_root: Path,
     warps = warp_inventory(restain_root / "valis")
     validation = hormone_records(restain_root / "hormone_panc_refined.json")
     known = pd.read_csv(xenium_paths_csv, dtype=str, comment="#", keep_default_na=False)
-    donors = sorted(set(filter_eligible_donors(
-        set(known.donor_id.map(norm_donor)) | set(sections.index) | set(sources)
-    )))
+    donors = sorted(d for d in set(known.donor_id.map(norm_donor)) | set(sections.index)
+                    | set(sources) if admitted(d))
     statuses, overlays = [], {}
     for donor in donors:
         row = _status(donor, cells_xen_root)

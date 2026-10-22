@@ -71,7 +71,7 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
 
-from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, excluded_on  # noqa: E402
 from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
@@ -378,6 +378,18 @@ def read_parquet_retry(path: Path, columns=None, attempts: int = 5):
             last = exc
             time.sleep(1.5 * (i + 1))
     raise RuntimeError(f"could not read {path} after {attempts} attempts: {last}")
+
+
+def excluded_by_modality() -> dict[str, set[str]]:
+    """The centrally excluded donors, per side of the comparison.
+
+    Asked of ``cohort.excluded_on`` for the platform each side reads: protein is PhenoCycler,
+    RNA is Xenium. 6457's exclusion covers its PhenoCycler data only (maintainer, 2026-10-22),
+    so its RNA counts are read and reported while its protein side stays refused -- and with
+    no protein count it reaches no comparison, which joins the two sides on donor_id.
+    """
+    return {side: {d for d in DONOR_EXCLUSIONS if excluded_on(d, platform)}
+            for side, platform in (("protein", "phenocycler"), ("rna", "xenium"))}
 
 
 def pln_protein_counts(donors_excluded: set[str]) -> tuple[pd.DataFrame, dict]:
@@ -783,7 +795,10 @@ def main() -> int:
     rng = np.random.default_rng(RNG_SEED)
 
     excluded = set(DONOR_EXCLUSIONS)
+    by_side = excluded_by_modality()
     log(f"centrally excluded donors (from cohort.DONOR_EXCLUSIONS): {sorted(excluded) or 'none'}")
+    log(f"  on protein: {sorted(by_side['protein']) or 'none'}; "
+        f"on RNA: {sorted(by_side['rna']) or 'none'}")
 
     check_pancreas_class_vocabulary()
     log("pancreas protein classes not compared (counted by name, never dropped): "
@@ -801,9 +816,9 @@ def main() -> int:
     meta = meta[["donor_id", "donor_status"]].drop_duplicates("donor_id")
 
     log("reading pLN protein ...")
-    pln_p, pln_p_state = pln_protein_counts(excluded)
+    pln_p, pln_p_state = pln_protein_counts(by_side["protein"])
     log("reading pLN RNA ...")
-    pln_r, pln_r_state = pln_rna_counts(excluded)
+    pln_r, pln_r_state = pln_rna_counts(by_side["rna"])
 
     pln_long, pln_sum, pln_eta = compare("pln", pln_p, pln_r, pln_lin, batch, rng)
 
@@ -822,11 +837,11 @@ def main() -> int:
     log(controls.sort_values(["sex", "y_probe_rate"]).to_string(index=False))
 
     log("reading pancreas RNA ...")
-    panc_r, panc_root, panc_notes = panc_rna_counts(excluded)
+    panc_r, panc_root, panc_notes = panc_rna_counts(by_side["rna"])
     panc_donors = set(panc_r["donor_id"]) if not panc_r.empty else set()
     log(f"pancreas RNA donors available: {sorted(panc_donors) or 'none'}")
     log("reading pancreas protein ...")
-    panc_p = panc_protein_counts(panc_donors, excluded)
+    panc_p = panc_protein_counts(panc_donors, by_side["protein"])
 
     # a lineage with no count column on one side is unavailable there, not zero
     panc_lin_eff = [l for l in panc_lin
@@ -863,6 +878,7 @@ def main() -> int:
             "rank_disagreement_frac": THRESHOLD_RANK_DISAGREE_FRAC,
         },
         "donor_exclusions": {d: DONOR_EXCLUSIONS[d] for d in sorted(excluded)},
+        "donor_exclusions_by_modality": {side: sorted(ds) for side, ds in by_side.items()},
         "crosswalk": str(CROSSWALK.relative_to(REPO)),
         "crosswalk_is_generated": "run_vocab in phenocycler/integration/vocab.py writes it; never hand-edited here",
         "pln": {

@@ -79,7 +79,7 @@ import pyarrow.parquet as pq
 
 REPO = Path(__file__).resolve().parents[2]
 
-from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED, donor_of, excluded_on  # noqa: E402
 from phenocycler.integration import vocab  # noqa: E402
 
 sys.path.insert(0, str(REPO))
@@ -318,7 +318,15 @@ def validate_maps(crosswalk: pd.DataFrame) -> None:
 # --------------------------------------------------------------------------
 # Donor roster.  The universe is the union of the four call trees, minus the
 # centrally excluded donors.  No lane restates the exclusion list.
+#
+# An exclusion can cover one platform only -- 6457's covers its PhenoCycler data
+# (maintainer, 2026-10-22) -- so it is asked per grid cell, of the platform that
+# cell's modality reads.  A donor is in the universe while some modality admits
+# it, and a cell its exclusion covers is withheld with the reason, never read.
 # --------------------------------------------------------------------------
+#: The platform each grid modality reads, for ``cohort.excluded_on``.
+MODALITY_PLATFORM = {"protein": "phenocycler", "RNA": "xenium"}
+
 def partition_donors(root: Path, subdir: str = "") -> dict[str, list[Path]]:
     base = root / subdir if subdir else root
     out: dict[str, list[Path]] = {}
@@ -330,7 +338,20 @@ def partition_donors(root: Path, subdir: str = "") -> dict[str, list[Path]]:
 
 
 def eligible(donors) -> list[str]:
-    return sorted({d for d in donors if d not in DONOR_EXCLUSIONS}, key=lambda d: (len(d), d))
+    """The donors some grid modality admits."""
+    return sorted({d for d in donors
+                   if not all(excluded_on(d, p) for p in MODALITY_PLATFORM.values())},
+                  key=lambda d: (len(d), d))
+
+
+def withheld_by_cohort(donor: str, modality: str) -> tuple[str, str] | None:
+    """(state, reason) for a grid cell the donor's central exclusion covers, else None."""
+    platform = MODALITY_PLATFORM[modality]
+    if not excluded_on(donor, platform):
+        return None
+    return (STATE_WITHHELD,
+            f"centrally excluded on {platform} by cohort.py: "
+            f"{DONOR_EXCLUSIONS[donor_of(donor)]}")
 
 
 def load_status() -> pd.DataFrame:
@@ -721,9 +742,11 @@ def build(n_perm: int, out: Path) -> dict:
         {d for parts in donors_by_source.values() for d in parts}
         | set(status["donor_id"])
     )
-    # Every donor in the universe must be one the cohort module admits.  The
-    # exclusion list lives once; this asserts against it rather than restating it.
-    blocked = sorted(set(universe) & set(DONOR_EXCLUSIONS))
+    # Every donor in the universe must be one the cohort module admits on some
+    # modality.  The exclusion list lives once; this asserts against it rather
+    # than restating it.
+    blocked = sorted(d for d in universe
+                     if all(excluded_on(d, p) for p in MODALITY_PLATFORM.values()))
     if blocked:
         raise GridError(f"excluded donors reached the roster: {blocked}")
 
@@ -736,6 +759,15 @@ def build(n_perm: int, out: Path) -> dict:
         for donor in universe:
             files = parts.get(donor, [])
             key = dict(tissue=tissue, modality=modality, donor_id=donor)
+            withheld = withheld_by_cohort(donor, modality)
+            if withheld is not None:
+                presence_rows.append({
+                    **key, "state": withheld[0], "reason": withheld[1],
+                    "n_cells_assessed": pd.NA, "n_no_nucleus_excluded": pd.NA,
+                    "n_nucleus_not_measured": pd.NA, "n_files": 0,
+                    "source": src["source"], "method": src["method"],
+                })
+                continue
             if not files:
                 release = src["release"]
                 if release is not None and not release.available:

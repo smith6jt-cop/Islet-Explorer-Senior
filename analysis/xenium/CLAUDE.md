@@ -129,7 +129,9 @@ pass**; these notes sit beside them, per the rule at the top of this file.
 - **The 2026-08-28 cohort note, made exact.** `core/multiplex5000/cohort-spec.json` declares **21** expected
   donors, not 20 — the extra is **6533**, which carries an extra panel and has **no partition
   in `data/development/typing/cells/`**; the typed PhenoCycler cohort there is 20 donors. Donor
-  `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`; **`6579`'s exclusion was
+  `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py` **for its PhenoCycler
+  data only** (maintainer, 2026-10-22), so this lane types its Xenium: every reader here asks
+  `cohort.excluded_on(donor, "xenium")`; **`6579`'s exclusion was
   lifted on 2026-09-17** and it is not yet a 21st donor in any stage root. Derive the list from
   `DONOR_EXCLUSIONS` / `REINSTATED`, never from a literal here.
 

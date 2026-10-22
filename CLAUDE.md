@@ -32,11 +32,14 @@ a second copy of those CSVs; never hand-edit the snapshot.
   must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
   from a literal. **Its exclusion covers its PhenoCycler data only** (`cohort.EXCLUDED_PLATFORMS`;
   the maintainer, 2026-10-22: "the xenium for 6457 is not excluded"): `cohort.excluded_on(donor,
-  platform)` says so, and stage 00 counts 6457's Xenium and IF. Every lane that still calls
-  `ensure_eligible_donors` / `filter_eligible_donors` refuses 6457 outright until it moves to
-  `excluded_on`. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
-  alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
-  drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
+  platform)` says so, and stage 00 counts 6457's Xenium and IF. The Xenium readers ask it too
+  (2026-10-22): both Xenium typers, the Xenium typing pins and phenotyped base, `cluster_pln`'s
+  Xenium side, a Xenium identity release, and the Xenium / IF parts of the app layers, where
+  6457's PhenoCycler parts are written `withheld`. Every lane that still calls
+  `ensure_eligible_donors` / `filter_eligible_donors` — the PhenoCycler readers, and the
+  re-stain registration scripts, not yet moved — refuses 6457 outright. **`6579`'s exclusion was
+  lifted 2026-09-17** and it is recorded in `REINSTATED` alongside why; the pancreatitis it was
+  excluded for is still a disease context, not a reason to drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
   `data/RevisedQuPathExports/6579.tsv`), but it is not yet a 21st donor in any stage root — no stage
   has run on it; see `docs/DONOR_6579_REENTRY_2026-09-17.md` for what re-entry takes. `pln_node_annotations.csv` now records it `excluded=False`;
   `data/donor_acquisition_runs.csv` still carries `excluded=True` and disagrees with `cohort.py`

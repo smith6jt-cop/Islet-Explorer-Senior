@@ -27,7 +27,8 @@ SPEC = importlib.util.spec_from_file_location("restain_layer", SCRIPT)
 layer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(layer)
 
-from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler import cohort  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, excluded_on  # noqa: E402
 
 
 @pytest.fixture
@@ -140,7 +141,10 @@ def test_builder_csv_calibration_and_if_overlay_acceptance(builder_inputs, forbi
         pd.read_csv(builder_inputs["xenium_paths_csv"], dtype=str).donor_id.map(layer.norm_donor)
     )
     assert set(DONOR_EXCLUSIONS) & named, "fixture must name an excluded donor or this is vacuous"
-    assert set(result.index) == named - set(DONOR_EXCLUSIONS)
+    # An exclusion is asked for the Xenium and IF platforms this overlay reads: 6457's covers its
+    # PhenoCycler data only (maintainer, 2026-10-22), so it gets a row like any other donor.
+    assert set(result.index) == {d for d in named if layer.admitted(d)}
+    assert "6457" in result.index and excluded_on("6457", "phenocycler")
     assert result.loc["6436", "state"] == "measured"
     assert result.loc["6436", "n_xenium_cells"] == result.loc["6436", "n_xenium_warped_to_if"] == 4
     assert result.loc["6436", "n"] == 3
@@ -318,7 +322,16 @@ def test_source_inventory_uses_columns_and_handles_large_string(tmp_path):
         pq.write_table(pa.table({"donor_id": pa.array([donor], type=pa.large_string()),
                                  "roi": ["panc"]}), p)
     inventory = layer.source_inventory(tmp_path)
-    assert set(inventory) == {"112", "6436"}
+    assert set(inventory) == {"112", "6436"} | {d for d in excluded if layer.admitted(d)}
+
+
+def test_an_exclusion_without_a_platform_keeps_the_donor_out(builder_inputs, monkeypatch):
+    """Fail closed: an exclusion with no declared platform covers the Xenium and the IF."""
+    assert layer.admitted("6457")
+    monkeypatch.delitem(cohort.EXCLUDED_PLATFORMS, "6457")
+    assert not layer.admitted("6457")
+    result = layer.build_restain_layer(**builder_inputs).set_index("donor_id")
+    assert "6457" not in result.index
 
 
 def test_r_cards_parse_and_missing_artifact_is_a_named_note(tmp_path):

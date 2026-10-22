@@ -15,7 +15,7 @@ from typing import Mapping, Optional
 
 import pandas as pd
 
-from ..cohort import DONOR_EXCLUSIONS
+from ..cohort import DONOR_EXCLUSIONS, donor_of, excluded_on
 from ..config import PipelineConfig
 
 
@@ -266,10 +266,13 @@ def load_release(cfg: PipelineConfig, modality: str) -> PhenotypeRelease:
     donors = tuple(str(d).strip() for d in payload.get("donors", []) if str(d).strip())
     if not donors or len(set(donors)) != len(donors):
         raise PhenotypeSpaceError(f"{source}: donors must be a non-empty, duplicate-free list")
-    blocked = sorted(set(donors) & set(DONOR_EXCLUSIONS))
+    # Asked for the release's own modality: 6457's exclusion covers its PhenoCycler data only
+    # (maintainer, 2026-10-22), so a Xenium release may carry it and a PhenoCycler one may not.
+    blocked = sorted(d for d in donors if excluded_on(d, modality))
     if blocked:
-        reasons = "; ".join(f"{d}: {DONOR_EXCLUSIONS[d]}" for d in blocked)
-        raise PhenotypeSpaceError(f"{source}: release includes excluded donor(s): {reasons}")
+        reasons = "; ".join(f"{d}: {DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+        raise PhenotypeSpaceError(
+            f"{source}: release includes excluded donor(s) on {modality}: {reasons}")
 
     inputs = payload.get("inputs", [])
     if not isinstance(inputs, list):

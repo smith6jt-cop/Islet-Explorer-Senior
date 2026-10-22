@@ -94,9 +94,11 @@ def donors() -> tuple[str, ...]:
 
     The live QuPath manifest includes acquisitions that the build specification can
     predate. Its zero-padded donor IDs (``0112``) refer to the same donor as ``112`` in
-    ``xenium_paths.csv``. Central eligibility is checked after normalization.
+    ``xenium_paths.csv``. Central eligibility is checked after normalization, for the Xenium
+    platform: an exclusion that covers only a donor's PhenoCycler data (6457's) does not
+    refuse its Xenium bundles.
     """
-    from phenocycler.cohort import ensure_eligible_donors
+    from multiplex5000.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on
     if not COHORT_MANIFEST.is_file():
         raise PinError(f"{COHORT_MANIFEST} is absent; the acquired cohort is unavailable")
     manifest = json.loads(COHORT_MANIFEST.read_text())
@@ -104,7 +106,11 @@ def donors() -> tuple[str, ...]:
                                  for d in manifest["expected_donors"]))
     if not cohort or any(not d for d in cohort):
         raise PinError(f"{COHORT_MANIFEST} has no valid acquired cohort")
-    return ensure_eligible_donors(cohort, context="xenium typing lane")
+    blocked = [d for d in cohort if excluded_on(d, "xenium")]
+    if blocked:
+        details = "; ".join(f"{d}: {DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+        raise ValueError(f"xenium typing lane includes excluded donor(s) on xenium: {details}")
+    return cohort
 
 
 # --------------------------------------------------------------------------- bundle paths

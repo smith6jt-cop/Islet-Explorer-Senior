@@ -21,7 +21,7 @@ HERE = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 import gate  # noqa: E402
 import pins  # noqa: E402
-from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler.cohort import excluded_on  # noqa: E402
 
 
 @pytest.mark.data
@@ -33,7 +33,7 @@ def test_pins_serial_and_run_maps_cover_the_cohort():
     # 23 since 2026-09-23: 6579 (reinstated 2026-09-17) joined the acquired manifest.
     assert len(donors) == len(set(donors)) == 23
     assert {"112", "6533", "6579"} <= set(donors)
-    assert not set(donors) & DONOR_EXCLUSIONS.keys()
+    assert not [d for d in donors if excluded_on(d, "xenium")]
     serials, runs = pins.serial_map(), pins.run_map()
     assert set(donors) <= serials.keys() & runs.keys()
     for donor in donors:
@@ -57,13 +57,29 @@ def test_donors_follow_the_acquired_manifest_and_normalize_aliases(tmp_path, mon
     assert pins.donors() == ("112", "6533")
 
 
-@pytest.mark.parametrize("donor", sorted(DONOR_EXCLUSIONS))
-def test_donors_cannot_bypass_central_exclusions(tmp_path, monkeypatch, donor):
+def test_donors_cannot_bypass_central_exclusions(tmp_path, monkeypatch):
+    """An exclusion with no declared platform covers the Xenium lane (fail closed)."""
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "9999", "a reason")
     manifest = tmp_path / "qupath_manifest.json"
-    manifest.write_text(json.dumps({"expected_donors": ["0" + donor]}))
+    manifest.write_text(json.dumps({"expected_donors": ["09999", "6533"]}))
     monkeypatch.setattr(pins, "COHORT_MANIFEST", manifest)
-    with pytest.raises(ValueError, match="excluded donor"):
+    with pytest.raises(ValueError, match="excluded donor.*9999: a reason"):
         pins.donors()
+
+
+def test_a_phenocycler_only_exclusion_does_not_refuse_the_xenium_lane(tmp_path, monkeypatch):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22)."""
+    from multiplex5000.cohort import ensure_eligible_donors
+
+    manifest = tmp_path / "qupath_manifest.json"
+    manifest.write_text(json.dumps({"expected_donors": ["6457", "6533"]}))
+    monkeypatch.setattr(pins, "COHORT_MANIFEST", manifest)
+    assert pins.donors() == ("6457", "6533")
+    assert excluded_on("6457", "phenocycler")
+    with pytest.raises(ValueError, match="excluded donor"):
+        ensure_eligible_donors(["6457"], context="PhenoCycler")
 
 
 def test_missing_cohort_is_unavailable_instead_of_falling_back(tmp_path, monkeypatch):

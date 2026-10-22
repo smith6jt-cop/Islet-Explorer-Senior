@@ -251,3 +251,27 @@ def test_release_refuses_exclusions_and_retired_inputs(tmp_path, donors, input_p
     release_dir = _release(tmp_path, donors=donors, input_path=input_path)
     with pytest.raises(PhenotypeSpaceError, match=message):
         load_release(_cfg(tmp_path, release_dir), "phenocycler")
+
+
+def test_a_phenocycler_only_exclusion_admits_the_donor_to_a_xenium_release(tmp_path):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    The release's own modality is what is asked: a Xenium release may carry 6457, a
+    PhenoCycler release still may not.
+    """
+    xenium = _release(tmp_path / "x", donors=("6436", "6457"), modality="xenium")
+    release = load_release(_cfg(tmp_path / "x", xenium, modality="xenium"), "xenium")
+    assert release.donors == ("6436", "6457")
+
+    pheno = _release(tmp_path / "p", donors=("6436", "6457"))
+    with pytest.raises(PhenotypeSpaceError, match="excluded donor.*on phenocycler.*6457"):
+        load_release(_cfg(tmp_path / "p", pheno), "phenocycler")
+
+
+def test_an_exclusion_without_a_platform_refuses_a_xenium_release(tmp_path, monkeypatch):
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "9999", "a reason")
+    xenium = _release(tmp_path, donors=("6436", "9999"), modality="xenium")
+    with pytest.raises(PhenotypeSpaceError, match="excluded donor.*on xenium: 9999: a reason"):
+        load_release(_cfg(tmp_path, xenium, modality="xenium"), "xenium")
