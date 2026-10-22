@@ -36,7 +36,9 @@ What the release is built from, before anything is computed from it:
   and the dedicated pLN slide. Each acquisition says its panel, its run's date and the donor of
   the slide run with it; each donor's datasets and slides are counted -- one acquisition is one
   dataset, so a Xenium slide counts once however many regions it has. The rows of the sequential
-  and the same-slide donors are kept apart. As a table and the gate figure; the notes' cautions are
+  and the same-slide donors are kept apart. Each slide group opens with the slide's number and a
+  thumbnail of the slide: a qptiff's own thumbnail page, a Xenium slide's overview scan (copied
+  beside its records where this machine lacks it). As a table and the gate figure; the notes' cautions are
   quoted word for word on the gate, and nothing in them is counted or designated.
 
 The gate blocks on: a repeated acquisition id, a cohort donor the notes do not describe, a cohort
@@ -118,6 +120,11 @@ QPTIFF_FOLDERS = ("pancreas_qptiffs", "pln_qptiffs")
 #: The platform profile that names each platform's panels.
 PANEL_PROFILES = {"phenocycler": "phenocycler", "xenium": "xenium", "if": "post_xenium_if"}
 XENIUM_RECORDS = ("experiment.xenium", "gene_panel.json", "metrics_summary.csv")
+#: The Xenium instrument's scan of the whole slide, every section on it -- the coverage's thumbnail
+#: of a Xenium slide; read from the output's aux_outputs, else from the copy beside its records.
+OVERVIEW = "overview_scan.png"
+#: How tall a thumbnail is kept, in pixels; the figure draws it under an inch.
+THUMBNAIL_PIXELS = 240
 
 #: Xenium output folders that name a region other than the one their experiment.xenium records,
 #: with the reason, once someone has looked. The gate blocks on any other.
@@ -214,9 +221,17 @@ def _instrument_inputs(project, declared: list[Input]) -> list[Input]:
                              recorded_sha256=recorded.get(path.name)))
     copies = _needed(project, "xenium_records")
     out.append(Input("xenium_records_manifest", copies / "MANIFEST.tsv", required=False))
+    overviews: dict[str, list[Path]] = {}
     for name, local in _xenium_outputs(project, paths["xenium_paths"]):
         held = local if (local / XENIUM_RECORDS[0]).is_file() else copies / name
         out += [Input(f"xenium:{name}:{f}", held / f, required=False) for f in XENIUM_RECORDS]
+        serial, _ = parse_bundle_path(name)
+        if serial:
+            overviews.setdefault(serial, []).extend(
+                [local / "aux_outputs" / OVERVIEW, copies / name / OVERVIEW])
+    for serial, candidates in sorted(overviews.items()):
+        found = next((c for c in candidates if c.is_file()), candidates[-1])
+        out.append(Input(f"overview:{serial}", found, required=False))
     return out
 
 
@@ -268,7 +283,8 @@ def _instrument_records(task: Task) -> dict:
     manifest = task.input("xenium_records_manifest")
     if manifest.is_file():
         for row in _rows(manifest, "\t"):
-            copies[row["output"]] = row["source"].rsplit("/", 1)[0]
+            if row["file"] in XENIUM_RECORDS:          # an overview scan sits under aux_outputs
+                copies[row["output"]] = row["source"].rsplit("/", 1)[0]
     return {"headers": headers, "xenium": xenium, "missing": missing, "unreadable": unreadable,
             "copies": copies}
 
@@ -421,6 +437,51 @@ def _statuses(task: Task, cohort, donors: set) -> tuple[dict, list[str], list[st
             elif found[donor][0] != level:
                 disagree.append(f"{donor}: {found[donor][1]} {found[donor][0]}, {source} {level}")
     return found, disagree, unknown
+
+
+def _thumbnail(source: tuple, task: Task):
+    """A small RGB array of one slide: a qptiff's own thumbnail page, or a Xenium slide's
+    overview scan; None where the slide's image is not held or holds none."""
+    import numpy as np
+    from PIL import Image
+
+    kind, name = source
+    try:
+        if kind == "qptiff":
+            import tifffile
+
+            with tifffile.TiffFile(task.input(f"qptiff:{name}")) as tf:
+                page = next((pg for pg in tf.pages
+                             if "<ImageType>Thumbnail</ImageType>" in (pg.description or "")), None)
+                if page is None:
+                    return None
+                image = Image.fromarray(page.asarray())
+        else:
+            path = task.input(f"overview:{name}")
+            if not Path(path).is_file():
+                return None
+            image = Image.open(path)
+            image.load()
+    except (KeyError, OSError, ValueError):
+        return None
+    image = image.convert("RGB")
+    image.thumbnail((THUMBNAIL_PIXELS, THUMBNAIL_PIXELS))
+    return np.asarray(image)
+
+
+def _thumbnails(task: Task, cells: dict) -> tuple[dict, list[str]]:
+    """{(donor, slide group): thumbnail} for every slide cell with an image source, and the slides
+    whose image is not held."""
+    thumbs, missing = {}, []
+    for (donor, group, column), cell in sorted(cells.items()):
+        if column != SLIDE_NUMBER or "image" not in cell:
+            continue
+        image = _thumbnail(cell["image"], task)
+        if image is None:
+            missing.append(f"{donor} {group} ({cell['image'][1]})")
+        else:
+            thumbs[(donor, group)] = image
+    return thumbs, missing
 
 
 def _label_carries_donor(label: str, a: dict) -> bool:
@@ -655,6 +716,8 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
             numbered = cells.get((donor, group, SLIDE_NUMBER))
             if serial and not (numbered and any(serial in part for part in numbered["parts"])):
                 put(donor, group, SLIDE_NUMBER, serial, None)
+            if group == XENIUM_SLIDE and serial:
+                cells[(donor, group, SLIDE_NUMBER)].setdefault("image", ("overview", serial))
             if group == XENIUM_SLIDE:
                 block = a.get("block", "")
                 put(donor, group, _section_column(a), "" if block else UNSETTLED, block or None,
@@ -664,6 +727,7 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         put(donor, group, column, _acquisition_text(a), column)
         if a["platform"] == "phenocycler" and a.get("slide_id"):
             put(donor, group, SLIDE_NUMBER, a["slide_id"], None)
+            cells[(donor, group, SLIDE_NUMBER)].setdefault("image", ("qptiff", a["qptiff"]))
         datasets.setdefault(donor, set()).add((group, column, a["acquisition_id"]))
         if group == PLN_SLIDE:
             put(donor, group, PLN_SECTION, "", a.get("block") or OTHER_BLOCK)
@@ -826,6 +890,7 @@ def run(task: Task) -> dict:
               | {ann.donor_id for ann in reading.pln})
     statuses, status_disagree, status_unknown = _statuses(task, cohort, donors)
     coverage = _coverage(acquisitions, reading, spec, statuses)
+    coverage["thumbs"], unthumbed = _thumbnails(task, coverage["cells"])
     _write_csv(task.output("acquisitions.csv"), acquisitions)
     _write_csv(task.output("coverage.csv"), coverage["table"])
     _write_csv(task.output("runs.csv"), [dict(
@@ -911,6 +976,7 @@ def run(task: Task) -> dict:
         "xenium_folders_renamed_known": sorted(
             f"{a['output']} ({KNOWN_RENAMED_FOLDERS[a['output']]})" for a in xenium
             if a.get("output") in KNOWN_RENAMED_FOLDERS),
+        "slides_without_thumbnail": unthumbed,
         "xenium_cassettes_differ": sorted(
             f"{a['output']}: cassette {a['cassette_name']}, listed as donor {a['donor_label']}"
             for a in xenium if a.get("cassette_name")
@@ -962,6 +1028,7 @@ _HEADERS = {SAME_BLOCK: "same-block\npLN/lymphoid", DIFFERENT_BLOCK: "different-
 _SECTION_WIDTH = {PANCREAS_SECTION: 0.66, SAME_BLOCK: 0.92, DIFFERENT_BLOCK: 0.92}
 _ACQUISITION_WIDTH = {POST_XENIUM_IF: 1.12}
 _GAP, _GROUP_GAP, _ROW, _LINE, _LEFT, _STATUS = 0.3, 0.34, 0.4, 0.118, 1.85, 0.55
+_THUMB_ROW = 1.05        # a row that shows a thumbnail
 
 
 def _width(column: str, kind: str) -> float:
@@ -1001,7 +1068,8 @@ def _figure(task: Task, layout: dict) -> None:
         for donor in members:
             lines = max([sum(1 + (len(part) > 12 and "_" in part) for part in c["text"].split("\n"))
                          for k, c in cells.items() if k[0] == donor and c["text"]] or [1])
-            ys[donor] = (y, max(_ROW, _LINE * lines + 0.16))
+            thumbed = any(d == donor for d, _ in layout.get("thumbs", {}))
+            ys[donor] = (y, max(_THUMB_ROW if thumbed else _ROW, _LINE * lines + 0.16))
             y += ys[donor][1]
     totals_y = y + 0.16
     width, height = right + 0.2, totals_y + _ROW + 0.62
@@ -1010,6 +1078,7 @@ def _figure(task: Task, layout: dict) -> None:
     ax = fig.add_axes((0, 0, 1, 1))
     ax.set_xlim(0, width)
     ax.set_ylim(height, 0)
+    ax.set_autoscale_on(False)          # a thumbnail must never move the axes
     ax.set_axis_off()
     ax.text(width / 2, 0.28, "Datasets per donor and the slides they came from (stage 00)",
             ha="center", va="center", fontsize=10.5)
@@ -1057,8 +1126,21 @@ def _figure(task: Task, layout: dict) -> None:
             if kind == "slide":
                 text = "\n".join(part.replace("_", "\n", 1) if len(part) > 12 else part
                                  for part in cell["text"].split("\n"))
-                ax.text(*middle, text, ha="center", va="center", color=ink, fontsize=6.6,
-                        linespacing=1.15)
+                thumb = layout.get("thumbs", {}).get((donor, group))
+                if thumb is None:
+                    ax.text(*middle, text, ha="center", va="center", color=ink, fontsize=6.6,
+                            linespacing=1.15)
+                    continue
+                text_h = _LINE * (text.count("\n") + 1) + 0.04
+                room_w, room_h = w - 0.1, h - 0.08 - text_h
+                scale = min(room_w / thumb.shape[1], room_h / thumb.shape[0])
+                iw, ih = thumb.shape[1] * scale, thumb.shape[0] * scale
+                ix, iy = x0 + (w - iw) / 2, y0 + 0.04
+                ax.imshow(thumb, extent=(ix, ix + iw, iy + ih, iy), origin="upper",
+                          aspect="auto", interpolation="antialiased", zorder=2,
+                          alpha=0.5 if faded else 1.0)
+                ax.text(x0 + w / 2, iy + ih + 0.02 + text_h / 2, text, ha="center",
+                        va="center", color=ink, fontsize=6.4, linespacing=1.1)
                 continue
             ax.add_patch(Rectangle(*box, facecolor=FILLS[cell["kind"]], edgecolor="none",
                                    alpha=0.5 if faded else 1.0))
@@ -1259,6 +1341,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           detail="their records are read from the copy taken from the complete output: "
                  + ", ".join(summary["xenium_held_in_part"][:4])
                  + (" ..." if len(summary["xenium_held_in_part"]) > 4 else "")),
+        C("slides with no thumbnail", summary["slides_without_thumbnail"], "reported", True,
+          blocking=False, detail="a PhenoCycler slide's thumbnail is its qptiff's own; a Xenium "
+                                 "slide's is its overview scan, copied beside its records"),
         C("PhenoCycler slide labels that do not carry the listed donor",
           summary["phenocycler_slide_labels_differ"], "reported", True, blocking=False,
           detail="the SlideID typed when the slide was scanned (the qptiff's first page); the "

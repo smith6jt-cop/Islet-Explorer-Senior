@@ -122,8 +122,10 @@ def test_the_receipt_binds_every_source_it_read(synthetic_project):
                "output-XETG00298__0041001__Pancreas__20240101__000000",
                "output-XETG00298__0041001__pLN__20240101__000000")
     records = {f"xenium:{o}:{f}" for o in outputs for f in STAGE.XENIUM_RECORDS}
-    assert set(inputs) == tables | qptiffs | records
-    assert all(inputs[n].get("sha256") for n in tables | records), "tables and records are hashed"
+    overviews = {"overview:0041000", "overview:0041001"}       # one per Xenium slide
+    assert set(inputs) == tables | qptiffs | records | overviews
+    assert all(inputs[n].get("sha256") for n in tables | records | overviews), (
+        "tables, records and overview scans are hashed")
     # a qptiff is bound by size and time, with the digest the QuPath manifest records for it
     assert all(inputs[n]["bytes"] and not inputs[n].get("sha256") for n in qptiffs)
     assert inputs["qptiff:6374.qptiff"]["recorded_sha256"] == "0" * 64
@@ -485,3 +487,14 @@ def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(syn
     assert check["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
     assert not check["blocking"]
 
+
+
+
+def test_each_slide_shows_a_thumbnail_from_its_own_image(synthetic_project):
+    _, folder, checks = _run(synthetic_project())
+    # the qptiffs carry a Thumbnail page and both Xenium slides an overview scan; the pLN
+    # slide's qptiff has none, and is named rather than drawn blank
+    assert checks["slides with no thumbnail"]["value"] == [
+        "6374 PhenoCycler pLN slide (6374pLN_Scan1.qptiff)"]
+    assert not checks["slides with no thumbnail"]["blocking"]
+    assert (folder / "gate" / "coverage.png").stat().st_size > 1000

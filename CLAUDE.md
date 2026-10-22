@@ -109,7 +109,9 @@ pLN block, a Xenium pLN section from a different block except on a sequential se
 line gives same-block pLN, where it is that same-block pLN. Each donor carries its disease status
 (ND, Aab+, T1D) from `donor_metadata_panc.xlsx`, else nPOD's case export (site sources
 `donor_metadata`, `npod_cases`; the spellings are the cohort profile's `disease_status`), and each
-Xenium acquisition the batch number its run name carries. 6512 and 6618 (run MM48_batch14, batch
+Xenium acquisition the batch number its run name carries; each slide shows its number and a
+thumbnail (a qptiff's own; a Xenium slide's `aux_outputs/overview_scan.png`, copied to
+`/data/xenium_records`). 6512 and 6618 (run MM48_batch14, batch
 14) are Xenium-only donors, listed in `xenium_paths.csv` with batch `XeniumOnly` (maintainer,
 2026-10-22) and kept out of the Xenium typing lane, which types the PhenoCycler cohort. The notes'
 cautions are quoted on its gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers

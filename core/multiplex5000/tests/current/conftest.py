@@ -76,8 +76,10 @@ PLN_MARKERS = ("DAPI", "CD3e", "CD20")
 
 
 def write_qptiff(path: Path, *, slide: str, experiment: str, position: str,
-                 experiment_date: str, scanned: datetime.datetime, markers) -> Path:
-    """A tiny TIFF whose first page says what a PhenoCycler qptiff's does."""
+                 experiment_date: str, scanned: datetime.datetime, markers,
+                 thumbnail: bool = True) -> Path:
+    """A tiny TIFF whose first page says what a PhenoCycler qptiff's does, and, as a qptiff
+    carries one, a page of image type Thumbnail."""
     import numpy as np
     import tifffile
 
@@ -90,6 +92,19 @@ def write_qptiff(path: Path, *, slide: str, experiment: str, position: str,
                    "</PerkinElmer-QPI-ImageDescription>")
     tifffile.imwrite(path, np.zeros((2, 2), np.uint8), description=description,
                      datetime=scanned, metadata=None)
+    if thumbnail:
+        tifffile.imwrite(path, np.full((8, 6, 3), 120, np.uint8), append=True, photometric="rgb",
+                         metadata=None, description="<PerkinElmer-QPI-ImageDescription><ImageType>"
+                                                    "Thumbnail</ImageType></PerkinElmer-QPI-ImageDescription>")
+    return path
+
+
+def write_overview(path: Path) -> Path:
+    """A Xenium slide's overview scan, as small as a PNG gets."""
+    from PIL import Image
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("L", (6, 12), 128).save(path)
     return path
 
 
@@ -131,6 +146,11 @@ def synthetic_project(tmp_path):
         (partial / "cells.parquet").write_bytes(b"")
         write_xenium_records(copies / partial.name, run=run, start=start, slide="0041001",
                              region="pLN")
+        # the overview scan of each slide: in the complete output's aux_outputs, or beside the
+        # copied records
+        write_overview(bundles / "output-XETG00298__0041000__Pan__20240101__000000"
+                       / "aux_outputs" / "overview_scan.png")
+        write_overview(copies / partial.name / "overview_scan.png")
         (copies / "MANIFEST.tsv").write_text(
             "# synthetic\noutput\tfile\tsource\tsha256\tbytes\tcopied_utc\n" + "".join(
                 f"{partial.name}\t{f}\thpg:/complete/{partial.name}/{f}\t0\t0\t2026-01-01\n"
@@ -152,7 +172,8 @@ def synthetic_project(tmp_path):
                                       "hash_mode": "sampled"}})
         write_qptiff(pln / "6374pLN_Scan1.qptiff", slide="6374pLN", experiment="Synthetic_pLN",
                      position="Slide1", experiment_date="2025-12-05T09:00:00Z",
-                     scanned=datetime.datetime(2026, 1, 9, 12, 0), markers=PLN_MARKERS)
+                     scanned=datetime.datetime(2026, 1, 9, 12, 0), markers=PLN_MARKERS,
+                     thumbnail=False)
         files = dict(SOURCES)
         files["cohort_spec.json"] = json.dumps({
             "spec_version": 1, "cohort_name": "synthetic", "expected_donors": ["6374", "0112"],
