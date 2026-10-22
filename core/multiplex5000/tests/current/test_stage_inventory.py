@@ -382,3 +382,27 @@ def test_every_post_xenium_if_image_carries_the_one_declared_panel(synthetic_pro
         assert acquisition["panel"] == "INS, GCG, failed marker, AF"
     else:
         assert "SST" in acquisition["panel_error"] and check["value"][0].startswith("if:if_6374")
+
+
+def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthetic_project,
+                                                                         tmp_path):
+    from conftest import write_xenium_records
+
+    path = synthetic_project()
+    bundles = tmp_path / "xenium" / "bundles"
+    for output, slide, region, cassette in (
+            ("output-XETG00298__0041000__Pan__20240101__000000", "0041000", "Pan", "nPOD6374"),
+            ("output-XETG00298__0041001__Pancreas__20240101__000000", "0041001", "Pancreas",
+             "nPOD6553")):
+        write_xenium_records(bundles / output, run="R1_synthetic", start="2024-01-01T10:00:00Z",
+                             slide=slide, region=region, cassette=cassette)
+    _, folder, checks = _run(path)
+    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
+    assert acquisitions["xenium:0041000:Pan"]["cassette_name"] == "nPOD6374"
+    check = checks["Xenium cassette names that do not carry the listed donor"]
+    # nPOD6374 carries 6374; nPOD6553 does not carry 112, the donor the list gives that slide
+    assert check["value"] == [
+        "output-XETG00298__0041001__Pancreas__20240101__000000: cassette nPOD6553, listed as "
+        "donor 112"]
+    assert not check["blocking"]
+

@@ -88,12 +88,15 @@ def write_qptiff(path: Path, *, slide: str, experiment: str, position: str,
 
 
 def write_xenium_records(folder: Path, *, run: str, start: str, slide: str, region: str,
-                         custom: int = 100, design: str = "6KTRAF") -> None:
+                         custom: int = 100, design: str = "6KTRAF",
+                         cassette: str | None = None) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "experiment.xenium").write_text(json.dumps({
-        "run_name": run, "run_start_time": start, "slide_id": slide, "region_name": region,
-        "panel_type": "add_on" if custom else "predesigned", "panel_design_id": design,
-        "panel_num_targets_predesigned": 5001, "panel_num_targets_custom": custom}))
+    record = {"run_name": run, "run_start_time": start, "slide_id": slide, "region_name": region,
+              "panel_type": "add_on" if custom else "predesigned", "panel_design_id": design,
+              "panel_num_targets_predesigned": 5001, "panel_num_targets_custom": custom}
+    if cassette is not None:
+        record["cassette_name"] = cassette          # the label typed at the instrument
+    (folder / "experiment.xenium").write_text(json.dumps(record))
     (folder / "gene_panel.json").write_text(json.dumps(
         {"payload": {"panel": {"identity": {"design_id": design}, "num_gene_targets": custom}}}))
     (folder / "metrics_summary.csv").write_text(

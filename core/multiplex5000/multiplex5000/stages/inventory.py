@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -321,6 +322,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
         if record is not None:
             fields = dict(run=f"xenium:{record.run_name}", run_date=record.run_date,
                           run_start=record.run_start, recorded_slide=record.slide_id,
+                          cassette_name=record.experiment.get("cassette_name", ""),
                           recorded_region=record.region, folder_region=folder_region,
                           local_copy=("complete" if Path(path, XENIUM_RECORDS[0]).is_file()
                                       else "partial" if exists else "not on this machine"),
@@ -357,6 +359,15 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             note=("channel roles recorded in restain_sections.csv" if recorded
                   else "no channel roles recorded; the panel is the one every image carries")))
     return out
+
+
+def _cassette_carries_donor(a: dict) -> bool:
+    """Whether the cassette name the operator typed at the Xenium instrument carries the listed
+    donor's number -- HDL112, nPOD6591 and 6347pLNpanc carry 112, 6591 and 6347. It is a label, so
+    it is compared, never used to name the donor."""
+    numbers = {int(n) for n in re.findall(r"\d+", a.get("cassette_name") or "")}
+    return any(int(n) in numbers for label in (a["donor_id"], a.get("donor_label", ""))
+               for n in re.findall(r"\d+", label))
 
 
 def _conditions(acquisitions: list[dict], rows: list[dict]) -> list[str]:
@@ -808,6 +819,9 @@ def run(task: Task) -> dict:
         "xenium_folders_renamed_known": sorted(
             f"{a['output']} ({KNOWN_RENAMED_FOLDERS[a['output']]})" for a in xenium
             if a.get("output") in KNOWN_RENAMED_FOLDERS),
+        "xenium_cassettes_differ": sorted(
+            f"{a['output']}: cassette {a['cassette_name']}, listed as donor {a['donor_label']}"
+            for a in xenium if a.get("cassette_name") and not _cassette_carries_donor(a)),
         "xenium_held_in_part": sorted(f"{a['output']} ({a['local_copy']})" for a in xenium
                                       if a.get("local_copy") and a["local_copy"] != "complete"),
         "runs": {p: sum(r["platform"] == p for r in runs) for p in ("phenocycler", "xenium")},
@@ -1111,6 +1125,10 @@ def gate(task: Task, summary: dict) -> gates.Gate:
           detail="their records are read from the copy taken from the complete output: "
                  + ", ".join(summary["xenium_held_in_part"][:4])
                  + (" ..." if len(summary["xenium_held_in_part"]) > 4 else "")),
+        C("Xenium cassette names that do not carry the listed donor",
+          summary["xenium_cassettes_differ"], "reported", True, blocking=False,
+          detail="the cassette name is the label typed at the instrument (experiment.xenium); "
+                 "the donor stays the one xenium_paths.csv lists"),
         C("Xenium output folders renamed, with their known reason",
           summary["xenium_folders_renamed_known"], "reported", True, blocking=False),
     ]
