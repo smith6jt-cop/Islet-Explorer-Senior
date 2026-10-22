@@ -30,7 +30,11 @@ a second copy of those CSVs; never hand-edit the snapshot.
 - A missing measurement is unavailable — not zero, not negative.
 - Donor `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`. Configuration
   must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
-  from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
+  from a literal. **Its exclusion covers its PhenoCycler data only** (`cohort.EXCLUDED_PLATFORMS`;
+  the maintainer, 2026-10-22: "the xenium for 6457 is not excluded"): `cohort.excluded_on(donor,
+  platform)` says so, and stage 00 counts 6457's Xenium and IF. Every lane that still calls
+  `ensure_eligible_donors` / `filter_eligible_donors` refuses 6457 outright until it moves to
+  `excluded_on`. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
   alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
   drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
   `data/RevisedQuPathExports/6579.tsv`), but it is not yet a 21st donor in any stage root — no stage

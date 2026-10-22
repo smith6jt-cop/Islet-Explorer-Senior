@@ -73,3 +73,29 @@ def test_a_mixed_cohort_reports_only_the_excluded_sections():
         ensure_eligible_donors(["6539", "6539pln", bad], context="test")
     assert bad in str(excinfo.value)
     assert "6539pln" not in str(excinfo.value)
+
+
+def test_6457s_exclusion_covers_its_phenocycler_data_only():
+    """The maintainer, 2026-10-22: "the xenium for 6457 is not excluded" -- its reason is the
+    PhenoCycler channel registration its DAPI defeated."""
+    from multiplex5000.cohort import excluded_on
+
+    assert excluded_on("6457", "phenocycler") and excluded_on("6457pln", "phenocycler")
+    assert not excluded_on("6457", "xenium") and not excluded_on("6457", "if")
+    assert not excluded_on("6374", "phenocycler")
+    with pytest.raises(ValueError, match="excluded donor"):     # donor-wide gates still refuse it
+        ensure_eligible_donors(["6457"])
+
+
+def test_an_exclusion_with_no_declared_scope_covers_every_platform(monkeypatch):
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "9999", "a reason")
+    assert all(cohort.excluded_on("9999", p) for p in ("phenocycler", "xenium", "if"))
+
+
+def test_every_declared_scope_belongs_to_an_excluded_donor():
+    from multiplex5000.cohort import EXCLUDED_PLATFORMS
+
+    assert set(EXCLUDED_PLATFORMS) <= set(DONOR_EXCLUSIONS)
+

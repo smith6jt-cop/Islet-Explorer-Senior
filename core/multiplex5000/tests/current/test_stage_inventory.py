@@ -518,3 +518,21 @@ def test_a_phenocycler_slide_that_xenium_also_ran_on_shows_both_images(synthetic
     assert len(drawn[("6374", STAGE.PC_SLIDE)]) == 1
     assert len(drawn[("6374", STAGE.XENIUM_SLIDE)]) == 1
 
+
+def test_an_exclusion_takes_out_only_the_platform_it_covers(synthetic_project, monkeypatch):
+    """As 6457's does (the maintainer, 2026-10-22: "the xenium for 6457 is not excluded")."""
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "6374", "a PhenoCycler reason")
+    monkeypatch.setitem(cohort.EXCLUDED_PLATFORMS, "6374", ("phenocycler",))
+    _, folder, checks = _run(synthetic_project())
+    row = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}["6374"]
+    assert row["excluded_platforms"] == "phenocycler"
+    datasets = checks["datasets, by the slide and platform they came from"]
+    # 6374's PhenoCycler pancreas and pLN scans are not counted; its Xenium slide and IF are
+    assert datasets["value"] == {
+        _at(STAGE.PC_SLIDE, STAGE.PHENOCYCLER): 1, _at(STAGE.PC_SLIDE, STAGE.XENIUM): 1,
+        _at(STAGE.XENIUM_SLIDE, STAGE.XENIUM): 1, _at(STAGE.XENIUM_SLIDE, STAGE.POST_XENIUM_IF): 1,
+        _at(STAGE.PLN_SLIDE, STAGE.PHENOCYCLER): 0, "all": 4}
+    assert "6374 (2)" in datasets["detail"]
+

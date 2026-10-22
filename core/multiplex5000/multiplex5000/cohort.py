@@ -18,6 +18,26 @@ DONOR_EXCLUSIONS: dict[str, str] = {
     ),
 }
 
+#: What each exclusion covers, by platform. 6457's reason is a PhenoCycler one -- its DAPI defeated
+#: the PhenoCycler channel registration -- and the maintainer confirmed on 2026-10-22 that "the
+#: xenium for 6457 is not excluded": its Xenium acquisitions, and the IF scanned on its Xenium
+#: slide, stand. An exclusion not listed here covers every platform (fail closed), and every
+#: function below still refuses the donor outright: a lane that reads a platform's data asks
+#: :func:`excluded_on` instead.
+EXCLUDED_PLATFORMS: dict[str, tuple[str, ...]] = {
+    "6457": ("phenocycler",),
+}
+
+
+def excluded_on(donor: str, platform: str) -> bool:
+    """Whether a donor's acquisitions on one platform (``phenocycler``, ``xenium``, ``if``) are
+    centrally excluded."""
+    donor = donor_of(donor)
+    if donor not in DONOR_EXCLUSIONS:
+        return False
+    return platform in EXCLUDED_PLATFORMS.get(donor, (platform,))
+
+
 #: Reinstated 2026-09-17 by maintainer decision. 6579 was excluded as "a pancreatitis outlier
 #: [that] must not be included in analysis", "until further notice" -- and this is that notice.
 #:

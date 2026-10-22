@@ -63,7 +63,7 @@ from collections import Counter
 from pathlib import Path
 
 from .. import acquisition_records, gates, panel_names, profiles, relationships, roots
-from ..cohort import DONOR_EXCLUSIONS
+from ..cohort import DONOR_EXCLUSIONS, excluded_on
 from ..integration import tissues
 from ..integration.manifest import parse_bundle_path
 from ..integration.tissues import LYMPH_NODE, PANCREAS
@@ -91,6 +91,10 @@ PLN_SECTION = "pLN"
 DATASETS = "datasets"
 SLIDES = "slides"
 ACQUISITION_COLUMNS = (PHENOCYCLER, XENIUM, POST_XENIUM_IF)
+#: The platform of each acquisition column, as the cohort's exclusions name them, and as the
+#: coverage writes them.
+PLATFORM_OF = {PHENOCYCLER: "phenocycler", XENIUM: "xenium", POST_XENIUM_IF: "if"}
+PLATFORM_NAMES = {"phenocycler": "PhenoCycler", "xenium": "Xenium", "if": "IF"}
 #: Columns that are not a section of the slide, so recorded damage never falls on them.
 NOT_SECTIONS = (*ACQUISITION_COLUMNS, SLIDE_NUMBER)
 #: The block a section was cut from: the pancreas block (a pLN in it is same-block) or another --
@@ -696,6 +700,7 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
     cells: dict[tuple, dict] = {}
     datasets: dict[str, set] = {}
     slides: dict[str, set] = {}
+    on_slide: dict[tuple, set] = {}
 
     def put(donor, group, column, text, kind, missing=False):
         cell = cells.setdefault((donor, group, column),
@@ -711,6 +716,7 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         group, key = where or (XENIUM_SLIDE, None)
         if where is not None:
             slides.setdefault(donor, set()).add(where)
+            on_slide.setdefault((donor, where), set()).add(a["platform"])
         if a["platform"] == "xenium":
             put(donor, group, XENIUM, _acquisition_text(a), XENIUM)
             datasets.setdefault(donor, set()).add((group, XENIUM, key))
@@ -807,7 +813,9 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
             status, source = statuses.get(donor, ("", ""))
             row = dict(donor_id=donor, design=label, disease_status=status,
                        disease_status_source=source, in_cohort_spec=donor in cohort,
-                       centrally_excluded=donor in DONOR_EXCLUSIONS)
+                       centrally_excluded=donor in DONOR_EXCLUSIONS,
+                       excluded_platforms=", ".join(p for p in PLATFORM_NAMES
+                                                    if excluded_on(donor, p)))
             for group, column, kind in columns:
                 row[f"{group}: {column}"] = _cell_text(cells.get((donor, group, column)), column, kind)
             row[DATASETS] = len(datasets.get(donor, ()))
@@ -818,13 +826,21 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
             row["caution in the notes"] = bool(note is not None and note.cautions)
             table.append(row)
 
-    counted = [d for d in donors if d not in DONOR_EXCLUSIONS]
-    per_column = Counter((g, c) for d in counted for g, c, _ in datasets.get(d, ()))
+    # an exclusion takes out only the platform it covers (cohort.EXCLUDED_PLATFORMS): 6457's
+    # PhenoCycler data, never its Xenium
+    per_column, not_counted = Counter(), Counter()
+    for d in donors:
+        for g, c, _ in datasets.get(d, ()):
+            if excluded_on(d, PLATFORM_OF[c]):
+                not_counted[d] += 1
+            else:
+                per_column[(g, c)] += 1
     totals = dict(per_column={f"{g}: {c}": per_column[(g, c)] for g, c, kind in columns
                               if kind == "acquisition"},
                   datasets=sum(per_column.values()),
-                  slides=sum(len(slides.get(d, ())) for d in counted),
-                  not_counted={d: len(datasets.get(d, ())) for d in sorted(set(donors) - set(counted))})
+                  slides=sum(1 for (d, _), platforms in on_slide.items()
+                             if any(not excluded_on(d, p) for p in platforms)),
+                  not_counted=dict(sorted(not_counted.items())))
     return dict(cells=cells, columns=columns, groups=groups, table=table, totals=totals,
                 table_by_donor={r["donor_id"]: r for r in table}, not_listed=not_listed,
                 damage_when=sorted(w for w in when if w))
@@ -1108,10 +1124,12 @@ def _figure(task: Task, layout: dict) -> None:
         ax.plot([0.1, right], [s, s], color="0.55", linewidth=0.8)
 
     for donor, (y0, h) in ys.items():
-        faded = donor in DONOR_EXCLUSIONS
-        ink = "0.5" if faded else "black"
-        ax.text(_LEFT, y0 + h / 2, donor + (" (excluded)" if faded else ""), ha="right",
-                va="center", fontsize=8, color=ink)
+        excluded = [p for p in PLATFORM_NAMES if excluded_on(donor, p)]
+        ink = "0.5" if len(excluded) == len(PLATFORM_NAMES) else "black"
+        ax.text(_LEFT, y0 + h / 2, donor + (
+            " (excluded)" if ink != "black" else
+            f" ({', '.join(PLATFORM_NAMES[p] for p in excluded)} excluded)" if excluded else ""),
+            ha="right", va="center", fontsize=8, color=ink)
         ax.text(status_x + _STATUS / 2, y0 + h / 2,
                 layout["table_by_donor"][donor]["disease_status"], ha="center", va="center",
                 fontsize=8, color=ink)
@@ -1119,6 +1137,10 @@ def _figure(task: Task, layout: dict) -> None:
             cell = cells.get((donor, group, column))
             if cell is None:
                 continue
+            platform = PLATFORM_OF.get(column) or ("xenium" if group == XENIUM_SLIDE
+                                                   else "phenocycler")
+            faded = excluded_on(donor, platform)
+            cell_ink = "0.5" if faded else "black"
             box = ((x0 + 0.025, y0 + 0.025), w - 0.05, h - 0.05)
             middle = (x0 + w / 2, y0 + h / 2)
             if cell["missing"]:
@@ -1133,7 +1155,7 @@ def _figure(task: Task, layout: dict) -> None:
                                  for part in cell["text"].split("\n"))
                 thumbs = layout.get("thumbs", {}).get((donor, group))
                 if not thumbs:
-                    ax.text(*middle, text, ha="center", va="center", color=ink, fontsize=6.6,
+                    ax.text(*middle, text, ha="center", va="center", color=cell_ink, fontsize=6.6,
                             linespacing=1.15)
                     continue
                 text_h = _LINE * (text.count("\n") + 1) + 0.04
@@ -1151,7 +1173,7 @@ def _figure(task: Task, layout: dict) -> None:
                     ix += iw + gap
                 tallest = max(ih for _, ih in sizes)
                 ax.text(x0 + w / 2, iy + tallest + 0.02 + text_h / 2, text, ha="center",
-                        va="center", color=ink, fontsize=6.4, linespacing=1.1)
+                        va="center", color=cell_ink, fontsize=6.4, linespacing=1.1)
                 continue
             ax.add_patch(Rectangle(*box, facecolor=FILLS[cell["kind"]], edgecolor="none",
                                    alpha=0.5 if faded else 1.0))
@@ -1160,7 +1182,7 @@ def _figure(task: Task, layout: dict) -> None:
                                        linewidth=0))
                 ax.add_patch(Rectangle(*box, fill=False, edgecolor=DAMAGED, linewidth=1.3))
             if cell["text"]:
-                ax.text(*middle, cell["text"], ha="center", va="center", color=ink,
+                ax.text(*middle, cell["text"], ha="center", va="center", color=cell_ink,
                         fontsize=6.6 if kind == "acquisition" else 7.6, linespacing=1.15,
                         bbox=(dict(boxstyle="round,pad=0.12", facecolor="white", edgecolor="none")
                               if cell["damaged"] else None))
@@ -1172,7 +1194,8 @@ def _figure(task: Task, layout: dict) -> None:
     ax.plot([0.1, right], [totals_y - 0.08] * 2, color="0.25", linewidth=0.9)
     middle = totals_y + _ROW / 2
     left_out = sorted(layout["totals"]["not_counted"])
-    ax.text(_LEFT, middle, "total" + (f" ({', '.join(left_out)} excluded)" if left_out else ""),
+    ax.text(_LEFT, middle, "total" + (f" (excluded data of {', '.join(left_out)} not counted)"
+                                      if left_out else ""),
             ha="right", va="center", fontsize=8, fontweight="bold")
     for (group, column, kind), (x0, w) in zip(columns, xs, strict=True):
         if kind == "acquisition":
@@ -1328,8 +1351,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         C("datasets, by the slide and platform they came from", summary["datasets"], "reported",
           True, blocking=False,
           detail=f"{summary['slides']} slides; one Xenium slide is one dataset however many "
-                 "regions it has. Centrally excluded donors not counted: "
-                 + (", ".join(f"{d} ({n} datasets)" for d, n in
+                 "regions it has. An exclusion takes out only the platform it covers "
+                 "(cohort.EXCLUDED_PLATFORMS); datasets it takes out: "
+                 + (", ".join(f"{d} ({n})" for d, n in
                               summary["datasets_not_counted"].items()) or "none")),
         C("Xenium run on a PhenoCycler slide with no output listed",
           summary["same_slide_xenium_not_listed"], "reported", True, blocking=False,
