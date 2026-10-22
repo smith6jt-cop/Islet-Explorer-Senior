@@ -470,17 +470,19 @@ def _thumbnail(source: tuple, task: Task):
 
 
 def _thumbnails(task: Task, cells: dict) -> tuple[dict, list[str]]:
-    """{(donor, slide group): thumbnail} for every slide cell with an image source, and the slides
-    whose image is not held."""
+    """{(donor, slide group): [thumbnail, ...]} for every slide cell with an image source -- a
+    PhenoCycler slide that Xenium also ran on has both, PhenoCycler first -- and the images that
+    are not held."""
     thumbs, missing = {}, []
     for (donor, group, column), cell in sorted(cells.items()):
-        if column != SLIDE_NUMBER or "image" not in cell:
+        if column != SLIDE_NUMBER:
             continue
-        image = _thumbnail(cell["image"], task)
-        if image is None:
-            missing.append(f"{donor} {group} ({cell['image'][1]})")
-        else:
-            thumbs[(donor, group)] = image
+        for source in cell.get("images", []):
+            image = _thumbnail(source, task)
+            if image is None:
+                missing.append(f"{donor} {group} ({source[1]})")
+            else:
+                thumbs.setdefault((donor, group), []).append(image)
     return thumbs, missing
 
 
@@ -712,12 +714,14 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         if a["platform"] == "xenium":
             put(donor, group, XENIUM, _acquisition_text(a), XENIUM)
             datasets.setdefault(donor, set()).add((group, XENIUM, key))
-            serial = a.get("recorded_slide") or key
+            serial = a.get("recorded_slide") or a["acquisition_id"].split(":")[1]
             numbered = cells.get((donor, group, SLIDE_NUMBER))
             if serial and not (numbered and any(serial in part for part in numbered["parts"])):
                 put(donor, group, SLIDE_NUMBER, serial, None)
-            if group == XENIUM_SLIDE and serial:
-                cells[(donor, group, SLIDE_NUMBER)].setdefault("image", ("overview", serial))
+            if serial:      # a same-slide Xenium's overview joins its PhenoCycler slide's image
+                images = cells[(donor, group, SLIDE_NUMBER)].setdefault("images", [])
+                if ("overview", serial) not in images:
+                    images.append(("overview", serial))
             if group == XENIUM_SLIDE:
                 block = a.get("block", "")
                 put(donor, group, _section_column(a), "" if block else UNSETTLED, block or None,
@@ -727,7 +731,8 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
         put(donor, group, column, _acquisition_text(a), column)
         if a["platform"] == "phenocycler" and a.get("slide_id"):
             put(donor, group, SLIDE_NUMBER, a["slide_id"], None)
-            cells[(donor, group, SLIDE_NUMBER)].setdefault("image", ("qptiff", a["qptiff"]))
+            cells[(donor, group, SLIDE_NUMBER)].setdefault("images", []).insert(
+                0, ("qptiff", a["qptiff"]))
         datasets.setdefault(donor, set()).add((group, column, a["acquisition_id"]))
         if group == PLN_SLIDE:
             put(donor, group, PLN_SECTION, "", a.get("block") or OTHER_BLOCK)
@@ -1031,9 +1036,9 @@ _GAP, _GROUP_GAP, _ROW, _LINE, _LEFT, _STATUS = 0.3, 0.34, 0.4, 0.118, 1.85, 0.5
 _THUMB_ROW = 1.05        # a row that shows a thumbnail
 
 
-def _width(column: str, kind: str) -> float:
-    if kind == "slide":
-        return 0.92
+def _width(column: str, kind: str, group: str = "") -> float:
+    if kind == "slide":     # a PhenoCycler pancreas slide may be a Xenium slide too: two images
+        return 1.3 if group == PC_SLIDE else 0.92
     if kind == "section":
         return _SECTION_WIDTH.get(column, 0.56)
     return _ACQUISITION_WIDTH.get(column, 1.36)
@@ -1056,8 +1061,8 @@ def _figure(task: Task, layout: dict) -> None:
     for i, (group, column, kind) in enumerate(columns):
         if i and group != columns[i - 1][0]:
             x += _GAP
-        xs.append((x, _width(column, kind)))
-        x += _width(column, kind)
+        xs.append((x, _width(column, kind, group)))
+        x += _width(column, kind, group)
     totals = [(x + _GAP, 0.7), (x + _GAP + 0.7, 0.6)]
     right = x + _GAP + 1.3
     ys, y, separators = {}, 1.45, []
@@ -1126,20 +1131,26 @@ def _figure(task: Task, layout: dict) -> None:
             if kind == "slide":
                 text = "\n".join(part.replace("_", "\n", 1) if len(part) > 12 else part
                                  for part in cell["text"].split("\n"))
-                thumb = layout.get("thumbs", {}).get((donor, group))
-                if thumb is None:
+                thumbs = layout.get("thumbs", {}).get((donor, group))
+                if not thumbs:
                     ax.text(*middle, text, ha="center", va="center", color=ink, fontsize=6.6,
                             linespacing=1.15)
                     continue
                 text_h = _LINE * (text.count("\n") + 1) + 0.04
-                room_w, room_h = w - 0.1, h - 0.08 - text_h
-                scale = min(room_w / thumb.shape[1], room_h / thumb.shape[0])
-                iw, ih = thumb.shape[1] * scale, thumb.shape[0] * scale
-                ix, iy = x0 + (w - iw) / 2, y0 + 0.04
-                ax.imshow(thumb, extent=(ix, ix + iw, iy + ih, iy), origin="upper",
-                          aspect="auto", interpolation="antialiased", zorder=2,
-                          alpha=0.5 if faded else 1.0)
-                ax.text(x0 + w / 2, iy + ih + 0.02 + text_h / 2, text, ha="center",
+                gap = 0.06
+                room_w = (w - 0.1 - gap * (len(thumbs) - 1)) / len(thumbs)
+                room_h = h - 0.08 - text_h
+                sizes = [(t.shape[1] * s, t.shape[0] * s) for t in thumbs
+                         for s in (min(room_w / t.shape[1], room_h / t.shape[0]),)]
+                ix = x0 + (w - sum(iw for iw, _ in sizes) - gap * (len(thumbs) - 1)) / 2
+                iy = y0 + 0.04
+                for thumb, (iw, ih) in zip(thumbs, sizes, strict=True):
+                    ax.imshow(thumb, extent=(ix, ix + iw, iy + ih, iy), origin="upper",
+                              aspect="auto", interpolation="antialiased", zorder=2,
+                              alpha=0.5 if faded else 1.0)
+                    ix += iw + gap
+                tallest = max(ih for _, ih in sizes)
+                ax.text(x0 + w / 2, iy + tallest + 0.02 + text_h / 2, text, ha="center",
                         va="center", color=ink, fontsize=6.4, linespacing=1.1)
                 continue
             ax.add_patch(Rectangle(*box, facecolor=FILLS[cell["kind"]], edgecolor="none",

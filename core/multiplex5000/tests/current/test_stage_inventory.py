@@ -498,3 +498,23 @@ def test_each_slide_shows_a_thumbnail_from_its_own_image(synthetic_project):
         "6374 PhenoCycler pLN slide (6374pLN_Scan1.qptiff)"]
     assert not checks["slides with no thumbnail"]["blocking"]
     assert (folder / "gate" / "coverage.png").stat().st_size > 1000
+
+
+def test_a_phenocycler_slide_that_xenium_also_ran_on_shows_both_images(synthetic_project,
+                                                                       monkeypatch):
+    drawn = {}
+    figure = STAGE._figure
+
+    def keep(task, layout):
+        drawn.update(layout["thumbs"])
+        figure(task, layout)
+
+    monkeypatch.setattr(STAGE, "_figure", keep)
+    _run(synthetic_project())
+    # 0112's PhenoCycler slide is Xenium slide 0041001 (section_modes.csv): its qptiff's
+    # thumbnail, then the Xenium overview scan; 6374's PhenoCycler slide has only its qptiff's
+    assert len(drawn[("0112", STAGE.PC_SLIDE)]) == 2
+    assert drawn[("0112", STAGE.PC_SLIDE)][0].shape[:2] == (8, 6), "the qptiff's comes first"
+    assert len(drawn[("6374", STAGE.PC_SLIDE)]) == 1
+    assert len(drawn[("6374", STAGE.XENIUM_SLIDE)]) == 1
+
