@@ -121,7 +121,8 @@ def write_fovs(path: Path, *rectangles) -> Path:
     height) on the slide's overview scan, in the scan's pixels."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"fov_locations": {
-        f"F{i}": dict(zip(("x", "y", "width", "height"), r)) for i, r in enumerate(rectangles)},
+        f"F{i}": dict(zip(("x", "y", "width", "height"), r, strict=True))
+        for i, r in enumerate(rectangles)},
         "units": "pixel"}))
     return path
 

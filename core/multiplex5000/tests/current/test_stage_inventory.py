@@ -378,11 +378,11 @@ def test_a_xenium_slides_pln_lymphoid_is_read_from_its_inspection_only(synthetic
 
     # inspected: two lymphoid areas in the pancreas area, the pLN region one of them
     acquisitions, coverage, checks = run(
-        INSPECTION_HEADER + "0041000,6374,2,pLN,t,2026-01-02,embedded node\n", "r2")
+        INSPECTION_HEADER + "0041000,6374,2,pLN 1,t,2026-01-02,embedded node\n", "r2")
     assert acquisitions["xenium:0041000:pLN"]["block"] == STAGE.PANCREAS_BLOCK
     assert [coverage["6374"][c] for c in xenium] == ["2 pLN", ""]
     assert checks["pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"] == [
-        "0041000 (6374): 2 in the pancreas area, pLN part of that section (t 2026-01-02)"]
+        "0041000 (6374): 2 in the pancreas area, pLN 1 part of that section (t 2026-01-02)"]
     assert all(c["passed"] for c in checks.values() if c["blocking"])
 
 
@@ -640,3 +640,35 @@ def test_annotation_outlines_are_read_by_tissue(tmp_path):
     assert rings[0][1].shape == (5, 2)
     assert STAGE._export_tag("6374_Scan1.er.qptiff - resolution #1") == (
         "6374_Scan1.er.qptiff_-_resolution_1")
+
+
+@pytest.mark.parametrize("donor, scans, sequential, said", [
+    ("0112", [{"qptiff": "0112.qptiff"}], False,
+     "no PhenoCycler section\nrecorded as sequential\nto this slide"),
+    ("7000", [], True, "no PhenoCycler slide"),
+    ("6457", [], True, "PhenoCycler data excluded"),
+])
+def test_a_phenocycler_slide_is_paired_only_as_a_recorded_sequential_section(donor, scans,
+                                                                           sequential, said):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    # a same-slide donor's PhenoCycler slide is the one Xenium ran on after it, not a section
+    # next to its Xenium slide of its own (maintainer, 2026-10-23: "some of them look very
+    # different e.g. 6347")
+    STAGE._draw_phenocycler(None, ax, donor, scans, sequential)
+    assert [t.get_text() for t in ax.texts] == [said]
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("acquisition, label", [
+    ({"tissue": "pancreas", "roi": "panc"}, "pancreas"),
+    ({"tissue": "pancreatic_lymph_node", "roi": "pln_1"}, "pLN 1"),
+    ({"tissue": "pancreatic_lymph_node", "roi": "pln_3"}, "pLN 3"),
+])
+def test_a_xenium_region_is_labelled_by_its_tissue_not_its_typed_name(acquisition, label):
+    # run MM044 typed PanT for its pLN regions; the label says what xenium_paths.csv says
+    assert STAGE._region_label({**acquisition, "acquisition_id": "xenium:0059907:PanT"}) == label

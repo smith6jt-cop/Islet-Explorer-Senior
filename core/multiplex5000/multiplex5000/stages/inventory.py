@@ -32,9 +32,9 @@ What the release is built from, before anything is computed from it:
   the tracked ``xenium_lymphoid_inspection.csv`` (maintainer, 2026-10-23): the sequential
   PhenoCycler slide's notes do not carry over, because the Xenium slide area is smaller and its
   section is sometimes trimmed. ``xenium_slides.png`` shows each Xenium slide's overview with its
-  regions outlined, from the fields of view each region output records, beside the donor's
-  PhenoCycler pancreas slide with its Tissue and pLN annotations (the site's
-  ``pancreas_annotations``, QuPath's GeoJSON export).
+  regions outlined, from the fields of view each region output records, beside its sequential
+  PhenoCycler section -- where the donor notes record one -- with its Tissue and pLN annotations
+  (the site's ``pancreas_annotations``, QuPath's GeoJSON export).
 * **coverage** -- by physical slide, one row per donor: the PhenoCycler pancreas slide (its
   pancreas; the pLN/lymphoid the donor notes put on it, same-block or different-block, checked
   against ``pln_blocks.csv``; its PhenoCycler scan; and, where Xenium ran on that same slide after
@@ -716,6 +716,15 @@ def _region(a: dict) -> str:
     return a["acquisition_id"].split(":", 2)[2]
 
 
+def _region_label(a: dict) -> str:
+    """A Xenium region as xenium_slides.png and xenium_lymphoid_inspection.csv name it: by the
+    tissue xenium_paths.csv gives it, a pLN numbered as its roi is ("pLN 1") -- never by the name
+    typed at the instrument, which can say otherwise (run MM044 named its pLN regions PanT)."""
+    if a["tissue"] == PANCREAS:
+        return tissues.DISPLAY_NAME[PANCREAS]
+    return f"pLN {re.sub(r'[^0-9]', '', a.get('roi') or '')}".strip()
+
+
 def _inspection(slides: dict[str, list[dict]], rows: list[dict]) -> tuple[list[str], list[str]]:
     """Apply xenium_lymphoid_inspection.csv: "The final authority for xenium slides needs to be
     visual inspection of the thumbnail to determine if the pancreas area included any
@@ -731,7 +740,7 @@ def _inspection(slides: dict[str, list[dict]], rows: list[dict]) -> tuple[list[s
         on = slides.get(serial)
         named = {r.strip() for r in (row.get("pln_regions_in_pancreas_section") or "").split(";")
                  if r.strip()}
-        plns = {_region(a) for a in on or () if a["tissue"] == LYMPH_NODE}
+        plns = {_region_label(a) for a in on or () if a["tissue"] == LYMPH_NODE}
         count = (row.get("lymphoid_in_pancreas") or "").strip()
         problem = ("no Xenium slide of its own has that serial" if on is None
                    else "inspected in an earlier row" if serial in done
@@ -749,7 +758,7 @@ def _inspection(slides: dict[str, list[dict]], rows: list[dict]) -> tuple[list[s
             a["inspected"] = f"{row['inspected_by'].strip()} {row['inspected_on'].strip()}"
             if a["tissue"] == PANCREAS:
                 a["lymphoid_in_pancreas"] = int(count)
-            elif _region(a) in named:
+            elif _region_label(a) in named:
                 a["block"] = PANCREAS_BLOCK
     not_inspected = sorted(f"{serial} ({on[0]['donor_id']})" for serial, on in slides.items()
                            if serial not in done)
@@ -764,7 +773,7 @@ def _inspected(slides: dict[str, list[dict]]) -> list[str]:
         pancreas = next((a for a in on if "lymphoid_in_pancreas" in a), None)
         if pancreas is None:
             continue
-        inside = sorted(_region(a) for a in on
+        inside = sorted(_region_label(a) for a in on
                         if a["tissue"] == LYMPH_NODE and a["block"] == PANCREAS_BLOCK)
         out.append(f"{serial} ({on[0]['donor_id']}): {pancreas['lymphoid_in_pancreas']} in the "
                    "pancreas area" + (f", {', '.join(inside)} part of that section" if inside else "")
@@ -1118,7 +1127,9 @@ def run(task: Task) -> dict:
     _write_csv(task.output("disagreements.csv"), disagreements)
     _figure(task, coverage)
     _runs_figure(task, runs)
-    _inspection_figure(task, xenium_slides, coverage["groups"], acquisitions)
+    _inspection_figure(task, xenium_slides, coverage["groups"], acquisitions,
+                       {d for d, n in reading.donors.items()
+                        if n.xenium_design == relationships.SEQUENTIAL})
     platforms = Counter(a["platform"] for a in acquisitions)
     pheno = [a for a in acquisitions if a["platform"] == "phenocycler"]
     xenium = [a for a in acquisitions if a["platform"] == "xenium" and a.get("output")]
@@ -1521,13 +1532,17 @@ def _annotation_rings(path, own_tissue: str) -> list[tuple]:
     return out
 
 
-def _draw_phenocycler(task: Task, ax, donor: str, scans: list[dict]) -> None:
-    """The donor's PhenoCycler pancreas slide, as scanned, with its Tissue and pLN annotations."""
-    if not scans:
+def _draw_phenocycler(task: Task, ax, donor: str, scans: list[dict], sequential: bool) -> None:
+    """The donor's PhenoCycler pancreas slide, as scanned, with its Tissue and pLN annotations --
+    only where the donor notes record it as a sequential section of the Xenium slide. A same-slide
+    donor's PhenoCycler slide is the one Xenium ran on after it, not a section next to the Xenium
+    slide of its own, so it is not paired with it."""
+    if not scans or not sequential:
         ax.set_title(f"{donor}  PhenoCycler\n", fontsize=8)
         ax.text(0.5, 0.5, "PhenoCycler data excluded" if excluded_on(donor, "phenocycler")
-                else "no PhenoCycler slide", ha="center", va="center", fontsize=8,
-                transform=ax.transAxes)
+                else "no PhenoCycler slide" if not scans
+                else "no PhenoCycler section\nrecorded as sequential\nto this slide",
+                ha="center", va="center", fontsize=8, transform=ax.transAxes)
         return
     a = scans[0]
     ax.set_title(f"{donor}  PhenoCycler\n{Path(a['qptiff']).name.split('.')[0]}", fontsize=8)
@@ -1585,18 +1600,18 @@ def _draw_xenium(task: Task, ax, serial: str, on: list[dict]) -> None:
         colour = FILLS[a["tissue"]]
         ax.contour(small, levels=[0.5], colors=[colour], linewidths=1.1)
         ys, xs = np.nonzero(small)
-        ax.text(xs.mean(), ys.min() - 6, _region(a), color=colour, fontsize=6.5,
+        ax.text(xs.mean(), ys.min() - 6, _region_label(a), color=colour, fontsize=6.5,
                 ha="center", va="bottom")
 
 
 def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
-                       acquisitions: list[dict]) -> None:
-    """Each Xenium slide of its own beside its donor's PhenoCycler pancreas slide (maintainer,
+                       acquisitions: list[dict], sequential: set[str]) -> None:
+    """Each Xenium slide of its own beside its sequential PhenoCycler section (maintainer,
     2026-10-23), for the inspection of each Xenium pancreas area
     (xenium_lymphoid_inspection.csv), in the coverage's row order. Left, the PhenoCycler scan with
-    its Tissue and pLN annotations (the site's pancreas_annotations export); right, the Xenium
-    overview scan with its regions outlined. Outlines are coloured by tissue; every image is drawn
-    as scanned."""
+    its Tissue and pLN annotations (the site's pancreas_annotations export), where the donor notes
+    record a sequential Xenium; right, the Xenium overview scan with its regions outlined.
+    Outlines are coloured by tissue; every image is drawn as scanned."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -1620,9 +1635,9 @@ def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
         for ax in (left, right):
             ax.set_axis_off()
             ax.set_anchor("N")       # each image under its title, whatever its shape
-        on = sorted(slides[serial], key=lambda a: (a["tissue"] != PANCREAS, _region(a)))
+        on = sorted(slides[serial], key=lambda a: (a["tissue"] != PANCREAS, _region_label(a)))
         donor = on[0]["donor_id"]
-        _draw_phenocycler(task, left, donor, scans.get(donor, []))
+        _draw_phenocycler(task, left, donor, scans.get(donor, []), donor in sequential)
         _draw_xenium(task, right, serial, on)
     if not serials:
         fig.text(0.5, 0.5, "no Xenium slide of its own", ha="center", va="center")
@@ -1633,7 +1648,7 @@ def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
     fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=8, frameon=False,
                bbox_to_anchor=(0.5, 0.0))
     height = 5.0 * rows + 1.2
-    fig.suptitle("Each Xenium slide beside its donor's PhenoCycler pancreas slide, for inspecting "
+    fig.suptitle("Each Xenium slide beside its sequential PhenoCycler section, for inspecting "
                  "the Xenium pancreas area for pLN/lymphoid (each image as scanned)", fontsize=10,
                  y=1 - 0.12 / height, va="top")
     fig.subplots_adjust(left=0.01, right=0.99, top=1 - 0.95 / height, bottom=0.4 / height)
