@@ -47,7 +47,15 @@ import numpy as np
 # revive a stale directory for a centrally excluded donor.
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT))
-from phenocycler.cohort import ensure_eligible_donors, filter_eligible_donors  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on  # noqa: E402
+
+
+def excluded_platforms(donor: str) -> list[str]:
+    """Which of the two platforms registered here -- the Xenium DAPI and the post-Xenium IF
+    DAPI -- the donor's central exclusion covers. 6457's covers its PhenoCycler data only
+    (maintainer, 2026-10-22), so it is registered like any donor."""
+    return [p for p in ("xenium", "if") if excluded_on(donor, p)]
+
 
 XENIUM_SLIDE = "01_xenium_dapi"
 IF_SLIDE = "02_if_dapi"
@@ -179,13 +187,18 @@ def main(argv=None) -> int:
     dirs = sorted(d for d in args.root.glob("donor_id=*") if d.is_dir())
     by_donor = {d.name.split("=", 1)[1]: d for d in dirs}
     if args.donors:
-        want = set(ensure_eligible_donors(args.donors, context="VALIS registration"))
+        want = {str(d) for d in args.donors}
+        blocked = sorted(d for d in want if excluded_platforms(d))
+        if blocked:
+            details = "; ".join(f"{d} (on {', '.join(excluded_platforms(d))}): "
+                                f"{DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+            raise ValueError(f"VALIS registration includes excluded donor(s): {details}")
         absent = sorted(want - set(by_donor))
         if absent:
             raise FileNotFoundError(f"VALIS donor directories are absent: {absent}")
         dirs = [by_donor[donor] for donor in sorted(want, key=lambda value: int(value))]
     else:
-        allowed = set(filter_eligible_donors(by_donor))
+        allowed = {d for d in by_donor if not excluded_platforms(d)}
         dirs = [by_donor[donor] for donor in sorted(allowed, key=lambda value: int(value))]
     if not dirs:
         print(f"no donor directories under {args.root}", file=sys.stderr)

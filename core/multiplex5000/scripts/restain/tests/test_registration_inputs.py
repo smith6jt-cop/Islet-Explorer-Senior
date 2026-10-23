@@ -7,6 +7,7 @@ import sys
 import pandas as pd
 import pytest
 
+from phenocycler import cohort
 from phenocycler.cohort import DONOR_EXCLUSIONS
 
 
@@ -68,10 +69,18 @@ def test_missing_geojson_is_valid_for_registration(tmp_path, monkeypatch):
     assert records["6436"].channel_names == ("DAPI", "Opal 570")
 
 
-def test_automatic_selection_filters_central_exclusions(tmp_path, monkeypatch):
+@pytest.fixture
+def fully_excluded(monkeypatch):
+    """Every exclusion with no declared platform, as 6457's was before 2026-10-22."""
+    for donor in list(cohort.EXCLUDED_PLATFORMS):
+        monkeypatch.delitem(cohort.EXCLUDED_PLATFORMS, donor)
+
+
+def test_automatic_selection_filters_central_exclusions(tmp_path, monkeypatch, fully_excluded):
     # Derived from the authority, never named here. This test asserted the pair {6457, 6579} and
     # so failed when 6579's exclusion was lifted on 2026-09-17 -- a correct change breaking a test
     # that had restated the list, which is the failure mode "no lane may restate it" prevents.
+    # An exclusion with no declared platform covers the Xenium and the IF (fail closed).
     excluded = sorted(DONOR_EXCLUSIONS)
     assert excluded, "the cohort must carry at least one exclusion for this test to mean anything"
     keep = "6436"
@@ -84,13 +93,31 @@ def test_automatic_selection_filters_central_exclusions(tmp_path, monkeypatch):
     assert [record.donor_id for record in RI.select_registration_inputs(records, None)] == [keep]
 
 
-def test_explicit_excluded_donor_is_refused(tmp_path, monkeypatch):
+def test_explicit_excluded_donor_is_refused(tmp_path, monkeypatch, fully_excluded):
     for donor in sorted(DONOR_EXCLUSIONS):
         rows = [{"image_file": f"{donor}.qptiff", "donor_id": donor, "roi": "panc",
                  "xenium_serial": "0037637", "provenance_source": "audited fixture"}]
         records = _inventory(tmp_path, monkeypatch, rows)
         with pytest.raises(ValueError, match="excluded donor"):
             RI.select_registration_inputs(records, [donor], context="test registration")
+
+
+def test_a_phenocycler_only_exclusion_does_not_refuse_the_registration(tmp_path, monkeypatch):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    A registration reads the Xenium DAPI and the post-Xenium IF DAPI, so 6457 is selected
+    automatically and by name, while the PhenoCycler side still refuses it.
+    """
+    assert cohort.excluded_on("6457", "phenocycler")
+    assert RI.registration_excluded_on("6457") == []
+    rows = [{"image_file": f"{d}.qptiff", "donor_id": d, "roi": "panc", "xenium_serial": serial,
+             "provenance_source": "audited fixture"}
+            for d, serial in (("6436", "0059907"), ("6457", "0037637"))]
+    records = _inventory(tmp_path, monkeypatch, rows)
+    assert [r.donor_id for r in RI.select_registration_inputs(records, None)] == ["6436", "6457"]
+    assert [r.donor_id for r in RI.select_registration_inputs(records, ["6457"])] == ["6457"]
+    with pytest.raises(ValueError, match="excluded donor"):
+        cohort.ensure_eligible_donors(["6457"], context="PhenoCycler")
 
 
 def test_xenium_donor_disagreement_is_refused(tmp_path, monkeypatch):
@@ -123,3 +150,29 @@ def test_unmanifested_local_qptiff_is_refused(tmp_path, monkeypatch):
         RI.load_registration_inputs(
             tmp_path / "registration.csv", tmp_path / "xenium.csv", images,
             tmp_path / "geojson", tmp_path / "bundles")
+
+
+def _valis_main(tmp_path, monkeypatch, argv):
+    """Run valis_register.main over two donor directories, recording what it would register."""
+    import valis_register as V
+
+    for donor in ("6436", "6457"):
+        (tmp_path / f"donor_id={donor}").mkdir(exist_ok=True)
+    registered = []
+    monkeypatch.setattr(V, "register_one", lambda d, **_kw: registered.append(d.name))
+    assert V.main(["--root", str(tmp_path), *argv]) == 0
+    return registered
+
+
+def test_valis_registers_a_donor_whose_exclusion_covers_only_its_phenocycler(
+        tmp_path, monkeypatch):
+    """6457 (maintainer, 2026-10-22): its Xenium and IF DAPI are registered, by name or not."""
+    assert _valis_main(tmp_path, monkeypatch, []) == ["donor_id=6436", "donor_id=6457"]
+    assert _valis_main(tmp_path, monkeypatch, ["--donors", "6457"]) == ["donor_id=6457"]
+
+
+def test_valis_still_refuses_an_exclusion_without_a_platform(tmp_path, monkeypatch,
+                                                             fully_excluded):
+    assert _valis_main(tmp_path, monkeypatch, []) == ["donor_id=6436"]
+    with pytest.raises(ValueError, match="excluded donor.*6457 \\(on xenium, if\\)"):
+        _valis_main(tmp_path, monkeypatch, ["--donors", "6457"])

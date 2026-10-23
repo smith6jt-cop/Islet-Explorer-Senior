@@ -112,3 +112,69 @@ test_that("the R filter and the live Python authority agree on the full donor li
   expect_false(any(excluded %in% py_eligible))
   expect_setequal(setdiff(cohort$all_donors, r_eligible), intersect(cohort$all_donors, excluded))
 })
+
+# The platforms each exclusion covers, asked of the same authority.
+.python_excluded_platforms <- function(repo_root) {
+  python_bin <- Sys.which("python3")
+  if (!nzchar(python_bin)) skip("python3 not available to run the parity check")
+  phenocycler_dir <- normalizePath(file.path(repo_root, "core", "multiplex5000"))
+  script <- sprintf(
+    paste("import sys, json",
+          "sys.path.insert(0, %s)",
+          "from phenocycler.cohort import DONOR_EXCLUSIONS, PLATFORMS, excluded_platforms",
+          "print(json.dumps({'platforms': list(PLATFORMS),",
+          "                  'covers': {d: list(excluded_platforms(d)) for d in DONOR_EXCLUSIONS}}))",
+          sep = "\n"),
+    jsonlite::toJSON(phenocycler_dir, auto_unbox = TRUE))
+  script_file <- tempfile(fileext = ".py")
+  on.exit(unlink(script_file), add = TRUE)
+  writeLines(script, script_file)
+  out <- system2(python_bin, shQuote(script_file), stdout = TRUE, stderr = TRUE)
+  if (!is.null(attr(out, "status")) && attr(out, "status") != 0) {
+    skip(paste("python authority unavailable:", paste(out, collapse = " ")))
+  }
+  jsonlite::fromJSON(tail(out, 1), simplifyVector = FALSE)
+}
+
+test_that("cohort.json records the platforms each exclusion covers, as the authority does", {
+  cohort <- ie_cohort_load(.cohort_json_path)
+  authority <- .python_excluded_platforms(.cohort_repo_root)
+
+  expect_identical(cohort$platforms, unlist(authority$platforms))
+  for (donor in names(authority$covers)) {
+    expect_setequal(cohort$excluded_platforms[[donor]], unlist(authority$covers[[donor]]))
+  }
+})
+
+test_that("a platform-scoped filter keeps 6457's Xenium and refuses its PhenoCycler", {
+  # The maintainer, 2026-10-22: "the xenium for 6457 is not excluded".
+  cohort <- ie_cohort_load(.cohort_json_path)
+  expect_identical(cohort$excluded_platforms[["6457"]], "phenocycler")
+
+  expect_identical(ie_cohort_filter(c("06457", "115"), cohort = cohort, platform = "xenium"),
+                   c("6457", "115"))
+  expect_identical(ie_cohort_filter(c("06457", "115"), cohort = cohort, platform = "if"),
+                   c("6457", "115"))
+  expect_identical(ie_cohort_filter(c("06457", "115"), cohort = cohort, platform = "phenocycler"),
+                   "115")
+  expect_identical(ie_cohort_filter(c("06457", "115"), cohort = cohort), "115")
+  expect_false(ie_cohort_is_excluded("6457", cohort = cohort, platform = "xenium"))
+  expect_true(ie_cohort_is_excluded("6457", cohort = cohort, platform = "phenocycler"))
+  expect_true(ie_cohort_is_excluded("6457", cohort = cohort))
+})
+
+test_that("a misspelt platform is refused, and an unscoped entry covers every platform", {
+  cohort <- ie_cohort_load(.cohort_json_path)
+  expect_error(ie_cohort_filter("6457", cohort = cohort, platform = "Xenium"), "unknown platform")
+
+  roster <- jsonlite::fromJSON(.cohort_json_path, simplifyVector = FALSE)
+  roster$excluded_donors[[1]]$platforms <- NULL
+  path <- tempfile(fileext = ".json")
+  on.exit(unlink(path), add = TRUE)
+  jsonlite::write_json(roster, path, auto_unbox = TRUE)
+  unscoped <- ie_cohort_load(path)
+  donor <- unscoped$excluded_donors$donor_id[[1]]
+  for (platform in unscoped$platforms) {
+    expect_true(ie_cohort_is_excluded(donor, cohort = unscoped, platform = platform))
+  }
+})

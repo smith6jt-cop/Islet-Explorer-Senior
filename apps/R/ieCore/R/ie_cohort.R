@@ -17,6 +17,13 @@
 # partitions -- 6533 and 6579 are eligible and have no typed partition at all. So a card that
 # needs "donors this build can show" must ask the loaded data or its own artifact, and use this
 # only to REMOVE an excluded donor from a list it already has.
+#
+# AN EXCLUSION CAN COVER ONE PLATFORM ONLY. Each excluded entry records the platforms its
+# exclusion covers (`platforms`): 6457's covers its PhenoCycler data (maintainer, 2026-10-22:
+# "the xenium for 6457 is not excluded"). A caller filtering a list of one platform's donors
+# passes `platform =`; with none, every excluded donor is removed, as before. An entry that does
+# not say which platforms it covers is read as covering all of them, and a roster too old to
+# name its platforms refuses a per-platform question rather than answering it.
 
 #' Default location of the built cohort roster, relative to a repo root.
 #' @export
@@ -38,8 +45,9 @@ ie_cohort_norm_donor <- function(donor_id) {
 #' @param path path to `cohort.json`; defaults to `IE_COHORT_JSON_REL` under `repo_root`
 #' @param repo_root repo root to resolve `path` against when `path` is relative and does not
 #'   already exist relative to the working directory
-#' @return a list with `all_donors`, `excluded_donors` (a data.frame of `donor_id`/`reason`),
-#'   and `eligible_donors`, all normalised
+#' @return a list with `platforms`, `all_donors`, `excluded_donors` (a data.frame of
+#'   `donor_id`/`reason`), `excluded_platforms` (donor id -> the platforms its exclusion
+#'   covers), and `eligible_donors`, all normalised
 #' @export
 ie_cohort_load <- function(path = IE_COHORT_JSON_REL, repo_root = NULL) {
   resolved <- path
@@ -57,11 +65,21 @@ ie_cohort_load <- function(path = IE_COHORT_JSON_REL, repo_root = NULL) {
     reason = as.character(raw$excluded_donors$reason),
     stringsAsFactors = FALSE
   )
+  platforms <- as.character(raw$platforms %||% character(0))
+  # Fail closed: an entry that does not say which platforms it covers covers all of them.
+  covered <- raw$excluded_donors$platforms
+  excluded_platforms <- lapply(seq_len(nrow(excluded_donors)), function(i) {
+    entry <- if (is.null(covered)) NULL else covered[[i]]
+    if (length(entry) == 0) platforms else as.character(entry)
+  })
+  names(excluded_platforms) <- excluded_donors$donor_id
 
   structure(
     list(
+      platforms = platforms,
       all_donors = ie_cohort_norm_donor(raw$all_donors),
       excluded_donors = excluded_donors,
+      excluded_platforms = excluded_platforms,
       eligible_donors = ie_cohort_norm_donor(raw$eligible_donors),
       sources = raw$sources,
       generated_at = raw$generated_at
@@ -71,13 +89,23 @@ ie_cohort_load <- function(path = IE_COHORT_JSON_REL, repo_root = NULL) {
 }
 
 #' The excluded donor ids in a loaded cohort roster.
+#'
+#' @param platform `NULL` for every excluded donor, or one of `cohort$platforms` for the donors
+#'   whose exclusion covers that platform
 #' @export
-ie_cohort_excluded_ids <- function(cohort) {
+ie_cohort_excluded_ids <- function(cohort, platform = NULL) {
   if (!inherits(cohort, "ie_cohort")) {
     stop("ie_cohort_excluded_ids(): not an ie_cohort (load one with ie_cohort_load())",
          call. = FALSE)
   }
-  cohort$excluded_donors$donor_id
+  ids <- cohort$excluded_donors$donor_id
+  if (is.null(platform)) return(ids)
+  # A misspelt platform matches no scoped exclusion and would readmit the donor: refuse it.
+  if (length(platform) != 1 || !platform %in% cohort$platforms) {
+    stop("ie_cohort_excluded_ids(): unknown platform '", paste(platform, collapse = ", "),
+         "'; one of ", paste(cohort$platforms, collapse = ", "), call. = FALSE)
+  }
+  ids[vapply(ids, function(id) platform %in% cohort$excluded_platforms[[id]], logical(1))]
 }
 
 #' Filter a donor vector down to the eligible cohort.
@@ -88,15 +116,17 @@ ie_cohort_excluded_ids <- function(cohort) {
 #'
 #' @param donors character vector of donor ids, any padding
 #' @param cohort an `ie_cohort` from [ie_cohort_load()]; loaded with defaults if omitted
+#' @param platform `NULL` to remove every excluded donor, or the platform the donors' data
+#'   comes from, to remove only those whose exclusion covers it
 #' @return `donors`, normalised, with excluded donor ids removed
 #' @export
-ie_cohort_filter <- function(donors, cohort = ie_cohort_load()) {
+ie_cohort_filter <- function(donors, cohort = ie_cohort_load(), platform = NULL) {
   normalised <- ie_cohort_norm_donor(donors)
-  normalised[!normalised %in% ie_cohort_excluded_ids(cohort)]
+  normalised[!normalised %in% ie_cohort_excluded_ids(cohort, platform)]
 }
 
-#' Is this a normalised donor id excluded from the cohort?
+#' Is this a normalised donor id excluded from the cohort (on `platform`, when given)?
 #' @export
-ie_cohort_is_excluded <- function(donor_id, cohort = ie_cohort_load()) {
-  ie_cohort_norm_donor(donor_id) %in% ie_cohort_excluded_ids(cohort)
+ie_cohort_is_excluded <- function(donor_id, cohort = ie_cohort_load(), platform = NULL) {
+  ie_cohort_norm_donor(donor_id) %in% ie_cohort_excluded_ids(cohort, platform)
 }

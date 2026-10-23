@@ -1,11 +1,17 @@
 {
   "spec_version": 1,
-  "generated_at": "2026-09-17T21:48:31+00:00",
+  "generated_at": "2026-10-23T12:16:27+00:00",
   "sources": {
     "candidate_donors": "core/multiplex5000/cohort-spec.json",
     "exclusion_authority": "core/multiplex5000/multiplex5000/cohort.py"
   },
+  "platforms": [
+    "phenocycler",
+    "xenium",
+    "if"
+  ],
   "all_donors": [
+    "112",
     "115",
     "6374",
     "6380",
@@ -33,10 +39,14 @@
   "excluded_donors": [
     {
       "donor_id": "6457",
-      "reason": "Excluded until further notice: poor DAPI staining prevented accurate Phenocycler channel registration."
+      "reason": "Excluded until further notice: poor DAPI staining prevented accurate Phenocycler channel registration.",
+      "platforms": [
+        "phenocycler"
+      ]
     }
   ],
   "eligible_donors": [
+    "112",
     "115",
     "6374",
     "6380",
