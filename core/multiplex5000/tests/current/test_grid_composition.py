@@ -62,10 +62,27 @@ def layer(grid):
 # ---------------------------------------------------------------------------
 # The exclusion list lives once.
 # ---------------------------------------------------------------------------
-def test_excluded_donor_cannot_reach_the_roster(grid):
-    excluded = sorted(grid.DONOR_EXCLUSIONS)
-    assert excluded, "the cohort module declares no exclusion; this test is meaningless"
-    assert grid.eligible(excluded + ["9999"]) == ["9999"]
+def test_excluded_donor_cannot_reach_the_roster(grid, monkeypatch):
+    """Fail closed: an exclusion with no declared platform covers every grid modality."""
+    monkeypatch.setitem(grid.DONOR_EXCLUSIONS, "9998", "a reason")
+    assert grid.eligible(["9998", "9999"]) == ["9999"]
+    for modality in grid.MODALITY_PLATFORM:
+        state, reason = grid.withheld_by_cohort("9998", modality)
+        assert state == grid.STATE_WITHHELD and reason.endswith(": a reason")
+
+
+def test_a_phenocycler_only_exclusion_withholds_only_the_protein_cells(grid):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    It reaches the roster through its Xenium sections; every protein cell is withheld with the
+    exclusion's reason, and its RNA cells are read like any other donor's.
+    """
+    assert grid.eligible(["6457", "9999"]) == ["6457", "9999"]
+    state, reason = grid.withheld_by_cohort("6457", "protein")
+    assert state == grid.STATE_WITHHELD
+    assert reason == ("centrally excluded on phenocycler by cohort.py: "
+                      f"{grid.DONOR_EXCLUSIONS['6457']}")
+    assert grid.withheld_by_cohort("6457", "RNA") is None
 
 
 def test_builder_does_not_restate_the_exclusion_list(grid):

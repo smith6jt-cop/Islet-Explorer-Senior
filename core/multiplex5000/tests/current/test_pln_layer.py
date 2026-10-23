@@ -721,3 +721,20 @@ def test_a_missing_derivation_may_not_shrink_the_published_layer(world, tmp_path
         assert pq.ParquetFile(partition).metadata.num_rows == rows_before
     finally:
         moved.rename(src)
+
+
+
+def test_the_xenium_batch_grouping_reads_the_cohort_bundles_never_a_same_slide_one(tmp_path):
+    """A same-slide (PhenoXeno) pLN output gives its donor a second batch; before it was kept out,
+    listing one would have dropped the donor from the batch grouping."""
+    cluster = _load(CLUSTER_SCRIPT, "cluster_pln")
+    paths = tmp_path / "xenium_paths.csv"
+    paths.write_text("donor_id,roi,batch,source_path\n"
+                     "7001,panc,6KTRAF,a/output-XETG00298__0041000__Pan__20240101__000000\n"
+                     "7001,pln_1,6KTRAF,a/output-XETG00298__0041000__pLN__20240101__000000\n"
+                     "7001,pln_2,PhenoXeno,/orange/r/output-XETG00298__0080000__pLN__20261002__1\n"
+                     "7002,pln_1,6KTRAF,a/output-XETG00298__0041001__pLN__20240101__000000\n"
+                     "7002,pln_2,Y9QRJ6,a/output-XETG00298__0059000__pLN__20250101__000000\n")
+    batches = cluster.xenium_batch_by_donor(paths)
+    assert batches["7001"] == "6KTRAF"
+    assert batches.isna()["7002"], "cohort pLN sections in two batches still have no single one"

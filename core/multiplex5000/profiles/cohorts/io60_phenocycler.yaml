@@ -19,3 +19,15 @@ donor_aliases:
   "112": "0112"
   HDL112: "0112"
   HDL115: "115"
+# The disease statuses in their order, and every spelling a recorded source uses for one: the
+# project's donor_metadata_panc.xlsx (disease.status) and nPOD's case export (donor_type). On the
+# 24 nPOD donors the two share they agree, spelling for spelling (checked 2026-10-22).
+disease_status:
+  levels: [ND, Aab+, T1D]
+  spellings:
+    ND: ND
+    AAB: Aab+
+    T1D: T1D
+    No Diabetes: ND
+    Autoantibody Positive: Aab+
+    Type 1 Diabetes: T1D

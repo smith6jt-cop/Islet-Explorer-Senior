@@ -1542,3 +1542,46 @@ cat("R two-pancreas-modality selection check passed\n")
     result = subprocess.run([str(rscript), "--vanilla", "-"], input=code, cwd=REPO,
                             env=env, capture_output=True, text=True, check=False, timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_phenocycler_only_exclusion_keeps_the_donors_xenium_arms(sources, panc_xenium):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    Both Xenium arms admit it -- the pLN release's sections and the pancreas release's -- while
+    the PhenoCycler arm never reads its partition, malformed here so a read would raise.
+    """
+    from phenocycler.cohort import excluded_on
+
+    assert excluded_on("6457", "phenocycler") and not excluded_on("6457", "xenium")
+    write_rows(sources["cells"].parents[1] / "donor_id=6457" / "data.parquet", [{"unrelated": 1}])
+    write_release(panc_xenium["releases"] / "release_pln_immune", {"0112": SECTION,
+                                                                   "6457": SECTION})
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"6457": [PANC_CELL] * 2})
+    with sources["metadata"].open("a") as handle:
+        handle.write("6457,ND\n")
+    table = build_panc(sources, panc_xenium)
+    rows = table.to_pylist()
+
+    assert not [r for r in rows if r["donor_id"] == "6457" and r["modality"] == "phenocycler"]
+    pln_6457 = [r for r in rows if r["donor_id"] == "6457" and r["roi"] != "panc"]
+    assert pln_6457 and all(r["modality"] == "xenium" for r in pln_6457)
+    total = [r for r in pln_6457 if r["resolved_by"] == "all"]
+    assert len(total) == 1 and (total[0]["n_cells"], total[0]["n_immune"]) == (6, 4)
+    panc_6457 = [r for r in panc_xenium_rows(table) if r["donor_id"] == "6457"]
+    assert len(panc_6457) == 1
+    # Admitted, then refused by the first missing link -- not by the cohort.
+    assert panc_6457[0]["reason"] == builder.XEN_PANC_NO_COORDINATES
+
+
+def test_an_exclusion_without_a_platform_still_keeps_the_xenium_arms_out(
+        sources, panc_xenium, monkeypatch):
+    """Fail closed: an exclusion with no declared platform covers the Xenium arms too."""
+    from phenocycler import cohort
+
+    monkeypatch.delitem(cohort.EXCLUDED_PLATFORMS, "6457")
+    write_release(panc_xenium["releases"] / "release_pln_immune", {"0112": SECTION,
+                                                                   "6457": SECTION})
+    write_panc_release(panc_xenium["releases"] / "panc_release", {"6457": [PANC_CELL] * 2})
+    write_panc_coordinates(panc_xenium["cells"], "6457", [(1, 1)], first_index=5)
+    rows = build_panc(sources, panc_xenium).to_pylist()
+    assert "6457" not in {r["donor_id"] for r in rows}

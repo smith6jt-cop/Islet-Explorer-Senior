@@ -23,7 +23,8 @@ sys.path.insert(0, str(REPO))
 from scripts.senior import build_availability as ledger  # noqa: E402
 from scripts.senior import build_sections_layer as sections  # noqa: E402
 
-from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler import cohort  # noqa: E402
+from phenocycler.cohort import DONOR_EXCLUSIONS, excluded_on  # noqa: E402
 
 AVAILABILITY_COLUMNS = ["donor_id", "capability", "state", "reason", "n", "source"]
 SECTION_COLUMNS = ["donor_id", "roi", "modality", "image_file", "xenium_serial",
@@ -125,7 +126,13 @@ def assert_ledger_contract(table):
     assert table.column_names == AVAILABILITY_COLUMNS
     assert table.schema == ledger.AVAILABILITY_SCHEMA
     donors = set(table["donor_id"].to_pylist())
-    assert not donors.intersection(DONOR_EXCLUSIONS)
+    # A donor is in the layer only when some capability admits it, and a capability whose
+    # platform the donor's exclusion covers is withheld with the exclusion's reason, never read.
+    assert all(any(ledger.admitted(d, c) for c in ledger.CAPABILITIES) for d in donors)
+    for row in table.to_pylist():
+        if not ledger.admitted(row["donor_id"], row["capability"]):
+            assert row["state"] == "withheld", row
+            assert row["reason"].startswith("centrally_excluded_on_"), row
     assert all(d == sections.norm_donor(d) for d in donors)
     rows = table.to_pylist()
     assert len(rows) == len(donors) * len(ledger.CAPABILITIES)
@@ -211,7 +218,9 @@ def test_sections_preserve_na_scales_serials_and_tissue_frames(source_tree):
     assert table.column_names == SECTION_COLUMNS
     assert table.schema == sections.SECTIONS_SCHEMA
     rows = table.to_pylist()
-    assert not set(table["donor_id"].to_pylist()).intersection(DONOR_EXCLUSIONS)
+    for row in rows:
+        platform = "if" if row["modality"] == "restain_if" else "xenium"
+        assert not excluded_on(row["donor_id"], platform), row
     if_rows = [r for r in rows if r["modality"] == "restain_if"]
     assert {r["pixel_size_um"] for r in if_rows} == {0.2712}
     xen = [r for r in rows if r["modality"] == "xenium"]
@@ -223,6 +232,40 @@ def test_sections_preserve_na_scales_serials_and_tissue_frames(source_tree):
     assert {r["roi"] for r in same_serial} == {"panc", "pln_1"}
     assert len({r["frame"] for r in same_serial}) == 2
     assert len([r for r in xen if r["donor_id"] == "112" and r["roi"] == "panc"]) == 2
+
+
+def test_a_phenocycler_only_exclusion_keeps_the_donors_xenium_and_if(source_tree):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    The fixture gives 6457 a Xenium section, an IF section, typing cells and an islet outline.
+    Its Xenium and IF sections are written; every PhenoCycler capability is withheld with the
+    exclusion's reason and its PhenoCycler files are never read.
+    """
+    assert excluded_on("6457", "phenocycler") and not excluded_on("6457", "xenium")
+    inventory = source_tree / "core/phenocycler/data/integration"
+    rows = sections.build_sections(inventory).to_pylist()
+    assert {r["modality"] for r in rows if r["donor_id"] == "6457"} == {"xenium", "restain_if"}
+
+    ledger_rows = {(r["donor_id"], r["capability"]): r
+                   for r in ledger.build_availability(source_tree).to_pylist()}
+    for capability in ("phenocycler_panc", "islet_outline", "trajectory"):
+        row = ledger_rows["6457", capability]
+        assert row["state"] == "withheld" and row["n"] is None, row
+        assert row["reason"] == (f"centrally_excluded_on_phenocycler: "
+                                 f"{DONOR_EXCLUSIONS['6457']}")
+    # Admitted, and its IF intensities are null in the fixture: no pairing, said so by name.
+    assert ledger_rows["6457", "restain_if"]["state"] == "unavailable"
+    assert ledger_rows["6457", "restain_if"]["reason"] == "no_restain_pairing"
+
+
+def test_an_exclusion_without_a_platform_still_keeps_the_donor_out(source_tree, monkeypatch):
+    """Fail closed: an exclusion with no declared platform covers every one."""
+    monkeypatch.delitem(cohort.EXCLUDED_PLATFORMS, "6457")
+    inventory = source_tree / "core/phenocycler/data/integration"
+    assert "6457" not in set(sections.build_sections(inventory)["donor_id"].to_pylist())
+    table = ledger.build_availability(source_tree)
+    assert "6457" not in set(table["donor_id"].to_pylist())
+    assert_ledger_contract(table)
 
 
 def test_blank_required_inventory_fields_are_refused(source_tree):
@@ -276,7 +319,8 @@ def test_both_builders_run_against_real_trees(tmp_path):
     rows = output.to_pylist()
     expected_scales = {(r["donor_id"], r["roi"]): float(r["pixel_size_um"]) for r in restain}
     for row in rows:
-        assert row["donor_id"] not in DONOR_EXCLUSIONS
+        assert not excluded_on(row["donor_id"],
+                               "if" if row["modality"] == "restain_if" else "xenium")
         if row["modality"] == "restain_if":
             assert row["pixel_size_um"] == expected_scales[row["donor_id"], row["roi"]]
         else:

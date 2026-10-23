@@ -21,7 +21,7 @@ HERE = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE))
 import gate  # noqa: E402
 import pins  # noqa: E402
-from phenocycler.cohort import DONOR_EXCLUSIONS  # noqa: E402
+from phenocycler.cohort import excluded_on  # noqa: E402
 
 
 @pytest.mark.data
@@ -33,7 +33,7 @@ def test_pins_serial_and_run_maps_cover_the_cohort():
     # 23 since 2026-09-23: 6579 (reinstated 2026-09-17) joined the acquired manifest.
     assert len(donors) == len(set(donors)) == 23
     assert {"112", "6533", "6579"} <= set(donors)
-    assert not set(donors) & DONOR_EXCLUSIONS.keys()
+    assert not [d for d in donors if excluded_on(d, "xenium")]
     serials, runs = pins.serial_map(), pins.run_map()
     assert set(donors) <= serials.keys() & runs.keys()
     for donor in donors:
@@ -57,13 +57,29 @@ def test_donors_follow_the_acquired_manifest_and_normalize_aliases(tmp_path, mon
     assert pins.donors() == ("112", "6533")
 
 
-@pytest.mark.parametrize("donor", sorted(DONOR_EXCLUSIONS))
-def test_donors_cannot_bypass_central_exclusions(tmp_path, monkeypatch, donor):
+def test_donors_cannot_bypass_central_exclusions(tmp_path, monkeypatch):
+    """An exclusion with no declared platform covers the Xenium lane (fail closed)."""
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "9999", "a reason")
     manifest = tmp_path / "qupath_manifest.json"
-    manifest.write_text(json.dumps({"expected_donors": ["0" + donor]}))
+    manifest.write_text(json.dumps({"expected_donors": ["09999", "6533"]}))
     monkeypatch.setattr(pins, "COHORT_MANIFEST", manifest)
-    with pytest.raises(ValueError, match="excluded donor"):
+    with pytest.raises(ValueError, match="excluded donor.*9999: a reason"):
         pins.donors()
+
+
+def test_a_phenocycler_only_exclusion_does_not_refuse_the_xenium_lane(tmp_path, monkeypatch):
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22)."""
+    from multiplex5000.cohort import ensure_eligible_donors
+
+    manifest = tmp_path / "qupath_manifest.json"
+    manifest.write_text(json.dumps({"expected_donors": ["6457", "6533"]}))
+    monkeypatch.setattr(pins, "COHORT_MANIFEST", manifest)
+    assert pins.donors() == ("6457", "6533")
+    assert excluded_on("6457", "phenocycler")
+    with pytest.raises(ValueError, match="excluded donor"):
+        ensure_eligible_donors(["6457"], context="PhenoCycler")
 
 
 def test_missing_cohort_is_unavailable_instead_of_falling_back(tmp_path, monkeypatch):
@@ -96,6 +112,19 @@ def test_cohort_bundles_are_selected_even_with_same_slide_rows(tmp_path, bundle_
         path = pins.source_path(donor, csv)
         assert path.startswith("HuPrime5kPanTissue/")
         assert path.endswith(f"__{serial}__panc")
+
+
+def test_a_xenium_only_donor_is_never_read_as_a_cohort_bundle(tmp_path, bundle_rows):
+    """A donor outside the cohort is recorded where its complete output is, an absolute path
+    with no MM0xx run segment; every map must pass over it rather than refuse the whole file."""
+    csv = tmp_path / "xenium_paths.csv"
+    extra = pd.DataFrame([{"donor_id": "6512", "roi": "panc", "batch": "XeniumOnly",
+                           "source_path": "/orange/x/output-XETG00298__0041323__Region_1__1"}])
+    pd.concat([bundle_rows, extra], ignore_index=True).to_csv(csv, index=False)
+    assert pins.serial_map(csv) == {"6533": "0041393", "112": "0041396"}
+    assert pins.run_map(csv) == {"6533": "MM036", "112": "MM036"}
+    with pytest.raises(pins.PinError, match="0 bundle rows"):
+        pins.source_path("6512", csv)
 
 
 def test_same_slide_cannot_replace_an_absent_cohort_bundle(tmp_path, bundle_rows):

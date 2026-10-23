@@ -23,6 +23,7 @@
 !/data/integration/xenium_paths.csv
 !/data/integration/donor_overrides.csv
 !/data/integration/section_overrides.csv
+!/data/integration/tissue_condition.csv
 !/data/integration/restain_registration_inputs.csv
 !/data/integration/vocab_crosswalk.csv
 # Declares which (donor, roi, xenium_serial) pairs were imaged on ONE physical

@@ -285,6 +285,21 @@ def build_one(donor: str, *, roi: str, out_root: Path, paths_csv: Path,
             "n_cells_in": int(dd.counts.shape[0]), "n_cells_out": int(keep.sum()), **qc}
 
 
+def xenium_eligible(donors) -> list[str]:
+    """The donors, or a refusal naming any whose Xenium is centrally excluded.
+
+    Asked of ``multiplex5000.cohort.excluded_on(donor, "xenium")``: 6457's exclusion covers its
+    PhenoCycler data only (maintainer, 2026-10-22), so its Xenium bundle is built here.
+    """
+    from multiplex5000.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on
+    donors = [str(d) for d in donors]
+    blocked = [d for d in donors if excluded_on(d, "xenium")]
+    if blocked:
+        details = "; ".join(f"{d}: {DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+        raise ValueError(f"xenium phenotyped base includes excluded donor(s) on xenium: {details}")
+    return donors
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -304,8 +319,7 @@ def main(argv=None) -> int:
         import json as _json
         spec = _json.loads((HERE.parents[1] / "cohort-spec.json").read_text())
         donors = list(spec["expected_donors"])
-    from phenocycler.cohort import ensure_eligible_donors
-    donors = list(ensure_eligible_donors(donors, context="xenium phenotyped base"))
+    donors = xenium_eligible(donors)
 
     print(f"building {len(donors)} donors  roi={args.roi}  -> {args.out}", flush=True)
     rows = []

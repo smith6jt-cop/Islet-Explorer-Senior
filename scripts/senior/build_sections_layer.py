@@ -84,7 +84,9 @@ REPO = Path(__file__).resolve().parents[2]
 DOMAIN_ROOT = REPO / "data" / "development" / "typing" / "app"
 sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
 
-from phenocycler.cohort import filter_eligible_donors
+# filter_eligible_donors is re-exported: the PhenoCycler-only builders (islet summary,
+# trajectory, distance profiles' PhenoCycler arms) take their donor gate from here.
+from phenocycler.cohort import excluded_on, filter_eligible_donors  # noqa: F401
 from phenocycler.integration.manifest import parse_bundle_path
 
 SECTIONS_SCHEMA = pa.schema([
@@ -112,8 +114,23 @@ def norm_donor(value: str) -> str:
     return str(value).strip().lstrip("0") or "0"
 
 
-def read_inventory(path: Path, required: tuple[str, ...]) -> list[dict[str, str]]:
-    """Read text identifiers, refusing blanks instead of inferring missing facts."""
+#: The platform each inventory records, for ``excluded_on``. An exclusion can cover one platform
+#: only -- 6457's covers its PhenoCycler data (maintainer, 2026-10-22) -- and neither inventory
+#: holds a PhenoCycler section: ``xenium_paths.csv`` names Xenium bundles and
+#: ``restain_sections.csv`` the post-Xenium IF scanned on a Xenium slide.
+INVENTORY_PLATFORM = {"xenium_paths.csv": "xenium", "restain_sections.csv": "if"}
+
+
+def read_inventory(path: Path, required: tuple[str, ...],
+                   platform: str | None = None) -> list[dict[str, str]]:
+    """Read text identifiers, refusing blanks instead of inferring missing facts.
+
+    A donor centrally excluded on the inventory's platform is dropped; ``platform`` defaults to
+    the one :data:`INVENTORY_PLATFORM` records for the file.
+    """
+    platform = platform or INVENTORY_PLATFORM.get(path.name)
+    if platform is None:
+        raise ValueError(f"{path}: no platform recorded for this inventory; pass platform=")
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(line for line in handle if not line.lstrip().startswith("#"))
         if not set(required).issubset(reader.fieldnames or []):
@@ -129,7 +146,7 @@ def read_inventory(path: Path, required: tuple[str, ...]) -> list[dict[str, str]
             if not row["donor_id"].isdigit():
                 raise ValueError(f"{path}: donor_id must be a string of digits")
             row["donor_id"] = norm_donor(row["donor_id"])
-            if filter_eligible_donors([row["donor_id"]]):
+            if not excluded_on(row["donor_id"], platform):
                 rows.append(row)
     return rows
 

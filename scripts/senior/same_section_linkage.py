@@ -65,6 +65,23 @@ def donor_exclusions() -> set[str]:
     return {str(d) for d in DONOR_EXCLUSIONS}
 
 
+def lane_platforms(same_slide: bool) -> tuple[str, ...]:
+    """The platforms a donor's linkage reads: the re-stain is Xenium cells and the IF on the
+    same section; the same-slide lane adds the PhenoCycler call it lifts onto them."""
+    return ("phenocycler", "xenium", "if") if same_slide else ("xenium", "if")
+
+
+def excluded_platforms(donor: str, same_slide: bool) -> list[str]:
+    """Which of the platforms this donor's linkage reads its central exclusion covers.
+
+    Asked of ``cohort.excluded_on``: 6457's exclusion covers its PhenoCycler data only
+    (maintainer, 2026-10-22), so its re-stain linkage, if one is ever registered, stands.
+    """
+    sys.path.insert(0, str(ROOT / "core/multiplex5000"))
+    from phenocycler.cohort import excluded_on  # noqa: E402
+    return [p for p in lane_platforms(same_slide) if excluded_on(donor, p)]
+
+
 def held_out_p50(refinement: dict) -> tuple[float | None, float | None]:
     """Median and p90 held-out nucleus offset, pooled over the two spatial folds."""
     folds = refinement.get("held_out", {}).get("folds", [])
@@ -95,7 +112,7 @@ def nn(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return d, i
 
 
-def inventory(excluded: set[str]) -> pd.DataFrame:
+def inventory() -> pd.DataFrame:
     shared = shared_gates()
     sections = pd.read_csv(INTEG / "restain_sections.csv", comment="#")
     channels = {str(r.donor_id): r for r in sections.itertuples()}
@@ -126,7 +143,8 @@ def inventory(excluded: set[str]) -> pd.DataFrame:
             n_xen_cells = pf.metadata.num_rows
         rows.append(dict(
             donor_id=d,
-            centrally_excluded=d in excluded,
+            centrally_excluded=bool(excluded_platforms(d, d in same_slide)),
+            excluded_platforms=";".join(excluded_platforms(d, d in same_slide)),
             same_slide=d in same_slide,
             has_if_nuclei=(dd / "if_nuclei_um.npy").exists(),
             has_xenium_nuclei=(dd / "xenium_nuclei_um.npy").exists(),
@@ -151,7 +169,7 @@ def inventory(excluded: set[str]) -> pd.DataFrame:
 def verdict(r: pd.Series) -> tuple[str, str]:
     """What this donor's linkage supports, and why."""
     if r.centrally_excluded:
-        return "nothing", "centrally excluded from the cohort"
+        return "nothing", f"centrally excluded on {r.excluded_platforms.replace(';', ', ')}"
     if r.same_slide and not r.has_refined_transform:
         return "nothing", ("same-slide acquisition, but no refined transform in this checkout: "
                            "the lifted call cannot be reproduced or checked here")
@@ -358,7 +376,7 @@ def main(argv=None) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
 
     excluded = donor_exclusions()
-    inv = inventory(excluded)
+    inv = inventory()
     v = inv.apply(verdict, axis=1, result_type="expand")
     inv["supports"], inv["because"] = v[0], v[1]
     inv.to_csv(args.out / "donor_linkage.csv", index=False)

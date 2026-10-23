@@ -131,7 +131,7 @@ import pyarrow.parquet as pq
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from scripts.senior import xenium_release
-from scripts.senior.build_sections_layer import filter_eligible_donors, norm_donor
+from scripts.senior.build_sections_layer import excluded_on, filter_eligible_donors, norm_donor
 
 # The refusal below is no longer this builder's own. It comes from the one table that knows
 # which artifacts are superseded -- core/multiplex5000/scripts/typing/superseded.py -- so that a
@@ -663,10 +663,11 @@ def _pln_xenium_release_arm(
             continue
         partitions.setdefault((norm_donor(donor), roi), []).append(path)
 
-    eligible = set(filter_eligible_donors({donor for donor, _ in partitions}))
+    # Asked for the Xenium platform: 6457's exclusion covers its PhenoCycler data only
+    # (maintainer, 2026-10-22), so its Xenium lymph node sections are composed here.
     with duckdb.connect(config={"threads": 2, "memory_limit": "2GB"}) as con:
         for (donor, roi), files in sorted(partitions.items()):
-            if donor not in eligible:
+            if excluded_on(donor, "xenium"):
                 continue
             if donors is not None and donor not in donors:
                 continue
@@ -975,7 +976,8 @@ def _panc_xenium_arm(
     audit: dict[str, dict] = {}
     tallies = xenium_release.donor_tallies(release)
     partitions = release.donor_partitions()
-    eligible = set(filter_eligible_donors({norm_donor(d) for d in partitions}))
+    # Asked for the Xenium platform, as in the pLN Xenium arm.
+    eligible = {norm_donor(d) for d in partitions if not excluded_on(norm_donor(d), "xenium")}
     label_column = release.require_column("common_lineage")
 
     def absent(donor, status, reason, **extra):
@@ -1093,7 +1095,7 @@ def _panc_xenium_arm(
     ingested = sorted({norm_donor(path.name.removeprefix("donor_id="))
                        for path in Path(xen_cells_root).glob("donor_id=*")
                        if (path / f"roi={PANCREAS_ROI}").is_dir()})
-    for donor in filter_eligible_donors([d for d in ingested if d not in called]):
+    for donor in [d for d in ingested if d not in called and not excluded_on(d, "xenium")]:
         if donors is not None and donor not in donors:
             continue
         audit[f"{donor}/{PANCREAS_ROI}"] = {"release": release.release_id,

@@ -1,0 +1,25 @@
+schema: multiplex5000-profile/1
+kind: platform
+id: post_xenium_if
+display_name: post-Xenium IF
+# The maintainer states (2026-09-16) that every post-Xenium IF image is 0.2505 um/px; the tracked
+# restain_sections.csv declares it on every row and records the two 10x images whose files say
+# otherwise.
+pixel_size_um: 0.2505
+# The one panel every post-Xenium IF image carries (maintainer, 2026-10-21): INS, GCG, a failed
+# marker and autofluorescence, besides DAPI for the nuclei. Its name lists them in that order.
+# restain_sections.csv records, for the images it has a row for, which channel holds each (Opal 690
+# INS, Opal 520 GCG, Opal 570 FAILED, Sample AF); stage 00 refuses a row that records another
+# panel. Applied by multiplex5000.panel_names.
+panel_names:
+  # the panel's channels, as restain_sections.csv names their roles
+  channels: [INS, GCG, FAILED, AF]
+  # a recorded role that is not part of the panel's name
+  not_named: [NUCLEUS]
+  # how a role is written in the name
+  written:
+    FAILED: failed marker
+    AF: AF
+sources:
+  pixel_size_um: the maintainer, 2026-09-16, as restain_sections.csv records it
+  panel_names: the maintainer, 2026-10-21 -- "all the post-xenium IF had the same markers"

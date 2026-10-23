@@ -719,8 +719,6 @@ def xen_files() -> list[tuple[str, str, Path]]:
     and the one the integration lane already uses for `cells_xen`.  Sections are kept apart:
     6579 contributes three (a/b/c), 6457 two.  `cell_id` is preserved verbatim from `obs`.
     """
-    from phenocycler.cohort import donor_of, DONOR_EXCLUSIONS  # noqa: F401
-
     out = []
     for path in sorted(XEN_H5AD_DIR.glob("*_pLNXenium.h5ad")):
         stem = path.name.replace("_pLNXenium.h5ad", "")
@@ -843,16 +841,27 @@ def cluster_xen_section(
     return result
 
 
-def run_xen(args) -> None:
-    sys.path.insert(0, str(REPO / "core/multiplex5000"))
-    from phenocycler.cohort import filter_eligible_donors
+def xen_eligible(donors) -> tuple[set[str], list[str]]:
+    """(eligible, refused) among the donors with a Xenium pLN h5ad.
 
+    Asked of ``multiplex5000.cohort.excluded_on(donor, "xenium")``: 6457's central exclusion
+    covers its PhenoCycler data only (maintainer, 2026-10-22), so its two Xenium sections are
+    clustered.  The PhenoCycler side reads the ingest, which never wrote it.
+    """
+    sys.path.insert(0, str(REPO / "core/multiplex5000"))
+    from multiplex5000.cohort import excluded_on
+
+    donors = set(donors)
+    refused = sorted(d for d in donors if excluded_on(d, "xenium"))
+    return donors - set(refused), refused
+
+
+def run_xen(args) -> None:
     out_dir = OUT_ROOT / "xenium"
     (out_dir / "profiles").mkdir(parents=True, exist_ok=True)
 
     files = xen_files()
-    eligible_donors = set(filter_eligible_donors(sorted({d for d, _, _ in files})))
-    refused = sorted({d for d, _, _ in files} - eligible_donors)
+    eligible_donors, refused = xen_eligible({d for d, _, _ in files})
 
     subpanels = subpanel_genes()
     report_genes = sorted(
@@ -2236,12 +2245,16 @@ def xenium_batch_by_donor(paths_csv: Path = XEN_PATHS) -> pd.Series:
     """The Xenium instrument batch per donor, from the pLN rows of xenium_paths.csv.
 
     Only `roi` beginning `pln` is read: a donor's pancreas section can sit in a different batch
-    from its node, and the quantities here are node quantities.  A donor whose pLN sections
-    disagree on batch has no single batch, and gets NaN rather than one of the two -- it is
-    dropped from that grouping, never pooled into a level invented for it.
+    from its node, and the quantities here are node quantities.  A ``PhenoXeno`` row is never
+    read: it is a same-slide acquisition (Xenium on the PhenoCycler slide), not one of the
+    cohort bundles whose nodes this lane clusters -- xenium_typing/pins.py keeps them out for the
+    same reason.  A donor whose pLN sections disagree on batch has no single batch, and gets NaN
+    rather than one of the two -- it is dropped from that grouping, never pooled into a level
+    invented for it.
     """
     frame = pd.read_csv(paths_csv, dtype=str)
-    pln = frame[frame["roi"].fillna("").str.startswith("pln")]
+    pln = frame[frame["roi"].fillna("").str.startswith("pln")
+                & (frame["batch"].fillna("").str.strip() != "PhenoXeno")]
     out = {}
     for donor, grp in pln.groupby("donor_id"):
         batches = sorted(set(grp["batch"].dropna()))

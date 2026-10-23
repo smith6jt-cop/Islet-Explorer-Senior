@@ -274,20 +274,22 @@ def load_panels() -> dict:
 
 
 def sections() -> list[tuple[str, str, Path]]:
-    """(donor_id, section_key, h5ad) for every pancreas h5ad of an eligible donor.
+    """(donor_id, section_key, h5ad) for every pancreas h5ad of a donor whose Xenium is eligible.
 
-    The exclusion is derived from ``phenocycler.cohort.DONOR_EXCLUSIONS``, never from a literal.
+    The exclusion is asked of ``multiplex5000.cohort.excluded_on(donor, "xenium")``, never
+    restated: 6457's central exclusion covers its PhenoCycler data only (maintainer,
+    2026-10-22), so its Xenium pancreas is typed here.
     """
     import sys
     sys.path.insert(0, str(REPO / "core/multiplex5000"))
-    from phenocycler.cohort import filter_eligible_donors
+    from multiplex5000.cohort import excluded_on
 
     out = []
     for path in sorted(H5AD_DIR.glob("*_PancXenium.h5ad")):
         stem = path.name.replace("_PancXenium.h5ad", "")
         core = stem[3:] if stem.startswith("HDL") else stem
         donor = core.rstrip("abc") if core[-1:].isalpha() else core
-        if not filter_eligible_donors([donor]):
+        if excluded_on(donor, "xenium"):
             continue
         out.append((donor, stem, path))
     return out

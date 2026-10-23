@@ -112,3 +112,25 @@ def test_the_serial_is_read_from_the_bundle_name_and_refuses_a_path_without_one(
         "output-XETG00298__0059865__Panc__20250328__202338") == "0059865"
     with pytest.raises(B.BuildError):
         B.serial_of("some/path/without/a/serial")
+
+
+def test_a_phenocycler_only_exclusion_does_not_refuse_the_xenium_base():
+    """6457's central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22).
+
+    Its Xenium bundle is built; the PhenoCycler side still refuses it, and an exclusion with no
+    declared platform still refuses the Xenium base too.
+    """
+    from multiplex5000 import cohort
+
+    assert cohort.excluded_on("6457", "phenocycler")
+    assert B.xenium_eligible(["6457", "6533"]) == ["6457", "6533"]
+    with pytest.raises(ValueError, match="excluded donor"):
+        cohort.ensure_eligible_donors(["6457"], context="PhenoCycler")
+
+
+def test_an_exclusion_without_a_platform_still_refuses_the_xenium_base(monkeypatch):
+    from multiplex5000 import cohort
+
+    monkeypatch.setitem(cohort.DONOR_EXCLUSIONS, "9999", "a reason")
+    with pytest.raises(ValueError, match="excluded donor.*9999: a reason"):
+        B.xenium_eligible(["9999"])

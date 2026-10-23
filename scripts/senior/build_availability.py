@@ -26,6 +26,12 @@ identity is inferred from coordinates or names. Recorded failures/withholding
 outrank the existence of files. All non-measured states carry a reason and a
 null int64 count.
 
+Exclusions are asked per capability, of ``cohort.excluded_on`` for the platforms
+that capability reads (``CAPABILITY_PLATFORMS``). A donor whose exclusion covers
+one of them -- 6457's covers its PhenoCycler data only -- keeps the capabilities
+it is admitted to and is written ``withheld``, with the exclusion's reason, on
+the rest.
+
 The PhenoCycler pancreas count is whatever typing/cells holds when this runs --
 since 2026-09-19, the islet-chain build of all 20 donors. This builder neither
 types nor re-types anything; NO_VERIFIED_TYPING remains latched.
@@ -47,10 +53,13 @@ import pyarrow.parquet as pq
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
+sys.path.insert(0, str(REPO / "core" / "multiplex5000"))
+
+from phenocycler.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on  # noqa: E402
+
 from scripts.senior.availability_states import AVAILABILITY_STATES  # noqa: E402
 from scripts.senior.build_sections_layer import (
     add_common_arguments,
-    filter_eligible_donors,
     norm_donor,
     section_inventories,
     write_layer,
@@ -63,6 +72,16 @@ from scripts.senior.build_sections_layer import (
 STATES = AVAILABILITY_STATES
 #: Each is read by a card (see the module docstring); a capability no card reads is not written.
 CAPABILITIES = ("phenocycler_panc", "restain_if", "islet_outline", "trajectory")
+#: The platforms each capability's data comes from, for ``cohort.excluded_on``. An exclusion can
+#: cover one platform only -- 6457's covers its PhenoCycler data (maintainer, 2026-10-22) -- so a
+#: donor is gated per capability: the IF pairing is Xenium cells carrying the post-Xenium IF
+#: scanned on the same slide, and the other three are the PhenoCycler pancreas.
+CAPABILITY_PLATFORMS = {
+    "phenocycler_panc": ("phenocycler",),
+    "restain_if": ("xenium", "if"),
+    "islet_outline": ("phenocycler",),
+    "trajectory": ("phenocycler",),
+}
 AVAILABILITY_SCHEMA = pa.schema([
     ("donor_id", pa.string()), ("capability", pa.string()), ("state", pa.string()),
     ("reason", pa.string()), ("n", pa.int64()), ("source", pa.string()),
@@ -80,6 +99,20 @@ def availability(donor: str, capability: str, state: str, source: Path,
         raise ValueError("Every non-measured state requires a reason and n=None")
     return {"donor_id": norm_donor(donor), "capability": capability, "state": state,
             "reason": reason, "n": n, "source": str(source)}
+
+
+def admitted(donor: str, capability: str) -> bool:
+    """Whether no central exclusion covers a platform this capability reads for the donor."""
+    return not any(excluded_on(donor, p) for p in CAPABILITY_PLATFORMS[capability])
+
+
+def withheld_by_cohort(donor: str, capability: str, source: Path) -> dict:
+    """The row for a donor whose exclusion covers this capability: named, never a zero."""
+    platforms = [p for p in CAPABILITY_PLATFORMS[capability] if excluded_on(donor, p)]
+    return availability(
+        donor, capability, "withheld", source,
+        reason=f"centrally_excluded_on_{'_and_'.join(platforms)}: "
+               f"{DONOR_EXCLUSIONS[donor_of(donor)]}")
 
 
 def parquet_files(root: Path) -> list[Path]:
@@ -106,7 +139,7 @@ def typing_availability(root: Path) -> dict[str, dict]:
     refused: dict[str, str] = {}
     for path in sorted(root.glob("donor_id=*/*.parquet")):
         donor = donor_id(path.parent.name.removeprefix("donor_id="))
-        if not filter_eligible_donors([donor]):
+        if not admitted(donor, "phenocycler_panc"):
             continue
         counts[donor] += 0
         if donor in refused:
@@ -178,7 +211,7 @@ def paired_if_counts(root: Path) -> Counter:
                 ("row_count", "sum")])
             for row in paired.to_pylist():
                 donor = donor_id(row["donor_id"])
-                if row["roi"] == "panc" and filter_eligible_donors([donor]):
+                if row["roi"] == "panc" and admitted(donor, "restain_if"):
                     paired_if[donor] += row["row_count_sum"]
     return paired_if
 
@@ -189,7 +222,7 @@ def outline_availability(root: Path) -> dict[str, dict]:
         for batch in batches(path, ("donor_id", "islet_key", "wkb")):
             for row in batch.to_pylist():
                 donor = donor_id(row["donor_id"])
-                if filter_eligible_donors([donor]):
+                if admitted(donor, "islet_outline"):
                     outlines[donor]  # Keep donors whose exported outlines are all missing.
                     if row["wkb"] and row["islet_key"]:
                         outlines[donor].add(row["islet_key"])
@@ -207,7 +240,7 @@ def trajectory_availability(path: Path) -> dict[str, dict]:
         )):
             for row in batch.to_pylist():
                 donor = donor_id(row["case_id"])
-                if not filter_eligible_donors([donor]):
+                if not admitted(donor, "trajectory"):
                     continue
                 islets[donor]
                 finite = any(row[column] is not None and math.isfinite(row[column])
@@ -242,6 +275,8 @@ def restain_availability(root: Path, sections: list[dict], paired_if: Counter,
             gates[donor] = record["alignment"], path
     result = {}
     for donor in {row["donor_id"] for row in sections if row["roi"] == "panc"}:
+        if not admitted(donor, "restain_if"):
+            continue
         if donor in gates and gates[donor][0]["verdict"] == "FAIL":
             gate, path = gates[donor]
             result[donor] = availability(
@@ -305,8 +340,11 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
                                           restain, paired_if, cells)),
     ):
         observed.update({(donor, capability): row for donor, row in records.items()})
-    donors = set(filter_eligible_donors(
-        {r["donor_id"] for r in restain + xenium} | {key[0] for key in observed}))
+    # A donor is in the layer when some capability admits it: the Xenium and IF inventories are
+    # already gated on their own platform, so 6457 arrives through its Xenium sections, and its
+    # PhenoCycler capabilities are then written withheld with the exclusion's reason below.
+    donors = {d for d in {r["donor_id"] for r in restain + xenium} | {key[0] for key in observed}
+              if any(admitted(d, capability) for capability in CAPABILITIES)}
     if not donors:
         raise ValueError("No eligible donors discovered")
     # A capability with no observed row still names WHICH source was asked and what it said.
@@ -320,7 +358,9 @@ def build_availability(repo_root: Path = REPO, *, inventory_dir: Path | None = N
     for donor in sorted(donors):
         for capability in CAPABILITIES:
             row = observed.get((donor, capability))
-            if row is None:
+            if not admitted(donor, capability):
+                row = withheld_by_cohort(donor, capability, missing[capability][0])
+            elif row is None:
                 source, reason = missing[capability]
                 row = availability(donor, capability, "unavailable", source, reason=reason)
             rows.append(row)

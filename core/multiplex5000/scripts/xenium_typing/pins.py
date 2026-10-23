@@ -80,6 +80,8 @@ _SERIAL = re.compile(r"output-XETG\d+__(\d+)__")
 _RUN = re.compile(r"^(MM\d{3})")
 
 ROI = "panc"
+#: xenium_paths.csv batches that are not the cohort bundles this lane types (see paths_table).
+NOT_COHORT_BUNDLES = ("PhenoXeno", "XeniumOnly")
 
 
 class PinError(RuntimeError):
@@ -92,9 +94,11 @@ def donors() -> tuple[str, ...]:
 
     The live QuPath manifest includes acquisitions that the build specification can
     predate. Its zero-padded donor IDs (``0112``) refer to the same donor as ``112`` in
-    ``xenium_paths.csv``. Central eligibility is checked after normalization.
+    ``xenium_paths.csv``. Central eligibility is checked after normalization, for the Xenium
+    platform: an exclusion that covers only a donor's PhenoCycler data (6457's) does not
+    refuse its Xenium bundles.
     """
-    from phenocycler.cohort import ensure_eligible_donors
+    from multiplex5000.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on
     if not COHORT_MANIFEST.is_file():
         raise PinError(f"{COHORT_MANIFEST} is absent; the acquired cohort is unavailable")
     manifest = json.loads(COHORT_MANIFEST.read_text())
@@ -102,7 +106,11 @@ def donors() -> tuple[str, ...]:
                                  for d in manifest["expected_donors"]))
     if not cohort or any(not d for d in cohort):
         raise PinError(f"{COHORT_MANIFEST} has no valid acquired cohort")
-    return ensure_eligible_donors(cohort, context="xenium typing lane")
+    blocked = [d for d in cohort if excluded_on(d, "xenium")]
+    if blocked:
+        details = "; ".join(f"{d}: {DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+        raise ValueError(f"xenium typing lane includes excluded donor(s) on xenium: {details}")
+    return cohort
 
 
 # --------------------------------------------------------------------------- bundle paths
@@ -112,13 +120,15 @@ def paths_table(csv: pathlib.Path = XENIUM_PATHS, roi: str = ROI):
     ``PhenoXeno`` rows describe separate same-slide acquisitions, not the MM0xx
     cohort bundles this lane types. A donor may have both in ``xenium_paths.csv``;
     those rows must never replace the cohort serial or introduce a second match.
+    ``XeniumOnly`` rows are donors outside the PhenoCycler cohort (Xenium alone, recorded
+    where the complete output is, not under XENIUM_ROOT); this lane types the cohort.
     Whitespace and trailing slashes are stripped: the hand-maintained file carries both.
     """
     import pandas as pd
     if not pathlib.Path(csv).exists():
         raise PinError(f"{csv} is absent; it is the donor -> bundle manifest this lane keys on")
     t = pd.read_csv(csv, dtype=str)
-    t = t[(t["roi"] == roi) & (t["batch"].str.strip() != "PhenoXeno")
+    t = t[(t["roi"] == roi) & ~t["batch"].str.strip().isin(NOT_COHORT_BUNDLES)
           & t["source_path"].notna() & (t["source_path"].str.strip() != "NA")].copy()
     t["source_path"] = t["source_path"].str.strip().str.rstrip("/")
     t["donor_id"] = t["donor_id"].str.strip()

@@ -50,7 +50,9 @@ D4  A partial run cannot land on a cohort-wide name.  Every cohort-shaped write 
 EXTENSION
 ---------
 Sections are DISCOVERED from the h5ad directory and the donor eligibility comes from
-`phenocycler.cohort.filter_eligible_donors`; no donor list is written down here.  A section
+`multiplex5000.cohort.excluded_on(donor, "xenium")`; no donor list is written down here.  6457's
+central exclusion covers its PhenoCycler data only (maintainer, 2026-10-22), so its two Xenium
+lymph node sections are typed here.  A section
 already partitioned is skipped unless `--force`, and the cohort-wide rollups are rebuilt from
 whatever per-section artifacts are on disk at the time.  Adding the donors now transferring is
 therefore: drop the h5ad in, add its bundle row to `xenium_paths.csv`, re-run.  Nothing in this
@@ -631,14 +633,14 @@ def load_panels() -> dict:
 # ------------------------------------------------------------------------------------------
 
 def sections() -> list[tuple[str, str, Path]]:
-    """(donor_id, section_key, h5ad) for every pLN h5ad an eligible donor has.
+    """(donor_id, section_key, h5ad) for every pLN h5ad of a donor whose Xenium is eligible.
 
     Discovered from the directory, never from a list in this file, so a donor that lands
-    tomorrow is picked up by re-running.  The central cohort exclusion is asked for, not
-    restated.
+    tomorrow is picked up by re-running.  The central cohort exclusion is asked for, for the
+    Xenium platform, not restated.
     """
     sys.path.insert(0, str(REPO / "core/multiplex5000"))
-    from phenocycler.cohort import filter_eligible_donors
+    from multiplex5000.cohort import excluded_on
 
     found = []
     for path in sorted(H5AD_DIR.glob("*_pLNXenium.h5ad")):
@@ -646,20 +648,19 @@ def sections() -> list[tuple[str, str, Path]]:
         core = stem[3:] if stem.startswith("HDL") else stem
         donor = core.rstrip("abc") if core[-1:].isalpha() else core
         found.append((donor, stem, path))
-    eligible = set(filter_eligible_donors(sorted({d for d, _, _ in found})))
-    return [row for row in found if row[0] in eligible]
+    return [row for row in found if not excluded_on(row[0], "xenium")]
 
 
 def refused_donors() -> list[str]:
     sys.path.insert(0, str(REPO / "core/multiplex5000"))
-    from phenocycler.cohort import filter_eligible_donors
+    from multiplex5000.cohort import excluded_on
 
     found = set()
     for path in sorted(H5AD_DIR.glob("*_pLNXenium.h5ad")):
         stem = path.name.replace("_pLNXenium.h5ad", "")
         core = stem[3:] if stem.startswith("HDL") else stem
         found.add(core.rstrip("abc") if core[-1:].isalpha() else core)
-    return sorted(found - set(filter_eligible_donors(sorted(found))))
+    return sorted(d for d in found if excluded_on(d, "xenium"))
 
 
 def nucleus_for(donor: str, cell_ids: np.ndarray) -> tuple[np.ndarray | None, str]:

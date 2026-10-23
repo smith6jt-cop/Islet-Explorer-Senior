@@ -30,9 +30,16 @@ a second copy of those CSVs; never hand-edit the snapshot.
 - A missing measurement is unavailable — not zero, not negative.
 - Donor `6457` is centrally excluded in `core/multiplex5000/multiplex5000/cohort.py`. Configuration
   must not bypass it, and no lane may restate the list — derive from `DONOR_EXCLUSIONS`, never
-  from a literal. **`6579`'s exclusion was lifted 2026-09-17** and it is recorded in `REINSTATED`
-  alongside why; the pancreatitis it was excluded for is still a disease context, not a reason to
-  drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
+  from a literal. **Its exclusion covers its PhenoCycler data only** (`cohort.EXCLUDED_PLATFORMS`;
+  the maintainer, 2026-10-22: "the xenium for 6457 is not excluded"): `cohort.excluded_on(donor,
+  platform)` says so, and stage 00 counts 6457's Xenium and IF. The Xenium readers ask it too
+  (2026-10-22): both Xenium typers, the Xenium typing pins and phenotyped base, `cluster_pln`'s
+  Xenium side, a Xenium identity release, and the Xenium / IF parts of the app layers, where
+  6457's PhenoCycler parts are written `withheld`. Every lane that still calls
+  `ensure_eligible_donors` / `filter_eligible_donors` — the PhenoCycler readers, and the
+  re-stain registration scripts, not yet moved — refuses 6457 outright. **`6579`'s exclusion was
+  lifted 2026-09-17** and it is recorded in `REINSTATED` alongside why; the pancreatitis it was
+  excluded for is still a disease context, not a reason to drop it. Both cohort manifests have declared it since 2026-09-23 (with its revised export,
   `data/RevisedQuPathExports/6579.tsv`), but it is not yet a 21st donor in any stage root — no stage
   has run on it; see `docs/DONOR_6579_REENTRY_2026-09-17.md` for what re-entry takes. `pln_node_annotations.csv` now records it `excluded=False`;
   `data/donor_acquisition_runs.csv` still carries `excluded=True` and disagrees with `cohort.py`
@@ -97,9 +104,38 @@ declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figure
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
 so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
-its own stage logic until D4. Its coverage shows, beside each pancreas image, the pLN/lymphoid the
-donor notes designate for that pancreas, same-block or different-block, checked against
-`pln_blocks.csv`; the notes' cautions are quoted on its gate and never counted.
+its own stage logic until D4. Its coverage is laid out by physical slide: the PhenoCycler pancreas
+slide (its pancreas, the pLN/lymphoid the donor notes put on it -- same-block or different-block,
+checked against `pln_blocks.csv` -- its PhenoCycler scan and, where Xenium ran on that same slide
+after PhenoCycler, that Xenium), the Xenium slide (its regions, its run, the IF scanned after it)
+and the dedicated pLN slide, with each donor's datasets and slides counted -- one acquisition is
+one dataset, so a Xenium slide counts once however many regions it has -- and the rows of the
+sequential and same-slide donors apart. Each section is marked by the block it was cut from
+(maintainer, 2026-10-21): pancreas sections from the pancreas block, a dedicated pLN slide from a
+pLN block, a Xenium pLN section from a different block except on a sequential section whose notes
+line gives same-block pLN, where it is that same-block pLN. Each donor carries its disease status
+(ND, Aab+, T1D) from `donor_metadata_panc.xlsx`, else nPOD's case export (site sources
+`donor_metadata`, `npod_cases`; the spellings are the cohort profile's `disease_status`), and each
+Xenium acquisition the batch number its run name carries; each slide shows its number and a
+thumbnail (a qptiff's own; a Xenium slide's `aux_outputs/overview_scan.png`, copied to
+`/data/xenium_records`). 6512 and 6618 (run MM48_batch14, batch
+14) are Xenium-only donors, listed in `xenium_paths.csv` with batch `XeniumOnly` (maintainer,
+2026-10-22) and kept out of the Xenium typing lane, which types the PhenoCycler cohort. The notes'
+cautions are quoted on its gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
+without DAPI, `+ CD38` / `- b-Catenin1` for the one marker that differs, `MetSI` for the metabolic
+spike-in, else `markers` -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, 55 markers for the pLN
+slides; Xenium: `5kOnly` or `5k+100(<code>)`; post-Xenium IF: one panel for every image, INS,
+GCG, failed marker, AF, declared in its platform profile), its run, the run's date and
+the slide run with it: PhenoCycler slides scanned under one experiment on one day were run together
+(two per run; one alone means an odd number in the staining batch), Xenium slides share a run name.
+These come from each qptiff's first page and each Xenium output's records; the complete Xenium
+outputs are on HiPerGator (`/orange/maigan/Xenium_T1D_PancPLN`; the two same-slide PhenoXeno runs
+in `/orange/maigan`, in folders named with their donor ids), and `/data/xenium_records` holds
+copies of the records of those this machine holds only in part or not at all. Known damage is what the maintainer records, by
+acquisition and tissue, in the tracked `core/phenocycler/data/integration/tissue_condition.csv` --
+6450's Xenium pancreas, and 6533's PhenoXeno pancreas and pLN, both damaged before Xenium -- and
+stage 00 marks exactly those sections; what a later stage does with a damaged acquisition is that
+stage's question.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.

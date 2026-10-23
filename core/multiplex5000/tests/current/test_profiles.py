@@ -105,6 +105,16 @@ def test_the_phenocycler_pixel_size_mirrors_the_app_config():
     assert SHIPPED[("platform", "phenocycler")].pixel_size_um == config["pixel_size_um"]
 
 
+def test_the_post_xenium_if_pixel_size_mirrors_restain_sections():
+    import csv
+
+    path = REPO / "core/phenocycler/data/integration/restain_sections.csv"
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(line for line in handle if not line.startswith("#")))
+    declared = SHIPPED[("platform", "post_xenium_if")].pixel_size_um
+    assert rows and {float(r["pixel_size_um"]) for r in rows} == {declared}
+
+
 def test_panels_and_cohorts_reference_their_authority_and_a_known_platform():
     platforms = {i for k, i in SHIPPED if k == "platform"}
     for (kind, _), profile in SHIPPED.items():
@@ -183,6 +193,27 @@ def test_donor_aliases_are_quoted_text_and_never_an_id(tmp_path, aliases, messag
         "id": "c", "platform": "phenocycler", "tissues": ["pancreas"],
         "membership": "core/multiplex5000/cohort-spec.json",
         "exclusions": "multiplex5000.cohort.DONOR_EXCLUSIONS", "donor_aliases": aliases})
+    with pytest.raises(profiles.ProfileError, match=message):
+        profiles.load_profile(path)
+
+
+@pytest.mark.parametrize("cohort", ["io60_phenocycler", "io60_v3"])
+def test_the_cohort_declares_its_disease_statuses_in_order_and_their_spellings(cohort):
+    status = SHIPPED[("cohort", cohort)].disease_status
+    assert status["levels"] == ("ND", "Aab+", "T1D")
+    assert status["spellings"]["AAB"] == status["spellings"]["Autoantibody Positive"] == "Aab+"
+
+
+@pytest.mark.parametrize("status, message", [
+    ({"levels": ["ND", "T1D"], "spellings": {"AAB": "Aab+"}}, "name no level"),
+    ({"levels": [], "spellings": {"ND": "ND"}}, "needs levels"),
+    (["ND", "T1D"], "needs levels"),
+])
+def test_disease_status_spellings_must_name_a_level(tmp_path, status, message):
+    path = _write(tmp_path, "cohort", "c", {
+        "id": "c", "platform": "phenocycler", "tissues": ["pancreas"],
+        "membership": "core/multiplex5000/cohort-spec.json",
+        "exclusions": "multiplex5000.cohort.DONOR_EXCLUSIONS", "disease_status": status})
     with pytest.raises(profiles.ProfileError, match=message):
         profiles.load_profile(path)
 

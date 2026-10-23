@@ -59,8 +59,10 @@ WHAT THIS MODULE PROMISES.
   never infers.
 
 WHAT IT DOES NOT DO.  It does not filter the cohort.  ``DONOR_EXCLUSIONS`` lives
-once, in ``core/multiplex5000/multiplex5000/cohort.py``, and the builders apply it;
-restating it here would be a second copy.  It does not type anything, does not
+once, in ``core/multiplex5000/multiplex5000/cohort.py``, and the builders apply it --
+to a Xenium release through ``excluded_on(donor, "xenium")``, since an exclusion can
+cover one platform only (6457's covers its PhenoCycler data); restating it here would
+be a second copy.  It does not type anything, does not
 move the ``NO_VERIFIED_TYPING`` latch, and reads no result as a target.
 """
 

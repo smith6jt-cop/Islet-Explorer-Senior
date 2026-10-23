@@ -425,7 +425,8 @@ def assemble(work: Path, out: Path, score_on: str, secs) -> dict:
     inputs.append({"kind": "cohort_exclusions",
                    "path": "core/multiplex5000/multiplex5000/cohort.py",
                    "sha256": sha256_of(REPO / "core/multiplex5000/multiplex5000/cohort.py"),
-                   "note": "DONOR_EXCLUSIONS is read from here; no literal donor list is used"})
+                   "note": "excluded_on(donor, 'xenium') is asked here; no literal donor "
+                           "list is used"})
 
     pdf = pd.DataFrame(per_donor)
     # Nullable integers, so an unmeasured section is a BLANK cell rather than 0.0 or a float
@@ -524,7 +525,7 @@ def assemble(work: Path, out: Path, score_on: str, secs) -> dict:
             "scripts": scripts,
             "scripts_note": (
                 "sha256 of every repository source this run imported -- driver, worker and "
-                "anything they pulled in (phenocycler.cohort, which supplies the donor "
+                "anything they pulled in (multiplex5000.cohort, which supplies the donor "
                 "exclusions, above all). Resolved by import, not from a hardcoded list. THESE "
                 "describe the code that produced the calls; the commit below does not."),
             "commit": commit,
@@ -572,7 +573,8 @@ def assemble(work: Path, out: Path, score_on: str, secs) -> dict:
             "detection": "lognorm >= log1p(1), lognorm = log1p(raw * 1e4 / cell depth); no raw "
                          "count floor and no depth-scaled equivalent",
             "nucleus_rule": "a cell with no nucleus is excluded from every calculation",
-            "exclusions": "derived from phenocycler.cohort.DONOR_EXCLUSIONS, never a literal",
+            "exclusions": "multiplex5000.cohort.excluded_on(donor, 'xenium'), never a literal; "
+                          "6457's exclusion covers its PhenoCycler data only",
         },
         "donors": donors,
         "n_donors": len(donors),
