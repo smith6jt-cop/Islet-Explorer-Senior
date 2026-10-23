@@ -99,3 +99,24 @@ def test_every_declared_scope_belongs_to_an_excluded_donor():
 
     assert set(EXCLUDED_PLATFORMS) <= set(DONOR_EXCLUSIONS)
 
+
+
+def test_a_misspelt_platform_is_refused_rather_than_readmitting_the_donor():
+    """``"PhenoCycler"`` matches no scoped exclusion, so answering it would readmit 6457."""
+    from multiplex5000.cohort import excluded_on
+
+    for wrong in ("PhenoCycler", "Xenium", "IF", "codex"):
+        with pytest.raises(ValueError, match="unknown platform"):
+            excluded_on("6457", wrong)
+        with pytest.raises(ValueError, match="unknown platform"):
+            excluded_on("6374", wrong)
+
+
+def test_every_declared_scope_names_known_platforms():
+    from multiplex5000.cohort import EXCLUDED_PLATFORMS, PLATFORMS, excluded_platforms
+
+    for donor, platforms in EXCLUDED_PLATFORMS.items():
+        assert platforms and set(platforms) <= set(PLATFORMS), donor
+        assert excluded_platforms(donor) == tuple(p for p in PLATFORMS if p in platforms)
+    assert excluded_platforms("6457") == ("phenocycler",)
+    assert excluded_platforms("6374") == ()

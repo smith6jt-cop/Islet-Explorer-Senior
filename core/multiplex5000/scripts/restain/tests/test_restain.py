@@ -769,11 +769,16 @@ def test_registration_selection_enforces_central_exclusions():
         )
 
     # Derived, not named: 6579 was reinstated on 2026-09-17 and this list had restated it.
+    # Asked for the Xenium and IF a registration reads: an exclusion covering only a donor's
+    # PhenoCycler data (6457's, 2026-10-22) admits it; one covering either refuses it.
     from phenocycler.cohort import DONOR_EXCLUSIONS
     excluded = sorted(DONOR_EXCLUSIONS)
     records = {donor: record(donor) for donor in ["6436", *excluded]}
-    assert [item.donor_id for item in RI.select_registration_inputs(records, None)] == ["6436"]
-    for donor in excluded:
+    refused = [d for d in excluded if RI.registration_excluded_on(d)]
+    admitted = sorted(["6436", *(d for d in excluded if d not in refused)], key=int)
+    assert [item.donor_id for item in RI.select_registration_inputs(records, None)] == admitted
+    assert "6457" in admitted
+    for donor in refused:
         with pytest.raises(ValueError, match=donor):
             RI.select_registration_inputs(records, [donor])
 

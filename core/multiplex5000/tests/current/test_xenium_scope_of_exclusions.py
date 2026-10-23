@@ -159,3 +159,20 @@ def test_concordance_admits_6457_to_the_rna_side_only(tmp_path, monkeypatch):
     monkeypatch.setattr(concordance, "xenium_source", lambda tissue: _Release())
     _, rna_states = concordance.pln_rna_counts(by_side["rna"])
     assert rna_states == {"6457": "no partition under fixture-pln"}
+
+
+roster = _load(REPO / "scripts/senior/build_cohort_roster.py", "cohort_roster_xenium_scope")
+
+
+def test_the_app_roster_records_the_platforms_each_exclusion_covers():
+    built = roster.build_roster()
+    assert built["platforms"] == list(cohort.PLATFORMS)
+    entry = next(e for e in built["excluded_donors"] if e["donor_id"] == "6457")
+    assert entry["platforms"] == ["phenocycler"]
+    # The candidates are the PhenoCycler pancreas roster, so eligibility stays donor-wide.
+    assert "6457" in built["all_donors"] and "6457" not in built["eligible_donors"]
+
+
+def test_the_app_roster_records_an_unscoped_exclusion_as_every_platform(fully_excluded):
+    entry = next(e for e in roster.build_roster()["excluded_donors"] if e["donor_id"] == "6457")
+    assert entry["platforms"] == list(cohort.PLATFORMS)

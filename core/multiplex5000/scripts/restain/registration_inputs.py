@@ -16,7 +16,17 @@ from typing import Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from phenocycler.cohort import ensure_eligible_donors, filter_eligible_donors
+from phenocycler.cohort import DONOR_EXCLUSIONS, donor_of, excluded_on
+
+#: What a registration reads: the Xenium DAPI and the post-Xenium IF DAPI scanned on the same
+#: slide. No PhenoCycler data enters it, so an exclusion covering only a donor's PhenoCycler data
+#: -- 6457's (maintainer, 2026-10-22: "the xenium for 6457 is not excluded") -- does not refuse it.
+REGISTRATION_PLATFORMS = ("xenium", "if")
+
+
+def registration_excluded_on(donor: str) -> list[str]:
+    """The platforms this registration reads that the donor's central exclusion covers."""
+    return [p for p in REGISTRATION_PLATFORMS if excluded_on(donor, p)]
 
 
 HERE = Path(__file__).resolve().parent
@@ -220,13 +230,19 @@ def select_registration_inputs(
 ) -> list[RegistrationInput]:
     """Select donors deterministically while enforcing the central cohort exclusions."""
     if donors:
-        requested = list(ensure_eligible_donors((str(d) for d in donors), context=context))
+        requested = [str(d) for d in donors]
+        blocked = sorted(d for d in requested if registration_excluded_on(d))
+        if blocked:
+            details = "; ".join(
+                f"{d} (on {', '.join(registration_excluded_on(d))}): "
+                f"{DONOR_EXCLUSIONS[donor_of(d)]}" for d in blocked)
+            raise ValueError(f"{context} includes excluded donor(s): {details}")
         unknown = sorted(set(requested) - set(records))
         if unknown:
             raise RegistrationInputError(f"{context} requested donors absent from inventory: {unknown}")
         wanted = set(requested)
     else:
-        wanted = set(filter_eligible_donors(records))
+        wanted = {d for d in records if not registration_excluded_on(d)}
     return sorted((record for donor, record in records.items() if donor in wanted),
                   key=lambda record: (int(record.donor_id), record.serial))
 

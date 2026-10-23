@@ -49,15 +49,31 @@ These read PhenoCycler data only, or gate on a PhenoCycler cohort:
 - `build_compartment_gradient.py` gates on `typing/cells` partitions. Its Xenium pLN rows are kept
   only for that cohort, so 6457's will be listed under `pln_xenium_donors_outside_cohort`, like
   the other Xenium-only donors.
-- `build_cohort_roster.py`: the app roster's candidates come from `cohort-spec.json`, and 6457
-  stays an excluded entry carrying its PhenoCycler reason.
+- `build_cohort_roster.py`'s eligibility: the candidates come from `cohort-spec.json`, the
+  PhenoCycler pancreas roster, so 6457 stays an excluded entry there. Since 2026-10-23 the entry
+  also records which platforms its exclusion covers; see below.
 
-## Still refusing 6457, outside this change
+## Moved on 2026-10-23, at the maintainer's word ("Yes stop refusing obviously. Yes record")
 
-- `core/multiplex5000/scripts/restain/valis_register.py` and `registration_inputs.py` read
-  Xenium and post-Xenium IF only, and still call the donor-wide gates. 6457 also has no row in
-  either re-stain inventory. Whether its Xenium-to-IF DAPI registration should run is the
-  maintainer's call.
+- **Re-stain registration.** `core/multiplex5000/scripts/restain/registration_inputs.py`
+  (`select_registration_inputs`, which every registration step goes through) and
+  `valis_register.py` now ask for the Xenium and IF they read. 6457 is selected the same way
+  as any donor, but neither re-stain inventory (`restain_registration_inputs.csv`,
+  `restain_sections.csv`) has a 6457 row and there is no VALIS directory for it. So nothing is
+  registered until 6457's post-Xenium IF qptiff is recorded there and its Xenium bundle is
+  local.
+- **The app roster.** `build_cohort_roster.py` writes `platforms` (the vocabulary,
+  `cohort.PLATFORMS`) and, on each excluded entry, the platforms its exclusion covers. 6457's
+  entry says `["phenocycler"]`. `apps/islet/config/cohort.json` was rebuilt, and the rebuild
+  also brings donor 112 into `all_donors` and `eligible_donors`: `cohort-spec.json` has listed
+  `0112` since after the last build, on 2026-09-17. `ieCore`'s `ie_cohort_filter` /
+  `ie_cohort_is_excluded` / `ie_cohort_excluded_ids` take an optional `platform`. With none
+  given they remove every excluded donor, as before. No app code calls them outside the tests.
+- **`cohort.excluded_on` refuses an unknown platform name.** A misspelling such as
+  `"PhenoCycler"` matched no scoped exclusion, and so readmitted 6457.
+
+## Still refusing 6457
+
 - `run_pheno_annotation_export.py` carries PhenoCycler annotations onto Xenium, so it is right
   to refuse 6457.
 - `card_x1_gradient.R` selects the pancreas arm by donor alone (the xfail in

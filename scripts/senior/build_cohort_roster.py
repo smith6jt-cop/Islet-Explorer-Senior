@@ -14,6 +14,13 @@ The authority for *who is a candidate* is two git-tracked, non-generated sources
     A card must be able to say "6457 was pulled, here is why", which requires the donor to be
     *in* the roster.
 
+Each excluded entry records the PLATFORMS its exclusion covers, asked of the authority
+(`cohort.excluded_platforms`): 6457's covers its PhenoCycler data only (maintainer, 2026-10-22:
+"the xenium for 6457 is not excluded"), and an exclusion with no declared scope covers every
+platform in `cohort.PLATFORMS`, which the roster carries as `platforms` so a reader can check
+the name it asks for. `eligible_donors` is unchanged: the candidates minus every excluded donor,
+whatever its platforms -- the candidates are the PhenoCycler pancreas roster.
+
 `donor_id` is a string and is not normalised across trees (0112 vs 112) -- see
 docs/ISLET_LAYERS_SPEC.md ss 0.3. Every value here is normalised on read with `norm_donor`
 before being written, and nothing downstream should have to normalise again.
@@ -36,7 +43,13 @@ COHORT_SPEC_PATH = PHENOCYCLER_ROOT / "cohort-spec.json"
 DEFAULT_OUT = REPO_ROOT / "apps" / "islet" / "config" / "cohort.json"
 
 sys.path.insert(0, str(PHENOCYCLER_ROOT))
-from phenocycler.cohort import DONOR_EXCLUSIONS, REINSTATED, filter_eligible_donors  # noqa: E402
+from phenocycler.cohort import (  # noqa: E402
+    DONOR_EXCLUSIONS,
+    PLATFORMS,
+    REINSTATED,
+    excluded_platforms,
+    filter_eligible_donors,
+)
 
 
 def norm_donor(value: str) -> str:
@@ -71,7 +84,8 @@ def build_roster(spec_path: Path = COHORT_SPEC_PATH) -> dict:
     eligible_donors = filter_eligible_donors(all_donors)
 
     excluded_donors = [
-        {"donor_id": donor_id, "reason": DONOR_EXCLUSIONS[donor_id]}
+        {"donor_id": donor_id, "reason": DONOR_EXCLUSIONS[donor_id],
+         "platforms": list(excluded_platforms(donor_id))}
         for donor_id in excluded_ids
     ]
 
@@ -84,6 +98,7 @@ def build_roster(spec_path: Path = COHORT_SPEC_PATH) -> dict:
                 (PHENOCYCLER_ROOT / "multiplex5000" / "cohort.py").relative_to(REPO_ROOT)
             ),
         },
+        "platforms": list(PLATFORMS),
         "all_donors": all_donors,
         "excluded_donors": excluded_donors,
         "eligible_donors": eligible_donors,

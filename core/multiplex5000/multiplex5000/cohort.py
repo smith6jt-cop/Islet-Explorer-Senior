@@ -29,13 +29,28 @@ EXCLUDED_PLATFORMS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: The platforms an exclusion can cover, in the spelling :func:`excluded_on` takes.
+PLATFORMS: tuple[str, ...] = ("phenocycler", "xenium", "if")
+
+
 def excluded_on(donor: str, platform: str) -> bool:
     """Whether a donor's acquisitions on one platform (``phenocycler``, ``xenium``, ``if``) are
-    centrally excluded."""
+    centrally excluded.
+
+    A platform not in :data:`PLATFORMS` is refused rather than answered: a misspelling such as
+    ``"PhenoCycler"`` matches no scoped exclusion, so answering it would readmit the donor.
+    """
+    if platform not in PLATFORMS:
+        raise ValueError(f"unknown platform {platform!r}; one of {PLATFORMS}")
     donor = donor_of(donor)
     if donor not in DONOR_EXCLUSIONS:
         return False
-    return platform in EXCLUDED_PLATFORMS.get(donor, (platform,))
+    return platform in EXCLUDED_PLATFORMS.get(donor, PLATFORMS)
+
+
+def excluded_platforms(donor: str) -> tuple[str, ...]:
+    """The platforms a donor's central exclusion covers; empty for a donor with none."""
+    return tuple(p for p in PLATFORMS if excluded_on(donor, p))
 
 
 #: Reinstated 2026-09-17 by maintainer decision. 6579 was excluded as "a pancreatitis outlier
