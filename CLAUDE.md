@@ -115,8 +115,18 @@ one dataset, so a Xenium slide counts once however many regions it has -- and th
 sequential and same-slide donors apart. A section's fill says only its tissue (pancreas or
 pLN/lymphoid; maintainer, 2026-10-23), and pLN sections are counted in a same-block or a
 different-block column by the block they were cut from (maintainer, 2026-10-21): a Xenium pLN
-section is different-block except on a sequential section whose notes line gives same-block pLN;
-a dedicated PhenoCycler pLN slide is counted by its nodes (`pln_node_annotations.csv` `n_nodes`).
+region is a different-block section, and a dedicated PhenoCycler pLN slide is counted by its nodes
+(`pln_node_annotations.csv` `n_nodes`). **What pLN/lymphoid a Xenium slide's pancreas area
+includes is settled only by looking at the slide's overview scan** (maintainer, 2026-10-23): the
+sequential PhenoCycler slide's notes do not carry over, because the Xenium slide area is smaller
+and its section is sometimes trimmed. The gate figure `xenium_slides.png` shows each Xenium slide
+of its own with its regions outlined (from each output's
+`aux_outputs/overview_scan_fov_locations.json`, copied to `/data/xenium_records` where this
+machine lacks it). The maintainer records what they see in the tracked
+`core/phenocycler/data/integration/xenium_lymphoid_inspection.csv`: the count of pLN/lymphoid
+areas in the pancreas area (the coverage's same-block count), and any pLN region that is part of
+the pancreas section (6457's embedded nodes are the case). The gate blocks until every such slide
+has a row.
 A same-slide Xenium overview is turned to the PhenoCycler image's orientation, and a slide's number
 is its Xenium serial where it has one. Each donor carries its disease status
 (ND, Aab+, T1D) from `donor_metadata_panc.xlsx`, else nPOD's case export (site sources

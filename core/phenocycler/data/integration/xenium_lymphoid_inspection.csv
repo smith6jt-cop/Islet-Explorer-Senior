@@ -1,0 +1,27 @@
+# The pLN/lymphoid each Xenium slide's pancreas area includes, by visual inspection.
+#
+# INSPECTED BY EYE and recorded by the maintainer; never inferred. "The final authority for xenium
+# slides needs to be visual inspection of the thumbnail to determine if the pancreas area included
+# any pLN/lymphoid area" (maintainer, 2026-10-23). The sequential PhenoCycler slide's notes do not
+# carry over to a Xenium slide: the Xenium slide area is smaller and its section is sometimes
+# trimmed.
+#
+# Inspect each slide in stage 00's gate figure xenium_slides.png: the slide's overview scan with
+# each region outlined (pancreas regions in green, pLN regions in orange).
+#
+# One row per Xenium slide that is a slide of its own (not a PhenoCycler slide Xenium also ran
+# on; the donor notes give those slides' sections). Stage 00 blocks until every such slide has a
+# row, and on a row that names no such slide, a region that is not one of its pLN regions, a
+# count that is not a whole number, or no inspector and date.
+#
+#   slide                             the Xenium slide's serial, e.g. 0037376
+#   donor_id                          for the reader; the slide's donor is the one xenium_paths.csv lists
+#   lymphoid_in_pancreas              how many pLN/lymphoid areas the pancreas section includes; 0 for none.
+#                                     The coverage counts these as the slide's same-block pLN/lymphoid.
+#   pln_regions_in_pancreas_section   pLN regions (names as the overview labels them, ;-separated) that
+#                                     lie in the pancreas section rather than a section of their own;
+#                                     they are among the count above. Every other pLN region is a
+#                                     different-block section.
+#   inspected_by, inspected_on        who looked, and when (YYYY-MM-DD)
+#   note                              anything seen worth keeping
+slide,donor_id,lymphoid_in_pancreas,pln_regions_in_pancreas_section,inspected_by,inspected_on,note

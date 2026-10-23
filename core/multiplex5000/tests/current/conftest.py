@@ -27,6 +27,11 @@ NOTES = ("IO60panc2nd Notes\n"
          "6374: pancTail no pLN, sequential Xenium\n"
          "HDL112: pancTail and 1 pLN different-block, same-slide post-phenocycler Xenium\n")
 
+#: The header of xenium_lymphoid_inspection.csv; 6374's Xenium slide 0041000 is the synthetic
+#: project's one Xenium slide of its own, inspected with nothing lymphoid in its pancreas area.
+INSPECTION_HEADER = ("slide,donor_id,lymphoid_in_pancreas,pln_regions_in_pancreas_section,"
+                     "inspected_by,inspected_on,note\n")
+
 SOURCES = {
     "xenium_paths.csv": "donor_id,roi,batch,source_path\n"
                         "6374,panc,B1,bundles/output-XETG00298__0041000__Pan__20240101__000000\n"
@@ -48,6 +53,7 @@ SOURCES = {
                             "recorded_on\n"
                             "xenium:0041001:Pancreas,112,pancreas,damaged,before Xenium,x,t,"
                             "2026-01-01\n",
+    "xenium_lymphoid_inspection.csv": "# synthetic\n" + INSPECTION_HEADER + "0041000,6374,0,,t,2026-01-01,\n",
     "pln_blocks.csv": "image,entry_id,donor,pln_annotation,object_id,pieces,area_mm2,"
                       "overlap_with_tissue_um2,gap_to_tissue_um,measured_relation,"
                       "block_from_notes,notes\n"
@@ -61,6 +67,7 @@ NAMES = {"xenium_paths.csv": "xenium_paths", "section_modes.csv": "section_modes
          "pln_node_annotations.csv": "pln_node_annotations", "notes.txt": "donor_notes",
          "notes_copy.md": "donor_notes_copy", "pln_blocks.csv": "pln_blocks",
          "tissue_condition.csv": "tissue_condition",
+         "xenium_lymphoid_inspection.csv": "xenium_lymphoid_inspection",
          "donor_metadata.xlsx": "donor_metadata", "npod_cases.xlsx": "npod_cases",
          "cohort_spec.json": "cohort_spec", "qupath_manifest.json": "qupath_manifest"}
 
@@ -108,6 +115,16 @@ def write_overview(path: Path) -> Path:
     return path
 
 
+def write_fovs(path: Path, *rectangles) -> Path:
+    """A region output's overview_scan_fov_locations.json: its fields of view as (x, y, width,
+    height) on the slide's overview scan, in the scan's pixels."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"fov_locations": {
+        f"F{i}": dict(zip(("x", "y", "width", "height"), r)) for i, r in enumerate(rectangles)},
+        "units": "pixel"}))
+    return path
+
+
 def write_xenium_records(folder: Path, *, run: str, start: str, slide: str, region: str,
                          custom: int = 100, design: str = "6KTRAF",
                          cassette: str | None = None) -> None:
@@ -151,6 +168,12 @@ def synthetic_project(tmp_path):
         write_overview(bundles / "output-XETG00298__0041000__Pan__20240101__000000"
                        / "aux_outputs" / "overview_scan.png")
         write_overview(copies / partial.name / "overview_scan.png")
+        # where each region sits on its slide's overview scan, from the same places
+        write_fovs(bundles / "output-XETG00298__0041000__Pan__20240101__000000" / "aux_outputs"
+                   / "overview_scan_fov_locations.json", (1, 1, 4, 6))
+        write_fovs(bundles / "output-XETG00298__0041001__Pancreas__20240101__000000"
+                   / "aux_outputs" / "overview_scan_fov_locations.json", (1, 1, 4, 6))
+        write_fovs(copies / partial.name / "overview_scan_fov_locations.json", (1, 8, 4, 3))
         (copies / "MANIFEST.tsv").write_text(
             "# synthetic\noutput\tfile\tsource\tsha256\tbytes\tcopied_utc\n" + "".join(
                 f"{partial.name}\t{f}\thpg:/complete/{partial.name}/{f}\t0\t0\t2026-01-01\n"
