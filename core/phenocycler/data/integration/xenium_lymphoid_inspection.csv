@@ -48,3 +48,7 @@ slide,donor_id,lymphoid_in_pancreas,pln_regions_in_pancreas_section,inspected_by
 0041116,6591,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
 0059945,6593,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
 0081215,6623,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0041035,6579,2,pLN 2;pLN 3,smith6jt,2026-10-23,the PhenoCycler slide's 2 same-block pLN are the Xenium regions pLN 2 and pLN 3 at the top of the slide; recorded from the maintainer's message
+0037637,6457,3,pLN 1;pLN 2,smith6jt,2026-10-23,three same-block pLN (maintainer); the pLN 1 and pLN 2 regions lie in the pancreas section (run sheet: PT03 (Embedded pLN)); recorded from the maintainer's message
+0041323,6512,0,,smith6jt,2026-10-23,Xenium only; pancreas only (maintainer); recorded from the maintainer's message
+0041326,6618,0,,smith6jt,2026-10-23,Xenium only; pancreas only (maintainer); recorded from the maintainer's message
