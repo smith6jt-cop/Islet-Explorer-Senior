@@ -151,6 +151,21 @@ KNOWN_RENAMED_FOLDERS: dict[str, str] = {
     "output-XETG00298__0080836__6505_pLN__20251030__175544": _MM046,      # 6505, Region_2
 }
 
+#: Labels typed at an instrument that name another donor, and why the listed donor stands: a
+#: Xenium cassette name by its slide's serial, a PhenoCycler SlideID by its qptiff. A label that
+#: names another donor blocks the gate until it is listed here.
+KNOWN_LABEL_ERRORS: dict[str, str] = {
+    "0059945": "typed 6436 at the instrument; the slide is 6593's, as listed (maintainer, "
+               "2026-10-23)",
+    "0041393": "typed nPOD6553 at the instrument; the Xenium run sheet the maintainer supplied "
+               "(Xenium_Visium request.xlsx, PanTissue5k, 2026-10-23) lists slide 0041393 as "
+               "6533PB03/PLN02, as listed",
+    "6523panc_Scan1.er.qptiff": "6523 was entered as 6623 at acquisition; the merged qptiff and "
+                                "the QuPath project's images were renamed 6523, and only the raw "
+                                "and intermediate cycle files on the share keep 6623 "
+                                "(maintainer, 2026-10-23)",
+}
+
 #: The pLN/lymphoid the donor notes put on each PhenoCycler pancreas slide, by block: (the
 #: column on that slide, the block as relationships names it, the DonorNote field that holds the
 #: notes' count).
@@ -999,6 +1014,10 @@ def run(task: Task) -> dict:
     platforms = Counter(a["platform"] for a in acquisitions)
     pheno = [a for a in acquisitions if a["platform"] == "phenocycler"]
     xenium = [a for a in acquisitions if a["platform"] == "xenium" and a.get("output")]
+    cassettes_differ = [a for a in xenium if a.get("cassette_name")
+                        and not _label_carries_donor(a["cassette_name"], a)]
+    slide_ids_differ = [a for a in pheno if a.get("slide_id")
+                        and not _label_carries_donor(a["slide_id"], a)]
     ids = Counter(a["acquisition_id"] for a in acquisitions)
     spec_images = [i["image_id"] for i in spec.get("images", [])]
     in_manifest = {i["image_id"] for i in manifest.get("images", [])}
@@ -1057,11 +1076,17 @@ def run(task: Task) -> dict:
         "slides_without_thumbnail": unthumbed,
         "xenium_cassettes_differ": sorted(
             f"{a['output']}: cassette {a['cassette_name']}, listed as donor {a['donor_label']}"
-            for a in xenium if a.get("cassette_name")
-            and not _label_carries_donor(a["cassette_name"], a)),
+            for a in cassettes_differ if a["recorded_slide"] not in KNOWN_LABEL_ERRORS),
         "phenocycler_slide_labels_differ": sorted(
             f"{a['qptiff']}: SlideID {a['slide_id']}, listed as donor {a['donor_label']}"
-            for a in pheno if a.get("slide_id") and not _label_carries_donor(a["slide_id"], a)),
+            for a in slide_ids_differ if a["qptiff"] not in KNOWN_LABEL_ERRORS),
+        "labels_differ_known": sorted(
+            {f"slide {a['recorded_slide']}: cassette {a['cassette_name']}, listed as donor "
+             f"{a['donor_label']} ({KNOWN_LABEL_ERRORS[a['recorded_slide']]})"
+             for a in cassettes_differ if a["recorded_slide"] in KNOWN_LABEL_ERRORS}
+            | {f"{a['qptiff']}: SlideID {a['slide_id']}, listed as donor {a['donor_label']} "
+               f"({KNOWN_LABEL_ERRORS[a['qptiff']]})"
+               for a in slide_ids_differ if a["qptiff"] in KNOWN_LABEL_ERRORS}),
         "xenium_held_in_part": sorted(f"{a['output']} ({a['local_copy']})" for a in xenium
                                       if a.get("local_copy") and a["local_copy"] != "complete"),
         "runs": {p: sum(r["platform"] == p for r in runs) for p in ("phenocycler", "xenium")},
@@ -1437,14 +1462,19 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         C("slides with no thumbnail", summary["slides_without_thumbnail"], "reported", True,
           blocking=False, detail="a PhenoCycler slide's thumbnail is its qptiff's own; a Xenium "
                                  "slide's is its overview scan, copied beside its records"),
-        C("PhenoCycler slide labels that do not carry the listed donor",
-          summary["phenocycler_slide_labels_differ"], "reported", True, blocking=False,
+        C("every PhenoCycler slide label carries the listed donor, or its error is known",
+          summary["phenocycler_slide_labels_differ"], "none",
+          not summary["phenocycler_slide_labels_differ"],
           detail="the SlideID typed when the slide was scanned (the qptiff's first page); the "
-                 "donor stays the one the QuPath manifest or pln_node_annotations.csv lists"),
-        C("Xenium cassette names that do not carry the listed donor",
-          summary["xenium_cassettes_differ"], "reported", True, blocking=False,
+                 "donor stays the one the QuPath manifest or pln_node_annotations.csv lists. "
+                 "Known errors are listed, with their reason, in KNOWN_LABEL_ERRORS"),
+        C("every Xenium cassette name carries the listed donor, or its error is known",
+          summary["xenium_cassettes_differ"], "none", not summary["xenium_cassettes_differ"],
           detail="the cassette name is the label typed at the instrument (experiment.xenium); "
-                 "the donor stays the one xenium_paths.csv lists"),
+                 "the donor stays the one xenium_paths.csv lists. Known errors are listed, with "
+                 "their reason, in KNOWN_LABEL_ERRORS"),
+        C("labels that name another donor, with their known reason",
+          summary["labels_differ_known"], "reported", True, blocking=False),
         C("Xenium output folders renamed, with their known reason",
           summary["xenium_folders_renamed_known"], "reported", True, blocking=False),
     ]

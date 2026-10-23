@@ -407,8 +407,8 @@ def test_every_post_xenium_if_image_carries_the_one_declared_panel(synthetic_pro
         assert "SST" in acquisition["panel_error"] and check["value"][0].startswith("if:if_6374")
 
 
-def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthetic_project,
-                                                                         tmp_path):
+def test_a_cassette_name_that_names_another_donor_blocks_until_its_error_is_known(
+        synthetic_project, tmp_path, monkeypatch):
     from conftest import write_xenium_records
 
     path = synthetic_project()
@@ -422,12 +422,18 @@ def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthe
     _, folder, checks = _run(path)
     acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
     assert acquisitions["xenium:0041000:Pan"]["cassette_name"] == "nPOD6374"
-    check = checks["Xenium cassette names that do not carry the listed donor"]
+    name = "every Xenium cassette name carries the listed donor, or its error is known"
     # nPOD6374 carries 6374; nPOD6553 does not carry 112, the donor the list gives that slide
-    assert check["value"] == [
+    assert not checks[name]["passed"] and checks[name]["blocking"]
+    assert checks[name]["value"] == [
         "output-XETG00298__0041001__Pancreas__20240101__000000: cassette nPOD6553, listed as "
         "donor 112"]
-    assert not check["blocking"]
+    monkeypatch.setitem(STAGE.KNOWN_LABEL_ERRORS, "0041001", "typed in error")
+    tasks.run_stage(STAGE, P.load(path), force=True)
+    checks = {c["name"]: c for c in gates.load(folder)["checks"]}
+    assert checks[name]["passed"]
+    assert checks["labels that name another donor, with their known reason"]["value"] == [
+        "slide 0041001: cassette nPOD6553, listed as donor 112 (typed in error)"]
 
 
 @pytest.mark.parametrize("run, batch", [
@@ -477,8 +483,8 @@ def test_a_xenium_only_donor_has_its_own_rows_status_and_batch(synthetic_project
     assert all(c["passed"] for c in checks.values() if c["blocking"])
 
 
-def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(synthetic_project,
-                                                                           tmp_path):
+def test_a_phenocycler_slide_label_that_names_another_donor_blocks_until_its_error_is_known(
+        synthetic_project, tmp_path, monkeypatch):
     import datetime
 
     from conftest import PANCREAS_MARKERS, write_qptiff
@@ -488,12 +494,16 @@ def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(syn
                  experiment="Synthetic_Pancreas", position="Slide1",
                  experiment_date="2025-12-01T09:00:00Z",
                  scanned=datetime.datetime(2026, 1, 2, 14, 0), markers=PANCREAS_MARKERS)
-    _, _, checks = _run(path)
-    check = checks["PhenoCycler slide labels that do not carry the listed donor"]
-    assert check["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
-    assert not check["blocking"]
-
-
+    _, folder, checks = _run(path)
+    name = "every PhenoCycler slide label carries the listed donor, or its error is known"
+    assert not checks[name]["passed"] and checks[name]["blocking"]
+    assert checks[name]["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
+    monkeypatch.setitem(STAGE.KNOWN_LABEL_ERRORS, "6374.qptiff", "entered in error")
+    tasks.run_stage(STAGE, P.load(path), force=True)
+    checks = {c["name"]: c for c in gates.load(folder)["checks"]}
+    assert checks[name]["passed"]
+    assert checks["labels that name another donor, with their known reason"]["value"] == [
+        "6374.qptiff: SlideID 6623panc, listed as donor 6374 (entered in error)"]
 
 
 def test_each_slide_shows_a_thumbnail_from_its_own_image(synthetic_project):
