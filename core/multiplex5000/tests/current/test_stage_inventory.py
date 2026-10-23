@@ -98,10 +98,11 @@ def _cell(text="", kind=None, damaged=False, missing=False):
 
 def test_a_coverage_cell_says_what_it_holds_never_a_count_and_marks_only_its_damage():
     text = STAGE._cell_text
-    assert text(_cell("3", STAGE.OTHER_BLOCK), STAGE.DIFFERENT_BLOCK, "section") == "3 pLN"
+    assert text(_cell("3", STAGE.LYMPH_NODE), STAGE.DIFFERENT_BLOCK, "section") == "3 pLN"
+    assert text(_cell("2", STAGE.LYMPH_NODE), STAGE.PLN_SECTION, "section") == "2 pLN"
     assert text(None, STAGE.SAME_BLOCK, "section") == ""                    # the line does not say
-    assert text(_cell("", STAGE.PANCREAS_BLOCK, damaged=True), "pancreas", "section") == (
-        "pancreas block (damaged)")
+    assert text(_cell("", STAGE.PANCREAS, damaged=True), "pancreas", "section") == (
+        "pancreas (damaged)")
     assert text(_cell("5kOnly\n2026-09-10 with 0112", STAGE.XENIUM), STAGE.XENIUM,
                 "acquisition") == "5kOnly; 2026-09-10 with 0112"
     assert text(_cell(STAGE.NOT_LISTED, missing=True), STAGE.XENIUM, "acquisition") == STAGE.NOT_LISTED
@@ -140,7 +141,8 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     pancreas = acquisitions["phenocycler:6374_Scan1 - resolution #1"]
     assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == (
         "2+ CD38", "2026-01-02", "Slide1")
-    assert pancreas["run_partners"] == "0112 pancreas (Slide2)"
+    # a PhenoCycler experiment's slide position is no slide number; 0112's slide is Xenium 0041001
+    assert pancreas["run_partners"] == "0112 pancreas (slide 0041001)"
     assert pancreas["markers_match_manifest_panel"] == "True"
     pln = acquisitions["phenocycler:6374pLN_Scan1.qptiff"]
     assert (pln["panel"], pln["run_partners"]) == ("2 markers", "run alone")
@@ -150,7 +152,7 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
                                                                     "2024-01-01")
     assert xenium["local_copy"] == "partial" and xenium["records_read_from"].startswith("copy of hpg:")
     assert acquisitions["xenium:0041000:Pan"]["run_partners"] == (
-        "0112 pancreas + pLN [pancreas damaged before Xenium]")
+        "0112 pancreas + pLN [pancreas damaged before Xenium] (slide 0041001)")
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
     assert set(runs) == {"phenocycler:Synthetic_Pancreas:2026-01-02",
                          "phenocycler:Synthetic_pLN:2026-01-09", "xenium:R1_synthetic"}
@@ -170,9 +172,9 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     assert [coverage["6374"][_at(group, slide)] for group in (STAGE.PC_SLIDE, STAGE.XENIUM_SLIDE,
                                                                  STAGE.PLN_SLIDE)] == [
         "6374", "0041000", "6374pLN"]
-    assert coverage["0112"][_at(STAGE.PC_SLIDE, slide)] == "0112; 0041001"
+    assert coverage["0112"][_at(STAGE.PC_SLIDE, slide)] == "0041001"
     assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides_run_together"] == (
-        "6374 pancreas (Slide1, slide 6374) | 0112 pancreas (Slide2, slide 0112)")
+        "6374 pancreas | 0112 pancreas (slide 0041001)")
     assert runs["xenium:R1_synthetic"]["slide_numbers"] == "0041000; 0041001"
     # a dataset is an acquisition, never a section: 0112's one Xenium run covers its pancreas and
     # its pLN, on the slide its PhenoCycler scan is of
@@ -305,7 +307,7 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     pancreas, pln = (_at(STAGE.PC_SLIDE, c) for c in ("pancreas", STAGE.DIFFERENT_BLOCK))
     # the damaged Xenium ran on 0112's PhenoCycler slide: the mark is on that slide's pancreas
-    assert coverage["0112"][pancreas] == "pancreas block (damaged)"
+    assert coverage["0112"][pancreas] == "pancreas (damaged)"
     assert coverage["0112"][pln] == "1 pLN", "only the damaged tissue's section is marked"
     assert "damaged" not in coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.XENIUM)]
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
@@ -317,7 +319,7 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     _, folder, _ = _run(synthetic_project(release="r2", tissue_condition__csv=header + (
         "xenium:0041001:Pancreas,112,pancreas; pLN,damaged,before Xenium,x,t,2026-01-01\n")))
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert (coverage["0112"][pancreas], coverage["0112"][pln]) == ("pancreas block (damaged)",
+    assert (coverage["0112"][pancreas], coverage["0112"][pln]) == ("pancreas (damaged)",
                                                                    "1 pLN (damaged)")
     _, _, checks = _run(synthetic_project(release="r3", tissue_condition__csv=header + (
         "xenium:9999999:Panc,7000,pancreas,damaged,before Xenium,x,t,2026-01-01\n"
@@ -352,7 +354,11 @@ def test_a_xenium_pln_sections_block_is_read_from_the_notes_only_for_a_sequentia
     assert acquisitions["xenium:0041001:pLN"]["block"] == STAGE.OTHER_BLOCK
     assert acquisitions["phenocycler:6374pLN_Scan1.qptiff"]["block"] == STAGE.OTHER_BLOCK
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, "pLN 1")] == STAGE.PANCREAS_BLOCK
+    # counted in its block's column, the fill saying only that it is pLN
+    assert (coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.SAME_BLOCK)],
+            coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.DIFFERENT_BLOCK)]) == ("1 pLN", "")
+    assert coverage["6374"][_at(STAGE.PLN_SLIDE, STAGE.PLN_SECTION)] == "1 pLN", (
+        "pln_node_annotations.csv records 1 node on 6374's pLN slide")
     # the Xenium slide's two regions are one run of one slide: one dataset, as before
     assert (coverage["6374"][STAGE.DATASETS], coverage["6374"][STAGE.SLIDES]) == ("4", "3")
     assert all(c["passed"] for c in checks.values() if c["blocking"])
@@ -535,4 +541,15 @@ def test_an_exclusion_takes_out_only_the_platform_it_covers(synthetic_project, m
         _at(STAGE.XENIUM_SLIDE, STAGE.XENIUM): 1, _at(STAGE.XENIUM_SLIDE, STAGE.POST_XENIUM_IF): 1,
         _at(STAGE.PLN_SLIDE, STAGE.PHENOCYCLER): 0, "all": 4}
     assert "6374 (2)" in datasets["detail"]
+
+
+def test_a_same_slide_xenium_overview_is_turned_the_way_the_phenocycler_image_is():
+    import numpy as np
+
+    reference = np.zeros((40, 20, 3), np.uint8)
+    reference[2:12, 2:8] = 200            # a small piece at the top left
+    reference[16:38, 4:18] = 200          # the large section below it
+    turned = reference[::-1, ::-1].copy()
+    assert np.array_equal(STAGE._oriented_like(reference, turned), reference)
+    assert np.array_equal(STAGE._oriented_like(reference, reference), reference)
 

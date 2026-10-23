@@ -112,10 +112,13 @@ checked against `pln_blocks.csv` -- its PhenoCycler scan and, where Xenium ran o
 after PhenoCycler, that Xenium), the Xenium slide (its regions, its run, the IF scanned after it)
 and the dedicated pLN slide, with each donor's datasets and slides counted -- one acquisition is
 one dataset, so a Xenium slide counts once however many regions it has -- and the rows of the
-sequential and same-slide donors apart. Each section is marked by the block it was cut from
-(maintainer, 2026-10-21): pancreas sections from the pancreas block, a dedicated pLN slide from a
-pLN block, a Xenium pLN section from a different block except on a sequential section whose notes
-line gives same-block pLN, where it is that same-block pLN. Each donor carries its disease status
+sequential and same-slide donors apart. A section's fill says only its tissue (pancreas or
+pLN/lymphoid; maintainer, 2026-10-23), and pLN sections are counted in a same-block or a
+different-block column by the block they were cut from (maintainer, 2026-10-21): a Xenium pLN
+section is different-block except on a sequential section whose notes line gives same-block pLN;
+a dedicated PhenoCycler pLN slide is counted by its nodes (`pln_node_annotations.csv` `n_nodes`).
+A same-slide Xenium overview is turned to the PhenoCycler image's orientation, and a slide's number
+is its Xenium serial where it has one. Each donor carries its disease status
 (ND, Aab+, T1D) from `donor_metadata_panc.xlsx`, else nPOD's case export (site sources
 `donor_metadata`, `npod_cases`; the spellings are the cohort profile's `disease_status`), and each
 Xenium acquisition the batch number its run name carries; each slide shows its number and a

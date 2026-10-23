@@ -87,7 +87,7 @@ XENIUM = "Xenium"
 POST_XENIUM_IF = "post-Xenium IF"
 SLIDE_NUMBER = "slide"
 PANCREAS_SECTION = "pancreas"
-PLN_SECTION = "pLN"
+PLN_SECTION = "pLN/lymphoid"         # a dedicated pLN slide's sections, counted
 DATASETS = "datasets"
 SLIDES = "slides"
 ACQUISITION_COLUMNS = (PHENOCYCLER, XENIUM, POST_XENIUM_IF)
@@ -101,6 +101,9 @@ NOT_SECTIONS = (*ACQUISITION_COLUMNS, SLIDE_NUMBER)
 #: the "different block" of a different-block pLN, and the pLN block of a dedicated pLN slide.
 PANCREAS_BLOCK = "pancreas block"
 OTHER_BLOCK = "different block"
+#: A section's fill says its tissue -- the tissue profiles' PANCREAS or LYMPH_NODE -- and nothing
+#: else (maintainer, 2026-10-23: "use only color for tissue"); its block is the column it is
+#: counted in, same-block or different-block pLN.
 #: What a cell says for an acquisition a table records with no output listed for it, and for a
 #: section whose block the rule does not settle.
 NOT_LISTED = "no output listed"
@@ -344,6 +347,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             tissue=LYMPH_NODE, roi=row["roi"],
             donor_id=aliases.get(row["donor_id"], row["donor_id"]), donor_label=row["donor_id"],
             source="pln_node_annotations", source_row=index, path=None, exists=None,
+            n_nodes=row.get("n_nodes", ""),
             note=f"IO60pLN slide; excluded={row.get('excluded', '')}", **pheno(row["image_file"])))
     root = task.settings.get("xenium_root")
     for index, row in enumerate(_rows(task.input("xenium_paths")), start=1):
@@ -487,7 +491,40 @@ def _thumbnails(task: Task, cells: dict) -> tuple[dict, list[str]]:
                 missing.append(f"{donor} {group} ({source[1]})")
             else:
                 thumbs.setdefault((donor, group), []).append(image)
+        found = thumbs.get((donor, group), [])
+        if len(found) == 2:      # a PhenoCycler slide's own image, then its Xenium overview
+            found[1] = _oriented_like(found[0], found[1])
     return thumbs, missing
+
+
+def _tissue_outline(image, size: int = 48):
+    """An image's tissue, cropped to it and resampled to a square: bright against a dark slide."""
+    import numpy as np
+    from PIL import Image
+
+    grey = np.asarray(Image.fromarray(image).convert("L"), dtype=float)
+    mask = grey > grey.mean()
+    rows, cols = np.flatnonzero(mask.any(axis=1)), np.flatnonzero(mask.any(axis=0))
+    if not len(rows) or not len(cols):
+        return None
+    crop = mask[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1].astype(np.uint8) * 255
+    return np.asarray(Image.fromarray(crop).resize((size, size)), dtype=float) / 255
+
+
+def _oriented_like(reference, image):
+    """``image`` turned the way ``reference`` is. The two instruments hold a slide opposite ways
+    round, so a same-slide Xenium overview can come out turned 180 degrees from the PhenoCycler's
+    image of that slide; it is turned when that matches the reference's tissue better."""
+    import numpy as np
+
+    want, have = _tissue_outline(reference), _tissue_outline(image)
+    if want is None or have is None:
+        return image
+
+    def agree(a, b):
+        return float(np.corrcoef(a.ravel(), b.ravel())[0, 1])
+
+    return image[::-1, ::-1] if agree(want, have[::-1, ::-1]) > agree(want, have) else image
 
 
 def _label_carries_donor(label: str, a: dict) -> bool:
@@ -500,12 +537,10 @@ def _label_carries_donor(label: str, a: dict) -> bool:
 
 
 def _slide_entry(s: dict) -> str:
-    """One slide of a run as the runs sheet writes it: whose, its position in the PhenoCycler
-    experiment, and the slide number the instrument recorded (a qptiff's SlideID, a Xenium
-    slide's serial)."""
-    where = ", ".join(part for part in (s["position"], f"slide {s['slide']}" if s["slide"] else "")
-                      if part)
-    return s["label"] + (f" ({where})" if where else "")
+    """One slide of a run as the runs sheet writes it: whose, and its slide number -- a Xenium
+    slide's serial, which a PhenoCycler slide has where Xenium also ran on it. A PhenoCycler
+    experiment's slide positions (Slide1, Slide2) are not slide numbers (maintainer, 2026-10-23)."""
+    return s["label"] + (f" (slide {s['slide']})" if s["slide"] else "")
 
 
 def _conditions(acquisitions: list[dict], rows: list[dict]) -> list[str]:
@@ -558,7 +593,8 @@ def _runs(acquisitions: list[dict], records: dict) -> list[dict]:
         for h in headers:
             name = Path(h.path).name
             acq = by_file.get(name)
-            slides.append(dict(slide=h.slide_id, position=h.position, scan_time=h.scan_time,
+            slides.append(dict(slide=acq.get("xenium_slide", "") if acq else "",
+                               position=h.position, scan_time=h.scan_time,
                                donor=acq["donor_id"] if acq else h.slide_id,
                                label=(_slide_label([acq]) if acq else
                                       f"{h.slide_id} ({name}, no acquisition here)"),
@@ -588,8 +624,7 @@ def _runs(acquisitions: list[dict], records: dict) -> list[dict]:
         for s in r["slides"]:
             others = [o for o in r["slides"] if o is not s]
             for acq in s["acquisitions"]:
-                partners[acq] = "; ".join(o["label"] + (f" ({o['position']})" if o["position"]
-                                                         else "") for o in others) or "run alone"
+                partners[acq] = "; ".join(_slide_entry(o) for o in others) or "run alone"
                 run_with[acq] = ", ".join(o["donor"] for o in others)
     for a in acquisitions:
         if a["acquisition_id"] in partners:
@@ -627,13 +662,28 @@ def _donor_order(donor_id: str) -> tuple:
     return (not donor_id.isdigit(), donor_id.zfill(8))
 
 
-def _section_column(a: dict) -> str:
-    """The column of the Xenium-slide section an acquisition's region is: its pancreas, or the
-    pLN region xenium_paths.csv numbers it (pln_1 -> "pLN 1")."""
+def _xenium_slides(acquisitions: list[dict], reading) -> None:
+    """A PhenoCycler pancreas slide that is also a Xenium slide (section_modes.csv same_slide) takes
+    that slide's serial as its number; a donor with one such slide and one PhenoCycler scan only,
+    as the slide grouping reads it."""
+    serials: dict[str, set] = {}
+    for m in reading.modes:
+        if m.mode == "same_slide" and m.xenium_serial:
+            serials.setdefault(m.donor_id, set()).add(m.xenium_serial)
+    scans = Counter(a["donor_id"] for a in acquisitions
+                    if a["platform"] == "phenocycler" and a["tissue"] == PANCREAS)
+    for a in acquisitions:
+        found = serials.get(a["donor_id"], set())
+        if (a["platform"] == "phenocycler" and a["tissue"] == PANCREAS and len(found) == 1
+                and scans[a["donor_id"]] == 1):
+            a["xenium_slide"] = next(iter(found))
+
+
+def _xenium_section(a: dict) -> str:
+    """The section column a Xenium region is counted in: its pancreas, or its pLN by block."""
     if a["tissue"] == PANCREAS:
         return PANCREAS_SECTION
-    roi = a["roi"]
-    return f"{PLN_SECTION} {roi.split('_', 1)[1]}" if "_" in roi else PLN_SECTION
+    return SAME_BLOCK if a.get("block") == PANCREAS_BLOCK else DIFFERENT_BLOCK
 
 
 def _section_tissue(column: str) -> str:
@@ -656,10 +706,6 @@ def _acquisition_text(a: dict) -> str:
         return "\n".join(", ".join(channels[i:i + 2]) for i in range(0, len(channels), 2))
     batch = f"batch {a['batch_number']}" if a.get("batch_number") else ""
     return "\n".join(part for part in (a.get("panel", ""), batch, _run_text(a)) if part)
-
-
-def _pln_order(column: str) -> tuple:
-    return (column != PLN_SECTION, int(column.rsplit(" ", 1)[1]) if " " in column else 0)
 
 
 def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
@@ -701,6 +747,9 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
     datasets: dict[str, set] = {}
     slides: dict[str, set] = {}
     on_slide: dict[tuple, set] = {}
+    regions: dict[tuple, set] = {}       # (donor, block column) -> its Xenium slide's pLN regions
+    unlisted: list[tuple] = []           # a region xenium_paths.csv lists with no output
+    unsettled: set[str] = set()
 
     def put(donor, group, column, text, kind, missing=False):
         cell = cells.setdefault((donor, group, column),
@@ -711,7 +760,7 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
     for a in acquisitions:
         donor, where = a["donor_id"], slide(a)
         if a["platform"] == "xenium" and where is None:
-            put(donor, XENIUM_SLIDE, _section_column(a), NOT_LISTED, None, missing=True)
+            unlisted.append((donor, _xenium_section(a)))
             continue
         group, key = where or (XENIUM_SLIDE, None)
         if where is not None:
@@ -729,31 +778,40 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
                 if ("overview", serial) not in images:
                     images.append(("overview", serial))
             if group == XENIUM_SLIDE:
-                block = a.get("block", "")
-                put(donor, group, _section_column(a), "" if block else UNSETTLED, block or None,
-                    missing=not block)
+                if a["tissue"] == PANCREAS:
+                    put(donor, group, PANCREAS_SECTION, "", PANCREAS)
+                elif not a.get("block"):
+                    unsettled.add(donor)
+                else:
+                    regions.setdefault((donor, _xenium_section(a)), set()).add(a["acquisition_id"])
             continue
         column = PHENOCYCLER if a["platform"] == "phenocycler" else POST_XENIUM_IF
         put(donor, group, column, _acquisition_text(a), column)
         if a["platform"] == "phenocycler" and a.get("slide_id"):
-            put(donor, group, SLIDE_NUMBER, a["slide_id"], None)
+            put(donor, group, SLIDE_NUMBER, a.get("xenium_slide") or a["slide_id"], None)
             cells[(donor, group, SLIDE_NUMBER)].setdefault("images", []).insert(
                 0, ("qptiff", a["qptiff"]))
         datasets.setdefault(donor, set()).add((group, column, a["acquisition_id"]))
         if group == PLN_SLIDE:
-            put(donor, group, PLN_SECTION, "", a.get("block") or OTHER_BLOCK)
+            put(donor, group, PLN_SECTION, a.get("n_nodes", ""), LYMPH_NODE)
 
     donors = ({a["donor_id"] for a in acquisitions} | set(reading.donors)
               | {ann.donor_id for ann in reading.pln})
     for donor in donors:
         note = reading.donors.get(donor)
         if note is not None or donor in scans:
-            put(donor, PC_SLIDE, PANCREAS_SECTION, "", PANCREAS_BLOCK)
+            put(donor, PC_SLIDE, PANCREAS_SECTION, "", PANCREAS)
         for column, _, field in DESIGNATIONS:
             count = getattr(note, field) if note is not None else None
             if count:
-                put(donor, PC_SLIDE, column, str(count),
-                    PANCREAS_BLOCK if column == SAME_BLOCK else OTHER_BLOCK)
+                put(donor, PC_SLIDE, column, str(count), LYMPH_NODE)
+    for (donor, column), found in regions.items():
+        put(donor, XENIUM_SLIDE, column, str(len(found)), LYMPH_NODE)
+    for donor, column in unlisted:
+        if (donor, XENIUM_SLIDE, column) not in cells:
+            put(donor, XENIUM_SLIDE, column, NOT_LISTED, None, missing=True)
+    for donor in unsettled:
+        put(donor, XENIUM_SLIDE, SAME_BLOCK, UNSETTLED, None, missing=True)
     listed = {(a["donor_id"], a.get("recorded_slide")) for a in acquisitions
               if a["platform"] == "xenium"}
     not_listed = []
@@ -777,8 +835,6 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
                     and _section_tissue(column) in damaged and not cell["missing"]):
                 cell["damaged"] = True
 
-    plns = sorted({c for (_, g, c) in cells if g == XENIUM_SLIDE and c.startswith(PLN_SECTION)},
-                  key=_pln_order)
     columns = [(PC_SLIDE, SLIDE_NUMBER, "slide"),
                (PC_SLIDE, PANCREAS_SECTION, "section"), (PC_SLIDE, SAME_BLOCK, "section"),
                (PC_SLIDE, DIFFERENT_BLOCK, "section"), (PC_SLIDE, PHENOCYCLER, "acquisition"),
@@ -786,7 +842,7 @@ def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
     if any(g == PC_SLIDE and c == POST_XENIUM_IF for (_, g, c) in cells):
         columns.append((PC_SLIDE, POST_XENIUM_IF, "acquisition"))
     columns += [(XENIUM_SLIDE, SLIDE_NUMBER, "slide"), (XENIUM_SLIDE, PANCREAS_SECTION, "section"),
-                *[(XENIUM_SLIDE, c, "section") for c in plns],
+                (XENIUM_SLIDE, SAME_BLOCK, "section"), (XENIUM_SLIDE, DIFFERENT_BLOCK, "section"),
                 (XENIUM_SLIDE, XENIUM, "acquisition"), (XENIUM_SLIDE, POST_XENIUM_IF, "acquisition"),
                 (PLN_SLIDE, SLIDE_NUMBER, "slide"), (PLN_SLIDE, PLN_SECTION, "section"),
                 (PLN_SLIDE, PHENOCYCLER, "acquisition")]
@@ -857,8 +913,8 @@ def _cell_text(cell: dict | None, column: str, kind: str) -> str:
         return cell["text"].replace("\n", "; ")
     if kind == "acquisition":       # an IF panel's channels wrap; a panel and its run are two parts
         text = cell["text"].replace("\n", ", " if column == POST_XENIUM_IF else "; ")
-    elif column in (SAME_BLOCK, DIFFERENT_BLOCK):
-        text = f"{cell['text']} pLN"
+    elif column in (SAME_BLOCK, DIFFERENT_BLOCK, PLN_SECTION):
+        text = f"{cell['text']} pLN" if cell["text"] else "pLN"
     else:
         text = cell["kind"]
     return text + (" (damaged)" if cell["damaged"] else "")
@@ -906,6 +962,7 @@ def run(task: Task) -> dict:
     acquisitions = _acquisitions(task, spec, manifest, cohort.donor_aliases, records)
     unmatched = _conditions(acquisitions, _rows(task.input("tissue_condition")))
     _blocks(acquisitions, reading)
+    _xenium_slides(acquisitions, reading)
     runs = _runs(acquisitions, records)
     donors = ({a["donor_id"] for a in acquisitions} | set(reading.donors)
               | {ann.donor_id for ann in reading.pln})
@@ -1041,12 +1098,13 @@ def run(task: Task) -> dict:
 
 #: Fills: a platform colours an acquisition, a block colours a section -- never a quantity.
 FILLS = {PHENOCYCLER: "#cfe0f3", XENIUM: "#cdebe2", POST_XENIUM_IF: "#e4dcf3",
-         PANCREAS_BLOCK: "#a9d18e", OTHER_BLOCK: "#f4b183"}
+         PANCREAS: "#a9d18e", LYMPH_NODE: "#f4b183"}
 DAMAGED = "#b3261e"
 #: The coverage figure's layout, in inches.
 _HEADERS = {SAME_BLOCK: "same-block\npLN/lymphoid", DIFFERENT_BLOCK: "different-block\npLN/lymphoid",
             POST_XENIUM_IF: "post-Xenium\nIF"}
-_SECTION_WIDTH = {PANCREAS_SECTION: 0.66, SAME_BLOCK: 0.92, DIFFERENT_BLOCK: 0.92}
+_SECTION_WIDTH = {PANCREAS_SECTION: 0.66, SAME_BLOCK: 0.92, DIFFERENT_BLOCK: 0.92,
+                  PLN_SECTION: 0.8}
 _ACQUISITION_WIDTH = {POST_XENIUM_IF: 1.12}
 _GAP, _GROUP_GAP, _ROW, _LINE, _LEFT, _STATUS = 0.3, 0.34, 0.4, 0.118, 1.85, 0.55
 _THUMB_ROW = 1.05        # a row that shows a thumbnail
@@ -1062,8 +1120,8 @@ def _width(column: str, kind: str, group: str = "") -> float:
 
 def _figure(task: Task, layout: dict) -> None:
     """One row per donor, the donors of each Xenium design apart; each physical slide's columns
-    together under its name, a space between slides. A section is filled by the block it was cut
-    from, an acquisition by its platform and says its panel and run; the last two columns count
+    together under its name, a space between slides. A section is filled by its tissue and counted
+    in its block's column, an acquisition by its platform and says its panel and run; the last two columns count
     each donor's datasets and slides, and the bottom row every column's datasets."""
     import matplotlib
 
@@ -1207,7 +1265,8 @@ def _figure(task: Task, layout: dict) -> None:
                 fontweight="bold")
 
     handles = [Patch(facecolor=FILLS[k], label=k) for k in (PHENOCYCLER, XENIUM, POST_XENIUM_IF)]
-    handles += [Patch(facecolor=FILLS[k], label=k) for k in (PANCREAS_BLOCK, OTHER_BLOCK)]
+    handles += [Patch(facecolor=FILLS[PANCREAS], label=tissues.DISPLAY_NAME[PANCREAS]),
+                Patch(facecolor=FILLS[LYMPH_NODE], label=PLN_SECTION)]
     if layout["damage_when"]:
         handles.append(Patch(facecolor="white", edgecolor=DAMAGED, hatch="////",
                              label="damaged " + "; ".join(layout["damage_when"])))
@@ -1260,9 +1319,8 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
     ax.set_title("Runs (stage 00): the slides run together, the panel and the run's date", fontsize=10)
     fig.text(0.01, 0.005,
              "PhenoCycler: slides scanned under one experiment on one day were run together; the"
-             " date is the scan day; SlideN is the slide's position in the experiment, and slide the"
-             " SlideID typed at the scanner. A slide alone in its run (italic) means an odd number"
-             " in its staining batch.\n"
+             " date is the scan day; slide is the Xenium slide's serial where Xenium also ran on"
+             " it. A slide alone in its run (italic) means an odd number in its staining batch.\n"
              "Xenium: slides with one run name in experiment.xenium; the date is its run_start_time,"
              " slide the slide's serial, batch the number its run name carries."
              " Panels are named the maintainer's way (multiplex5000.panel_names).", fontsize=7)
