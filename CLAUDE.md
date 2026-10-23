@@ -122,7 +122,9 @@ sequential PhenoCycler slide's notes do not carry over, because the Xenium slide
 and its section is sometimes trimmed. The gate figure `xenium_slides.png` shows each Xenium slide
 of its own with its regions outlined (from each output's
 `aux_outputs/overview_scan_fov_locations.json`, copied to `/data/xenium_records` where this
-machine lacks it). The maintainer records what they see in the tracked
+machine lacks it), beside the donor's PhenoCycler pancreas slide with its Tissue and pLN
+annotations (the site source `pancreas_annotations`: the 2026-10-02 export in
+`results/v3/export/annotations_2026-10-02/manual_annotations`), each image as scanned. The maintainer records what they see in the tracked
 `core/phenocycler/data/integration/xenium_lymphoid_inspection.csv`: the count of pLN/lymphoid
 areas in the pancreas area (the coverage's same-block count), and any pLN region that is part of
 the pancreas section (6457's embedded nodes are the case). The gate blocks until every such slide

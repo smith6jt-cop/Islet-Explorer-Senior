@@ -7,7 +7,8 @@
 # trimmed.
 #
 # Inspect each slide in stage 00's gate figure xenium_slides.png: the slide's overview scan with
-# each region outlined (pancreas regions in green, pLN regions in orange).
+# each region outlined (pancreas regions in green, pLN regions in orange), beside the donor's
+# PhenoCycler pancreas slide with its Tissue and pLN annotations.
 #
 # One row per Xenium slide that is a slide of its own (not a PhenoCycler slide Xenium also ran
 # on; the donor notes give those slides' sections). Stage 00 blocks until every such slide has a

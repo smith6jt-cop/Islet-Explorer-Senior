@@ -126,9 +126,13 @@ def test_the_receipt_binds_every_source_it_read(synthetic_project):
     records = {f"xenium:{o}:{f}" for o in outputs for f in STAGE.XENIUM_RECORDS}
     overviews = {"overview:0041000", "overview:0041001"}       # one per Xenium slide
     fovs = {f"fovs:{o}" for o in outputs}                      # one per region output
-    assert set(inputs) == tables | qptiffs | records | overviews | fovs
-    assert all(inputs[n].get("sha256") for n in tables | records | overviews | fovs), (
-        "tables, records, overview scans and field-of-view locations are hashed")
+    annotations = {"annotations:6374_Scan1 - resolution #1",  # one per QuPath pancreas image
+                   "annotations:HDL112_Scan3 - resolution #1"}
+    assert set(inputs) == tables | qptiffs | records | overviews | fovs | annotations
+    assert all(inputs[n].get("sha256") for n in tables | records | overviews | fovs | annotations), (
+        "tables, records, overview scans, field-of-view locations and annotations are hashed")
+    assert inputs["annotations:6374_Scan1 - resolution #1"]["path"].endswith(
+        "6374_Scan1_-_resolution_1.geojson"), "the file name QuPath's export gives the image"
     # a qptiff is bound by size and time, with the digest the QuPath manifest records for it
     assert all(inputs[n]["bytes"] and not inputs[n].get("sha256") for n in qptiffs)
     assert inputs["qptiff:6374.qptiff"]["recorded_sha256"] == "0" * 64
@@ -607,3 +611,32 @@ def test_a_same_slide_xenium_overview_is_turned_the_way_the_phenocycler_image_is
     assert np.array_equal(STAGE._oriented_like(reference, turned), reference)
     assert np.array_equal(STAGE._oriented_like(reference, reference), reference)
 
+
+def test_the_phenocycler_scan_is_read_at_its_smallest_level_tall_enough_to_inspect(tmp_path):
+    import numpy as np
+    import tifffile
+
+    path = tmp_path / "scan.qptiff"
+    reduced = "<PerkinElmer-QPI-ImageDescription><ImageType>ReducedResolution</ImageType>"
+    tifffile.imwrite(path, np.zeros((2000, 10), np.uint8))
+    for height, value in ((1000, 7), (500, 9)):        # each level's first page, then a second
+        for channel in range(2):
+            tifffile.imwrite(path, np.full((height, 5), value + channel, np.uint8), append=True,
+                             description=reduced + "</PerkinElmer-QPI-ImageDescription>")
+    image, full = STAGE._phenocycler_image(path)
+    # 1000 rows is the smallest level at least INSPECTION_PIXELS (900) tall; its first page
+    assert image.shape == (1000, 5) and full == (2000, 10)
+
+
+def test_annotation_outlines_are_read_by_tissue(tmp_path):
+    from conftest import write_annotations
+
+    square = [[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]]]
+    path = write_annotations(tmp_path / "a.geojson", ("Tissue", square), ("pLN", square),
+                             ("Other", square))
+    rings = STAGE._annotation_rings(path, "pancreas")
+    # Tissue is the image's own tissue, pLN the tissue profiles' lymph node, Other not drawn
+    assert [t for t, _ in rings] == ["pancreas", "pancreatic_lymph_node"]
+    assert rings[0][1].shape == (5, 2)
+    assert STAGE._export_tag("6374_Scan1.er.qptiff - resolution #1") == (
+        "6374_Scan1.er.qptiff_-_resolution_1")

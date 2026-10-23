@@ -11,6 +11,7 @@
     "pancreas_qptiffs": "/home/smith6jt/IO60panc2nd/Images",
     "pln_qptiffs": "/home/smith6jt/IO60pLN/Images",
     "xenium_records": "/data/xenium_records",
+    "pancreas_annotations": "/home/smith6jt/IO60panc2nd/results/v3/export/annotations_2026-10-02/manual_annotations",
     "donor_metadata": "/home/smith6jt/IO60panc2nd/donor_metadata_panc.xlsx",
     "npod_cases": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/All-Download_From_nPOD_2026-07-27_163844.xlsx"
   },

@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime
 import html
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,17 @@ def write_fovs(path: Path, *rectangles) -> Path:
     return path
 
 
+def write_annotations(path: Path, *features) -> Path:
+    """A QuPath GeoJSON export of an image's annotations: (class, polygon rings) per feature, in
+    full-resolution pixels."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"type": "FeatureCollection", "features": [
+        {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": rings},
+         "properties": {"objectType": "annotation", "classification": {"name": name}}}
+        for name, rings in features]}))
+    return path
+
+
 def write_xenium_records(folder: Path, *, run: str, start: str, slide: str, region: str,
                          custom: int = 100, design: str = "6KTRAF",
                          cassette: str | None = None) -> None:
@@ -150,7 +162,8 @@ def synthetic_project(tmp_path):
         pln = tmp_path / "pln_images"
         bundles = tmp_path / "xenium" / "bundles"
         copies = tmp_path / "xenium_records"
-        for folder in (source, raw, pln, bundles, copies):
+        annotations = tmp_path / "annotations"
+        for folder in (source, raw, pln, bundles, copies, annotations):
             folder.mkdir(parents=True, exist_ok=True)
         run, start = "R1_synthetic", "2024-01-01T10:00:00Z"
         write_xenium_records(bundles / "output-XETG00298__0041000__Pan__20240101__000000",
@@ -193,6 +206,11 @@ def synthetic_project(tmp_path):
                            "qptiff": {"path": str(path), "size_bytes": stat.st_size,
                                       "mtime_ns": stat.st_mtime_ns, "sha256": "0" * 64,
                                       "hash_mode": "sampled"}})
+        square = [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]]
+        for image in images:
+            write_annotations(annotations / (re.sub(r"[^A-Za-z0-9._-]+", "_", image["image_id"])
+                                             + ".geojson"),
+                              ("Tissue", square), ("pLN", square))
         write_qptiff(pln / "6374pLN_Scan1.qptiff", slide="6374pLN", experiment="Synthetic_pLN",
                      position="Slide1", experiment_date="2025-12-05T09:00:00Z",
                      scanned=datetime.datetime(2026, 1, 9, 12, 0), markers=PLN_MARKERS,
@@ -220,7 +238,8 @@ def synthetic_project(tmp_path):
                    "settings": {"xenium_root": str(tmp_path / "xenium")},
                    "sources": {**{NAMES[n]: str(source / n) for n in files},
                                "pancreas_qptiffs": str(raw), "pln_qptiffs": str(pln),
-                               "xenium_records": str(copies)},
+                               "xenium_records": str(copies),
+                               "pancreas_annotations": str(annotations)},
                    "releases_root": str(tmp_path / "releases")}
         path = tmp_path / "synthetic.yaml"
         path.write_text(yaml.safe_dump(project, sort_keys=False))

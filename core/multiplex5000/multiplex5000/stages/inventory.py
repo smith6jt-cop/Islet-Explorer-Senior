@@ -32,7 +32,9 @@ What the release is built from, before anything is computed from it:
   the tracked ``xenium_lymphoid_inspection.csv`` (maintainer, 2026-10-23): the sequential
   PhenoCycler slide's notes do not carry over, because the Xenium slide area is smaller and its
   section is sometimes trimmed. ``xenium_slides.png`` shows each Xenium slide's overview with its
-  regions outlined, from the fields of view each region output records.
+  regions outlined, from the fields of view each region output records, beside the donor's
+  PhenoCycler pancreas slide with its Tissue and pLN annotations (the site's
+  ``pancreas_annotations``, QuPath's GeoJSON export).
 * **coverage** -- by physical slide, one row per donor: the PhenoCycler pancreas slide (its
   pancreas; the pLN/lymphoid the donor notes put on it, same-block or different-block, checked
   against ``pln_blocks.csv``; its PhenoCycler scan; and, where Xenium ran on that same slide after
@@ -140,8 +142,13 @@ OVERVIEW = "overview_scan.png"
 FOV_LOCATIONS = "overview_scan_fov_locations.json"
 #: How tall a thumbnail is kept, in pixels; the figure draws it under an inch.
 THUMBNAIL_PIXELS = 240
-#: How tall xenium_slides.png draws each overview scan, in the scan's own pixels, for inspection.
+#: How tall xenium_slides.png draws each slide image, in pixels, for inspection: a Xenium
+#: overview scan resampled to it, a PhenoCycler scan read at its smallest pyramid level at least
+#: this tall.
 INSPECTION_PIXELS = 900
+#: The QuPath annotation class that outlines a pancreas image's own tissue; every other class is
+#: read as a tissue name the tissue profiles accept ("pLN"), or not drawn.
+OUTLINE_CLASS = "Tissue"
 
 #: Xenium output folders that name a region other than the one their experiment.xenium records,
 #: with the reason, once someone has looked. The gate blocks on any other.
@@ -252,6 +259,12 @@ def _instrument_inputs(project, declared: list[Input]) -> list[Input]:
         for path in sorted(_needed(project, folder).glob("*.qptiff")):
             out.append(Input(f"qptiff:{path.name}", path, hash=False,
                              recorded_sha256=recorded.get(path.name)))
+    annotations = project.source("pancreas_annotations")
+    if annotations:      # each pancreas image's Tissue and pLN annotations, for xenium_slides.png
+        for image in manifest.get("images", []):
+            out.append(Input(f"annotations:{image['image_id']}",
+                             Path(annotations) / f"{_export_tag(image['image_id'])}.geojson",
+                             required=False))
     copies = _needed(project, "xenium_records")
     out.append(Input("xenium_records_manifest", copies / "MANIFEST.tsv", required=False))
     overviews: dict[str, list[Path]] = {}
@@ -269,6 +282,12 @@ def _instrument_inputs(project, declared: list[Input]) -> list[Input]:
         found = next((c for c in candidates if c.is_file()), candidates[-1])
         out.append(Input(f"overview:{serial}", found, required=False))
     return out
+
+
+def _export_tag(image_name: str) -> str:
+    """The file name QuPath's annotation export gives an image (scripts/v3/export_annotations.groovy
+    in the QuPath workflow): its name with every run of other characters made one underscore."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", image_name)
 
 
 def settings(project) -> dict:
@@ -1099,7 +1118,7 @@ def run(task: Task) -> dict:
     _write_csv(task.output("disagreements.csv"), disagreements)
     _figure(task, coverage)
     _runs_figure(task, runs)
-    _inspection_figure(task, xenium_slides, coverage["groups"])
+    _inspection_figure(task, xenium_slides, coverage["groups"], acquisitions)
     platforms = Counter(a["platform"] for a in acquisitions)
     pheno = [a for a in acquisitions if a["platform"] == "phenocycler"]
     xenium = [a for a in acquisitions if a["platform"] == "xenium" and a.get("output")]
@@ -1457,70 +1476,167 @@ def _overview(path):
     return np.clip((values - low) / max(high - low, 1e-9), 0, 1)
 
 
-def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups) -> None:
-    """Each Xenium slide's overview scan -- the whole slide, every section on it -- with each
-    region outlined from the fields of view its output records, coloured by tissue, for the
-    inspection of its pancreas area (xenium_lymphoid_inspection.csv). In the coverage's row
-    order; each says its serial, its donor and what the inspection recorded."""
+def _phenocycler_image(path):
+    """A PhenoCycler scan's first channel (DAPI) at its smallest pyramid level at least
+    INSPECTION_PIXELS tall -- the whole scan, the field its thumbnail shows -- scaled 0..1 between
+    its 0.5th and 99.5th percentiles, and the full-resolution (height, width) its annotations are
+    drawn in."""
+    import numpy as np
+    import tifffile
+
+    with tifffile.TiffFile(path) as tf:
+        full = tuple(tf.pages[0].shape[:2])
+        levels = {full: 0}           # a level's first page is its first channel
+        for index, page in enumerate(tf.pages):
+            if (index and "<ImageType>ReducedResolution</ImageType>" in (page.description or "")
+                    and tuple(page.shape[:2]) not in levels):
+                levels[tuple(page.shape[:2])] = index
+        tall = [shape for shape in levels if shape[0] >= INSPECTION_PIXELS]
+        values = tf.pages[levels[min(tall) if tall else max(levels)]].asarray().astype(float)
+    if values.ndim == 3:
+        values = values.mean(axis=2)
+    low, high = np.percentile(values, (0.5, 99.5))
+    return np.clip((values - low) / max(high - low, 1e-9), 0, 1), full
+
+
+def _annotation_rings(path, own_tissue: str) -> list[tuple]:
+    """Each annotation outline in a QuPath GeoJSON export as (tissue, ring), in full-resolution
+    pixels: the Tissue class is the image's own tissue, a class the tissue profiles name
+    ("pLN") is that tissue, and any other class is left out."""
+    import numpy as np
+
+    data = json.loads(Path(path).read_text())
+    features = data.get("features", []) if isinstance(data, dict) else data
+    out = []
+    for feature in features:
+        name = ((feature.get("properties") or {}).get("classification") or {}).get("name", "")
+        try:
+            tissue = own_tissue if name == OUTLINE_CLASS else tissues.normalize(name)
+        except tissues.TissueError:
+            continue
+        geometry = feature.get("geometry") or {}
+        polygons = {"Polygon": [geometry.get("coordinates", [])],
+                    "MultiPolygon": geometry.get("coordinates", [])}.get(geometry.get("type"), [])
+        out += [(tissue, np.asarray(ring, float)) for polygon in polygons for ring in polygon]
+    return out
+
+
+def _draw_phenocycler(task: Task, ax, donor: str, scans: list[dict]) -> None:
+    """The donor's PhenoCycler pancreas slide, as scanned, with its Tissue and pLN annotations."""
+    if not scans:
+        ax.set_title(f"{donor}  PhenoCycler\n", fontsize=8)
+        ax.text(0.5, 0.5, "PhenoCycler data excluded" if excluded_on(donor, "phenocycler")
+                else "no PhenoCycler slide", ha="center", va="center", fontsize=8,
+                transform=ax.transAxes)
+        return
+    a = scans[0]
+    ax.set_title(f"{donor}  PhenoCycler\n{Path(a['qptiff']).name.split('.')[0]}", fontsize=8)
+    try:
+        image, (height, width) = _phenocycler_image(task.input(f"qptiff:{a['qptiff']}"))
+    except (KeyError, OSError, ValueError, IndexError):
+        ax.text(0.5, 0.5, "scan not read", ha="center", va="center", fontsize=8,
+                transform=ax.transAxes)
+        return
+    ax.imshow(image, cmap="gray", vmin=0, vmax=1)
+    try:
+        rings = _annotation_rings(task.input(f"annotations:{a['acquisition_id'].split(':', 1)[1]}"),
+                                  a["tissue"])
+    except (KeyError, OSError, ValueError):
+        rings = []
+    shown_height, shown_width = image.shape
+    for tissue, ring in rings:
+        ax.plot(ring[:, 0] * shown_width / width, ring[:, 1] * shown_height / height,
+                color=FILLS[tissue], linewidth=1.0)
+    ax.set_xlim(-0.5, shown_width - 0.5)
+    ax.set_ylim(shown_height - 0.5, -0.5)
+
+
+def _draw_xenium(task: Task, ax, serial: str, on: list[dict]) -> None:
+    """A Xenium slide's overview scan -- the whole slide -- with each region outlined from the
+    fields of view its output records, and what the inspection recorded."""
+    import numpy as np
+    from PIL import Image
+
+    seen = next((a["lymphoid_in_pancreas"] for a in on if "lymphoid_in_pancreas" in a), None)
+    said = NOT_INSPECTED if seen is None else f"{seen} pLN/lymphoid in the pancreas area"
+    ax.set_title(f"Xenium {serial}\n{said}", fontsize=8)
+    try:
+        image = _overview(task.input(f"overview:{serial}"))
+    except (KeyError, OSError, ValueError):
+        ax.text(0.5, 0.5, "no overview scan", ha="center", va="center", fontsize=8,
+                transform=ax.transAxes)
+        return
+    height, width = image.shape
+    size = (max(round(width * INSPECTION_PIXELS / height), 1), INSPECTION_PIXELS)
+    ax.imshow(np.asarray(Image.fromarray((image * 255).astype(np.uint8)).resize(size)),
+              cmap="gray", vmin=0, vmax=255)
+    for a in on:
+        try:
+            fovs = json.loads(Path(task.input(f"fovs:{a['output']}")).read_text())
+        except (KeyError, OSError, ValueError):
+            continue
+        mask = np.zeros((height, width), np.uint8)
+        for f in fovs.get("fov_locations", {}).values():
+            x, y, w, h = (int(round(f[k])) for k in ("x", "y", "width", "height"))
+            mask[max(y, 0):max(y + h, 0), max(x, 0):max(x + w, 0)] = 255
+        small = np.asarray(Image.fromarray(mask).resize(size, Image.NEAREST)) > 0
+        if not small.any():
+            continue
+        colour = FILLS[a["tissue"]]
+        ax.contour(small, levels=[0.5], colors=[colour], linewidths=1.1)
+        ys, xs = np.nonzero(small)
+        ax.text(xs.mean(), ys.min() - 6, _region(a), color=colour, fontsize=6.5,
+                ha="center", va="bottom")
+
+
+def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
+                       acquisitions: list[dict]) -> None:
+    """Each Xenium slide of its own beside its donor's PhenoCycler pancreas slide (maintainer,
+    2026-10-23), for the inspection of each Xenium pancreas area
+    (xenium_lymphoid_inspection.csv), in the coverage's row order. Left, the PhenoCycler scan with
+    its Tissue and pLN annotations (the site's pancreas_annotations export); right, the Xenium
+    overview scan with its regions outlined. Outlines are coloured by tissue; every image is drawn
+    as scanned."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import numpy as np
     from matplotlib.lines import Line2D
-    from PIL import Image
 
+    scans: dict[str, list[dict]] = {}
+    for a in acquisitions:
+        if a["platform"] == "phenocycler" and a["tissue"] == PANCREAS and a.get("qptiff"):
+            scans.setdefault(a["donor_id"], []).append(a)
     rank = {d: i for i, d in enumerate(d for _, members in groups for d in members)}
     serials = sorted(slides, key=lambda s: (rank.get(slides[s][0]["donor_id"], len(rank)), s))
-    per_row = max(min(len(serials), 7), 1)
+    per_row = max(min(len(serials), 4), 1)
     rows = max(-(-len(serials) // per_row), 1)
-    fig, axes = plt.subplots(rows, per_row, figsize=(2.3 * per_row, 5.0 * rows + 0.9),
-                             squeeze=False)
-    for ax in axes.flat:
-        ax.set_axis_off()
-    for ax, serial in zip(axes.flat, serials):
+    fig = plt.figure(figsize=(4.4 * per_row, 5.0 * rows + 1.2))
+    grid = fig.add_gridspec(rows, 3 * per_row - 1, width_ratios=([1, 1, 0.2] * per_row)[:-1],
+                            wspace=0.05, hspace=0.12)
+    for k, serial in enumerate(serials):
+        row, pair = divmod(k, per_row)
+        left, right = fig.add_subplot(grid[row, 3 * pair]), fig.add_subplot(grid[row, 3 * pair + 1])
+        for ax in (left, right):
+            ax.set_axis_off()
+            ax.set_anchor("N")       # each image under its title, whatever its shape
         on = sorted(slides[serial], key=lambda a: (a["tissue"] != PANCREAS, _region(a)))
-        seen = next((a["lymphoid_in_pancreas"] for a in on if "lymphoid_in_pancreas" in a), None)
-        said = NOT_INSPECTED if seen is None else f"{seen} pLN/lymphoid in the pancreas area"
-        ax.set_title(f"{serial}   {on[0]['donor_id']}\n{said}", fontsize=8)
-        try:
-            image = _overview(task.input(f"overview:{serial}"))
-        except (KeyError, OSError, ValueError):
-            ax.text(0.5, 0.5, "no overview scan", ha="center", va="center", fontsize=8,
-                    transform=ax.transAxes)
-            continue
-        height, width = image.shape
-        size = (max(round(width * INSPECTION_PIXELS / height), 1), INSPECTION_PIXELS)
-        ax.imshow(np.asarray(Image.fromarray((image * 255).astype(np.uint8)).resize(size)),
-                  cmap="gray", vmin=0, vmax=255)
-        for a in on:
-            try:
-                fovs = json.loads(Path(task.input(f"fovs:{a['output']}")).read_text())
-            except (KeyError, OSError, ValueError):
-                continue
-            mask = np.zeros((height, width), np.uint8)
-            for f in fovs.get("fov_locations", {}).values():
-                x, y, w, h = (int(round(f[k])) for k in ("x", "y", "width", "height"))
-                mask[max(y, 0):max(y + h, 0), max(x, 0):max(x + w, 0)] = 255
-            small = np.asarray(Image.fromarray(mask).resize(size, Image.NEAREST)) > 0
-            if not small.any():
-                continue
-            colour = FILLS[a["tissue"]]
-            ax.contour(small, levels=[0.5], colors=[colour], linewidths=1.1)
-            ys, xs = np.nonzero(small)
-            ax.text(xs.mean(), ys.min() - 6, _region(a), color=colour, fontsize=6.5,
-                    ha="center", va="bottom")
+        donor = on[0]["donor_id"]
+        _draw_phenocycler(task, left, donor, scans.get(donor, []))
+        _draw_xenium(task, right, serial, on)
     if not serials:
-        axes.flat[0].text(0.5, 0.5, "no Xenium slide of its own", ha="center", va="center",
-                          transform=axes.flat[0].transAxes)
-    handles = [Line2D([], [], color=FILLS[PANCREAS],
-                      label=f"{tissues.DISPLAY_NAME[PANCREAS]} region"),
-               Line2D([], [], color=FILLS[LYMPH_NODE], label=f"{PLN_SECTION} region")]
+        fig.text(0.5, 0.5, "no Xenium slide of its own", ha="center", va="center")
+    name = tissues.DISPLAY_NAME[PANCREAS]
+    handles = [Line2D([], [], color=FILLS[PANCREAS], label=f"{name}: Tissue annotation, Xenium region"),
+               Line2D([], [], color=FILLS[LYMPH_NODE],
+                      label=f"{PLN_SECTION}: pLN annotation, Xenium region")]
     fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=8, frameon=False,
                bbox_to_anchor=(0.5, 0.0))
-    fig.suptitle("Xenium slides: the overview scan, regions outlined, for inspecting each "
-                 "pancreas area for pLN/lymphoid", fontsize=10)
-    fig.tight_layout(rect=(0, 0.02, 1, 0.985))
+    height = 5.0 * rows + 1.2
+    fig.suptitle("Each Xenium slide beside its donor's PhenoCycler pancreas slide, for inspecting "
+                 "the Xenium pancreas area for pLN/lymphoid (each image as scanned)", fontsize=10,
+                 y=1 - 0.12 / height, va="top")
+    fig.subplots_adjust(left=0.01, right=0.99, top=1 - 0.95 / height, bottom=0.4 / height)
     fig.savefig(gates.figure_path(task, "xenium_slides.png"), dpi=150)
     plt.close(fig)
 
