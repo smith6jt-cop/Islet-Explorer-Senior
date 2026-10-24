@@ -28,8 +28,9 @@ NOTES = ("IO60panc2nd Notes\n"
          "6374: pancTail no pLN, sequential Xenium\n"
          "HDL112: pancTail and 1 pLN different-block, same-slide post-phenocycler Xenium\n")
 
-#: The header of xenium_lymphoid_inspection.csv; 6374's Xenium slide 0041000 is the synthetic
-#: project's one Xenium slide of its own, inspected with nothing lymphoid in its pancreas area.
+#: The header of xenium_lymphoid_inspection.csv. Both synthetic Xenium slides are inspected with
+#: nothing lymphoid in their pancreas area: 6374's 0041000, a slide of its own, and 0112's
+#: 0041001, the PhenoCycler slide Xenium ran on after it.
 INSPECTION_HEADER = ("slide,donor_id,lymphoid_in_pancreas,pln_regions_in_pancreas_section,"
                      "inspected_by,inspected_on,note\n")
 
@@ -54,7 +55,9 @@ SOURCES = {
                             "recorded_on\n"
                             "xenium:0041001:Pancreas,112,pancreas,damaged,before Xenium,x,t,"
                             "2026-01-01\n",
-    "xenium_lymphoid_inspection.csv": "# synthetic\n" + INSPECTION_HEADER + "0041000,6374,0,,t,2026-01-01,\n",
+    "xenium_lymphoid_inspection.csv": ("# synthetic\n" + INSPECTION_HEADER
+                                       + "0041000,6374,0,,t,2026-01-01,\n"
+                                       + "0041001,112,0,,t,2026-01-01,\n"),
     "pln_blocks.csv": "image,entry_id,donor,pln_annotation,object_id,pieces,area_mm2,"
                       "overlap_with_tissue_um2,gap_to_tissue_um,measured_relation,"
                       "block_from_notes,notes\n"

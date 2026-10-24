@@ -740,6 +740,9 @@ def _inspection(slides: dict[str, list[dict]], rows: list[dict]) -> tuple[list[s
     (the same-block pLN/lymphoid the coverage counts), and which of its pLN regions are part of the
     pancreas section rather than a section of their own (same-block; the rest stay
     different-block). The pancreas acquisition carries the count, each region who inspected it.
+    A same-slide Xenium is inspected the same way (maintainer, 2026-10-24: 6347's and 6580's
+    same-block pLN/lymphoid "are not identified in the pancreas same-slide xenium region"); its
+    sections stay the donor notes', and its count is carried on its pancreas acquisition only.
     Return the slides not inspected and the rows that cannot be applied."""
     done, unusable = set(), []
     for row in rows:
@@ -749,7 +752,7 @@ def _inspection(slides: dict[str, list[dict]], rows: list[dict]) -> tuple[list[s
                  if r.strip()}
         plns = {_region_label(a) for a in on or () if a["tissue"] == LYMPH_NODE}
         count = (row.get("lymphoid_in_pancreas") or "").strip()
-        problem = ("no Xenium slide of its own has that serial" if on is None
+        problem = ("no Xenium slide has that serial" if on is None
                    else "inspected in an earlier row" if serial in done
                    else f"{count!r} is not a count" if not count.isdigit()
                    else f"{', '.join(sorted(named - plns))} is not one of its pLN regions"
@@ -1098,8 +1101,9 @@ def run(task: Task) -> dict:
     unmatched = _conditions(acquisitions, _rows(task.input("tissue_condition")))
     _blocks(acquisitions)
     xenium_slides = _xenium_slide_acquisitions(acquisitions, reading)
+    shared_slides = _xenium_slide_acquisitions(acquisitions, reading, same_slide=True)
     not_inspected, inspection_unusable = _inspection(
-        xenium_slides, _rows(task.input("xenium_lymphoid_inspection")))
+        {**xenium_slides, **shared_slides}, _rows(task.input("xenium_lymphoid_inspection")))
     _xenium_slides(acquisitions, reading)
     runs = _runs(acquisitions, records)
     donors = ({a["donor_id"] for a in acquisitions} | set(reading.donors)
@@ -1137,7 +1141,7 @@ def run(task: Task) -> dict:
     _inspection_figure(task, xenium_slides, coverage["groups"], acquisitions,
                        {d for d, n in reading.donors.items()
                         if n.xenium_design == relationships.SEQUENTIAL},
-                       _xenium_slide_acquisitions(acquisitions, reading, same_slide=True))
+                       shared_slides)
     platforms = Counter(a["platform"] for a in acquisitions)
     pheno = [a for a in acquisitions if a["platform"] == "phenocycler"]
     xenium = [a for a in acquisitions if a["platform"] == "xenium" and a.get("output")]
@@ -1235,7 +1239,7 @@ def run(task: Task) -> dict:
                            if r["platform"] == "xenium" and r["batch"]],
         "xenium_slides_not_inspected": not_inspected,
         "inspection_unusable": inspection_unusable,
-        "xenium_lymphoid_inspected": _inspected(xenium_slides),
+        "xenium_lymphoid_inspected": _inspected({**xenium_slides, **shared_slides}),
         "same_slide_xenium_not_listed": coverage["not_listed"],
         "datasets": {**coverage["totals"]["per_column"], "all": coverage["totals"]["datasets"]},
         "slides": coverage["totals"]["slides"],
@@ -1583,18 +1587,15 @@ def _draw_phenocycler(task: Task, ax, donor: str, scans: list[dict], sequential:
 def _draw_xenium(task: Task, ax, serial: str, on: list[dict], same_slide: bool = False,
                  reference=None) -> None:
     """A Xenium slide's overview scan -- the whole slide -- with each region outlined from the
-    fields of view its output records, and what the inspection recorded. A same-slide Xenium's
-    sections are the donor notes'; it is turned to ``reference``'s orientation (the PhenoCycler
-    image of that slide), as the coverage turns it."""
+    fields of view its output records, and what the inspection recorded. A same-slide Xenium is
+    turned to ``reference``'s orientation (the PhenoCycler image of that slide), as the coverage
+    turns it."""
     import numpy as np
     from PIL import Image
 
-    if same_slide:
-        said = "same slide"
-    else:
-        seen = next((a["lymphoid_in_pancreas"] for a in on if "lymphoid_in_pancreas" in a), None)
-        said = NOT_INSPECTED if seen is None else f"{seen} pLN/lymphoid in the pancreas area"
-    ax.set_title(f"Xenium {serial}\n{said}", fontsize=8)
+    seen = next((a["lymphoid_in_pancreas"] for a in on if "lymphoid_in_pancreas" in a), None)
+    said = NOT_INSPECTED if seen is None else f"{seen} pLN/lymphoid in the pancreas area"
+    ax.set_title(f"Xenium {serial}{' (same slide)' if same_slide else ''}\n{said}", fontsize=8)
     try:
         image = _overview(task.input(f"overview:{serial}"))
     except (KeyError, OSError, ValueError):
@@ -1735,9 +1736,10 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         C("every Xenium slide's pancreas area has been inspected for pLN/lymphoid",
           summary["xenium_slides_not_inspected"], "none",
           not summary["xenium_slides_not_inspected"],
-          detail="by eye, on the slide's overview scan with its regions outlined "
-                 "(xenium_slides.png), recorded in xenium_lymphoid_inspection.csv: the only "
-                 "authority for the pLN/lymphoid a Xenium slide carries (maintainer, 2026-10-23). "
+          detail="every Xenium slide, the same-slide ones included; by eye, on the slide's "
+                 "overview scan with its regions outlined (xenium_slides.png), recorded in "
+                 "xenium_lymphoid_inspection.csv: the only authority for the pLN/lymphoid a "
+                 "Xenium slide carries (maintainer, 2026-10-23). "
                  "The sequential PhenoCycler slide's notes do not carry over: the Xenium slide "
                  "area is smaller and its section is sometimes trimmed"),
         C("every inspection row names a Xenium slide, its own pLN regions, a count and who "

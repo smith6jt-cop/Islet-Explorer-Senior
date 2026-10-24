@@ -374,14 +374,17 @@ def test_a_xenium_slides_pln_lymphoid_is_read_from_its_inspection_only(synthetic
     assert (coverage["6374"][STAGE.DATASETS], coverage["6374"][STAGE.SLIDES]) == ("4", "3")
     assert all(c["passed"] for c in checks.values() if c["blocking"])
     assert checks["pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"] == [
+        "0041001 (0112): 0 in the pancreas area (t 2026-01-01)",
         "0041000 (6374): 0 in the pancreas area (t 2026-01-01)"]
 
     # inspected: two lymphoid areas in the pancreas area, the pLN region one of them
     acquisitions, coverage, checks = run(
-        INSPECTION_HEADER + "0041000,6374,2,pLN 1,t,2026-01-02,embedded node\n", "r2")
+        INSPECTION_HEADER + "0041000,6374,2,pLN 1,t,2026-01-02,embedded node\n"
+        "0041001,112,0,,t,2026-01-02,\n", "r2")
     assert acquisitions["xenium:0041000:pLN"]["block"] == STAGE.PANCREAS_BLOCK
     assert [coverage["6374"][c] for c in xenium] == ["2 pLN", ""]
     assert checks["pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"] == [
+        "0041001 (0112): 0 in the pancreas area (t 2026-01-02)",
         "0041000 (6374): 2 in the pancreas area, pLN 1 part of that section (t 2026-01-02)"]
     assert all(c["passed"] for c in checks.values() if c["blocking"])
 
@@ -391,16 +394,16 @@ def test_a_xenium_slide_not_inspected_blocks_and_says_so(synthetic_project):
 
     _, folder, checks = _run(synthetic_project(xenium_lymphoid_inspection__csv=INSPECTION_HEADER))
     check = checks["every Xenium slide's pancreas area has been inspected for pLN/lymphoid"]
-    # 0112's slide 0041001 is its PhenoCycler slide (section_modes.csv), so only 6374's is asked
-    assert not check["passed"] and check["blocking"] and check["value"] == ["0041000 (6374)"]
+    # every Xenium slide is asked, 0112's same-slide 0041001 too (maintainer, 2026-10-24)
+    assert not check["passed"] and check["blocking"] and check["value"] == [
+        "0041000 (6374)", "0041001 (0112)"]
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.SAME_BLOCK)] == STAGE.NOT_INSPECTED
     assert (folder / "gate" / "xenium_slides.png").stat().st_size > 1000
 
 
 @pytest.mark.parametrize("row, problem", [
-    ("0049999,7000,0,,t,2026-01-01,", "slide 0049999: no Xenium slide of its own has that serial"),
-    ("0041001,112,0,,t,2026-01-01,", "slide 0041001: no Xenium slide of its own has that serial"),
+    ("0049999,7000,0,,t,2026-01-01,", "slide 0049999: no Xenium slide has that serial"),
     ("0041000,6374,some,,t,2026-01-01,", "slide 0041000: 'some' is not a count"),
     ("0041000,6374,1,pLN9,t,2026-01-01,", "slide 0041000: pLN9 is not one of its pLN regions"),
     ("0041000,6374,1,,,,", "slide 0041000: names no inspector and date"),
@@ -682,3 +685,22 @@ def test_a_same_slide_xenium_is_turned_only_when_that_matches_its_phenocycler_im
     reference[40:50, 5:35] = 255
     assert STAGE._turned(reference, reference[::-1, ::-1].copy())
     assert not STAGE._turned(reference, reference.copy())
+
+
+def test_a_same_slide_xenium_is_inspected_and_keeps_the_notes_sections(synthetic_project):
+    from conftest import INSPECTION_HEADER
+
+    # 6347 and 6580: the same-block pLN/lymphoid "are not identified in the pancreas same-slide
+    # xenium region" (maintainer, 2026-10-24)
+    _, folder, checks = _run(synthetic_project(xenium_lymphoid_inspection__csv=(
+        INSPECTION_HEADER + "0041000,6374,0,,t,2026-01-01,\n0041001,112,1,,t,2026-01-01,\n")))
+    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
+    assert acquisitions["xenium:0041001:Pancreas"]["lymphoid_in_pancreas"] == "1"
+    assert acquisitions["xenium:0041001:pLN"]["block"] == STAGE.OTHER_BLOCK
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    # the PhenoCycler slide's sections are still the notes': 1 different-block pLN, no same-block
+    assert (coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.SAME_BLOCK)],
+            coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.DIFFERENT_BLOCK)]) == ("", "1 pLN")
+    assert "0041001 (0112): 1 in the pancreas area (t 2026-01-01)" in checks[
+        "pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"]
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
