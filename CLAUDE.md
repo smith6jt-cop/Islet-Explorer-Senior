@@ -143,9 +143,11 @@ thumbnail (a qptiff's own; a Xenium slide's `aux_outputs/overview_scan.png`, cop
 14) are Xenium-only donors, listed in `xenium_paths.csv` with batch `XeniumOnly` (maintainer,
 2026-10-22) and kept out of the Xenium typing lane, which types the PhenoCycler cohort. The notes'
 cautions are quoted on its gate and never counted. Every acquisition also carries the panel its instrument recorded, named the maintainer's way (PhenoCycler: markers
-without DAPI, `+ CD38` / `- b-Catenin1` for the one marker that differs, `MetSI` for the metabolic
-spike-in, else `markers` -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, 55 markers for the pLN
-slides; Xenium: `5kOnly` or `5k+100(<code>)`; post-Xenium IF: one panel for every image, INS,
+without DAPI, `MetSI` for the whole metabolic spike-in, then every marker added to the tissue's
+reference panel signed `+` and every reference marker lacking signed `-` (maintainer, 2026-10-24:
+"each marker needs a + or -"); a reference panel is `<n> markers` -- 57 markers, 58 +CD38,
+58 +b-Catenin1, 69MetSI +b-Catenin1 +CD141 +CD21 +CD38 +Histone H3 (p Ser28) -IAPP -Ker8-18, and
+55 markers for the pLN slides, the references declared per tissue in the PhenoCycler profile; Xenium: `5kOnly` or `5k+100(<code>)`; post-Xenium IF: one panel for every image, INS,
 GCG, failed marker, AF, declared in its platform profile), its run, the run's date and
 the slide run with it: PhenoCycler slides scanned under one experiment on one day were run together
 (two per run; one alone means an odd number in the staining batch), Xenium slides share a run name.

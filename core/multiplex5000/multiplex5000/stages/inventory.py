@@ -353,7 +353,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
     spec_images = {i["image_id"] for i in spec.get("images", [])}
     panels = {p["panel_id"]: p for p in manifest.get("panels", [])}
 
-    def pheno(file: str, panel_id=None) -> dict:
+    def pheno(file: str, tissue: str, panel_id=None) -> dict:
         header = records["headers"].get(file)
         if header is None:
             return dict(run_note=records["unreadable"].get(file, "no qptiff of that name"))
@@ -363,7 +363,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
                       run_date=header.scan_date, software=header.software, qptiff=file,
                       slide_id=header.slide_id)
         try:
-            fields["panel"] = panel_names.phenocycler(header.markers, rules["phenocycler"])
+            fields["panel"] = panel_names.phenocycler(header.markers, rules["phenocycler"], tissue)
         except panel_names.PanelNameError as err:
             fields["panel_error"] = str(err)
         if panel_id is not None:
@@ -389,7 +389,7 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             recorded_digest=record.get("sha256"), recorded_digest_mode=record.get("hash_mode"),
             panel_id=image.get("panel_id"), segmentation_version=image.get("segmentation_version"),
             in_cohort_spec=image["image_id"] in spec_images,
-            **pheno(Path(record.get("path", "")).name, image.get("panel_id"))))
+            **pheno(Path(record.get("path", "")).name, PANCREAS, image.get("panel_id"))))
     for index, row in enumerate(_rows(task.input("pln_node_annotations")), start=1):
         out.append(dict(
             acquisition_id=f"phenocycler:{row['image_file']}", platform="phenocycler",
@@ -397,7 +397,8 @@ def _acquisitions(task: Task, spec: dict, manifest: dict, aliases: dict,
             donor_id=aliases.get(row["donor_id"], row["donor_id"]), donor_label=row["donor_id"],
             source="pln_node_annotations", source_row=index, path=None, exists=None,
             n_nodes=row.get("n_nodes", ""),
-            note=f"IO60pLN slide; excluded={row.get('excluded', '')}", **pheno(row["image_file"])))
+            note=f"IO60pLN slide; excluded={row.get('excluded', '')}",
+            **pheno(row["image_file"], LYMPH_NODE)))
     root = task.settings.get("xenium_root")
     for index, row in enumerate(_rows(task.input("xenium_paths")), start=1):
         serial, folder_region = parse_bundle_path(row["source_path"])
@@ -831,14 +832,32 @@ def _run_text(a: dict) -> str:
     return f"{a['run_date']} " + (f"with {a['run_with']}" if a.get("run_with") else "alone")
 
 
+def _panel_lines(panel: str, width: int = 20) -> list[str]:
+    """A PhenoCycler panel name as a cell writes it: whole where it fits, else its count first and
+    then its signed markers, as many to a line as fit."""
+    if len(panel) <= width:
+        return [panel]
+    head, *signed = re.split(r" (?=[+-])", panel)
+    lines = [head]
+    for token in signed:
+        if len(lines) > 1 and len(lines[-1]) + 1 + len(token) <= width:
+            lines[-1] += f" {token}"
+        else:
+            lines.append(token)
+    return lines
+
+
 def _acquisition_text(a: dict) -> str:
     """What an acquisition's cell says: its panel and its run. A post-Xenium IF image has no
-    recorded run; its panel's channels go two to a line."""
+    recorded run; its panel's channels go two to a line. A PhenoCycler panel too long for one line
+    is broken between its signed markers."""
     if a["platform"] == "if":
         channels = a.get("panel", "").split(", ")
         return "\n".join(", ".join(channels[i:i + 2]) for i in range(0, len(channels), 2))
     batch = f"batch {a['batch_number']}" if a.get("batch_number") else ""
-    return "\n".join(part for part in (a.get("panel", ""), batch, _run_text(a)) if part)
+    panel = "\n".join(_panel_lines(a["panel"])) if a["platform"] == "phenocycler" and a.get(
+        "panel") else a.get("panel", "")
+    return "\n".join(part for part in (panel, batch, _run_text(a)) if part)
 
 
 def _coverage(acquisitions: list[dict], reading, spec, statuses: dict) -> dict:
@@ -1455,7 +1474,7 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
     fig, ax = plt.subplots(figsize=(17.0, 0.25 * (n + 2) + 1.4))
     ax.set_axis_off()
     step = 1.0 / (n + 1)
-    columns = (0.0, 0.075, 0.155, 0.335, 0.385, 0.50)
+    columns = (0.0, 0.07, 0.14, 0.29, 0.32, 0.67)       # the panel wide enough for every sign
     for x, head in zip(columns, ("run date", "platform", "run", "batch", "panel",
                                  "slides run together"), strict=True):
         ax.text(x, 1 - step / 2, head, fontsize=8, fontweight="bold", va="center",
@@ -1465,7 +1484,8 @@ def _runs_figure(task: Task, runs: list[dict]) -> None:
         if i % 2:
             ax.add_patch(Rectangle((0, y - step / 2), 1, step, transform=ax.transAxes,
                                    color="0.95", zorder=0))
-        ax.add_patch(Rectangle((columns[4] - 0.004, y - 0.4 * step), 0.11, 0.8 * step,
+        ax.add_patch(Rectangle((columns[4] - 0.004, y - 0.4 * step), columns[5] - columns[4] - 0.01,
+                               0.8 * step,
                                transform=ax.transAxes, color=colour[row[4]], alpha=0.35, zorder=1))
         alone = row[6] == 1
         for x, value in zip(columns, row[:6], strict=True):

@@ -4,20 +4,137 @@ id: phenocycler
 display_name: PhenoCycler
 # Full-resolution pixel size of the IO60 qptiffs.
 pixel_size_um: 0.5078
-# How a PhenoCycler panel is named (maintainer, 2026-10-21): the number of markers an image
-# records, DAPI not counted; then '+' or '-' and the one marker that tells two panels of that size
-# apart; or MetSI where the metabolic spike-in is in the panel; a bare number is followed by
-# "markers" -- 57 markers, 58+ CD38, 58- b-Catenin1, 69MetSI, and 55 markers for the dedicated
-# pLN slides. Applied by multiplex5000.panel_names.
+# How a PhenoCycler panel is named (maintainer, 2026-10-21; signs corrected 2026-10-24): the
+# number of markers an image records, DAPI not counted; then MetSI where the whole metabolic
+# spike-in is in the panel; then every other marker it adds to its tissue's reference panel with a
+# '+', and every reference marker it lacks with a '-'. A panel that is its reference is the bare
+# number followed by "markers". So the IO60 pancreas panels are 57 markers, 58 +CD38,
+# 58 +b-Catenin1 and 69MetSI +b-Catenin1 +CD141 +CD21 +CD38 +Histone H3 (p Ser28) -IAPP -Ker8-18,
+# and the dedicated pLN slides' panel is 55 markers. Applied by multiplex5000.panel_names.
 panel_names:
   not_counted: [DAPI]
-  single_marker:
-    "+": CD38
-    "-": b_Catenin1
+  # Each tissue's reference panel, DAPI not counted, spelled as its images record it: the 57
+  # markers of the IO60 pancreas panel (e.g. 6523panc_Scan1) and the 55 of the dedicated pLN
+  # slides (e.g. 6380pLN_Scan1).
+  reference:
+    pancreas:
+      - SST
+      - CD4
+      - CD107a
+      - CD31
+      - CD68
+      - SMA
+      - CD44
+      - CD99
+      - Vimentin
+      - E-cadherin
+      - CD66
+      - IDO1
+      - INS
+      - CD11c
+      - Ker8-18
+      - CD34
+      - HLA-DR
+      - iNOS
+      - B3TUBB
+      - M2Gal3
+      - CD8
+      - FOXP3
+      - PCNA
+      - CD57
+      - Granzyme B
+      - Ki67
+      - HLA-A
+      - Collagen IV
+      - CD20
+      - VISTA
+      - PD-1
+      - Pan-Cytokeratin
+      - LAG3
+      - TCF-1
+      - IAPP
+      - TOX
+      - ICOS
+      - Caveolin
+      - CD163
+      - PD-L1
+      - EpCAM
+      - CD79a
+      - CD3e
+      - Keratin 5
+      - GCG
+      - Bcl-2
+      - Beta-actin
+      - MPO
+      - CD56
+      - CD39
+      - Iba1
+      - SOX2
+      - CD209
+      - Podoplanin
+      - CD11b
+      - CD206
+      - TP63
+    pancreatic_lymph_node:
+      - CD31
+      - CD4
+      - CD107a
+      - CD44
+      - CD68
+      - SMA
+      - E-cadherin
+      - CD66
+      - Vimentin
+      - IFNG
+      - CD11c
+      - IDO1
+      - GP100
+      - CD34
+      - CD21
+      - iNOS
+      - B3TUBB
+      - HLA-DR
+      - CD8
+      - FOXP3
+      - M2Gal3
+      - CD57
+      - Granzyme B
+      - PCNA
+      - HLA-A
+      - Collagen IV
+      - Ki67
+      - VISTA
+      - PD-1
+      - CD20
+      - TCF-1
+      - Pan-Cytokeratin
+      - TOX
+      - ICOS
+      - CD163
+      - PDL1
+      - Caveolin
+      - CD79a
+      - CD3e
+      - EpCAM
+      - CD141
+      - Bcl-2
+      - Beta-actin
+      - MPO
+      - CD56
+      - CD39
+      - Iba1
+      - SOX2
+      - CD209
+      - Podoplanin
+      - CD11b
+      - CD206
+      - TP63
+      - CD14
+      - LAG3
   # The metabolic markers the 70-channel panel adds; every one must be present to name it MetSI.
   metabolic_spike_in: [ASCT2, ATP5A, CS, G6PD, GLUT1, HK1, IDH2, LDHA, SDHA]
   metabolic_suffix: MetSI
   count_word: markers
 sources:
   pixel_size_um: apps/islet/config/run20_default.yml pixel_size_um (the QuPath preflight declares the same)
-  panel_names: the maintainer's naming, 2026-10-21; markers as each qptiff's ScanProfile records them
+  panel_names: the maintainer's naming, 2026-10-21, signs corrected 2026-10-24; markers as each qptiff's ScanProfile records them
