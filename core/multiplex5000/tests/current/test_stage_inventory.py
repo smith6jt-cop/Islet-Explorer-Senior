@@ -672,3 +672,13 @@ def test_a_phenocycler_slide_is_paired_only_as_a_recorded_sequential_section(don
 def test_a_xenium_region_is_labelled_by_its_tissue_not_its_typed_name(acquisition, label):
     # run MM044 typed PanT for its pLN regions; the label says what xenium_paths.csv says
     assert STAGE._region_label({**acquisition, "acquisition_id": "xenium:0059907:PanT"}) == label
+
+
+def test_a_same_slide_xenium_is_turned_only_when_that_matches_its_phenocycler_image():
+    import numpy as np
+
+    reference = np.zeros((60, 40), np.uint8)
+    reference[5:50, 5:15] = 255          # an L of tissue on a dark slide
+    reference[40:50, 5:35] = 255
+    assert STAGE._turned(reference, reference[::-1, ::-1].copy())
+    assert not STAGE._turned(reference, reference.copy())
