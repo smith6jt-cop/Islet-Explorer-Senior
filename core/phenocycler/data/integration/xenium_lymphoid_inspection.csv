@@ -1,0 +1,63 @@
+# The pLN/lymphoid each Xenium slide's pancreas area includes, by visual inspection.
+#
+# INSPECTED BY EYE and recorded by the maintainer; never inferred. "The final authority for xenium
+# slides needs to be visual inspection of the thumbnail to determine if the pancreas area included
+# any pLN/lymphoid area" (maintainer, 2026-10-23). The sequential PhenoCycler slide's notes do not
+# carry over to a Xenium slide: the Xenium slide area is smaller and its section is sometimes
+# trimmed.
+#
+# Inspect each slide in stage 00's gate figure xenium_slides.png: the slide's overview scan with
+# each region outlined (pancreas regions in green, pLN regions in orange), beside its sequential
+# PhenoCycler section, where the donor notes record one, with its Tissue and pLN annotations.
+#
+# One row per Xenium slide, a PhenoCycler slide Xenium also ran on (same slide) included: its
+# sections stay the donor notes', and its row says what its Xenium pancreas region includes.
+# Stage 00 blocks until every Xenium slide has a row, and on a row that names no Xenium slide,
+# a region that is not one of its pLN regions, a count that is not a whole number, or no
+# inspector and date.
+#
+#   slide                             the Xenium slide's serial, e.g. 0037376
+#   donor_id                          for the reader; the slide's donor is the one xenium_paths.csv lists
+#   lymphoid_in_pancreas              how many pLN/lymphoid areas the pancreas section includes; 0 for none.
+#                                     The coverage counts these as the slide's same-block pLN/lymphoid.
+#   pln_regions_in_pancreas_section   pLN regions, as xenium_slides.png labels them (pLN 1, pLN 2 ...;
+#                                     ;-separated; the label is xenium_paths.csv's roi, never the name
+#                                     typed at the instrument), that lie in the pancreas section rather
+#                                     than a section of their own;
+#                                     they are among the count above. Every other pLN region is a
+#                                     different-block section.
+#   inspected_by, inspected_on        who looked, and when (YYYY-MM-DD)
+#   note                              anything seen worth keeping
+slide,donor_id,lymphoid_in_pancreas,pln_regions_in_pancreas_section,inspected_by,inspected_on,note
+0080824,6450,1,,smith6jt,2026-10-23,same-block pLN on the PhenoCycler slide not separated from the Xenium pancreas region; 1 by the notes line and the pLN annotation; recorded from the maintainer's message
+0081203,6534,1,,smith6jt,2026-10-23,same-block pLN on the PhenoCycler slide not separated from the Xenium pancreas region; 1 by the notes line and the pLN annotation; recorded from the maintainer's message
+0059865,6539,1,,smith6jt,2026-10-23,same-block pLN on the PhenoCycler slide not separated from the Xenium pancreas region; 1 by the notes line and the pLN annotation; recorded from the maintainer's message
+0037376,6551,1,,smith6jt,2026-10-23,same-block pLN on the PhenoCycler slide not separated from the Xenium pancreas region; 1 by the notes line and the pLN annotation; recorded from the maintainer's message
+0041117,115,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0041032,6374,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037502,6380,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0059907,6436,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0059947,6442,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0059847,6461,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037634,6476,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037354,6482,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037191,6493,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0080836,6505,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037199,6521,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0037499,6523,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0059968,6566,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0041116,6591,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0059945,6593,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0081215,6623,0,,smith6jt,2026-10-23,sequential PhenoCycler section has no same-block pLN (notes line); recorded from the maintainer's message
+0041035,6579,2,pLN 2;pLN 3,smith6jt,2026-10-23,the PhenoCycler slide's 2 same-block pLN are the Xenium regions pLN 2 and pLN 3 at the top of the slide; recorded from the maintainer's message
+0037637,6457,3,pLN 1;pLN 2,smith6jt,2026-10-23,three same-block pLN (maintainer); the pLN 1 and pLN 2 regions lie in the pancreas section (run sheet: PT03 (Embedded pLN)); recorded from the maintainer's message
+0041323,6512,0,,smith6jt,2026-10-23,Xenium only; pancreas only (maintainer); recorded from the maintainer's message
+0041326,6618,0,,smith6jt,2026-10-23,Xenium only; pancreas only (maintainer); recorded from the maintainer's message
+0080579,6347,1,,smith6jt,2026-10-24,same slide; its same-block pLN (1 by the notes line) is not identified in the Xenium pancreas region; recorded from the maintainer's message
+0080502,6580,1,,smith6jt,2026-10-24,same slide; its same-block pLN (1 by the notes line) is not identified in the Xenium pancreas region; recorded from the maintainer's message
+0081366,0112,0,,smith6jt,2026-10-24,same slide; the maintainer ruled the same-slide PhenoCycler annotations correct, and they put no pLN in this pancreas region; recorded from the maintainer's message
+0080870,6533,0,,smith6jt,2026-10-24,same slide; the maintainer ruled the same-slide PhenoCycler annotations correct, and they put no pLN in this pancreas region; recorded from the maintainer's message
+0041396,0112,0,,smith6jt,2026-10-24,lobular pancreas throughout; recorded from the maintainer's message
+0041139,6580,0,,smith6jt,2026-10-24,lobular pancreas throughout; its pLN is a separate region; recorded from the maintainer's message
+0041140,6347,3,,smith6jt,2026-10-24,three rounded encapsulated bodies at the bottom-left of the pancreas region (one node in pieces or several); the region was typed Panc_pLN at the instrument; recorded from the maintainer's message
+0041393,6533,1,,smith6jt,2026-10-24,an encapsulated nodular structure at the top-left of the pancreas region; the request sheet says block PB03 has LN; recorded from the maintainer's message

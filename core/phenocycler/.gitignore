@@ -37,3 +37,6 @@
 # 18 of 19 slides carry explicit pLN_* outlines; 6380 carries one Tissue annotation and no
 # pLN_* region at all, and only the maintainer can say that the one Tissue IS the node there.
 !/data/integration/pln_node_annotations.csv
+# Likewise hand-recorded: what pLN/lymphoid each Xenium slide's pancreas area includes, seen on
+# its overview scan -- the only authority for it (maintainer, 2026-10-23).
+!/data/integration/xenium_lymphoid_inspection.csv

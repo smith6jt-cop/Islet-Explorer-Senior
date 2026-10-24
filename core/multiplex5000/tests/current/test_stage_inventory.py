@@ -57,6 +57,7 @@ def test_the_inventory_lists_every_acquisition_by_its_recorded_name(synthetic_pr
     assert {"same_section", "serial_section", "different_block", "shared_slide"} <= kinds
     assert all(c["passed"] for c in checks.values() if c["blocking"])
     assert (folder / "gate" / "coverage.png").stat().st_size > 1000
+    assert (folder / "gate" / "xenium_slides.png").stat().st_size > 1000
 
 
 DESIGNATED = ("6374: pancTail and 1 pLN same-block; bulk T and B cell aggregates kept in Tissue, "
@@ -98,10 +99,11 @@ def _cell(text="", kind=None, damaged=False, missing=False):
 
 def test_a_coverage_cell_says_what_it_holds_never_a_count_and_marks_only_its_damage():
     text = STAGE._cell_text
-    assert text(_cell("3", STAGE.OTHER_BLOCK), STAGE.DIFFERENT_BLOCK, "section") == "3 pLN"
+    assert text(_cell("3", STAGE.LYMPH_NODE), STAGE.DIFFERENT_BLOCK, "section") == "3 pLN"
+    assert text(_cell("2", STAGE.LYMPH_NODE), STAGE.PLN_SECTION, "section") == "2 pLN"
     assert text(None, STAGE.SAME_BLOCK, "section") == ""                    # the line does not say
-    assert text(_cell("", STAGE.PANCREAS_BLOCK, damaged=True), "pancreas", "section") == (
-        "pancreas block (damaged)")
+    assert text(_cell("", STAGE.PANCREAS, damaged=True), "pancreas", "section") == (
+        "pancreas (damaged)")
     assert text(_cell("5kOnly\n2026-09-10 with 0112", STAGE.XENIUM), STAGE.XENIUM,
                 "acquisition") == "5kOnly; 2026-09-10 with 0112"
     assert text(_cell(STAGE.NOT_LISTED, missing=True), STAGE.XENIUM, "acquisition") == STAGE.NOT_LISTED
@@ -116,16 +118,21 @@ def test_the_receipt_binds_every_source_it_read(synthetic_project):
     tables = {"cohort_spec", "qupath_manifest", "xenium_paths", "section_modes", "donor_notes",
               "pln_blocks", "pln_node_annotations", "restain_sections",
               "restain_registration_inputs", "donor_notes_copy", "xenium_records_manifest",
-              "tissue_condition", "donor_metadata", "npod_cases"}
+              "tissue_condition", "xenium_lymphoid_inspection", "donor_metadata", "npod_cases"}
     qptiffs = {"qptiff:6374.qptiff", "qptiff:0112.qptiff", "qptiff:6374pLN_Scan1.qptiff"}
     outputs = ("output-XETG00298__0041000__Pan__20240101__000000",
                "output-XETG00298__0041001__Pancreas__20240101__000000",
                "output-XETG00298__0041001__pLN__20240101__000000")
     records = {f"xenium:{o}:{f}" for o in outputs for f in STAGE.XENIUM_RECORDS}
     overviews = {"overview:0041000", "overview:0041001"}       # one per Xenium slide
-    assert set(inputs) == tables | qptiffs | records | overviews
-    assert all(inputs[n].get("sha256") for n in tables | records | overviews), (
-        "tables, records and overview scans are hashed")
+    fovs = {f"fovs:{o}" for o in outputs}                      # one per region output
+    annotations = {"annotations:6374_Scan1 - resolution #1",  # one per QuPath pancreas image
+                   "annotations:HDL112_Scan3 - resolution #1"}
+    assert set(inputs) == tables | qptiffs | records | overviews | fovs | annotations
+    assert all(inputs[n].get("sha256") for n in tables | records | overviews | fovs | annotations), (
+        "tables, records, overview scans, field-of-view locations and annotations are hashed")
+    assert inputs["annotations:6374_Scan1 - resolution #1"]["path"].endswith(
+        "6374_Scan1_-_resolution_1.geojson"), "the file name QuPath's export gives the image"
     # a qptiff is bound by size and time, with the digest the QuPath manifest records for it
     assert all(inputs[n]["bytes"] and not inputs[n].get("sha256") for n in qptiffs)
     assert inputs["qptiff:6374.qptiff"]["recorded_sha256"] == "0" * 64
@@ -140,7 +147,8 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     pancreas = acquisitions["phenocycler:6374_Scan1 - resolution #1"]
     assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == (
         "2+ CD38", "2026-01-02", "Slide1")
-    assert pancreas["run_partners"] == "0112 pancreas (Slide2)"
+    # a PhenoCycler experiment's slide position is no slide number; 0112's slide is Xenium 0041001
+    assert pancreas["run_partners"] == "0112 pancreas (slide 0041001)"
     assert pancreas["markers_match_manifest_panel"] == "True"
     pln = acquisitions["phenocycler:6374pLN_Scan1.qptiff"]
     assert (pln["panel"], pln["run_partners"]) == ("2 markers", "run alone")
@@ -150,7 +158,7 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
                                                                     "2024-01-01")
     assert xenium["local_copy"] == "partial" and xenium["records_read_from"].startswith("copy of hpg:")
     assert acquisitions["xenium:0041000:Pan"]["run_partners"] == (
-        "0112 pancreas + pLN [pancreas damaged before Xenium]")
+        "0112 pancreas + pLN [pancreas damaged before Xenium] (slide 0041001)")
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
     assert set(runs) == {"phenocycler:Synthetic_Pancreas:2026-01-02",
                          "phenocycler:Synthetic_pLN:2026-01-09", "xenium:R1_synthetic"}
@@ -170,9 +178,9 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     assert [coverage["6374"][_at(group, slide)] for group in (STAGE.PC_SLIDE, STAGE.XENIUM_SLIDE,
                                                                  STAGE.PLN_SLIDE)] == [
         "6374", "0041000", "6374pLN"]
-    assert coverage["0112"][_at(STAGE.PC_SLIDE, slide)] == "0112; 0041001"
+    assert coverage["0112"][_at(STAGE.PC_SLIDE, slide)] == "0041001"
     assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides_run_together"] == (
-        "6374 pancreas (Slide1, slide 6374) | 0112 pancreas (Slide2, slide 0112)")
+        "6374 pancreas | 0112 pancreas (slide 0041001)")
     assert runs["xenium:R1_synthetic"]["slide_numbers"] == "0041000; 0041001"
     # a dataset is an acquisition, never a section: 0112's one Xenium run covers its pancreas and
     # its pLN, on the slide its PhenoCycler scan is of
@@ -305,7 +313,7 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     pancreas, pln = (_at(STAGE.PC_SLIDE, c) for c in ("pancreas", STAGE.DIFFERENT_BLOCK))
     # the damaged Xenium ran on 0112's PhenoCycler slide: the mark is on that slide's pancreas
-    assert coverage["0112"][pancreas] == "pancreas block (damaged)"
+    assert coverage["0112"][pancreas] == "pancreas (damaged)"
     assert coverage["0112"][pln] == "1 pLN", "only the damaged tissue's section is marked"
     assert "damaged" not in coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.XENIUM)]
     runs = {r["run"]: r for r in _rows(folder / "runs.csv")}
@@ -317,7 +325,7 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     _, folder, _ = _run(synthetic_project(release="r2", tissue_condition__csv=header + (
         "xenium:0041001:Pancreas,112,pancreas; pLN,damaged,before Xenium,x,t,2026-01-01\n")))
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert (coverage["0112"][pancreas], coverage["0112"][pln]) == ("pancreas block (damaged)",
+    assert (coverage["0112"][pancreas], coverage["0112"][pln]) == ("pancreas (damaged)",
                                                                    "1 pLN (damaged)")
     _, _, checks = _run(synthetic_project(release="r3", tissue_condition__csv=header + (
         "xenium:9999999:Panc,7000,pancreas,damaged,before Xenium,x,t,2026-01-01\n"
@@ -327,40 +335,87 @@ def test_recorded_damage_is_marked_and_a_row_naming_no_acquisition_blocks(synthe
     assert check["value"][1].startswith("xenium:0041001:pLN (112): unknown tissue 'pancreas and pLN'")
 
 
-def test_a_xenium_pln_sections_block_is_read_from_the_notes_only_for_a_sequential_section(
-        synthetic_project, tmp_path):
-    from conftest import SOURCES, write_xenium_records
+def test_a_xenium_slides_pln_lymphoid_is_read_from_its_inspection_only(synthetic_project,
+                                                                       tmp_path):
+    from conftest import INSPECTION_HEADER, SOURCES, write_fovs, write_xenium_records
 
     output = "output-XETG00298__0041000__pLN__20240101__000000"
+    # the notes give 6374's sequential PhenoCycler slide a same-block pLN; that does not carry
+    # over to its Xenium slide (maintainer, 2026-10-23)
+    notes = ("IO60panc2nd Notes\n6374: pancTail and 1 pLN same-block, sequential Xenium\n"
+             "HDL112: pancTail and 1 pLN different-block, same-slide post-phenocycler Xenium\n")
 
-    def run(line, release):
-        notes = ("IO60panc2nd Notes\n" + line + "HDL112: pancTail and 1 pLN different-block, "
-                 "same-slide post-phenocycler Xenium\n")
+    def run(inspection, release):
         path = synthetic_project(release=release, notes__txt=notes, notes_copy__md=notes,
-                                 pln_blocks__csv=BLOCKS, xenium_paths__csv=(
-                                     SOURCES["xenium_paths.csv"] + f"6374,pln_1,B1,bundles/{output}\n"))
+                                 pln_blocks__csv=BLOCKS, xenium_lymphoid_inspection__csv=inspection,
+                                 xenium_paths__csv=(SOURCES["xenium_paths.csv"]
+                                                    + f"6374,pln_1,B1,bundles/{output}\n"))
         write_xenium_records(tmp_path / "xenium" / "bundles" / output, run="R1_synthetic",
                              start="2024-01-01T10:00:00Z", slide="0041000", region="pLN")
-        return _run(path)
+        write_fovs(tmp_path / "xenium" / "bundles" / output / "aux_outputs"
+                   / "overview_scan_fov_locations.json", (1, 8, 4, 3))
+        _, folder, checks = _run(path)
+        return ({r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")},
+                {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}, checks)
 
-    _, folder, checks = run("6374: pancTail and 1 pLN same-block, sequential Xenium\n", "r1")
-    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
-    # 6374's Xenium slide is a sequential section and its line gives a same-block pLN; 0112's
-    # Xenium is not a sequential section, so its pLN is from a different block; a dedicated
+    xenium = [_at(STAGE.XENIUM_SLIDE, c) for c in (STAGE.SAME_BLOCK, STAGE.DIFFERENT_BLOCK)]
+    # inspected: nothing lymphoid in the pancreas area, so the pLN region is a section of its own
+    acquisitions, coverage, checks = run(SOURCES["xenium_lymphoid_inspection.csv"], "r1")
+    assert acquisitions["xenium:0041000:pLN"]["block"] == STAGE.OTHER_BLOCK
+    assert acquisitions["xenium:0041000:Pan"]["lymphoid_in_pancreas"] == "0"
+    assert [coverage["6374"][c] for c in xenium] == ["", "1 pLN"]
+    # 0112's Xenium ran on its PhenoCycler slide, whose sections the notes give; a dedicated
     # PhenoCycler pLN slide is from a pLN block
-    assert acquisitions["xenium:0041000:pLN"]["block"] == STAGE.PANCREAS_BLOCK
     assert acquisitions["xenium:0041001:pLN"]["block"] == STAGE.OTHER_BLOCK
     assert acquisitions["phenocycler:6374pLN_Scan1.qptiff"]["block"] == STAGE.OTHER_BLOCK
-    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
-    assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, "pLN 1")] == STAGE.PANCREAS_BLOCK
-    # the Xenium slide's two regions are one run of one slide: one dataset, as before
+    assert coverage["6374"][_at(STAGE.PLN_SLIDE, STAGE.PLN_SECTION)] == "1 pLN", (
+        "pln_node_annotations.csv records 1 node on 6374's pLN slide")
+    # the Xenium slide's two regions are one run of one slide: one dataset
     assert (coverage["6374"][STAGE.DATASETS], coverage["6374"][STAGE.SLIDES]) == ("4", "3")
     assert all(c["passed"] for c in checks.values() if c["blocking"])
+    assert checks["pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"] == [
+        "0041001 (0112): 0 in the pancreas area (t 2026-01-01)",
+        "0041000 (6374): 0 in the pancreas area (t 2026-01-01)"]
 
-    _, _, checks = run("6374: pancTail and 1 pLN same-block and 1 pLN different-block, "
-                       "sequential Xenium\n", "r2")
-    check = checks["every Xenium pLN section's block is settled by the donor notes"]
-    assert not check["passed"] and check["value"] == ["xenium:0041000:pLN (6374)"]
+    # inspected: two lymphoid areas in the pancreas area, the pLN region one of them
+    acquisitions, coverage, checks = run(
+        INSPECTION_HEADER + "0041000,6374,2,pLN 1,t,2026-01-02,embedded node\n"
+        "0041001,112,0,,t,2026-01-02,\n", "r2")
+    assert acquisitions["xenium:0041000:pLN"]["block"] == STAGE.PANCREAS_BLOCK
+    assert [coverage["6374"][c] for c in xenium] == ["2 pLN", ""]
+    assert checks["pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"] == [
+        "0041001 (0112): 0 in the pancreas area (t 2026-01-02)",
+        "0041000 (6374): 2 in the pancreas area, pLN 1 part of that section (t 2026-01-02)"]
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
+
+
+def test_a_xenium_slide_not_inspected_blocks_and_says_so(synthetic_project):
+    from conftest import INSPECTION_HEADER
+
+    _, folder, checks = _run(synthetic_project(xenium_lymphoid_inspection__csv=INSPECTION_HEADER))
+    check = checks["every Xenium slide's pancreas area has been inspected for pLN/lymphoid"]
+    # every Xenium slide is asked, 0112's same-slide 0041001 too (maintainer, 2026-10-24)
+    assert not check["passed"] and check["blocking"] and check["value"] == [
+        "0041000 (6374)", "0041001 (0112)"]
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    assert coverage["6374"][_at(STAGE.XENIUM_SLIDE, STAGE.SAME_BLOCK)] == STAGE.NOT_INSPECTED
+    assert (folder / "gate" / "xenium_slides.png").stat().st_size > 1000
+
+
+@pytest.mark.parametrize("row, problem", [
+    ("0049999,7000,0,,t,2026-01-01,", "slide 0049999: no Xenium slide has that serial"),
+    ("0041000,6374,some,,t,2026-01-01,", "slide 0041000: 'some' is not a count"),
+    ("0041000,6374,1,pLN9,t,2026-01-01,", "slide 0041000: pLN9 is not one of its pLN regions"),
+    ("0041000,6374,1,,,,", "slide 0041000: names no inspector and date"),
+])
+def test_an_inspection_row_that_cannot_be_applied_blocks(synthetic_project, row, problem):
+    from conftest import INSPECTION_HEADER
+
+    _, _, checks = _run(synthetic_project(
+        xenium_lymphoid_inspection__csv=INSPECTION_HEADER + row + "\n"))
+    check = checks["every inspection row names a Xenium slide, its own pLN regions, a count and "
+                   "who inspected it"]
+    assert not check["passed"] and check["blocking"] and check["value"] == [problem]
 
 
 def test_a_xenium_run_on_a_phenocycler_slide_with_no_output_listed_is_shown_and_reported(
@@ -401,8 +456,8 @@ def test_every_post_xenium_if_image_carries_the_one_declared_panel(synthetic_pro
         assert "SST" in acquisition["panel_error"] and check["value"][0].startswith("if:if_6374")
 
 
-def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthetic_project,
-                                                                         tmp_path):
+def test_a_cassette_name_that_names_another_donor_blocks_until_its_error_is_known(
+        synthetic_project, tmp_path, monkeypatch):
     from conftest import write_xenium_records
 
     path = synthetic_project()
@@ -416,12 +471,18 @@ def test_a_cassette_name_that_does_not_carry_the_listed_donor_is_reported(synthe
     _, folder, checks = _run(path)
     acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
     assert acquisitions["xenium:0041000:Pan"]["cassette_name"] == "nPOD6374"
-    check = checks["Xenium cassette names that do not carry the listed donor"]
+    name = "every Xenium cassette name carries the listed donor, or its error is known"
     # nPOD6374 carries 6374; nPOD6553 does not carry 112, the donor the list gives that slide
-    assert check["value"] == [
+    assert not checks[name]["passed"] and checks[name]["blocking"]
+    assert checks[name]["value"] == [
         "output-XETG00298__0041001__Pancreas__20240101__000000: cassette nPOD6553, listed as "
         "donor 112"]
-    assert not check["blocking"]
+    monkeypatch.setitem(STAGE.KNOWN_LABEL_ERRORS, "0041001", "typed in error")
+    tasks.run_stage(STAGE, P.load(path), force=True)
+    checks = {c["name"]: c for c in gates.load(folder)["checks"]}
+    assert checks[name]["passed"]
+    assert checks["labels that name another donor, with their known reason"]["value"] == [
+        "slide 0041001: cassette nPOD6553, listed as donor 112 (typed in error)"]
 
 
 @pytest.mark.parametrize("run, batch", [
@@ -452,7 +513,9 @@ def test_a_xenium_only_donor_has_its_own_rows_status_and_batch(synthetic_project
     output = "output-XETG00298__0049999__Region_1__20260416__180001"
     path = synthetic_project(
         npod=[*NPOD_ROWS, {"case_id": "7000", "donor_type": "Autoantibody Positive"}],
-        xenium_paths__csv=SOURCES["xenium_paths.csv"] + f"7000,panc,XeniumOnly,bundles/{output}\n")
+        xenium_paths__csv=SOURCES["xenium_paths.csv"] + f"7000,panc,XeniumOnly,bundles/{output}\n",
+        xenium_lymphoid_inspection__csv=(SOURCES["xenium_lymphoid_inspection.csv"]
+                                         + "0049999,7000,0,,t,2026-01-01,\n"))
     write_xenium_records(tmp_path / "xenium" / "bundles" / output, run="MM48_batch14",
                          start="2026-04-16T17:59:37Z", slide="0049999", region="Region_1",
                          design="Y9QRJ6", cassette="7000")
@@ -471,8 +534,8 @@ def test_a_xenium_only_donor_has_its_own_rows_status_and_batch(synthetic_project
     assert all(c["passed"] for c in checks.values() if c["blocking"])
 
 
-def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(synthetic_project,
-                                                                           tmp_path):
+def test_a_phenocycler_slide_label_that_names_another_donor_blocks_until_its_error_is_known(
+        synthetic_project, tmp_path, monkeypatch):
     import datetime
 
     from conftest import PANCREAS_MARKERS, write_qptiff
@@ -482,12 +545,16 @@ def test_a_phenocycler_slide_label_that_does_not_carry_its_donor_is_reported(syn
                  experiment="Synthetic_Pancreas", position="Slide1",
                  experiment_date="2025-12-01T09:00:00Z",
                  scanned=datetime.datetime(2026, 1, 2, 14, 0), markers=PANCREAS_MARKERS)
-    _, _, checks = _run(path)
-    check = checks["PhenoCycler slide labels that do not carry the listed donor"]
-    assert check["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
-    assert not check["blocking"]
-
-
+    _, folder, checks = _run(path)
+    name = "every PhenoCycler slide label carries the listed donor, or its error is known"
+    assert not checks[name]["passed"] and checks[name]["blocking"]
+    assert checks[name]["value"] == ["6374.qptiff: SlideID 6623panc, listed as donor 6374"]
+    monkeypatch.setitem(STAGE.KNOWN_LABEL_ERRORS, "6374.qptiff", "entered in error")
+    tasks.run_stage(STAGE, P.load(path), force=True)
+    checks = {c["name"]: c for c in gates.load(folder)["checks"]}
+    assert checks[name]["passed"]
+    assert checks["labels that name another donor, with their known reason"]["value"] == [
+        "6374.qptiff: SlideID 6623panc, listed as donor 6374 (entered in error)"]
 
 
 def test_each_slide_shows_a_thumbnail_from_its_own_image(synthetic_project):
@@ -536,3 +603,104 @@ def test_an_exclusion_takes_out_only_the_platform_it_covers(synthetic_project, m
         _at(STAGE.PLN_SLIDE, STAGE.PHENOCYCLER): 0, "all": 4}
     assert "6374 (2)" in datasets["detail"]
 
+
+def test_a_same_slide_xenium_overview_is_turned_the_way_the_phenocycler_image_is():
+    import numpy as np
+
+    reference = np.zeros((40, 20, 3), np.uint8)
+    reference[2:12, 2:8] = 200            # a small piece at the top left
+    reference[16:38, 4:18] = 200          # the large section below it
+    turned = reference[::-1, ::-1].copy()
+    assert np.array_equal(STAGE._oriented_like(reference, turned), reference)
+    assert np.array_equal(STAGE._oriented_like(reference, reference), reference)
+
+
+def test_the_phenocycler_scan_is_read_at_its_smallest_level_tall_enough_to_inspect(tmp_path):
+    import numpy as np
+    import tifffile
+
+    path = tmp_path / "scan.qptiff"
+    reduced = "<PerkinElmer-QPI-ImageDescription><ImageType>ReducedResolution</ImageType>"
+    tifffile.imwrite(path, np.zeros((2000, 10), np.uint8))
+    for height, value in ((1000, 7), (500, 9)):        # each level's first page, then a second
+        for channel in range(2):
+            tifffile.imwrite(path, np.full((height, 5), value + channel, np.uint8), append=True,
+                             description=reduced + "</PerkinElmer-QPI-ImageDescription>")
+    image, full = STAGE._phenocycler_image(path)
+    # 1000 rows is the smallest level at least INSPECTION_PIXELS (900) tall; its first page
+    assert image.shape == (1000, 5) and full == (2000, 10)
+
+
+def test_annotation_outlines_are_read_by_tissue(tmp_path):
+    from conftest import write_annotations
+
+    square = [[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]]]
+    path = write_annotations(tmp_path / "a.geojson", ("Tissue", square), ("pLN", square),
+                             ("Other", square))
+    rings = STAGE._annotation_rings(path, "pancreas")
+    # Tissue is the image's own tissue, pLN the tissue profiles' lymph node, Other not drawn
+    assert [t for t, _ in rings] == ["pancreas", "pancreatic_lymph_node"]
+    assert rings[0][1].shape == (5, 2)
+    assert STAGE._export_tag("6374_Scan1.er.qptiff - resolution #1") == (
+        "6374_Scan1.er.qptiff_-_resolution_1")
+
+
+@pytest.mark.parametrize("donor, scans, sequential, said", [
+    ("0112", [{"qptiff": "0112.qptiff"}], False,
+     "no PhenoCycler section\nrecorded as sequential\nto this slide"),
+    ("7000", [], True, "no PhenoCycler slide"),
+    ("6457", [], True, "PhenoCycler data excluded"),
+])
+def test_a_phenocycler_slide_is_paired_only_as_a_recorded_sequential_section(donor, scans,
+                                                                           sequential, said):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    # a same-slide donor's PhenoCycler slide is the one Xenium ran on after it, not a section
+    # next to its Xenium slide of its own (maintainer, 2026-10-23: "some of them look very
+    # different e.g. 6347")
+    STAGE._draw_phenocycler(None, ax, donor, scans, sequential)
+    assert [t.get_text() for t in ax.texts] == [said]
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("acquisition, label", [
+    ({"tissue": "pancreas", "roi": "panc"}, "pancreas"),
+    ({"tissue": "pancreatic_lymph_node", "roi": "pln_1"}, "pLN 1"),
+    ({"tissue": "pancreatic_lymph_node", "roi": "pln_3"}, "pLN 3"),
+])
+def test_a_xenium_region_is_labelled_by_its_tissue_not_its_typed_name(acquisition, label):
+    # run MM044 typed PanT for its pLN regions; the label says what xenium_paths.csv says
+    assert STAGE._region_label({**acquisition, "acquisition_id": "xenium:0059907:PanT"}) == label
+
+
+def test_a_same_slide_xenium_is_turned_only_when_that_matches_its_phenocycler_image():
+    import numpy as np
+
+    reference = np.zeros((60, 40), np.uint8)
+    reference[5:50, 5:15] = 255          # an L of tissue on a dark slide
+    reference[40:50, 5:35] = 255
+    assert STAGE._turned(reference, reference[::-1, ::-1].copy())
+    assert not STAGE._turned(reference, reference.copy())
+
+
+def test_a_same_slide_xenium_is_inspected_and_keeps_the_notes_sections(synthetic_project):
+    from conftest import INSPECTION_HEADER
+
+    # 6347 and 6580: the same-block pLN/lymphoid "are not identified in the pancreas same-slide
+    # xenium region" (maintainer, 2026-10-24)
+    _, folder, checks = _run(synthetic_project(xenium_lymphoid_inspection__csv=(
+        INSPECTION_HEADER + "0041000,6374,0,,t,2026-01-01,\n0041001,112,1,,t,2026-01-01,\n")))
+    acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
+    assert acquisitions["xenium:0041001:Pancreas"]["lymphoid_in_pancreas"] == "1"
+    assert acquisitions["xenium:0041001:pLN"]["block"] == STAGE.OTHER_BLOCK
+    coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
+    # the PhenoCycler slide's sections are still the notes': 1 different-block pLN, no same-block
+    assert (coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.SAME_BLOCK)],
+            coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.DIFFERENT_BLOCK)]) == ("", "1 pLN")
+    assert "0041001 (0112): 1 in the pancreas area (t 2026-01-01)" in checks[
+        "pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"]
+    assert all(c["passed"] for c in checks.values() if c["blocking"])
