@@ -80,8 +80,9 @@ NAMES = {"xenium_paths.csv": "xenium_paths", "section_modes.csv": "section_modes
 METADATA_ROWS = [{"donor_id": "6374", "disease.status": "T1D"}, {"donor_id": "112", "disease.status": "ND"}]
 NPOD_ROWS = [{"case_id": "6374", "donor_type": "Type 1 Diabetes"}]
 
-#: The synthetic panels: "2+ CD38" (CD3e and CD38, DAPI not counted) and the pLN slides'
-#: "2 markers".
+#: The synthetic panels, named against a synthetic reference per tissue: "2 +CD38" (CD3e and
+#: CD38, DAPI not counted, against a pancreas reference of CD3e) and the pLN slides' "2 markers".
+SYNTHETIC_REFERENCE = {"pancreas": ["CD3e"], "pancreatic_lymph_node": ["CD3e", "CD20"]}
 PANCREAS_MARKERS = ("DAPI", "CD3e", "CD38")
 PLN_MARKERS = ("DAPI", "CD3e", "CD20")
 
@@ -158,7 +159,23 @@ def write_xenium_records(folder: Path, *, run: str, start: str, slide: str, regi
 
 
 @pytest.fixture
-def synthetic_project(tmp_path):
+def synthetic_project(tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from multiplex5000 import profiles
+
+    real_load_all = profiles.load_all
+
+    def load_all(*args, **kwargs):
+        """The real profiles, the PhenoCycler panels named against the synthetic references."""
+        found = real_load_all(*args, **kwargs)
+        key = ("platform", "phenocycler")
+        found[key] = replace(found[key], panel_names={**found[key].panel_names,
+                                                      "reference": SYNTHETIC_REFERENCE})
+        return found
+
+    monkeypatch.setattr(profiles, "load_all", load_all)
+
     def build(*, release="r1", automatic=(), stages=("00_inventory",), metadata=METADATA_ROWS,
               npod=NPOD_ROWS, **replace) -> Path:
         source = tmp_path / "sources"

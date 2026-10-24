@@ -146,7 +146,7 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     acquisitions = {r["acquisition_id"]: r for r in _rows(folder / "acquisitions.csv")}
     pancreas = acquisitions["phenocycler:6374_Scan1 - resolution #1"]
     assert (pancreas["panel"], pancreas["run_date"], pancreas["run_position"]) == (
-        "2+ CD38", "2026-01-02", "Slide1")
+        "2 +CD38", "2026-01-02", "Slide1")
     # a PhenoCycler experiment's slide position is no slide number; 0112's slide is Xenium 0041001
     assert pancreas["run_partners"] == "0112 pancreas (slide 0041001)"
     assert pancreas["markers_match_manifest_panel"] == "True"
@@ -165,7 +165,7 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
     assert runs["phenocycler:Synthetic_Pancreas:2026-01-02"]["slides"] == "2"
     coverage = {r["donor_id"]: r for r in _rows(folder / "coverage.csv")}
     assert "donor notes" not in coverage["6374"]
-    assert coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.PHENOCYCLER)] == "2+ CD38; 2026-01-02 with 6374"
+    assert coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.PHENOCYCLER)] == "2 +CD38; 2026-01-02 with 6374"
     # 0112's Xenium ran on its PhenoCycler slide (section_modes.csv); 6374's on a slide of its own
     assert coverage["0112"][_at(STAGE.PC_SLIDE, STAGE.XENIUM)] == "5k+100(6KTRAF); 2024-01-01 with 6374"
     assert not coverage["0112"][_at(STAGE.XENIUM_SLIDE, STAGE.XENIUM)]
@@ -194,7 +194,7 @@ def test_panels_runs_and_partners_come_from_the_instrument_records(synthetic_pro
                    for v in r.values()), "nothing is left to a question mark or a footnote star"
     assert checks["PhenoCycler slides run alone"]["value"] == ["6374 pLN, 2026-01-09"]
     assert checks["panels, as recorded and named"]["value"] == {
-        "phenocycler": {"2 markers": 1, "2+ CD38": 2}, "xenium": {"5k+100(6KTRAF)": 3},
+        "phenocycler": {"2 markers": 1, "2 +CD38": 2}, "xenium": {"5k+100(6KTRAF)": 3},
         "if": {"INS, GCG, failed marker, AF": 1}}
     assert all(c["passed"] for c in checks.values() if c["blocking"])
     assert (folder / "gate" / "runs.png").stat().st_size > 1000
@@ -704,3 +704,10 @@ def test_a_same_slide_xenium_is_inspected_and_keeps_the_notes_sections(synthetic
     assert "0041001 (0112): 1 in the pancreas area (t 2026-01-01)" in checks[
         "pLN/lymphoid seen in each Xenium slide's pancreas area"]["value"]
     assert all(c["passed"] for c in checks.values() if c["blocking"])
+
+
+def test_a_long_phenocycler_panel_is_broken_between_its_signed_markers():
+    assert STAGE._panel_lines("58 +CD38") == ["58 +CD38"]
+    assert STAGE._panel_lines(
+        "69MetSI +b-Catenin1 +CD141 +CD21 +CD38 +Histone H3 (p Ser28) -IAPP -Ker8-18") == [
+        "69MetSI", "+b-Catenin1 +CD141", "+CD21 +CD38", "+Histone H3 (p Ser28)", "-IAPP -Ker8-18"]
