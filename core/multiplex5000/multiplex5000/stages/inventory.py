@@ -1069,7 +1069,9 @@ def _cell_text(cell: dict | None, column: str, kind: str) -> str:
     if kind == "slide":
         return cell["text"].replace("\n", "; ")
     if kind == "acquisition":       # an IF panel's channels wrap; a panel and its run are two parts
-        text = cell["text"].replace("\n", ", " if column == POST_XENIUM_IF else "; ")
+        # a PhenoCycler panel broken between its signed markers is one name again
+        text = re.sub(r"\n(?=[+-])", " ", cell["text"]).replace(
+            "\n", ", " if column == POST_XENIUM_IF else "; ")
     elif column in (SAME_BLOCK, DIFFERENT_BLOCK, PLN_SECTION):
         text = f"{cell['text']} pLN" if cell["text"] else "pLN"
     else:

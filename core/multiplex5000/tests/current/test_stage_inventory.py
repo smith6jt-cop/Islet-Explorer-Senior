@@ -711,3 +711,11 @@ def test_a_long_phenocycler_panel_is_broken_between_its_signed_markers():
     assert STAGE._panel_lines(
         "69MetSI +b-Catenin1 +CD141 +CD21 +CD38 +Histone H3 (p Ser28) -IAPP -Ker8-18") == [
         "69MetSI", "+b-Catenin1 +CD141", "+CD21 +CD38", "+Histone H3 (p Ser28)", "-IAPP -Ker8-18"]
+
+
+def test_a_broken_panel_name_is_one_name_again_in_coverage_csv():
+    name = "69MetSI +b-Catenin1 +CD141 +CD21 +CD38 +Histone H3 (p Ser28) -IAPP -Ker8-18"
+    cell = {"text": "\n".join(STAGE._panel_lines(name) + ["2026-09-25 with 6580"]),
+            "kind": STAGE.PHENOCYCLER, "damaged": False, "missing": False}
+    assert STAGE._cell_text(cell, STAGE.PHENOCYCLER, "acquisition") == (
+        f"{name}; 2026-09-25 with 6580")
