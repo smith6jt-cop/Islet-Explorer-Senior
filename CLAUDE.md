@@ -105,8 +105,9 @@ declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figure
 `mplx5k gate show <stage>`, then `mplx5k gate accept <stage> --by <name>`, refused while a blocking
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
-so. Stage 00 (the source inventory) is the only stage built; the old `phenocycler.pipeline` keeps
-its own stage logic until D4. Its coverage is laid out by physical slide: the PhenoCycler pancreas
+so. Stages 00 (the source inventory) and 03 (protein measurement, D4) are built; the old
+`phenocycler.pipeline` measurement route stays only until stage 03's replay matches the October
+output. Stage 00's coverage is laid out by physical slide: the PhenoCycler pancreas
 slide (its pancreas, the pLN/lymphoid the donor notes put on it -- same-block or different-block,
 checked against `pln_blocks.csv` -- its PhenoCycler scan and, where Xenium ran on that same slide
 after PhenoCycler, that Xenium), the Xenium slide (its regions, its run, the IF scanned after it)
@@ -159,6 +160,20 @@ acquisition and tissue, in the tracked `core/phenocycler/data/integration/tissue
 6450's Xenium pancreas, and 6533's PhenoXeno pancreas and pLN, both damaged before Xenium -- and
 stage 00 marks exactly those sections; what a later stage does with a damaged acquisition is that
 stage's question.
+
+**Stage 03 -- protein measurement (D4, 2026-10-25)** is the October own-compartment chain moved into
+the package (`stages/measurement.py`): the package's own ingest, geometry QC, REDSEA and expression,
+unchanged, on each cohort image the QuPath manifest names (the v3 exports, every per-image file a
+declared input bound by size, time and the manifest's digest). Two changes, made where the
+October chain made them (`analysis/recovered_20261008/.../reprocess_protein_own_compartment_candidate.py`
+`prepare`): each marker is read from the compartment the calibration review ruled
+(`multiplex5000/marker_compartment_ruling.csv`, a byte copy of the v3
+`release_20261003/calibration_review/marker_redsea_ruling.csv`: 33 Membrane, 18 Cytoplasm, 7 Nucleus,
+the rest keep the registry's), and the analysis exclusions recorded on 2026-10-05 (site source
+`analysis_exclusions`; beyond geometry QC's own reasons, the 11,484 reviewed cells) are applied to
+the cells the expression admits -- after REDSEA, so never to its spillover context. A cell with no
+nucleus is never admitted. Normalization (UniFORM) is stage 05's. Its gate shows each marker per
+donor before and after REDSEA in its measured compartment, and each donor's nucleus admission.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
