@@ -187,6 +187,19 @@ def _apply_exclusions(qc, excluded: set):
     return out, hit
 
 
+def _export_ids(cells_path: Path) -> set[str]:
+    """Every cell the QuPath export holds, ingested or not."""
+    import pyarrow.parquet as pq
+
+    return {str(v) for v in pq.read_table(cells_path, columns=["Object ID"]).column(0).to_pylist()}
+
+
+def exclusion_matches(excluded: set, export_ids: set, ingested_ids: set) -> tuple[list, list]:
+    """(recorded exclusions naming no cell of the export -- a blocking error; and those naming a
+    cell the ingest had already dropped, e.g. under its minimum area -- consistent, reported)."""
+    return sorted(excluded - export_ids), sorted((excluded & export_ids) - ingested_ids)
+
+
 def _before(cells_path: Path, image, registry, object_ids):
     """Each marker's value before REDSEA, in the compartment it is measured in: QuPath's own mean
     from the export, by the channel name the image records."""
@@ -254,23 +267,26 @@ def run(task: Task) -> dict:
         scratch.rmdir()
 
     admission, markers, problems, unmatched, reasons = [], [], [], [], Counter()
+    dropped_at_ingest: dict[str, int] = {}
     for image in images:
         d = image.donor_id
         cells = read_single_partition(cfg.cells_dir, d)
         redsea = read_single_partition(cfg.redsea_dir, d)
         qc = read_single_partition(cfg.geometry_qc_dir, d)
-        excluded, table = set(), None
+        excluded = set()
         if f"exclusions:{d}" in task.inputs:
             table = pd.read_parquet(task.input(f"exclusions:{d}"),
                                     columns=["object_id", "analysis_eligible",
                                              "analysis_exclusion_reason"])
             out = table.loc[~table["analysis_eligible"].astype(bool)]
             excluded = set(out["object_id"].astype(str))
-            known = set(cells["object_id"].astype(str))
-            stray = sorted(excluded - known)
+            stray, dropped = exclusion_matches(excluded, _export_ids(task.input(f"cells:{d}")),
+                                               set(cells["object_id"].astype(str)))
             if stray:
                 unmatched.append(f"{d}: {len(stray)} excluded cell(s) the export does not have, "
                                  f"e.g. {stray[0]}")
+            if dropped:
+                dropped_at_ingest[d] = len(dropped)
             reasons.update(f"{r}" for r in out["analysis_exclusion_reason"].fillna("(none)"))
         qc_x, hit = _apply_exclusions(qc, excluded)
         expression, availability = build_selected_expression(
@@ -345,6 +361,7 @@ def run(task: Task) -> dict:
                                      if r["admitted_without_nucleus"]},
         "missing_geometry_policy": cfg.cell_qc_missing_geometry_policy,
         "exclusions_unmatched": unmatched,
+        "exclusions_dropped_at_ingest": dropped_at_ingest,
         "exclusions_by_reason": dict(reasons.most_common()),
         "excluded_by_ruling": {r["donor_id"]: r["excluded_by_ruling"] for r in admission},
         "ruling_problems": ruling_problems(payload, ruling),
@@ -450,6 +467,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                  "nucleus is excluded from every calculation"),
         C("every recorded exclusion names a cell the export has", summary["exclusions_unmatched"],
           "none", not summary["exclusions_unmatched"]),
+        C("recorded exclusions of cells the ingest had already dropped",
+          summary["exclusions_dropped_at_ingest"], "reported", True, blocking=False,
+          detail="in the export but under the ingest's minimum cell area; not measured either way"),
         C("the compartment ruling names only registry markers and compartments",
           summary["ruling_problems"], "none", not summary["ruling_problems"]),
         C("compartments measured", summary["compartments"], "reported", True, blocking=False,

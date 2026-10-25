@@ -231,3 +231,9 @@ def test_the_stage_refuses_to_run_without_its_exclusions(measurement_project, mo
     measurement_project.write_text(yaml.safe_dump(data, sort_keys=False))
     with pytest.raises(STAGE.MeasurementError, match="analysis_exclusions"):
         _run(measurement_project)
+
+
+def test_an_exclusion_of_a_cell_the_ingest_dropped_is_consistent_not_unknown():
+    # the export has c99 but the ingest dropped it (under its minimum area): not an error
+    stray, dropped = STAGE.exclusion_matches({"c01", "c99", "zz"}, {"c01", "c99"}, {"c01"})
+    assert (stray, dropped) == (["zz"], ["c99"])
