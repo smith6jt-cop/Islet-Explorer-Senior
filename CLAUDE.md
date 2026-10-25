@@ -165,8 +165,8 @@ stage's question.
 the package (`stages/measurement.py`): the package's own ingest, geometry QC, REDSEA and expression,
 unchanged, on each cohort image the QuPath manifest names (the v3 exports, every per-image file a
 declared input bound by size, time and the manifest's digest). Two changes, made where the
-October chain made them (`analysis/recovered_20261008/.../reprocess_protein_own_compartment_candidate.py`
-`prepare`): each marker is read from the compartment the calibration review ruled
+October chain made them (`prepare` in
+`analysis/recovered_20261008/results_v3/islet_immune_reassessment_20261006/scripts/reprocess_protein_own_compartment_candidate.py`): each marker is read from the compartment the calibration review ruled
 (`multiplex5000/marker_compartment_ruling.csv`, a byte copy of the v3
 `release_20261003/calibration_review/marker_redsea_ruling.csv`: 33 Membrane, 18 Cytoplasm, 7 Nucleus,
 the rest keep the registry's), and the analysis exclusions recorded on 2026-10-05 (site source
