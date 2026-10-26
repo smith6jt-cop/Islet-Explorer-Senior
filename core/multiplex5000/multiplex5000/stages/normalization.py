@@ -1,9 +1,8 @@
 """Stage 05: one UniFORM shift for each measured protein marker and section.
 
-The first executable adapter reads Stage 03's same-slide pilot cell tables.
-It fits all PC67 markers across the eight sections, without mixing raw and
-aligned values or choosing marker-positive cutoffs. Other Stage 03 table
-shapes require an explicit adapter before entering this stage.
+Both same-slide and dedicated pLN pilot adapters emit the same Stage 03 cell
+table contract. This stage fits one shared marker basis across selected
+sections, without mixing raw and aligned values or choosing positivity cutoffs.
 """
 
 from __future__ import annotations
@@ -32,7 +31,8 @@ class NormalizationError(ValueError):
 
 
 def _require_pilot(project) -> None:
-    if not project.settings.get("same_slide_source_manifest"):
+    if not (project.settings.get("same_slide_source_manifest")
+            or project.settings.get("pln_export_images")):
         raise NormalizationError("Stage 05 needs an explicit measurement-source adapter")
 
 
@@ -42,6 +42,17 @@ def _checkout(project) -> Path:
 
 
 def _entries(project) -> list[str]:
+    if project.settings.get("pln_export_images"):
+        path = project.release_dir / "03_protein_measurement/sections.csv"
+        if not path.is_file():
+            raise NormalizationError("dedicated pLN Stage 03 sections are not published")
+        with path.open(newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        entries = [row["protein_entry"] for row in rows]
+        if (not entries or len(set(entries)) != len(entries)
+                or len(entries) != len(project.settings["pln_export_images"])):
+            raise NormalizationError("dedicated pLN Stage 03 section roster is ambiguous")
+        return entries
     pairs = load_pairs(_manifest(project))
     selected = project.settings.get("protein_entries")
     if selected is None:
@@ -63,8 +74,9 @@ def inputs(project) -> list[Input]:
     stage = project.release_dir / "03_protein_measurement"
     found = [Input("protein_receipt", stage / "receipt.json"),
              Input("protein_sections", stage / "sections.csv"),
-             Input("protein_acceptance", stage / "gate/accepted.json"),
-             Input("same_slide_source_manifest", _manifest(project))]
+             Input("protein_acceptance", stage / "gate/accepted.json")]
+    if project.settings.get("same_slide_source_manifest"):
+        found.append(Input("same_slide_source_manifest", _manifest(project)))
     for entry in _entries(project):
         found.append(Input(f"protein_cells:{entry}", stage / "cells" / f"{entry}.parquet"))
     package = _checkout(project) / "UniFORM"
@@ -178,7 +190,7 @@ def _figure(task: Task, rows: list[dict], sections: int) -> None:
     ax.axvline(0.10, color="crimson", linestyle="--", label="review bar 0.10")
     ax.set(yticks=y, yticklabels=labels,
            xlabel="Background-mode spread across sections (SD, log intensity)",
-           title=f"UniFORM shifts: {len(labels)} measured markers across {sections} PC67 sections")
+           title=f"UniFORM shifts: {len(labels)} measured markers across {sections} sections")
     ax.invert_yaxis()
     ax.legend(fontsize=8)
     fig.savefig(gates.figure_path(task, "mode_spread.png"), dpi=140)

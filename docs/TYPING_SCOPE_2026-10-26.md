@@ -189,9 +189,21 @@ that section-local candidate step for both pLN and spleen: measured values,
 their Stage 05 shifts, and nucleus admission become tri-state marker calls,
 then the tissue's recorded hierarchy is evaluated. It reports missing marker
 requirements and makes every rule unavailable for a cell without a nucleus.
-The spleen Stage 06 pilot uses this shared function. The pLN Stage 03/05
-adapters and release-wide Stage 06 route remain to be built; this function is
-review evidence and does not publish a final cell class.
+The spleen and dedicated pLN Stage 06 pilots use this shared function. The
+release-wide pancreas and pLN routes still need the canonical Stage 03 signal
+path and all-modality routing; this function is review evidence and does not
+publish a final cell class.
+
+The bounded `pln_protein_pilot` project now runs the two recorded dedicated
+pLN exports 6380 and 6436 through Stage 03 raw QuPath ingest, Stage 05
+UniFORM shifts and Stage 06's selected 69-rule pLN hierarchy. It reads the
+portable v3 export index and each site's exact source root. The Stage 03
+table retains native `Object ID`, section identity, missing measurements and
+nucleus admission; Stage 06 emits per-cell marker and rule states with
+unavailable requirements. A synthetic project exercises all three stages and
+their task receipts and gates. This project is a review-only code pilot: it
+does not replace the approved own-compartment REDSEA path, type Xenium-only
+cells, link same-slide cells, serve final classes or activate a release.
 
 The first executable Stage 06 adapter is a bounded spleen same-slide pilot
 on HDL090. It applies the maintainer-selected 0.10 background-to-bright-end

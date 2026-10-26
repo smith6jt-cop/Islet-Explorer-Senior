@@ -11,6 +11,7 @@
     "pancreas_qptiffs": "/home/smith6jt/IO60panc2nd/Images",
     "pln_qptiffs": "/home/smith6jt/IO60pLN/Images",
     "pln_v3_export_cells": "/home/smith6jt/IO60pLN/results/v3/export/cells",
+    "uniform_checkout": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/external/UniFORM",
     "xenium_records": "/data/xenium_records",
     "analysis_exclusions": "/data/io60-calibration/pancreas_analysis_assignments_single_exclusions_20261005",
     "pancreas_annotations": "/home/smith6jt/IO60panc2nd/results/v3/export/annotations_2026-10-02/manual_annotations",

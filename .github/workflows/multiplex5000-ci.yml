@@ -135,7 +135,7 @@ jobs:
           from pathlib import Path
           from os import environ
           from multiplex5000 import roots, profiles, project
-          from multiplex5000.stages import spleen_typing_pilot
+          from multiplex5000.stages import pln_typing_pilot, spleen_typing_pilot
           from multiplex5000.tasks import code_identity
           from multiplex5000.tissues.lymph_node import load_rule_source as pln_rules
           from multiplex5000.tissues.spleen import load_rule_source as spleen_rules
@@ -143,6 +143,9 @@ jobs:
           assert roots.REPO.is_relative_to(Path('/tmp/mplx5k-installed'))
           assert len(profiles.load_all()) >= 10
           assert project.load('spleen_pilot').stages[-1] == '06_typing'
+          assert project.load('pln_protein_pilot').stages[-1] == '06_typing'
+          assert (roots.REPO / 'core/multiplex5000/sites/pln_qupath_exports_v3.csv').is_file()
+          assert pln_typing_pilot.PANEL.is_file()
           assert spleen_typing_pilot.PANEL.is_file()
           assert len(spleen_typing_pilot.GENE_SHEETS) == 4
           panels = roots.REPO / 'core/panels/data/tissues'
