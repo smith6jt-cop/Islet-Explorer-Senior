@@ -23,6 +23,14 @@ Embedded pLN/lymphoid on a pancreas image must be routed by its recorded
 same-block or different-block ROI designation; it is not another acquisition.
 The PhenoCycler exclusion for 6457 does not exclude its Xenium data.
 
+The current `io60_v3` cohort spec lists only the 25 PhenoCycler image donors;
+it cannot be Stage 04 or Stage 06's sole roster. Stage 00 also records the
+Xenium-only 6512/6618 outputs and the four same-slide runs at their
+HiPerGator `/orange/maigan` source locations. Those complete outputs are not
+on this workstation. Stage 04 must use the accepted acquisition inventory
+and resolve those sources on HiPerGator or from a verified transfer. It must
+not substitute an older serial Xenium section for a same-slide output.
+
 Stage 06 must produce tissue-specific calls, evidence and unavailable reasons
 for both modalities. A same-slide section needs both assay results; the
 cell-to-cell relationship is established only from the recorded section mode
