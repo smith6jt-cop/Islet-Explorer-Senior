@@ -68,11 +68,16 @@ BEFORE_D2 = {
 
 
 @pytest.mark.parametrize("name", sorted(BEFORE_D2))
-def test_the_values_are_the_ones_tissues_py_held_before_d2(name):
+def test_the_original_tissue_values_remain_after_adding_new_profiles(name):
     value = getattr(tissues, name)
-    assert value == BEFORE_D2[name]
-    if isinstance(value, dict):
-        assert list(value) == list(BEFORE_D2[name]), "order matters: for_roi tries prefixes in turn"
+    old = BEFORE_D2[name]
+    if isinstance(old, dict):
+        assert {key: value[key] for key in old} == old
+        assert [key for key in value if key in old] == list(old)
+    elif name == "TISSUES":
+        assert tuple(tissue for tissue in value if tissue in old) == old
+    else:
+        assert value == old
 
 
 def test_only_the_pancreas_carries_tissue_only_panels():
@@ -95,7 +100,7 @@ def test_the_configured_tissues_are_the_cohort_profiles(ini):
 def test_every_spelling_normalize_accepts_is_an_alias_of_its_tissue():
     """The profile's alias list is complete: nothing normalize() accepts is missing from it."""
     accepted = {"pln", "lymph_node", "ln", "pancreatic_ln", "panc_lymph_node", "panc", "pan",
-                "pancreatic", *tissues.TISSUES}
+                "pancreatic", "spl", "splenic", *tissues.TISSUES}
     listed = {a for tid in tissues.TISSUES for a in _tissue(tid).aliases}
     assert accepted == listed
 
