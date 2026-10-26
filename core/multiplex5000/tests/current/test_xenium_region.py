@@ -85,3 +85,12 @@ def test_missing_nucleus_is_distinct_from_zero(tmp_path):
     region = load_region(source)
     assert region.nucleus_missing.tolist() == [True, False]
     assert region.eligible.tolist() == [False, True]
+
+
+def test_explicit_sparse_zero_does_not_count_as_detected_gene(tmp_path):
+    source = _region(tmp_path, "0059865", "panc")
+    with h5py.File(Path(source.source_path) / "cell_feature_matrix.h5", "r+") as file:
+        file["matrix"]["data"][0] = 0
+    region = load_region(source)
+    assert region.counts[0, 0] == 0
+    assert region.counts.getnnz(axis=1).tolist() == [1, 1]

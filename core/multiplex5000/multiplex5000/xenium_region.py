@@ -78,6 +78,9 @@ def load_region(source: XeniumSource) -> XeniumRegion:
         if raw.nnz and (np.any(raw.data < 0) or not np.issubdtype(raw.dtype, np.integer)):
             raise XeniumRegionError(f"{source.acquisition_id}: raw counts are not nonnegative integers")
         counts = raw[:, types == GENE_FEATURE].tocsr()
+        # Some sparse writers retain explicit zero entries. Detected-gene QC
+        # must count positive transcripts, not those storage slots.
+        counts.eliminate_zeros()
 
     table = pq.read_table(folder / "cells.parquet", columns=list(CELL_COLUMNS))
     cells = table.to_pydict()
