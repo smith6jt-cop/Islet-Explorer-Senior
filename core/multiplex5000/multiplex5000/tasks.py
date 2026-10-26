@@ -26,6 +26,7 @@ import fcntl
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -156,7 +157,8 @@ def _undeclared(opened: set, inputs: list[Input], staging: Path) -> list[str]:
     free = _always_readable() + [os.path.realpath(staging)]
     out = []
     for path in sorted({path for kind, path in opened if kind == "read"}):
-        if path in declared or path in written or not os.path.isfile(path):
+        if (path in declared or path in written or not os.path.isfile(path)
+                or _bytecode_of_declared_source(path, declared)):
             continue
         if any(path == root or path.startswith(root.rstrip("/") + "/") for root in free):
             continue
@@ -164,6 +166,27 @@ def _undeclared(opened: set, inputs: list[Input], staging: Path) -> list[str]:
             continue
         out.append(path)
     return out
+
+
+_PYC = re.compile(r"^(.+)\.(?:cpython|pypy)-[0-9]+(?:\.opt-[0-9]+)?\.pyc$")
+
+
+def _bytecode_of_declared_source(path: str, declared: set[str]) -> bool:
+    """An import cache is covered by its declared, versioned Python source.
+
+    Pinned external packages can have interpreter-generated ``__pycache__``
+    files on a shared checkout. Python checks their source timestamp or hash;
+    accepting only the cache of an exact declared ``.py`` keeps the input
+    audit strict without making machine-specific bytecode a source input.
+    """
+    cache = Path(path)
+    if cache.parent.name != "__pycache__":
+        return False
+    match = _PYC.fullmatch(cache.name)
+    if match is None:
+        return False
+    source = cache.parent.parent / f"{match.group(1)}.py"
+    return os.path.realpath(source) in declared
 
 
 def _is_package_metadata(path: str) -> bool:

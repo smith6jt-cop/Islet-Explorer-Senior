@@ -1,0 +1,15 @@
+schema: multiplex5000-project/1
+id: pln_protein_pilot
+release: pln-protein-pilot-candidate-1
+cohort: pln_v3_pilot
+# A bounded code/workflow pilot. It starts with the exact v3 QuPath exports;
+# the broader IO60 source inventory remains the authority for the release.
+stages: [03_protein_measurement, 05_normalization, 06_typing]
+# Stage 06 is the first manual review stop; nothing here activates a release.
+automatic_gates: [03_protein_measurement, 05_normalization]
+settings:
+  # Two recorded dedicated pLN sections exercise cross-section normalization.
+  # This is a pilot selection, not a selected active data generation.
+  pln_export_images:
+    - 6380pLN_Scan1.er.qptiff
+    - 6436pLN_Scan1.er.qptiff

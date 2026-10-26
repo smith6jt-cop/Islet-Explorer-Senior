@@ -109,6 +109,10 @@ def inputs(project) -> list[Input]:
         from . import pilot_protein
 
         return pilot_protein.inputs(project)
+    if project.settings.get("pln_export_images"):
+        from . import pilot_pln_protein
+
+        return pilot_pln_protein.inputs(project)
     from ..artifacts import QuPathCohortManifest
 
     spec_path, manifest_path = _cohort_spec(project), _manifest_path(project)
@@ -148,6 +152,10 @@ def settings(project) -> dict:
         from . import pilot_protein
 
         return pilot_protein.settings(project)
+    if project.settings.get("pln_export_images"):
+        from . import pilot_pln_protein
+
+        return pilot_pln_protein.settings(project)
     from ..config import _ENV_OVERRIDES
 
     parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
@@ -364,6 +372,10 @@ def run(task: Task) -> dict:
         from . import pilot_protein
 
         return pilot_protein.run(task)
+    if task.project.settings.get("pln_export_images"):
+        from . import pilot_pln_protein
+
+        return pilot_pln_protein.run(task)
     import pandas as pd
 
     from ..artifacts import QuPathCohortManifest
@@ -538,6 +550,10 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         from . import pilot_protein
 
         return pilot_protein.gate(task, summary)
+    if task.project.settings.get("pln_export_images"):
+        from . import pilot_pln_protein
+
+        return pilot_pln_protein.gate(task, summary)
     C = gates.Check
     checks = [
         C("every cohort image is in the QuPath manifest", summary["cohort_images_not_in_manifest"],

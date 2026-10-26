@@ -1,0 +1,11 @@
+schema: multiplex5000-profile/1
+kind: cohort
+id: pln_v3_pilot
+platform: phenocycler
+tissues: [pancreatic_lymph_node]
+# The recorded image roster supplies donor, ROI, exclusions and the older
+# segmentation's comparison counts. The portable export index binds v3 files.
+membership: core/phenocycler/data/integration/pln_node_annotations.csv
+exclusions: multiplex5000.cohort.DONOR_EXCLUSIONS
+donor_aliases:
+  HDL115: "115"
