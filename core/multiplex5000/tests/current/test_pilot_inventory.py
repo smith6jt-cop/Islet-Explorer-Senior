@@ -9,14 +9,15 @@ import pyarrow.parquet as pq
 import pytest
 import yaml
 
-from multiplex5000 import project, roots, tasks
+from multiplex5000 import cli, project, roots, tasks
 from multiplex5000.stages import inventory, measurement, pilot_protein
 from multiplex5000.xenium_sources import CELL_FILES, INSTRUMENT_FILES, build_roster
 
 
 def test_spleen_pilot_project_uses_both_workflow_routes_stage_functions():
     pilot = project.load("spleen_pilot")
-    assert pilot.stages == ("00_inventory", "03_protein_measurement", "04_rna_ingest")
+    assert pilot.stages == ("00_inventory", "03_protein_measurement", "04_rna_ingest",
+                            "05_normalization")
     assert "protein_entries" not in pilot.settings
     assert pilot.settings["rna_acquisitions"] == ["xenium:0110618:090"]
 
@@ -85,6 +86,24 @@ def test_stage00_publishes_exact_pairs_and_stage04_resolves_them(tmp_path, monke
     source, = build_roster(stage)
     assert source.status == "ready"
     assert source.source_path == rows[1]["path"]
+
+
+def test_graph_defers_discovered_inputs_until_the_previous_gate_is_accepted(tmp_path,
+                                                                            monkeypatch):
+    monkeypatch.setattr(roots, "tmp_dir", lambda: tmp_path / "stage_tmp")
+    built = _source_project(tmp_path)
+    before_spec = cli.graph_spec(built)
+    before = before_spec["stages"]
+    assert before_spec["target_receipt"] == before[0]["receipt"]
+    assert "protein_export:HDL090_PC67_0110618-S1" in before[0]["inputs"]
+    assert set(before[1]["inputs"]) == {"previous_gate_accepted"}
+    assert set(before[2]["inputs"]) == {"previous_gate_accepted"}
+    tasks.run_stage(inventory, built)
+    after_spec = cli.graph_spec(built)
+    after = after_spec["stages"]
+    assert after_spec["target_receipt"] == after[1]["receipt"]
+    assert "protein_export:HDL090_PC67_0110618-S1" in after[1]["inputs"]
+    assert set(after[2]["inputs"]) == {"previous_gate_accepted"}
 
 
 def test_stage03_preserves_objects_and_excludes_cells_without_a_nucleus(tmp_path, monkeypatch):

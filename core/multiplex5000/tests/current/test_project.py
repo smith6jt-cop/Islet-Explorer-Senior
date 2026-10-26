@@ -46,7 +46,7 @@ def _write(tmp_path, **change) -> Path:
     ({"typo": 1}, "unknown key"),
     ({"cohort": None}, "missing key"),
     ({"release": "R 1"}, "release must be"),
-    ({"stages": ["05_normalization"]}, "built in phase D5"),
+    ({"stages": ["06_typing"]}, "built in phase D6"),
     ({"stages": ["nonsense"]}, "no stage"),
     ({"stages": []}, "at least one"),
     ({"automatic_gates": ["03_protein_measurement"]}, "does not run"),
@@ -67,7 +67,8 @@ def test_a_project_source_wins_over_the_sites(tmp_path, synthetic_project):
 
 
 def test_only_built_stages_can_run_and_the_plan_keeps_its_order():
-    assert stages.built() == ["00_inventory", "03_protein_measurement", "04_rna_ingest"]
+    assert stages.built() == ["00_inventory", "03_protein_measurement", "04_rna_ingest",
+                              "05_normalization"]
     with pytest.raises(stages.StageError, match="phase D6"):
         stages.get("06_typing")
     order = [s for s, _ in stages.PLAN]

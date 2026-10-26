@@ -54,9 +54,14 @@ cell overlap are separate Stage 07/08 work. The SpleenFollicleCounterQP repo
 and its data remain unchanged.
 
 The tracked `projects/spleen_pilot.yaml` takes this source manifest through the
-same Stage 00 function, receipt and gate as other projects. Its Stage 04 selection
-is one representative region (`HDL090`, 1/8), stated in the project file. On
-HiPerGator, set `MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project
-folder, then run `mplx5k stage run 00_inventory --project spleen_pilot`.
-Review its `gate.html` and accept the gate before Stage 04. Neither stage
-declares a cell-type result; Stage 05 and 06 enter this project when built.
+same Stage 00 function, receipt and gate as other projects. Stage 03 reads raw
+QuPath means from all eight PC67 sections, Stage 04 selects one representative
+Xenium region (`HDL090`, 1/8), and Stage 05 fits full-panel UniFORM shifts
+across the eight protein sections. These stages have review notebooks under
+`core/multiplex5000/notebooks/`. Stage 03's pilot adapter does not yet perform
+REDSEA, and neither assay has a cell-type result. On HiPerGator, set
+`MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project folder, and set
+the site `tmp_dir` to a sufficiently large writable `/blue/maigan` folder. Run
+`mplx5k stage run 00_inventory --project spleen_pilot`, review its `gate.html`,
+then accept the gate before progressing. Stage 06 joins when the per-assay
+evidence producers are built.
