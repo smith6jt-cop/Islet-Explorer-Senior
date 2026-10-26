@@ -35,8 +35,13 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-#: The repository root of the checkout this package is installed from (a CODE location).
-REPO = Path(__file__).resolve().parents[3]
+#: The checkout's tracked knowledge is copied into wheels at build time. An editable
+#: checkout keeps reading the tracked originals; a regular install reads that exact
+#: build snapshot. Data acquisitions still come only from the site file.
+_CHECKOUT_REPO = Path(__file__).resolve().parents[3]
+_BUNDLED_REPO = Path(__file__).resolve().parent / "_source"
+REPO = (_CHECKOUT_REPO if (_CHECKOUT_REPO / "core/multiplex5000/projects/io60.yaml").is_file()
+        else _BUNDLED_REPO)
 
 #: Hand-recorded inventories and the generated vocabulary crosswalk -- tracked, so they follow the
 #: checkout.

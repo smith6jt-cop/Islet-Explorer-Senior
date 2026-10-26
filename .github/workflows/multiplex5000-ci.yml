@@ -110,6 +110,47 @@ jobs:
         # exactly like a passing one in the summary line.
         run: pytest -q -rs
 
+  installed-typing:
+    name: Installed tissue typing resources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Build wheel and source archive
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          python -m pip wheel --no-deps dist/*.tar.gz -w /tmp/mplx5k-from-sdist
+      - name: Run installed package away from the checkout
+        run: |
+          python -m venv /tmp/mplx5k-installed
+          /tmp/mplx5k-installed/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/mplx5k-installed/bin/python - <<'PY'
+          from pathlib import Path
+          from multiplex5000 import roots, profiles, project
+          from multiplex5000.stages import spleen_typing_pilot
+          from multiplex5000.tasks import code_identity
+          from multiplex5000.tissues.lymph_node import load_rule_source as pln_rules
+          from multiplex5000.tissues.spleen import load_rule_source as spleen_rules
+
+          assert roots.REPO.is_relative_to(Path('/tmp/mplx5k-installed'))
+          assert len(profiles.load_all()) >= 10
+          assert project.load('spleen_pilot').stages[-1] == '06_typing'
+          assert spleen_typing_pilot.PANEL.is_file()
+          assert len(spleen_typing_pilot.GENE_SHEETS) == 4
+          panels = roots.REPO / 'core/panels/data/tissues'
+          assert len(pln_rules(panels / 'pancreatic_lymph_node/manifest.yml').rules) == 69
+          assert len(spleen_rules(panels / 'spleen/manifest.yml').rules) == 58
+          assert code_identity()['commit'] is not None
+          PY
+          /tmp/mplx5k-installed/bin/mplx5k --help >/dev/null
+
   research:
     name: Research-method tests
     runs-on: ubuntu-latest

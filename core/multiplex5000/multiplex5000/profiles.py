@@ -26,14 +26,16 @@ from typing import Any, Optional
 
 import yaml
 
+from . import roots
+
 #: The one profile format this module reads.
 PROFILE_SCHEMA = "multiplex5000-profile/1"
 
 #: Where the shipped profiles live: ``core/multiplex5000/profiles``.
-PROFILES_DIR = Path(__file__).resolve().parents[1] / "profiles"
+PROFILES_DIR = roots.REPO / "core/multiplex5000/profiles"
 
 #: The repository root, for resolving the paths profiles reference.
-REPO = Path(__file__).resolve().parents[3]
+REPO = roots.REPO
 
 
 class ProfileError(ValueError):
