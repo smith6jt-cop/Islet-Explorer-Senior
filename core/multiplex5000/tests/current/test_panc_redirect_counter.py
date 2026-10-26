@@ -39,6 +39,8 @@ from multiplex5000.tissues import pancreas_rna_naming
 
 REPO = Path(__file__).resolve().parents[4]
 WORKER_PATH = REPO / "analysis/xenium/scripts/panc_xenium_cluster_name.py"
+IMPLEMENTATION_PATH = (REPO / "core/multiplex5000/multiplex5000/tissues"
+                       / "pancreas_xenium_worker.py")
 RELEASE_PATH = REPO / "analysis/xenium/scripts/panc_xenium_release.py"
 
 
@@ -57,6 +59,10 @@ release = _load("panc_release_under_test", RELEASE_PATH)
 def test_release_worker_uses_package_naming_decisions():
     for name in ("naming_policy_panels", "exact_detection_q", "decide", "redirect_counts"):
         assert getattr(worker, name) is getattr(pancreas_rna_naming, name)
+
+
+def test_release_source_receipt_includes_package_worker():
+    assert IMPLEMENTATION_PATH.resolve() in {path for path, _ in release.producer_scripts()}
 
 #: The work directory of the pancreas run.  Overridable so the artifact tests can be pointed at
 #: another run rather than restating a path in a second place.
@@ -180,7 +186,7 @@ def test_an_applied_redirect_that_fails_the_enrichment_gate_ships_no_label():
 # ------------------------------------------------------------------- the fields that ship
 
 def test_the_worker_report_names_each_partition_and_drops_the_ambiguous_name():
-    src = WORKER_PATH.read_text()
+    src = IMPLEMENTATION_PATH.read_text()
     assert '"n_clusters_cd3_negative_nk_redirect"' not in src, (
         "the report key that did not say which partition it counted is back")
     assert "redirect_counts(fdec, fsizes)" in src, (
