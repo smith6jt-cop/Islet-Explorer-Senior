@@ -32,3 +32,23 @@ index against an accepted Stage 00 table. With an index, it never falls back
 to another copy when the selected path is absent. On HiPerGator every row
 must report `ready` before Stage 04 ingests it. Stage 04 remains responsible
 for schema, counts, cell keys, QC, scope and its own receipt and gate.
+
+## Spleen same-slide pilot sources
+
+`spleen_same_slide_20261026.yaml` names eight explicit pairs of a PC67
+PhenoCycler section and the Xenium region run on that same physical section.
+The protein cell export, 99/87 GB source image, and Xenium output have exact
+HiPerGator paths. Crop origins are read from the one SHA256-bound
+`sections_manifest.csv`, rather than copied into another table. The eight
+protein export headers share the recorded SHA256. A read-only check on
+2026-10-26 found all seven required Xenium files and both protein sources for
+every pair, and matched all eight export headers and section-table identities.
+
+`multiplex5000.same_slide_sources.load_pairs(path, require_sources=True)`
+performs that check on the host holding the data. Without `require_sources`,
+it exposes only the recorded paths; its `crop_origin_px` remains unset. The
+manifest records **physical section pairing**, not a matched cell result.
+Stage 00 must admit these acquisitions and their relationship in a spleen
+pilot project before Stage 04/06 can run on them. Registration and measured
+cell overlap are separate Stage 07/08 work. The SpleenFollicleCounterQP repo
+and its data remain unchanged.
