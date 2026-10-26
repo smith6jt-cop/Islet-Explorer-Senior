@@ -18,5 +18,6 @@
   },
   "releases_root": "/data/io60-current/releases",
   "snakemake": "/data/envs/mplx5k-graph/bin/snakemake",
+  "tmp_dir": "/data/tmp/mplx5k",
   "note": "The workstation. data_root is the MAIN checkout's gitignored data/ tree, whichever checkout or worktree the code runs from. Install as ~/.config/multiplex5000/site.json, or name it with $MPLX5K_SITE_FILE."
 }

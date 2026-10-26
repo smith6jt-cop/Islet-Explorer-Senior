@@ -26,9 +26,12 @@ import fcntl
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
+import tempfile
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -253,6 +256,32 @@ def _write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True, default=str) + "\n")
 
 
+@contextmanager
+def _temporary_files(stage_id: str, run_id: str):
+    """While a stage runs, Python's temporary files go to a folder of their own under the site's
+    ``tmp_dir`` -- and DuckDB's overflow with them (``cells_parquet``) -- so a machine whose home
+    disk is small never holds them. Pool workers inherit ``TMPDIR``. The folder is removed when
+    the run ends; with no ``tmp_dir`` they stay where Python puts them."""
+    root = roots.tmp_dir()
+    if root is None:
+        yield None
+        return
+    folder = Path(root) / f"{stage_id}.{run_id}"
+    folder.mkdir(parents=True)
+    before = os.environ.get("TMPDIR")
+    os.environ["TMPDIR"] = str(folder)
+    tempfile.tempdir = None              # gettempdir() reads TMPDIR again
+    try:
+        yield folder
+    finally:
+        if before is None:
+            os.environ.pop("TMPDIR", None)
+        else:
+            os.environ["TMPDIR"] = before
+        tempfile.tempdir = None
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def _publish(staging: Path, destination: Path) -> Optional[Path]:
     """Rename the staging folder into place; a previous output is moved aside, never deleted."""
     release = destination.parent
@@ -295,12 +324,13 @@ def run_stage(stage, project, *, force: bool = False) -> Result:
     try:
         bound = [bind(i) for i in inputs]
         opened: set = set()
-        token = _OPENED.set(opened)
-        try:
-            summary = stage.run(task)
-            gate = stage.gate(task, summary)
-        finally:
-            _OPENED.reset(token)
+        with _temporary_files(stage_id, staging.name.rsplit("-", 1)[-1]):
+            token = _OPENED.set(opened)
+            try:
+                summary = stage.run(task)
+                gate = stage.gate(task, summary)
+            finally:
+                _OPENED.reset(token)
         if not isinstance(summary, dict):
             raise TaskError(f"{stage_id}.run must return a summary dict")
         stray = _undeclared(opened, inputs, staging)
@@ -316,7 +346,8 @@ def run_stage(stage, project, *, force: bool = False) -> Result:
             "release": project.release, "project": str(project.path), "started": started,
             "completed": utc_now(), "inputs": bound, "settings": settings,
             "code": code_identity(),
-            "environment": {"python": platform.python_version(), "platform": platform.platform()},
+            "environment": {"python": platform.python_version(), "platform": platform.platform(),
+                            "tmp_dir": str(roots.tmp_dir()) if roots.tmp_dir() else None},
             "summary": summary, "gate": {"passed": gate.passed, "checks": len(gate.checks)},
             "outputs": _outputs(staging),
         }

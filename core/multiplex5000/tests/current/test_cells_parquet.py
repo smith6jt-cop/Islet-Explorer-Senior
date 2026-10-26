@@ -127,6 +127,17 @@ def test_an_export_without_norm_columns_ingests(tmp_path):
     assert cp.reconcile_qupath_normalized_headers([path]) == {}
 
 
+def test_duckdb_overflow_goes_with_python_s_temporary_files(tmp_path, monkeypatch):
+    """Not DuckDB's default, ``.tmp`` in the working directory: a stage run points Python's
+    temporary files at the site's tmp_dir, and the ingest's overflow follows them."""
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    con = cp._connect()
+    setting = con.execute("SELECT current_setting('temp_directory')").fetchall()[0][0]
+    assert Path(setting) == tmp_path / "duckdb"
+
+
 def test_sanitize_matches_the_redsea_column_convention():
     assert cp.sanitize("E-cadherin") == "E_cadherin"
     assert cp.sanitize("Pan-Cytokeratin") == "Pan_Cytokeratin"

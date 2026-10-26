@@ -101,7 +101,9 @@ Snakemake graph (`mplx5k graph`; Snakemake runs from its own environment,
 notebooks (`core/multiplex5000/notebooks/NN_<stage>.ipynb`). Both call `tasks.run_stage`, so the
 outputs are the same. A stage is complete only when its receipt says so; `--force` replaces a
 published stage and moves the old one aside, never deleting it; a file a stage reads without
-declaring it fails the run. Every stage ends in a gate (`gate/gate.json`, figures, `gate.html`):
+declaring it fails the run. A stage run's temporary files and DuckDB overflow go to a folder of
+their own under the site's `tmp_dir` (the workstation's is on /data, so its home disk never holds
+them), removed when the run ends. Every stage ends in a gate (`gate/gate.json`, figures, `gate.html`):
 `mplx5k gate show <stage>`, then `mplx5k gate accept <stage> --by <name>`, refused while a blocking
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says

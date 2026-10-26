@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from multiplex5000 import gates, tasks
+from multiplex5000 import gates, roots, tasks
 from multiplex5000 import project as P
 
 
@@ -121,6 +121,32 @@ def test_reading_a_file_the_stage_did_not_declare_fails_it(tmp_path):
     with pytest.raises(tasks.TaskError, match="did not declare"):
         tasks.run_stage(_stage("s1", extra_read=secret), project)
     assert not (project.release_dir / "s1").exists()
+
+
+def test_a_stage_s_temporary_files_go_under_the_site_s_tmp_dir_and_are_removed(tmp_path,
+                                                                               monkeypatch):
+    import tempfile
+
+    root = tmp_path / "tmp"
+    monkeypatch.setattr(roots, "tmp_dir", lambda: root)
+    before = os.environ.get("TMPDIR")
+    seen = {}
+
+    def during():
+        seen["folder"] = Path(tempfile.gettempdir())
+        seen["TMPDIR"] = os.environ.get("TMPDIR")
+        with tempfile.NamedTemporaryFile(delete=False) as handle:
+            seen["file"] = Path(handle.name)
+
+    result = tasks.run_stage(_stage("s1", during=during), _project(tmp_path))
+    assert result.status == "published"
+    # a folder of the run's own, under the site's tmp_dir, which pool workers inherit as TMPDIR
+    assert seen["folder"].parent == root and seen["TMPDIR"] == str(seen["folder"])
+    assert seen["file"].parent == seen["folder"]
+    assert not seen["folder"].exists(), "the run's temporary folder is removed when it ends"
+    assert os.environ.get("TMPDIR") == before and tempfile.gettempdir() != str(seen["folder"])
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert receipt["environment"]["tmp_dir"] == str(root)
 
 
 def test_a_file_read_in_a_pool_worker_is_checked_like_the_stage_s_own(tmp_path):

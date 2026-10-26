@@ -303,6 +303,19 @@ def _sql_string(value: object) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def _connect():
+    """A DuckDB connection whose overflow goes with Python's temporary files -- under the site's
+    ``tmp_dir`` while a stage runs (``tasks``) -- rather than to DuckDB's own default, ``.tmp`` in
+    the working directory, which on the workstation is the home disk."""
+    import tempfile
+
+    import duckdb
+
+    con = duckdb.connect()
+    con.execute(f"SET temp_directory={_sql_string(Path(tempfile.gettempdir()) / 'duckdb')}")
+    return con
+
+
 def donor_case_expression(image_to_donor: Mapping[str, str]) -> str:
     """Exact QuPath Image -> donor SQL expression; no filename inference."""
 
@@ -331,9 +344,7 @@ def verify_context_pair(cells: Path | str, context: Path | str) -> dict:
     the two files are not one export. Duplicates are refused too: they multiply rows. Fails
     loudly with both counts and a sample of each difference; returns the counts otherwise.
     """
-    import duckdb
-
-    con = duckdb.connect()
+    con = _connect()
     try:
         c, x = _parquet_literal(cells), _parquet_literal(context)
         n_cells, u_cells = con.execute(
@@ -603,8 +614,6 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
 
     Scans each unique measurement export declared by ``cfg.qupath_manifest``
     once, preserving the panel union while writing only contracted images."""
-    import duckdb
-
     cohort = QuPathCohortManifest.read_json(cfg.qupath_manifest)
     contracted_csvs = {image.measurement_csv.path for image in cohort.images}
     csv_paths = tuple(Path(path) for path in sorted(contracted_csvs))
@@ -652,7 +661,7 @@ def build_cells_parquet(cfg: PipelineConfig, *, limit: int | None = None,
     print(f"[info] files={len(csv_paths)} markers={len(mm)} out={cfg.cells_dir} limit={limit} "
           f"min_cell_area={cfg.cells_min_cell_area} threads={cfg.duckdb_threads}")
     cfg.data_dir.mkdir(parents=True, exist_ok=True)  # PARTITION_BY needs parent to exist
-    con = duckdb.connect()
+    con = _connect()
     con.execute(f"PRAGMA threads={cfg.duckdb_threads}")
     if memory_limit:
         con.execute(f"SET memory_limit='{memory_limit}'")
