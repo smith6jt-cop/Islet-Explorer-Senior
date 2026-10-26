@@ -123,6 +123,24 @@ def test_reading_a_file_the_stage_did_not_declare_fails_it(tmp_path):
     assert not (project.release_dir / "s1").exists()
 
 
+def test_only_bytecode_of_an_exact_declared_python_source_is_audited_as_covered(tmp_path):
+    package = tmp_path / "external" / "UniFORM"
+    cache = package / "__pycache__"
+    cache.mkdir(parents=True)
+    declared = package / "registration.py"
+    declared.write_text("value = 1\n")
+    allowed = cache / "registration.cpython-312.pyc"
+    undeclared = cache / "normalization.cpython-312.pyc"
+    disguised = package / "registration.cpython-312.pyc"
+    for path in (allowed, undeclared, disguised):
+        path.write_bytes(b"bytecode fixture")
+    opened = {("read", str(path)) for path in (allowed, undeclared, disguised)}
+    stray = tasks._undeclared(opened, [tasks.Input("uniform_code", declared)],
+                              tmp_path / "staging")
+    assert str(allowed) not in stray
+    assert set(stray) == {str(undeclared), str(disguised)}
+
+
 def test_a_stage_s_temporary_files_go_under_the_site_s_tmp_dir_and_are_removed(tmp_path,
                                                                                monkeypatch):
     import tempfile
