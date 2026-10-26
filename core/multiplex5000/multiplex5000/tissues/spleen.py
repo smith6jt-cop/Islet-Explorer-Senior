@@ -6,13 +6,72 @@ cell types before normalization, controls and the Stage 06 gate are reviewed.
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import math
 from pathlib import Path
 
 import yaml
 
 from .lymph_node import Rule, RuleSource, RuleSourceError
 from .lymph_node import load_rule_source as load_pln_rule_source
+
+
+def normalized_markers(manifest_path: Path, *, table_path: Path | None = None,
+                       expected_entries: set[str] | None = None) -> frozenset[str]:
+    """Audit the recorded HPG scales; return markers scaled for every PC67 section.
+
+    The 67 measured export columns must not be mistaken for 67 normalized
+    markers. This table currently covers only the 33 classifier channels.
+    ``expected_entries`` may bind the audit to Stage 00's exact paired sections.
+    """
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    if not isinstance(manifest, dict) or manifest.get("tissue_id") != "spleen":
+        raise RuleSourceError("expected the spleen panel manifest")
+    spec = manifest.get("protein_normalization")
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen normalization source is not declared")
+    path = Path(table_path) if table_path is not None else Path(spec["path"])
+    if hashlib.sha256(path.read_bytes()).hexdigest() != spec["sha256"]:
+        raise RuleSourceError("spleen normalization table differs from the recorded source")
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != ["image", "group", "marker", "reference", "scale",
+                                 "shift_log", "provenance", "reagent_changed"]:
+            raise RuleSourceError("unexpected spleen normalization columns")
+        rows = list(reader)
+    if len(rows) != spec["rows"]:
+        raise RuleSourceError("spleen normalization row count changed")
+    entries: dict[str, set[str]] = {}
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        image, marker = row["image"], row["marker"]
+        key = (image, marker)
+        if key in seen or not image or not marker:
+            raise RuleSourceError("repeated or blank spleen image-marker scale")
+        seen.add(key)
+        try:
+            scale = float(row["scale"])
+        except (TypeError, ValueError) as err:
+            raise RuleSourceError(f"{image}/{marker}: invalid UniFORM scale") from err
+        if not math.isfinite(scale) or scale <= 0:
+            raise RuleSourceError(f"{image}/{marker}: invalid UniFORM scale")
+        if "_PC67_" in image:
+            if row["group"] != "PC67":
+                raise RuleSourceError(f"{image}: wrong normalization group")
+            entries.setdefault(image, set()).add(marker)
+    if len(entries) != spec["pc67_entries"]:
+        raise RuleSourceError("spleen normalization does not cover the eight PC67 sections")
+    if expected_entries is not None and set(entries) != expected_entries:
+        raise RuleSourceError("spleen normalization entries differ from Stage 00 pairs")
+    markers = set.intersection(*entries.values())
+    if any(entry != markers for entry in entries.values()):
+        raise RuleSourceError("PC67 sections do not share the same normalized marker set")
+    if len(markers) != spec["markers_per_pc67_entry"]:
+        raise RuleSourceError("PC67 normalized marker count changed")
+    if not markers <= observed_markers(manifest_path):
+        raise RuleSourceError("normalized marker is absent from the PC67 export")
+    return frozenset(markers)
 
 
 def observed_markers(manifest_path: Path) -> frozenset[str]:

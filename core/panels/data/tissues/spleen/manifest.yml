@@ -29,6 +29,16 @@ protein_panel:
   aliases: {PD-L1: PDL1}
   # These exports are raw Cell means. Presence in this panel is not evidence of
   # successful normalization or marker positivity.
+protein_normalization:
+  # This existing HPG scale table was fitted for the 33 classifier channels,
+  # not all 67 markers measured in cells_full. It is comparison evidence for
+  # Stage 05, not authorization to type from unscaled marker values.
+  path: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/tables/uniform_cell_scales.csv
+  sha256: 7927e33b76498a6054303cfde2cff6448ebcbcbde4e8f82e2f86ec808550f61a
+  rows: 495
+  pc67_entries: 8
+  markers_per_pc67_entry: 33
+  role: existing_classifier_scale_comparison
 notes: |
   Same-slide spleen typing needs separate PhenoCycler and Xenium evidence.
   The PC67 marker inventory is read from all eight current protein export headers.
