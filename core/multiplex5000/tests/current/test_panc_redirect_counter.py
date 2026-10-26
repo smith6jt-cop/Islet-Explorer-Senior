@@ -39,6 +39,8 @@ from multiplex5000.tissues import pancreas_rna_naming
 
 REPO = Path(__file__).resolve().parents[4]
 WORKER_PATH = REPO / "analysis/xenium/scripts/panc_xenium_cluster_name.py"
+IMPLEMENTATION_PATH = (REPO / "core/multiplex5000/multiplex5000/tissues"
+                       / "pancreas_xenium_worker.py")
 RELEASE_PATH = REPO / "analysis/xenium/scripts/panc_xenium_release.py"
 
 
@@ -180,7 +182,7 @@ def test_an_applied_redirect_that_fails_the_enrichment_gate_ships_no_label():
 # ------------------------------------------------------------------- the fields that ship
 
 def test_the_worker_report_names_each_partition_and_drops_the_ambiguous_name():
-    src = WORKER_PATH.read_text()
+    src = IMPLEMENTATION_PATH.read_text()
     assert '"n_clusters_cd3_negative_nk_redirect"' not in src, (
         "the report key that did not say which partition it counted is back")
     assert "redirect_counts(fdec, fsizes)" in src, (
