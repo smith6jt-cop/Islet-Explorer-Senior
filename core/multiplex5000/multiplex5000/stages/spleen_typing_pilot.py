@@ -21,8 +21,7 @@ from ..same_slide_sources import load_pairs
 from ..tasks import Input, Task, sha256_file
 from ..tissues.protein_section import evaluate_protein_section
 from ..tissues.spleen import load_rule_source
-from ..xenium_region import load_region
-from ..xenium_sources import XeniumSource
+from ..xenium_typing_input import load_accepted_region
 from .pilot_inventory import _manifest
 
 STAGE = "06_typing"
@@ -73,6 +72,7 @@ def inputs(project) -> list[Input]:
     found = [Input("same_slide_source_manifest", _manifest(project)),
              Input("rna_regions", release / "04_rna_ingest/regions.csv"),
              Input("rna_receipt", release / "04_rna_ingest/receipt.json"),
+             Input("rna_gate_summary", release / "04_rna_ingest/gate/gate.json"),
              Input("rna_gate", release / "04_rna_ingest/gate/accepted.json"),
              Input("protein_receipt", release / "03_protein_measurement/receipt.json"),
              Input("protein_gate", release / "03_protein_measurement/gate/accepted.json"),
@@ -120,25 +120,6 @@ def _scale_rows(task: Task) -> dict[tuple[str, str], float | None]:
     return found
 
 
-def _source(row: dict) -> XeniumSource:
-    return XeniumSource(row["acquisition_id"], row["sample_key"], row["donor_id"],
-                        row["roi"], row["tissue"], Path(row["source_path"]).name,
-                        row["source_path"], row["source_path"], "ready", (),
-                        row["condition"])
-
-
-def _check_rna_source(task: Task, row: dict) -> None:
-    receipt = json.loads(task.input("rna_receipt").read_text())
-    if receipt.get("status") != "complete" or receipt.get("stage") != "04_rna_ingest":
-        raise SpleenTypingPilotError("Stage 04 has no complete RNA receipt")
-    bound = {item["name"]: item["sha256"] for item in receipt["inputs"]}
-    sample = row["sample_key"]
-    for name in ("cell_feature_matrix.h5", "cells.parquet"):
-        path = task.input(f"raw_{'matrix' if name.endswith('.h5') else 'cells'}:{sample}")
-        if bound.get(f"raw:{row['acquisition_id']}:{name}") != sha256_file(path):
-            raise SpleenTypingPilotError(f"{row['acquisition_id']}/{name}: Stage 04 source changed")
-
-
 def run(task: Task) -> dict:
     protein_receipt = json.loads(task.input("protein_receipt").read_text())
     if (protein_receipt.get("status") != "complete"
@@ -160,13 +141,10 @@ def run(task: Task) -> dict:
     protein_cells = rna_cells = 0
     for pair, row in selected:
         entry, sample = pair.protein_entry, row["sample_key"]
-        _check_rna_source(task, row)
-        region = load_region(_source(row))
-        stage04 = pq.read_table(task.input(f"rna_cells:{sample}"),
-                                columns=["cell_uid", "typing_eligible"])
-        if (stage04["cell_uid"].to_pylist() != region.cell_uid.tolist()
-                or stage04["typing_eligible"].to_pylist() != region.eligible.tolist()):
-            raise SpleenTypingPilotError(f"{sample}: raw RNA cells differ from Stage 04")
+        region = load_accepted_region(
+            row, task.input("rna_receipt"), task.input("rna_regions"),
+            task.input(f"rna_cells:{sample}"), task.input(f"raw_matrix:{sample}"),
+            task.input(f"raw_cells:{sample}"))
         rna = detect_genes(region.counts, region.genes, genes, region.eligible)
         rna_payload = {"cell_uid": pa.array(region.cell_uid),
                        "typing_eligible": pa.array(region.eligible),
