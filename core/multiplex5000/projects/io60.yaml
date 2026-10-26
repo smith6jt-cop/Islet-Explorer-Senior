@@ -5,7 +5,7 @@ release: io60-candidate-1
 # The 25 donors of the 10-19 typing, on the v3 re-segmentation (maintainer, 2026-10-20).
 cohort: io60_v3
 # The stages this release runs, in the plan's order. Only built stages can be named.
-stages: [00_inventory]
+stages: [00_inventory, 03_protein_measurement]
 # Stages whose gate accepts itself when every blocking check passes: none (maintainer,
 # 2026-10-20, Gate D). Every stage waits for acceptance.
 automatic_gates: []

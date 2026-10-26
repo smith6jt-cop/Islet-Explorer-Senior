@@ -33,6 +33,7 @@ PLAN: tuple[tuple[str, str], ...] = (
 #: The stages that exist as code, by module.
 BUILT: dict[str, str] = {
     "00_inventory": "multiplex5000.stages.inventory",
+    "03_protein_measurement": "multiplex5000.stages.measurement",
 }
 
 

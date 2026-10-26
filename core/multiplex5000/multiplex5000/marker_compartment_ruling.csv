@@ -1,0 +1,61 @@
+marker,measurement_compartment,registry_policy,proposed_production_handling,typing_status,decision_status
+FOXP3,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+TP63,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+Ki67,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+PCNA,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+SOX2,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+TCF_1,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+TOX,Nucleus,uncompensated; REDSEA does not touch this marker,retain registry-declared uncompensated measurement,usable marker,selected for production under user instruction to make the most logical choices
+INS,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+GCG,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+SST,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+MPO,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Granzyme_B,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+IDO1,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+iNOS,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Iba1,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+M2Gal3,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Ker8_18,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Keratin_5,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Pan_Cytokeratin,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Vimentin,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+SMA,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+B3TUBB,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Collagen_IV,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Beta_actin,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+Bcl_2,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,selected for production under user instruction to make the most logical choices
+CD3e,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD4,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD8,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD20,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD79a,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD11b,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD11c,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD31,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD34,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD38,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD39,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD44,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD56,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD57,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD66,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD68,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD99,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD107a,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD163,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD206,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+CD209,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+Caveolin,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+E_cadherin,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+EpCAM,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+Podoplanin,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+HLA_A,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+HLA_DR,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+ICOS,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+LAG3,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+PD_1,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+PD_L1,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+VISTA,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+b_Catenin1,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
+IAPP,not applicable,excluded from typing,do not use as a cell-identity feature,not for typing,selected for production under user instruction to make the most logical choices
+DAPI,not applicable,excluded from typing,do not use as a cell-identity feature,not for typing,selected for production under user instruction to make the most logical choices

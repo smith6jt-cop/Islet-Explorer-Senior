@@ -54,7 +54,7 @@ STATUS_PALETTE_NAME = "Bright"
 STATUS_COLORS = {"ND": "#3366CC", "AAB": "#FF6600", "T1D": "#109618"}
 _STATUS_DISPLAY = {"ND": "ND", "AAB": "Aab+", "T1D": "T1D"}
 
-#: Eligible / excluded pair used by the geometry notebook (01_qupath_ingest_and_geometry_qc).
+#: Eligible / excluded pair (pheno_qc.py).
 ELIGIBLE = "#4c78a8"
 EXCLUDED = "#e45756"
 ROLE_COLORS = {"analysis": "#4c78a8", "estimation": "#f2cf5b", "spillover_context": "#59a14f"}
