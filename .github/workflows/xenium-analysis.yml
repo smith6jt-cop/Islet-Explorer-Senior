@@ -5,7 +5,7 @@ name: Xenium analysis
 # Makefile:85-87, which goes through `conda run -n scvi-env`. The suite does not need that
 # environment.
 #
-# MEASURED 2026-09-22 in a fresh `python3 -m venv` holding exactly the install line below
+# MEASURED 2026-09-22 in a fresh `python3 -m venv` holding the original test closure
 # (Python 3.12.3, pytest 9.1.1, numpy 2.5.3, pandas 3.0.6, anndata 0.13.4, zarr 3.4.0), run from
 # a bare git worktree of main with nothing gitignored present: 83 passed, 2 skipped in 0.43s --
 # the same 85 tests the scvi-env run collects (census 2026-09-21: 85 passed under the repo
@@ -20,6 +20,8 @@ name: Xenium analysis
 # What each file needs: tests/conftest.py:26-31 puts analysis/xenium on sys.path, which is how
 # `from scripts.workflow_paths import ...` (test_workflow_paths.py:7) resolves without an
 # __init__.py; test_xenium_explorer_export.py:19-20 importorskips anndata and zarr, and
+# the pLN v3 denominator test now imports the installed MultiPlex5000 worker through its
+# historical command wrapper, so this job installs the local package without a second copy;
 # utils/xenium_explorer_export.py imports numpy and pandas at module scope (:32-33) and zarr
 # lazily (:323); test_repo_health.py shells out to grep (:123) and to
 # `git -C <repo> rev-parse HEAD:core/panels/data` (:158), so the checkout must carry .git, which
@@ -31,11 +33,13 @@ on:
     branches: [main]
     paths:
       - 'analysis/xenium/**'
+      - 'core/multiplex5000/**'
       - '.github/workflows/xenium-analysis.yml'
   pull_request:
     branches: [main]
     paths:
       - 'analysis/xenium/**'
+      - 'core/multiplex5000/**'
       - '.github/workflows/xenium-analysis.yml'
   workflow_dispatch:
 
@@ -64,12 +68,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest numpy pandas pyarrow anndata zarr
+          # The Xenium worker now imports the single package implementation.
+          pip install --no-deps -e ../../core/multiplex5000
       - name: Dependency preflight
         # test_xenium_explorer_export.py:19-20 importorskips anndata and zarr. A missing one
         # would skip that whole file and still print green; fail here by name instead.
         # test_pln_v3_denominators.py writes parquet (:171, :303), which pandas cannot do
         # without pyarrow.
-        run: python -c "import anndata, zarr, pyarrow; print('preflight OK')"
+        run: python -c "import anndata, zarr, pyarrow, multiplex5000; print('preflight OK')"
       - name: Test suite
         # analysis/xenium/pyproject.toml:15-17 already sets testpaths = ["tests"] and
         # addopts = "-q"; a second -q would suppress the summary line (Makefile:84). pytest's
