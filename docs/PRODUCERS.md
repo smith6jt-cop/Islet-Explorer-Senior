@@ -28,8 +28,15 @@ The guard for this page is `core/multiplex5000/tests/current/test_declared_produ
 in `core/multiplex5000/multiplex5000/tissues/pancreas_rna_naming.py`.
 `analysis/xenium/scripts/panc_xenium_cluster_name.py` is a compatibility command for the
 historical release driver; it contains no scientific implementation. The table above records
-the 2026-09-22 run and its original paths. The Stage 06 raw-source adapter and pLN RNA port
-remain outstanding.
+the 2026-09-22 run and its original paths.
+
+**pLN code owner, 2026-10-26.** The pLN Xenium worker now lives at
+`core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py`. Its clustering seed
+and Leiden helper live once at `core/multiplex5000/multiplex5000/tissues/pln_clustering.py`,
+and the shared partial-run protection is `core/multiplex5000/multiplex5000/partial_run_guard.py`.
+The old `analysis/xenium/scripts/pln_immune_typing_v3.py` path is a compatibility command.
+The table above remains the measured 2026-09-22 release record. Stage 06 still needs the
+accepted Stage 04 acquisition roster and site-specific source binding.
 
 Two things the table settles. First, the interpreter for all four is the repo `.venv`; root
 CLAUDE.md:11 says the `analysis/xenium` lane runs in `scvi-env`, and both Xenium write-ups

@@ -587,6 +587,16 @@ def _load(path: Path, name: str):
 guard = _load(GUARD_SCRIPT, "partial_run_guard")
 
 
+def test_pln_legacy_commands_use_package_scope_and_partition():
+    from multiplex5000.partial_run_guard import RunScope
+    from multiplex5000.tissues import pln_clustering
+
+    cluster = _load(CLUSTER_SCRIPT, "cluster_pln_package_helpers")
+    assert guard.RunScope is RunScope is cluster.RunScope
+    assert cluster.stable_seed is pln_clustering.stable_seed
+    assert cluster.leiden_on_subsample is pln_clustering.leiden_on_subsample
+
+
 def test_a_named_subset_is_partial_and_a_run_naming_every_unit_is_not():
     every = guard.RunScope.build("donor", ["115", "6380"], ["115", "6380"])
     some = guard.RunScope.build("donor", ["115"], ["115", "6380"])

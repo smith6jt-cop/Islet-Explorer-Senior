@@ -345,7 +345,7 @@ Authoritative documentation, all relative to `core/multiplex5000/`: `README.md`,
 |---|---|---|
 | pancreas × PhenoCycler | `core/multiplex5000/scripts/typing/subpanel.py` → `build_cells.py`; the refinement joins through `build_cells.py --refine` | `data/development/typing/cells` — one class in two steps: `cell_class` (the groups), then `refined_class` (the result, joined 2026-09-24); builders still read `cell_class` |
 | pancreas × Xenium | `core/multiplex5000/multiplex5000/tissues/pancreas_xenium_worker.py`, run by `panc_xenium_release.py` through its old command path | `/data/xenium_typing/panc_2026-09-17/release` — `lineage`, `common_lineage` |
-| pLN × Xenium | `analysis/xenium/scripts/pln_immune_typing_v3.py` | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
+| pLN × Xenium | `core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py`, with the old script as a compatibility command | `data/development/xenium_typing/release_pln_immune_v3` — `lineage`, `common_lineage` |
 | pLN × PhenoCycler | `core/multiplex5000/scripts/typing/build_pln_immune_pheno.py` | `data/development/typing/pln/pheno` — `immune_class`, `immune_subtype`, `t_nk_class` |
 
 Everything else that writes a class column is retired, quarantined or a declared library;
