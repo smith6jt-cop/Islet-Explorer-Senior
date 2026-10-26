@@ -19,7 +19,10 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("01_image_preparation", "D9"),
     ("02_segmentation", "D9"),
     ("03_protein_measurement", "D4"),
-    ("04_rna_ingest", "D8"),
+    # RNA ingest was D8 in the original code-migration order. The maintainer's
+    # 2026-10-26 typing scope requires it before D6 can type Xenium-only and
+    # same-slide sections, so it is now a D6 prerequisite.
+    ("04_rna_ingest", "D6 prerequisite"),
     ("05_normalization", "D5"),
     ("06_typing", "D6"),
     ("07_registration", "D10"),

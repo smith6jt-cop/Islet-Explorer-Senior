@@ -15,6 +15,10 @@ node release.
 | Tissue, ROI, panel, condition and relationships | Accepted Stage 00 inventory | Route each acquisition without inferring a pair from co-imaging |
 | pLN protein phenotype rules | `core/panels/data/tissues/pancreatic_lymph_node/manifest.yml` | Selected full sheet and reviewed pLN adaptation |
 
+The older migration schedule assigned RNA ingest to D8, after D6 typing.
+Stage 04 is now a D6 prerequisite: its accepted RNA inputs are needed before
+Stage 06 can claim the clarified all-modality typing scope.
+
 Stage 03's measured roster is the 25 pancreas
 PhenoCycler images in `cohort-spec-v3.json`. Its accepted receipt does not
 cover the 19 dedicated PhenoCycler pLN images. The next measurement increment
