@@ -71,11 +71,16 @@ def test_stage00_publishes_exact_pairs_and_stage04_resolves_them(tmp_path, monke
     stage = built.release_dir / "00_inventory"
     assert result.status == "published" and result.gate_passed
     assert (stage / "gate/accepted.json").is_file()
-    with (stage / "acquisitions.csv").open(newline="") as handle:
-        rows = list(csv.DictReader(handle))
-    assert {row["platform"] for row in rows} == {"phenocycler", "xenium"}
-    assert {row["donor_id"] for row in rows} == {"HDL090"}
-    assert rows[1]["acquisition_id"] == "xenium:0110618:090"
+    with (stage / "slides.csv").open(newline="") as handle:
+        slide, = csv.DictReader(handle)
+    with (stage / "sections.csv").open(newline="") as handle:
+        section, = csv.DictReader(handle)
+    with (stage / "regions.csv").open(newline="") as handle:
+        region, = csv.DictReader(handle)
+    assert slide["slide_id"] == section["slide_id"] == region["slide_id"] == "0110618"
+    assert section["donor_id"] == region["donor_id"] == "HDL090"
+    assert region["acquisition_id"] == "xenium:0110618:090"
+    assert not (stage / "acquisitions.csv").exists()
     with (stage / "relationships.csv").open(newline="") as handle:
         relationship, = csv.DictReader(handle)
     assert relationship["relationship"] == "same_section_after_phenocycler"
@@ -85,7 +90,11 @@ def test_stage00_publishes_exact_pairs_and_stage04_resolves_them(tmp_path, monke
                 and item.get("sha256")]) == len(INSTRUMENT_FILES)
     source, = build_roster(stage)
     assert source.status == "ready"
-    assert source.source_path == rows[1]["path"]
+    assert source.source_path == region["path"]
+    summary = receipt["summary"]
+    assert (summary["physical_slides"], summary["protein_images"],
+            summary["protein_exports"], summary["xenium_regions"],
+            summary["xenium_runs"]) == (1, 1, 1, 1, 1)
 
 
 def test_graph_defers_discovered_inputs_until_the_previous_gate_is_accepted(tmp_path,
@@ -114,6 +123,7 @@ def test_stage03_preserves_objects_and_excludes_cells_without_a_nucleus(tmp_path
     assert result.gate_passed and result.accepted_automatically
     table = pq.read_table(result.path / "cells/HDL090_PC67_0110618-S1.parquet").to_pydict()
     assert table["object_id"] == ["shared-1", "zero-1", "missing-1"]
+    assert table["acquisition_id"] == ["phenocycler:0110618"] * 3
     assert len(set(table["cell_uid"])) == 3
     assert table["protein_eligible"] == [True, False, False]
     assert table["marker:CD20"][:2] == [5.0, 2.0]

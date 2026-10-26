@@ -48,8 +48,10 @@ every pair, and matched all eight export headers and section-table identities.
 performs that check on the host holding the data. Without `require_sources`,
 it exposes only the recorded paths; its `crop_origin_px` remains unset. The
 manifest records **physical section pairing**, not a matched cell result.
-Stage 00 must admit these acquisitions and their relationship in a spleen
-pilot project before Stage 04/06 can run on them. Registration and measured
+Stage 00 records two PhenoCycler whole-slide images, eight section exports,
+two Xenium slide IDs in one run, eight Xenium region output folders, and the
+eight physical-section relationships in a spleen pilot project before Stage
+04/06 can run on them. Registration and measured
 cell overlap are separate Stage 07/08 work. The SpleenFollicleCounterQP repo
 and its data remain unchanged.
 

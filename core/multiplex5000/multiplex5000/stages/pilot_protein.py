@@ -22,6 +22,7 @@ import yaml
 
 from .. import gates
 from ..artifacts import sha256_file
+from ..integration.manifest import parse_bundle_path
 from ..same_slide_sources import load_pairs
 from ..tasks import Input, Task
 from .pilot_inventory import _manifest
@@ -59,7 +60,8 @@ def settings(project) -> dict:
 
 def inputs(project) -> list[Input]:
     inventory = project.release_dir / "00_inventory"
-    found = [Input("inventory_acquisitions", inventory / "acquisitions.csv"),
+    found = [Input("inventory_slides", inventory / "slides.csv"),
+             Input("inventory_sections", inventory / "sections.csv"),
              Input("inventory_receipt", inventory / "receipt.json"),
              Input("inventory_acceptance", inventory / "gate/accepted.json"),
              Input("same_slide_source_manifest", _manifest(project))]
@@ -84,13 +86,19 @@ def _header(path: Path, expected_sha: str) -> tuple[list[str], dict[str, str]]:
     return columns, markers
 
 
-def _inventory_identity(task: Task) -> tuple[dict[str, dict], dict[str, str]]:
-    with task.input("inventory_acquisitions").open(newline="") as handle:
-        rows = {row["acquisition_id"]: row for row in csv.DictReader(handle)}
+def _inventory_identity(task: Task) -> tuple[dict[str, dict], dict[str, dict], dict[str, str]]:
     receipt = json.loads(task.input("inventory_receipt").read_text())
+    outputs = {item["path"]: item["sha256"] for item in receipt["outputs"]}
+    for name in ("slides.csv", "sections.csv"):
+        if sha256_file(task.input(f"inventory_{name.removesuffix('.csv')}")) != outputs.get(name):
+            raise PilotProteinError(f"Stage 00 {name} differs from its accepted receipt")
+    with task.input("inventory_slides").open(newline="") as handle:
+        slides = {row["slide_id"]: row for row in csv.DictReader(handle)}
+    with task.input("inventory_sections").open(newline="") as handle:
+        sections = {row["protein_entry"]: row for row in csv.DictReader(handle)}
     digests = {item["name"].removeprefix("protein_export:"): item.get("sha256")
                for item in receipt["inputs"] if item["name"].startswith("protein_export:")}
-    return rows, digests
+    return slides, sections, digests
 
 
 def run(task: Task) -> dict:
@@ -101,16 +109,22 @@ def run(task: Task) -> dict:
         raise PilotProteinError("selected protein sections changed after input declaration")
     source_spec = yaml.safe_load(task.input("same_slide_source_manifest").read_text())
     expected_header = source_spec["protein_header_sha256"]
-    acquisitions, digests = _inventory_identity(task)
+    slides, sections, digests = _inventory_identity(task)
     rows = []
     common_markers: set[str] | None = None
     for pair in selected:
-        acquisition = f"phenocycler:{pair.protein_entry}"
-        recorded = acquisitions.get(acquisition)
+        slide_id, _ = parse_bundle_path(pair.xenium_output.name)
+        acquisition = f"phenocycler:{slide_id}"
+        recorded = sections.get(pair.protein_entry)
+        slide = slides.get(slide_id)
         digest = digests.get(pair.protein_entry)
-        if (not recorded or recorded["platform"] != "phenocycler"
+        if (not recorded or not slide
                 or recorded["donor_id"] != pair.donor_id
-                or recorded["tissue"] != pair.tissue or not digest):
+                or recorded["tissue"] != pair.tissue
+                or recorded["slide_id"] != slide_id
+                or recorded["protein_export"] != str(pair.protein_export)
+                or slide["protein_image"] != str(pair.protein_image)
+                or not digest):
             raise PilotProteinError(f"{pair.protein_entry}: Stage 00 identity or digest missing")
         source = task.input(f"protein_export:{pair.protein_entry}")
         if source != pair.protein_export:
@@ -157,7 +171,8 @@ def run(task: Task) -> dict:
                 no_nucleus += int(np.count_nonzero(nucleus == 0))
                 missing_nucleus += int(np.count_nonzero(np.isnan(nucleus)))
                 payload = {
-                    "cell_uid": [f"{acquisition}:{digest}:{item}" for item in object_ids],
+                    "cell_uid": [f"{acquisition}:{pair.protein_entry}:{digest}:{item}"
+                                 for item in object_ids],
                     "object_id": object_ids.tolist(),
                     "acquisition_id": [acquisition] * len(chunk),
                     "donor_id": [pair.donor_id] * len(chunk),

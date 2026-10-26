@@ -20,7 +20,7 @@ import pyarrow.parquet as pq
 from .. import gates
 from ..tasks import Input, Task
 from ..xenium_region import load_region
-from ..xenium_sources import INSTRUMENT_FILES, XeniumSource, build_roster
+from ..xenium_sources import INSTRUMENT_FILES, XeniumSource, build_roster, inventory_table
 
 STAGE = "04_rna_ingest"
 _KEY = re.compile(r"^[A-Za-z0-9_]+$")
@@ -82,7 +82,7 @@ def _raw_name(source: XeniumSource, filename: str) -> str:
 def inputs(project) -> list[Input]:
     """Declare accepted evidence, location records and every selected raw input."""
     inventory = _inventory(project)
-    found = [Input("inventory_acquisitions", inventory / "acquisitions.csv"),
+    found = [Input("inventory_sources", inventory_table(inventory)),
              Input("inventory_receipt", inventory / "receipt.json"),
              Input("inventory_gate", inventory / "gate" / "gate.json"),
              Input("inventory_acceptance", inventory / "gate" / "accepted.json")]
@@ -152,7 +152,7 @@ def run(task: Task) -> dict:
         writer = csv.DictWriter(handle, fieldnames=_COLUMNS)
         writer.writeheader()
         writer.writerows(rows)
-    with task.input("inventory_acquisitions").open(newline="") as handle:
+    with task.input("inventory_sources").open(newline="") as handle:
         accepted_regions = sum(row["platform"] == "xenium" for row in csv.DictReader(handle))
     _figure(task, rows, accepted_regions)
     return {"regions": len(rows), "accepted_regions": accepted_regions,
@@ -200,7 +200,7 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
         gates.Check("every selected Xenium region ingested", summary["regions"],
                     f"{expected}", summary["regions"] == expected),
-        gates.Check("acquisition scope", f"{summary['regions']}/{summary['accepted_regions']}",
+        gates.Check("Xenium region scope", f"{summary['regions']}/{summary['accepted_regions']}",
                     "reported; a selected pilot does not claim full-cohort coverage", True,
                     blocking=False, detail=summary["scope"]),
         gates.Check("cell accounting", summary["cells"],
