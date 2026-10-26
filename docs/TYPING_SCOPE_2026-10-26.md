@@ -15,6 +15,12 @@ node release.
 | Tissue, ROI, panel, condition and relationships | Accepted Stage 00 inventory | Route each acquisition without inferring a pair from co-imaging |
 | pLN protein phenotype rules | `core/panels/data/tissues/pancreatic_lymph_node/manifest.yml` | Selected full sheet and reviewed pLN adaptation |
 
+As of main `4f4d65d`, Stage 03's measured roster is the 25 pancreas
+PhenoCycler images in `cohort-spec-v3.json`. Its accepted receipt does not
+cover the 19 dedicated PhenoCycler pLN images. The next measurement increment
+must admit those images under the same compartment and exclusion policy before
+Stage 06 can call their cells; it must not silently read an older pLN output.
+
 The 2026-10-25 accepted inventory lists **28 donors**: 22 sequential, four
 same-slide and two Xenium-only (6512 and 6618). It has 25 PhenoCycler
 pancreas images, 19 dedicated PhenoCycler pLN images, 32 Xenium pancreas
