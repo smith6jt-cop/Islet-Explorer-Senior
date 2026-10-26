@@ -59,6 +59,17 @@ not that its large cell files have been verified there; Stage 04 must check
 those files on that host before ingest. The tool is a readiness check, not
 an RNA producer or a typing result.
 
+A read-only HiPerGator check on 2026-10-26 found all seven required files and
+matching Stage 00 instrument hashes for all 65 outputs. The 30 outputs that
+are complete locally also exist under `/orange/maigan/Xenium_T1D_PancPLN`,
+but their exact HiPerGator paths are not all in `MANIFEST.tsv`. Stage 04 needs
+an exact site source index for them, bound in its own receipt. In that tree,
+serials 0059865 and 0059907 have pLN outputs named `PanT` rather than the
+local `pLN`; the accepted instrument hashes match. Serials 0041116 and
+0041117 each have two directory copies whose seven required files compare
+byte-identically. The site index should choose one path explicitly, never
+pick the first filename match found by a search.
+
 Stage 06 must produce tissue-specific calls, evidence and unavailable reasons
 for both modalities. A same-slide section needs both assay results; the
 cell-to-cell relationship is established only from the recorded section mode
