@@ -184,6 +184,15 @@ cell class. Missing markers in any ancestor make a rule unavailable. Stage 05
 and the tissue-specific Stage 06 producers still have to supply and validate
 those marker calls before this can type a real cell.
 
+`multiplex5000.tissues.protein_section.evaluate_protein_section` now supplies
+that section-local candidate step for both pLN and spleen: measured values,
+their Stage 05 shifts, and nucleus admission become tri-state marker calls,
+then the tissue's recorded hierarchy is evaluated. It reports missing marker
+requirements and makes every rule unavailable for a cell without a nucleus.
+The spleen Stage 06 pilot uses this shared function. The pLN Stage 03/05
+adapters and release-wide Stage 06 route remain to be built; this function is
+review evidence and does not publish a final cell class.
+
 The first executable Stage 06 adapter is a bounded spleen same-slide pilot
 on HDL090. It applies the maintainer-selected 0.10 background-to-bright-end
 candidate independently to each measured protein marker in that physical
