@@ -121,3 +121,28 @@ Stage 06 is the first manual processing review stop. It must show per-tissue,
 per-assay and per-acquisition counts, marker or gene support, controls and
 unavailable calls. The `NO_VERIFIED_TYPING` latch stays down until the
 maintainer accepts processing. No H1–H6 inference runs before that decision.
+
+## Spleen in the first portable pilot (maintainer, 2026-10-26)
+
+The first **workflow pilot** also includes executable spleen same-slide typing;
+this does not add spleen to the first active IO60 release. The spleen protein
+reference is `core/panels/data/tissues/spleen/manifest.yml`. It derives from
+the selected full 6551 hierarchy, removes pancreas-only branches and object
+labels, retains applicable lymphoid rules, and adds descriptive CD21-positive
+B, CD45RO-positive T, CD141-positive cDC and SMA-positive stromal leaves. The
+PC67 inventory is the exact, SHA256-checked header from all eight export files.
+Of the 58 retained rules, 55 use measured PC67 markers; Neural, Schwann cell
+and Macrophage require B3TUBB or Iba1 and stay unavailable. These counts are
+rule availability, **not typed-cell counts or validated positivity cutoffs**.
+
+The paired protein images and crop-local cell exports are under
+`/blue/maigan/smith6jt/SpleenFollicleCounterQP/` on HiPerGator; the eight
+Xenium regions are under
+`/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/`.
+The project is an active read-only input for this pilot and is not modified.
+Each Xenium region and its corresponding PC67 section must enter the accepted
+inventory with a recorded same-slide relationship and coordinate-frame offset.
+The two assays receive their own Stage 06 evidence before Stage 08 links cells;
+the matching donor code alone never establishes a cell pair. The older spleen
+integration plan said RNA cell typing would not run. The maintainer's newer
+all-modality typing direction supersedes that scope statement.

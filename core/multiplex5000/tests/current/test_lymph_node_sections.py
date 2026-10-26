@@ -11,9 +11,9 @@ loudly, which is why they are pinned here:
 from __future__ import annotations
 
 import pytest
+from phenocycler.integration.tissues import DEFAULT_MAX_PLN, rois
 
 from phenocycler import load_config
-from phenocycler.integration.tissues import DEFAULT_MAX_PLN, rois
 
 pytest.importorskip("pandas")
 
@@ -45,10 +45,10 @@ def test_one_definition_not_two():
     assert DEFAULT_MAX_PLN == 4
 
 
-def test_pancreas_is_unaffected_and_unknown_tissue_is_empty():
+def test_pancreas_is_unaffected_and_spleen_uses_its_profile():
     cfg = load_config()
     assert cfg.rois_for_tissue("pancreas") == ["panc"]
-    assert cfg.rois_for_tissue("spleen") == []
+    assert cfg.rois_for_tissue("spleen") == ["spl"]
 
 
 def test_a_node_beyond_the_enumeration_is_still_parseable():

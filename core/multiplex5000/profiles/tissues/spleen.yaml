@@ -1,0 +1,14 @@
+schema: multiplex5000-profile/1
+kind: tissue
+id: spleen
+display_name: spleen
+aliases: [spleen, spl, splenic]
+roi_prefixes: [spl]
+panel_tissue_dir: null
+tissue_only_panels: []
+structures: []
+comparable_lineages: [Stromal, Vascular, T_NK, B_Plasma, Myeloid]
+plugin: spleen
+# core/panels/data/tissues/spleen/manifest.yml selects the protein adaptation.
+# Shared identity cores supply the Xenium RNA reference until tissue-specific
+# gene roles are validated. Follicle objects are outside the cell typing method.

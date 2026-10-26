@@ -1,13 +1,12 @@
 """
-What each tissue supports — the single place that knows pancreas from lymph node.
+What each tissue supports — profiles provide the names and tissue-specific scope.
 
 Since D2 (2026-10-20) the values come from the tissue profiles
 (``core/multiplex5000/profiles/tissues/*.yaml``); this module reads them and holds the logic.
 
-The package supports pancreas and pancreatic lymph node, but support is not a claim that both
-modalities measured every section. The current PhenoCycler run has 20 pancreas sections and
-no pLN sections; the manifest keeps Xenium-only pLN rows explicit. When both tissues are
-present, they diverge in two specific biological ways:
+The IO60 cohort contains pancreas and pancreatic lymph node; the separate
+spleen same-slide pilot has its own profile. A tissue profile never claims that
+both assays measured every section. Pancreas and pLN differ in two biological ways:
 
 **Structures.** Islets exist in pancreas. Lymph nodes have no islets, so hormone-seeded DBSCAN
 has nothing to seed on and islet matching (S6) has nothing to match. Rather than invent a
@@ -32,8 +31,6 @@ correct answer rather than a fallback.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from .. import profiles as _profiles
 
 
@@ -54,9 +51,8 @@ def _load_tissue_profiles() -> dict[str, _profiles.TissueProfile]:
 #: The tissue profiles (``profiles/tissues/*.yaml``), by id, in id order.
 PROFILES: dict[str, _profiles.TissueProfile] = _load_tissue_profiles()
 
-#: Canonical tissue identifiers. Anything else is rejected rather than silently creating a third
-#: tissue nobody configured. These two are named because the code holds logic that differs by
-#: tissue (the plugins); each must have a profile.
+#: Canonical tissue identifiers with distinct integration behavior. Additional
+#: tissues enter through profiles and must not silently inherit pLN structures.
 PANCREAS = "pancreas"
 LYMPH_NODE = "pancreatic_lymph_node"
 for _named in (PANCREAS, LYMPH_NODE):
@@ -81,7 +77,7 @@ ROI_PREFIX_TO_TISSUE = {prefix: t for t, prof in PROFILES.items() for prefix in 
 #: The XeniumPanelExplorer tissue directory backing each tissue's identity cores.
 #: ``None`` means "no tissue-specific cores — use the shared pool", which is the right answer
 #: for lymph node rather than a degraded one.
-PANEL_TISSUE_DIR: dict[str, Optional[str]] = {t: prof.panel_tissue_dir
+PANEL_TISSUE_DIR: dict[str, str | None] = {t: prof.panel_tissue_dir
                                               for t, prof in PROFILES.items()}
 
 #: Identity cores each tissue owns, which must NOT be applied to any other tissue.
@@ -137,14 +133,14 @@ def for_roi(roi: str) -> str:
     return ""
 
 
-#: Lymph nodes per donor when the caller does not say. Every donor in this cohort has a
+#: Lymph nodes per donor when the caller does not say. Every donor in the IO60 cohort has a
 #: pancreas and 1-4 nodes; `PipelineConfig.max_pln` is the configurable authority and passes
 #: its value in. Kept here as well so this module stands alone for callers without a config.
 DEFAULT_MAX_PLN = 4
 
 
 def rois(tissue: str, *, max_pln: int = DEFAULT_MAX_PLN) -> tuple[str, ...]:
-    """Known ROI names for a tissue: ``panc``, or ``pln_1..max_pln``.
+    """Known ROI shorthands: ``panc``, ``pln_1..max_pln``, or a pilot profile prefix.
 
     The node count is a parameter because it describes the cohort, not the code. It bounds
     only the *enumeration* used when nothing is on disk yet — `sections.parse` accepts any
@@ -154,6 +150,10 @@ def rois(tissue: str, *, max_pln: int = DEFAULT_MAX_PLN) -> tuple[str, ...]:
     t = normalize(tissue)
     if t == PANCREAS:
         return ("panc",)
+    if t != LYMPH_NODE:
+        # Standalone tissue pilots carry their own acquisition identity. The ROI
+        # prefix is a display shorthand, never a replacement for that identity.
+        return (PROFILES[t].roi_prefixes[0],)
     n = max(1, int(max_pln))
     return tuple(f"pln_{i}" for i in range(1, n + 1))
 
@@ -173,7 +173,7 @@ def comparable_lineages(tissue: str) -> tuple[str, ...]:
     return COMPARABLE_LINEAGES.get(normalize(tissue), ())
 
 
-def panel_tissue_dir(tissue: str) -> Optional[str]:
+def panel_tissue_dir(tissue: str) -> str | None:
     """XeniumPanelExplorer tissue directory, or ``None`` for shared-cores-only."""
     return PANEL_TISSUE_DIR.get(normalize(tissue))
 

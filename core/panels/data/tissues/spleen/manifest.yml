@@ -1,0 +1,38 @@
+tissue_id: spleen
+display_name: Human spleen
+use_shared_subpanels: true
+rule_table:
+  assay: phenocycler
+  source_manifest: ../pancreatic_lymph_node/manifest.yml
+  source_sha256: e4c6078ff6d2750e79ecb5a7bb19f0c3a1cdc712c68a9ce9f6e64dbfcabede04
+  selected_by_maintainer: 2026-10-26
+  role: adapted reference for the same hierarchical typing method
+  adaptation:
+    # The selected 6551 sheet remains the sole source. Its pLN adaptation already
+    # removes inherited pancreas-hormone negatives from the broad parent rows.
+    drop_branches: [Endocrine, Ductal_Epithelial, Epithelial]
+    drop_rules: [Nerve_fiber, Myofibroblast_CAF, Basement_membrane, Blood_vessel,
+                 Lymphatic_vessel, HEV]
+    # These marker-qualified leaves describe measured spleen phenotypes; they do
+    # not assert a marginal-zone or follicular-dendritic identity from CD21 alone.
+    add_rules:
+      - {parent: B_cell, phenotype: CD21_positive_B_cell, constraints: {CD21: pos}}
+      - {parent: T_cell, phenotype: CD45RO_positive_T_cell, constraints: {CD45RO: pos}}
+      - {parent: cDC, phenotype: CD141_positive_cDC, constraints: {CD141: pos}}
+      - {parent: Stromal, phenotype: SMA_positive_stromal,
+         constraints: {SMA: allpos, Vimentin: allpos, CD31: allneg}}
+protein_panel:
+  file: pc67_export_header.tsv
+  source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/*PC67*.csv.gz
+  source_header_sha256: 870881a568ec406edc6046409737a8992401462aba252ca80213f92d4d3f7c0b
+  checked_exports: 8
+  aliases: {PD-L1: PDL1}
+  # These exports are raw Cell means. Presence in this panel is not evidence of
+  # successful normalization or marker positivity.
+notes: |
+  Same-slide spleen typing needs separate PhenoCycler and Xenium evidence.
+  The PC67 marker inventory is read from all eight current protein export headers.
+  Rules requiring B3TUBB, Iba1, CD206 or other unmeasured markers are unavailable;
+  missing values are never interpreted as negatives. FollicleCounterQP remains
+  an independent read-only source during the pilot. Cell-to-cell links require
+  registration and measured overlap, not shared donor labels.
