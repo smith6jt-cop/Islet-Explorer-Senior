@@ -1,0 +1,9 @@
+schema: multiplex5000-profile/1
+kind: cohort
+id: spleen_same_slide_pilot
+platform: phenocycler
+tissues: [spleen]
+membership: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
+exclusions: multiplex5000.cohort.DONOR_EXCLUSIONS
+# The pair manifest is the acquisition authority. Genotype and disease state
+# are not needed for the source/typing pilot and are not inferred here.

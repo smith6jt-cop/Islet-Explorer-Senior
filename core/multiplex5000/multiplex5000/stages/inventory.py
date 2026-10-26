@@ -209,6 +209,10 @@ def _path(project, name: str, default):
 
 
 def inputs(project) -> list[Input]:
+    if project.settings.get("same_slide_source_manifest"):
+        from . import pilot_inventory
+
+        return pilot_inventory.inputs(project)
     cohort = profiles.load_all()[("cohort", project.cohort)]
     found = [
         Input("cohort_spec", _path(project, "cohort_spec", profiles.REPO / cohort.membership)),
@@ -292,6 +296,10 @@ def _export_tag(image_name: str) -> str:
 
 
 def settings(project) -> dict:
+    if project.settings.get("same_slide_source_manifest"):
+        from . import pilot_inventory
+
+        return pilot_inventory.settings(project)
     return {"xenium_root": project.settings.get("xenium_root")}
 
 
@@ -1108,6 +1116,10 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def run(task: Task) -> dict:
+    if task.project.settings.get("same_slide_source_manifest"):
+        from . import pilot_inventory
+
+        return pilot_inventory.run(task)
     project = task.project
     cohort = profiles.load_all()[("cohort", project.cohort)]
     spec = json.loads(task.input("cohort_spec").read_text())
@@ -1712,6 +1724,10 @@ def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
 
 
 def gate(task: Task, summary: dict) -> gates.Gate:
+    if task.project.settings.get("same_slide_source_manifest"):
+        from . import pilot_inventory
+
+        return pilot_inventory.gate(task, summary)
     C = gates.Check
     checks = [
         C("acquisition ids are unique", summary["repeated_acquisition_ids"], "none", not

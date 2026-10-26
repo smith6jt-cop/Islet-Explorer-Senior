@@ -1,0 +1,11 @@
+schema: multiplex5000-project/1
+id: spleen_pilot
+release: spleen-pilot-candidate-1
+cohort: spleen_same_slide_pilot
+# These are the built prerequisites. Stage 05/06 join when their shared code is ready.
+stages: [00_inventory, 04_rna_ingest]
+automatic_gates: []
+settings:
+  same_slide_source_manifest: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
+  # One representative same-slide Xenium region bounds the first executable pilot.
+  rna_acquisitions: [xenium:0110618:090]

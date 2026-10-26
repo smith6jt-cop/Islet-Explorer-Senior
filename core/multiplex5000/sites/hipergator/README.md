@@ -52,3 +52,11 @@ Stage 00 must admit these acquisitions and their relationship in a spleen
 pilot project before Stage 04/06 can run on them. Registration and measured
 cell overlap are separate Stage 07/08 work. The SpleenFollicleCounterQP repo
 and its data remain unchanged.
+
+The tracked `projects/spleen_pilot.yaml` takes this source manifest through the
+same Stage 00 function, receipt and gate as other projects. Its Stage 04 selection
+is one representative region (`HDL090`, 1/8), stated in the project file. On
+HiPerGator, set `MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project
+folder, then run `mplx5k stage run 00_inventory --project spleen_pilot`.
+Review its `gate.html` and accept the gate before Stage 04. Neither stage
+declares a cell-type result; Stage 05 and 06 enter this project when built.
