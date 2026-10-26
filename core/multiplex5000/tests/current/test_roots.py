@@ -91,6 +91,7 @@ def test_the_per_user_site_file_is_used_when_no_variable_names_one(monkeypatch, 
     ({"site": "x", "data_root": "/no/such/folder/for/this/test"}, "not a directory"),
     ({"site": "x"}, "data_root"),
     ({"data_root": "/tmp"}, "site"),
+    ({"site": "x", "data_root": "/tmp", "tmp_dir": "relative/tmp"}, "tmp_dir"),
 ])
 def test_a_site_file_that_cannot_be_honoured_is_refused(tmp_path, fields, message):
     with pytest.raises(roots.SiteError, match=message):
@@ -141,6 +142,17 @@ def test_a_site_names_the_recorded_sources_that_live_outside_the_repo(monkeypatc
     module, _ = reload_roots()
     assert module.source("donor_notes") == notes
     assert module.source("pln_blocks") is None, "a source the site does not name is unknown"
+
+
+def test_a_site_names_where_stage_runs_keep_temporary_files(monkeypatch, tmp_path):
+    site = roots.read_site(_site(tmp_path, site="x", data_root="/tmp", tmp_dir="/data/tmp/x"))
+    assert site["tmp_dir"] == Path("/data/tmp/x")
+    monkeypatch.setattr(roots, "SITE", site)
+    assert roots.tmp_dir() == Path("/data/tmp/x")
+    monkeypatch.setattr(roots, "SITE", {**site, "tmp_dir": None})
+    assert roots.tmp_dir() is None, "no tmp_dir: Python's own temporary folder"
+    monkeypatch.setattr(roots, "SITE", None)
+    assert roots.tmp_dir() is None
 
 
 def test_a_source_given_as_a_relative_path_is_refused(tmp_path):

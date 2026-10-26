@@ -98,6 +98,9 @@ def read_site(path: Path) -> dict:
     snakemake = data.get("snakemake")
     if snakemake is not None and not (isinstance(snakemake, str) and Path(snakemake).is_absolute()):
         raise SiteError(f"{path}: snakemake, when given, must be an absolute path")
+    tmp = data.get("tmp_dir")
+    if tmp is not None and not (isinstance(tmp, str) and Path(tmp).is_absolute()):
+        raise SiteError(f"{path}: tmp_dir, when given, must be an absolute path")
     sources = data.get("sources", {})
     if not isinstance(sources, dict) or not all(
             isinstance(k, str) and isinstance(v, str) and Path(v).is_absolute()
@@ -107,6 +110,7 @@ def read_site(path: Path) -> dict:
             "layers_dir": Path(layers) if layers else None,
             "releases_root": Path(releases) if releases else None,
             "snakemake": Path(snakemake) if snakemake else None,
+            "tmp_dir": Path(tmp) if tmp else None,
             "sources": {k: Path(v) for k, v in sources.items()}}
 
 
@@ -147,6 +151,14 @@ def releases_root() -> Path:
     if SITE is not None and SITE.get("releases_root") is not None:
         return SITE["releases_root"]
     return RELEASES_DEFAULT
+
+
+def tmp_dir() -> Optional[Path]:
+    """Where a stage run puts its temporary files and DuckDB's overflow: the site's ``tmp_dir``,
+    else ``None`` (Python's own temporary folder); read when called, not at import."""
+    if SITE is not None and SITE.get("tmp_dir") is not None:
+        return SITE["tmp_dir"]
+    return None
 
 
 def source(name: str) -> Optional[Path]:
