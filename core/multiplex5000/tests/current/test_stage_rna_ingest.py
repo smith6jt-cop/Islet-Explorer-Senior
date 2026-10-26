@@ -114,5 +114,49 @@ def test_stage_04_refuses_missing_indexed_source(tmp_path):
     b = _bundle(tmp_path, "0040001", "PanT", [1, 1])
     project = _project(tmp_path, [a, b])
     (b / "cell_feature_matrix.h5").unlink()
-    with pytest.raises(rna_ingest.RNAIngestError, match="every indexed source ready"):
+    with pytest.raises(rna_ingest.RNAIngestError, match="every selected source ready"):
         rna_ingest.inputs(project)
+
+
+def test_selected_pilot_does_not_require_or_claim_unselected_region(tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
+    a = _bundle(tmp_path, "0040001", "Panc", [1, 1])
+    b = _bundle(tmp_path, "0040001", "PanT", [1, 1])
+    project = _project(tmp_path, [a, b])
+    project.settings = {"rna_acquisitions": ["xenium:0040001:Panc"]}
+    (b / "cell_feature_matrix.h5").unlink()
+    result = tasks.run_stage(rna_ingest, project)
+    assert result.gate_passed
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert receipt["summary"]["regions"] == 1
+    assert receipt["summary"]["accepted_regions"] == 2
+    assert receipt["summary"]["scope"] == "selected"
+    assert receipt["settings"]["rna_acquisitions"] == ["xenium:0040001:Panc"]
+    assert not (result.path / "cells/0040001__PanT.parquet").exists()
+    assert all("PanT" not in item["name"] for item in receipt["inputs"])
+
+
+def test_local_pilot_uses_accepted_paths_and_records_manifest_without_site_index(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
+    a = _bundle(tmp_path, "0040001", "Panc", [1, 1])
+    b = _bundle(tmp_path, "0040001", "PanT", [1, 1])
+    project = _project(tmp_path, [a, b])
+    project.settings = {"rna_acquisitions": ["xenium:0040001:Panc"]}
+    records = tmp_path / "records"
+    records.mkdir()
+    manifest = records / "MANIFEST.tsv"
+    manifest.write_text("output\tfile\tsource\tsha256\tbytes\tcopied_utc\n")
+    stage = project.release_dir / "00_inventory"
+    receipt = json.loads((stage / "receipt.json").read_text())
+    receipt["inputs"].append({"name": "xenium_records_manifest",
+                              "sha256": sha256_file(manifest)})
+    (stage / "receipt.json").write_text(json.dumps(receipt))
+    gates.accept(stage, by="test")
+    project.source = lambda name: records if name == "xenium_records" else None
+    (b / "cell_feature_matrix.h5").unlink()
+    result = tasks.run_stage(rna_ingest, project)
+    assert result.gate_passed
+    bound = json.loads((result.path / "receipt.json").read_text())["inputs"]
+    assert any(item["name"] == "xenium_records_manifest" for item in bound)
+    assert not any(item["name"] == "xenium_source_index" for item in bound)
