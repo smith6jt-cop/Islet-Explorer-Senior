@@ -8,7 +8,8 @@ every rule runs a stage with that same interpreter. Each rule's inputs are the f
 declares and, after the first stage, the previous stage's gate acceptance; its output is the
 stage's receipt. A stage whose gate has not been accepted stops the graph there: Snakemake
 reports the missing gate/accepted.json. The profiles change resources only, never a scientific
-step.
+step. One graph invocation targets the next incomplete stage; run it again after
+that stage's gate is accepted (or after an automatic gate accepts itself).
 
 MultiPlex5000 D3 (2026-10-20).
 """
@@ -25,7 +26,7 @@ SPEC = json.loads(_spec.stdout)
 
 rule all:
     input:
-        [stage["receipt"] for stage in SPEC["stages"]],
+        SPEC["target_receipt"],
 
 
 for _stage in SPEC["stages"]:

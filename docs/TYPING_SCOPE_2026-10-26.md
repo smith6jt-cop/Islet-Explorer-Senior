@@ -166,6 +166,16 @@ values for spleen. Stage 05 needs the eight protein samples to estimate
 cross-section shifts; the first bounded RNA pilot uses HDL090's Xenium region.
 The other seven Xenium regions remain in the inventory until admitted.
 
+Stage 05 now fits one rigid UniFORM background-mode shift per marker across
+the eight Stage 03 PC67 sections. It uses the pinned UniFORM commit through a
+site-configured `uniform_checkout` (or a tagged checkout's `external/UniFORM`),
+publishes section-by-marker scale and availability tables, and shows before/
+after mode spread and individual marker figures. CD8 must have a shift on all
+eight sections. A marker with too little measurable signal is reported as
+unavailable rather than assigned a synthetic zero histogram. Stage 05 does
+not set positivity cutoffs or call cells. Its gate needs processing review
+before Stage 06 may use its scales.
+
 `multiplex5000.tissues.evaluate.evaluate_rules` is the shared Boolean
 hierarchy evaluator for the selected pLN sheet and its spleen adaptation. It
 takes explicit per-cell positive, negative or unavailable marker calls; it

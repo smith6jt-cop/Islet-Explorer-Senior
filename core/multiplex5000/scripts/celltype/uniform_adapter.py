@@ -70,64 +70,34 @@ the marker, which with 25 donors in one cohort refused CD8 although UniFORM alig
 from __future__ import annotations
 
 import pathlib
-import subprocess
 import sys
 
 import numpy as np
-import pandas as pd
+
+from multiplex5000 import normalize as common_normalize
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import panel                                        # noqa: E402
+import panel  # noqa: E402, I001
 
 #: The UniFORM checkout this lane was built against.  It is a gitignored clone under
 #: /external/ because the repo carries no packaging metadata, so pip cannot pin it; the
 #: assertion below is what stops a drifted checkout from silently changing the shift.
-UNIFORM_COMMIT = "7c33396d12e5a19dc0b36e46a94c3293de0cd814"
 UNIFORM_PATH = panel.REPO / "external" / "UniFORM"
+UNIFORM_COMMIT = common_normalize.UNIFORM_COMMIT
+NUM_BINS = common_normalize.NUM_BINS
+marker_histograms = common_normalize.marker_histograms
+background_mode_spread = common_normalize.background_mode_spread
 
-NUM_BINS = 1024
 GMM_MAX_CELLS = 200_000          # the GMM cutoff is a Step-3 input, not a shift input
 
 
 def _import_uniform():
     """Import UniFORM from the pinned checkout, refusing a drifted one."""
-    if not UNIFORM_PATH.exists():
-        raise RuntimeError(
-            f"UniFORM checkout missing at {UNIFORM_PATH}.\n"
-            f"  git clone https://github.com/smith6jt-cop/UniFORM.git external/UniFORM\n"
-            f"  git -C external/UniFORM checkout {UNIFORM_COMMIT}")
-    head = subprocess.run(["git", "-C", str(UNIFORM_PATH), "rev-parse", "HEAD"],
-                          capture_output=True, text=True, check=True).stdout.strip()
-    if head != UNIFORM_COMMIT:
-        raise RuntimeError(
-            f"UniFORM checkout is at {head}, this lane is pinned to {UNIFORM_COMMIT}. "
-            "A different commit can change the registration without anything in the output "
-            "being able to show it.")
-    sys.path.insert(0, str(UNIFORM_PATH))
-    from UniFORM import registration, normalization, preprocessing   # noqa: F401
+    registration, normalization = common_normalize.load_uniform(UNIFORM_PATH)
+    from UniFORM import preprocessing
+
     return registration, normalization, preprocessing
-
-
-def marker_histograms(values_by_donor: dict, num_bins: int = NUM_BINS) -> tuple:
-    """UniFORM's histogramming for one marker: log, common global range, fixed bins.
-
-    Returns ``(counts_by_donor, {'global_min','global_max','min_list','max_list'})`` in the
-    shapes ``automatic_registration`` and ``calculate_shift_in_log_pixels`` expect.
-    """
-    logs, mins, maxs = {}, [], []
-    for d, v in values_by_donor.items():
-        v = np.asarray(v, dtype=float)
-        v = v[np.isfinite(v) & (v >= 1.0)]          # log_transform_intensities(min_value=1)
-        lv = np.log(v) if len(v) else np.array([0.0])
-        logs[d] = lv
-        mins.append(float(lv.min()))
-        maxs.append(float(lv.max()))
-    lo, hi = min(mins), max(maxs)
-    counts = {d: np.histogram(lv, bins=num_bins, range=(lo, hi))[0]
-              for d, lv in logs.items()}
-    return counts, {"global_min": lo, "global_max": hi,
-                    "min_list": mins, "max_list": maxs}
 
 
 def gmm_cutoff(values: np.ndarray, ranges: dict, num_bins: int = NUM_BINS,
@@ -172,7 +142,7 @@ def gmm_background_landmark(values_by_donor: dict, ranges: dict,
     lo, hi = ranges["global_min"], ranges["global_max"]
     binw = (hi - lo) / (num_bins - 1)
     out = []
-    for d, v in values_by_donor.items():
+    for v in values_by_donor.values():
         v = np.asarray(v, dtype=float)
         v = v[np.isfinite(v) & (v >= 1.0)]
         if len(v) > max_cells:
@@ -181,24 +151,3 @@ def gmm_background_landmark(values_by_donor: dict, ranges: dict,
         neg = p0 if pts[int(np.argmax(p0))] < pts[int(np.argmax(p1))] else p1
         out.append(float((pts[int(np.argmax(neg))] - lo) / binw))
     return out
-
-
-def background_mode_spread(counts: dict, ranges: dict, shifts: dict | None = None,
-                           num_bins: int = NUM_BINS) -> dict:
-    """Where each donor's histogram peaks, before and (optionally) after the shift.
-
-    This is the quantity the shift is trying to align, so it is the quantity the acceptance
-    bar is stated on -- not the positive fraction, which must not be tuned toward uniformity.
-    """
-    lo, hi = ranges["global_min"], ranges["global_max"]
-    binw = (hi - lo) / (num_bins - 1)
-    peaks = {}
-    for d, c in counts.items():
-        c = np.asarray(c, dtype=float)
-        peak = lo + (int(np.argmax(c[1:])) + 1) * binw       # skip bin 0: the log floor
-        if shifts is not None:
-            peak -= shifts[d] * binw
-        peaks[d] = peak
-    v = np.array(list(peaks.values()))
-    return {"peaks": peaks, "sd_log": float(v.std()),
-            "fold": float(np.exp(v.max() - v.min()))}

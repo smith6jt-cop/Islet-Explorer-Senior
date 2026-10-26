@@ -105,17 +105,28 @@ def graph_spec(project: projects.Project) -> dict:
     inputs, the previous stage's acceptance, and its receipt."""
     out = []
     for stage in project.stages:
-        inputs = {i.name: str(i.path) for i in stages.get(stage).inputs(project)
-                  if i.required or Path(i.path).exists()}
         previous = project.previous(stage)
+        # A later stage may discover its raw inputs from an accepted earlier
+        # stage's inventory. Defer that discovery until the human gate exists;
+        # on the next graph invocation its full declared inputs are included.
+        ready = previous is None or gates.accepted(project.release_dir / previous) is not None
+        inputs = ({i.name: str(i.path) for i in stages.get(stage).inputs(project)
+                   if i.required or Path(i.path).exists()} if ready else {})
         if previous is not None:
             inputs["previous_gate_accepted"] = str(project.release_dir / previous / gates.GATE_DIR
                                                    / gates.ACCEPTED_FILE)
         out.append({"id": stage, "inputs": inputs,
                     "receipt": str(project.release_dir / stage / tasks.RECEIPT)})
+    # A graph invocation builds the next incomplete stage. Targeting every
+    # receipt at once would make Snakemake reject a missing future human gate
+    # before it could run the first stage.
+    target = next((item["receipt"] for item in out
+                   if not tasks.is_complete(project.release_dir / item["id"])),
+                  out[-1]["receipt"])
     return {"project": str(project.path), "release": project.release,
             "releases_root": str(project.releases_root),
-            "release_dir": str(project.release_dir), "stages": out}
+            "release_dir": str(project.release_dir), "target_receipt": target,
+            "stages": out}
 
 
 def _graph_spec(args) -> int:

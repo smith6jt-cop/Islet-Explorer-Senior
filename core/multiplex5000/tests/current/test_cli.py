@@ -60,6 +60,7 @@ def test_the_graph_spec_is_what_the_snakefile_reads(capsys, synthetic_project):
     assert stage["id"] == "00_inventory" and stage["receipt"].endswith("00_inventory/receipt.json")
     assert {"donor_notes", "pln_blocks", "cohort_spec"} <= set(stage["inputs"])
     assert "previous_gate_accepted" not in stage["inputs"], "stage 00 is the first"
+    assert spec["target_receipt"] == stage["receipt"]
 
 
 def test_the_graph_says_where_snakemake_must_come_from(capsys, monkeypatch, synthetic_project):

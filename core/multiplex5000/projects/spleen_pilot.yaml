@@ -2,8 +2,9 @@ schema: multiplex5000-project/1
 id: spleen_pilot
 release: spleen-pilot-candidate-1
 cohort: spleen_same_slide_pilot
-# Raw protein and RNA are admitted separately; Stage 05/06 join when built.
-stages: [00_inventory, 03_protein_measurement, 04_rna_ingest]
+# Raw protein and RNA are admitted separately before full-panel UniFORM.
+# Stage 06 joins when its per-assay evidence producers are built.
+stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 05_normalization]
 # The measurement gate records coverage; the first manual processing stop is typing.
 automatic_gates: [03_protein_measurement]
 settings:
