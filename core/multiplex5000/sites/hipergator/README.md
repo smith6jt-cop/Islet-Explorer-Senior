@@ -63,5 +63,7 @@ REDSEA, and neither assay has a cell-type result. On HiPerGator, set
 `MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project folder, and set
 the site `tmp_dir` to a sufficiently large writable `/blue/maigan` folder. Run
 `mplx5k stage run 00_inventory --project spleen_pilot`, review its `gate.html`,
-then accept the gate before progressing. Stage 06 joins when the per-assay
-evidence producers are built.
+then accept the gate before progressing. Stage 06 now produces separate
+review-only protein rule matches and Xenium gene evidence for HDL090. It
+publishes no final cell class or cross-assay cell link. Stage 06's gate waits
+for manual review; its notebook is `notebooks/06_typing.ipynb`.

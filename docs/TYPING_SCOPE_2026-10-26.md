@@ -183,3 +183,13 @@ does not derive positivity thresholds from intensities or publish a final
 cell class. Missing markers in any ancestor make a rule unavailable. Stage 05
 and the tissue-specific Stage 06 producers still have to supply and validate
 those marker calls before this can type a real cell.
+
+The first executable Stage 06 adapter is a bounded spleen same-slide pilot
+on HDL090. It applies the maintainer-selected 0.10 background-to-bright-end
+candidate independently to each measured protein marker in that physical
+section, runs the same hierarchy over those marker calls, and records raw
+Xenium identity-gene detection by the existing fixed-depth predicate. The
+protein and RNA cells stay in separate tables. The output is review evidence:
+there is no `cell_class`, `refined_class`, verified accuracy estimate or
+paired-cell result. This adapter does not complete the pancreas/pLN typing
+routes or the other seven spleen Xenium regions.
