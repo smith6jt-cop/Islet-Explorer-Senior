@@ -27,6 +27,8 @@ from multiplex5000 import project as P
 STAGE = stages.get("03_protein_measurement")
 
 DONOR = "6374"
+#: A second donor, for measuring donors at once against one at a time.
+SECOND = "6380"
 IMAGE = "6374_Scan1.er.qptiff - resolution #1"
 CHANNELS = ("DAPI", "CD3e", "E-cadherin")
 PIXEL_UM = 0.5
@@ -75,10 +77,10 @@ def _geojson(path) -> None:
     path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
 
 
-def _exports(cells_path, context_path) -> None:
+def _exports(cells_path, context_path, image=IMAGE) -> None:
     rows, context = [], []
     for index, (oid, (x, y, has_nucleus)) in enumerate(CELLS.items()):
-        row = {"Image": IMAGE, "Object ID": oid, "Object type": "Cell", "Name": "",
+        row = {"Image": image, "Object ID": oid, "Object type": "Cell", "Name": "",
                "Classification": "", "Parent": "Root object (Image)", "ROI": "Polygon",
                "Centroid X µm": -1.0, "Centroid Y µm": -1.0, "Cell: Area µm^2": 25.0,
                "Cell: Solidity": 1.0, "Nucleus: Area µm^2": 4.0 if has_nucleus else np.nan,
@@ -102,49 +104,67 @@ def _sha(path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-@pytest.fixture
-def measurement_project(tmp_path):
-    """A project whose only stage is 03, with every source it reads."""
+def _sources(tmp_path, donors=(DONOR,)) -> dict:
+    """Every source stage 03 reads, one synthetic image per donor: the project's ``sources``."""
     from multiplex5000.qupath_manifest import create_cohort_manifest
 
     source = tmp_path / "sources"
     source.mkdir()
-    qptiff, geojson = source / "6374.qptiff", source / "6374.geojson"
-    cells, context = source / "6374_cells.parquet", source / "6374_context.parquet"
-    _qptiff(qptiff)
-    _geojson(geojson)
-    _exports(cells, context)
-    spec = {"spec_version": 1, "cohort_name": "synthetic", "expected_donors": [DONOR],
-            "images": [{"donor_id": DONOR, "image_id": IMAGE, "measurement_csv": str(cells),
-                        "measurement_context": str(context), "qptiff": str(qptiff),
-                        "cell_geojson": str(geojson), "nucleus_geojson": str(geojson),
-                        "pixel_size_um_x": PIXEL_UM, "pixel_size_um_y": PIXEL_UM,
-                        "panel_id": "synthetic-3ch", "channel_map": None,
-                        "segmentation_version": "synthetic"}]}
+    exclusions = tmp_path / "exclusions"
+    images, records = [], []
+    # the recorded exclusions: c05 is a reviewed cell; c15 has no nucleus (geometry QC's own reason)
+    reasons = {EXCLUDED: "exocrine_inside_islet_border", NO_NUCLEUS: "missing_nucleus_geometry"}
+    for donor in donors:
+        image = f"{donor}_Scan1.er.qptiff - resolution #1"
+        qptiff, geojson = source / f"{donor}.qptiff", source / f"{donor}.geojson"
+        cells, context = source / f"{donor}_cells.parquet", source / f"{donor}_context.parquet"
+        _qptiff(qptiff)
+        _geojson(geojson)
+        _exports(cells, context, image)
+        images.append({"donor_id": donor, "image_id": image, "measurement_csv": str(cells),
+                       "measurement_context": str(context), "qptiff": str(qptiff),
+                       "cell_geojson": str(geojson), "nucleus_geojson": str(geojson),
+                       "pixel_size_um_x": PIXEL_UM, "pixel_size_um_y": PIXEL_UM,
+                       "panel_id": "synthetic-3ch", "channel_map": None,
+                       "segmentation_version": "synthetic"})
+        (exclusions / f"donor_id={donor}").mkdir(parents=True)
+        table = exclusions / f"donor_id={donor}" / "data.parquet"
+        pd.DataFrame({"object_id": list(CELLS),
+                      "analysis_eligible": [c not in reasons for c in CELLS],
+                      "analysis_exclusion_reason": [reasons.get(c) for c in CELLS]}).to_parquet(
+            table, index=False)
+        records.append({"donor_id": donor, "donor_id_native": donor, "path": str(table),
+                        "sha256": _sha(table)})
+    spec = {"spec_version": 1, "cohort_name": "synthetic", "expected_donors": list(donors),
+            "images": images}
     (source / "manifest_spec.json").write_text(json.dumps(spec))
     create_cohort_manifest(source / "manifest_spec.json", source / "qupath_manifest.json")
     (source / "cohort_spec.json").write_text(json.dumps({
-        "spec_version": 1, "cohort_name": "synthetic", "expected_donors": [DONOR],
-        "defaults": {}, "images": [{"donor_id": DONOR, "image_id": IMAGE}]}))
-    # the recorded exclusions: B is a reviewed cell; D has no nucleus (geometry QC's own reason)
-    exclusions = tmp_path / "exclusions"
-    (exclusions / f"donor_id={DONOR}").mkdir(parents=True)
-    table = exclusions / f"donor_id={DONOR}" / "data.parquet"
-    reasons = {EXCLUDED: "exocrine_inside_islet_border", NO_NUCLEUS: "missing_nucleus_geometry"}
-    pd.DataFrame({"object_id": list(CELLS), "analysis_eligible": [c not in reasons for c in CELLS],
-                  "analysis_exclusion_reason": [reasons.get(c) for c in CELLS]}).to_parquet(
-        table, index=False)
-    (exclusions / "manifest.json").write_text(json.dumps({"donors": [
-        {"donor_id": DONOR, "donor_id_native": DONOR, "path": str(table), "sha256": _sha(table)}]}))
+        "spec_version": 1, "cohort_name": "synthetic", "expected_donors": list(donors),
+        "defaults": {}, "images": [{"donor_id": i["donor_id"], "image_id": i["image_id"]}
+                                   for i in images]}))
+    (exclusions / "manifest.json").write_text(json.dumps({"donors": records}))
+    return {"cohort_spec": str(source / "cohort_spec.json"),
+            "qupath_manifest": str(source / "qupath_manifest.json"),
+            "analysis_exclusions": str(exclusions)}
+
+
+def _project(folder, sources: dict, settings: dict | None = None):
+    """A project whose only stage is 03, reading ``sources`` and building its release in folder."""
+    folder.mkdir(parents=True, exist_ok=True)
     project = {"schema": "multiplex5000-project/1", "id": "synthetic", "release": "r1",
                "cohort": "io60_v3", "stages": ["03_protein_measurement"], "automatic_gates": [],
-               "settings": {}, "releases_root": str(tmp_path / "releases"),
-               "sources": {"cohort_spec": str(source / "cohort_spec.json"),
-                           "qupath_manifest": str(source / "qupath_manifest.json"),
-                           "analysis_exclusions": str(exclusions)}}
-    path = tmp_path / "synthetic.yaml"
+               "settings": settings or {}, "releases_root": str(folder / "releases"),
+               "sources": sources}
+    path = folder / "synthetic.yaml"
     path.write_text(yaml.safe_dump(project, sort_keys=False))
     return path
+
+
+@pytest.fixture
+def measurement_project(tmp_path):
+    """A project whose only stage is 03, with every source it reads."""
+    return _project(tmp_path, _sources(tmp_path))
 
 
 def _run(path):
@@ -177,6 +197,28 @@ def test_a_measured_image_has_every_table_and_its_gate_passes(measurement_projec
     for table in ("cells", "geometry_qc", "expression"):
         ids = _partition(folder, table)["object_id"].astype(str).tolist()
         assert ids == sorted(ids), f"{table} is not in object_id order"
+
+
+def test_donors_measured_at_once_write_the_same_tables_as_one_at_a_time(tmp_path):
+    # the same sources measured with one worker per step and with two: pool workers, each
+    # donor's reads checked like the stage's own, the results gathered in donor order
+    sources = _sources(tmp_path, donors=(DONOR, SECOND))
+    folders = {}
+    for jobs in (1, 2):
+        folder, checks = _run(_project(tmp_path / f"jobs{jobs}", sources,
+                                       {"measurement_jobs": jobs}))
+        assert all(c["passed"] for c in checks.values() if c["blocking"]), jobs
+        folders[jobs] = folder
+
+    def digests(folder):
+        data = folder / "data"
+        return {str(p.relative_to(data)): _sha(p) for p in sorted(data.rglob("*")) if p.is_file()}
+
+    assert digests(folders[1]) == digests(folders[2])
+    assert {p.name for p in (folders[2] / "data" / "expression").iterdir()} == {
+        f"donor_id={DONOR}", f"donor_id={SECOND}"}
+    for name in ("nucleus_admission.csv", "markers_before_after.csv"):
+        assert _sha(folders[1] / name) == _sha(folders[2] / name), name
 
 
 def test_the_ingested_cells_are_rewritten_in_object_id_order(tmp_path):

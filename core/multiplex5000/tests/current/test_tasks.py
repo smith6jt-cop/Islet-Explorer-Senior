@@ -123,6 +123,25 @@ def test_reading_a_file_the_stage_did_not_declare_fails_it(tmp_path):
     assert not (project.release_dir / "s1").exists()
 
 
+def test_a_file_read_in_a_pool_worker_is_checked_like_the_stage_s_own(tmp_path):
+    """A worker is a fresh interpreter; ``tasks.audited`` hands what it opened back to the run."""
+    from functools import partial
+
+    from multiplex5000.parallel import map_donors
+
+    project = _project(tmp_path)
+    secrets = [_source(tmp_path, "undeclared.csv"), _source(tmp_path, "undeclared_too.csv")]
+
+    def fan_out():
+        for _, opened in map_donors(partial(tasks.audited, Path.read_text), secrets, n_jobs=2,
+                                    ordered=True, on_error="raise"):
+            tasks.record(opened)
+
+    with pytest.raises(tasks.TaskError, match="did not declare"):
+        tasks.run_stage(_stage("s1", during=fan_out), project)
+    assert not (project.release_dir / "s1").exists()
+
+
 def test_package_metadata_is_not_an_input_but_a_file_beside_it_is(tmp_path):
     """An editable install leaves ``<name>.egg-info`` beside its source, and scanning entry points
     reads it; that is the package describing itself, not data the stage depends on."""

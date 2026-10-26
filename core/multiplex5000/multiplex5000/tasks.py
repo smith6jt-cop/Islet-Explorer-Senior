@@ -114,6 +114,26 @@ def _audit(event: str, args: tuple) -> None:
 sys.addaudithook(_audit)
 
 
+def audited(func, *args):
+    """``func(*args)`` and every file it opened -- for a stage's work done in a pool worker.
+
+    A worker is a fresh interpreter with no record of the running stage, so what it opens would go
+    unchecked. The stage hands each worker's record back to the run with :func:`record`."""
+    opened: set = set()
+    token = _OPENED.set(opened)
+    try:
+        return func(*args), opened
+    finally:
+        _OPENED.reset(token)
+
+
+def record(opened: set) -> None:
+    """Add what a worker opened to the running stage's record, so it is checked like its own."""
+    current = _OPENED.get()
+    if current is not None:
+        current.update(opened)
+
+
 def _always_readable() -> list[str]:
     """Where reading needs no declaration: the interpreter and its libraries, this package's own
     code and knowledge (versioned in the receipt as the commit), system files and caches."""
