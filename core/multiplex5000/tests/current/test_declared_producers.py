@@ -10,7 +10,7 @@ reaches the artifact graph from nowhere else.
     pancreas x Xenium        multiplex5000.tissues.pancreas_xenium_worker, run by
                              panc_xenium_release.py -> /data/xenium_typing/panc_2026-09-17/release
                                                                           (lineage, common_lineage)
-    pLN x Xenium             analysis/xenium/scripts/pln_immune_typing_v3.py
+    pLN x Xenium             multiplex5000.tissues.lymph_node_xenium_worker
                              -> data/development/xenium_typing/release_pln_immune_v3
                                                                           (lineage, common_lineage)
     pLN x PhenoCycler        core/multiplex5000/scripts/typing/build_pln_immune_pheno.py
@@ -91,7 +91,7 @@ DECLARED_PRODUCERS: dict[tuple[str, str], tuple[str, ...]] = {
         "analysis/xenium/scripts/panc_xenium_release.py",
     ),
     ("pLN", "Xenium"): (
-        "analysis/xenium/scripts/pln_immune_typing_v3.py",
+        "core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py",
     ),
     ("pLN", "PhenoCycler"): (
         "core/multiplex5000/scripts/typing/build_pln_immune_pheno.py",

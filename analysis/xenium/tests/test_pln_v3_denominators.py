@@ -18,6 +18,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from multiplex5000.partial_run_guard import RunScope
+from multiplex5000.tissues import pln_clustering
+
 XENIUM = Path(__file__).resolve().parents[1]
 SCRIPT = XENIUM / "scripts" / "pln_immune_typing_v3.py"
 
@@ -29,6 +32,11 @@ def v3():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_worker_uses_package_scope_and_partition(v3):
+    assert v3.RunScope is RunScope
+    assert v3.cluster_module() is pln_clustering
 
 
 def _counts(frame: pd.DataFrame) -> tuple[int, int, int]:

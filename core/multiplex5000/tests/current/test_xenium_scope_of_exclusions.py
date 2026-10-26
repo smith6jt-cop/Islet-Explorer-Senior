@@ -27,6 +27,7 @@ sys.path.insert(0, str(REPO))
 
 from phenocycler import cohort  # noqa: E402
 from phenocycler.cohort import ensure_eligible_donors, excluded_on  # noqa: E402
+from multiplex5000.tissues import lymph_node_xenium_worker as pln_v3  # noqa: E402
 from multiplex5000.tissues import pancreas_xenium_worker as panc_worker  # noqa: E402
 
 
@@ -39,7 +40,6 @@ def _load(path: Path, name: str):
     return module
 
 
-pln_v3 = _load(REPO / "analysis/xenium/scripts/pln_immune_typing_v3.py", "pln_v3_xenium_scope")
 cluster = _load(REPO / "core/multiplex5000/scripts/pln/cluster_pln.py", "cluster_pln_xenium_scope")
 linkage = _load(REPO / "scripts/senior/same_section_linkage.py", "linkage_xenium_scope")
 from scripts.senior import modality_concordance as concordance  # noqa: E402

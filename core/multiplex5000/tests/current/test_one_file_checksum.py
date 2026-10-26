@@ -25,8 +25,6 @@ THE_ONE = ("core/multiplex5000/multiplex5000/artifacts.py", "sha256_file")
 KEPT = {
     ("analysis/xenium/scripts/panc_xenium_release.py", "sha256_of"):
         "the Xenium lane is a separate system and this file never imports phenocycler",
-    ("analysis/xenium/scripts/pln_immune_typing_v3.py", "sha256"):
-        "the Xenium lane; imports phenocycler only inside one function",
     ("core/multiplex5000/scripts/broadtype/arms/cosine_broad8.py", "_sha"):
         "never imports phenocycler; its interpreter is not evidenced",
     ("core/multiplex5000/scripts/celltype/alignment_block.py", "_sha256"):
