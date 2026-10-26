@@ -73,6 +73,16 @@ def _record(bundle: Path, donor: str, roi: str, *, record_bundle: Path | None = 
             "record_bundle": str(record_bundle or bundle)}
 
 
+def _site_index(path: Path, records: list[dict], sources: list[Path]) -> Path:
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=("acquisition_id", "output", "source_path"))
+        writer.writeheader()
+        for record, source in zip(records, sources, strict=True):
+            writer.writerow({"acquisition_id": record["acquisition_id"],
+                             "output": record["output"], "source_path": str(source)})
+    return path
+
+
 def test_same_slide_regions_and_xenium_only_are_separate(tmp_path):
     local = _bundle(tmp_path / "local", "0030001", "panc")
     new_panc = _bundle(tmp_path / "copies", "0040001", "panc")
@@ -114,6 +124,53 @@ def test_exact_remote_bundle_is_ready_on_the_host_that_holds_it(tmp_path):
     roster = build_roster(stage, manifest)
     assert roster[0].status == "ready"
     assert roster[0].source_path == str(remote)
+
+
+def test_site_index_selects_a_renamed_region_and_never_falls_back(tmp_path):
+    local = _bundle(tmp_path / "local", "0040001", "panc")
+    source = _bundle(tmp_path / "site", "0040001", "PanT")
+    recorded = tmp_path / "old_location" / source.name.replace("PanT", "pLN")
+    rows = [_record(local, "6533", "panc"),
+            _record(recorded, "6533", "pln_2", record_bundle=source)]
+    stage, _ = _accepted(tmp_path, rows)
+    index = _site_index(tmp_path / "site.csv", rows, [local, source])
+    roster = build_roster(stage, site_index=index)
+    assert [r.status for r in roster] == ["ready", "ready"]
+    assert roster[1].sample_key == "0040001__pln_2"
+    assert roster[1].source_path == str(source)
+
+    # The index is the run's source authority; the complete local copy cannot hide its loss.
+    index = _site_index(index, rows, [tmp_path / "missing" / local.name, source])
+    roster = build_roster(stage, site_index=index)
+    assert roster[0].status == "missing"
+
+
+def test_site_index_requires_every_accepted_region_and_correct_serial(tmp_path):
+    first = _bundle(tmp_path / "local", "0040001", "panc")
+    second = _bundle(tmp_path / "local", "0040002", "panc")
+    rows = [_record(first, "6512", "panc"), _record(second, "6618", "panc")]
+    stage, _ = _accepted(tmp_path, rows)
+    index = _site_index(tmp_path / "site.csv", rows[:1], [first])
+    with pytest.raises(XeniumSourceError, match="site index is missing"):
+        build_roster(stage, site_index=index)
+    index = _site_index(index, rows, [first, first])
+    with pytest.raises(XeniumSourceError, match="another Xenium slide"):
+        build_roster(stage, site_index=index)
+
+
+def test_tracked_hpg_index_covers_the_tracked_xenium_outputs():
+    repo = Path(__file__).resolve().parents[4]
+    catalog = repo / "core/phenocycler/data/integration/xenium_paths.csv"
+    index = repo / "core/multiplex5000/sites/hipergator/xenium_sources_20261026.csv"
+    catalog_outputs = {Path(row["source_path"].strip().rstrip("/")).name
+                       for row in csv.DictReader(catalog.open())}
+    indexed = list(csv.DictReader(index.open()))
+    assert len(indexed) == 65
+    assert len({row["acquisition_id"] for row in indexed}) == 65
+    assert {row["output"] for row in indexed} == catalog_outputs
+    assert all(row["source_path"].startswith("/orange/maigan/") for row in indexed)
+    assert all(row["output"].split("__")[1] == Path(row["source_path"]).name.split("__")[1]
+               for row in indexed)
 
 
 def test_accepted_inventory_cannot_be_rewritten(tmp_path):
