@@ -60,6 +60,10 @@ def test_release_worker_uses_package_naming_decisions():
     for name in ("naming_policy_panels", "exact_detection_q", "decide", "redirect_counts"):
         assert getattr(worker, name) is getattr(pancreas_rna_naming, name)
 
+
+def test_release_source_receipt_includes_package_worker():
+    assert IMPLEMENTATION_PATH.resolve() in {path for path, _ in release.producer_scripts()}
+
 #: The work directory of the pancreas run.  Overridable so the artifact tests can be pointed at
 #: another run rather than restating a path in a second place.
 WORK = Path(os.environ.get("PANC_XENIUM_WORK", "/data/xenium_typing/panc_2026-09-17/_work"))
