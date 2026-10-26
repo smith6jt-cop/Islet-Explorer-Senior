@@ -43,6 +43,20 @@ reports the subset. The accepted Stage 00 directory must be present under
 that project's release root before Stage 04 runs. It is not currently on
 HiPerGator, so do not treat a local Stage 04 test as a full-cohort HPG ingest.
 
+The [dedicated pLN v3 export index](pln_qupath_exports_v3.csv) binds each of the
+19 recorded images in `pln_node_annotations.csv` to one QuPath cell-export filename
+and segmentation ID. Its filenames are relative to `sources.pln_v3_export_cells`,
+which each site sets to the folder holding those Parquet files. The source loader
+checks the roster identity, QuPath schema, first `Image` value, and export row
+count. The roster's older counts are comparison evidence from a prior
+segmentation; a mismatch does not reject a later export. This binding is a
+source check, not compensated protein measurement or typed cells.
+Run `mplx5k sources pln` on a configured site, or
+`mplx5k sources pln --root /absolute/path/to/export/cells` to inspect an
+explicit folder. `--image` limits it to recorded images for a bounded pilot.
+This command reads Parquet metadata and the first `Image` value; it does not
+claim every cell in a large file was checked or accept a processing gate.
+
 ## The MultiPlex5000 environment
 
 The repo `.venv` is shared by several checkouts and, since 2026-10-03, imports `phenocycler` from
