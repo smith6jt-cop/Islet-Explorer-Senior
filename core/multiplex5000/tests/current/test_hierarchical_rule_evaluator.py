@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
-from multiplex5000.tissues.evaluate import evaluate_rules
+from multiplex5000.tissues.evaluate import evaluate_rules, evaluate_rules_batch
 from multiplex5000.tissues.lymph_node import RuleSourceError
 from multiplex5000.tissues.lymph_node import load_rule_source as load_pln
 from multiplex5000.tissues.spleen import load_rule_source as load_spleen
@@ -66,3 +67,39 @@ def test_non_boolean_intensity_cannot_be_mistaken_for_a_marker_call():
     source = load_pln(PLN)
     with pytest.raises(RuleSourceError, match="true, false or unavailable"):
         evaluate_rules(source, {"CD3e": 0.5})
+
+
+@pytest.mark.parametrize("load,path", [(load_pln, PLN), (load_spleen, SPLEEN)])
+def test_batch_hierarchy_agrees_with_single_cell_method(load, path):
+    source = load(path)
+    calls = {marker: np.zeros(4, dtype=np.int8)
+             for rule in source.rules for marker in rule.markers}
+    calls["CD3e"][1] = 1
+    calls["CD20"][2] = 1
+    calls["CD38"][2] = -1
+    calls["CD3e"][3] = -1
+    batch = evaluate_rules_batch(source, calls)
+    mapping = {"matched": 1, "not_matched": 0, "unavailable": -1}
+    for cell in range(4):
+        one = evaluate_rules(source, {marker: (None if values[cell] == -1
+                                               else bool(values[cell]))
+                                      for marker, values in calls.items()})
+        for phenotype, state in one.states.items():
+            assert batch.states[phenotype][cell] == mapping[state], (phenotype, cell)
+    assert batch.unavailable_counts["T_cell"] >= 1
+
+
+def test_batch_alias_conflicts_and_bad_shapes_are_refused():
+    source = load_pln(PLN)
+    combined = evaluate_rules_batch(source, {"PD-L1": np.array([-1, 1]),
+                                             "PDL1": np.array([1, -1])})
+    assert combined.states["PD-L1_expressing"].tolist() == [1, 1]
+    with pytest.raises(RuleSourceError, match="disagree"):
+        evaluate_rules_batch(source, {"PD-L1": np.array([0, 1]),
+                                      "PDL1": np.array([1, 1])})
+    with pytest.raises(RuleSourceError, match="one-dimensional"):
+        evaluate_rules_batch(source, {"CD3e": np.array([[0, 1]])})
+    with pytest.raises(RuleSourceError, match="cell count"):
+        evaluate_rules_batch(source, {"CD3e": np.array([0]), "CD3g": np.array([0, 1])})
+    with pytest.raises(RuleSourceError, match="-1, 0 or 1"):
+        evaluate_rules_batch(source, {"CD3e": np.array([2])})
