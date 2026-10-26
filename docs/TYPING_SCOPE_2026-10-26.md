@@ -66,8 +66,22 @@ It emits acquisition-qualified `cell_uid` values and keeps cells without a
 nucleus in the accounting while marking them ineligible for typing. It makes
 no cell-type call or gene-positive cutoff. On the local 6539 pilot, it read
 319,005 pancreas cells (41,814 no nucleus) and 222,443 pLN cells (6,344 no
-nucleus), both with 5,101 genes. This does not yet publish Stage 04 or run on
+nucleus), both with 5,101 genes. This pilot did not publish Stage 04 or run on
 the 35 HPG-only bundles.
+
+The Stage 04 runner declares the location record, accepted Stage 00 evidence,
+and each selected region's raw matrix, cell table and instrument records as inputs. It
+publishes one region-qualified cell-QC Parquet and feature list per acquisition,
+plus a gate figure and receipt; the raw matrices stay at their indexed sources.
+Its synthetic same-slide test passes with colliding native IDs, a zero-nucleus
+cell, a missing nucleus count, and a damaged pLN region. A project can name
+`settings.rna_acquisitions` as an explicit accepted subset for a pilot; the
+gate reports its fraction of the full inventory and never claims full coverage.
+With no subset it requires all accepted Xenium regions. On the workstation it
+can use the accepted local paths and records manifest; on HiPerGator it uses
+the complete exact site index. A 65-region HPG run
+still needs the accepted Stage 00 evidence staged there and a site file naming
+`xenium_source_index`; no full-cohort Stage 04 gate has been accepted.
 
 A read-only HiPerGator check on 2026-10-26 found all seven required files and
 matching Stage 00 instrument hashes for all 65 outputs. The 30 outputs that

@@ -146,15 +146,23 @@ def _missing_files(directory: Path) -> tuple[str, ...]:
 
 
 def build_roster(stage_dir: Path, records_manifest: Path | None = None, *,
-                 site_index: Path | None = None) -> list[XeniumSource]:
+                 site_index: Path | None = None,
+                 acquisition_ids: set[str] | None = None) -> list[XeniumSource]:
     """One row per Xenium region, with an exact source and its present-host readiness.
 
     A ``remote_only`` row has a recorded HPG directory but no complete bundle on this
     host. It is deliberately not ``ready`` until its cell files are checked there. A
     site index must name every region and is authoritative when supplied: a missing
-    selected path stays missing even if another local copy exists.
+    selected path stays missing even if another local copy exists. An explicit
+    ``acquisition_ids`` set checks only those accepted regions for readiness,
+    allowing a bounded pilot without claiming to cover the full roster.
     """
     acquisitions, hashes = _accepted_inventory(stage_dir)
+    accepted_ids = {row["acquisition_id"] for row in acquisitions
+                    if row["platform"] == "xenium"}
+    if acquisition_ids is not None and not acquisition_ids <= accepted_ids:
+        raise XeniumSourceError(f"unaccepted Xenium acquisition(s): "
+                                f"{sorted(acquisition_ids - accepted_ids)}")
     remote = _remote_sources(records_manifest, hashes)
     site = _site_sources(site_index, acquisitions, remote) if site_index else None
     roster: list[XeniumSource] = []
@@ -162,6 +170,8 @@ def build_roster(stage_dir: Path, records_manifest: Path | None = None, *,
     outputs: set[str] = set()
     for row in acquisitions:
         if row["platform"] != "xenium":
+            continue
+        if acquisition_ids is not None and row["acquisition_id"] not in acquisition_ids:
             continue
         output = row["output"]
         serial, _ = parse_bundle_path(output)

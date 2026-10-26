@@ -194,3 +194,16 @@ def test_incomplete_bundle_does_not_become_ready(tmp_path):
     roster = build_roster(stage, manifest)
     assert roster[0].status == "incomplete"
     assert roster[0].missing_files == ("cell_feature_matrix.h5",)
+
+
+def test_bounded_pilot_checks_only_selected_accepted_region(tmp_path):
+    ready = _bundle(tmp_path / "local", "0040001", "panc")
+    absent = tmp_path / "absent" / "output-XETG00298__0040002__panc__20261026__120000"
+    rows = [_record(ready, "6512", "panc"),
+            _record(absent, "6618", "panc", record_bundle=ready)]
+    stage, manifest = _accepted(tmp_path, rows)
+    selected = {rows[0]["acquisition_id"]}
+    roster = build_roster(stage, manifest, acquisition_ids=selected)
+    assert len(roster) == 1 and roster[0].status == "ready"
+    with pytest.raises(XeniumSourceError, match="unaccepted Xenium acquisition"):
+        build_roster(stage, manifest, acquisition_ids={"xenium:unknown:panc"})

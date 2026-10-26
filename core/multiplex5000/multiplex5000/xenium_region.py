@@ -36,6 +36,7 @@ class XeniumRegion:
     x_um: np.ndarray
     y_um: np.ndarray
     nucleus_count: np.ndarray
+    nucleus_missing: np.ndarray
     eligible: np.ndarray
 
     @property
@@ -77,6 +78,9 @@ def load_region(source: XeniumSource) -> XeniumRegion:
         if raw.nnz and (np.any(raw.data < 0) or not np.issubdtype(raw.dtype, np.integer)):
             raise XeniumRegionError(f"{source.acquisition_id}: raw counts are not nonnegative integers")
         counts = raw[:, types == GENE_FEATURE].tocsr()
+        # Some sparse writers retain explicit zero entries. Detected-gene QC
+        # must count positive transcripts, not those storage slots.
+        counts.eliminate_zeros()
 
     table = pq.read_table(folder / "cells.parquet", columns=list(CELL_COLUMNS))
     cells = table.to_pydict()
@@ -92,8 +96,12 @@ def load_region(source: XeniumSource) -> XeniumRegion:
     y = np.asarray(cells["y_centroid"], dtype=float)[order]
     if not (np.isfinite(x).all() and np.isfinite(y).all()):
         raise XeniumRegionError(f"{source.acquisition_id}: non-finite cell coordinate")
+    missing = np.asarray([v is None for v in cells["nucleus_count"]], dtype=bool)[order]
     nuclei = np.asarray([v if v is not None else -1 for v in cells["nucleus_count"]],
                         dtype=np.int64)[order]
+    if np.any(nuclei[~missing] < 0):
+        raise XeniumRegionError(f"{source.acquisition_id}: negative nucleus count")
     eligible = nuclei > 0
     cell_uid = np.asarray([f"{source.acquisition_id}:cells:{cell_id}" for cell_id in barcodes])
-    return XeniumRegion(source, barcodes, cell_uid, genes, counts, x, y, nuclei, eligible)
+    return XeniumRegion(source, barcodes, cell_uid, genes, counts, x, y, nuclei, missing,
+                        eligible)

@@ -49,6 +49,7 @@ def test_region_join_keeps_raw_counts_and_excludes_no_nucleus(tmp_path):
                                          "xenium:0059865:panc:cells:other-1"]
     assert region.x_um.tolist() == [10.0, 20.0]
     assert region.nucleus_count.tolist() == [0, 1]
+    assert region.nucleus_missing.tolist() == [False, False]
     assert region.eligible.tolist() == [False, True]
 
 
@@ -77,3 +78,19 @@ def test_unready_region_is_refused(tmp_path):
     source = _region(tmp_path, "0059865", "panc")
     with pytest.raises(XeniumRegionError, match="not ready"):
         load_region(replace(source, status="remote_only"))
+
+
+def test_missing_nucleus_is_distinct_from_zero(tmp_path):
+    source = _region(tmp_path, "0059865", "panc", nuclei=(1, None))
+    region = load_region(source)
+    assert region.nucleus_missing.tolist() == [True, False]
+    assert region.eligible.tolist() == [False, True]
+
+
+def test_explicit_sparse_zero_does_not_count_as_detected_gene(tmp_path):
+    source = _region(tmp_path, "0059865", "panc")
+    with h5py.File(Path(source.source_path) / "cell_feature_matrix.h5", "r+") as file:
+        file["matrix"]["data"][0] = 0
+    region = load_region(source)
+    assert region.counts[0, 0] == 0
+    assert region.counts.getnnz(axis=1).tolist() == [1, 1]
