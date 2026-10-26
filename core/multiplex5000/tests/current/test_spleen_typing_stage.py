@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 from scipy import sparse
 
 from multiplex5000 import gates, tasks
@@ -100,3 +101,28 @@ def test_stage06_writes_candidate_evidence_without_joining_cells(tmp_path, monke
     assert rna_calls["gene:CD3E"][-1].as_py() == -1
     assert protein_calls["cell_uid"][0].as_py() != rna_calls["cell_uid"][0].as_py()
     assert (result.path / "gate/assay_evidence.png").is_file()
+
+
+def test_stage06_refuses_a_different_xenium_output_for_the_same_donor(tmp_path, monkeypatch):
+    manifest = tmp_path / "pairs.yaml"
+    manifest.write_text("schema: test\n")
+    expected = tmp_path / "correct-output"
+    pair = SimpleNamespace(protein_entry="HDL090-PC67", donor_id="HDL090",
+                           xenium_acquisition_id="xenium:0110618:090",
+                           xenium_output=expected)
+    monkeypatch.setattr(pilot, "load_pairs", lambda _: (pair,))
+    stage04 = tmp_path / "release/04_rna_ingest"
+    stage04.mkdir(parents=True)
+    with (stage04 / "regions.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["acquisition_id", "donor_id",
+                                                   "tissue", "source_path"])
+        writer.writeheader()
+        writer.writerow({"acquisition_id": pair.xenium_acquisition_id,
+                         "donor_id": pair.donor_id, "tissue": "spleen",
+                         "source_path": str(tmp_path / "other-output")})
+    project = SimpleNamespace(release_dir=tmp_path / "release",
+                              settings={"same_slide_source_manifest": str(manifest),
+                                        "rna_acquisitions": [pair.xenium_acquisition_id]},
+                              source=lambda name: manifest if name == "same_slide_sources" else None)
+    with pytest.raises(pilot.SpleenTypingPilotError, match="Stage 04 mismatch"):
+        pilot._selected(project)
