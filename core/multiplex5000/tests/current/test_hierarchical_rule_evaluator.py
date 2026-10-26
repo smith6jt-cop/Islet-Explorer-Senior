@@ -91,6 +91,9 @@ def test_batch_hierarchy_agrees_with_single_cell_method(load, path):
 
 def test_batch_alias_conflicts_and_bad_shapes_are_refused():
     source = load_pln(PLN)
+    combined = evaluate_rules_batch(source, {"PD-L1": np.array([-1, 1]),
+                                             "PDL1": np.array([1, -1])})
+    assert combined.states["PD-L1_expressing"].tolist() == [1, 1]
     with pytest.raises(RuleSourceError, match="disagree"):
         evaluate_rules_batch(source, {"PD-L1": np.array([0, 1]),
                                       "PDL1": np.array([1, 1])})
