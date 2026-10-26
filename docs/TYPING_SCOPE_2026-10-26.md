@@ -62,8 +62,11 @@ an RNA producer or a typing result.
 A read-only HiPerGator check on 2026-10-26 found all seven required files and
 matching Stage 00 instrument hashes for all 65 outputs. The 30 outputs that
 are complete locally also exist under `/orange/maigan/Xenium_T1D_PancPLN`,
-but their exact HiPerGator paths are not all in `MANIFEST.tsv`. Stage 04 needs
-an exact site source index for them, bound in its own receipt. In that tree,
+but their exact HiPerGator paths are not all in `MANIFEST.tsv`. The exact
+65-region locator is now
+`core/multiplex5000/sites/hipergator/xenium_sources_20261026.csv`; Stage 04
+must bind it in its own receipt. On HiPerGator all 65 indexed paths passed
+the source-file and instrument-hash check. In that tree,
 serials 0059865 and 0059907 have pLN outputs named `PanT` rather than the
 local `pLN`; the accepted instrument hashes match. Serials 0041116 and
 0041117 each have two directory copies whose seven required files compare

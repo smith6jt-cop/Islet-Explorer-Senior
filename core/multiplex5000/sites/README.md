@@ -33,6 +33,10 @@ the checkout.
 | `sn4622120742.json` | the workstation |
 
 A HiPerGator file is written when the HPG lane moves onto MultiPlex5000 (phase F).
+The separate [HiPerGator Xenium source index](hipergator/README.md) records
+exact paths for the 65 accepted Xenium region outputs. A future HPG site file
+can name it as `sources.xenium_source_index`; Stage 04 must bind the file in
+its receipt when it uses those paths.
 
 ## The MultiPlex5000 environment
 
