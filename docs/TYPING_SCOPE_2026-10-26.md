@@ -134,6 +134,14 @@ PC67 inventory is the exact, SHA256-checked header from all eight export files.
 Of the 58 retained rules, 55 use measured PC67 markers; Neural, Schwann cell
 and Macrophage require B3TUBB or Iba1 and stay unavailable. These counts are
 rule availability, **not typed-cell counts or validated positivity cutoffs**.
+The HPG UniFORM scale table, SHA256 `7927e33b…`, covers only 33 classifier
+channels per PC67 section, not the full 67 measured channels. Only five rules
+have all inherited markers in that scaled set (Proliferating, PD-L1 expressing,
+MHC I high, MHC II high and CD44 high); none establishes a T-cell, B-cell or
+FRC lineage. Stage 05 must derive and check the remaining required marker
+scales, or mark those lineages unavailable. Raw means in `cells_full` cannot
+be substituted for normalized marker evidence. The existing scale table is
+comparison evidence, not the completed Stage 05 producer.
 
 The paired protein images and crop-local cell exports are under
 `/blue/maigan/smith6jt/SpleenFollicleCounterQP/` on HiPerGator; the eight
