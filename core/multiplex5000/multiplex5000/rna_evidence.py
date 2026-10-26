@@ -58,14 +58,20 @@ def detect_genes(counts: sparse.csr_matrix, genes: tuple[str, ...],
         raise RNAEvidenceError("cell gene depth is nonfinite")
     eligible = nuclei & (depth > 0)
     positions = {gene: index for index, gene in enumerate(genes)}
+    measured = [gene for gene in requested if gene in positions]
+    # A Stage 06 panel can request hundreds of genes from a large raw matrix.
+    # Slice once, then use CSC's column index instead of rescanning the full
+    # cells-by-genes CSR matrix separately for every requested gene.
+    selected = counts[:, [positions[gene] for gene in measured]].tocsc()
+    selected_position = {gene: index for index, gene in enumerate(measured)}
     states: dict[str, np.ndarray] = {}
     missing = []
     for gene in requested:
         state = np.full(counts.shape[0], UNAVAILABLE, dtype=np.int8)
-        if gene not in positions:
+        if gene not in selected_position:
             missing.append(gene)
         else:
-            raw = counts.getcol(positions[gene]).toarray().ravel().astype(np.float64)
+            raw = selected.getcol(selected_position[gene]).toarray().ravel().astype(np.float64)
             state[eligible] = np.where(raw[eligible] * TARGET_SUM >= depth[eligible],
                                        DETECTED, UNDETECTED)
         states[gene] = state

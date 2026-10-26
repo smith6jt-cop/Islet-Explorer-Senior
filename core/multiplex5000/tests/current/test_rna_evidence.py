@@ -40,6 +40,17 @@ def test_short_comparison_matches_recorded_lognorm_predicate():
     np.testing.assert_array_equal(result.states["GENE"], expected)
 
 
+def test_selected_columns_keep_requested_order_and_all_missing_is_unavailable():
+    counts = sparse.csr_matrix([[2, 0, 3], [0, 5, 4]])
+    genes = ("A", "B", "C")
+    result = detect_genes(counts, genes, ("C", "A"), np.array([True, True]))
+    assert list(result.states) == ["C", "A"]
+    assert result.states["C"].tolist() == [1, 1]
+    assert result.states["A"].tolist() == [1, 0]
+    missing = detect_genes(counts, genes, ("NOT_ASSAYED",), np.array([True, True]))
+    assert missing.states["NOT_ASSAYED"].tolist() == [-1, -1]
+
+
 @pytest.mark.parametrize("counts,genes,requested,nuclei", [
     (sparse.csr_matrix([[1.0]]), ("CD3E",), ("CD3E",), np.array([True])),
     (sparse.csr_matrix([[-1]]), ("CD3E",), ("CD3E",), np.array([True])),
