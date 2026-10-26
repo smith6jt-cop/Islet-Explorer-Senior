@@ -34,6 +34,10 @@ The current pancreas RNA release worker fixes its roster at 25 sections, and
 the pLN v3 RNA worker discovers `/data/xenium/h5ad_out`; that local folder has
 neither the two Xenium-only donors nor the four newer same-slide serials.
 Reusing either worker's old roster would leave the clarified scope untyped.
+The project currently fixes `settings.xenium_root` at local `/data/xenium`;
+the relative Xenium bundle paths need a site-specific root on HiPerGator.
+The absolute same-slide paths already recorded under `/orange/maigan` must
+remain absolute rather than being joined to either root.
 
 Stage 06 must produce tissue-specific calls, evidence and unavailable reasons
 for both modalities. A same-slide section needs both assay results; the
