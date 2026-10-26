@@ -1,0 +1,29 @@
+tissue_id: pancreatic_lymph_node
+display_name: Human pancreatic lymph node
+use_shared_subpanels: true
+rule_table:
+  file: phenotype_rules.csv
+  assay: phenocycler
+  source: /data/6551_manuscript/phenotype_rules.csv
+  source_sha256: e4c6078ff6d2750e79ecb5a7bb19f0c3a1cdc712c68a9ce9f6e64dbfcabede04
+  selected_by_maintainer: 2026-10-26
+  rows: 69
+  role: reference for the hierarchical pLN typing method
+  # This is one shared rule source, not a complete typing call for every acquisition.
+  # Tissue rules are evaluated against the panel actually acquired on each slide.
+  tokens: [pos, allpos, anypos, allneg]
+  panel_aliases:
+    PD-L1: PDL1
+  pln_adaptation:
+    # Approved 2026-10-26. These were pancreas-only negatives on broad parent
+    # rows. A missing marker is never treated as a measured negative.
+    omit_from_root_allneg: [INS, GCG, SST, Ker8-18]
+    unavailable_when_required_marker_missing: true
+notes: |
+  The full source includes pancreas and lymph-node classes. The pLN plugin must
+  select its tissue classes, retain the parent-child hierarchy, and report
+  unavailable calls when required markers are not measured. In particular,
+  the dedicated 55-marker pLN panel lacks CD38, so its CD38-dependent B-cell
+  subtype rules cannot be called from that acquisition. This table supplies
+  PhenoCycler protein rules only; Xenium-only and same-slide acquisitions also
+  require RNA typing and, for same-slide cells, recorded cross-modal links.
