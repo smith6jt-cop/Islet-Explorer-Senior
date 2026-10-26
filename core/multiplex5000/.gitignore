@@ -11,6 +11,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# setuptools sdist assembles this transient tree before recording provenance.
+/multiplex5000-[0-9]*/
 downloads/
 eggs/
 .eggs/

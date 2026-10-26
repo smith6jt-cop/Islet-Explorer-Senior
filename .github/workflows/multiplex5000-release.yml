@@ -111,6 +111,7 @@ jobs:
           python -c "import multiplex5000; from multiplex5000.pipeline import DEFAULT_STAGE_ORDER, STAGE_ORDER; assert DEFAULT_STAGE_ORDER == ('ingest', 'geometry', 'redsea', 'expression'); print('installed version:', multiplex5000.__version__, 'stages:', STAGE_ORDER)"
           python -c "import multiplex5000, phenocycler; assert phenocycler is multiplex5000, 'the phenocycler import alias'"
           python -c "from importlib.resources import files; names = ('adoption_compatibility.json', 'broad_gates.json', 'fundamental_pair_diagnostics.json', 'marker_registry.json'); missing = [name for name in names if not files('multiplex5000').joinpath(name).is_file()]; assert not missing, f'missing wheel package data: {missing}'; print('package data OK')"
+          python -c "from multiplex5000 import roots, project; from multiplex5000.tissues.lymph_node import load_rule_source; assert project.load('spleen_pilot').stages[-1] == '06_typing'; assert len(load_rule_source(roots.REPO / 'core/panels/data/tissues/pancreatic_lymph_node/manifest.yml').rules) == 69; print('installed tissue rules OK')"
           phenocycler --help
 
   release:

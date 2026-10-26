@@ -73,6 +73,15 @@ Python 3.10 or newer is required. In an activated analysis environment:
 python -m pip install -e .
 ```
 
+The `mplx5k` stage workflow also works from a regular wheel install. The wheel
+contains a build snapshot of this repository's project files, tissue profiles,
+`core/panels` reference data, and review notebooks. Those tracked files remain
+the only maintained source; the installed snapshot records the source commit
+in stage receipts. Run `mplx5k status --project spleen_pilot` from any working
+directory to check the installed workflow. A site file still names the raw
+acquisitions, release root, scratch location, and any external pinned UniFORM
+checkout; those inputs are deliberately not bundled into the wheel.
+
 For development:
 
 ```bash

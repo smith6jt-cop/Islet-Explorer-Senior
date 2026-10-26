@@ -20,7 +20,7 @@ import yaml
 from . import roots
 
 PROJECT_SCHEMA = "multiplex5000-project/1"
-PROJECTS_DIR = Path(__file__).resolve().parents[1] / "projects"
+PROJECTS_DIR = roots.REPO / "core/multiplex5000/projects"
 _RELEASE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
 _REQUIRED = ("id", "release", "cohort", "stages", "automatic_gates")
 _OPTIONAL = ("settings", "sources", "releases_root")

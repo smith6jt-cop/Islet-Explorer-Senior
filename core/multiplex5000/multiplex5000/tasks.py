@@ -230,13 +230,19 @@ def code_identity() -> dict:
     from . import __version__
 
     out = {"version": __version__, "commit": None, "dirty": None}
+    bundled = roots.REPO / "_build_provenance.json"
+    if bundled.is_file():
+        record = json.loads(bundled.read_text())
+        out["commit"], out["dirty"] = record["commit"], record["dirty"]
+        return out
     try:
         out["commit"] = subprocess.run(["git", "-C", str(roots.REPO), "rev-parse", "HEAD"],
                                        capture_output=True, text=True, check=True,
                                        timeout=30).stdout.strip()
         status = subprocess.run(["git", "-C", str(roots.REPO), "status", "--porcelain", "--",
-                                 "core/multiplex5000"], capture_output=True, text=True,
-                                check=True, timeout=60).stdout
+                                 "core/multiplex5000", "core/panels/data",
+                                 "core/phenocycler/data/integration"],
+                                capture_output=True, text=True, check=True, timeout=60).stdout
         out["dirty"] = bool(status.strip())
     except (OSError, subprocess.SubprocessError):
         pass
