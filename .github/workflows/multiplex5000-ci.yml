@@ -133,6 +133,7 @@ jobs:
           cd /tmp
           /tmp/mplx5k-installed/bin/python - <<'PY'
           from pathlib import Path
+          from os import environ
           from multiplex5000 import roots, profiles, project
           from multiplex5000.stages import spleen_typing_pilot
           from multiplex5000.tasks import code_identity
@@ -147,7 +148,8 @@ jobs:
           panels = roots.REPO / 'core/panels/data/tissues'
           assert len(pln_rules(panels / 'pancreatic_lymph_node/manifest.yml').rules) == 69
           assert len(spleen_rules(panels / 'spleen/manifest.yml').rules) == 58
-          assert code_identity()['commit'] is not None
+          assert code_identity()['commit'] == environ['GITHUB_SHA']
+          assert code_identity()['dirty'] is False
           PY
           /tmp/mplx5k-installed/bin/mplx5k --help >/dev/null
 

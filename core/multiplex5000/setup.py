@@ -43,10 +43,19 @@ def _source_root() -> Path:
 
 def _knowledge_files() -> list[tuple[Path, Path]]:
     root = _source_root()
-    paths = [root / name for name in FILES]
-    for name in DIRECTORIES:
-        paths.extend(path for path in (root / name).rglob("*") if path.is_file())
+    if root == REPOSITORY:
+        # A workstation can hold scratch files beside a panel or notebook.
+        # Only the committed source tree may enter a release artifact.
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", *DIRECTORIES, *FILES],
+            check=True, capture_output=True)
+        paths = [root / name.decode() for name in result.stdout.split(b"\0") if name]
+    else:
+        paths = [root / name for name in FILES]
+        for name in DIRECTORIES:
+            paths.extend(path for path in (root / name).rglob("*") if path.is_file())
     missing = [str(path.relative_to(root)) for path in paths if not path.is_file()]
+    missing.extend(name for name in FILES if root / name not in paths)
     if missing:
         raise RuntimeError(f"MultiPlex5000 build lacks tracked resources: {missing}")
     return [(path.relative_to(root), path) for path in sorted(set(paths))]
