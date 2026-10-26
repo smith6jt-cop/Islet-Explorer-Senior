@@ -246,7 +246,7 @@ def _figure(task: Task, protein: list[dict], rules: list[dict], rna: list[dict],
     left.barh([row["marker"] for row in p], [row["detected"] for row in p],
               label="marker detected")
     left.set(xlabel="Eligible protein cells above section-local candidate cutoff (n)",
-             title=f"PhenoCycler marker evidence: {len(p)} markers, "
+             title=f"PhenoCycler raw-mean candidate: {len(p)} markers, "
                    f"{protein_cells:,} segmented cells")
     left.invert_yaxis()
     grouped = sorted(rules, key=lambda row: row["matched"], reverse=True)
@@ -256,7 +256,7 @@ def _figure(task: Task, protein: list[dict], rules: list[dict], rna: list[dict],
     middle.barh(y, matched, label="rule matched")
     middle.barh(y, unavailable, left=matched, label="rule unavailable")
     middle.set(xlabel="PhenoCycler cells (n)",
-               title=f"Spleen hierarchy: {len(grouped)} rules, "
+               title=f"Spleen rule-match candidate: {len(grouped)} rules, "
                      f"{protein_cells:,} segmented cells")
     middle.invert_yaxis()
     middle.legend(fontsize=8)
