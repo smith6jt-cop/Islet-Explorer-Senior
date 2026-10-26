@@ -7,7 +7,8 @@ measurement half was the package's own pipeline -- ingest, geometry QC, REDSEA, 
 with two changes, and this stage runs exactly that, in that order:
 
 * **ingest** -- each cohort image's v3 export, a (cells, context) Parquet pair named by the QuPath
-  manifest, into one partition per donor (``data/cells``).
+  manifest, into one partition per donor (``data/cells``), rewritten in ``object_id`` order so a
+  rerun writes the same tables.
 * **geometry QC** -- which cells are measurable (``data/geometry_qc``). A cell with no nucleus is
   never admitted (``missing_geometry_policy = exclude``).
 * **REDSEA** -- spillover compensation from each image's pixels and cell outlines, every channel in
@@ -200,6 +201,26 @@ def exclusion_matches(excluded: set, export_ids: set, ingested_ids: set) -> tupl
     return sorted(excluded - export_ids), sorted((excluded & export_ids) - ingested_ids)
 
 
+def in_object_id_order(partition: Path) -> None:
+    """Rewrite one donor's ingested cells in ``object_id`` order.
+
+    DuckDB's partitioned COPY writes rows in whatever order its threads finish, so the same export
+    ingests in a different order on every run, and the expression table, which follows the cells,
+    with it. Geometry QC sorts by ``object_id`` itself and REDSEA keeps its GeoJSON's order, so this
+    one rewrite makes a rerun write the same tables. The values are not touched.
+    """
+    import pyarrow.parquet as pq
+
+    files = sorted(partition.glob("*.parquet"))
+    if len(files) != 1:
+        raise MeasurementError(f"expected one ingested file in {partition}, found {len(files)}")
+    path = files[0]
+    table = pq.read_table(path, partitioning=None).sort_by("object_id")
+    temporary = path.with_name(f".{path.name}.tmp")
+    pq.write_table(table, temporary, compression="zstd")
+    os.replace(temporary, path)
+
+
 def _before(cells_path: Path, image, registry, object_ids):
     """Each marker's value before REDSEA, in the compartment it is measured in: QuPath's own mean
     from the export, by the channel name the image records."""
@@ -253,6 +274,8 @@ def run(task: Task) -> dict:
                       qupath_manifest=task.input("qupath_manifest"),
                       marker_registry=task.input("marker_registry"), n_jobs=task.settings["jobs"])
     build_cells_parquet(cfg)
+    for image in images:
+        in_object_id_order(cfg.cells_dir / f"donor_id={image.donor_id}")
     context = SimpleNamespace(config=cfg)
     for image in images:
         result = run_geometry_qc_for_image(read_single_partition(cfg.cells_dir, image.donor_id),
