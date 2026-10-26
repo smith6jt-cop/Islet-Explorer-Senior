@@ -222,7 +222,7 @@ def run(task: Task) -> dict:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
-    _figure(task, threshold_rows, gene_rows, protein_cells, rna_cells)
+    _figure(task, threshold_rows, rule_rows, gene_rows, protein_cells, rna_cells)
     return {"pairs": len(selected), "protein_cells": protein_cells, "rna_cells": rna_cells,
             "protein_markers": len(threshold_rows), "protein_rules": len(rule_rows),
             "protein_markers_with_cutoff": sum(row["cutoff"] is not None
@@ -233,14 +233,15 @@ def run(task: Task) -> dict:
             "candidate_only": True, "paired_cell_links": 0}
 
 
-def _figure(task: Task, protein: list[dict], rna: list[dict],
+def _figure(task: Task, protein: list[dict], rules: list[dict], rna: list[dict],
             protein_cells: int, rna_cells: int) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, (left, right) = plt.subplots(1, 2, figsize=(17, 12), layout="constrained")
+    fig, (left, middle, right) = plt.subplots(1, 3, figsize=(24, 14),
+                                             layout="constrained")
     p = sorted(protein, key=lambda row: row["detected"], reverse=True)
     left.barh([row["marker"] for row in p], [row["detected"] for row in p],
               label="marker detected")
@@ -248,6 +249,17 @@ def _figure(task: Task, protein: list[dict], rna: list[dict],
              title=f"PhenoCycler marker evidence: {len(p)} markers, "
                    f"{protein_cells:,} segmented cells")
     left.invert_yaxis()
+    grouped = sorted(rules, key=lambda row: row["matched"], reverse=True)
+    y = [row["phenotype"] for row in grouped]
+    matched = [row["matched"] for row in grouped]
+    unavailable = [row["unavailable"] for row in grouped]
+    middle.barh(y, matched, label="rule matched")
+    middle.barh(y, unavailable, left=matched, label="rule unavailable")
+    middle.set(xlabel="PhenoCycler cells (n)",
+               title=f"Spleen hierarchy: {len(grouped)} rules, "
+                     f"{protein_cells:,} segmented cells")
+    middle.invert_yaxis()
+    middle.legend(fontsize=8)
     top = sorted((row for row in rna if row["measured"]),
                  key=lambda row: row["detected"], reverse=True)[:30]
     right.barh([row["gene"] for row in top], [row["detected"] for row in top])
