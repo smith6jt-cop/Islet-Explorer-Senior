@@ -43,6 +43,7 @@ def test_short_comparison_matches_recorded_lognorm_predicate():
 @pytest.mark.parametrize("counts,genes,requested,nuclei", [
     (sparse.csr_matrix([[1.0]]), ("CD3E",), ("CD3E",), np.array([True])),
     (sparse.csr_matrix([[-1]]), ("CD3E",), ("CD3E",), np.array([True])),
+    (sparse.csr_matrix([[1, 2]]), ("CD3E", "CD3E"), ("CD3E",), np.array([True])),
     (sparse.csr_matrix([[1]]), ("CD3E",), ("CD3E", "CD3E"), np.array([True])),
     (sparse.csr_matrix([[1]]), ("CD3E",), ("CD3E",), np.array([1])),
 ])
