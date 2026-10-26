@@ -139,6 +139,10 @@ def test_site_index_selects_a_renamed_region_and_never_falls_back(tmp_path):
     assert roster[1].sample_key == "0040001__pln_2"
     assert roster[1].source_path == str(source)
 
+    index = _site_index(index, rows, [local, local])
+    with pytest.raises(XeniumSourceError, match="assigned to another region"):
+        build_roster(stage, site_index=index)
+
     # The index is the run's source authority; the complete local copy cannot hide its loss.
     index = _site_index(index, rows, [tmp_path / "missing" / local.name, source])
     roster = build_roster(stage, site_index=index)
@@ -153,7 +157,8 @@ def test_site_index_requires_every_accepted_region_and_correct_serial(tmp_path):
     index = _site_index(tmp_path / "site.csv", rows[:1], [first])
     with pytest.raises(XeniumSourceError, match="site index is missing"):
         build_roster(stage, site_index=index)
-    index = _site_index(index, rows, [first, first])
+    wrong_slide = _bundle(tmp_path / "other", "0040001", "Region_2")
+    index = _site_index(index, rows, [first, wrong_slide])
     with pytest.raises(XeniumSourceError, match="another Xenium slide"):
         build_roster(stage, site_index=index)
 

@@ -116,6 +116,7 @@ def _site_sources(path: Path, acquisitions: list[dict[str, str]],
             raise XeniumSourceError("site index needs acquisition_id,output,source_path")
         rows = list(reader)
     found: dict[str, Path] = {}
+    used_paths: set[Path] = set()
     for row in rows:
         acquisition = row["acquisition_id"]
         output = row["output"]
@@ -124,6 +125,8 @@ def _site_sources(path: Path, acquisitions: list[dict[str, str]],
             raise XeniumSourceError(f"site index names an unaccepted region: {acquisition}")
         if acquisition in found or not source.is_absolute():
             raise XeniumSourceError(f"{acquisition}: duplicate or relative site path")
+        if source in used_paths:
+            raise XeniumSourceError(f"{acquisition}: site path is assigned to another region")
         serial, _ = parse_bundle_path(output)
         source_serial, _ = parse_bundle_path(source.name)
         if not serial or source_serial != serial:
@@ -131,6 +134,7 @@ def _site_sources(path: Path, acquisitions: list[dict[str, str]],
         if output in remote and str(source) != remote[output]:
             raise XeniumSourceError(f"{acquisition}: site path differs from Stage 00 source")
         found[acquisition] = source
+        used_paths.add(source)
     if set(found) != set(expected):
         raise XeniumSourceError(f"site index is missing {sorted(set(expected)-set(found))}")
     return found
