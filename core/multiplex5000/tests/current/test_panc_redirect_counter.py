@@ -35,6 +35,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from multiplex5000.tissues import pancreas_rna_naming
+
 REPO = Path(__file__).resolve().parents[4]
 WORKER_PATH = REPO / "analysis/xenium/scripts/panc_xenium_cluster_name.py"
 RELEASE_PATH = REPO / "analysis/xenium/scripts/panc_xenium_release.py"
@@ -50,6 +52,11 @@ def _load(name: str, path: Path):
 
 worker = _load("panc_worker_under_test", WORKER_PATH)
 release = _load("panc_release_under_test", RELEASE_PATH)
+
+
+def test_release_worker_uses_package_naming_decisions():
+    for name in ("naming_policy_panels", "exact_detection_q", "decide", "redirect_counts"):
+        assert getattr(worker, name) is getattr(pancreas_rna_naming, name)
 
 #: The work directory of the pancreas run.  Overridable so the artifact tests can be pointed at
 #: another run rather than restating a path in a second place.
