@@ -23,6 +23,7 @@ from pathlib import Path
 
 from . import __version__, gates, roots, stages, tasks
 from . import project as projects
+from .pln_sources import PLNSourceError, load_exports
 
 WORKFLOW = Path(__file__).resolve().parent / "workflow"
 
@@ -97,6 +98,24 @@ def _gate_accept(args) -> int:
     project = _project(args)
     path = gates.accept(project.release_dir / args.stage, by=args.by, note=args.note or "")
     print(f"{args.stage}: accepted by {args.by}; recorded in {path}")
+    return 0
+
+
+def _pln_sources(args) -> int:
+    root = Path(args.root) if args.root else roots.source("pln_v3_export_cells")
+    if root is None:
+        raise PLNSourceError("name sources.pln_v3_export_cells in the site file or pass --root")
+    roster = roots.INTEGRATION / "pln_node_annotations.csv"
+    index = roots.REPO / "core/multiplex5000/sites/pln_qupath_exports_v3.csv"
+    exports = load_exports(roster, index, source_root=root,
+                           selected_images=set(args.image) if args.image else None,
+                           require_sources=True)
+    print(json.dumps({"images_checked": len(exports),
+                      "export_cells": sum(item.export_cells for item in exports),
+                      "older_roster_counts_differ": sum(
+                          item.roster_cells != item.export_cells for item in exports),
+                      "segmentation_ids": sorted({item.segmentation_id for item in exports}),
+                      "source_root": str(root)}, indent=2))
     return 0
 
 
@@ -192,6 +211,13 @@ def parser() -> argparse.ArgumentParser:
     accept.add_argument("--note", help="anything the acceptance should say")
     accept.set_defaults(handler=_gate_accept)
 
+    sources = sub.add_parser("sources", help="inspect recorded source bindings")
+    source_sub = sources.add_subparsers(dest="source_kind", required=True)
+    pln = source_sub.add_parser("pln", help="check dedicated pLN v3 QuPath exports")
+    pln.add_argument("--root", help="Parquet folder (default: site sources.pln_v3_export_cells)")
+    pln.add_argument("--image", action="append", help="one roster image to check (repeatable)")
+    pln.set_defaults(handler=_pln_sources)
+
     graph = sub.add_parser("graph", parents=[common],
                            help="run the project's stages through Snakemake (extra arguments "
                                 "after -- go to Snakemake)")
@@ -218,7 +244,8 @@ def main(argv=None) -> int:
         if args.command == "graph":
             return _graph(args, extra)
         return args.handler(args)
-    except (gates.GateError, tasks.TaskError, projects.ProjectError, stages.StageError) as err:
+    except (gates.GateError, tasks.TaskError, projects.ProjectError, stages.StageError,
+            PLNSourceError) as err:
         print(f"mplx5k: {err}", file=sys.stderr)
         return 1
 
