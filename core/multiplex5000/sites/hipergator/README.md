@@ -63,5 +63,20 @@ REDSEA, and neither assay has a cell-type result. On HiPerGator, set
 `MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project folder, and set
 the site `tmp_dir` to a sufficiently large writable `/blue/maigan` folder. Run
 `mplx5k stage run 00_inventory --project spleen_pilot`, review its `gate.html`,
-then accept the gate before progressing. Stage 06 joins when the per-assay
-evidence producers are built.
+then accept the gate before progressing. Stage 06 now produces separate
+review-only protein rule matches and Xenium gene evidence for HDL090. It
+publishes no final cell class or cross-assay cell link. Stage 06's gate waits
+for manual review; its notebook is `notebooks/06_typing.ipynb`.
+
+The HPG login shell exposes Python 3.9 by default. Load its Python 3.12
+module (`source /etc/profile.d/modules.sh; module load python/3.12`) and make
+a **new** virtual environment under a writable `/blue/maigan` pilot folder.
+Install this repository's merged checkout from `core/multiplex5000`; keep
+Snakemake in a separate environment using `requirements-graph.txt`. The
+UniFORM dependency for Stage 05 must be at commit
+`7c33396d12e5a19dc0b36e46a94c3293de0cd814` in that checkout's
+`external/UniFORM`. Put the site file, release root and task scratch under
+the same `/blue/maigan` pilot folder; set `MPLX5K_SITE_FILE` to the site file.
+The Slurm command is available at `/opt/slurm/bin/sbatch` if it is absent
+from a noninteractive shell's `PATH`. None of this setup needs to write in
+`SpleenFollicleCounterQP` or the crowded home directory.
