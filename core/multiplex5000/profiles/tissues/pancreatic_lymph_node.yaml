@@ -4,7 +4,8 @@ id: pancreatic_lymph_node
 display_name: pancreatic lymph node
 aliases: [pancreatic_lymph_node, pln, lymph_node, ln, pancreatic_ln, panc_lymph_node]
 roi_prefixes: [pln, ln]
-# No lymph-node directory in core/panels: the shared identity pool is the right answer.
+# The core/panels lymph-node directory holds protein phenotype rules, not a Xenium
+# gene subpanel. The shared identity pool remains the panel-browser source.
 panel_tissue_dir: null
 tissue_only_panels: []
 # No structure level: lymph nodes have no islets, and follicles are deliberately not enabled
