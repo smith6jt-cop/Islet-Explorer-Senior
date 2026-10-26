@@ -8,6 +8,6 @@ stages: [00_inventory, 03_protein_measurement, 04_rna_ingest]
 automatic_gates: [03_protein_measurement]
 settings:
   same_slide_source_manifest: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
-  # One physical section bounds the first executable pilot on both assays.
-  protein_entries: [HDL090_PC67_0110618-S1]
+  # Stage 03 admits all eight PC67 sections so Stage 05 can fit across samples.
+  # One Xenium region bounds the first end-to-end paired route.
   rna_acquisitions: [xenium:0110618:090]

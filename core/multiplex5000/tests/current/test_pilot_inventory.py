@@ -17,7 +17,7 @@ from multiplex5000.xenium_sources import CELL_FILES, INSTRUMENT_FILES, build_ros
 def test_spleen_pilot_project_uses_both_workflow_routes_stage_functions():
     pilot = project.load("spleen_pilot")
     assert pilot.stages == ("00_inventory", "03_protein_measurement", "04_rna_ingest")
-    assert pilot.settings["protein_entries"] == ["HDL090_PC67_0110618-S1"]
+    assert "protein_entries" not in pilot.settings
     assert pilot.settings["rna_acquisitions"] == ["xenium:0110618:090"]
 
 
