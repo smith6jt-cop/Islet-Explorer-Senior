@@ -35,8 +35,11 @@ the checkout.
 A HiPerGator file is written when the HPG lane moves onto MultiPlex5000 (phase F).
 The separate [HiPerGator Xenium source index](hipergator/README.md) records
 exact paths for the 65 accepted Xenium region outputs. A future HPG site file
-can name it as `sources.xenium_source_index`; Stage 04 must bind the file in
-its receipt when it uses those paths.
+must name it as `sources.xenium_source_index`; Stage 04 binds it and each raw
+matrix and cell table in its receipt. The accepted Stage 00 directory must
+also be present under that project's release root before Stage 04 runs.
+It is not currently on HiPerGator, so do not treat a local Stage 04 test as
+a full-cohort HPG ingest.
 
 ## The MultiPlex5000 environment
 
