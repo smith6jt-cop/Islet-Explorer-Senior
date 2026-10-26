@@ -155,6 +155,17 @@ the matching donor code alone never establishes a cell pair. The older spleen
 integration plan said RNA cell typing would not run. The maintainer's newer
 all-modality typing direction supersedes that scope statement.
 
+The spleen pilot project now routes all eight PC67 full-cell QuPath exports
+through Stage 03 before the selected Xenium region enters Stage 04. This Stage
+03 adapter preserves `object_id`, uses an acquisition- and export-qualified
+`cell_uid`, records all cell means as raw measurements, and excludes zero or
+missing nucleus area from protein typing eligibility. It verifies the export
+against the accepted Stage 00 digest and labels its gate as raw measurement
+evidence. It does not claim the pancreas REDSEA path or normalized protein
+values for spleen. Stage 05 needs the eight protein samples to estimate
+cross-section shifts; the first bounded RNA pilot uses HDL090's Xenium region.
+The other seven Xenium regions remain in the inventory until admitted.
+
 `multiplex5000.tissues.evaluate.evaluate_rules` is the shared Boolean
 hierarchy evaluator for the selected pLN sheet and its spleen adaptation. It
 takes explicit per-cell positive, negative or unavailable marker calls; it

@@ -105,6 +105,10 @@ def _exclusion_files(folder: Path) -> dict[str, tuple[Path, str]]:
 
 
 def inputs(project) -> list[Input]:
+    if project.settings.get("same_slide_source_manifest"):
+        from . import pilot_protein
+
+        return pilot_protein.inputs(project)
     from ..artifacts import QuPathCohortManifest
 
     spec_path, manifest_path = _cohort_spec(project), _manifest_path(project)
@@ -140,6 +144,10 @@ def inputs(project) -> list[Input]:
 
 
 def settings(project) -> dict:
+    if project.settings.get("same_slide_source_manifest"):
+        from . import pilot_protein
+
+        return pilot_protein.settings(project)
     from ..config import _ENV_OVERRIDES
 
     parser = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
@@ -352,6 +360,10 @@ def _expression(cfg, own: dict, images: dict, sources: dict, donor: str) -> dict
 
 
 def run(task: Task) -> dict:
+    if task.project.settings.get("same_slide_source_manifest"):
+        from . import pilot_protein
+
+        return pilot_protein.run(task)
     import pandas as pd
 
     from ..artifacts import QuPathCohortManifest
@@ -522,6 +534,10 @@ def _marker_figure(task: Task, frame) -> None:
 
 # --------------------------------------------------------------------------------- gate ----
 def gate(task: Task, summary: dict) -> gates.Gate:
+    if task.project.settings.get("same_slide_source_manifest"):
+        from . import pilot_protein
+
+        return pilot_protein.gate(task, summary)
     C = gates.Check
     checks = [
         C("every cohort image is in the QuPath manifest", summary["cohort_images_not_in_manifest"],

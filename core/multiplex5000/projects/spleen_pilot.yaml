@@ -2,10 +2,12 @@ schema: multiplex5000-project/1
 id: spleen_pilot
 release: spleen-pilot-candidate-1
 cohort: spleen_same_slide_pilot
-# These are the built prerequisites. Stage 05/06 join when their shared code is ready.
-stages: [00_inventory, 04_rna_ingest]
-automatic_gates: []
+# Raw protein and RNA are admitted separately; Stage 05/06 join when built.
+stages: [00_inventory, 03_protein_measurement, 04_rna_ingest]
+# The measurement gate records coverage; the first manual processing stop is typing.
+automatic_gates: [03_protein_measurement]
 settings:
   same_slide_source_manifest: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
-  # One representative same-slide Xenium region bounds the first executable pilot.
+  # Stage 03 admits all eight PC67 sections so Stage 05 can fit across samples.
+  # One Xenium region bounds the first end-to-end paired route.
   rna_acquisitions: [xenium:0110618:090]
