@@ -21,6 +21,8 @@ dependencies = [
     "pandas",
     "pyarrow",
     "scipy",
+    # Stage 04 reads raw Xenium cell-feature matrices from the instrument HDF5 bundles.
+    "h5py",
     "scikit-image",
     "scikit-learn",
     "statsmodels",
@@ -41,7 +43,7 @@ dependencies = [
 gpu = ["cupy-cuda12x"]
 # tests/current/test_no_typing_leak.py reads YAML, and test_trajectory_leiden_only.py runs
 # scanpy's leiden with flavor="igraph". The rest of what tests/current reaches through the
-# typing and senior scripts (shapely, anndata, h5py, scanpy's pynndescent) is the
+# typing and senior scripts (shapely, anndata, scanpy's pynndescent) is the
 # integration extra, so the suite runs on `.[integration,test]`.
 test = ["pytest", "pyyaml", "igraph"]
 notebook = ["jupyterlab", "ipykernel", "ipywidgets", "matplotlib"]
@@ -68,7 +70,6 @@ integration = [
     "shapely",
     "opencv-python-headless",
     "SimpleITK",
-    "h5py",
 ]
 
 # DeepCellTypes cell-type inference (scripts/dct/). Pinned BY COMMIT, not by version:
