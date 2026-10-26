@@ -126,7 +126,8 @@ mplx5k = "multiplex5000.cli:main"
 
 [tool.setuptools]
 # `phenocycler` is only the temporary import alias (phenocycler/__init__.py); the code is multiplex5000.
-packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.stages", "phenocycler"]
+packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.stages",
+            "multiplex5000.tissues", "phenocycler"]
 include-package-data = true
 
 [tool.setuptools.package-data]
