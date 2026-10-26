@@ -1,7 +1,9 @@
 """Stage 00 source adapter for explicitly recorded same-slide pilot sections.
 
 This is called by the one Stage 00 module, not a second workflow controller.
-The accepted acquisition table can feed the existing Stage 04 Xenium reader.
+Whole-slide scans, section exports and Xenium region outputs are separate
+records. Counting one protein export and one Xenium region as two acquisitions
+per section would falsely turn this two-slide pilot into 16 acquisitions.
 """
 
 from __future__ import annotations
@@ -17,10 +19,13 @@ from ..xenium_sources import CELL_FILES, INSTRUMENT_FILES
 
 STAGE = "00_inventory"
 _RAW = (*INSTRUMENT_FILES, *CELL_FILES)
-_ACQUISITION_COLUMNS = ("acquisition_id", "platform", "tissue", "roi", "donor_id",
-                        "physical_section", "relationship", "path", "output", "condition")
+_SLIDE_COLUMNS = ("slide_id", "protein_image", "xenium_run")
+_SECTION_COLUMNS = ("protein_entry", "donor_id", "tissue", "slide_id", "protein_export")
+_REGION_COLUMNS = ("acquisition_id", "platform", "tissue", "roi", "donor_id",
+                   "physical_section", "relationship", "path", "output", "condition",
+                   "slide_id")
 _RELATION_COLUMNS = ("donor_id", "tissue", "physical_section", "relationship",
-                     "phenocycler_acquisition_id", "xenium_acquisition_id",
+                     "slide_id", "protein_entry", "xenium_region_id",
                      "protein_frame", "xenium_frame", "crop_origin_x_px", "crop_origin_y_px")
 
 
@@ -79,42 +84,53 @@ def run(task: Task) -> dict:
     cohort = profiles.load_all()[("cohort", task.project.cohort)]
     if {pair.tissue for pair in pairs} != set(cohort.tissues):
         raise PilotInventoryError("pair tissue differs from cohort profile")
-    acquisitions, relationships = [], []
+    slides, sections, regions, relationships = {}, [], [], []
     for pair in pairs:
         serial, region = parse_bundle_path(pair.xenium_output.name)
         tissue_profile = profiles.load_all()[("tissue", pair.tissue)]
         if not tissue_profile.roi_prefixes:
             raise PilotInventoryError(f"{pair.tissue}: no ROI prefix in its tissue profile")
-        pc_id = f"phenocycler:{pair.protein_entry}"
-        base = {"tissue": pair.tissue, "donor_id": pair.donor_id,
-                "physical_section": pair.protein_entry,
-                "relationship": pair.relationship, "condition": ""}
-        acquisitions.append({**base, "acquisition_id": pc_id, "platform": "phenocycler",
-                             "roi": tissue_profile.roi_prefixes[0],
-                             "path": str(pair.protein_image), "output": ""})
-        acquisitions.append({**base, "acquisition_id": pair.xenium_acquisition_id,
-                             "platform": "xenium", "roi": region,
-                             "path": str(pair.xenium_output), "output": pair.xenium_output.name})
+        slide = {"slide_id": serial, "protein_image": str(pair.protein_image),
+                 "xenium_run": str(pair.xenium_output.parent)}
+        if serial in slides and slides[serial] != slide:
+            raise PilotInventoryError(f"{serial}: conflicting whole-slide sources")
+        slides[serial] = slide
+        sections.append({"protein_entry": pair.protein_entry, "donor_id": pair.donor_id,
+                         "tissue": pair.tissue, "slide_id": serial,
+                         "protein_export": str(pair.protein_export)})
+        regions.append({"acquisition_id": pair.xenium_acquisition_id,
+                        "platform": "xenium", "tissue": pair.tissue,
+                        "roi": region, "donor_id": pair.donor_id,
+                        "physical_section": pair.protein_entry,
+                        "relationship": pair.relationship,
+                        "path": str(pair.xenium_output),
+                        "output": pair.xenium_output.name,
+                        "condition": "", "slide_id": serial})
         relationships.append({"donor_id": pair.donor_id, "tissue": pair.tissue,
                               "physical_section": pair.protein_entry,
                               "relationship": pair.relationship,
-                              "phenocycler_acquisition_id": pc_id,
-                              "xenium_acquisition_id": pair.xenium_acquisition_id,
+                              "slide_id": serial, "protein_entry": pair.protein_entry,
+                              "xenium_region_id": pair.xenium_acquisition_id,
                               "protein_frame": pair.protein_frame,
                               "xenium_frame": pair.xenium_frame,
                               "crop_origin_x_px": pair.crop_origin_px[0],
                               "crop_origin_y_px": pair.crop_origin_px[1]})
-    _write(task.output("acquisitions.csv"), _ACQUISITION_COLUMNS, acquisitions)
+    _write(task.output("slides.csv"), _SLIDE_COLUMNS, list(slides.values()))
+    _write(task.output("sections.csv"), _SECTION_COLUMNS, sections)
+    _write(task.output("regions.csv"), _REGION_COLUMNS, regions)
     _write(task.output("relationships.csv"), _RELATION_COLUMNS, relationships)
-    _figure(task, relationships)
-    return {"pairs": len(pairs), "acquisitions": len(acquisitions),
-            "regions": len(relationships), "tissues": sorted({pair.tissue for pair in pairs}),
+    _figure(task, relationships, len(slides), len({row["xenium_run"] for row in slides.values()}))
+    return {"pairs": len(pairs), "physical_slides": len(slides),
+            "protein_images": len({row["protein_image"] for row in slides.values()}),
+            "protein_exports": len(sections), "xenium_regions": len(regions),
+            "xenium_runs": len({row["xenium_run"] for row in slides.values()}),
+            "tissues": sorted({pair.tissue for pair in pairs}),
             "verified_crop_origins": sum(pair.crop_origin_px is not None for pair in pairs),
             "instrument_records": len(pairs) * len(INSTRUMENT_FILES),
             "raw_image_digests": "not yet recorded; candidate pilot only"}
 
 
-def _figure(task: Task, rows: list[dict]) -> None:
+def _figure(task: Task, rows: list[dict], slides: int, runs: int) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -127,8 +143,9 @@ def _figure(task: Task, rows: list[dict]) -> None:
     ax.barh(y, [1] * len(rows), left=[1] * len(rows), color="#457b9d",
             label="Xenium region verified")
     ax.set(yticks=y, yticklabels=labels, xlim=(0, 2),
-           xlabel="Source acquisitions verified per physical section (n)",
-           title=f"Same-slide source coverage: {len(rows)} sections, {len(rows) * 2} acquisitions")
+           xlabel="Section export and Xenium region output present (one each)",
+           title=f"Same-slide sources: {len(rows)} sections on {slides} slides; "
+                 f"{runs} Xenium run(s)")
     ax.invert_yaxis()
     ax.legend(loc="lower right", fontsize=8)
     fig.savefig(gates.figure_path(task, "same_slide_sources.png"), dpi=150)
@@ -140,8 +157,17 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
         gates.Check("every recorded physical section has both sources", summary["pairs"],
                     str(len(pairs)), summary["pairs"] == len(pairs)),
-        gates.Check("two distinct assay acquisitions per section", summary["acquisitions"],
-                    str(2 * len(pairs)), summary["acquisitions"] == 2 * len(pairs)),
+        gates.Check("whole-slide images match physical slide IDs",
+                    summary["protein_images"], str(summary["physical_slides"]),
+                    summary["protein_images"] == summary["physical_slides"]),
+        gates.Check("one protein section export per recorded section",
+                    summary["protein_exports"], str(len(pairs)),
+                    summary["protein_exports"] == len(pairs)),
+        gates.Check("one Xenium region output per recorded section",
+                    summary["xenium_regions"], str(len(pairs)),
+                    summary["xenium_regions"] == len(pairs)),
+        gates.Check("Xenium run folders", summary["xenium_runs"],
+                    "recorded source count", True, blocking=False),
         gates.Check("crop origins verified against the section table",
                     summary["verified_crop_origins"], str(len(pairs)),
                     summary["verified_crop_origins"] == len(pairs)),

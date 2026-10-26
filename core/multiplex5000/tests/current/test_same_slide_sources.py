@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from multiplex5000.same_slide_sources import SameSlideSourceError, load_pairs
+from multiplex5000.integration.manifest import parse_bundle_path
 from multiplex5000.xenium_sources import CELL_FILES, INSTRUMENT_FILES
 
 REPO = Path(__file__).resolve().parents[4]
@@ -23,6 +24,12 @@ def test_recorded_spleen_pilot_has_eight_distinct_explicit_pairs():
         "xenium:0110618:014", "xenium:0110979:059", "xenium:0110979:009",
         "xenium:0110979:034", "xenium:0110979:080"}
     assert all(p.crop_origin_px is None for p in pairs)  # sources not verified on this host
+    assert len({p.donor_id for p in pairs}) == 8
+    assert len({p.protein_entry for p in pairs}) == 8  # physical section exports
+    assert len({p.protein_image for p in pairs}) == 2  # whole-slide scans
+    assert {parse_bundle_path(p.xenium_output.name)[0] for p in pairs} == {
+        "0110618", "0110979"}
+    assert len({p.xenium_output.parent for p in pairs}) == 1  # Xenium run folder
 
 
 def _synthetic(tmp_path):

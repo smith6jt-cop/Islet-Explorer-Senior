@@ -52,8 +52,18 @@ def _rows(path: Path, delimiter: str = ",") -> list[dict[str, str]]:
                                    delimiter=delimiter))
 
 
+def inventory_table(stage_dir: Path) -> Path:
+    """Select the receipt-bound Xenium source table for either Stage 00 route."""
+    stage_dir = Path(stage_dir)
+    receipt = json.loads((stage_dir / "receipt.json").read_text())
+    names = {item["path"] for item in receipt.get("outputs", [])}
+    if "regions.csv" in names:
+        return stage_dir / "regions.csv"
+    return stage_dir / "acquisitions.csv"
+
+
 def _accepted_inventory(stage_dir: Path) -> tuple[list[dict[str, str]], dict[str, str]]:
-    """Bind the acquisition table and instrument hashes to the accepted receipt."""
+    """Bind the Xenium region table and instrument hashes to the accepted receipt."""
     stage_dir = Path(stage_dir)
     acceptance = gates.require_accepted(stage_dir)
     receipt_path = stage_dir / "receipt.json"
@@ -62,11 +72,11 @@ def _accepted_inventory(stage_dir: Path) -> tuple[list[dict[str, str]], dict[str
     receipt = json.loads(receipt_path.read_text())
     if receipt.get("stage") != "00_inventory" or receipt.get("status") != "complete":
         raise XeniumSourceError("source roster requires a complete Stage 00 receipt")
+    table = inventory_table(stage_dir)
     output = next((item for item in receipt["outputs"]
-                   if item["path"] == "acquisitions.csv"), None)
-    table = stage_dir / "acquisitions.csv"
+                   if item["path"] == table.name), None)
     if output is None or output["sha256"] != sha256_file(table):
-        raise XeniumSourceError("Stage 00 acquisitions.csv differs from its receipt")
+        raise XeniumSourceError(f"Stage 00 {table.name} differs from its receipt")
     inputs = {item["name"]: item.get("sha256") for item in receipt["inputs"]}
     return _rows(table), inputs
 
