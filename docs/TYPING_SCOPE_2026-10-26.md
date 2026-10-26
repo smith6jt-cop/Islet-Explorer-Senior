@@ -146,3 +146,11 @@ The two assays receive their own Stage 06 evidence before Stage 08 links cells;
 the matching donor code alone never establishes a cell pair. The older spleen
 integration plan said RNA cell typing would not run. The maintainer's newer
 all-modality typing direction supersedes that scope statement.
+
+`multiplex5000.tissues.evaluate.evaluate_rules` is the shared Boolean
+hierarchy evaluator for the selected pLN sheet and its spleen adaptation. It
+takes explicit per-cell positive, negative or unavailable marker calls; it
+does not derive positivity thresholds from intensities or publish a final
+cell class. Missing markers in any ancestor make a rule unavailable. Stage 05
+and the tissue-specific Stage 06 producers still have to supply and validate
+those marker calls before this can type a real cell.
