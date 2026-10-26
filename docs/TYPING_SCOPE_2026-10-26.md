@@ -59,6 +59,16 @@ not that its large cell files have been verified there; Stage 04 must check
 those files on that host before ingest. The tool is a readiness check, not
 an RNA producer or a typing result.
 
+`multiplex5000.xenium_region.load_region` is the first Stage 04 reader. It
+loads one ready raw bundle's Gene Expression counts and joins its matrix
+barcodes to `cells.parquet` by native ID, failing on missing or repeated IDs.
+It emits acquisition-qualified `cell_uid` values and keeps cells without a
+nucleus in the accounting while marking them ineligible for typing. It makes
+no cell-type call or gene-positive cutoff. On the local 6539 pilot, it read
+319,005 pancreas cells (41,814 no nucleus) and 222,443 pLN cells (6,344 no
+nucleus), both with 5,101 genes. This does not yet publish Stage 04 or run on
+the 35 HPG-only bundles.
+
 A read-only HiPerGator check on 2026-10-26 found all seven required files and
 matching Stage 00 instrument hashes for all 65 outputs. The 30 outputs that
 are complete locally also exist under `/orange/maigan/Xenium_T1D_PancPLN`,
