@@ -16,11 +16,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .. import gates, roots
-from ..protein_evidence import candidate_calls
 from ..rna_evidence import detect_genes
 from ..same_slide_sources import load_pairs
 from ..tasks import Input, Task, sha256_file
-from ..tissues.evaluate import evaluate_rules_batch
+from ..tissues.protein_section import evaluate_protein_section
 from ..tissues.spleen import load_rule_source
 from ..xenium_region import load_region
 from ..xenium_sources import XeniumSource
@@ -189,12 +188,12 @@ def run(task: Task) -> dict:
         eligible = table["protein_eligible"].to_numpy(zero_copy_only=False).astype(bool)
         protein_payload = {"cell_uid": table["cell_uid"], "object_id": table["object_id"],
                            "protein_eligible": table["protein_eligible"]}
-        marker_calls = {}
-        for marker in measured:
-            raw = table[f"marker:{marker}"].to_pandas().to_numpy(dtype=float)
-            evidence = candidate_calls(entry, marker, raw, eligible,
-                                       shift_scale=shifts.get((entry, marker)))
-            marker_calls[marker] = evidence.states
+        measurements = {marker: table[f"marker:{marker}"].to_pandas().to_numpy(dtype=float)
+                        for marker in measured}
+        section_evidence = evaluate_protein_section(
+            source, entry, measurements, eligible,
+            {marker: shifts.get((entry, marker)) for marker in measured})
+        for marker, evidence in section_evidence.markers.items():
             protein_payload[f"marker_call:{marker}"] = pa.array(evidence.states)
             threshold_rows.append({"protein_entry": entry, "marker": marker,
                                    "floor": evidence.floor, "top": evidence.top,
@@ -205,13 +204,12 @@ def run(task: Task) -> dict:
                                    "detected": int(np.count_nonzero(evidence.states == 1)),
                                    "undetected": int(np.count_nonzero(evidence.states == 0)),
                                    "unavailable": int(np.count_nonzero(evidence.states == -1))})
-        evaluated = evaluate_rules_batch(source, marker_calls)
-        for phenotype, states in evaluated.states.items():
+        for phenotype, states in section_evidence.rules.states.items():
             protein_payload[f"rule:{phenotype}"] = pa.array(states)
             rule_rows.append({"protein_entry": entry, "phenotype": phenotype,
                               "matched": int(np.count_nonzero(states == 1)),
                               "not_matched": int(np.count_nonzero(states == 0)),
-                              "unavailable": evaluated.unavailable_counts[phenotype]})
+                              "unavailable": section_evidence.rules.unavailable_counts[phenotype]})
         pq.write_table(pa.table(protein_payload), task.output(f"protein/{entry}.parquet"),
                        compression="zstd")
         protein_cells += len(table)
