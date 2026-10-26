@@ -30,6 +30,10 @@ HiPerGator `/orange/maigan` source locations. Those complete outputs are not
 on this workstation. Stage 04 must use the accepted acquisition inventory
 and resolve those sources on HiPerGator or from a verified transfer. It must
 not substitute an older serial Xenium section for a same-slide output.
+The current pancreas RNA release worker fixes its roster at 25 sections, and
+the pLN v3 RNA worker discovers `/data/xenium/h5ad_out`; that local folder has
+neither the two Xenium-only donors nor the four newer same-slide serials.
+Reusing either worker's old roster would leave the clarified scope untyped.
 
 Stage 06 must produce tissue-specific calls, evidence and unavailable reasons
 for both modalities. A same-slide section needs both assay results; the
@@ -37,6 +41,10 @@ cell-to-cell relationship is established only from the recorded section mode
 and registration, then used in Stage 08 integration. Serial sections never
 receive a same-cell claim. The damaged 6533 pLN Xenium region may be marked
 unavailable with its damage reason and must not hold up other acquisitions.
+The current `section_modes.csv` records the four same-slide pancreas serials,
+but has no pLN rows for their `pln_2` regions. That gap does not prevent typing
+each assay's pLN cells; it prevents a same-cell pLN link until its relationship
+is explicitly recorded and checked.
 
 The selected 69-row pLN protein sheet was written for a wider pancreas-plus-pLN
 panel. The maintainer approved an explicit pLN adaptation of pancreas-only
