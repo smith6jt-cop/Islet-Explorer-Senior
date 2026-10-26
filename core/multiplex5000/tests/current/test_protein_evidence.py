@@ -44,6 +44,15 @@ def test_missing_marker_shift_or_background_are_unavailable():
     assert np.all(few.states == -1)
 
 
+def test_uniform_shift_changes_units_without_a_fixed_positive_fraction():
+    values, eligible = _section()
+    first = candidate_calls("HDL090-S1", "CD8", values, eligible, shift_scale=1.0)
+    shifted = candidate_calls("HDL090-S1", "CD8", values, eligible, shift_scale=2.0)
+    assert shifted.cutoff == pytest.approx(first.cutoff * 2, rel=0.005)
+    assert shifted.states.tolist() == first.states.tolist()
+    assert int(np.count_nonzero(first.states == 1)) == 20
+
+
 def test_input_identity_and_scale_must_be_valid():
     values, eligible = _section()
     with pytest.raises(ProteinEvidenceError, match="cell order"):
