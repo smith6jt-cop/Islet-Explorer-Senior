@@ -15,7 +15,11 @@ node release.
 | Tissue, ROI, panel, condition and relationships | Accepted Stage 00 inventory | Route each acquisition without inferring a pair from co-imaging |
 | pLN protein phenotype rules | `core/panels/data/tissues/pancreatic_lymph_node/manifest.yml` | Selected full sheet and reviewed pLN adaptation |
 
-As of main `4f4d65d`, Stage 03's measured roster is the 25 pancreas
+The older migration schedule assigned RNA ingest to D8, after D6 typing.
+Stage 04 is now a D6 prerequisite: its accepted RNA inputs are needed before
+Stage 06 can claim the clarified all-modality typing scope.
+
+Stage 03's measured roster is the 25 pancreas
 PhenoCycler images in `cohort-spec-v3.json`. Its accepted receipt does not
 cover the 19 dedicated PhenoCycler pLN images. The next measurement increment
 must admit those images under the same compartment and exclusion policy before
@@ -44,6 +48,27 @@ The project currently fixes `settings.xenium_root` at local `/data/xenium`;
 the relative Xenium bundle paths need a site-specific root on HiPerGator.
 The absolute same-slide paths already recorded under `/orange/maigan` must
 remain absolute rather than being joined to either root.
+
+`multiplex5000.xenium_sources` reads the accepted Stage 00 acquisition table,
+its receipt, and the checksum-bound Xenium records manifest. It uses
+`serial__roi` keys, checks complete bundles and their instrument-record hashes,
+and reports exact HiPerGator paths for outputs not complete on this host. The
+2026-10-25 inventory resolves to 30 ready local region bundles and 35
+`remote_only` bundles. `remote_only` means the HiPerGator path is recorded,
+not that its large cell files have been verified there; Stage 04 must check
+those files on that host before ingest. The tool is a readiness check, not
+an RNA producer or a typing result.
+
+A read-only HiPerGator check on 2026-10-26 found all seven required files and
+matching Stage 00 instrument hashes for all 65 outputs. The 30 outputs that
+are complete locally also exist under `/orange/maigan/Xenium_T1D_PancPLN`,
+but their exact HiPerGator paths are not all in `MANIFEST.tsv`. Stage 04 needs
+an exact site source index for them, bound in its own receipt. In that tree,
+serials 0059865 and 0059907 have pLN outputs named `PanT` rather than the
+local `pLN`; the accepted instrument hashes match. Serials 0041116 and
+0041117 each have two directory copies whose seven required files compare
+byte-identically. The site index should choose one path explicitly, never
+pick the first filename match found by a search.
 
 Stage 06 must produce tissue-specific calls, evidence and unavailable reasons
 for both modalities. A same-slide section needs both assay results; the
