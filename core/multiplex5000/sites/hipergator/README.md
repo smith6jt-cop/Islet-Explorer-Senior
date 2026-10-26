@@ -63,10 +63,16 @@ across the eight protein sections. These stages have review notebooks under
 `core/multiplex5000/notebooks/`. Stage 03's pilot adapter does not yet perform
 REDSEA, and neither assay has a cell-type result. On HiPerGator, set
 `MPLX5K_RELEASES_ROOT` to a writable `/blue/maigan` project folder, and set
-the site `tmp_dir` to a sufficiently large writable `/blue/maigan` folder. Run
-`mplx5k stage run 00_inventory --project spleen_pilot`, review its `gate.html`,
-then accept the gate before progressing. Stage 06 now produces separate
-review-only protein rule matches and Xenium gene evidence for HDL090. It
+the site `tmp_dir` to a sufficiently large writable `/blue/maigan` folder.
+The Stage 00 output made before commit `b642305` is invalid: it counted eight
+protein section exports and eight Xenium region folders as 16 acquisitions.
+After installing main at or after `93e995c`, rerun that stage with
+`mplx5k stage run 00_inventory --project spleen_pilot --force`. The runner
+moves the old output and receipt aside. Review the new `gate.html`, which must
+show two whole-slide images, eight section exports, eight Xenium regions and
+one Xenium run. Do not accept the old gate or advance the pilot on it. Stage 06
+produces separate review-only protein rule matches and Xenium gene evidence
+for HDL090. It
 publishes no final cell class or cross-assay cell link. Stage 06's gate waits
 for manual review; its notebook is `notebooks/06_typing.ipynb`.
 
