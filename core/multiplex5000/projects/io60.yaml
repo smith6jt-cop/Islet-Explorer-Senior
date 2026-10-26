@@ -12,3 +12,6 @@ automatic_gates: []
 settings:
   # Where xenium_paths.csv's relative bundle paths resolve (config.ini [integration] xenium_root).
   xenium_root: /data/xenium
+  # Stage 03's REDSEA donors at once: the eight config.ini [compute] measured safe on this
+  # 64-core / 503 GB host (~232 GB steady). It changes the run's speed, not a value.
+  measurement_jobs: 8

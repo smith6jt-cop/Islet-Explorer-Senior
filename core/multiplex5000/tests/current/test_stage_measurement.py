@@ -174,6 +174,25 @@ def test_a_measured_image_has_every_table_and_its_gate_passes(measurement_projec
             admission["admitted"]) == (16, 15, 1, 14)
     assert (folder / "gate" / "nucleus_admission.png").stat().st_size > 1000
     assert (folder / "gate" / "markers_before_after.png").stat().st_size > 1000
+    for table in ("cells", "geometry_qc", "expression"):
+        ids = _partition(folder, table)["object_id"].astype(str).tolist()
+        assert ids == sorted(ids), f"{table} is not in object_id order"
+
+
+def test_the_ingested_cells_are_rewritten_in_object_id_order(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    partition = tmp_path / "cells" / f"donor_id={DONOR}"
+    partition.mkdir(parents=True)
+    pq.write_table(pa.table({"object_id": ["c02", "c00", "c01"], "CD3e": [3.0, None, 1.0]}),
+                   partition / "data_0.parquet")
+    STAGE.in_object_id_order(partition)
+    (path,) = partition.glob("*.parquet")
+    table = pq.read_table(path, partitioning=None)
+    # the same rows and columns -- no donor_id read back from the folder name -- in id order
+    assert table.column_names == ["object_id", "CD3e"]
+    assert table.to_pydict() == {"object_id": ["c00", "c01", "c02"], "CD3e": [None, 1.0, 3.0]}
 
 
 def test_each_marker_is_read_from_the_compartment_the_ruling_names(measurement_project):
