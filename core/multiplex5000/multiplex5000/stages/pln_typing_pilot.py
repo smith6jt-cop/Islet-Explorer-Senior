@@ -143,7 +143,7 @@ def run(task: Task) -> dict:
             writer.writeheader()
             writer.writerows(rows)
     _marker_figure(task, threshold_rows, sections)
-    _rule_figure(task, rule_rows, total_cells)
+    _rule_figures(task, rule_rows, sections)
     return {"sections": len(sections), "protein_cells": total_cells,
             "protein_cells_without_nucleus": no_nucleus,
             "protein_markers": len(threshold_rows),
@@ -187,27 +187,31 @@ def _marker_figure(task: Task, rows: list[dict], sections: list[dict]) -> None:
     plt.close(fig)
 
 
-def _rule_figure(task: Task, rows: list[dict], cells: int) -> None:
+def _rule_figures(task: Task, rows: list[dict], sections: list[dict]) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    grouped = sorted(rows, key=lambda row: (row["protein_entry"], -row["matched"],
-                                            row["phenotype"]))
-    names = [f"{row['protein_entry']} / {row['phenotype']}" for row in grouped]
-    matched = [row["matched"] for row in grouped]
-    unavailable = [row["unavailable"] for row in grouped]
-    fig, ax = plt.subplots(figsize=(13, max(6, len(rows) * 0.18 + 1)),
-                           layout="constrained")
-    ax.barh(names, matched, label="rule matched")
-    ax.barh(names, unavailable, left=matched, label="rule unavailable")
-    ax.set(xlabel="Dedicated pLN cells (n)",
-           title=f"pLN protein hierarchy review: {cells:,} cells; matches and unavailable")
-    ax.invert_yaxis()
-    ax.legend(fontsize=8)
-    fig.savefig(gates.figure_path(task, "pln_rule_evidence.png"), dpi=140)
-    plt.close(fig)
+    for section in sections:
+        entry = section["protein_entry"]
+        grouped = sorted((row for row in rows if row["protein_entry"] == entry),
+                         key=lambda row: (-row["matched"], row["phenotype"]))
+        names = [row["phenotype"] for row in grouped]
+        matched = [row["matched"] for row in grouped]
+        unavailable = [row["unavailable"] for row in grouped]
+        fig, ax = plt.subplots(figsize=(11, max(10, len(grouped) * 0.29 + 1)),
+                               layout="constrained")
+        ax.barh(names, matched, label="rule matched")
+        ax.barh(names, unavailable, left=matched, label="rule unavailable")
+        ax.set(xlabel="Cells in this physical pLN section (n)",
+               title=f"{entry}: {int(section['cells']):,} cells; "
+                     "hierarchy matches and unavailable evidence")
+        ax.invert_yaxis()
+        ax.tick_params(axis="y", labelsize=7)
+        ax.legend(fontsize=8)
+        fig.savefig(gates.figure_path(task, f"pln_rule_evidence_{entry}.png"), dpi=140)
+        plt.close(fig)
 
 
 def gate(task: Task, summary: dict) -> gates.Gate:
@@ -226,4 +230,6 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     ]
     return gates.Gate(STAGE, "Dedicated pLN per-section protein rule evidence for review; "
                       "no final class or release admission.", checks,
-                      ["pln_marker_support.png", "pln_rule_evidence.png"])
+                      ["pln_marker_support.png"] + [
+                          f"pln_rule_evidence_{entry}.png"
+                          for entry in task.settings["protein_entries"]])

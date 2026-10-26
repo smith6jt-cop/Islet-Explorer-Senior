@@ -111,5 +111,6 @@ def test_pilot_routes_stage03_stage05_stage06_through_one_project(tmp_path, monk
     assert all(table[name].to_pylist()[1:] == [-1, -1]
                for name in table.column_names if name.startswith("rule:"))
     assert table["rule:Naive_B_cell"].to_pylist()[0] == -1  # CD38 unmeasured
-    assert (typed.path / "gate/pln_rule_evidence.png").stat().st_size > 1000
+    for entry in ("9001__pln_1", "9002__pln_1"):
+        assert (typed.path / f"gate/pln_rule_evidence_{entry}.png").stat().st_size > 1000
     assert (typed.path / "gate/pln_marker_support.png").stat().st_size > 1000
