@@ -107,9 +107,12 @@ them), removed when the run ends. Every stage ends in a gate (`gate/gate.json`, 
 `mplx5k gate show <stage>`, then `mplx5k gate accept <stage> --by <name>`, refused while a blocking
 check fails. The next stage needs that acceptance; receipts record and never lock. The project
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
-so. Stages 00 (the source inventory) and 03 (protein measurement, D4) are built; the old
-`phenocycler.pipeline` measurement route stays only until stage 03's replay matches the October
-output. Stage 00's coverage is laid out by physical slide: the PhenoCycler pancreas
+so. Stage 03's is (maintainer, 2026-10-26: "this is not a good place to stop and gate at all" --
+a marker's measurement is accepted by its effect on object and cell-type positivity), stage 05's
+will be when it is built, and typing (stage 06) is the first stop. Stages 00 (the source
+inventory) and 03 (protein measurement, D4) are built; the old `phenocycler.pipeline` measurement
+route stays only until stage 03's replay matches the October output (it matched for all 25
+donors on 2026-10-26; retiring the route is the maintainer's call). Stage 00's coverage is laid out by physical slide: the PhenoCycler pancreas
 slide (its pancreas, the pLN/lymphoid the donor notes put on it -- same-block or different-block,
 checked against `pln_blocks.csv` -- its PhenoCycler scan and, where Xenium ran on that same slide
 after PhenoCycler, that Xenium), the Xenium slide (its regions, its run, the IF scanned after it)

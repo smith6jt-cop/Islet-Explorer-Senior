@@ -14,11 +14,13 @@ from multiplex5000 import project as P
 from multiplex5000 import roots, stages
 
 
-def test_the_io60_project_loads_and_names_no_automatic_gate(tmp_path):
+def test_the_io60_project_loads_and_only_measurement_passes_itself(tmp_path):
     project = P.load("io60", releases_root=tmp_path)
     assert project.release_dir == tmp_path / project.release
     assert project.stages[0] == "00_inventory" and project.previous("00_inventory") is None
-    assert project.automatic_gates == (), "no gate is automatic until the maintainer says so"
+    # the maintainer, 2026-10-26: measurement is no place to stop; the inventory still waits
+    assert project.automatic_gates == ("03_protein_measurement",), (
+        "no other gate is automatic until the maintainer says so")
 
 
 def test_the_releases_root_is_the_argument_else_the_file_else_the_site(tmp_path, monkeypatch,
