@@ -26,6 +26,10 @@ with two changes, and this stage runs exactly that, in that order:
 
 Normalization (UniFORM shifts and scale) is stage 05's, not this one's.
 
+Geometry QC, REDSEA and expression each take several donors at once, as many as config.ini
+[compute] allows each step under the project's ``measurement_jobs`` ceiling (``ResourceLimits``,
+as the old pipeline did). Every donor's work is its own, so the tables are the same either way.
+
 The gate shows each marker per donor before and after REDSEA in its measured compartment, and each
 donor's nucleus admission. It blocks on:
 - a cohort image the manifest does not hold, or one not measured;
@@ -42,10 +46,11 @@ import json
 import os
 import shutil
 from collections import Counter
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
-from .. import gates, profiles, roots
+from .. import gates, profiles, roots, tasks
 from ..cohort import excluded_on
 from ..tasks import Input, Task
 
@@ -239,17 +244,120 @@ def _before(cells_path: Path, image, registry, object_ids):
     return {m: table[c] for m, c in columns.items() if c in table}
 
 
-def run(task: Task) -> dict:
+# ------------------------------------------------------------ one donor, in a pool worker ----
+def _fan_out(func, donors: list[str], workers: int) -> list:
+    """``func(donor)`` for every donor, ``workers`` at a time, results in donor order; what each
+    worker opens is checked like the stage's own reads."""
+    from ..parallel import map_donors
+
+    results = map_donors(partial(tasks.audited, func), donors, n_jobs=workers, ordered=True,
+                         on_error="raise")
+    for _, opened in results:
+        tasks.record(opened)
+    return [result for result, _ in results]
+
+
+def _geometry(cfg, images: dict, donor: str) -> str:
+    """One donor's ingested cells put in object_id order, then its geometry QC."""
+    from ..donor_pipeline import _geometry_config
+    from ..expression import read_single_partition, write_donor_partition
+    from ..geometry_stage import run_geometry_qc_for_image
+
+    image = images[donor]
+    in_object_id_order(cfg.cells_dir / f"donor_id={donor}")
+    result = run_geometry_qc_for_image(read_single_partition(cfg.cells_dir, donor), image,
+                                       config=_geometry_config(SimpleNamespace(config=cfg), image))
+    write_donor_partition(result.to_frame(), cfg.geometry_qc_dir, donor_id=donor)
+    return donor
+
+
+def _expression(cfg, own: dict, images: dict, sources: dict, donor: str) -> dict:
+    """One donor's expression and availability, and what the gate reports of it."""
     import numpy as np
+    import pandas as pd
+
+    from ..expression import build_selected_expression, read_single_partition, write_donor_partition
+    from ..marker_registry import registry_from_dict
+
+    d, image, registry = donor, images[donor], registry_from_dict(own)
+    out = {"problems": [], "unmatched": [], "dropped": 0, "reasons": Counter(), "markers": []}
+    cells = read_single_partition(cfg.cells_dir, d)
+    redsea = read_single_partition(cfg.redsea_dir, d)
+    qc = read_single_partition(cfg.geometry_qc_dir, d)
+    excluded = set()
+    if sources[d]["exclusions"] is not None:
+        table = pd.read_parquet(sources[d]["exclusions"],
+                                columns=["object_id", "analysis_eligible", "analysis_exclusion_reason"])
+        excluded_rows = table.loc[~table["analysis_eligible"].astype(bool)]
+        excluded = set(excluded_rows["object_id"].astype(str))
+        stray, dropped = exclusion_matches(excluded, _export_ids(Path(sources[d]["export"])),
+                                           set(cells["object_id"].astype(str)))
+        if stray:
+            out["unmatched"].append(f"{d}: {len(stray)} excluded cell(s) the export does not have, "
+                                    f"e.g. {stray[0]}")
+        out["dropped"] = len(dropped)
+        out["reasons"].update(f"{r}" for r in
+                              excluded_rows["analysis_exclusion_reason"].fillna("(none)"))
+    qc_x, hit = _apply_exclusions(qc, excluded)
+    expression, availability = build_selected_expression(
+        cells, redsea, qc_x, donor_id=d,
+        acquired_markers={c.marker for c in image.channel_map}, registry=registry)
+    write_donor_partition(expression, cfg.data_dir / "expression", donor_id=d)
+    write_donor_partition(availability, cfg.data_dir / "availability", donor_id=d)
+
+    ids = {name: frame["object_id"].astype(str) for name, frame in
+           (("cells", cells), ("geometry_qc", qc), ("redsea", redsea), ("expression", expression))}
+    for name, series in ids.items():
+        if series.duplicated().any():
+            out["problems"].append(f"{d}: {name} repeats {int(series.duplicated().sum())} "
+                                   f"object id(s)")
+    reference = set(ids["cells"])
+    for name, series in ids.items():
+        if set(series) != reference:
+            out["problems"].append(f"{d}: {name}'s object ids are not the cells'")
+
+    eligible = expression["qc_analysis_eligible"].astype(bool).to_numpy()
+    ratio = qc.set_index(qc["object_id"].astype(str))["nucleus_cell_area_ratio"].reindex(
+        expression["object_id"].astype(str)).to_numpy(float)
+    geometry_eligible = qc["analysis_eligible"].astype(bool).to_numpy()
+    out["admission"] = dict(
+        donor_id=d, cells=len(cells), geometry_admitted=int(geometry_eligible.sum()),
+        excluded_by_ruling=int((geometry_eligible & hit).sum()),
+        admitted=int(eligible.sum()),
+        admitted_without_nucleus=int((eligible & ~(np.isfinite(ratio) & (ratio > 0))).sum()),
+        **{f"not_admitted: {k}": v for k, v in Counter(
+            qc.loc[~qc["analysis_eligible"].astype(bool), "analysis_reason"].fillna("(none)")
+        ).items()})
+
+    before = _before(Path(sources[d]["export"]), image, registry,
+                     expression["object_id"].astype(str).to_numpy())
+    available = dict(zip(availability["marker"], availability["available"].astype(bool),
+                         strict=True))
+    for spec_ in registry.markers:
+        after = pd.to_numeric(expression.get(spec_.name), errors="coerce")
+        row = dict(donor_id=d, marker=spec_.name, compartment=spec_.compartment,
+                   spillover_policy=spec_.spillover_policy,
+                   available=bool(available.get(spec_.name, False)), admitted=int(eligible.sum()))
+        if after is not None and row["available"]:
+            a = after.to_numpy(float)[eligible]
+            b = (before[spec_.name].to_numpy(float)[eligible] if spec_.name in before
+                 else np.full(a.shape, np.nan))
+            row.update(finite=int(np.isfinite(a).sum()),
+                       mean_before=float(np.nanmean(b)) if np.isfinite(b).any() else np.nan,
+                       mean_after=float(np.nanmean(a)) if np.isfinite(a).any() else np.nan,
+                       median_before=float(np.nanmedian(b)) if np.isfinite(b).any() else np.nan,
+                       median_after=float(np.nanmedian(a)) if np.isfinite(a).any() else np.nan)
+        out["markers"].append(row)
+    return out
+
+
+def run(task: Task) -> dict:
     import pandas as pd
 
     from ..artifacts import QuPathCohortManifest
     from ..cells_parquet import build_cells_parquet
     from ..config import load_config
-    from ..donor_pipeline import _geometry_config
-    from ..expression import build_selected_expression, read_single_partition, write_donor_partition
-    from ..geometry_stage import run_geometry_qc_for_image
-    from ..marker_registry import registry_from_dict
+    from ..donor_pipeline import ResourceLimits
     from ..redsea import RedseaParams, run_redsea
 
     spec = json.loads(task.input("cohort_spec").read_text())
@@ -268,99 +376,39 @@ def run(task: Task) -> dict:
     own = own_compartment_registry(payload, ruling)
     (task.output(f"{DATA}/registry_own_compartment.json")).write_text(
         json.dumps(own, indent=2) + "\n")
-    registry = registry_from_dict(own)
 
     cfg = load_config(task.input("config_ini"), data_dir=task.staging / DATA,
                       qupath_manifest=task.input("qupath_manifest"),
                       marker_registry=task.input("marker_registry"), n_jobs=task.settings["jobs"])
+    by_donor = {i.donor_id: i for i in images}
+    donors = list(by_donor)
+    # How many donors at once in each step: config.ini [compute], under the run's job ceiling.
+    limits = ResourceLimits.from_context(SimpleNamespace(config=cfg), task_count=len(donors))
     build_cells_parquet(cfg)
-    for image in images:
-        in_object_id_order(cfg.cells_dir / f"donor_id={image.donor_id}")
-    context = SimpleNamespace(config=cfg)
-    for image in images:
-        result = run_geometry_qc_for_image(read_single_partition(cfg.cells_dir, image.donor_id),
-                                           image, config=_geometry_config(context, image))
-        write_donor_partition(result.to_frame(), cfg.geometry_qc_dir, donor_id=image.donor_id)
-    donors = [i.donor_id for i in images]
-    run_redsea(cfg, donors, RedseaParams.from_config(cfg), n_jobs=cfg.n_jobs)
+    _fan_out(partial(_geometry, cfg, by_donor), donors, limits.geometry_workers)
+    run_redsea(cfg, donors, RedseaParams.from_config(cfg), n_jobs=limits.redsea_workers)
     if cfg.redsea_scratch.exists():           # its masks and intermediates are not outputs
         shutil.rmtree(cfg.redsea_scratch)
     scratch = cfg.data_dir / "scratch"
     if scratch.exists() and not any(scratch.iterdir()):
         scratch.rmdir()
 
+    sources = {d: {"export": str(task.input(f"cells:{d}")),
+                   "exclusions": (str(task.input(f"exclusions:{d}"))
+                                  if f"exclusions:{d}" in task.inputs else None)}
+               for d in donors}
+    measured = _fan_out(partial(_expression, cfg, own, by_donor, sources), donors,
+                        limits.downstream_workers)
     admission, markers, problems, unmatched, reasons = [], [], [], [], Counter()
     dropped_at_ingest: dict[str, int] = {}
-    for image in images:
-        d = image.donor_id
-        cells = read_single_partition(cfg.cells_dir, d)
-        redsea = read_single_partition(cfg.redsea_dir, d)
-        qc = read_single_partition(cfg.geometry_qc_dir, d)
-        excluded = set()
-        if f"exclusions:{d}" in task.inputs:
-            table = pd.read_parquet(task.input(f"exclusions:{d}"),
-                                    columns=["object_id", "analysis_eligible",
-                                             "analysis_exclusion_reason"])
-            out = table.loc[~table["analysis_eligible"].astype(bool)]
-            excluded = set(out["object_id"].astype(str))
-            stray, dropped = exclusion_matches(excluded, _export_ids(task.input(f"cells:{d}")),
-                                               set(cells["object_id"].astype(str)))
-            if stray:
-                unmatched.append(f"{d}: {len(stray)} excluded cell(s) the export does not have, "
-                                 f"e.g. {stray[0]}")
-            if dropped:
-                dropped_at_ingest[d] = len(dropped)
-            reasons.update(f"{r}" for r in out["analysis_exclusion_reason"].fillna("(none)"))
-        qc_x, hit = _apply_exclusions(qc, excluded)
-        expression, availability = build_selected_expression(
-            cells, redsea, qc_x, donor_id=d,
-            acquired_markers={c.marker for c in image.channel_map}, registry=registry)
-        write_donor_partition(expression, task.staging / DATA / "expression", donor_id=d)
-        write_donor_partition(availability, task.staging / DATA / "availability", donor_id=d)
-
-        ids = {name: frame["object_id"].astype(str) for name, frame in
-               (("cells", cells), ("geometry_qc", qc), ("redsea", redsea),
-                ("expression", expression))}
-        for name, series in ids.items():
-            if series.duplicated().any():
-                problems.append(f"{d}: {name} repeats {int(series.duplicated().sum())} object id(s)")
-        reference = set(ids["cells"])
-        for name, series in ids.items():
-            if set(series) != reference:
-                problems.append(f"{d}: {name}'s object ids are not the cells'")
-
-        eligible = expression["qc_analysis_eligible"].astype(bool).to_numpy()
-        ratio = qc.set_index(qc["object_id"].astype(str))["nucleus_cell_area_ratio"].reindex(
-            expression["object_id"].astype(str)).to_numpy(float)
-        geometry_eligible = qc["analysis_eligible"].astype(bool).to_numpy()
-        admission.append(dict(
-            donor_id=d, cells=len(cells), geometry_admitted=int(geometry_eligible.sum()),
-            excluded_by_ruling=int((geometry_eligible & hit).sum()),
-            admitted=int(eligible.sum()),
-            admitted_without_nucleus=int((eligible & ~(np.isfinite(ratio) & (ratio > 0))).sum()),
-            **{f"not_admitted: {k}": v for k, v in Counter(
-                qc.loc[~qc["analysis_eligible"].astype(bool), "analysis_reason"].fillna("(none)")
-            ).items()}))
-
-        before = _before(task.input(f"cells:{d}"), image, registry,
-                         expression["object_id"].astype(str).to_numpy())
-        available = dict(zip(availability["marker"], availability["available"].astype(bool),
-                             strict=True))
-        for spec_ in registry.markers:
-            after = pd.to_numeric(expression.get(spec_.name), errors="coerce")
-            row = dict(donor_id=d, marker=spec_.name, compartment=spec_.compartment,
-                       spillover_policy=spec_.spillover_policy,
-                       available=bool(available.get(spec_.name, False)), admitted=int(eligible.sum()))
-            if after is not None and row["available"]:
-                a = after.to_numpy(float)[eligible]
-                b = (before[spec_.name].to_numpy(float)[eligible] if spec_.name in before
-                     else np.full(a.shape, np.nan))
-                row.update(finite=int(np.isfinite(a).sum()),
-                           mean_before=float(np.nanmean(b)) if np.isfinite(b).any() else np.nan,
-                           mean_after=float(np.nanmean(a)) if np.isfinite(a).any() else np.nan,
-                           median_before=float(np.nanmedian(b)) if np.isfinite(b).any() else np.nan,
-                           median_after=float(np.nanmedian(a)) if np.isfinite(a).any() else np.nan)
-            markers.append(row)
+    for d, one in zip(donors, measured, strict=True):
+        admission.append(one["admission"])
+        markers.extend(one["markers"])
+        problems.extend(one["problems"])
+        unmatched.extend(one["unmatched"])
+        reasons.update(one["reasons"])
+        if one["dropped"]:
+            dropped_at_ingest[d] = one["dropped"]
 
     admission_frame = pd.DataFrame(admission).fillna(0)
     marker_frame = pd.DataFrame(markers)
