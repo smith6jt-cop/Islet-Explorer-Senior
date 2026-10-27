@@ -175,7 +175,8 @@ def run(task: Task) -> dict:
         candidates = resolve_unique_matched_rules(source, section_evidence.rules)
         protein_payload["candidate_phenotype"] = pa.array(candidates.phenotype)
         protein_payload["candidate_state"] = pa.array(candidates.status)
-        protein_payload["candidate_unavailable_rules"] = pa.array(candidates.unavailable_rules)
+        protein_payload["candidate_unavailable_lineage_rules"] = pa.array(
+            candidates.unavailable_lineage_rules)
         for marker, evidence in section_evidence.markers.items():
             protein_payload[f"marker_call:{marker}"] = pa.array(evidence.states)
             threshold_rows.append({"protein_entry": entry, "marker": marker,
@@ -275,7 +276,7 @@ def _candidate_figure(task: Task, rows: list[dict], protein_cells: int) -> None:
                label=status.replace("_", " "))
         bottom += value
     ax.set(ylabel="PhenoCycler segmented cells (n)",
-           title=f"Spleen hierarchy candidates among {protein_cells:,} cells; review only")
+           title=f"Spleen lineage candidates among {protein_cells:,} cells; review only")
     ax.legend()
     fig.savefig(gates.figure_path(task, "spleen_candidate_status.png"), dpi=140)
     plt.close(fig)
@@ -300,7 +301,8 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     summary["candidate_status_cells"], str(summary["protein_cells"]),
                     summary["candidate_status_cells"] == summary["protein_cells"]),
         gates.Check("unique deepest rule candidates", summary["unique_rule_candidates"],
-                    "review only; overlapping matches stay ambiguous", True, blocking=False),
+                    "lineage rules only; overlapping lineages stay ambiguous",
+                    True, blocking=False),
         gates.Check("protein candidate cutoffs available",
                     summary["protein_markers_with_cutoff"],
                     f"of {summary['protein_markers']} measured markers",

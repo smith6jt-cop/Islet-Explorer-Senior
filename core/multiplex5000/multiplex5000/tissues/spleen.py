@@ -153,7 +153,13 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
         kept.append(Rule(parent, phenotype, tuple(constraints.items())))
         available_names.add(phenotype)
     aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
-    result = RuleSource(source.sha256, tuple(kept), source.omitted, aliases)
+    candidate_roots = tuple(name for name in source.candidate_lineage_roots
+                            if name in available_names)
+    if not candidate_roots:
+        raise RuleSourceError("spleen adaptation removed every candidate lineage root")
+    result = RuleSource(source.sha256, tuple(kept), source.omitted, aliases,
+                        source.lineage_root_parent, source.state_root_parent,
+                        candidate_roots)
     for rule in result.rules:
         result.inherited_markers(rule.phenotype)
     return result

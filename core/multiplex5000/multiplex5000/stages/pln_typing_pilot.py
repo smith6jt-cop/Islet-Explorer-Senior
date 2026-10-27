@@ -119,7 +119,8 @@ def run(task: Task) -> dict:
                    "protein_eligible": table["protein_eligible"],
                    "candidate_phenotype": pa.array(candidates.phenotype),
                    "candidate_state": pa.array(candidates.status),
-                   "candidate_unavailable_rules": pa.array(candidates.unavailable_rules)}
+                   "candidate_unavailable_lineage_rules": pa.array(
+                       candidates.unavailable_lineage_rules)}
         for marker, evidence in section.markers.items():
             payload[f"marker_call:{marker}"] = pa.array(evidence.states)
             threshold_rows.append({"protein_entry": entry, "marker": marker,
@@ -243,7 +244,7 @@ def _candidate_figure(task: Task, rows: list[dict], sections: list[dict]) -> Non
         ax.bar(entries, values, bottom=bottom, label=status.replace("_", " "))
         bottom += values
     ax.set(ylabel="PhenoCycler segmented cells (n)",
-           title="pLN hierarchy: deepest unique rule is a review candidate")
+           title="pLN lineage hierarchy: deepest unique rule is a review candidate")
     ax.tick_params(axis="x", rotation=60)
     ax.legend()
     fig.savefig(gates.figure_path(task, "pln_candidate_status.png"), dpi=140)
@@ -265,7 +266,8 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     str(summary["protein_cells"]),
                     summary["candidate_status_cells"] == summary["protein_cells"]),
         gates.Check("unique deepest rule candidates", summary["unique_rule_candidates"],
-                    "review only; overlapping matches stay ambiguous", True, blocking=False),
+                    "lineage rules only; overlapping lineages stay ambiguous",
+                    True, blocking=False),
         gates.Check("final cell classes released", 0, "processing approval required",
                     False, blocking=False),
     ]
