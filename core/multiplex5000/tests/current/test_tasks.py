@@ -148,21 +148,30 @@ def test_a_stage_s_temporary_files_go_under_the_site_s_tmp_dir_and_are_removed(t
     root = tmp_path / "tmp"
     monkeypatch.setattr(roots, "tmp_dir", lambda: root)
     before = os.environ.get("TMPDIR")
+    before_mpl = os.environ.get("MPLCONFIGDIR")
     seen = {}
 
     def during():
         seen["folder"] = Path(tempfile.gettempdir())
         seen["TMPDIR"] = os.environ.get("TMPDIR")
+        seen["MPLCONFIGDIR"] = os.environ.get("MPLCONFIGDIR")
         with tempfile.NamedTemporaryFile(delete=False) as handle:
             seen["file"] = Path(handle.name)
+        font_cache = Path(seen["MPLCONFIGDIR"]) / "fontlist-v3.11.0.json"
+        font_cache.write_text("runtime cache")
+        assert font_cache.read_text() == "runtime cache"
+        seen["font_cache"] = font_cache
 
     result = tasks.run_stage(_stage("s1", during=during), _project(tmp_path))
     assert result.status == "published"
     # a folder of the run's own, under the site's tmp_dir, which pool workers inherit as TMPDIR
     assert seen["folder"].parent == root and seen["TMPDIR"] == str(seen["folder"])
     assert seen["file"].parent == seen["folder"]
+    assert Path(seen["MPLCONFIGDIR"]).parent == seen["folder"]
+    assert not seen["font_cache"].exists()
     assert not seen["folder"].exists(), "the run's temporary folder is removed when it ends"
     assert os.environ.get("TMPDIR") == before and tempfile.gettempdir() != str(seen["folder"])
+    assert os.environ.get("MPLCONFIGDIR") == before_mpl
     receipt = json.loads((result.path / "receipt.json").read_text())
     assert receipt["environment"]["tmp_dir"] == str(root)
 
