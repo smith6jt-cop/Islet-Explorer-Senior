@@ -181,6 +181,35 @@ def test_unresolved_t_subsets_and_broad_nonimmune_are_not_counted_as_specific_cl
     assert pilot._call_state("T_CD8") == "class"
 
 
+def test_low_rna_signal_keeps_cells_but_does_not_issue_classes(tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
+    project = _project(tmp_path)
+    tasks.run_stage(rna_ingest, project)
+    project.settings["rna_min_median_detected_genes"] = 20
+
+    def fail_if_called(*args, **kwargs):
+        pytest.fail("low-RNA section must not enter a typing worker")
+
+    monkeypatch.setattr(pilot.panc_worker, "process_section", fail_if_called)
+    monkeypatch.setattr(pilot.pln_worker, "process_exact_section", fail_if_called)
+    result = tasks.run_stage(typing, project)
+    assert result.gate_passed
+    summary = json.loads((result.path / "receipt.json").read_text())["summary"]
+    assert summary["called_cells"] == 0
+    assert summary["unavailable_cells"] == summary["cells"] == 6
+    assert summary["low_signal_regions"] == project.settings["rna_acquisitions"][:2]
+    with (result.path / "rna_acquisitions.csv").open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert all(row["status"] == "unavailable" for row in rows)
+    assert all("median" in row["reason"] for row in rows[:2])
+
+
+def test_low_signal_rule_refuses_missing_qc_measurement():
+    with pytest.raises(pilot.IO60RNATypingError, match="median detected genes"):
+        pilot._low_signal({"acquisition_id": "xenium:test:region", "condition": "",
+                           "median_detected_genes": "nan"}, 20)
+
+
 def test_donor_metadata_uses_recorded_alias_and_npod_fallback(tmp_path):
     metadata = tmp_path / "donors.xlsx"
     npod = tmp_path / "npod.xlsx"

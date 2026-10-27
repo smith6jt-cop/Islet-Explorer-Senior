@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -67,9 +68,31 @@ def _regions(project) -> list[dict[str, str]]:
 
 def settings(project) -> dict:
     return {"rna_acquisitions": [row["acquisition_id"] for row in _regions(project)],
+            "rna_min_median_detected_genes": _min_genes(project),
             "pancreas_naming_policy": "shared_er_exact_v1",
             "frozen_partition_overrides": "not_applied_to_new_clusters",
             "scope": "rna_pilot_review_only"}
+
+
+def _min_genes(project) -> int:
+    value = project.settings.get("rna_min_median_detected_genes", 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise IO60RNATypingError("rna_min_median_detected_genes must be a nonnegative integer")
+    return value
+
+
+def _low_signal(row: dict[str, str], minimum: int) -> bool:
+    if minimum == 0 or row["condition"]:
+        return False
+    try:
+        median = float(row["median_detected_genes"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise IO60RNATypingError(
+            f"{row['acquisition_id']}: missing Stage 04 median detected genes") from exc
+    if not math.isfinite(median) or median < 0:
+        raise IO60RNATypingError(
+            f"{row['acquisition_id']}: invalid Stage 04 median detected genes")
+    return median < minimum
 
 
 def inputs(project) -> list[Input]:
@@ -93,7 +116,7 @@ def inputs(project) -> list[Input]:
              Input("rna_gate_summary", ingest / "gate/gate.json"),
              Input("rna_gate_acceptance", ingest / "gate/accepted.json")]
     for row in _regions(project):
-        if row["condition"]:
+        if row["condition"] or _low_signal(row, _min_genes(project)):
             # A recorded damaged region is reported, not opened. Its source
             # cannot make another acquisition's Stage 06 input incomplete.
             continue
@@ -242,6 +265,15 @@ def run(task: Task) -> dict:
                           uncalled_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
+        if _low_signal(row, task.settings["rna_min_median_detected_genes"]):
+            record.update(status="unavailable",
+                          reason=(f"low RNA signal: median {row['median_detected_genes']} "
+                                  "detected genes/cell below recorded minimum "
+                                  f"{task.settings['rna_min_median_detected_genes']}"),
+                          called_cells=0, broad_cells=0, unresolved_cells=0,
+                          uncalled_cells=0, unavailable_cells=record["cells"])
+            results.append(record)
+            continue
         if not row["cells"]:
             raise IO60RNATypingError(f"{acquisition}: intact region lacks Stage 04 cell counts")
         region = load_accepted_region(
@@ -331,6 +363,8 @@ def run(task: Task) -> dict:
             "classes": len({(r["tissue"], r["lineage"]) for r in class_rows
                             if r["state"] == "class"}),
             "unknown_cell_count": [r["acquisition_id"] for r in results if r["cells"] == ""],
+            "low_signal_regions": [r["acquisition_id"] for r in results
+                                   if str(r["reason"]).startswith("low RNA signal:")],
             "protein_cells_typed": 0, "paired_cell_links": 0,
             "scope": "selected_xenium_acquisitions_only"}
 
@@ -466,6 +500,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
               gates.Check("unknown cell counts", summary["unknown_cell_count"],
                           "reported for damaged sources without raw cells", True,
                           blocking=False),
+              gates.Check("low RNA signal", summary["low_signal_regions"],
+                          "reported; no cell classes issued below the declared median-gene floor",
+                          True, blocking=False),
               gates.Check("specific lineage classes", summary["classes"],
                           "reported from exact per-cell worker outputs", True,
                           blocking=False),
