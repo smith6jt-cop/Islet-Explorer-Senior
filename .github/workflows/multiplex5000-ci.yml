@@ -130,7 +130,7 @@ jobs:
         run: |
           python -m venv /tmp/mplx5k-installed
           wheel=$(find dist -maxdepth 1 -name '*.whl' -print -quit)
-          /tmp/mplx5k-installed/bin/pip install "${wheel}[typing]"
+          /tmp/mplx5k-installed/bin/pip install "${wheel}[typing]" pytest
           cd /tmp
           /tmp/mplx5k-installed/bin/python - <<'PY'
           from pathlib import Path
@@ -180,6 +180,18 @@ jobs:
           assert code_identity()['dirty'] is False
           PY
           /tmp/mplx5k-installed/bin/mplx5k --help >/dev/null
+      - name: Run synthetic tissue typing from the installed wheel
+        run: |
+          mkdir -p /tmp/mplx5k-typing-tests
+          cp tests/current/test_io60_mixed_protein_pilot.py \
+             tests/current/test_io60_rna_typing_pilot.py \
+             tests/current/test_pln_typing_candidate_stage.py \
+             tests/current/test_spleen_typing_stage.py \
+             tests/current/test_same_slide_pair_stages.py \
+             tests/current/test_paired_typing.py \
+             /tmp/mplx5k-typing-tests/
+          cd /tmp
+          /tmp/mplx5k-installed/bin/python -m pytest -q /tmp/mplx5k-typing-tests
 
   research:
     name: Research-method tests
