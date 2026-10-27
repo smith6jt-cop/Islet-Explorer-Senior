@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 
@@ -509,7 +510,9 @@ def main() -> int:
 
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
     pixel, stem = _manifest()
-    runs = pd.read_csv(S.REPO / "data/donor_acquisition_runs.csv", dtype={"donor_id": str})
+    runs_path = pathlib.Path(os.environ.get(
+        "IO60_DONOR_ACQUISITION_RUNS", S.REPO / "data/donor_acquisition_runs.csv"))
+    runs = pd.read_csv(runs_path, dtype={"donor_id": str})
 
     out = pathlib.Path(args.out) if args.out else OUT
     out.mkdir(parents=True, exist_ok=True)

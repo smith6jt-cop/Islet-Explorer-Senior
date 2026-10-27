@@ -41,6 +41,9 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ["cupy-cuda12x"]
+# The selected pancreas protein hierarchy uses polygon geometry and NNDescent
+# during refinement; neither is needed by the base ingest and release commands.
+typing = ["shapely", "pynndescent"]
 # tests/current/test_no_typing_leak.py reads YAML, and test_trajectory_leiden_only.py runs
 # scanpy's leiden with flavor="igraph". The rest of what tests/current reaches through the
 # typing and senior scripts (shapely, anndata, scanpy's pynndescent) is the

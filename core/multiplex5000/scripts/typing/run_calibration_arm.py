@@ -51,6 +51,8 @@ def main() -> int:
     ap.add_argument("--shifts", type=Path,
                     help="matching UniFORM shifts for the declared aligned root")
     ap.add_argument("--donors", nargs="*", default=None)
+    ap.add_argument("--representation-donors", nargs="+", default=None,
+                    help="fit refinement on these recorded donors; default is the full cohort")
     ap.add_argument("--threads", type=int, default=6,
                     help="CPU threads for numerical libraries in this arm")
     ap.add_argument("--force", action="store_true")
@@ -74,6 +76,11 @@ def main() -> int:
     missing = sorted(set(donors) - set(donors_on_disk))
     if missing or "6457" in donors:
         raise ValueError(f"missing aligned donors={missing}; 6457 is explicitly excluded")
+    representation_donors = (list(args.representation_donors)
+                             if args.representation_donors else donors)
+    if (len(representation_donors) != len(set(representation_donors))
+            or not set(representation_donors) <= set(donors)):
+        raise ValueError("representation donors must be unique members of the run's donor scope")
     missing_geometry = sorted(d for d in donors
                               if not (geometry / f"revised_cells/donor_id={d}/data.parquet").is_file()
                               and not (geometry / f"expression/donor_id={d}/data.parquet").is_file()
@@ -98,6 +105,7 @@ def main() -> int:
         "status": "running",
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "donors": donors,
+        "representation_donors": representation_donors,
         "aligned_root": str(aligned),
         "aligned_files": {d: sha256(aligned / f"donor_id={d}/data.parquet") for d in donors},
         "scale": str(scale),
@@ -142,6 +150,8 @@ def main() -> int:
         ("refine", [sys.executable, str(SCRIPTS / "refine.py"), *donor_args,
                     "--out", str(out / "refinement"),
                     "--cd8-alignment", args.refinement_cd8_alignment,
+                    *(["--representation-donors", *args.representation_donors]
+                      if args.representation_donors else []),
                     *(["--shifts", str(shifts)] if shifts else [])]),
         ("build_cells_with_refinement", [sys.executable, str(SCRIPTS / "build_cells.py"),
                                           *donor_args,

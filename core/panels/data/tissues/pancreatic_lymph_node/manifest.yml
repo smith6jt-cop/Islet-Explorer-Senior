@@ -20,7 +20,22 @@ rule_table:
   # Tissue rules are evaluated against the panel actually acquired on each slide.
   tokens: [pos, allpos, anypos, allneg]
   panel_aliases:
+    # The IO60 PhenoCycler export stores these same measured channels with
+    # underscores. Keep the sheet's names canonical across mixed and dedicated
+    # pLN sections; an absent channel still remains unavailable.
+    Bcl-2: Bcl_2
+    Beta-actin: Beta_actin
+    Collagen IV: Collagen_IV
+    E-cadherin: E_cadherin
+    Granzyme B: Granzyme_B
+    HLA-A: HLA_A
+    HLA-DR: HLA_DR
+    Ker8-18: Ker8_18
+    Keratin 5: Keratin_5
+    PD-1: PD_1
     PD-L1: PDL1
+    Pan-Cytokeratin: Pan_Cytokeratin
+    TCF-1: TCF_1
   pln_adaptation:
     # Approved 2026-10-26. These were pancreas-only negatives on broad parent
     # rows. A missing marker is never treated as a measured negative.
