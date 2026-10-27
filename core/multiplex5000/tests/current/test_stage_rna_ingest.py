@@ -155,9 +155,33 @@ def test_stage_04_refuses_missing_indexed_source(tmp_path):
     a = _bundle(tmp_path, "0040001", "Panc", [1, 1])
     b = _bundle(tmp_path, "0040001", "PanT", [1, 1])
     project = _project(tmp_path, [a, b])
-    (b / "cell_feature_matrix.h5").unlink()
+    (a / "cell_feature_matrix.h5").unlink()
     with pytest.raises(rna_ingest.RNAIngestError, match="every selected source ready"):
         rna_ingest.inputs(project)
+
+
+def test_stage_04_records_missing_damaged_source_without_zero_filling(tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
+    a = _bundle(tmp_path, "0040001", "Panc", [1, 0])
+    b = _bundle(tmp_path, "0040001", "PanT", [1, 1])
+    project = _project(tmp_path, [a, b])
+    (b / "cell_feature_matrix.h5").unlink()
+    result = tasks.run_stage(rna_ingest, project)
+    assert result.gate_passed
+    summary = json.loads((result.path / "receipt.json").read_text())["summary"]
+    assert summary["regions"] == 2
+    assert summary["cells"] == 2
+    assert summary["unavailable_regions"] == ["xenium:0040001:PanT"]
+    assert summary["by_tissue"] == {"pancreas": 2}
+    with (result.path / "regions.csv").open(newline="") as handle:
+        rows = {row["roi"]: row for row in csv.DictReader(handle)}
+    assert rows["PanT"]["source_status"] == "incomplete"
+    assert rows["PanT"]["cells"] == ""
+    assert rows["PanT"]["typing_eligible"] == ""
+    assert not (result.path / "cells/0040001__PanT.parquet").exists()
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert all("PanT:cell_feature_matrix.h5" not in item["name"]
+               for item in receipt["inputs"])
 
 
 def test_selected_pilot_does_not_require_or_claim_unselected_region(tmp_path, monkeypatch):

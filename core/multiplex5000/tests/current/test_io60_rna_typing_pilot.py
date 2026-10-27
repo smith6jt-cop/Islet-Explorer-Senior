@@ -12,6 +12,7 @@ import h5py
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from multiplex5000 import gates, tasks
 from multiplex5000.stages import io60_rna_typing_pilot as pilot
@@ -87,16 +88,22 @@ def _project(tmp_path: Path):
                            else "04_rna_ingest", automatic_gates=("04_rna_ingest",))
 
 
-def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(tmp_path, monkeypatch):
+@pytest.mark.parametrize("missing_before_ingest", [False, True])
+def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
+        tmp_path, monkeypatch, missing_before_ingest):
     monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
     project = _project(tmp_path)
+    damaged = next(tmp_path.glob("output-*__0040002__PanT__*"))
+    if missing_before_ingest:
+        (damaged / "cell_feature_matrix.h5").unlink()
+        (damaged / "cells.parquet").unlink()
     stage04 = tasks.run_stage(rna_ingest, project)
     assert stage04.gate_passed and stage04.accepted_automatically
     # This selected region is recorded as damaged. Its raw files can become
     # unavailable without holding up the two usable acquisitions.
-    damaged = next(tmp_path.glob("output-*__0040002__PanT__*"))
-    (damaged / "cell_feature_matrix.h5").unlink()
-    (damaged / "cells.parquet").unlink()
+    if not missing_before_ingest:
+        (damaged / "cell_feature_matrix.h5").unlink()
+        (damaged / "cells.parquet").unlink()
     seen = []
 
     def write_calls(donor, section, h5ad, work, acquisition_id, exact_cells):
@@ -133,8 +140,10 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(tmp_path, m
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["acquisitions"] == 3
     assert summary["called_cells"] == 2
-    assert summary["unavailable_cells"] == 4
+    assert summary["unavailable_cells"] == (2 if missing_before_ingest else 4)
     assert summary["unavailable"] == ["xenium:0040002:PanT"]
+    assert summary["unknown_cell_count"] == (["xenium:0040002:PanT"]
+                                              if missing_before_ingest else [])
     assert summary["paired_cell_links"] == 0
     with (result.path / "rna_acquisitions.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
