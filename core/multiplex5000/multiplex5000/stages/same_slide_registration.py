@@ -16,6 +16,7 @@ import numpy as np
 import pyarrow.parquet as pq
 
 from .. import gates
+from ..artifacts import sha256_file
 from ..integration.paired_typing import validate_pair_cells, validate_pair_transform
 from ..integration.sameslide import match_by_centroid
 from ..integration.transform import Transform
@@ -89,9 +90,16 @@ def run(task: Task) -> dict:
     pair = _selected(task.project)
     if task.input("transform_json").parent != _transform_dir(task.project, pair):
         raise SameSlideRegistrationError("transform source changed after input declaration")
-    receipt = json.loads(task.input("typing_receipt").read_text())
+    receipt_path = task.input("typing_receipt")
+    receipt = json.loads(receipt_path.read_text())
+    acceptance = json.loads(task.input("typing_acceptance").read_text())
     if receipt.get("stage") != "06_typing" or receipt.get("status") != "complete":
         raise SameSlideRegistrationError("Stage 06 has no complete typing receipt")
+    bound = {row["name"]: row.get("sha256") for row in receipt.get("inputs", [])}
+    if (acceptance.get("receipt_sha256") != sha256_file(receipt_path)
+            or bound.get("same_slide_source_manifest") != sha256_file(
+                task.input("same_slide_source_manifest"))):
+        raise SameSlideRegistrationError("Stage 06 acceptance or source manifest changed")
     transform = Transform.load(task.input("transform_json").parent)
     validate_pair_transform(pair, transform)
     protein = pq.read_table(task.input("protein_cells"), columns=[

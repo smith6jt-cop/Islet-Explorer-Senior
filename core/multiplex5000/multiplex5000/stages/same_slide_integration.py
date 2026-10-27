@@ -61,6 +61,10 @@ def _accepted_transform(task: Task) -> Transform:
     if (receipt.get("status") != "complete" or receipt.get("stage") != "07_registration"
             or acceptance.get("receipt_sha256") != sha256_file(receipt_path)):
         raise SameSlideIntegrationError("Stage 07 acceptance does not bind its current receipt")
+    bound = {row["name"]: row.get("sha256") for row in receipt.get("inputs", [])}
+    if bound.get("same_slide_source_manifest") != sha256_file(
+            task.input("same_slide_source_manifest")):
+        raise SameSlideIntegrationError("source manifest changed after registration review")
     outputs = {row["path"]: row["sha256"] for row in receipt["outputs"]}
     for name in ("transform_json", "transform_displacement"):
         path = task.input(name)

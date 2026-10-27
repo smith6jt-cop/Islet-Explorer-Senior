@@ -12,6 +12,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from multiplex5000 import gates, tasks
+from multiplex5000.artifacts import sha256_file
 from multiplex5000.integration.transform import Transform
 from multiplex5000.same_slide_sources import SameSlidePair
 from multiplex5000.stages import same_slide_integration as integration
@@ -36,7 +37,10 @@ def _pilot(tmp_path, monkeypatch):
     folder = release / "06_typing"
     folder.mkdir(parents=True)
     (folder / "receipt.json").write_text(json.dumps({"stage": "06_typing",
-                                                     "status": "complete"}))
+                                                     "status": "complete",
+                                                     "inputs": [{
+                                                         "name": "same_slide_source_manifest",
+                                                         "sha256": sha256_file(manifest)}]}))
     gate = folder / "gate"
     gate.mkdir()
     (gate / "gate.json").write_text(json.dumps({"stage": "06_typing", "release": "pilot",
@@ -116,4 +120,15 @@ def test_integration_refuses_transform_changed_after_registration_acceptance(tmp
     transform = registered.path / "registration/transform.json"
     transform.write_text(transform.read_text() + "\n")
     with pytest.raises(integration.SameSlideIntegrationError, match="changed"):
+        tasks.run_stage(integration, project)
+
+
+def test_integration_refuses_source_manifest_changed_after_registration(tmp_path, monkeypatch):
+    project, _ = _pilot(tmp_path, monkeypatch)
+    registered = tasks.run_stage(registration, project)
+    gates.accept(registered.path, by="test")
+    manifest = project.source("same_slide_sources")
+    manifest.write_text(manifest.read_text() + "# changed after review\n")
+    with pytest.raises(integration.SameSlideIntegrationError,
+                       match="source manifest changed"):
         tasks.run_stage(integration, project)
