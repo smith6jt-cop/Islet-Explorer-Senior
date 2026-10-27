@@ -12,26 +12,27 @@ The hierarchy is the table's own, three levels deep:
               Imm-NK-cell | Imm-neutrophil | Imm-plasma-cell
       Imm-T-cell     -> T-regulatory | T-exhausted | T-progenitor-memory
                         T-CD8-cytotoxic | T-CD8 | T-CD4-helper
-      Imm-macrophage -> Mac-M1-like | Mac-M2-like
+      Imm-macrophage -> CD68/CD163/LGALS3/CD4 measured profile
 
 **CD4 and CD8 are read only after the T-cell parent is established.** The recorded
 rules still name the more specific T-cell leaves. If none fires, the higher
 background-to-bright-end scaled CD8 or CD4 names the coarse subtype without
 another 0.10 cutoff (owner, 2026-10-27). The comparison uses values before
-clipping. Missing measurements stay unavailable; exact ties keep the T-cell
-parent and require review of the total marker profile.
+clipping. Missing measurements stay unavailable. A T-cell tie after clipping is
+reviewed against the total marker profile by the primary chain; a cell withdrawn
+there cannot regain T-cell identity here.
 
-**Panel variants are availability, not absence.** A rule whose markers a donor did not ACQUIRE is
-``unavailable`` for that donor and recorded as such -- never scored as a negative, which would
-quietly call every cell "not a plasma cell" on exactly the donors that cannot be asked.  Which
+**Panel variants are availability, not absence.** A required marker that a donor did not ACQUIRE
+makes the rule unavailable; an OR group can still fire through a measured positive alternative.
+An absent alternative never counts as negative. Which
 markers a donor acquired is measured from that donor's own aligned partition, per-row-group null
 counts included: a column exists for every marker in the cohort union, and a column that is
 entirely null is a marker the slide never carried, not a marker that read zero.
 
 **A cell whose value is missing is undecided, not negative.** ``value >= 0.10`` is False for NaN,
-so a sparse missing measurement used to slide silently into "this rule does not fire".  Every rule
-naming a marker that is NaN *on that cell* is undecided for that cell, the cell's call is withheld
-with that reason, and the count is reported.  **"Undecidable" is its own outcome, distinct from
+so a sparse missing measurement used to slide silently into "this rule does not fire". A missing
+required marker withholds the call, and a missing OR alternative withholds it unless another
+measured member of that group is positive. The count is reported. **"Undecidable" is its own outcome, distinct from
 "no rule fired"**: ``immune_class_undecided`` / ``immune_subtype_undecided`` carry the first and
 the summary counts ``(uncalled: no rule fired)`` separately, so the two can never be added
 together into one "unnamed" number.
@@ -96,6 +97,9 @@ from multiplex5000.tissues.t_cell import (
     compare_cd8_cd4,
     unbounded_scale,
 )
+from multiplex5000.tissues.macrophage import (
+    PROFILE_MARKERS, classify_profile, labels as macrophage_labels,
+)
 
 HERE = __import__("pathlib").Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -111,7 +115,7 @@ OUT = S.OUT / "immune"
 REQUIRE_MIN = 0.10
 
 LEVEL2_PARENT = "Immune"
-LEVEL3_PARENTS = ("Imm-T-cell", "Imm-macrophage")
+LEVEL3_PARENTS = ("Imm-T-cell",)
 
 #: A term is REPORTED SEPARATELY, with an alternative count, when it clears the level in more
 #: than this fraction of the cells its own rule is read on.  That is a within-donor observation
@@ -152,6 +156,9 @@ OFFSET_BLOCK = 200_000
 def immune_rules() -> tuple[pd.DataFrame, dict]:
     table = RULES.load_rules()
     reqs = S.shared_negatives(RULES.requirements(table, with_negatives=True))
+    # Owner, 2026-10-27: the broad parent needs CD68 or CD163, with the same
+    # T-cell and epithelial negatives; M1/M2-like children are retired.
+    reqs["Imm-macrophage"] = ([], [["CD68", "CD163"]], reqs["Imm-macrophage"][2])
     return table, reqs
 
 
@@ -232,9 +239,9 @@ def majority_terms(requirement, fractions: dict, parent_requirement=None) -> lis
     alternative -- drop that member and let the group's other members decide -- so only that case
     carries an alternative count.
 
-    A term the PARENT rule already required is not reported: `Mac-M1-like` is read only on cells
-    `Imm-macrophage` already named, and `(CD68 or Iba1)` is above the level in most of them
-    BECAUSE that is what named them.  Reporting it would be reporting the selection.
+    A term the PARENT rule already required is not reported: a T-cell subtype is read only on
+    cells `Imm-T-cell` already named, and CD3e is above the level in most of them BECAUSE that
+    is what named them. Reporting it would be reporting the selection.
     """
     all_of, any_groups, none_of = requirement
     inherited = set()
@@ -327,30 +334,41 @@ def evaluate(scaled: pd.DataFrame, requirement, available: set[str]):
 
     ``requirement`` is (all_of, [any_of groups], none_of) as the table declares it.
     A rule naming a marker this donor does not carry is unavailable for the whole donor, not false.
-    A rule naming a marker that is NaN on one cell is undecided for that cell, not false.
+    An OR group can fire through a measured positive witness even if another
+    alternative is unavailable. A missing value is never a negative.
     """
     all_of, any_groups, none_of = requirement
-    needed = set(rule_markers(requirement))
-    if not needed <= available:
-        return None, None, sorted(needed - available)
+    required = set(all_of) | set(none_of)
+    unavailable = required - available
+    unavailable |= {m for group in any_groups if not set(group) & available
+                    for m in group}
+    if unavailable:
+        return None, None, sorted(unavailable)
 
-    named = sorted(needed)
-    block = scaled[named].to_numpy()
-    undecided = ~np.isfinite(block).all(axis=1)
-
-    fires = np.ones(len(scaled), dtype=bool)
+    undecided = np.zeros(len(scaled), dtype=bool)
+    contradicted = np.zeros(len(scaled), dtype=bool)
     for marker in all_of:
-        fires &= scaled[marker].to_numpy() >= REQUIRE_MIN
+        value = scaled[marker].to_numpy(dtype=float)
+        contradicted |= np.isfinite(value) & (value < REQUIRE_MIN)
+        undecided |= ~np.isfinite(value)
     for group in any_groups:
         if not group:
             continue
         hit = np.zeros(len(scaled), dtype=bool)
-        for marker in group:
-            hit |= scaled[marker].to_numpy() >= REQUIRE_MIN
-        fires &= hit
+        unknown = np.full(len(scaled), bool(set(group) - available), dtype=bool)
+        for marker in set(group) & available:
+            value = scaled[marker].to_numpy(dtype=float)
+            hit |= np.isfinite(value) & (value >= REQUIRE_MIN)
+            unknown |= ~np.isfinite(value)
+        contradicted |= ~hit & ~unknown
+        undecided |= ~hit & unknown
     for marker in none_of:
-        fires &= scaled[marker].to_numpy() < REQUIRE_MIN
-    return fires & ~undecided, undecided, []
+        value = scaled[marker].to_numpy(dtype=float)
+        contradicted |= np.isfinite(value) & (value >= REQUIRE_MIN)
+        undecided |= ~np.isfinite(value)
+    # An observed contradiction makes the rule false even if another term is
+    # missing; only an otherwise plausible call remains undecided.
+    return ~contradicted & ~undecided, undecided & ~contradicted, []
 
 
 def resolve(frame: pd.DataFrame, candidates: list[str], reqs, scaled, available, specificity):
@@ -535,7 +553,8 @@ def main() -> int:
     #: child rule -> its parent's requirement, so a term the parent already required is not
     #: reported as "above the level in most cells" when the parent is what selected those cells.
     parent_req = {k: reqs[parent] for parent, kids in level3.items() for k in kids}
-    needed_markers = sorted({m for n in every_rule for m in rule_markers(reqs[n])})
+    needed_markers = sorted({m for n in every_rule for m in rule_markers(reqs[n])}
+                            | set(PROFILE_MARKERS))
     print(f"level 2 ({len(level2)}): {', '.join(level2)}")
     for parent, kids in level3.items():
         print(f"  {parent} ({len(kids)}): {', '.join(kids)}")
@@ -572,8 +591,8 @@ def main() -> int:
     for donor in donors:
         started = time.time()
         cells = pq.read_table(S.OUT / f"cells/donor_id={donor}/data.parquet",
-                              columns=["object_id", "cell_class", "acq_run",
-                                       "stain_group"]).to_pandas()
+                              columns=["object_id", "cell_class", "resolved_by",
+                                       "acq_run", "stain_group"]).to_pandas()
         batch = {v: sorted(set(cells[v].dropna().astype(str))) for v in ("acq_run", "stain_group")}
         immune = cells[cells["cell_class"] == "Immune"]
         if immune.empty:
@@ -614,6 +633,14 @@ def main() -> int:
 
         call2, n2, other2, undec2, skip2 = resolve(
             values, level2, reqs, scaled, set(markers), specificity)
+        withdrawn = values["resolved_by"].astype(str).str.startswith("tie_profile_")
+        if withdrawn.any():
+            allowed = [name for name in level2 if name != "Imm-T-cell"]
+            replacement = resolve(values.loc[withdrawn], allowed, reqs,
+                                  scaled.loc[withdrawn], set(markers), specificity)
+            for original, revised in zip((call2, n2, other2, undec2), replacement[:4]):
+                original.loc[withdrawn] = revised
+            skip2.update(replacement[4])
         out = pd.DataFrame({
             "donor_id": donor, "object_id": values["object_id"],
             "immune_class": call2, "immune_class_matches": n2, "immune_class_also": other2,
@@ -635,6 +662,14 @@ def main() -> int:
             skip2.update(skip3)
 
         comparison = apply_t_cd8_cd4_comparison(out, values, markers, scale)
+        out["macrophage_profile"] = None
+        out["macrophage_profile_status"] = "not_macrophage"
+        macrophage = out["immune_class"].eq("Imm-macrophage")
+        if macrophage.any():
+            profiles = classify_profile(scaled.loc[macrophage], REQUIRE_MIN)
+            out.loc[macrophage, "macrophage_profile"] = profiles
+            out.loc[macrophage, "macrophage_profile_status"] = np.where(
+                pd.notna(profiles), "measured", "unavailable_marker_measurement")
 
         # ---- Do the rule's own terms separate the cells it is read on, ON THIS DONOR?
         evaluated = {n: np.ones(len(out), dtype=bool) for n in level2}
@@ -716,6 +751,15 @@ def main() -> int:
                              "count_without_majority_term":
                                  restricted_counts.get(label, "") if repairable else "",
                              "supporting_only_note": notes[label]})
+        profile_counts = out["macrophage_profile"].value_counts()
+        profile_complete = bool(macrophage.any()) and not out.loc[
+            macrophage, "macrophage_profile"].isna().any()
+        for label in macrophage_labels():
+            rows.append({"donor_id": donor, "level": "macrophage_profile", "label": label,
+                         "count": int(profile_counts.get(label, 0)) if profile_complete else "",
+                         "status": "measured" if profile_complete else "EMPTY_profile_unavailable",
+                         "reason": "" if profile_complete else "macrophage parent or one of CD68, CD163, M2Gal3, CD4 unavailable",
+                         "count_without_majority_term": "", "supporting_only_note": ""})
         for name, requirement in reduced.items():
             rows_here = evaluated.get(name)
             if rows_here is None or not rows_here.any():
@@ -765,6 +809,9 @@ def main() -> int:
             "panel_offset_median_uncalled": float(np.nanmedian(blank_offset)) if unnamed else None,
             "immune_class": {k: int(v) for k, v in class_counts.items()},
             "immune_subtype": {k: int(v) for k, v in sub_counts.items()},
+            "macrophage_profile": {k: int(v) for k, v in profile_counts.items()},
+            "macrophage_profile_unavailable": int(out["macrophage_profile_status"].eq(
+                "unavailable_marker_measurement").sum()),
             "t_subtype_by_higher_marker": int((out["immune_subtype_resolved_by"]
                                                 == "higher_scaled_CD8_CD4").sum()),
             "t_cd8_cd4_exact_ties_for_profile_review": int(tied.sum()),

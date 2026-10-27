@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from multiplex5000.tissues import t_cell as T_CELL
+from multiplex5000.tissues import macrophage as MACROPHAGE
 
 
 HERE = Path(__file__).resolve().parent
@@ -102,7 +103,7 @@ def main() -> int:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
     script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
                     SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py",
-                    Path(T_CELL.__file__).resolve()]
+                    Path(T_CELL.__file__).resolve(), Path(MACROPHAGE.__file__).resolve()]
     run = {
         "schema_version": 1,
         "status": "running",

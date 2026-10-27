@@ -2,7 +2,7 @@
 
 ## Owner typing updates, 2026-10-27
 
-The CODEX Islet Explorer's committed work (`205be40`, `2d0bce1`) and the
+The CODEX Islet Explorer's committed work (`205be40`, `2d0bce1`, `d032f29`) and the
 maintainer's later tie clarification also apply to the Senior protein path:
 
 - If a nucleus fills a segmented cell and REDSEA's selected cytoplasm value is
@@ -12,10 +12,16 @@ maintainer's later tie clarification also apply to the Senior protein path:
 - Establish the broad T-cell lineage first. Keep any specific rule call. For a
   T cell still lacking a subtype, compare CD8 and CD4 in the same normalized
   units within its donor, before clipping and without another 0.10 cutoff.
-  Missing CD8 or CD4 is unavailable. An exact tie retains the broad T-cell
-  label and an object-ID review record; it is not broken by an arbitrary
-  marker or treated as a negative. The review must consider the total measured
-  marker profile before a subtype is accepted.
+  Missing CD8 or CD4 is unavailable. A T cell tied after clipping is reviewed
+  across the full identity marker profile plus CD45 before clipping. It keeps
+  T-cell identity if CD3e, CD8, CD4 or CD45 is highest; otherwise the ordinary
+  chain runs again without T-cell rules. The resolution code records that
+  path. Exact preclip ties that remain T cells receive a review record.
+- A macrophage is CD68 positive or CD163 positive with CD3e and epithelial
+  markers negative. The M1/M2-like subtypes are retired. Each macrophage gets
+  a measured CD68/CD163/galectin-3/CD4 profile label if all four values are
+  available. Senior's M2Gal3 is the CODEX LGALS3 role; missing values leave
+  the profile unavailable rather than supplying a minus sign.
 - Compare the resulting hierarchy with a separate preprocessing, UMAP and
   clustering route, as requested for the Barlow-style comparison. Agreement
   is method evidence, not ground truth and not a second production typing
@@ -23,9 +29,8 @@ maintainer's later tie clarification also apply to the Senior protein path:
 
 These updates are implemented first in the selected pancreas protein chain.
 The pLN and spleen pilots still report section-local protein rule candidates
-from their recorded panels; neither publishes a final cell class. The Islet
-Explorer agent's uncommitted macrophage-label edits are not part of this
-transfer: the earlier maintainer direction deferred macrophage subgroup changes.
+from their recorded panels; neither publishes a final cell class. The owner
+explicitly approved the macrophage profile labels on 2026-10-27.
 
 Maintainer clarification, 2026-10-26: tissue-specific typing covers PhenoCycler-only,
 Xenium-only and PhenoCycler–Xenium same-slide acquisitions. A protein-only Stage 06

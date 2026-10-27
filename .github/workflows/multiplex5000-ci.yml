@@ -191,6 +191,7 @@ jobs:
              tests/current/test_same_slide_pair_stages.py \
              tests/current/test_paired_typing.py \
              tests/current/test_t_cell_comparison.py \
+             tests/current/test_macrophage_profile.py \
              /tmp/mplx5k-typing-tests/
           cd /tmp
           /tmp/mplx5k-installed/bin/python -m pytest -q /tmp/mplx5k-typing-tests

@@ -121,7 +121,8 @@ ENDOCRINE_ROUTES = ("cd99", "elongation", "hormone", "single_hormone")
 #: Everything else ``resolved_by`` can carry.  A value in NEITHER tuple stops the build: a route
 #: added upstream must not be able to arrive here and be silently counted as not-endocrine.
 NON_ENDOCRINE_RESOLVED = ("structure", "definition", "supporting", "fallthrough",
-                         "excluded_single_hormone")
+                         "excluded_single_hormone", "tie_profile_definition",
+                         "tie_profile_supporting", "tie_profile_fallthrough")
 
 #: The producer's per-cell islet number is kept, under its own name, beside this file's.
 #:

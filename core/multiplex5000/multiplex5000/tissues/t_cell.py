@@ -43,3 +43,32 @@ def compare_cd8_cd4(cd8: np.ndarray, cd4: np.ndarray,
     result[measured & (b > a)] = CD4
     result[measured & (a == b)] = REVIEW_TIE
     return result
+
+
+def clipped_t_tie_profile(values, raw, scale, identity_markers):
+    """Review clipped CD8/CD4 ties against the complete preclip identity profile.
+
+    Return the tied mask, the top marker and the cells whose strongest marker is
+    outside CD3e/CD8/CD4/CD45. A row with no measured profile stays undecided.
+    """
+    markers = [m for m in sorted(set(identity_markers) | {"CD45"})
+               if m in values and m in raw and m in scale.index]
+    n = len(values)
+    top = np.full(n, "", dtype=object)
+    withdrawn = np.zeros(n, dtype=bool)
+    if not markers or "CD8" not in values or "CD4" not in values:
+        return np.zeros(n, dtype=bool), top, withdrawn
+    a = values["CD8"].to_numpy(dtype=float)
+    b = values["CD4"].to_numpy(dtype=float)
+    tied = np.isfinite(a) & np.isfinite(b) & (a == b)
+    profile = np.column_stack([
+        unbounded_scale(raw[m].to_numpy(dtype=float),
+                        floor=float(scale.loc[m, "floor"]),
+                        span=float(scale.loc[m, "span"])) for m in markers])
+    finite = np.isfinite(profile)
+    measured = finite.any(axis=1)
+    if measured.any():
+        safe = np.where(finite, profile, -np.inf)
+        top[measured] = np.asarray(markers, dtype=object)[safe[measured].argmax(axis=1)]
+    withdrawn = tied & measured & ~np.isin(top, ("CD3e", "CD8", "CD4", "CD45"))
+    return tied, top, withdrawn

@@ -317,7 +317,7 @@ def main() -> int:
             "redsea_aligned_*": "Selected-arm aligned marker values before per-marker scale; marker units are the producer's aligned values.",
             "typing_scaled_*": "Selected-arm marker-scaled values. Hormones are null for any positive measured hormone-fragment overlap; missing overlap evidence remains unavailable.",
             "cell_class": "Primary identity call.", "refined_class": "Separate refinement result; does not overwrite cell_class.",
-            "immune_class/immune_subtype": "Separate immune typing sidecar; unresolved flags are retained.",
+            "immune_class/immune_subtype/macrophage_profile": "Immune typing sidecar from the same hierarchy; missing profile markers remain unavailable.",
             "crossed_frac_*": "Measured fraction of the cell body overlapped by the named structural object; no expansion-ring feature is included.",
             "signed_dist_islet_um": "Continuous signed distance to the nearest true islet object in microns.",
         },
@@ -326,7 +326,7 @@ def main() -> int:
         "diagnostic_field_validity": {
             "top_identity_marker/argmax_scaled_no_supporting_only": "Historical cohort-floor/span-scaled marker argmax diagnostic. The carried FOXP3 dominance is a scale artifact; this is not cell identity, Treg biology, marker function or biological accuracy evidence.",
             "top_identity_score": "If present, the scaled-marker diagnostic score is not identity confidence or biological accuracy evidence.",
-            "identity_fields": ["cell_class", "refined_class", "phenotype", "refined_phenotype", "immune_class", "immune_subtype"],
+            "identity_fields": ["cell_class", "refined_class", "phenotype", "refined_phenotype", "immune_class", "immune_subtype", "macrophage_profile"],
             "top_expressed_marker": "Expressed-value comparison used in the declared primary structural rule; separately retained from the scaled argmax diagnostic and not independent accuracy evidence.",
         },
         "code_revision": revision,

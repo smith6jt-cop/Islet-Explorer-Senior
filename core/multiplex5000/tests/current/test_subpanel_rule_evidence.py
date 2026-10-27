@@ -17,6 +17,37 @@ sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/celltype"))
 import subpanel as SUB  # noqa: E402
 
 
+def test_owner_macrophage_parent_accepts_cd163_with_other_requirements_measured():
+    rule = SUB.immune_rules()["Imm-macrophage"]
+    assert rule[0] == [] and rule[1] == [["CD68", "CD163"]]
+    assert "CD3e" in rule[2]
+
+
+def test_primary_t_tie_retypes_when_non_t_marker_tops_full_profile():
+    markers = ["CD3e", "CD8", "CD4", "CD45", "CD68", "E_cadherin",
+               "EpCAM", "Pan_Cytokeratin"]
+    raw = pd.DataFrame({m: [0., 0.] for m in markers})
+    raw["CD3e"] = [4., 4.]
+    raw["CD8"] = [12., 12.]
+    raw["CD4"] = [11., 11.]
+    raw["CD68"] = [20., 1.]
+    values = raw.clip(0., 10.).div(10.)
+    values.attrs["expressed"] = raw
+    scale = pd.DataFrame({"floor": [0.] * len(markers),
+                          "span": [10.] * len(markers)}, index=markers)
+    cell_class = np.array(["Immune", "Immune"], dtype=object)
+    definition = np.array(["Imm-T-cell", "Imm-T-cell"], dtype=object)
+    resolved_by = np.array(["definition", "definition"], dtype=object)
+    reason = np.array(["", ""], dtype=object)
+    audit = SUB.retype_tied_t_cells(
+        values, scale, {"bottom_tier_immune": []}, SUB.immune_rules(),
+        cell_class, definition, resolved_by, reason,
+        np.array([False, False]), np.array([True, True]))
+    assert audit["tied"] == 2 and audit["retyped"] == 1
+    assert cell_class.tolist() == ["Exocrine", "Immune"]
+    assert resolved_by.tolist() == ["tie_profile_fallthrough", "definition"]
+
+
 def test_a_required_negative_must_be_measured_and_below_the_existing_level():
     values = pd.DataFrame({"positive": [.2] * 7,
                            "negative": [np.nan, -np.inf, np.inf, .099, .1, .2, 0.]})

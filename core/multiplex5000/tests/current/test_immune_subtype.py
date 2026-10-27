@@ -91,6 +91,24 @@ def test_a_rule_naming_a_marker_the_donor_lacks_is_unavailable_not_false():
     assert missing == ["CD38"], "the missing marker has to be named, not merely refused"
 
 
+def test_macrophage_or_accepts_measured_witness_with_other_marker_unavailable():
+    scaled = frame(CD68=[0.2, 0.01, np.nan], CD3e=[0., 0., 0.],
+                   E_cadherin=[0., 0., 0.])
+    fires, undecided, missing = sub.evaluate(
+        scaled, ([], [["CD68", "CD163"]], ["CD3e", "E_cadherin"]),
+        {"CD68", "CD3e", "E_cadherin"})
+    assert missing == []
+    assert fires.tolist() == [True, False, False]
+    assert undecided.tolist() == [False, True, True]
+
+
+def test_owner_macrophage_parent_has_profile_instead_of_m1_m2_children():
+    table, reqs = sub.immune_rules()
+    assert reqs["Imm-macrophage"][1] == [["CD68", "CD163"]]
+    assert sub.LEVEL3_PARENTS == ("Imm-T-cell",)
+    assert "Imm-macrophage" in sub.children_of(table, "Immune")
+
+
 def test_a_nan_on_one_cell_makes_that_cell_undecided_and_never_negative():
     scaled = frame(CD3e=[0.9, np.nan, 0.01], CD8=[0.9, 0.9, 0.9])
     fires, undecided, missing = sub.evaluate(scaled, (["CD3e", "CD8"], [], []), {"CD3e", "CD8"})
