@@ -96,6 +96,7 @@ def test_registration_then_candidate_link_stage(tmp_path, monkeypatch):
     registered = tasks.run_stage(registration, project)
     assert registered.gate_passed
     assert (registered.path / "gate/registration_overlay.png").is_file()
+    assert (registered.path / "gate/candidate_distance_map.png").is_file()
     assert not (registered.path / "gate/accepted.json").exists()
     with pytest.raises(gates.GateError, match="not been accepted"):
         tasks.run_stage(integration, project)

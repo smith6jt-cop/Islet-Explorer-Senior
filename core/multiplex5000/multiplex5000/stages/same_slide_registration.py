@@ -121,6 +121,7 @@ def run(task: Task) -> dict:
     if displacement.is_file():
         shutil.copyfile(displacement, task.output("registration/transform_displacement.npz"))
     _figure(task, pair, fixed, moving, len(matches))
+    _residual_figure(task, pair, fixed, matches)
     return {"donor_id": pair.donor_id, "tissue": pair.tissue,
             "protein_entry": pair.protein_entry,
             "xenium_acquisition_id": pair.xenium_acquisition_id,
@@ -157,6 +158,38 @@ def _figure(task: Task, pair, fixed: np.ndarray, moving: np.ndarray, matches: in
     plt.close(fig)
 
 
+def _residual_figure(task: Task, pair, fixed: np.ndarray, matches) -> None:
+    """Show where candidate centroid distances are high; they are not ground truth residuals."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(9, 8), layout="constrained")
+    if len(matches):
+        stride = max(1, len(matches) // 5000)
+        shown = matches.iloc[::stride]
+        xy = fixed[shown["fixed_idx"].to_numpy(dtype=int)]
+        points = ax.scatter(xy[:, 0], xy[:, 1], c=shown["distance_um"],
+                            s=18 if len(shown) < 100 else 3,
+                            vmin=0, vmax=MAX_DIST_UM, cmap="viridis")
+        fig.colorbar(points, ax=ax, label="Mutual-nearest candidate distance (µm)")
+        if np.ptp(xy[:, 1]) < 1:
+            middle = float(np.mean(xy[:, 1]))
+            ax.set_ylim(middle - MAX_DIST_UM, middle + MAX_DIST_UM)
+            ax.set_aspect("auto")
+        else:
+            ax.set_aspect("equal", adjustable="box")
+    else:
+        ax.text(0.5, 0.5, "No centroid candidates within the distance cap",
+                ha="center", va="center", transform=ax.transAxes)
+    ax.set(xlabel="Protein crop-local x (µm)", ylabel="Protein crop-local y (µm)",
+           title=f"{pair.donor_id} · {pair.protein_entry}\n"
+                 "Candidate distance map; not a validated registration residual")
+    fig.savefig(gates.figure_path(task, "candidate_distance_map.png"), dpi=150)
+    plt.close(fig)
+
+
 def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
         gates.Check("transform and exact section identities", summary["protein_entry"],
@@ -172,4 +205,4 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     ]
     return gates.Gate(STAGE, "Candidate same-slide registration; inspect overlay before "
                       "accepting. No cell identity or type is verified by this gate.",
-                      checks, ["registration_overlay.png"])
+                      checks, ["registration_overlay.png", "candidate_distance_map.png"])
