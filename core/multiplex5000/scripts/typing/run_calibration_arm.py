@@ -99,7 +99,8 @@ def main() -> int:
     if manifest_path.exists() and not args.force:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
     script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
-                    SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py"]
+                    SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py",
+                    REPO / "core/multiplex5000/multiplex5000/tissues/t_cell.py"]
     run = {
         "schema_version": 1,
         "status": "running",

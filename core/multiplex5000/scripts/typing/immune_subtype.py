@@ -14,11 +14,12 @@ The hierarchy is the table's own, three levels deep:
                         T-CD8-cytotoxic | T-CD8 | T-CD4-helper
       Imm-macrophage -> Mac-M1-like | Mac-M2-like
 
-**CD4 and CD8 sit where the literature puts them, because the table already does.** CD8 appears
-only beneath ``Imm-T-cell`` -- never as a top-level discriminator -- and CD4 is carried in the
-panel but named by no rule at all: ``T-CD4-helper`` is ``CD8 = allneg, FOXP3 = allneg``. So CD8
-positivity is decisive for the T lineage and CD4 alone names nothing, which is the instruction,
-and it needed no new rule to honour.
+**CD4 and CD8 are read only after the T-cell parent is established.** The recorded
+rules still name the more specific T-cell leaves. If none fires, the higher
+background-to-bright-end scaled CD8 or CD4 names the coarse subtype without
+another 0.10 cutoff (owner, 2026-10-27). The comparison uses values before
+clipping. Missing measurements stay unavailable; exact ties keep the T-cell
+parent and require review of the total marker profile.
 
 **Panel variants are availability, not absence.** A rule whose markers a donor did not ACQUIRE is
 ``unavailable`` for that donor and recorded as such -- never scored as a negative, which would
@@ -86,6 +87,15 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 from scipy.stats import rankdata
+
+from multiplex5000.tissues.t_cell import (
+    CD4,
+    CD8,
+    REVIEW_TIE,
+    UNAVAILABLE,
+    compare_cd8_cd4,
+    unbounded_scale,
+)
 
 HERE = __import__("pathlib").Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -466,6 +476,37 @@ def _count_or_empty(counts: pd.Series, label: str, unavailable: dict[str, list[s
     return int(counts.get(label, 0)), "measured", ""
 
 
+def apply_t_cd8_cd4_comparison(out: pd.DataFrame, values: pd.DataFrame,
+                              markers: list[str], scale: pd.DataFrame) -> np.ndarray:
+    """Name otherwise untyped T cells by the higher measured marker, or flag a tie.
+
+    The parent and any more specific rule calls have already been decided. This
+    comparison never treats a missing marker as zero and never clips before
+    comparing. It mutates only the subtype and its audit fields in ``out``.
+    """
+    t_untyped = ((out["immune_class"] == "Imm-T-cell")
+                 & out["immune_subtype"].isna()).to_numpy(dtype=bool)
+    compared = {}
+    for marker in ("CD8", "CD4"):
+        compared[marker] = (unbounded_scale(
+            values[marker].to_numpy(dtype=float),
+            floor=float(scale.loc[marker, "floor"]),
+            span=float(scale.loc[marker, "span"]))
+            if marker in markers else np.full(len(values), np.nan))
+    comparison = compare_cd8_cd4(compared["CD8"], compared["CD4"], t_untyped)
+    out["immune_subtype_resolved_by"] = np.where(out["immune_subtype"].notna(), "rule", "")
+    out["immune_subtype_review_reason"] = ""
+    for state, subtype in ((CD8, "T-CD8"), (CD4, "T-CD4-helper")):
+        selected = comparison == state
+        out.loc[selected, "immune_subtype"] = subtype
+        out.loc[selected, "immune_subtype_resolved_by"] = "higher_scaled_CD8_CD4"
+    out.loc[comparison == REVIEW_TIE, "immune_subtype_review_reason"] = (
+        "exact_CD8_CD4_tie_review_total_marker_profile")
+    out.loc[comparison == UNAVAILABLE, "immune_subtype_review_reason"] = (
+        "CD8_or_CD4_measurement_unavailable")
+    return comparison
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
@@ -593,6 +634,8 @@ def main() -> int:
             out.loc[mask, "immune_subtype_undecided"] = undec3.to_numpy()
             skip2.update(skip3)
 
+        comparison = apply_t_cd8_cd4_comparison(out, values, markers, scale)
+
         # ---- Do the rule's own terms separate the cells it is read on, ON THIS DONOR?
         evaluated = {n: np.ones(len(out), dtype=bool) for n in level2}
         for parent, kids in level3.items():
@@ -637,6 +680,18 @@ def main() -> int:
         target = OUT / f"donor_id={donor}"
         target.mkdir(parents=True, exist_ok=True)
         out.to_parquet(target / "data.parquet", index=False)
+        tied = comparison == REVIEW_TIE
+        if tied.any():
+            review = out.loc[tied, ["donor_id", "object_id", "immune_class",
+                                    "immune_subtype_review_reason"]].copy()
+            for marker in ("CD8", "CD4"):
+                review[f"{marker}_scaled_before_clip"] = unbounded_scale(
+                    values.loc[tied, marker].to_numpy(dtype=float),
+                    floor=float(scale.loc[marker, "floor"]),
+                    span=float(scale.loc[marker, "span"]))
+            review["full_profile_source"] = str(
+                S.ALIGNED / f"donor_id={donor}/data.parquet")
+            review.to_csv(target / "t_cd8_cd4_profile_review.csv", index=False)
 
         class_counts = out["immune_class"].value_counts()
         sub_counts = out["immune_subtype"].value_counts()
@@ -710,6 +765,9 @@ def main() -> int:
             "panel_offset_median_uncalled": float(np.nanmedian(blank_offset)) if unnamed else None,
             "immune_class": {k: int(v) for k, v in class_counts.items()},
             "immune_subtype": {k: int(v) for k, v in sub_counts.items()},
+            "t_subtype_by_higher_marker": int((out["immune_subtype_resolved_by"]
+                                                == "higher_scaled_CD8_CD4").sum()),
+            "t_cd8_cd4_exact_ties_for_profile_review": int(tied.sum()),
             "term_positive_fraction": {n: {m: round(f, 5) for m, f in v.items()}
                                        for n, v in fractions.items()},
             "majority_terms": flagged,

@@ -185,10 +185,12 @@ jobs:
           mkdir -p /tmp/mplx5k-typing-tests
           cp tests/current/test_io60_mixed_protein_pilot.py \
              tests/current/test_io60_rna_typing_pilot.py \
+             tests/current/test_expression.py \
              tests/current/test_pln_typing_candidate_stage.py \
              tests/current/test_spleen_typing_stage.py \
              tests/current/test_same_slide_pair_stages.py \
              tests/current/test_paired_typing.py \
+             tests/current/test_t_cell_comparison.py \
              /tmp/mplx5k-typing-tests/
           cd /tmp
           /tmp/mplx5k-installed/bin/python -m pytest -q /tmp/mplx5k-typing-tests

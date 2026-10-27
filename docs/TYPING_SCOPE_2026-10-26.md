@@ -1,5 +1,32 @@
 # Stage 06 typing scope: both assays and same-slide acquisitions
 
+## Owner typing updates, 2026-10-27
+
+The CODEX Islet Explorer's committed work (`205be40`, `2d0bce1`) and the
+maintainer's later tie clarification also apply to the Senior protein path:
+
+- If a nucleus fills a segmented cell and REDSEA's selected cytoplasm value is
+  undefined, read that marker's measured whole-cell value. Preserve a measured
+  zero; if the whole-cell value is also missing, leave the measurement missing.
+  A cell without a usable nucleus remains excluded from analysis.
+- Establish the broad T-cell lineage first. Keep any specific rule call. For a
+  T cell still lacking a subtype, compare CD8 and CD4 in the same normalized
+  units within its donor, before clipping and without another 0.10 cutoff.
+  Missing CD8 or CD4 is unavailable. An exact tie retains the broad T-cell
+  label and an object-ID review record; it is not broken by an arbitrary
+  marker or treated as a negative. The review must consider the total measured
+  marker profile before a subtype is accepted.
+- Compare the resulting hierarchy with a separate preprocessing, UMAP and
+  clustering route, as requested for the Barlow-style comparison. Agreement
+  is method evidence, not ground truth and not a second production typing
+  authority. Do not substitute cluster labels for the hierarchy by default.
+
+These updates are implemented first in the selected pancreas protein chain.
+The pLN and spleen pilots still report section-local protein rule candidates
+from their recorded panels; neither publishes a final cell class. The Islet
+Explorer agent's uncommitted macrophage-label edits are not part of this
+transfer: the earlier maintainer direction deferred macrophage subgroup changes.
+
 Maintainer clarification, 2026-10-26: tissue-specific typing covers PhenoCycler-only,
 Xenium-only and PhenoCycler–Xenium same-slide acquisitions. A protein-only Stage 06
 is incomplete. This contract applies to the first pancreas and pancreatic lymph
