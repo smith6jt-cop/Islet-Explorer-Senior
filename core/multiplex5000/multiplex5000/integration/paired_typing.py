@@ -2,8 +2,10 @@
 
 This is the shared cell-linking function for tissue-specific same-slide typing.
 Protein and RNA calls remain separate evidence; a spatial candidate is not a
-verified cell identity or a final type. The caller must supply a reviewed
-registration whose metadata names the exact source pair and coordinate frames.
+verified cell identity or a final type. The caller supplies a transform whose
+metadata names the exact source pair and coordinate frames. The metadata's
+``reviewed`` flag is a declaration, not proof of gate acceptance or registration
+quality; the stage using this function must check the registration receipt.
 """
 
 from __future__ import annotations
@@ -77,7 +79,8 @@ def link_candidate_cells(
 
     The transform maps the Xenium region-local micron frame to the protein
     crop-local micron frame. It must carry exact pair IDs and ``reviewed: true``
-    in its metadata. The result contains only cells eligible in both assays;
+    in its metadata. The flag alone does not authenticate review. The result
+    contains only cells eligible in both assays;
     the counts report excluded and unmatched cells separately. No candidate
     link is called ground truth or used as a final cell type here.
     """

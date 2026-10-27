@@ -78,8 +78,9 @@ for manual review; its notebook is `notebooks/06_typing.ipynb`.
 
 `multiplex5000.integration.paired_typing.link_candidate_cells` is the packaged
 same-section link function for the next step. It takes the two admitted cell
-tables, their Stage 06 evidence, and a reviewed transform that names the exact
-protein section, Xenium region, and coordinate frames. It returns mutual-nearest
+tables, their Stage 06 evidence, and a transform that names the exact protein
+section, Xenium region, and coordinate frames. The transform's `reviewed` flag
+does not itself prove a gate was accepted. The function returns mutual-nearest
 centroid **candidates**, distances, and unmatched counts. The project does not
 yet produce a reviewed transform or run Stage 07/08, so this function does not
 change the current gate or make a paired-cell or final typing claim.
