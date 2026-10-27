@@ -76,6 +76,14 @@ for HDL090. It
 publishes no final cell class or cross-assay cell link. Stage 06's gate waits
 for manual review; its notebook is `notebooks/06_typing.ipynb`.
 
+`multiplex5000.integration.paired_typing.link_candidate_cells` is the packaged
+same-section link function for the next step. It takes the two admitted cell
+tables, their Stage 06 evidence, and a reviewed transform that names the exact
+protein section, Xenium region, and coordinate frames. It returns mutual-nearest
+centroid **candidates**, distances, and unmatched counts. The project does not
+yet produce a reviewed transform or run Stage 07/08, so this function does not
+change the current gate or make a paired-cell or final typing claim.
+
 The HPG login shell exposes Python 3.9 by default. Load its Python 3.12
 module (`source /etc/profile.d/modules.sh; module load python/3.12`) and make
 a **new** virtual environment under a writable `/blue/maigan` pilot folder.
