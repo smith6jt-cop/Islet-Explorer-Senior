@@ -27,7 +27,7 @@ _KEY = re.compile(r"^[A-Za-z0-9_]+$")
 _RAW = (*INSTRUMENT_FILES, "cells.parquet", "cell_feature_matrix.h5")
 _COLUMNS = ("acquisition_id", "sample_key", "donor_id", "tissue", "roi", "source_path",
             "condition", "cells", "genes", "typing_eligible", "no_nucleus",
-            "nucleus_missing", "median_gene_counts", "median_detected_genes")
+            "nucleus_missing", "median_gene_counts", "median_detected_genes", "source_status")
 
 
 class RNAIngestError(ValueError):
@@ -66,7 +66,7 @@ def _ready(project) -> list[XeniumSource]:
     roster = build_roster(_inventory(project), manifest, site_index=index,
                           acquisition_ids=_selection(project))
     not_ready = [(r.acquisition_id, r.status, r.missing_files)
-                 for r in roster if r.status != "ready"]
+                 for r in roster if r.status != "ready" and r.condition != "damaged"]
     if not_ready:
         raise RNAIngestError(f"Stage 04 needs every selected source ready: {not_ready[:5]}")
     for source in roster:
@@ -92,6 +92,8 @@ def inputs(project) -> list[Input]:
     if manifest is not None:
         found.append(Input("xenium_records_manifest", manifest))
     for source in _ready(project):
+        if source.status != "ready":
+            continue  # Recorded damaged tissue has no raw files to declare.
         for filename in _RAW:
             found.append(Input(_raw_name(source, filename),
                                Path(source.source_path) / filename))
@@ -108,8 +110,17 @@ def run(task: Task) -> dict:
     rows = []
     total_cells = total_eligible = 0
     for source in roster:
-        if source.status != "ready" or not _KEY.fullmatch(source.sample_key):
-            raise RNAIngestError(f"{source.acquisition_id}: indexed source is not ready")
+        if not _KEY.fullmatch(source.sample_key):
+            raise RNAIngestError(f"{source.acquisition_id}: unsafe sample key")
+        if source.status != "ready":
+            if source.condition != "damaged":
+                raise RNAIngestError(f"{source.acquisition_id}: indexed source is not ready")
+            rows.append({"acquisition_id": source.acquisition_id,
+                         "sample_key": source.sample_key, "donor_id": source.donor_id,
+                         "tissue": source.tissue, "roi": source.roi,
+                         "source_path": source.source_path, "condition": source.condition,
+                         "source_status": source.status})
+            continue
         for filename in _RAW:
             declared = task.input(_raw_name(source, filename))
             if declared != Path(source.source_path) / filename:
@@ -144,6 +155,7 @@ def run(task: Task) -> dict:
             "nucleus_missing": int(region.nucleus_missing.sum()),
             "median_gene_counts": float(np.median(counts)) if len(counts) else 0.0,
             "median_detected_genes": float(np.median(detected)) if len(detected) else 0.0,
+            "source_status": "ready",
         })
         total_cells += region.n_cells
         total_eligible += int(region.eligible.sum())
@@ -158,11 +170,14 @@ def run(task: Task) -> dict:
     return {"regions": len(rows), "accepted_regions": accepted_regions,
             "scope": "selected" if selected != "all_accepted" else "all_accepted",
             "cells": total_cells, "typing_eligible": total_eligible,
-            "by_tissue": {tissue: sum(r["cells"] for r in rows if r["tissue"] == tissue)
-                          for tissue in sorted({r["tissue"] for r in rows})},
-            "no_nucleus": sum(r["no_nucleus"] for r in rows),
-            "nucleus_missing": sum(r["nucleus_missing"] for r in rows),
-            "damaged_regions": [r["acquisition_id"] for r in rows if r["condition"]]}
+            "by_tissue": {tissue: sum(r["cells"] for r in rows if r["tissue"] == tissue
+                                     and "cells" in r)
+                          for tissue in sorted({r["tissue"] for r in rows if "cells" in r})},
+            "no_nucleus": sum(r.get("no_nucleus", 0) for r in rows),
+            "nucleus_missing": sum(r.get("nucleus_missing", 0) for r in rows),
+            "damaged_regions": [r["acquisition_id"] for r in rows if r["condition"]],
+            "unavailable_regions": [r["acquisition_id"] for r in rows
+                                    if r["source_status"] != "ready"]}
 
 
 def _figure(task: Task, rows: list[dict], accepted_regions: int) -> None:
@@ -175,8 +190,8 @@ def _figure(task: Task, rows: list[dict], accepted_regions: int) -> None:
     tissues = sorted({r["tissue"] for r in rows})
     colors = plt.get_cmap("tab10")
     for n, tissue in enumerate(tissues):
-        selected = [r for r in rows if r["tissue"] == tissue]
-        label = f"{tissue} ({len(selected)} regions)"
+        selected = [r for r in rows if r["tissue"] == tissue and "cells" in r]
+        label = f"{tissue} ({len(selected)} measured regions)"
         left.scatter([r["cells"] for r in selected],
                      [r["typing_eligible"] / r["cells"] if r["cells"] else 0
                       for r in selected], label=label, color=colors(n), alpha=0.8)
@@ -189,8 +204,10 @@ def _figure(task: Task, rows: list[dict], accepted_regions: int) -> None:
               ylabel="Median raw gene counts per cell (transcripts)")
     left.legend(fontsize=8)
     right.legend(fontsize=8)
-    fig.suptitle(f"Xenium RNA ingest QC: {len(rows)}/{accepted_regions} accepted regions, "
-                 f"{sum(r['cells'] for r in rows):,} cells")
+    measured = sum("cells" in row for row in rows)
+    fig.suptitle(f"Xenium RNA ingest QC: {measured}/{len(rows)} selected regions measured "
+                 f"({accepted_regions} accepted), {sum(r.get('cells', 0) for r in rows):,} "
+                 f"measured cells")
     fig.savefig(gates.figure_path(task, "rna_ingest_qc.png"), dpi=160)
     plt.close(fig)
 
@@ -198,7 +215,7 @@ def _figure(task: Task, rows: list[dict], accepted_regions: int) -> None:
 def gate(task: Task, summary: dict) -> gates.Gate:
     expected = len(_ready(task.project))
     checks = [
-        gates.Check("every selected Xenium region ingested", summary["regions"],
+        gates.Check("every selected Xenium region accounted", summary["regions"],
                     f"{expected}", summary["regions"] == expected),
         gates.Check("Xenium region scope", f"{summary['regions']}/{summary['accepted_regions']}",
                     "reported; a selected pilot does not claim full-cohort coverage", True,
@@ -210,6 +227,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                                          + summary["nucleus_missing"])),
         gates.Check("damage carried forward", summary["damaged_regions"],
                     "reported; a damaged region does not stop other regions", True,
+                    blocking=False),
+        gates.Check("damaged sources unavailable", summary["unavailable_regions"],
+                    "reported with unknown cell counts, never zero-filled", True,
                     blocking=False),
     ]
     return gates.Gate(STAGE, "Raw Xenium counts and cell QC by accepted acquisition; "

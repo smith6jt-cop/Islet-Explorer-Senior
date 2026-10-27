@@ -154,13 +154,17 @@ def run(task: Task) -> dict:
             raise IO60RNATypingError(f"{acquisition}: centrally excluded Xenium acquisition")
         record = dict.fromkeys(_COLUMNS, "")
         record.update(acquisition_id=acquisition, sample_key=sample, donor_id=donor,
-                      tissue=row["tissue"], roi=row["roi"], cells=int(row["cells"]),
-                      typing_eligible=int(row["typing_eligible"]))
+                      tissue=row["tissue"], roi=row["roi"])
+        if row["cells"]:
+            record["cells"] = int(row["cells"])
+            record["typing_eligible"] = int(row["typing_eligible"])
         if row["condition"]:
             record.update(status="unavailable", reason=f"recorded tissue condition: {row['condition']}",
                           called_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
+        if not row["cells"]:
+            raise IO60RNATypingError(f"{acquisition}: intact region lacks Stage 04 cell counts")
         region = load_accepted_region(
             row, task.input("rna_receipt"), task.input("rna_regions"),
             task.input(f"rna_cells:{sample}"), task.input(f"raw_matrix:{sample}"),
@@ -214,9 +218,11 @@ def run(task: Task) -> dict:
     return {"acquisitions": len(results), "candidate": sum(r["status"] == "candidate"
                                                        for r in results),
             "unavailable": [r["acquisition_id"] for r in results if r["status"] == "unavailable"],
-            "cells": sum(r["cells"] for r in results),
+            "cells": sum(r["cells"] for r in results if isinstance(r["cells"], int)),
             "called_cells": sum(r["called_cells"] for r in results),
-            "unavailable_cells": sum(r["unavailable_cells"] for r in results),
+            "unavailable_cells": sum(r["unavailable_cells"] for r in results
+                                     if isinstance(r["unavailable_cells"], int)),
+            "unknown_cell_count": [r["acquisition_id"] for r in results if r["cells"] == ""],
             "protein_cells_typed": 0, "paired_cell_links": 0,
             "scope": "selected_xenium_acquisitions_only"}
 
@@ -227,14 +233,19 @@ def _figure(task: Task, rows: list[dict]) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    names = [f"{row['sample_key']}\n{row['tissue']}" for row in rows]
-    called = [row["called_cells"] for row in rows]
-    unavailable = [row["unavailable_cells"] for row in rows]
+    measured = [row for row in rows if isinstance(row["cells"], int)]
+    names = [f"{row['sample_key']}\n{row['tissue']}" for row in measured]
+    called = [row["called_cells"] for row in measured]
+    unavailable = [row["unavailable_cells"] for row in measured]
     fig, ax = plt.subplots(figsize=(max(8, len(rows) * 2.5), 5), layout="constrained")
     ax.bar(names, called, label="candidate called")
     ax.bar(names, unavailable, bottom=called, label="unavailable or unresolved")
     ax.set(ylabel="Xenium segmented cells (n)",
            title="Stage 06 tissue-specific RNA pilot; no protein typing or paired-cell claim")
+    unknown = [row["acquisition_id"] for row in rows if row["cells"] == ""]
+    if unknown:
+        ax.text(0.01, 0.98, f"{len(unknown)} damaged source(s): cell counts unknown",
+                transform=ax.transAxes, va="top")
     ax.legend()
     fig.savefig(gates.figure_path(task, "rna_typing_scope.png"), dpi=160)
     plt.close(fig)
@@ -250,6 +261,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                           + summary["unavailable_cells"]),
               gates.Check("unavailable acquisitions", summary["unavailable"],
                           "reported; one section does not suppress another", True,
+                          blocking=False),
+              gates.Check("unknown cell counts", summary["unknown_cell_count"],
+                          "reported for damaged sources without raw cells", True,
                           blocking=False),
               gates.Check("paired cell links", summary["paired_cell_links"], "none before Stage 08",
                           summary["paired_cell_links"] == 0)]
