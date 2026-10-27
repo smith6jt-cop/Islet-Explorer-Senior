@@ -125,3 +125,30 @@ def write_worker_h5ad(region: XeniumRegion, destination: Path, *, sex: str,
     var = pd.DataFrame(index=pd.Index(region.genes, name="gene"))
     destination.parent.mkdir(parents=True, exist_ok=True)
     ad.AnnData(X=region.counts.copy(), obs=obs, var=var).write_h5ad(destination)
+
+
+def read_exact_nucleus_counts(cells_path: Path, cell_ids: np.ndarray) -> np.ndarray:
+    """Read nucleus counts from the one bundle admitted for this RNA acquisition.
+
+    The existing RNA workers expect a measured integer for each cell. A missing
+    nucleus measurement is refused for this worker invocation, never converted
+    to zero or used as an all-cells-present fallback. Stage 06 can report that
+    acquisition unavailable while processing other acquisitions.
+    """
+    if not cells_path.is_absolute():
+        raise XeniumTypingInputError("exact cells.parquet path must be absolute")
+    cells = pq.read_table(cells_path, columns=["cell_id", "nucleus_count"]).to_pydict()
+    native = [str(value) for value in cells["cell_id"]]
+    wanted = [str(value) for value in cell_ids]
+    if len(set(native)) != len(native) or len(set(wanted)) != len(wanted):
+        raise XeniumTypingInputError("exact nucleus source has repeated cell IDs")
+    if set(native) != set(wanted):
+        raise XeniumTypingInputError("exact nucleus source and worker cell IDs differ")
+    if any(value is None for value in cells["nucleus_count"]):
+        raise XeniumTypingInputError("exact nucleus source has missing counts; no zero substituted")
+    lookup = dict(zip(native, cells["nucleus_count"], strict=True))
+    counts = np.asarray([lookup[cell_id] for cell_id in wanted])
+    if (not np.issubdtype(counts.dtype, np.integer) or np.any(counts < 0)
+            or np.any(counts > np.iinfo(np.int32).max)):
+        raise XeniumTypingInputError("exact nucleus source has invalid integer counts")
+    return counts.astype(np.int32)

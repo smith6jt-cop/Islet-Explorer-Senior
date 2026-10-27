@@ -638,13 +638,22 @@ def refused_donors() -> list[str]:
     return sorted(d for d in found if excluded_on(d, "xenium"))
 
 
-def nucleus_for(donor: str, cell_ids: np.ndarray) -> tuple[np.ndarray | None, str]:
+def nucleus_for(donor: str, cell_ids: np.ndarray,
+                exact_cells: Path | None = None) -> tuple[np.ndarray | None, str]:
     """`nucleus_count` per h5ad cell from the vendor bundle, or (None, why-not).
+
+    Stage 06 supplies the accepted acquisition's ``exact_cells`` path. It
+    refuses absent cell IDs and missing counts rather than substituting a
+    donor-level bundle. The search below serves historical CLI runs only.
 
     Matched by donor AND by subset containment of this section's own cell ids -- never by
     filename order, never by row order.  Where no local bundle contains them the rule is
     UNMEASURABLE and is recorded as such; it is never recorded as passed.
     """
+    if exact_cells is not None:
+        from ..xenium_typing_input import read_exact_nucleus_counts
+
+        return read_exact_nucleus_counts(exact_cells, cell_ids), f"bundle {exact_cells}"
     table = pd.read_csv(XENIUM_PATHS, dtype=str)
     table = table[
         table["roi"].astype(str).str.startswith("pln")
@@ -678,7 +687,9 @@ def nucleus_for(donor: str, cell_ids: np.ndarray) -> tuple[np.ndarray | None, st
 # stage: partition
 # ------------------------------------------------------------------------------------------
 
-def partition_section(donor: str, section: str, path: Path, mod) -> dict:
+def partition_section(donor: str, section: str, path: Path, mod, *,
+                      exact_cells: Path | None = None, out_root: Path | None = None,
+                      roi: str | None = None) -> dict:
     """The clustering track's algorithm, on the NUCLEATED cells of this section only."""
     import anndata as ad
     import scanpy as sc
@@ -688,7 +699,7 @@ def partition_section(donor: str, section: str, path: Path, mod) -> dict:
     n_in = int(adata.n_obs)
     cell_ids = adata.obs_names.to_numpy().astype(str)
 
-    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids)
+    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids, exact_cells)
     if nucleus_count is None:
         has_nucleus = np.ones(n_in, dtype=bool)
         nucleus_measured = False
@@ -727,14 +738,14 @@ def partition_section(donor: str, section: str, path: Path, mod) -> dict:
     gc.collect()
     cluster_id = np.array([f"{section}_c{int(v):02d}" for v in labels])
 
-    dest = OUT_ROOT / "partition/assignments" / f"donor_id={donor}" / f"section={section}"
+    dest = (out_root or OUT_ROOT) / "partition/assignments" / f"donor_id={donor}" / f"section={section}"
     dest.mkdir(parents=True, exist_ok=True)
     pd.DataFrame({
         "cell_id": kept_ids,
         "donor_id": donor,
         "section_key": section,
         "modality": "xenium",
-        "roi": ROI,
+        "roi": roi or ROI,
         "cluster_id": cluster_id,
     }).to_parquet(dest / "clusters.parquet", index=False)
 
@@ -812,7 +823,9 @@ def stage1_decide(n_imm, f_imm, n_str, f_str):
     return "Uncalled_ambiguous", "standout_count_and_fraction_disagree"
 
 
-def call_section(donor: str, section: str, h5ad: Path, panels: dict) -> dict:
+def call_section(donor: str, section: str, h5ad: Path, panels: dict, *,
+                 exact_cells: Path | None = None, out_root: Path | None = None,
+                 roi: str | None = None) -> dict:
     import anndata as ad
 
     assert abs(DETECTION_MIN_LOGNORM - float(np.log1p(1.0))) < 1e-12, (
@@ -861,14 +874,14 @@ def call_section(donor: str, section: str, h5ad: Path, panels: dict) -> dict:
     gc.collect()
 
     assign = pd.read_parquet(
-        OUT_ROOT / f"partition/assignments/donor_id={donor}/section={section}/clusters.parquet"
+        (out_root or OUT_ROOT) / f"partition/assignments/donor_id={donor}/section={section}/clusters.parquet"
     )
     amap = dict(zip(assign["cell_id"].astype(str), assign["cluster_id"].astype(str),
                     strict=True))
     cluster_of = np.array([amap.get(c, "") for c in cell_ids])
     clustered = cluster_of != ""
 
-    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids)
+    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids, exact_cells)
     nucleus_measured = nucleus_count is not None
     has_nucleus = np.ones(n_cells, dtype=bool) if not nucleus_measured else (nucleus_count > 0)
     n_no_nucleus = 0 if not nucleus_measured else int((~has_nucleus).sum())
@@ -1108,7 +1121,7 @@ def call_section(donor: str, section: str, h5ad: Path, panels: dict) -> dict:
         "cell_id": cell_ids,
         "donor_id": donor,
         "section_key": section,
-        "roi": ROI,
+        "roi": roi or ROI,
         "cluster_id": np.where(cidx >= 0, cluster_of, None),
         "stage1": stage1_cell.astype(str),
         "cluster_lineage": stage2_cell.astype(str),
@@ -1248,6 +1261,35 @@ def call_section(donor: str, section: str, h5ad: Path, panels: dict) -> dict:
     gc.collect()
     return {"calls": calls, "clusters": pd.DataFrame(het),
             "gene_stats": gene_stats, "report": report}
+
+
+def process_exact_section(donor: str, section: str, h5ad: Path, cells_parquet: Path,
+                          panels: dict, work: Path, *, acquisition_id: str, roi: str) -> dict:
+    """Run the current pLN partition and call method on one recorded acquisition.
+
+    This is the Stage 06 section entry point. It never discovers another h5ad
+    or writes a cohort-wide summary, and the native cell IDs become qualified
+    by the acquisition before the per-cell calls are saved.
+    """
+    if not acquisition_id or not roi:
+        raise ValueError("exact pLN typing needs acquisition_id and roi")
+    partition = partition_section(donor, section, h5ad, cluster_module(),
+                                  exact_cells=cells_parquet, out_root=work, roi=roi)
+    result = call_section(donor, section, h5ad, panels,
+                          exact_cells=cells_parquet, out_root=work, roi=roi)
+    calls = result["calls"]
+    if calls["cell_id"].duplicated().any():
+        raise ValueError(f"{acquisition_id}: repeated native cell ID in pLN calls")
+    calls.insert(0, "cell_uid", acquisition_id + ":cells:" + calls["cell_id"].astype(str))
+    calls.insert(1, "acquisition_id", acquisition_id)
+    work.mkdir(parents=True, exist_ok=True)
+    calls.to_parquet(work / f"{section}.calls.parquet", index=False)
+    result["clusters"].to_parquet(work / f"{section}.clusters.parquet", index=False)
+    result["gene_stats"].to_parquet(work / f"{section}.gene_stats.parquet", index=False)
+    report = {**result["report"], "acquisition_id": acquisition_id,
+              "roi": roi, "partition": partition}
+    (work / f"{section}.report.json").write_text(json.dumps(report, indent=1))
+    return report
 
 
 def run_calls(args) -> None:

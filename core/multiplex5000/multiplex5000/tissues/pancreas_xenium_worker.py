@@ -254,14 +254,23 @@ def sections() -> list[tuple[str, str, Path]]:
     return out
 
 
-def nucleus_for(donor: str, cell_ids: np.ndarray) -> tuple[np.ndarray | None, str]:
+def nucleus_for(donor: str, cell_ids: np.ndarray,
+                exact_cells: Path | None = None) -> tuple[np.ndarray | None, str]:
     """``nucleus_count`` per h5ad cell from the vendor bundle, or (None, why-not).
+
+    The Stage 06 route supplies ``exact_cells`` from its accepted acquisition;
+    this path must cover the exact native IDs and every nucleus count must be
+    measured. The old donor-level search below remains for historical CLI runs.
 
     A cell with no nucleus is excluded from every calculation.  The h5ads carry no nucleus
     geometry, so the only handle is the bundle ``cells.parquet``, matched by donor AND by subset
     containment of the h5ad's own cell ids -- never by filename order.  Where no local bundle is
     a superset the rule is UNMEASURABLE and recorded as such, never as passed.
     """
+    if exact_cells is not None:
+        from ..xenium_typing_input import read_exact_nucleus_counts
+
+        return read_exact_nucleus_counts(exact_cells, cell_ids), f"bundle {exact_cells}"
     table = pd.read_csv(XENIUM_PATHS, dtype=str)
     table = table[
         table["roi"].astype(str).str.startswith("panc")
@@ -432,7 +441,8 @@ def partition_stats(L, D, krow, n_groups):
 
 def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Path,
                     score_on: str = SCORE_ON_DEFAULT, naming_policy: str = "native",
-                    uncertainty_decisions: Path | None = None, source_serial: str | None = None) -> dict:
+                    uncertainty_decisions: Path | None = None, source_serial: str | None = None,
+                    exact_cells: Path | None = None, acquisition_id: str | None = None) -> dict:
     import anndata as ad
 
     t0 = time.time()
@@ -464,7 +474,7 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
     depth = np.asarray(X.sum(axis=1)).ravel().astype(np.float64)
     depth_matches_obs = int(np.sum(np.abs(depth - obs_counts) < 0.5))
 
-    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids)
+    nucleus_count, nucleus_source = nucleus_for(donor, cell_ids, exact_cells)
     if naming_policy != "native":
         serial_token = "__" + str(source_serial).zfill(7) + "__"
         if not source_serial or serial_token not in nucleus_source:
@@ -935,6 +945,12 @@ def process_section(donor: str, section: str, h5ad: Path, panels: dict, work: Pa
         "seconds": round(time.time() - t0, 1),
     }
 
+    if acquisition_id:
+        if calls["cell_id"].duplicated().any():
+            raise ValueError(f"{acquisition_id}: repeated native cell ID in pancreas calls")
+        calls.insert(0, "cell_uid", acquisition_id + ":cells:" + calls["cell_id"].astype(str))
+        calls.insert(1, "acquisition_id", acquisition_id)
+        report["acquisition_id"] = acquisition_id
     work.mkdir(parents=True, exist_ok=True)
     calls.to_parquet(work / f"{section}.calls.parquet", index=False)
     pd.DataFrame(het).to_parquet(work / f"{section}.clusters.parquet", index=False)

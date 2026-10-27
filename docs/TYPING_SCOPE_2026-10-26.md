@@ -223,3 +223,16 @@ donor and acquisition metadata for the existing pancreas and pLN RNA workers;
 that conversion does not select a worker, run its method or publish a class.
 The IO60 Stage 06 assay/tissue route still has to call those workers for each
 selected acquisition and verify their per-cell outputs.
+
+Both packaged pancreas and pLN RNA workers now accept an exact `cells.parquet`
+path in their section functions, with an isolated pLN output root and recorded
+ROI. The exact path is checked against the worker h5ad's native cell IDs; a
+missing nucleus measurement stops that acquisition's worker call rather than
+becoming zero or triggering a donor-level fallback. The Stage 06 route still
+has to invoke these functions and report such an acquisition as unavailable
+without stopping other acquisitions.
+The r4 pancreas uncertainty decisions remain with the frozen r4 release.
+They name particular old partitions and cannot be copied onto freshly
+clustered acquisitions by donor or section name. A new Stage 06 run uses the
+same repaired naming policy but reports that no frozen-partition override was
+applied unless the exact partition identity and membership are verified.
