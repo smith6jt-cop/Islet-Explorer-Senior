@@ -12,6 +12,7 @@ import csv
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .. import gates, profiles, roots
@@ -33,6 +34,14 @@ _STATES = ("class", "broad", "unresolved", "uncalled", "unavailable")
 _CONTROL_COLUMNS = ("acquisition_id", "tissue", "sex", "cells", "nucleus_excluded",
                     "y_floor_detect_frac_any", "cd3_detect_frac_in_T_NK",
                     "cd3_detect_frac_in_B_Plasma", "cd3_detect_frac_in_Myeloid")
+_EVIDENCE = {"cluster_agree_fraction": ("cell_agrees_with_cluster_call", False),
+             "naming_gene_fraction": ("n_naming_detected_for_cluster_call", True),
+             "cd3_fraction": ("cd3_detected", False),
+             "trac_fraction": ("trac_detected", False),
+             "cd4_fraction": ("cd4_detected", False),
+             "cd8_fraction": ("cd8_detected", False),
+             "foxp3_fraction": ("foxp3_detected", False)}
+_CLASS_COLUMNS = ("acquisition_id", "tissue", "lineage", "state", "cells", *_EVIDENCE)
 
 
 class IO60RNATypingError(ValueError):
@@ -169,7 +178,7 @@ def _call_state(lineage: str) -> str:
 
 
 def _worker_result(path: Path, row: dict[str, str], region) -> tuple[dict[str, int], list[dict]]:
-    calls = pd.read_parquet(path, columns=["cell_uid", "cell_id", "acquisition_id", "lineage"])
+    calls = pd.read_parquet(path)
     if (calls.cell_uid.tolist() != region.cell_uid.tolist()
             or calls.cell_id.tolist() != region.cell_id.tolist()
             or not calls.acquisition_id.eq(row["acquisition_id"]).all()):
@@ -182,8 +191,20 @@ def _worker_result(path: Path, row: dict[str, str], region) -> tuple[dict[str, i
     for lineage, count in calls.lineage.value_counts().items():
         state = _call_state(lineage)
         states[state] += int(count)
+        group = calls.loc[calls.lineage.eq(lineage)]
+        evidence = {}
+        for name, (column, positive) in _EVIDENCE.items():
+            if column not in group:
+                evidence[name] = ""
+                continue
+            values = pd.to_numeric(group[column], errors="coerce").dropna()
+            if not len(values):
+                evidence[name] = ""
+            else:
+                evidence[name] = (float((values > 0).mean()) if positive
+                                  else float(values.mean()))
         classes.append({"acquisition_id": row["acquisition_id"], "tissue": row["tissue"],
-                        "lineage": lineage, "state": state, "cells": int(count)})
+                        "lineage": lineage, "state": state, "cells": int(count), **evidence})
     if sum(states.values()) != region.n_cells:
         raise IO60RNATypingError(f"{row['acquisition_id']}: lineage states lost cells")
     return states, classes
@@ -289,8 +310,7 @@ def run(task: Task) -> dict:
         writer.writeheader()
         writer.writerows(results)
     with task.output("rna_classes.csv").open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=("acquisition_id", "tissue", "lineage",
-                                                    "state", "cells"))
+        writer = csv.DictWriter(handle, fieldnames=_CLASS_COLUMNS)
         writer.writeheader()
         writer.writerows(class_rows)
     with task.output("rna_controls.csv").open("w", newline="") as handle:
@@ -374,6 +394,61 @@ def _figure(task: Task, rows: list[dict], class_rows: list[dict]) -> None:
     fig.suptitle("RNA lineage distribution; labels are candidates from section-specific evidence")
     fig.savefig(gates.figure_path(task, "rna_typing_classes.png"), dpi=160)
     plt.close(fig)
+    _support_figure(task, class_rows)
+
+
+def _support_figure(task: Task, class_rows: list[dict]) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    groups = ((tissues.PANCREAS,
+               ("cluster_agree_fraction", "naming_gene_fraction")),
+              (tissues.LYMPH_NODE,
+               ("cluster_agree_fraction", "cd3_fraction", "trac_fraction",
+                "cd4_fraction", "cd8_fraction", "foxp3_fraction")))
+    sizes = [len({row["lineage"] for row in class_rows if row["tissue"] == tissue
+                  and row["state"] in ("class", "broad", "unresolved")})
+             for tissue, _ in groups]
+    fig, axes = plt.subplots(1, 2, figsize=(15, max(7, 2.5 + 0.38 * max(sizes))),
+                             layout="constrained")
+    cmap = plt.colormaps["viridis"].with_extremes(bad="#e5e5e5")
+    for ax, (tissue, metrics) in zip(axes, groups, strict=True):
+        chosen = [row for row in class_rows if row["tissue"] == tissue
+                  and row["state"] in ("class", "broad", "unresolved")]
+        totals = {label: sum(row["cells"] for row in chosen if row["lineage"] == label)
+                  for label in {row["lineage"] for row in chosen}}
+        labels = sorted(totals, key=lambda label: -totals[label])
+        matrix = np.full((max(1, len(labels)), len(metrics)), np.nan)
+        for i, label in enumerate(labels):
+            matching = [row for row in chosen if row["lineage"] == label]
+            for j, metric in enumerate(metrics):
+                measured = [row for row in matching if row[metric] != ""]
+                if measured:
+                    denominator = sum(row["cells"] for row in measured)
+                    matrix[i, j] = sum(row[metric] * row["cells"] for row in measured) / denominator
+        image = ax.imshow(np.ma.masked_invalid(matrix), aspect="auto", vmin=0, vmax=1,
+                          cmap=cmap)
+        ax.set(xticks=range(len(metrics)),
+               xticklabels=[metric.replace("_fraction", "").replace("_", " ")
+                            for metric in metrics],
+               yticks=range(len(labels)),
+               yticklabels=[f"{label} (n={totals[label]:,})" for label in labels],
+               title=tissue.replace("_", " "))
+        ax.tick_params(axis="y", labelsize=8)
+        plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
+        for i in range(len(labels)):
+            for j in range(len(metrics)):
+                if np.isfinite(matrix[i, j]):
+                    value = matrix[i, j]
+                    ax.text(j, i, f"{value:.2f}", ha="center", va="center",
+                            color="white" if value < 0.55 else "black", fontsize=7)
+        fig.colorbar(image, ax=ax, shrink=0.6, label="Fraction of cells")
+    fig.suptitle("Internal RNA class support; gray = not measured; "
+                 "these fractions are not ground-truth accuracy")
+    fig.savefig(gates.figure_path(task, "rna_typing_support.png"), dpi=160)
+    plt.close(fig)
 
 
 def gate(task: Task, summary: dict) -> gates.Gate:
@@ -399,4 +474,5 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     return gates.Gate(STAGE, "New-cluster pancreas/pLN Xenium typing candidate by exact "
                       "accepted acquisition. No protein calls, same-cell links, verified accuracy "
                       "or active-release claim.", checks,
-                      ["rna_typing_scope.png", "rna_typing_classes.png"])
+                      ["rna_typing_scope.png", "rna_typing_classes.png",
+                       "rna_typing_support.png"])
