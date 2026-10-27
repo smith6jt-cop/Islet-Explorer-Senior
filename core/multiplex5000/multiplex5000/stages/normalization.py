@@ -36,6 +36,16 @@ def _require_pilot(project) -> None:
         raise NormalizationError("Stage 05 needs an explicit measurement-source adapter")
 
 
+def _route(project):
+    if getattr(project, "cohort", None) == "io60_v3" and not (
+            project.settings.get("same_slide_source_manifest")
+            or project.settings.get("pln_export_images")):
+        from . import io60_normalization
+
+        return io60_normalization
+    return None
+
+
 def _checkout(project) -> Path:
     named = project.source("uniform_checkout")
     return Path(named) if named else roots.REPO / "external/UniFORM"
@@ -63,6 +73,9 @@ def _entries(project) -> list[str]:
 
 
 def settings(project) -> dict:
+    route = _route(project)
+    if route is not None:
+        return route.settings(project)
     _require_pilot(project)
     return {"uniform_commit": normalize.UNIFORM_COMMIT,
             "uniform_checkout": str(_checkout(project)),
@@ -70,6 +83,9 @@ def settings(project) -> dict:
 
 
 def inputs(project) -> list[Input]:
+    route = _route(project)
+    if route is not None:
+        return route.inputs(project)
     _require_pilot(project)
     stage = project.release_dir / "03_protein_measurement"
     found = [Input("protein_receipt", stage / "receipt.json"),
@@ -106,6 +122,9 @@ def _values(path: Path, marker: str) -> np.ndarray:
 
 
 def run(task: Task) -> dict:
+    route = _route(task.project)
+    if route is not None:
+        return route.run(task)
     import contextlib
     import io
 
@@ -198,6 +217,9 @@ def _figure(task: Task, rows: list[dict], sections: int) -> None:
 
 
 def gate(task: Task, summary: dict) -> gates.Gate:
+    route = _route(task.project)
+    if route is not None:
+        return route.gate(task, summary)
     checks = [
         gates.Check("all measured markers assessed", summary["markers_measured"],
                     str(summary["markers_assessed"]),

@@ -109,8 +109,8 @@ check fails. The next stage needs that acceptance; receipts record and never loc
 file is `core/multiplex5000/projects/io60.yaml`; no gate is automatic unless the maintainer says
 so. Stage 03's is (maintainer, 2026-10-26: "this is not a good place to stop and gate at all" --
 a marker's measurement is accepted by its effect on object and cell-type positivity), stage 05's
-will be when it is built, and typing (stage 06) is the first stop. Stages 00 (the source
-inventory) and 03 (protein measurement, D4) are built; the old `phenocycler.pipeline` measurement
+is automatic too, and typing (stage 06) is the first stop. Stages 00 (the source
+inventory), 03 (protein measurement, D4), and 05 (normalization, D5) are built; the old `phenocycler.pipeline` measurement
 route stays only until stage 03's replay matches the October output (it matched for all 25
 donors on 2026-10-26; retiring the route is the maintainer's call). Stage 00's coverage is laid out by physical slide: the PhenoCycler pancreas
 slide (its pancreas, the pLN/lymphoid the donor notes put on it -- same-block or different-block,
@@ -179,6 +179,19 @@ the rest keep the registry's), and the analysis exclusions recorded on 2026-10-0
 the cells the expression admits -- after REDSEA, so never to its spillover context. A cell with no
 nucleus is never admitted. Normalization (UniFORM) is stage 05's. Its gate shows each marker per
 donor before and after REDSEA in its measured compartment, and each donor's nucleus admission.
+
+**Stage 05 -- IO60 normalization (D5, 2026-10-26)** recomputes UniFORM histograms from the
+accepted Stage 03 expression partitions on the pancreas block: tissue plus same-block pLN,
+never different-block pLN. `multiplex5000.normalization_block` owns that assignment; the
+historical `scripts/celltype/alignment_block.py` delegates to it. The site supplies
+`pln_blocks`, `pancreas_annotations`, `uniform_checkout`, `normalization_references` (the
+frozen October shifts record, used only for reference donor identities), and
+`normalization_usability` (the October acquisition-ratio record). These are declared inputs;
+Stage 05 does not read the old expression paths embedded in the reference record. It writes
+per-donor aligned Parquet, scales, same-block sidecars, and marker figures. A refused or absent
+marker is unavailable in aligned cells, not a raw value in an aligned column. Stage 05's gate
+is automatic in the IO60 project; Stage 06 remains the first processing-review stop. The
+replay checks establish computation parity, not biological correctness.
 
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
