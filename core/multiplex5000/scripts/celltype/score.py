@@ -35,6 +35,7 @@ import pandas as pd
 
 from multiplex5000.cohort_scale import SCALE_Q as SCALE_Q
 from multiplex5000.cohort_scale import apply_scale as apply_scale
+from multiplex5000.cohort_scale import background_mode_floor as background_mode_floor
 from multiplex5000.cohort_scale import marker_scale as marker_scale
 
 

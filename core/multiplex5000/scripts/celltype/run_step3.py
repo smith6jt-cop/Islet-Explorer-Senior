@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import pathlib
 import sys
 import time
@@ -17,10 +16,10 @@ import pyarrow.parquet as pq
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import panel                                     # noqa: E402
-import rules as R                                # noqa: E402
-import score as SC                               # noqa: E402
-import alignment_block as AB                     # noqa: E402
+import alignment_block as AB  # noqa: E402
+import panel  # noqa: E402
+import rules as R  # noqa: E402
+import score as SC  # noqa: E402
 
 ALIGNED = panel.OUT / "uniform"
 OUT = panel.OUT / "calls"
@@ -98,12 +97,9 @@ def build_scale(donors: list, markers: list, n_per_donor: int = 200_000,
     for m, chunks in pool.items():
         if not chunks:
             continue
-        v = np.concatenate(chunks)
-        v = v[np.isfinite(v) & (v > 0)]
-        if len(v) < 1000:
-            continue
-        h, e = np.histogram(np.log1p(v), bins=512)
-        floors[m] = float(np.expm1(e[1:][int(np.argmax(h[1:])) + 1]))   # the aligned mode
+        floor = SC.background_mode_floor(np.concatenate(chunks))
+        if floor is not None:
+            floors[m] = floor
     return SC.marker_scale({m: np.concatenate(c) for m, c in pool.items() if c}, floors)
 
 
