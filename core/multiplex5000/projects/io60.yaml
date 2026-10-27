@@ -5,16 +5,22 @@ release: io60-candidate-1
 # The 25 donors of the 10-19 typing, on the v3 re-segmentation (maintainer, 2026-10-20).
 cohort: io60_v3
 # The stages this release runs, in the plan's order. Only built stages can be named.
-stages: [00_inventory, 03_protein_measurement]
+stages: [00_inventory, 03_protein_measurement, 05_normalization]
 # Stages whose gate accepts itself when every blocking check passes. Stage 03 (maintainer,
 # 2026-10-26): "this is not a good place to stop and gate at all" -- a marker's measurement is
 # accepted by its effect on object and cell-type positivity, which typing (stage 06, the first
-# stop) shows. Stage 05 joins it when it is built. Every other stage waits for acceptance
+# stop) shows. Stage 05 is automatic too: its shift review is carried to typing.
+# Every other stage waits for acceptance
 # (2026-10-20, Gate D).
-automatic_gates: [03_protein_measurement]
+automatic_gates: [03_protein_measurement, 05_normalization]
 settings:
   # Where xenium_paths.csv's relative bundle paths resolve (config.ini [integration] xenium_root).
   xenium_root: /data/xenium
   # Stage 03's REDSEA donors at once: the eight config.ini [compute] measured safe on this
   # 64-core / 503 GB host (~232 GB steady). It changes the run's speed, not a value.
   measurement_jobs: 8
+# The site file supplies pln_blocks, pancreas_annotations, uniform_checkout,
+# normalization_references (the frozen October shifts record), and
+# normalization_usability (its per-marker acquisition ratio input). They are
+# migration inputs; the UniFORM histograms are recomputed from this release's
+# accepted Stage 03 expression partitions.
