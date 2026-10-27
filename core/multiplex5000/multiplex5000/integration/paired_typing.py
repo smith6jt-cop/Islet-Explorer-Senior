@@ -67,6 +67,47 @@ def _calls(cells: pd.DataFrame, calls: pd.DataFrame, *, name: str) -> pd.DataFra
     return joined
 
 
+def validate_pair_transform(pair: SameSlidePair, transform: Transform) -> None:
+    """Check declared same-section identity and the transform's finite geometry."""
+    if pair.relationship != "same_section_after_phenocycler":
+        raise PairedTypingError("cell links require a recorded same-section relationship")
+    if (pair.protein_frame, pair.xenium_frame) != ("crop_local_um", "region_local_um"):
+        raise PairedTypingError("unsupported or missing coordinate frames")
+    expected = {"protein_entry": pair.protein_entry,
+                "xenium_acquisition_id": pair.xenium_acquisition_id,
+                "moving_frame": pair.xenium_frame, "fixed_frame": pair.protein_frame,
+                "reviewed": True}
+    if any(transform.meta.get(key) != value for key, value in expected.items()):
+        raise PairedTypingError("registration does not name this exact reviewed source pair")
+    if (not np.isfinite(transform.affine).all()
+            or (transform.displacement is not None
+                and not np.isfinite(transform.displacement).all())):
+        raise PairedTypingError("registration has non-finite geometry")
+
+
+def validate_pair_cells(pair: SameSlidePair, protein_cells: pd.DataFrame,
+                        rna_cells: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Require both assay inventories to name this tissue and exact physical section."""
+    protein = _cells(protein_cells, name="protein", eligible_column="protein_eligible")
+    rna = _cells(rna_cells, name="RNA", eligible_column="typing_eligible")
+    slide, _ = parse_bundle_path(pair.xenium_output.name)
+    if (set(protein["donor_id"]) != {pair.donor_id}
+            or set(rna["donor_id"]) != {pair.donor_id}
+            or "tissue" not in protein or set(protein["tissue"]) != {pair.tissue}
+            or "tissue" not in rna or set(rna["tissue"]) != {pair.tissue}
+            or "acquisition_id" not in protein
+            or set(protein["acquisition_id"]) != {f"phenocycler:{slide}"}
+            or "acquisition_id" not in rna
+            or set(rna["acquisition_id"]) != {pair.xenium_acquisition_id}):
+        raise PairedTypingError("cell tables do not name the recorded donor, tissue or acquisition")
+    if (not protein["cell_uid"].str.startswith(
+            f"phenocycler:{slide}:{pair.protein_entry}:").all()
+            or not rna["cell_uid"].str.startswith(
+                f"{pair.xenium_acquisition_id}:cells:").all()):
+        raise PairedTypingError("cell keys do not name the recorded physical section")
+    return protein, rna
+
+
 def link_candidate_cells(
     pair: SameSlidePair,
     protein_cells: pd.DataFrame,
@@ -86,35 +127,10 @@ def link_candidate_cells(
     the counts report excluded and unmatched cells separately. No candidate
     link is called ground truth or used as a final cell type here.
     """
-    if pair.relationship != "same_section_after_phenocycler":
-        raise PairedTypingError("cell links require a recorded same-section relationship")
-    if (pair.protein_frame, pair.xenium_frame) != ("crop_local_um", "region_local_um"):
-        raise PairedTypingError("unsupported or missing coordinate frames")
-    expected = {"protein_entry": pair.protein_entry,
-                "xenium_acquisition_id": pair.xenium_acquisition_id,
-                "moving_frame": pair.xenium_frame, "fixed_frame": pair.protein_frame,
-                "reviewed": True}
-    if any(transform.meta.get(key) != value for key, value in expected.items()):
-        raise PairedTypingError("registration does not name this exact reviewed source pair")
-    if not np.isfinite(transform.affine).all() or not 0 < max_dist_um <= 20:
-        raise PairedTypingError("invalid transform or cell-distance limit")
-    protein = _cells(protein_cells, name="protein", eligible_column="protein_eligible")
-    rna = _cells(rna_cells, name="RNA", eligible_column="typing_eligible")
-    slide, _ = parse_bundle_path(pair.xenium_output.name)
-    if (set(protein["donor_id"]) != {pair.donor_id}
-            or set(rna["donor_id"]) != {pair.donor_id}
-            or "tissue" not in protein or set(protein["tissue"]) != {pair.tissue}
-            or "tissue" not in rna or set(rna["tissue"]) != {pair.tissue}
-            or "acquisition_id" not in protein
-            or set(protein["acquisition_id"]) != {f"phenocycler:{slide}"}
-            or "acquisition_id" not in rna
-            or set(rna["acquisition_id"]) != {pair.xenium_acquisition_id}):
-        raise PairedTypingError("cell tables do not name the recorded donor, tissue or acquisition")
-    if (not protein["cell_uid"].str.startswith(
-            f"phenocycler:{slide}:{pair.protein_entry}:").all()
-            or not rna["cell_uid"].str.startswith(
-                f"{pair.xenium_acquisition_id}:cells:").all()):
-        raise PairedTypingError("cell keys do not name the recorded physical section")
+    validate_pair_transform(pair, transform)
+    if not 0 < max_dist_um <= 20:
+        raise PairedTypingError("invalid cell-distance limit")
+    protein, rna = validate_pair_cells(pair, protein_cells, rna_cells)
     if "candidate_state" not in protein_calls or "candidate_phenotype" not in protein_calls:
         raise PairedTypingError("protein hierarchy candidates are missing")
     if not any(name.startswith("gene:") for name in rna_calls):
