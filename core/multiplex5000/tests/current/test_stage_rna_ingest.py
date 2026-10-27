@@ -16,6 +16,11 @@ from multiplex5000 import gates, tasks
 from multiplex5000.artifacts import sha256_file
 from multiplex5000.stages import rna_ingest
 from multiplex5000.xenium_sources import CELL_FILES, INSTRUMENT_FILES
+from multiplex5000.xenium_typing_input import (
+    XeniumTypingInputError,
+    load_accepted_region,
+    write_worker_h5ad,
+)
 
 
 def _bundle(root: Path, serial: str, roi: str, nuclei: list[int | None]) -> Path:
@@ -107,6 +112,43 @@ def test_stage_04_same_native_ids_and_damage_do_not_lose_other_region(tmp_path, 
     assert pln["nucleus_count"] == [1, None]
     assert panc["typing_eligible"] == [True, False]
     assert pln["typing_eligible"] == [True, False]
+
+
+def test_typing_input_uses_exact_stage04_acquisition_and_raw_counts(tmp_path, monkeypatch):
+    import anndata as ad
+
+    monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
+    a = _bundle(tmp_path, "0040001", "Panc", [1, 0])
+    b = _bundle(tmp_path, "0040001", "PanT", [1, None])
+    project = _project(tmp_path, [a, b])
+    stage = tasks.run_stage(rna_ingest, project).path
+    with (stage / "regions.csv").open(newline="") as handle:
+        rows = {row["roi"]: row for row in csv.DictReader(handle)}
+    row = rows["PanT"]
+    region = load_accepted_region(
+        row, stage / "receipt.json", stage / "regions.csv",
+        stage / f"cells/{row['sample_key']}.parquet",
+        b / "cell_feature_matrix.h5", b / "cells.parquet")
+    assert region.cell_uid[0].startswith("xenium:0040001:PanT:")
+    assert region.nucleus_missing.tolist() == [False, True]
+    assert region.eligible.tolist() == [True, False]
+    h5ad = tmp_path / "worker-input.h5ad"
+    write_worker_h5ad(region, h5ad, sex="F", disease_status="T1D", batch="0040001")
+    worker = ad.read_h5ad(h5ad)
+    assert worker.obs_names.tolist() == region.cell_id.tolist()
+    assert worker.var_names.tolist() == list(region.genes)
+    assert worker.X.toarray().tolist() == region.counts.toarray().tolist()
+    assert worker.obs["disease.status"].tolist() == ["T1D", "T1D"]
+    with pytest.raises(XeniumTypingInputError, match="raw inputs point elsewhere"):
+        load_accepted_region(row, stage / "receipt.json", stage / "regions.csv",
+                             stage / f"cells/{row['sample_key']}.parquet",
+                             a / "cell_feature_matrix.h5", a / "cells.parquet")
+    with (b / "cells.parquet").open("ab") as handle:
+        handle.write(b"changed after Stage 04")
+    with pytest.raises(XeniumTypingInputError, match="changed after ingest"):
+        load_accepted_region(row, stage / "receipt.json", stage / "regions.csv",
+                             stage / f"cells/{row['sample_key']}.parquet",
+                             b / "cell_feature_matrix.h5", b / "cells.parquet")
 
 
 def test_stage_04_refuses_missing_indexed_source(tmp_path):

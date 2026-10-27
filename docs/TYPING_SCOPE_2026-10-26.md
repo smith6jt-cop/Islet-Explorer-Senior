@@ -214,3 +214,12 @@ protein and RNA cells stay in separate tables. The output is review evidence:
 there is no `cell_class`, `refined_class`, verified accuracy estimate or
 paired-cell result. This adapter does not complete the pancreas/pLN typing
 routes or the other seven spleen Xenium regions.
+
+`multiplex5000.xenium_typing_input` now checks a selected Stage 04 region
+against its accepted receipt, exact raw bundle digests, output digests and
+acquisition-qualified cell IDs before Stage 06 reads it. The spleen adapter
+uses that shared check. It can write a disposable raw-count h5ad with recorded
+donor and acquisition metadata for the existing pancreas and pLN RNA workers;
+that conversion does not select a worker, run its method or publish a class.
+The IO60 Stage 06 assay/tissue route still has to call those workers for each
+selected acquisition and verify their per-cell outputs.

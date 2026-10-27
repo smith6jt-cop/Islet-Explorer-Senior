@@ -80,7 +80,7 @@ def test_stage06_writes_candidate_evidence_without_joining_cells(tmp_path, monke
         writer.writerow({"protein_entry": entry, "marker": "CD8", "scale": 1.0})
     raw_counts = sparse.csr_matrix(np.column_stack([
         np.ones(cells, dtype=np.int64), np.full(cells, 9, dtype=np.int64)]))
-    monkeypatch.setattr(pilot, "load_region", lambda source: SimpleNamespace(
+    monkeypatch.setattr(pilot, "load_accepted_region", lambda *args: SimpleNamespace(
         counts=raw_counts, genes=("CD3E", "OTHER"), cell_uid=np.array(rna_uid),
         eligible=eligible, n_cells=cells))
     project = SimpleNamespace(release_dir=release, release="pilot", path=tmp_path / "p.yaml",
