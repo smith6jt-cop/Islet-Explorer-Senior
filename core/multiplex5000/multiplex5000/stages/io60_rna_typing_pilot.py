@@ -17,6 +17,7 @@ import pandas as pd
 from .. import gates, roots
 from ..artifacts import sha256_file
 from ..cohort import excluded_on
+from ..integration import tissues
 from ..tasks import Input, Task
 from ..tissues import lymph_node_xenium_worker as pln_worker
 from ..tissues import pancreas_xenium_worker as panc_worker
@@ -24,7 +25,6 @@ from ..xenium_typing_input import load_accepted_region, write_worker_h5ad
 
 STAGE = "06_typing"
 PANELS = roots.REPO / "core/panels/data"
-TISSUES = {"pancreas", "pancreatic_lymph_node"}
 _COLUMNS = ("acquisition_id", "sample_key", "donor_id", "tissue", "roi", "cells",
             "typing_eligible", "called_cells", "unavailable_cells", "status", "reason")
 
@@ -44,7 +44,8 @@ def _regions(project) -> list[dict[str, str]]:
         rows = list(csv.DictReader(handle))
     ids = [row["acquisition_id"] for row in rows]
     if (set(ids) != set(chosen) or len(ids) != len(chosen)
-            or any(row["tissue"] not in TISSUES for row in rows)):
+            or any(row["tissue"] not in (tissues.PANCREAS, tissues.LYMPH_NODE)
+                   for row in rows)):
         raise IO60RNATypingError("Stage 04 rows differ from the selected pancreas/pLN pilot")
     return rows
 
@@ -185,7 +186,7 @@ def run(task: Task) -> dict:
         write_worker_h5ad(region, h5ad, sex=sex, disease_status=disease,
                           batch=source["batch_number"])
         work = task.staging / "rna" / sample
-        if row["tissue"] == "pancreas":
+        if row["tissue"] == tissues.PANCREAS:
             if panc_panels is None:
                 panc_panels = panc_worker.load_panels()
             report = panc_worker.process_section(
