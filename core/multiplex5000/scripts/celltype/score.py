@@ -30,15 +30,13 @@ so it removes most of that axis rather than all of it.
 """
 from __future__ import annotations
 
-import pathlib
-import sys
-
 import numpy as np
 import pandas as pd
 
-HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-import panel                                     # noqa: E402
+from multiplex5000.cohort_scale import SCALE_Q as SCALE_Q
+from multiplex5000.cohort_scale import apply_scale as apply_scale
+from multiplex5000.cohort_scale import marker_scale as marker_scale
+
 
 def nuclear_ratio(df, markers: list, denominator: str = "DAPI",
                   nuclear: tuple = ()) -> tuple:
@@ -108,33 +106,6 @@ def nuclear_only_references(R: pd.DataFrame, nucleus: tuple) -> np.ndarray:
         bool(constrained[c].any()) and set(R.index[constrained[c]]).issubset(nuc)
         for c in R.columns
     ], dtype=bool)
-
-
-#: Upper point of the per-marker scale.  A high quantile rather than the maximum: pSAM
-#: divides by the image max, which one hot pixel can set.
-SCALE_Q = 99.9
-
-
-def marker_scale(values_by_marker: dict, floor_by_marker: dict | None = None,
-                 q: float = SCALE_Q) -> pd.DataFrame:
-    """Cohort-wide floor and top per marker, so every marker enters the angle comparably."""
-    rows = []
-    for m, v in values_by_marker.items():
-        v = np.asarray(v, dtype=float)
-        v = v[np.isfinite(v)]
-        floor = float(floor_by_marker.get(m, 0.0)) if floor_by_marker else 0.0
-        top = float(np.percentile(v, q)) if len(v) else np.nan
-        rows.append({"marker": m, "floor": floor, "top": top,
-                     "span": top - floor if np.isfinite(top) else np.nan})
-    return pd.DataFrame(rows).set_index("marker")
-
-
-def apply_scale(X: np.ndarray, markers: list, scale: pd.DataFrame) -> np.ndarray:
-    """(cells x markers) -> [0, 1], clipped at the measured floor and the robust top."""
-    lo = scale.loc[markers, "floor"].to_numpy(float)
-    span = scale.loc[markers, "span"].to_numpy(float)
-    span = np.where(np.isfinite(span) & (span > 0), span, 1.0)
-    return np.clip((np.asarray(X, dtype=np.float32) - lo) / span, 0.0, 1.0)
 
 
 def reference_ceiling(R: np.ndarray) -> np.ndarray:
