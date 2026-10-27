@@ -1,0 +1,14 @@
+schema: multiplex5000-project/1
+id: io60_xenium_pilot
+# Uses the same in-progress candidate as io60.yaml. Stage 00 and Stage 03 are
+# already published and accepted there; this project only selects a bounded
+# Stage 04/06 RNA review scope, not another active data release.
+release: io60-candidate-1
+cohort: io60_v3
+stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 06_typing]
+automatic_gates: [03_protein_measurement]
+settings:
+  typing_route: io60_xenium_pilot
+  rna_acquisitions:
+    - xenium:0059865:Panc
+    - xenium:0059865:PanT

@@ -12,6 +12,13 @@ class TypingRouteError(ValueError):
 
 
 def _route(project):
+    explicit = project.settings.get("typing_route")
+    if explicit == "io60_xenium_pilot":
+        from . import io60_rna_typing_pilot
+
+        return io60_rna_typing_pilot
+    if explicit is not None:
+        raise TypingRouteError(f"unknown Stage 06 typing_route: {explicit}")
     same_slide = bool(project.settings.get("same_slide_source_manifest"))
     dedicated_pln = bool(project.settings.get("pln_export_images"))
     if same_slide == dedicated_pln:
