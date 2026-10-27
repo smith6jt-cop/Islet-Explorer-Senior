@@ -231,3 +231,8 @@ missing nucleus measurement stops that acquisition's worker call rather than
 becoming zero or triggering a donor-level fallback. The Stage 06 route still
 has to invoke these functions and report such an acquisition as unavailable
 without stopping other acquisitions.
+The r4 pancreas uncertainty decisions remain with the frozen r4 release.
+They name particular old partitions and cannot be copied onto freshly
+clustered acquisitions by donor or section name. A new Stage 06 run uses the
+same repaired naming policy but reports that no frozen-partition override was
+applied unless the exact partition identity and membership are verified.
