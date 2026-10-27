@@ -141,6 +141,9 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["acquisitions"] == 3
     assert summary["called_cells"] == 2
+    assert summary["broad_cells"] == 0
+    assert summary["unresolved_cells"] == 0
+    assert summary["uncalled_cells"] == 0
     assert summary["unavailable_cells"] == (2 if missing_before_ingest else 4)
     assert summary["unavailable"] == ["xenium:0040002:PanT"]
     assert summary["unknown_cell_count"] == (["xenium:0040002:PanT"]
@@ -150,3 +153,13 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
         rows = list(csv.DictReader(handle))
     assert {row["tissue"] for row in rows} == {"pancreas", "pancreatic_lymph_node"}
     assert (result.path / "gate/rna_typing_scope.png").is_file()
+    assert (result.path / "gate/rna_typing_classes.png").is_file()
+
+
+def test_unresolved_t_subsets_and_broad_nonimmune_are_not_counted_as_specific_classes():
+    assert pilot._call_state("T_NK_unresolved") == "unresolved"
+    assert pilot._call_state("T_subset_unresolved") == "unresolved"
+    assert pilot._call_state("Non_immune") == "broad"
+    assert pilot._call_state("Uncalled_ambiguous") == "uncalled"
+    assert pilot._call_state("Unavailable_no_nucleus") == "unavailable"
+    assert pilot._call_state("T_CD8") == "class"

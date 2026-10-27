@@ -27,7 +27,12 @@ from ..xenium_typing_input import load_accepted_region, write_worker_h5ad
 STAGE = "06_typing"
 PANELS = roots.REPO / "core/panels/data"
 _COLUMNS = ("acquisition_id", "sample_key", "donor_id", "tissue", "roi", "cells",
-            "typing_eligible", "called_cells", "unavailable_cells", "status", "reason")
+            "typing_eligible", "called_cells", "broad_cells", "unresolved_cells",
+            "uncalled_cells", "unavailable_cells", "status", "reason")
+_STATES = ("class", "broad", "unresolved", "uncalled", "unavailable")
+_CONTROL_COLUMNS = ("acquisition_id", "tissue", "sex", "cells", "nucleus_excluded",
+                    "y_floor_detect_frac_any", "cd3_detect_frac_in_T_NK",
+                    "cd3_detect_frac_in_B_Plasma", "cd3_detect_frac_in_Myeloid")
 
 
 class IO60RNATypingError(ValueError):
@@ -122,7 +127,19 @@ def _donors(task: Task) -> dict[str, tuple[str, str]]:
             for _, row in frame.iterrows()}
 
 
-def _worker_result(path: Path, row: dict[str, str], region) -> tuple[int, int]:
+def _call_state(lineage: str) -> str:
+    if lineage.startswith("Unavailable_"):
+        return "unavailable"
+    if lineage.startswith("Uncalled_") or lineage.endswith("_uncalled"):
+        return "uncalled"
+    if lineage.startswith("Unresolved_") or lineage.endswith("_unresolved"):
+        return "unresolved"
+    if lineage == "Non_immune":
+        return "broad"
+    return "class"
+
+
+def _worker_result(path: Path, row: dict[str, str], region) -> tuple[dict[str, int], list[dict]]:
     calls = pd.read_parquet(path, columns=["cell_uid", "cell_id", "acquisition_id", "lineage"])
     if (calls.cell_uid.tolist() != region.cell_uid.tolist()
             or calls.cell_id.tolist() != region.cell_id.tolist()
@@ -131,8 +148,16 @@ def _worker_result(path: Path, row: dict[str, str], region) -> tuple[int, int]:
     no_nucleus = ~region.eligible
     if not calls.loc[no_nucleus, "lineage"].eq("Unavailable_no_nucleus").all():
         raise IO60RNATypingError(f"{row['acquisition_id']}: a no-nucleus cell got a call")
-    unavailable = int(calls.lineage.str.startswith(("Unavailable_", "Uncalled_", "Unresolved_")).sum())
-    return len(calls) - unavailable, unavailable
+    states = dict.fromkeys(_STATES, 0)
+    classes = []
+    for lineage, count in calls.lineage.value_counts().items():
+        state = _call_state(lineage)
+        states[state] += int(count)
+        classes.append({"acquisition_id": row["acquisition_id"], "tissue": row["tissue"],
+                        "lineage": lineage, "state": state, "cells": int(count)})
+    if sum(states.values()) != region.n_cells:
+        raise IO60RNATypingError(f"{row['acquisition_id']}: lineage states lost cells")
+    return states, classes
 
 
 def run(task: Task) -> dict:
@@ -144,6 +169,8 @@ def run(task: Task) -> dict:
         raise IO60RNATypingError("Stage 04 selection changed after input declaration")
     panc_panels = pln_panels = None
     results = []
+    class_rows = []
+    controls = []
     for row in rows:
         acquisition = row["acquisition_id"]
         source = inventory.get(acquisition)
@@ -161,7 +188,8 @@ def run(task: Task) -> dict:
             record["typing_eligible"] = int(row["typing_eligible"])
         if row["condition"]:
             record.update(status="unavailable", reason=f"recorded tissue condition: {row['condition']}",
-                          called_cells=0, unavailable_cells=record["cells"])
+                          called_cells=0, broad_cells=0, unresolved_cells=0,
+                          uncalled_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
         if not row["cells"]:
@@ -175,13 +203,15 @@ def run(task: Task) -> dict:
         if region.nucleus_missing.any():
             record.update(status="unavailable",
                           reason=f"{int(region.nucleus_missing.sum())} missing nucleus measurements",
-                          called_cells=0, unavailable_cells=record["cells"])
+                          called_cells=0, broad_cells=0, unresolved_cells=0,
+                          uncalled_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
         sex, disease = donors.get(donor, ("", ""))
         if not sex or sex == "nan" or not disease or disease == "nan":
             record.update(status="unavailable", reason="recorded sex or disease status unavailable",
-                          called_cells=0, unavailable_cells=record["cells"])
+                          called_cells=0, broad_cells=0, unresolved_cells=0,
+                          uncalled_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
         serial, _ = parse_bundle_path(source["output"])
@@ -190,8 +220,10 @@ def run(task: Task) -> dict:
                 or (recorded and recorded != serial)):
             raise IO60RNATypingError(f"{acquisition}: Stage 00 serial differs from output")
         h5ad = task.output(f"_worker/{sample}.h5ad")
-        write_worker_h5ad(region, h5ad, sex=sex, disease_status=disease,
-                          batch=source["batch_number"])
+        batch = source["batch_number"] or source["run"]
+        if not batch:
+            raise IO60RNATypingError(f"{acquisition}: no accepted batch or run identity")
+        write_worker_h5ad(region, h5ad, sex=sex, disease_status=disease, batch=batch)
         work = task.staging / "rna" / sample
         if row["tissue"] == tissues.PANCREAS:
             if panc_panels is None:
@@ -207,50 +239,111 @@ def run(task: Task) -> dict:
                 donor, sample, h5ad, task.input(f"raw_cells:{sample}"), pln_panels,
                 work, acquisition_id=acquisition, roi=row["roi"])
         h5ad.unlink()
-        called, unavailable = _worker_result(work / f"{sample}.calls.parquet", row, region)
+        states, classes = _worker_result(work / f"{sample}.calls.parquet", row, region)
+        class_rows.extend(classes)
         record.update(status="candidate", reason="new section-specific clustering and naming",
-                      called_cells=called, unavailable_cells=unavailable)
+                      called_cells=states["class"], broad_cells=states["broad"],
+                      unresolved_cells=states["unresolved"], uncalled_cells=states["uncalled"],
+                      unavailable_cells=states["unavailable"])
         results.append(record)
         if report.get("acquisition_id") != acquisition:
             raise IO60RNATypingError(f"{acquisition}: worker report lacks source identity")
+        cd3 = report.get("cd3_gate_control") or {}
+        controls.append({"acquisition_id": acquisition, "tissue": row["tissue"],
+                         "sex": sex, "cells": region.n_cells,
+                         "nucleus_excluded": int((~region.eligible).sum()),
+                         "y_floor_detect_frac_any": report.get("y_floor_detect_frac_any", ""),
+                         **{key: cd3.get(key, "") for key in _CONTROL_COLUMNS
+                            if key.startswith("cd3_")}})
     with task.output("rna_acquisitions.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=_COLUMNS)
         writer.writeheader()
         writer.writerows(results)
-    _figure(task, results)
+    with task.output("rna_classes.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=("acquisition_id", "tissue", "lineage",
+                                                    "state", "cells"))
+        writer.writeheader()
+        writer.writerows(class_rows)
+    with task.output("rna_controls.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=_CONTROL_COLUMNS)
+        writer.writeheader()
+        writer.writerows(controls)
+    _figure(task, results, class_rows)
     return {"acquisitions": len(results), "candidate": sum(r["status"] == "candidate"
                                                        for r in results),
             "unavailable": [r["acquisition_id"] for r in results if r["status"] == "unavailable"],
             "cells": sum(r["cells"] for r in results if isinstance(r["cells"], int)),
             "called_cells": sum(r["called_cells"] for r in results),
+            "broad_cells": sum(r["broad_cells"] for r in results),
+            "unresolved_cells": sum(r["unresolved_cells"] for r in results),
+            "uncalled_cells": sum(r["uncalled_cells"] for r in results),
             "unavailable_cells": sum(r["unavailable_cells"] for r in results
                                      if isinstance(r["unavailable_cells"], int)),
+            "classes": len({(r["tissue"], r["lineage"]) for r in class_rows
+                            if r["state"] == "class"}),
             "unknown_cell_count": [r["acquisition_id"] for r in results if r["cells"] == ""],
             "protein_cells_typed": 0, "paired_cell_links": 0,
             "scope": "selected_xenium_acquisitions_only"}
 
 
-def _figure(task: Task, rows: list[dict]) -> None:
+def _figure(task: Task, rows: list[dict], class_rows: list[dict]) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     measured = [row for row in rows if isinstance(row["cells"], int)]
-    names = [f"{row['sample_key']}\n{row['tissue']}" for row in measured]
-    called = [row["called_cells"] for row in measured]
-    unavailable = [row["unavailable_cells"] for row in measured]
-    fig, ax = plt.subplots(figsize=(max(8, len(rows) * 2.5), 5), layout="constrained")
-    ax.bar(names, called, label="candidate called")
-    ax.bar(names, unavailable, bottom=called, label="unavailable or unresolved")
-    ax.set(ylabel="Xenium segmented cells (n)",
-           title="Stage 06 tissue-specific RNA pilot; no protein typing or paired-cell claim")
+    names = [f"{row['sample_key']} ({'pLN' if row['tissue'] == tissues.LYMPH_NODE else 'panc'})"
+             for row in measured]
+    fig, ax = plt.subplots(figsize=(13, max(5, 1.8 + 0.34 * len(measured))),
+                           layout="constrained")
+    y = list(range(len(measured)))
+    left = [0] * len(measured)
+    colors = {"called_cells": "#21867a", "broad_cells": "#78a6a0",
+              "unresolved_cells": "#e0a047", "uncalled_cells": "#bd784b",
+              "unavailable_cells": "#9b72ad"}
+    for key, label in (("called_cells", "specific lineage"), ("broad_cells", "broad state"),
+                       ("unresolved_cells", "unresolved subset"),
+                       ("uncalled_cells", "uncalled"), ("unavailable_cells", "unavailable")):
+        values = [row[key] for row in measured]
+        ax.barh(y, values, left=left, color=colors[key], label=label)
+        left = [a + b for a, b in zip(left, values, strict=True)]
+    ax.set(yticks=y, yticklabels=names, xlabel="Segmented Xenium cells (n)",
+           title="RNA typing outcome by exact acquisition")
+    ax.invert_yaxis()
     unknown = [row["acquisition_id"] for row in rows if row["cells"] == ""]
     if unknown:
-        ax.text(0.01, 0.98, f"{len(unknown)} damaged source(s): cell counts unknown",
-                transform=ax.transAxes, va="top")
-    ax.legend()
+        ax.text(0.01, 0.01, f"{len(unknown)} damaged source(s): cell counts unknown",
+                transform=ax.transAxes, va="bottom")
+    ax.legend(loc="lower right", fontsize=8)
     fig.savefig(gates.figure_path(task, "rna_typing_scope.png"), dpi=160)
+    plt.close(fig)
+
+    present = sorted({row["tissue"] for row in class_rows})
+    n_labels = len({(row["tissue"], row["lineage"]) for row in class_rows})
+    fig, axes = plt.subplots(1, max(1, len(present)),
+                             figsize=(14, max(6, 2 + 0.23 * n_labels)),
+                             layout="constrained")
+    axes = [axes] if len(present) <= 1 else axes
+    for ax, tissue in zip(axes, present, strict=False):
+        counts: dict[str, int] = {}
+        states: dict[str, str] = {}
+        for row in class_rows:
+            if row["tissue"] == tissue:
+                counts[row["lineage"]] = counts.get(row["lineage"], 0) + row["cells"]
+                states[row["lineage"]] = row["state"]
+        ordered = sorted(counts, key=lambda label: counts[label])
+        ax.barh(ordered, [counts[label] for label in ordered],
+                color=[{"class": "#21867a", "broad": "#78a6a0", "unresolved": "#e0a047",
+                        "uncalled": "#bd784b", "unavailable": "#9b72ad"}[states[label]]
+                       for label in ordered])
+        ax.set(title=tissue.replace("_", " "), xlabel="Cells with lineage label (n)")
+        ax.tick_params(axis="y", labelsize=8)
+        ax.grid(axis="x", color="#dddddd", linewidth=0.5)
+    if not present:
+        axes[0].text(0.5, 0.5, "No measured cells to type", ha="center", va="center")
+    fig.suptitle("RNA lineage distribution; labels are candidates from section-specific evidence")
+    fig.savefig(gates.figure_path(task, "rna_typing_classes.png"), dpi=160)
     plt.close(fig)
 
 
@@ -259,17 +352,22 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                           str(len(task.settings["rna_acquisitions"])),
                           summary["acquisitions"] == len(task.settings["rna_acquisitions"])),
               gates.Check("cell accounting", summary["cells"],
-                          "called plus unavailable or unresolved",
+                          "specific plus broad plus unresolved plus uncalled plus unavailable",
                           summary["cells"] == summary["called_cells"]
-                          + summary["unavailable_cells"]),
+                          + summary["broad_cells"] + summary["unresolved_cells"]
+                          + summary["uncalled_cells"] + summary["unavailable_cells"]),
               gates.Check("unavailable acquisitions", summary["unavailable"],
                           "reported; one section does not suppress another", True,
                           blocking=False),
               gates.Check("unknown cell counts", summary["unknown_cell_count"],
                           "reported for damaged sources without raw cells", True,
                           blocking=False),
+              gates.Check("specific lineage classes", summary["classes"],
+                          "reported from exact per-cell worker outputs", True,
+                          blocking=False),
               gates.Check("paired cell links", summary["paired_cell_links"], "none before Stage 08",
                           summary["paired_cell_links"] == 0)]
     return gates.Gate(STAGE, "New-cluster pancreas/pLN Xenium typing candidate by exact "
                       "accepted acquisition. No protein calls, same-cell links, verified accuracy "
-                      "or active-release claim.", checks, ["rna_typing_scope.png"])
+                      "or active-release claim.", checks,
+                      ["rna_typing_scope.png", "rna_typing_classes.png"])
