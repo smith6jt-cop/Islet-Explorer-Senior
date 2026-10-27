@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from multiplex5000 import cohort_scale
 
@@ -30,6 +31,15 @@ def test_historical_lane_delegates_its_scale_to_the_package():
     spec.loader.exec_module(module)
     assert module.marker_scale is cohort_scale.marker_scale
     assert module.apply_scale is cohort_scale.apply_scale
+    assert module.background_mode_floor is cohort_scale.background_mode_floor
+
+
+def test_background_mode_floor_matches_the_selected_october_formula():
+    values = np.concatenate((np.full(1001, 10.0), [0.0, np.nan, -4.0, 1000.0]))
+    # The historical method explicitly skips the first histogram bin. That
+    # chooses the isolated high bin here; changing it would change the scale.
+    assert cohort_scale.background_mode_floor(values) == pytest.approx(1000.0)
+    assert cohort_scale.background_mode_floor(values[:999]) is None
 
 
 def test_cohort_scale_uses_the_block_and_is_independent_of_parquet_row_order(tmp_path):

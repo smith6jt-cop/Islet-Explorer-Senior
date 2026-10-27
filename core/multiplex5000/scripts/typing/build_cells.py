@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import sys
 
@@ -120,7 +121,8 @@ ENDOCRINE_ROUTES = ("cd99", "elongation", "hormone", "single_hormone")
 #: Everything else ``resolved_by`` can carry.  A value in NEITHER tuple stops the build: a route
 #: added upstream must not be able to arrive here and be silently counted as not-endocrine.
 NON_ENDOCRINE_RESOLVED = ("structure", "definition", "supporting", "fallthrough",
-                         "excluded_single_hormone")
+                         "excluded_single_hormone", "tie_profile_definition",
+                         "tie_profile_supporting", "tie_profile_fallthrough")
 
 #: The producer's per-cell islet number is kept, under its own name, beside this file's.
 #:
@@ -509,7 +511,9 @@ def main() -> int:
 
     donors = COHORT.resolve(args.donors, include_marginal=args.include_marginal)
     pixel, stem = _manifest()
-    runs = pd.read_csv(S.REPO / "data/donor_acquisition_runs.csv", dtype={"donor_id": str})
+    runs_path = pathlib.Path(os.environ.get(
+        "IO60_DONOR_ACQUISITION_RUNS", S.REPO / "data/donor_acquisition_runs.csv"))
+    runs = pd.read_csv(runs_path, dtype={"donor_id": str})
 
     out = pathlib.Path(args.out) if args.out else OUT
     out.mkdir(parents=True, exist_ok=True)

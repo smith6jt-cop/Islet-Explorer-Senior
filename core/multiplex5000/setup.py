@@ -17,6 +17,31 @@ from setuptools.command.sdist import sdist as _sdist
 PROJECT = Path(__file__).resolve().parent
 REPOSITORY = PROJECT.parents[1]
 SNAPSHOT = PROJECT / "_source_data"
+# One tracked copy of the selected pancreas hierarchy remains in scripts while
+# its data inputs are moved to Stage 06. A wheel carries a build snapshot of
+# precisely that code so a site never imports another checkout's scripts.
+PANCREAS_TYPING_SCRIPTS = (
+    "core/multiplex5000/scripts/typing/run_calibration_arm.py",
+    "core/multiplex5000/scripts/typing/subpanel.py",
+    "core/multiplex5000/scripts/typing/build_cells.py",
+    "core/multiplex5000/scripts/typing/refine.py",
+    "core/multiplex5000/scripts/typing/immune_subtype.py",
+    "core/multiplex5000/scripts/typing/subpanel_io.py",
+    "core/multiplex5000/scripts/typing/superseded.py",
+    "core/multiplex5000/scripts/typing/context.py",
+    "core/multiplex5000/scripts/typing/islet_identity.py",
+    "core/multiplex5000/scripts/typing/islet_membership.py",
+    "core/multiplex5000/scripts/typing/lineages.py",
+    "core/multiplex5000/scripts/typing/cohort.py",
+    "core/multiplex5000/scripts/typing/build_islet_geometry.py",
+    "core/multiplex5000/scripts/celltype/panel.py",
+    "core/multiplex5000/scripts/celltype/rules.py",
+    "core/multiplex5000/scripts/celltype/score.py",
+    "core/multiplex5000/scripts/celltype/run_step3.py",
+    "core/multiplex5000/scripts/celltype/alignment_block.py",
+    "core/multiplex5000/scripts/celltype/marker_name_crosswalk.json",
+    "phenotype_workflow.csv",
+)
 DIRECTORIES = (
     "core/panels/data",
     "core/phenocycler/data/integration",
@@ -30,6 +55,7 @@ FILES = (
     "core/multiplex5000/cohort-spec.json",
     "core/multiplex5000/cohort-spec-v3.json",
     "core/multiplex5000/multiplex5000/marker_registry.json",
+    *PANCREAS_TYPING_SCRIPTS,
 )
 
 

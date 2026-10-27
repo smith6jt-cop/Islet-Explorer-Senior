@@ -76,6 +76,22 @@ for HDL090. It
 publishes no final cell class or cross-assay cell link. Stage 06's gate waits
 for manual review; its notebook is `notebooks/06_typing.ipynb`.
 
+Stages 07 and 08 now use the packaged
+`multiplex5000.integration.paired_typing.link_candidate_cells` function.
+Stage 07 admits one supplied registration, checks the exact section and assay
+identities, and draws a coordinate overlay for manual review. Name its root
+as `sources.same_slide_registrations` in the site file. For the selected
+section, put `transform.json` and, when the transform declares one,
+`transform_displacement.npz` under `<root>/<protein_entry>/`. The transform
+metadata must give the exact `protein_entry`, `xenium_acquisition_id`,
+`moving_frame: region_local_um`, `fixed_frame: crop_local_um`, and
+`reviewed: true`. That flag declares prior review; Stage 07's gate is still
+manual. Stage 08 requires that gate's acceptance, verifies its receipt and
+transform hash, then writes mutual-nearest centroid **candidates**, distances,
+and unmatched counts. It makes no verified same-cell or final typing claim.
+No spleen transform has been supplied to this project yet, so neither stage
+has produced a real HPG result.
+
 The HPG login shell exposes Python 3.9 by default. Load its Python 3.12
 module (`source /etc/profile.d/modules.sh; module load python/3.12`) and make
 a **new** virtual environment under a writable `/blue/maigan` pilot folder.

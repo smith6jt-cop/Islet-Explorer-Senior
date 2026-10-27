@@ -1,4 +1,40 @@
-# Phenocycler analysis
+# MultiPlex5000
+
+## Tissue typing workflow
+
+Install the package with its typing dependencies from this directory (or install
+the built wheel with the `typing` extra):
+
+```bash
+python -m pip install '.[typing]'
+mplx5k status --project io60_xenium_pilot
+```
+
+`mplx5k` runs the same stage functions from an installed package, the Snakemake
+graph, or the review notebooks. Project files select the tissue and assay route;
+site settings locate acquisitions and output roots. The package does not contain
+raw images or cell exports. The current bounded typing routes are:
+
+| Project | Stage 06 candidate |
+|---|---|
+| `io60_xenium_pilot` | Pancreas and pLN Xenium RNA cells |
+| `io60_mixed_protein_pilot` | Pancreas protein cells, including recorded pLN ROIs |
+| `pln_protein_pilot` | Dedicated pLN protein cells using the adapted full phenotype sheet |
+| `spleen_pilot` | Spleen protein and Xenium RNA cells; Stage 07/08 require a recorded registration source |
+
+For a configured project, `mplx5k stage run 06_typing --project <id>` writes a
+candidate and a gate report. Later stages require the previous gate's recorded
+acceptance. A candidate is not an active release or a verified biological call.
+Same-slide candidate links require the recorded section relationship and a
+registration source; serial sections never imply same-cell identity. See
+[`docs/TYPING_SCOPE_2026-10-26.md`](../../docs/TYPING_SCOPE_2026-10-26.md)
+for the current scope and remaining full-cohort work.
+
+## Legacy measurement pipeline
+
+The remainder of this guide describes the earlier `phenocycler` pipeline API.
+Its `NO_VERIFIED_TYPING` latch remains in place. That latch does not disable the
+separate `mplx5k` review-candidate routes above.
 
 This package currently turns an explicitly declared QuPath cohort into
 UUID-keyed, source-audited per-cell expression data. There are **no verified

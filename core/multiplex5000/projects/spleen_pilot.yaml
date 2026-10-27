@@ -4,7 +4,8 @@ release: spleen-pilot-candidate-1
 cohort: spleen_same_slide_pilot
 # Raw protein and RNA are admitted separately before full-panel UniFORM.
 # Stage 06 produces review-only per-assay evidence for one paired section.
-stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 05_normalization, 06_typing]
+stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 05_normalization, 06_typing,
+         07_registration, 08_integration]
 # The measurement gate records coverage; the first manual processing stop is typing.
 automatic_gates: [03_protein_measurement]
 settings:

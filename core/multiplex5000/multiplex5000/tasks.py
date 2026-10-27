@@ -311,6 +311,26 @@ def _temporary_files(stage_id: str, run_id: str):
         shutil.rmtree(folder, ignore_errors=True)
 
 
+@contextmanager
+def _temporary_plot_cache(stage_id: str, run_id: str):
+    """Keep Matplotlib's font cache private to this stage run.
+
+    A shared cache created by a previous stage is an undeclared file read. The
+    plotting cache is runtime state, so it is created under the run's temporary
+    directory and removed when that run ends.
+    """
+    before = os.environ.get("MPLCONFIGDIR")
+    with tempfile.TemporaryDirectory(prefix=f"{stage_id}.{run_id}.matplotlib-") as folder:
+        os.environ["MPLCONFIGDIR"] = folder
+        try:
+            yield Path(folder)
+        finally:
+            if before is None:
+                os.environ.pop("MPLCONFIGDIR", None)
+            else:
+                os.environ["MPLCONFIGDIR"] = before
+
+
 def _publish(staging: Path, destination: Path) -> Optional[Path]:
     """Rename the staging folder into place; a previous output is moved aside, never deleted."""
     release = destination.parent
@@ -353,7 +373,8 @@ def run_stage(stage, project, *, force: bool = False) -> Result:
     try:
         bound = [bind(i) for i in inputs]
         opened: set = set()
-        with _temporary_files(stage_id, staging.name.rsplit("-", 1)[-1]):
+        run_id = staging.name.rsplit("-", 1)[-1]
+        with _temporary_files(stage_id, run_id), _temporary_plot_cache(stage_id, run_id):
             token = _OPENED.set(opened)
             try:
                 summary = stage.run(task)

@@ -880,6 +880,9 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True, type=pathlib.Path,
                     help="directory to write donor_id=<d>/data.parquet and refine_log.json")
     ap.add_argument("--donors", nargs="*", default=None)
+    ap.add_argument("--representation-donors", nargs="+", default=None,
+                    help="cohort used to fit representation parameters; default is the full "
+                         "recorded cohort, even when --donors selects output cells")
     ap.add_argument("--params", type=pathlib.Path, default=None,
                     help="cached representation parameters; built and written if absent")
     ap.add_argument("--cd8-alignment", choices=["aligned", "unshifted"], default="aligned",
@@ -896,7 +899,10 @@ def main(argv=None) -> int:
                          "omit --params to avoid reusing an aligned-CD8 representation")
 
     donors = args.donors or cohort_donors()
-    representation_donors = cohort_donors()
+    representation_donors = args.representation_donors or cohort_donors()
+    if (len(representation_donors) != len(set(representation_donors))
+            or not set(representation_donors) <= set(cohort_donors())):
+        raise ValueError("representation donors must be unique members of the recorded cohort")
     markers = derive_markers()
     print(f"refinement: {len(donors)} donors, {len(markers)} markers, K={K}, "
           f"bound = p{BOUND_PCT:g} of each class's concordant members per donor x stratum")

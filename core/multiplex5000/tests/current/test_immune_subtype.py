@@ -46,6 +46,40 @@ def frame(**columns) -> pd.DataFrame:
     return pd.DataFrame(columns)
 
 
+def test_broad_t_cell_uses_higher_cd8_or_cd4_without_another_cutoff():
+    calls = frame(
+        immune_class=["Imm-T-cell"] * 6 + ["Imm-B-cell"],
+        immune_subtype=[None, None, None, None, None, "T-regulatory", None],
+    )
+    values = frame(CD8=[0.5, 8.0, 2.0, 0.0, np.nan, 8.0, 9.0],
+                   CD4=[0.4, 6.0, 9.0, 0.0, 2.0, 2.0, 1.0])
+    scale = pd.DataFrame({"floor": [0.0, 0.0], "span": [10.0, 10.0]},
+                         index=["CD8", "CD4"])
+    result = sub.apply_t_cd8_cd4_comparison(calls, values, ["CD8", "CD4"], scale)
+
+    # The first T cell has neither marker at 0.10, yet its measured CD8 is higher.
+    assert calls["immune_subtype"].tolist()[:3] == [
+        "T-CD8", "T-CD8", "T-CD4-helper"]
+    assert pd.isna(calls.loc[3, "immune_subtype"])
+    assert result.tolist()[:5] == ["cd8", "cd8", "cd4",
+                                 "review_total_marker_profile", "unavailable"]
+    assert calls.loc[3, "immune_subtype_review_reason"] == (
+        "exact_CD8_CD4_tie_review_total_marker_profile")
+    assert calls.loc[4, "immune_subtype_review_reason"] == "CD8_or_CD4_measurement_unavailable"
+    assert calls.loc[5, "immune_subtype"] == "T-regulatory"
+    assert calls.loc[5, "immune_subtype_resolved_by"] == "rule"
+    assert pd.isna(calls.loc[6, "immune_subtype"])
+
+
+def test_t_comparison_does_not_create_ties_by_clipping_to_the_scale_floor():
+    calls = frame(immune_class=["Imm-T-cell"], immune_subtype=[None])
+    values = frame(CD8=[0.5], CD4=[0.4])
+    scale = pd.DataFrame({"floor": [1.0, 1.0], "span": [10.0, 10.0]},
+                         index=["CD8", "CD4"])
+    sub.apply_t_cd8_cd4_comparison(calls, values, ["CD8", "CD4"], scale)
+    assert calls.loc[0, "immune_subtype"] == "T-CD8"
+
+
 # --------------------------------------------------------------------------------------------
 # A missing measurement is unavailable.  Never zero, never negative, never False.
 # --------------------------------------------------------------------------------------------
@@ -55,6 +89,24 @@ def test_a_rule_naming_a_marker_the_donor_lacks_is_unavailable_not_false():
     fires, undecided, missing = sub.evaluate(scaled, (["CD3e", "CD38"], [], []), {"CD3e"})
     assert fires is None and undecided is None
     assert missing == ["CD38"], "the missing marker has to be named, not merely refused"
+
+
+def test_macrophage_or_accepts_measured_witness_with_other_marker_unavailable():
+    scaled = frame(CD68=[0.2, 0.01, np.nan], CD3e=[0., 0., 0.],
+                   E_cadherin=[0., 0., 0.])
+    fires, undecided, missing = sub.evaluate(
+        scaled, ([], [["CD68", "CD163"]], ["CD3e", "E_cadherin"]),
+        {"CD68", "CD3e", "E_cadherin"})
+    assert missing == []
+    assert fires.tolist() == [True, False, False]
+    assert undecided.tolist() == [False, True, True]
+
+
+def test_owner_macrophage_parent_has_profile_instead_of_m1_m2_children():
+    table, reqs = sub.immune_rules()
+    assert reqs["Imm-macrophage"][1] == [["CD68", "CD163"]]
+    assert sub.LEVEL3_PARENTS == ("Imm-T-cell",)
+    assert "Imm-macrophage" in sub.children_of(table, "Immune")
 
 
 def test_a_nan_on_one_cell_makes_that_cell_undecided_and_never_negative():

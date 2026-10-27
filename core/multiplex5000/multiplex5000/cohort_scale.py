@@ -17,6 +17,16 @@ import pyarrow.parquet as pq
 SCALE_Q = 99.9
 
 
+def background_mode_floor(values: np.ndarray) -> float | None:
+    """The October 512-bin log1p mode, skipping its lowest positive bin."""
+    data = np.asarray(values, dtype=float)
+    positive = data[np.isfinite(data) & (data > 0)]
+    if len(positive) < 1000:
+        return None
+    counts, edges = np.histogram(np.log1p(positive), bins=512)
+    return float(np.expm1(edges[1:][int(np.argmax(counts[1:])) + 1]))
+
+
 def marker_scale(values_by_marker: dict, floor_by_marker: dict | None = None,
                  q: float = SCALE_Q) -> pd.DataFrame:
     """Cohort-wide floor and top per marker, so every marker enters the angle comparably."""
@@ -80,11 +90,7 @@ def build_scale(aligned: dict[str, Path], markers: list[str], *, n_per_donor: in
     rows = []
     for marker, chunks in pools.items():
         combined = np.concatenate(chunks)
-        positive = combined[np.isfinite(combined) & (combined > 0)]
-        floor = None
-        if len(positive) >= 1000:
-            counts, edges = np.histogram(np.log1p(positive), bins=512)
-            floor = float(np.expm1(edges[1:][int(np.argmax(counts[1:])) + 1]))
+        floor = background_mode_floor(combined)
         rows.append(marker_scale({marker: combined},
                                  {marker: floor} if floor is not None else None))
     return pd.concat(rows)

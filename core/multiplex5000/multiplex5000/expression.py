@@ -160,6 +160,22 @@ def _resolve_measurement(
                 f"acquired marker {spec.name!r} requires REDSEA column {source!r}"
             )
         values = pd.to_numeric(redsea[source], errors="coerce").to_numpy(dtype=float)
+        if spec.compartment == "Cytoplasm":
+            # A nucleus can fill the segmented cell, leaving no distinct cytoplasm pixels.
+            # Read that cell's whole-cell REDSEA value for a cytoplasm marker, as ruled
+            # 2026-10-27. A measured zero remains zero; an unmeasured whole-cell value
+            # remains missing. The alternative source is declared, never inferred.
+            fallback = f"Cell__{spec.name}"
+            undefined = ~np.isfinite(values)
+            if undefined.any():
+                if fallback not in redsea:
+                    raise ContractError(
+                        f"acquired cytoplasm marker {spec.name!r} requires REDSEA "
+                        f"fallback column {fallback!r}"
+                    )
+                whole = pd.to_numeric(redsea[fallback], errors="coerce").to_numpy(dtype=float)
+                values = np.where(undefined, whole, values)
+                return values, f"redsea:{source}|fallback:{fallback}", ""
         return values, f"redsea:{source}", ""
 
     if spec.measurement_source == "qupath_raw":

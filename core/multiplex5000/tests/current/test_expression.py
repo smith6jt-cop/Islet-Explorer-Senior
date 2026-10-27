@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pandas as pd
 import pytest
 
@@ -62,6 +64,35 @@ def test_selected_expression_has_one_registry_selected_value_per_marker():
     ki67 = availability.set_index("marker").loc["Ki67"]
     assert ki67["source"] == "qupath:Nucleus__Ki67"
     assert ki67["spillover_policy"] == "uncompensated"
+
+
+def test_cytoplasm_marker_uses_whole_cell_only_when_its_compartment_is_undefined():
+    cells, redsea, qc = _frames()
+    original = load_registry()
+    registry = replace(original, markers=tuple(
+        replace(spec, compartment="Cytoplasm") if spec.name == "CD3e" else spec
+        for spec in original.markers
+    ))
+    qc.loc[qc["object_id"] == "c1", "analysis_eligible"] = True
+    redsea["Cytoplasm__CD3e"] = [float("nan"), 0.0, float("nan")]
+    redsea["Cell__CD3e"] = [7.0, 8.0, float("nan")]
+
+    expression, availability = build_selected_expression(
+        cells, redsea, qc, donor_id="D1", acquired_markers={"CD3e"}, registry=registry
+    )
+    # Cell order is c2, c1, c3: the measured zero is preserved, c1 is rescued,
+    # and c3 stays missing because both compartments are unavailable.
+    assert expression["CD3e"].tolist()[:2] == [0.0, 7.0]
+    assert pd.isna(expression.loc[2, "CD3e"])  # missing remains missing, never zero
+    assert availability.set_index("marker").loc["CD3e", "source"] == (
+        "redsea:Cytoplasm__CD3e|fallback:Cell__CD3e"
+    )
+
+    with pytest.raises(ContractError, match="fallback column 'Cell__CD3e'"):
+        build_selected_expression(
+            cells, redsea.drop(columns="Cell__CD3e"), qc, donor_id="D1",
+            acquired_markers={"CD3e"}, registry=registry
+        )
 
 
 def test_declared_acquired_marker_missing_from_its_source_is_fatal():

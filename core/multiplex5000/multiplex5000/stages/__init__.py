@@ -40,6 +40,8 @@ BUILT: dict[str, str] = {
     "04_rna_ingest": "multiplex5000.stages.rna_ingest",
     "05_normalization": "multiplex5000.stages.normalization",
     "06_typing": "multiplex5000.stages.typing",
+    "07_registration": "multiplex5000.stages.same_slide_registration",
+    "08_integration": "multiplex5000.stages.same_slide_integration",
 }
 
 

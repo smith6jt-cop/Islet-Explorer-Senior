@@ -247,7 +247,10 @@ class Transform:
         grid = GridSpec.from_dict(data["grid"]) if data.get("grid") else None
         disp = None
         npz = directory / f"{stem}_displacement.npz"
-        if data.get("has_displacement") and npz.exists():
+        if data.get("has_displacement"):
+            if not npz.is_file():
+                raise FileNotFoundError(
+                    f"{directory / f'{stem}.json'} declares a displacement, but {npz} is missing")
             disp = np.load(npz)["displacement"]
         return cls(affine=np.array(data["affine"]), displacement=disp, grid=grid,
                    meta=data.get("meta", {}))

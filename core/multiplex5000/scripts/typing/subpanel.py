@@ -136,6 +136,7 @@ import time
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+from multiplex5000.tissues.t_cell import clipped_t_tie_profile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "celltype"))
@@ -493,7 +494,49 @@ def fit_levels(donors: list[str], scale: pd.DataFrame, log: dict,
 def immune_rules() -> dict:
     """phenotype -> (all_of, [any_of groups], none_of), immune phenotypes only."""
     table = S.shared_negatives(RULES.requirements(RULES.load_rules(), with_negatives=True))
-    return {k: v for k, v in table.items() if k.startswith(("Imm-", "T-"))}
+    selected = {k: v for k, v in table.items() if k.startswith(("Imm-", "T-"))}
+    # Owner, 2026-10-27: CD68 or CD163 defines a macrophage on this panel.
+    negatives = selected["Imm-macrophage"][2]
+    selected["Imm-macrophage"] = ([], [["CD68", "CD163"]], negatives)
+    return selected
+
+
+TIE_PROFILE_RESOLVED = {
+    "definition": "tie_profile_definition",
+    "supporting": "tie_profile_supporting",
+    "fallthrough": "tie_profile_fallthrough",
+}
+
+
+def retype_tied_t_cells(values, scale, log, rules, cell_class, definition,
+                        resolved_by, reason, in_islet, exocrine_measured):
+    """Apply the owner's full-profile review to T cells tied after scale clipping."""
+    t = (cell_class == "Immune") & (definition == "Imm-T-cell")
+    if not t.any():
+        return {"tied": 0, "kept_t_cell": 0, "retyped": 0,
+                "retyped_top_marker": {}, "retyped_to": {}}
+    tied, top, outside = clipped_t_tie_profile(
+        values, values.attrs["expressed"], scale, LIN.identity_markers())
+    withdrawn = t & outside
+    idx = np.flatnonzero(withdrawn)
+    if len(idx):
+        without_t = {k: v for k, v in rules.items()
+                     if k != "Imm-T-cell" and not k.startswith("T-")}
+        cc = np.full(len(idx), None, dtype=object)
+        df = np.full(len(idx), "", dtype=object)
+        rb = np.full(len(idx), "", dtype=object)
+        _tissue_chain(values.iloc[idx], log, without_t, cc, df, rb)
+        new_reason = _finish(in_islet[idx], cc, np.asarray(exocrine_measured)[idx])
+        cell_class[idx], definition[idx], reason[idx] = cc, df, new_reason
+        resolved_by[idx] = np.asarray([TIE_PROFILE_RESOLVED[str(x)] for x in rb],
+                                      dtype=object)
+    return {"tied": int((t & tied).sum()),
+            "kept_t_cell": int((t & tied & ~withdrawn).sum()),
+            "retyped": int(len(idx)),
+            "retyped_top_marker": {str(k): int(v) for k, v in
+                                   pd.Series(top[withdrawn]).value_counts().items()},
+            "retyped_to": {str(k): int(v) for k, v in
+                           pd.Series(cell_class[withdrawn]).value_counts().items()}}
 
 
 def rule_evidence(values: pd.DataFrame, rule: tuple) -> tuple[np.ndarray, np.ndarray]:
@@ -1143,7 +1186,7 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     # lineage-marker set, using raw aligned inputs before the per-marker floor/top transform.
     # These markers need to be loaded even when no other typing rule references them; otherwise
     # an omitted lineage marker could never win the argmax and the comparison would be incomplete.
-    wanted |= set(IDENTITY_MARKERS)
+    wanted |= set(IDENTITY_MARKERS) | {"CD45"}
     for markers in log["subpanels"].values():
         wanted |= set(markers)
     for all_of, any_of, none_of in rules.values():
@@ -1309,6 +1352,9 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     reason[single_excluded] = np.asarray([
         "endocrine_single_" + str(status) for status in single_status[single_excluded]
     ], dtype=object)
+    A["t_cell_tie_review"] = retype_tied_t_cells(
+        values, scale, log, rules, cell_class, definition, resolved_by, reason,
+        in_islet, exo_measured)
     A["direct_endocrine_singles"] = {str(k): int(v) for k, v in pd.Series(single_status[single]).value_counts().items()}
     A["n_excluded_endocrine_singles"] = int(single_excluded.sum())
     ordinary_endocrine = ~single & np.isin(cell_class, list(endocrine_names))

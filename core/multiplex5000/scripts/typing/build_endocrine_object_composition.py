@@ -19,6 +19,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+from multiplex5000.tissues.macrophage import labels as macrophage_labels
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -47,7 +48,7 @@ IMMUNE_LABELS = (
 )
 IMMUNE_SUBTYPES = (
     "T-regulatory", "T-exhausted", "T-progenitor-memory", "T-CD8-cytotoxic", "T-CD8",
-    "T-CD4-helper", "Mac-M1-like", "Mac-M2-like",
+    "T-CD4-helper",
 )
 ENDOCRINE_TYPES = ("Beta", "Alpha", "Delta")
 STROMAL_LABELS = {"Stromal", "Fibroblast", "Stellate", "Pericyte", "Smooth muscle"}
@@ -321,6 +322,14 @@ def rebuild_analytic_object_composition(objects: pd.DataFrame, cells: pd.DataFra
                 availability = feature.replace('feature__', 'available__', 1)
                 row[feature] = n / denominator if measured and denominator else np.nan
                 row[availability] = bool(measured and denominator)
+        for label in macrophage_labels():
+            key = 'count_macrophage_profile__' + label
+            measured = pd.notna(original.get(key, np.nan))
+            n = int(block['macrophage_profile'].eq(label).sum()) if 'macrophage_profile' in block else 0
+            row[key] = n if measured else np.nan
+            feature = 'feature__immune__macrophage_profile_' + label + '_per_endocrine'
+            row[feature] = n / denominator if measured and denominator else np.nan
+            row[feature.replace('feature__', 'available__', 1)] = bool(measured and denominator)
         for structure, col in [('blood_vessel', 'passed_through_Blood_vessel'), ('lymphatic', 'passed_through_Lymphatic'), ('nerve', 'passed_through_Nerve')]:
             values = pd.to_numeric(block[col], errors='coerce') if col in block else pd.Series(np.nan, index=block.index)
             finite = values.notna()
@@ -409,8 +418,12 @@ def structure_coverage(donor: str, stem: str, pixels: float,
 def read_immune(typing_root: Path, donor: str) -> tuple[pd.DataFrame, dict]:
     path = typing_root / "immune" / f"donor_id={donor}" / "data.parquet"
     if not path.is_file():
-        return pd.DataFrame(columns=["object_id", "immune_class", "immune_subtype"]), {}
+        return pd.DataFrame(columns=["object_id", "immune_class", "immune_subtype",
+                                     "macrophage_profile", "macrophage_profile_status"]), {}
     keep = ["object_id", "immune_class", "immune_subtype"]
+    schema = pq.ParquetFile(path).schema_arrow.names
+    keep += [name for name in ("macrophage_profile", "macrophage_profile_status")
+             if name in schema]
     frame = pq.read_table(path, columns=keep).to_pandas()
     coverage_path = typing_root / "immune" / "coverage.json"
     coverage = json.loads(coverage_path.read_text()).get("per_donor", {}).get(donor, {}) \
@@ -449,6 +462,10 @@ def build_donor(typing_root: Path, aligned_root: Path, donor: str,
     else:
         inside["immune_class"] = pd.NA
         inside["immune_subtype"] = pd.NA
+    if "macrophage_profile" not in inside:
+        inside["macrophage_profile"] = pd.NA
+    if "macrophage_profile_status" not in inside:
+        inside["macrophage_profile_status"] = pd.NA
 
     calls = None
     if calls_path.is_file():
@@ -498,8 +515,7 @@ def build_donor(typing_root: Path, aligned_root: Path, donor: str,
     }
     subtype_parent = {"T-regulatory": "Imm-T-cell", "T-exhausted": "Imm-T-cell",
                       "T-progenitor-memory": "Imm-T-cell", "T-CD8-cytotoxic": "Imm-T-cell",
-                      "T-CD8": "Imm-T-cell", "T-CD4-helper": "Imm-T-cell",
-                      "Mac-M1-like": "Imm-macrophage", "Mac-M2-like": "Imm-macrophage"}
+                      "T-CD8": "Imm-T-cell", "T-CD4-helper": "Imm-T-cell"}
     immune_subtype_available = {
         label: bool(immune_coverage.get("state") == "built")
         and label not in immune_rule_unavailable
@@ -616,6 +632,19 @@ def build_donor(typing_root: Path, aligned_root: Path, donor: str,
                 n / denominator if available and denominator > 0 else np.nan)
             row[f"available__immune__subtype_{label}_per_endocrine"] = (
                 available and denominator > 0)
+        macrophages = block["immune_class"].eq("Imm-macrophage")
+        profile_available = (bool(immune_coverage.get("state") == "built")
+                             and int(immune_class_counts.get("Imm-macrophage", 0)) > 0
+                             and immune_coverage.get("macrophage_profile") is not None
+                             and not block.loc[macrophages, "macrophage_profile"].isna().any())
+        for label in macrophage_labels():
+            n = int(block["macrophage_profile"].eq(label).sum())
+            key = f"count_macrophage_profile__{label}"
+            row[key] = n if profile_available else np.nan
+            feature = f"feature__immune__macrophage_profile_{label}_per_endocrine"
+            row[feature] = n / denominator if profile_available and denominator > 0 else np.nan
+            row[feature.replace("feature__", "available__", 1)] = (
+                profile_available and denominator > 0)
 
         # The intersection values are an independent morphology measurement of passing processes,
         # reported separately from structure-body counts and outline coverage.
