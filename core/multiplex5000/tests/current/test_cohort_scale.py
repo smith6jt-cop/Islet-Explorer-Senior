@@ -54,3 +54,12 @@ def test_cohort_scale_uses_the_block_and_is_independent_of_parquet_row_order(tmp
                                         ["CD8", "CD57"], n_per_donor=2, seed=7))
     assert first.loc["CD8", "top"] < 200, "other-block and ineligible cells never set the top"
     assert np.isnan(first.loc["CD57", "top"]), "unavailable is not converted to zero"
+
+
+def test_cohort_scale_treats_absent_marker_column_as_unavailable(tmp_path):
+    path = tmp_path / "donor.parquet"
+    pd.DataFrame({"object_id": ["a", "b"], "qc_analysis_eligible": [True] * 2,
+                  "in_alignment_block": [True] * 2, "CD8": [10.0, 20.0]}).to_parquet(path)
+    scale = cohort_scale.build_scale({"donor": path}, ["CD8", "CD38"])
+    assert np.isnan(scale.loc["CD38", "top"])
+    assert scale.loc["CD8", "top"] > 0

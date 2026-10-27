@@ -57,7 +57,15 @@ def build_scale(aligned: dict[str, Path], markers: list[str], *, n_per_donor: in
     columns = ["object_id", "qc_analysis_eligible", "in_alignment_block", *markers]
     for donor in sorted(aligned):
         path = aligned[donor]
-        table = pq.ParquetFile(path).read(columns=columns).to_pandas()
+        source = pq.ParquetFile(path)
+        available = set(source.schema_arrow.names)
+        required = set(columns[:3])
+        if not required <= available:
+            raise ValueError(f"{donor}: aligned table lacks {sorted(required - available)}")
+        table = source.read(columns=[name for name in columns if name in available]).to_pandas()
+        for marker in markers:
+            if marker not in available:
+                table[marker] = np.nan
         if table["object_id"].isna().any() or not table["object_id"].is_unique:
             raise ValueError(f"{donor}: aligned table has missing or duplicate object_id")
         sample = table.loc[table["qc_analysis_eligible"].to_numpy(bool)
