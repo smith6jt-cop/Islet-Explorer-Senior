@@ -134,6 +134,7 @@ jobs:
           cd /tmp
           /tmp/mplx5k-installed/bin/python - <<'PY'
           from pathlib import Path
+          import importlib.util
           from os import environ
           from subprocess import run
           from sys import executable
@@ -144,6 +145,8 @@ jobs:
           from multiplex5000.tasks import code_identity
           from multiplex5000.tissues.lymph_node import load_rule_source as pln_rules
           from multiplex5000.tissues.spleen import load_rule_source as spleen_rules
+          from multiplex5000.tissues import (lymph_node_xenium_worker,
+                                             pancreas_xenium_worker)
 
           assert roots.REPO.is_relative_to(Path('/tmp/mplx5k-installed'))
           assert len(profiles.load_all()) >= 10
@@ -151,6 +154,10 @@ jobs:
           assert project.load('pln_protein_pilot').stages[-1] == '06_typing'
           assert same_slide_registration.STAGE == '07_registration'
           assert same_slide_integration.STAGE == '08_integration'
+          assert pancreas_xenium_worker.process_section
+          assert lymph_node_xenium_worker.process_exact_section
+          for dependency in ('anndata', 'scanpy', 'igraph'):
+              assert importlib.util.find_spec(dependency), dependency
           for stage in ('07_registration', '08_integration'):
               assert (roots.REPO / 'core/multiplex5000/notebooks' / f'{stage}.ipynb').is_file()
           assert typing._route(project.load('io60_xenium_pilot')).__name__ == 'multiplex5000.stages.io60_rna_typing_pilot'
