@@ -19,6 +19,7 @@ from .. import gates, roots
 from ..rna_evidence import detect_genes
 from ..same_slide_sources import load_pairs
 from ..tasks import Input, Task, sha256_file
+from ..tissues.evaluate import CANDIDATE_STATES, resolve_unique_matched_rules
 from ..tissues.protein_section import evaluate_protein_section
 from ..tissues.spleen import load_rule_source
 from ..xenium_typing_input import load_accepted_region
@@ -137,7 +138,7 @@ def run(task: Task) -> dict:
     source = load_rule_source(task.input("spleen_panel"))
     genes = _genes(task)
     shifts = _scale_rows(task)
-    threshold_rows, rule_rows, gene_rows = [], [], []
+    threshold_rows, rule_rows, gene_rows, candidate_rows = [], [], [], []
     protein_cells = rna_cells = 0
     for pair, row in selected:
         entry, sample = pair.protein_entry, row["sample_key"]
@@ -171,6 +172,10 @@ def run(task: Task) -> dict:
         section_evidence = evaluate_protein_section(
             source, entry, measurements, eligible,
             {marker: shifts.get((entry, marker)) for marker in measured})
+        candidates = resolve_unique_matched_rules(source, section_evidence.rules)
+        protein_payload["candidate_phenotype"] = pa.array(candidates.phenotype)
+        protein_payload["candidate_state"] = pa.array(candidates.status)
+        protein_payload["candidate_unavailable_rules"] = pa.array(candidates.unavailable_rules)
         for marker, evidence in section_evidence.markers.items():
             protein_payload[f"marker_call:{marker}"] = pa.array(evidence.states)
             threshold_rows.append({"protein_entry": entry, "marker": marker,
@@ -188,17 +193,22 @@ def run(task: Task) -> dict:
                               "matched": int(np.count_nonzero(states == 1)),
                               "not_matched": int(np.count_nonzero(states == 0)),
                               "unavailable": section_evidence.rules.unavailable_counts[phenotype]})
+        candidate_rows.extend({"protein_entry": entry, "status": status,
+                               "cells": int(np.count_nonzero(candidates.status == status))}
+                              for status in CANDIDATE_STATES)
         pq.write_table(pa.table(protein_payload), task.output(f"protein/{entry}.parquet"),
                        compression="zstd")
         protein_cells += len(table)
     for filename, rows in (("protein_thresholds.csv", threshold_rows),
                            ("protein_rule_counts.csv", rule_rows),
+                           ("protein_candidate_status.csv", candidate_rows),
                            ("rna_gene_counts.csv", gene_rows)):
         with task.output(filename).open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
     _figure(task, threshold_rows, rule_rows, gene_rows, protein_cells, rna_cells)
+    _candidate_figure(task, candidate_rows, protein_cells)
     return {"pairs": len(selected), "protein_cells": protein_cells, "rna_cells": rna_cells,
             "protein_markers": len(threshold_rows), "protein_rules": len(rule_rows),
             "protein_markers_with_cutoff": sum(row["cutoff"] is not None
@@ -206,6 +216,9 @@ def run(task: Task) -> dict:
             "expected_protein_rules": len(selected) * len(source.rules),
             "rna_genes_requested": len(genes) * len(selected),
             "rna_genes_measured": sum(row["measured"] for row in gene_rows),
+            "candidate_status_cells": sum(row["cells"] for row in candidate_rows),
+            "unique_rule_candidates": sum(row["cells"] for row in candidate_rows
+                                          if row["status"] == "unique_candidate"),
             "candidate_only": True, "paired_cell_links": 0}
 
 
@@ -247,6 +260,27 @@ def _figure(task: Task, protein: list[dict], rules: list[dict], rna: list[dict],
     plt.close(fig)
 
 
+def _candidate_figure(task: Task, rows: list[dict], protein_cells: int) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    counts = {row["status"]: row["cells"] for row in rows}
+    fig, ax = plt.subplots(figsize=(9, 5), layout="constrained")
+    bottom = 0
+    for status in CANDIDATE_STATES:
+        value = counts[status]
+        ax.bar(["selected spleen section"], [value], bottom=[bottom],
+               label=status.replace("_", " "))
+        bottom += value
+    ax.set(ylabel="PhenoCycler segmented cells (n)",
+           title=f"Spleen hierarchy candidates among {protein_cells:,} cells; review only")
+    ax.legend()
+    fig.savefig(gates.figure_path(task, "spleen_candidate_status.png"), dpi=140)
+    plt.close(fig)
+
+
 def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
         gates.Check("selected physical-section pairs processed", summary["pairs"],
@@ -262,6 +296,11 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         gates.Check("all protein hierarchy rules evaluated", summary["protein_rules"],
                     str(summary["expected_protein_rules"]),
                     summary["protein_rules"] == summary["expected_protein_rules"]),
+        gates.Check("candidate status accounts for every protein cell",
+                    summary["candidate_status_cells"], str(summary["protein_cells"]),
+                    summary["candidate_status_cells"] == summary["protein_cells"]),
+        gates.Check("unique deepest rule candidates", summary["unique_rule_candidates"],
+                    "review only; overlapping matches stay ambiguous", True, blocking=False),
         gates.Check("protein candidate cutoffs available",
                     summary["protein_markers_with_cutoff"],
                     f"of {summary['protein_markers']} measured markers",
@@ -276,4 +315,4 @@ def gate(task: Task, summary: dict) -> gates.Gate:
     return gates.Gate(STAGE, "Review-only per-assay typing evidence. Protein rules use "
                       "section-local 0.10 candidate cutoffs; RNA uses fixed-depth gene "
                       "detection. No final class or paired-cell result.", checks,
-                      ["assay_evidence.png"])
+                      ["assay_evidence.png", "spleen_candidate_status.png"])
