@@ -1,0 +1,14 @@
+schema: multiplex5000-project/1
+id: io60_mixed_protein_pilot
+release: io60-mixed-protein-pilot-6450
+cohort: io60_v3
+# This pilot reads accepted Stage 00/05 outputs from the named upstream release.
+# It cannot become the active IO60 release; the full-cohort project remains separate.
+stages: [06_typing]
+automatic_gates: []
+settings:
+  typing_route: io60_mixed_protein_pilot
+  typing_donors: ['6450']
+# Site sources required: io60_upstream_release, typing_geometry_root,
+# typing_export_root, qupath_manifest, donor_acquisition_runs,
+# typing_registry_log, typing_shifts. Each is an absolute path on that site.

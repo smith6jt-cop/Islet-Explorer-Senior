@@ -138,7 +138,8 @@ jobs:
           from subprocess import run
           from sys import executable
           from multiplex5000 import roots, profiles, project
-          from multiplex5000.stages import pln_typing_pilot, spleen_typing_pilot, typing
+          from multiplex5000.stages import (io60_mixed_protein_pilot, pln_typing_pilot,
+                                            spleen_typing_pilot, typing)
           from multiplex5000.tasks import code_identity
           from multiplex5000.tissues.lymph_node import load_rule_source as pln_rules
           from multiplex5000.tissues.spleen import load_rule_source as spleen_rules
@@ -155,8 +156,11 @@ jobs:
           panels = roots.REPO / 'core/panels/data/tissues'
           assert len(pln_rules(panels / 'pancreatic_lymph_node/manifest.yml').rules) == 69
           assert len(spleen_rules(panels / 'spleen/manifest.yml').rules) == 58
+          mixed = project.load('io60_mixed_protein_pilot')
+          assert typing._route(mixed) is io60_mixed_protein_pilot
           scripts = roots.REPO / 'core/multiplex5000/scripts/typing'
-          for name in ('subpanel.py', 'build_cells.py', 'refine.py', 'immune_subtype.py'):
+          for name in ('run_calibration_arm.py', 'subpanel.py', 'build_cells.py',
+                       'refine.py', 'immune_subtype.py'):
               assert (scripts / name).is_file(), name
               run([executable, str(scripts / name), '--help'], check=True,
                   capture_output=True, cwd='/tmp')
