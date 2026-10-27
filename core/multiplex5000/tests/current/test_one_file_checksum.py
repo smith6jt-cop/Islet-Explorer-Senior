@@ -27,8 +27,6 @@ KEPT = {
         "the Xenium lane is a separate system and this file never imports phenocycler",
     ("core/multiplex5000/scripts/broadtype/arms/cosine_broad8.py", "_sha"):
         "never imports phenocycler; its interpreter is not evidenced",
-    ("core/multiplex5000/scripts/celltype/alignment_block.py", "_sha256"):
-        "never imports phenocycler; its interpreter is not evidenced",
     ("core/multiplex5000/scripts/broadtype/arms/kronos2_coral.py", "_sha256"):
         "never imports phenocycler; its interpreter is not evidenced",
     ("core/multiplex5000/scripts/broadtype/arms/kronos2_worker.py", "_sha256"):
