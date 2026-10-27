@@ -1,6 +1,6 @@
 """Stage 06 pilot: separate protein-rule and RNA-gene evidence on one spleen section.
 
-The paired acquisitions share a physical section, not cell identities. This
+The protein export and Xenium region output share a physical section, not cell identities. This
 stage does not spatially link their segmented cells or publish a final class.
 Its two assay tables and review figures feed the registration/integration work.
 """
@@ -249,7 +249,7 @@ def _figure(task: Task, protein: list[dict], rules: list[dict], rna: list[dict],
 
 def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
-        gates.Check("selected same-section acquisitions processed", summary["pairs"],
+        gates.Check("selected physical-section pairs processed", summary["pairs"],
                     str(len(task.settings["rna_acquisitions"])),
                     summary["pairs"] == len(task.settings["rna_acquisitions"])),
         gates.Check("protein and RNA cells retained separately",
