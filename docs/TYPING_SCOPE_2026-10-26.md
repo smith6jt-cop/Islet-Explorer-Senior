@@ -236,3 +236,15 @@ They name particular old partitions and cannot be copied onto freshly
 clustered acquisitions by donor or section name. A new Stage 06 run uses the
 same repaired naming policy but reports that no frozen-partition override was
 applied unless the exact partition identity and membership are verified.
+
+`io60_xenium_pilot.yaml` now selects the two accepted 6539 Xenium acquisitions
+under the existing IO60 candidate release. Its Stage 06 route takes the Stage
+04 cells and exact raw source, makes a disposable worker h5ad, and calls the
+packaged pancreas or pLN method by the recorded tissue. It verifies that the
+per-cell output retains every acquisition-qualified `cell_uid`, counts candidate
+and unavailable calls by acquisition, and leaves protein and paired-cell
+counts at zero. A recorded damaged pLN section is reported unavailable without
+opening its missing raw files or stopping other sections. The synthetic
+Stage 04→06 test exercises that routing and receipt/gate path; the heavy
+clustering methods are mocked in that test, so a real pilot and scientific
+review remain necessary before this route can claim a validated RNA result.
