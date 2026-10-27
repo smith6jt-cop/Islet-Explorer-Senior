@@ -7,11 +7,12 @@ it is given; it never writes to source, typing or app roots, and it never activa
 
 ## The typing it reads
 
-```bash
-python -m analysis.cohesive.typing_generation      # from the repository root; writes /data/io60-analysis/typing-20261019/run
-```
-
-builds the pancreas protein typing generation and pins every donor's release, admission and candidate
+`python -m analysis.cohesive.typing_generation --help` lists the required absolute source paths.
+Pass `--check-inputs` with those paths before a replay; it writes nothing and refuses an interpreter
+that imports MultiPlex5000 from another checkout. The controller no longer executes the conservative
+builder from the v3 results tree: its maintained, byte-identical copy is under
+`analysis/recovered_20261008/`. Running without `--check-inputs` builds the historical pancreas
+protein typing generation and pins every donor's release, admission and candidate
 file in `<root>/contract.json`, which `qualification.GENERATION` reads. It is the October 8 chain, run with
 the producers recovered into this branch (`recovered_v3_producers_20261018.json`), with two rulings:
 

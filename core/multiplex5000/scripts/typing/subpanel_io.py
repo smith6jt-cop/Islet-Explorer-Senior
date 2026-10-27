@@ -28,8 +28,8 @@ from the values the classification was made on.
 """
 from __future__ import annotations
 
-import pathlib
 import os
+import pathlib
 import sys
 
 import numpy as np
@@ -88,7 +88,12 @@ GEOMETRY_ROOT = pathlib.Path(os.environ.get("IO60_GEOMETRY_ROOT", OUT))
 #: against the old annotations, and the old resolver took "the newest file that matches" -- so a
 #: v3 file dropped beside them would have been mixed into a v2 build, or the reverse, by mtime.
 #: Nothing v3 is ever written into `results/Geojson`.
-EXPORT = pathlib.Path.home() / "IO60panc2nd/results/v3/export"
+EXPORT = pathlib.Path(os.environ.get(
+    "IO60_EXPORT_ROOT", pathlib.Path.home() / "IO60panc2nd/results/v3/export"))
+# A run must bind its export and manifest as one recorded acquisition source.
+# The old paths remain defaults for historical commands; portable runs set both.
+QUPATH_MANIFEST = pathlib.Path(os.environ.get(
+    "IO60_QUPATH_MANIFEST", REPO / "core/phenocycler/data/qupath_manifest.json"))
 
 #: Structure objects, one file per image and class: `<Class>/<Class>__<image tag>.geojson`, written
 #: by the driver's step 7 (the maintainer's tiled pixel classifiers, unchanged).
@@ -169,7 +174,7 @@ def cell_outlines(donor: str) -> pathlib.Path:
     keep theirs and where none of the v3 images do.
     """
     import json
-    raw = json.loads((REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
+    raw = json.loads(QUPATH_MANIFEST.read_text())
     found = [pathlib.Path(r["cell_geojson"]["path"]) for r in raw["images"]
              if str(r["donor_id"]) == str(donor)]
     if len(found) != 1:
