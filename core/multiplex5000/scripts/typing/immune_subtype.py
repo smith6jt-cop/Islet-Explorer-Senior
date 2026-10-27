@@ -475,7 +475,7 @@ def main() -> int:
 
     marginal_left_out: dict[str, str] = {}
     if args.all:
-        manifest = json.loads((S.REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
+        manifest = json.loads(S.QUPATH_MANIFEST.read_text())
         sys.path.insert(0, str(S.REPO / "core/multiplex5000"))
         from phenocycler import cohort as pc
         donors = sorted({r["donor_id"] for r in manifest["images"]} - set(pc.DONOR_EXCLUSIONS))

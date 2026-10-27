@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build the pancreas protein typing generation the analysis lane reads, then pin it.
 
 The chain is the October 8 one, run with the producers recovered byte for byte into this branch
@@ -16,7 +15,10 @@ controllers ran them: refinement, refinement join, immune subtypes, cell release
 conservative candidate. The last step pins every donor's release, admission and candidate file by
 SHA-256 in `<root>/contract.json`, with the row counts qualify must reproduce.
 
-    python -m analysis.cohesive.typing_generation        # from the repository root
+    python -m analysis.cohesive.typing_generation --help
+
+Every source root is an explicit absolute argument. `--check-inputs` validates
+the bindings and interpreter without writing an output generation.
 """
 from __future__ import annotations
 
@@ -36,40 +38,50 @@ import pyarrow.parquet as pq
 
 from analysis.cohesive.common import binding, require
 
-GEN = Path("/data/io60-calibration/own_compartment_frozen_reference_repair_20261008")
-V3 = Path("/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior-v3")
 BRANCH = Path(__file__).resolve().parents[2]
 TYPING_SRC = BRANCH / "core/multiplex5000/scripts/typing"
-PY = "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/.venv/bin/python"
-ROOT = Path("/data/io60-analysis/typing-20261019/run")
-PRIMARY_FROM = Path("/data/io60-analysis/typing-20261018/run/typing")
 DONORS = ["0112", "115", "6347", "6374", "6380", "6436", "6442", "6450", "6461", "6476", "6482", "6493", "6505",
           "6521", "6523", "6533", "6534", "6539", "6551", "6566", "6579", "6580", "6591", "6593", "6623"]
 RULINGS = ("2026-10-18: Ker8_18 is a veto in no immune definition (shared epithelial negatives, all 25)",
            "2026-10-19: CD8 carries UniFORM's shift on all 25 donors, in the refinement as in the primary calls")
-CANDIDATE_BUILDER = (V3 / "results/v3/islet_immune_reassessment_20261006/cell_typing_validation/"
+# The recovered file is byte-identical to the v3 results/ copy, but is tracked
+# in this repository. A replay must not execute code from an uncommitted data tree.
+CANDIDATE_BUILDER = (BRANCH / "analysis/recovered_20261008/results_v3/"
+                     "islet_immune_reassessment_20261006/cell_typing_validation/"
                      "peer_review_typing_20261008/protein/build_conservative_protein_candidate.py")
 #: What the primary typing wrote; reused unchanged when only the refinement reruns.
 PRIMARY = ("subpanel_rebuilt", "subpanel_audit.json")
 PRIMARY_CELLS = "cells_primary_original"
 
 
-def environment(typing: Path) -> dict:
-    return {"IO60_EXPRESSION_ROOT": str(GEN / "own_compartment/expression"),
-            "IO60_ALIGNED_ROOT": str(GEN / "own_compartment/uniform"),
-            "IO60_SCALE_PATH": str(GEN / "own_compartment/scale.parquet"), "IO60_GEOMETRY_ROOT": str(GEN / "geometry"),
-            "IO60_SUBPANEL_LOG": str(V3 / "data/development/typing/subpanel/subpanel_log.json"),
-            "IO60_SHIFTS_PATH": str(GEN / "own_compartment/shifts.json"), "IO60_TYPING_ROOT": str(typing),
+def environment(typing: Path, args: argparse.Namespace) -> dict:
+    base = args.base_generation
+    return {"IO60_EXPRESSION_ROOT": str(base / "own_compartment/expression"),
+            "IO60_ALIGNED_ROOT": str(base / "own_compartment/uniform"),
+            "IO60_SCALE_PATH": str(base / "own_compartment/scale.parquet"),
+            "IO60_GEOMETRY_ROOT": str(base / "geometry"),
+            "IO60_SUBPANEL_LOG": str(args.subpanel_log),
+            "IO60_EXPORT_ROOT": str(args.export_root),
+            "IO60_QUPATH_MANIFEST": str(args.qupath_manifest),
+            "IO60_SHIFTS_PATH": str(base / "own_compartment/shifts.json"),
+            "IO60_TYPING_ROOT": str(typing),
             "OMP_NUM_THREADS": "6", "OPENBLAS_NUM_THREADS": "6", "MKL_NUM_THREADS": "6", "NUMBA_NUM_THREADS": "6"}
 
 
 class Generation:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, args: argparse.Namespace):
         self.root, self.typing = root, root / "typing"
-        self.env = environment(self.typing)
+        self.args = args
+        self.env = environment(self.typing, args)
         self.ledger = {"created_UTC": datetime.now(timezone.utc).isoformat(), "ruling": "; ".join(RULINGS),
                        "producers": str(BRANCH / "analysis/cohesive/recovered_v3_producers_20261018.json"),
-                       "base_generation": str(GEN), "environment": self.env, "steps": []}
+                       "base_generation": str(args.base_generation), "environment": self.env,
+                       "inputs": {"subpanel_log": str(args.subpanel_log),
+                                  "export_root": str(args.export_root),
+                                  "qupath_manifest": str(args.qupath_manifest),
+                                  "input_manifest": str(args.input_manifest),
+                                  "analysis_exclusions": str(args.analysis_exclusions)},
+                       "steps": []}
 
     def save(self) -> None:
         (self.root / "generation.json").write_text(json.dumps(self.ledger, indent=2) + "\n")
@@ -80,7 +92,7 @@ class Generation:
         print(f"START {name}", flush=True)
         with log.open("w") as handle:
             result = subprocess.run(command, env={**os.environ, **self.env}, stdout=handle,
-                                    stderr=subprocess.STDOUT, cwd="/tmp")
+                                    stderr=subprocess.STDOUT, cwd="/tmp", check=False)
         self.ledger["steps"].append({"name": name, "command": command, "returncode": result.returncode,
                                      "seconds": round(time.time() - started, 1), "log": str(log)})
         self.save()
@@ -152,38 +164,91 @@ def pin(root: Path) -> Path:
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--root", type=Path, default=ROOT, help="new generation folder; must not exist")
-    ap.add_argument("--primary-from", type=Path, default=PRIMARY_FROM,
+    ap.add_argument("--root", type=Path, required=True, help="new generation folder; must not exist")
+    ap.add_argument("--base-generation", type=Path, required=True,
+                    help="recorded own-compartment expression, UniFORM and geometry generation")
+    ap.add_argument("--primary-from", type=Path, required=True,
                     help="typing folder of the generation whose primary typing is reused")
+    ap.add_argument("--subpanel-log", type=Path, required=True)
+    ap.add_argument("--export-root", type=Path, required=True)
+    ap.add_argument("--qupath-manifest", type=Path, required=True)
+    ap.add_argument("--input-manifest", type=Path, required=True)
+    ap.add_argument("--analysis-exclusions", type=Path, required=True)
+    ap.add_argument("--original-geometry-root", type=Path, required=True)
+    ap.add_argument("--python", type=Path, default=Path(sys.executable),
+                    help="interpreter with this checkout's MultiPlex5000 installed")
+    ap.add_argument("--check-inputs", action="store_true",
+                    help="validate source bindings and interpreter without writing a generation")
     args = ap.parse_args(argv)
+    declared_paths = (args.root, args.base_generation, args.primary_from,
+                      args.subpanel_log, args.export_root, args.qupath_manifest,
+                      args.input_manifest, args.analysis_exclusions,
+                      args.original_geometry_root, args.python)
+    for path in declared_paths:
+        require(path.is_absolute(), f"Typing path must be absolute: {path}")
+    sources = (CANDIDATE_BUILDER, args.subpanel_log, args.qupath_manifest,
+               args.input_manifest, args.base_generation / "own_compartment/typing/run.json")
+    for source in sources:
+        require(source.is_file(), f"Missing declared typing input: {source}")
+    for source in (TYPING_SRC / "refine.py", TYPING_SRC / "build_cells.py",
+                   TYPING_SRC / "immune_subtype.py", TYPING_SRC / "build_pancreas_cell_release.py",
+                   BRANCH / "analysis/xenium/scripts/materialize_protein_analysis_assignments.py"):
+        require(source.is_file(), f"Missing maintained typing producer: {source}")
+    require(args.analysis_exclusions.is_dir(),
+            f"Missing analysis-exclusion source: {args.analysis_exclusions}")
+    require(args.export_root.is_dir(), f"Missing QuPath export root: {args.export_root}")
+    require(args.primary_from.is_dir(), f"Missing primary typing source: {args.primary_from}")
+    require(args.original_geometry_root.is_dir(),
+            f"Missing original geometry root: {args.original_geometry_root}")
+    require(args.python.is_file(), f"Missing Python interpreter: {args.python}")
+    installed = subprocess.run(
+        [str(args.python), "-c", "import multiplex5000; print(multiplex5000.__file__)"],
+        cwd="/tmp", text=True, capture_output=True, check=True)
+    package = Path(installed.stdout.strip()).resolve()
+    expected_package = BRANCH / "core/multiplex5000/multiplex5000/__init__.py"
+    require(package == expected_package,
+            f"Interpreter imports {package}; expected {expected_package}. Install this checkout first")
     require(not args.root.exists(), f"{args.root} exists; a generation is written once")
+    if args.check_inputs:
+        print(json.dumps({"checkout": str(BRANCH), "interpreter": str(args.python),
+                          "package": str(package), "builder_sha256": binding(CANDIDATE_BUILDER)["sha256"],
+                          "base_generation": str(args.base_generation),
+                          "primary_from": str(args.primary_from),
+                          "subpanel_log": str(args.subpanel_log),
+                          "export_root": str(args.export_root),
+                          "qupath_manifest": str(args.qupath_manifest),
+                          "input_manifest": str(args.input_manifest),
+                          "analysis_exclusions": str(args.analysis_exclusions)}, indent=2))
+        return
     args.root.mkdir(parents=True)
-    g = Generation(args.root)
+    g = Generation(args.root, args)
     T, donors = g.typing, ["--donors", *DONORS]
     g.reuse_primary(args.primary_from)
-    g.run("refine", [PY, str(TYPING_SRC / "refine.py"), *donors, "--out", str(T / "refinement"),
+    g.run("refine", [str(args.python), str(TYPING_SRC / "refine.py"), *donors, "--out", str(T / "refinement"),
                      "--cd8-alignment", "aligned", "--shifts", g.env["IO60_SHIFTS_PATH"]])
-    g.run("build_cells_with_refinement", [PY, str(TYPING_SRC / "build_cells.py"), *donors,
+    g.run("build_cells_with_refinement", [str(args.python), str(TYPING_SRC / "build_cells.py"), *donors,
           "--calls", str(T / "subpanel_rebuilt"), "--refine", str(T / "refinement"),
           "--audit", str(T / "subpanel_audit.json"), "--out", str(T / "cells_with_refinement")])
     (T / "cells").rename(T / PRIMARY_CELLS)
     (T / "cells").symlink_to("cells_with_refinement")
-    g.run("immune_subtype", [PY, str(TYPING_SRC / "immune_subtype.py"), *donors])
-    original = json.loads((GEN / "own_compartment/typing/run.json").read_text())
+    g.run("immune_subtype", [str(args.python), str(TYPING_SRC / "immune_subtype.py"), *donors])
+    original = json.loads((args.base_generation / "own_compartment/typing/run.json").read_text())
     (T / "run.json").write_text(json.dumps({
-        "status": "complete", "donors": DONORS, "geometry_root": str(GEN / "geometry"),
-        "original_geometry_root": str(V3 / "data/development/typing"),
-        "aligned_root": str(GEN / "own_compartment/uniform"), "scale": str(GEN / "own_compartment/scale.parquet"),
-        "expression_root": str(GEN / "own_compartment/expression"), "source_scripts": original["source_scripts"],
+        "status": "complete", "donors": DONORS, "geometry_root": str(args.base_generation / "geometry"),
+        "original_geometry_root": str(args.original_geometry_root),
+        "aligned_root": str(args.base_generation / "own_compartment/uniform"),
+        "scale": str(args.base_generation / "own_compartment/scale.parquet"),
+        "expression_root": str(args.base_generation / "own_compartment/expression"),
+        "source_scripts": original["source_scripts"],
         "producers_recovered_into": str(BRANCH), "ruling": g.ledger["ruling"], "refinement_cd8_alignment": "aligned",
         "baseline_unchanged": True, "accuracy_validated": False, "release_promoted": False}, indent=2) + "\n")
-    g.run("cell_release", [PY, str(TYPING_SRC / "build_pancreas_cell_release.py"), "--arm-root", str(T),
+    g.run("cell_release", [str(args.python), str(TYPING_SRC / "build_pancreas_cell_release.py"), "--arm-root", str(T),
           "--out", str(args.root / "pancreas_cell_release_current_generation"),
-          "--input-manifest", str(V3 / "results/v3/release_20261003/current_input_manifest.json")])
-    g.run("analysis_admission", [PY, str(BRANCH / "analysis/xenium/scripts/materialize_protein_analysis_assignments.py"),
+          "--input-manifest", str(args.input_manifest)])
+    g.run("analysis_admission", [str(args.python), str(BRANCH / "analysis/xenium/scripts/materialize_protein_analysis_assignments.py"),
           "--source", str(args.root / "pancreas_cell_release_current_generation"),
           "--out", str(args.root / "pancreas_analysis_assignments_current_generation"), "--policy", "current_generation",
-          "--mandatory-exclusions", "/data/io60-calibration/pancreas_analysis_assignments_single_exclusions_20261005"])
+          "--mandatory-exclusions", str(args.analysis_exclusions)])
     g.candidate()
     g.ledger["finished_UTC"] = datetime.now(timezone.utc).isoformat()
     g.save()

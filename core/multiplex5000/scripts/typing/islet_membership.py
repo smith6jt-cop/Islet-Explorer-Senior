@@ -52,7 +52,7 @@ DISTANCE = S.REPO / "data/development/kintsugi/distance"
 OUT = S.OUT / "islet_membership"
 
 def _manifest() -> tuple[dict, dict]:
-    raw = json.loads((S.REPO / "core/phenocycler/data/qupath_manifest.json").read_text())
+    raw = json.loads(S.QUPATH_MANIFEST.read_text())
     return ({r["donor_id"]: r["pixel_size_um_x"] for r in raw["images"]},
             {r["donor_id"]: r["image_id"].split(" - ")[0].replace(".qptiff", "")
              for r in raw["images"]})

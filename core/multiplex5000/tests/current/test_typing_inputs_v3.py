@@ -13,6 +13,8 @@ error if it regressed:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,6 +33,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 def S(tmp_path, monkeypatch):
     import subpanel_io as module
     monkeypatch.setattr(module, "REPO", tmp_path)
+    monkeypatch.setattr(module, "QUPATH_MANIFEST",
+                        tmp_path / "core/phenocycler/data/qupath_manifest.json")
     monkeypatch.setattr(module, "REVISED", tmp_path / "revised_cells")
     monkeypatch.setattr(module, "RUN", tmp_path / "run")
     return module
@@ -43,6 +47,19 @@ def test_objects_come_from_the_v3_export_and_never_from_the_v2_folder():
         assert "results/v3/export" in path.as_posix()
         assert "results/Geojson" not in path.as_posix()
     assert S.GEOJSON != S.ISLETS
+
+
+def test_typing_export_and_manifest_can_be_bound_to_a_different_site(tmp_path):
+    export = tmp_path / "exports"
+    manifest = tmp_path / "qupath_manifest.json"
+    environment = {**os.environ, "PYTHONPATH": str(TYPING),
+                   "IO60_EXPORT_ROOT": str(export),
+                   "IO60_QUPATH_MANIFEST": str(manifest)}
+    result = subprocess.run(
+        [sys.executable, "-c", "import json, subpanel_io as s; "
+         "print(json.dumps([str(s.EXPORT), str(s.QUPATH_MANIFEST)]))"],
+        env=environment, cwd=tmp_path, text=True, capture_output=True, check=True)
+    assert json.loads(result.stdout) == [str(export), str(manifest)]
 
 
 def test_the_context_reader_takes_exactly_one_structure_file_per_image(tmp_path, monkeypatch):
