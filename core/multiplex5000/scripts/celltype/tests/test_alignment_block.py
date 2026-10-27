@@ -13,7 +13,6 @@ import sys
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 import pytest
 from shapely.geometry import box, mapping
 
@@ -23,6 +22,14 @@ import panel
 import run_step1 as S1
 import run_step2 as S2
 import run_step3 as S3
+
+from multiplex5000 import normalization_block as BLOCK
+
+
+def test_legacy_lane_uses_the_packaged_block_decision():
+    assert AB.assign is BLOCK.assign
+    assert AB.build_donor is BLOCK.build_donor
+    assert AB.read_blocks is BLOCK.read_blocks
 
 PX = AB.EXPORT_PIXEL_UM
 IMAGE = "0080502_6580_pLNpanc_Scan1.er.qptiff - resolution #1"
