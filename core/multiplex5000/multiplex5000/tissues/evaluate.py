@@ -17,6 +17,7 @@ import numpy as np
 from .lymph_node import RuleSource, RuleSourceError
 
 RuleState = Literal["matched", "not_matched", "unavailable"]
+CANDIDATE_STATES = ("unique_candidate", "ambiguous", "unavailable", "no_match")
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,21 @@ class BatchRuleEvaluation:
 
     states: dict[str, np.ndarray]
     unavailable_counts: dict[str, int]
+
+
+@dataclass(frozen=True)
+class BatchRuleCandidates:
+    """Deepest uniquely matched rule per cell, for review rather than release typing.
+
+    A parent is superseded only by one of its matched descendants. Two matched
+    branches stay ambiguous even when one branch is deeper. Missing evidence is
+    counted separately so a unique confirmed rule is never called verified.
+    """
+
+    phenotype: np.ndarray
+    status: np.ndarray
+    maximal_matches: np.ndarray
+    unavailable_rules: np.ndarray
 
 
 def _marker_calls(source: RuleSource, calls: Mapping[str, bool | None]) -> dict[str, bool]:
@@ -162,3 +178,49 @@ def evaluate_rules_batch(source: RuleSource,
         state(phenotype)
     return BatchRuleEvaluation(states, {name: int((value == -1).sum())
                                         for name, value in states.items()})
+
+
+def resolve_unique_matched_rules(source: RuleSource,
+                                 evaluation: BatchRuleEvaluation) -> BatchRuleCandidates:
+    """Keep one deepest confirmed phenotype, or report why no unique one exists.
+
+    This is a mechanical reading of the recorded hierarchy. It does not choose
+    among overlapping leaves or turn a candidate into a served final class.
+    """
+    rules = source.by_phenotype
+    if set(evaluation.states) != set(rules):
+        raise RuleSourceError("candidate resolution needs every recorded rule")
+    arrays = {name: np.asarray(evaluation.states[name]) for name in rules}
+    lengths = {len(value) for value in arrays.values() if value.ndim == 1}
+    if (len(lengths) != 1 or any(value.ndim != 1 or not np.issubdtype(value.dtype, np.integer)
+                                 or not np.isin(value, (-1, 0, 1)).all()
+                                 for value in arrays.values())):
+        raise RuleSourceError("candidate resolution needs equal-length tri-state rule columns")
+    n = lengths.pop()
+    children: dict[str, list[str]] = {name: [] for name in rules}
+    for name, rule in rules.items():
+        if rule.parent in rules:
+            parent = arrays[rule.parent]
+            if np.any((arrays[name] == 1) & (parent != 1)):
+                raise RuleSourceError(f"{name}: matched child has no matched parent")
+            children[rule.parent].append(name)
+
+    winner = np.full(n, -1, dtype=np.int16)
+    maximal = np.zeros(n, dtype=np.uint16)
+    unavailable = np.zeros(n, dtype=np.uint16)
+    names = tuple(rules)
+    for index, name in enumerate(names):
+        state = arrays[name]
+        unavailable += (state == -1).astype(np.uint16)
+        deepest = state == 1
+        for child in children[name]:
+            deepest &= arrays[child] != 1
+        winner[deepest] = index
+        maximal += deepest.astype(np.uint16)
+    phenotype = np.asarray(names, dtype=object)[np.maximum(winner, 0)]
+    phenotype[maximal != 1] = ""
+    status = np.full(n, "no_match", dtype=object)
+    status[(maximal == 0) & (unavailable > 0)] = "unavailable"
+    status[maximal > 1] = "ambiguous"
+    status[maximal == 1] = "unique_candidate"
+    return BatchRuleCandidates(phenotype, status, maximal, unavailable)

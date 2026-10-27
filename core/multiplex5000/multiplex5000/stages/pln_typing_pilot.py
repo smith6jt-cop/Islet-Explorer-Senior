@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import csv
 import json
-from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
@@ -18,6 +17,7 @@ import pyarrow.parquet as pq
 
 from .. import gates, roots
 from ..tasks import Input, Task
+from ..tissues.evaluate import CANDIDATE_STATES, resolve_unique_matched_rules
 from ..tissues.lymph_node import load_rule_source
 from ..tissues.protein_section import evaluate_protein_section
 
@@ -28,6 +28,7 @@ THRESHOLD_COLUMNS = ("protein_entry", "marker", "floor", "top", "cutoff", "shift
                      "n_background_support", "unavailable_reason", "detected", "undetected",
                      "unavailable")
 RULE_COLUMNS = ("protein_entry", "phenotype", "matched", "not_matched", "unavailable")
+CANDIDATE_COLUMNS = ("protein_entry", "status", "cells")
 
 
 class PLNTypingPilotError(ValueError):
@@ -98,7 +99,7 @@ def run(task: Task) -> dict:
         raise PLNTypingPilotError("pLN sections changed after input declaration")
     source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"))
     scales = _scales(task)
-    threshold_rows, rule_rows = [], []
+    threshold_rows, rule_rows, candidate_rows = [], [], []
     total_cells = no_nucleus = 0
     for row in sections:
         entry = row["protein_entry"]
@@ -113,8 +114,12 @@ def run(task: Task) -> dict:
         section = evaluate_protein_section(
             source, entry, measurements, eligible,
             {marker: scales.get((entry, marker)) for marker in markers})
+        candidates = resolve_unique_matched_rules(source, section.rules)
         payload = {"cell_uid": table["cell_uid"], "object_id": table["object_id"],
-                   "protein_eligible": table["protein_eligible"]}
+                   "protein_eligible": table["protein_eligible"],
+                   "candidate_phenotype": pa.array(candidates.phenotype),
+                   "candidate_state": pa.array(candidates.status),
+                   "candidate_unavailable_rules": pa.array(candidates.unavailable_rules)}
         for marker, evidence in section.markers.items():
             payload[f"marker_call:{marker}"] = pa.array(evidence.states)
             threshold_rows.append({"protein_entry": entry, "marker": marker,
@@ -132,18 +137,24 @@ def run(task: Task) -> dict:
                               "matched": int(np.count_nonzero(states == 1)),
                               "not_matched": int(np.count_nonzero(states == 0)),
                               "unavailable": int(np.count_nonzero(states == -1))})
+        candidate_rows.extend({"protein_entry": entry, "status": status,
+                               "cells": int(np.count_nonzero(candidates.status == status))}
+                              for status in CANDIDATE_STATES)
         pq.write_table(pa.table(payload), task.output(f"protein/{entry}.parquet"),
                        compression="zstd")
         total_cells += len(eligible)
         no_nucleus += int(np.count_nonzero(~eligible))
     for filename, columns, rows in (("protein_thresholds.csv", THRESHOLD_COLUMNS, threshold_rows),
-                                    ("protein_rule_counts.csv", RULE_COLUMNS, rule_rows)):
+                                    ("protein_rule_counts.csv", RULE_COLUMNS, rule_rows),
+                                    ("protein_candidate_status.csv", CANDIDATE_COLUMNS,
+                                     candidate_rows)):
         with task.output(filename).open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=columns)
             writer.writeheader()
             writer.writerows(rows)
     _marker_figure(task, threshold_rows, sections)
     _rule_figures(task, rule_rows, sections)
+    _candidate_figure(task, candidate_rows, sections)
     return {"sections": len(sections), "protein_cells": total_cells,
             "protein_cells_without_nucleus": no_nucleus,
             "protein_markers": len(threshold_rows),
@@ -151,6 +162,9 @@ def run(task: Task) -> dict:
                                                for row in threshold_rows),
             "protein_rules": len(rule_rows),
             "expected_protein_rules": len(sections) * len(source.rules),
+            "candidate_status_cells": sum(row["cells"] for row in candidate_rows),
+            "unique_rule_candidates": sum(row["cells"] for row in candidate_rows
+                                          if row["status"] == "unique_candidate"),
             "candidate_only": True, "final_cell_classes": 0}
 
 
@@ -214,6 +228,28 @@ def _rule_figures(task: Task, rows: list[dict], sections: list[dict]) -> None:
         plt.close(fig)
 
 
+def _candidate_figure(task: Task, rows: list[dict], sections: list[dict]) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    entries = [row["protein_entry"] for row in sections]
+    counts = {(row["protein_entry"], row["status"]): row["cells"] for row in rows}
+    fig, ax = plt.subplots(figsize=(max(8, len(entries) * 1.5), 5), layout="constrained")
+    bottom = np.zeros(len(entries), dtype=int)
+    for status in CANDIDATE_STATES:
+        values = np.array([counts[(entry, status)] for entry in entries])
+        ax.bar(entries, values, bottom=bottom, label=status.replace("_", " "))
+        bottom += values
+    ax.set(ylabel="PhenoCycler segmented cells (n)",
+           title="pLN hierarchy: deepest unique rule is a review candidate")
+    ax.tick_params(axis="x", rotation=60)
+    ax.legend()
+    fig.savefig(gates.figure_path(task, "pln_candidate_status.png"), dpi=140)
+    plt.close(fig)
+
+
 def gate(task: Task, summary: dict) -> gates.Gate:
     checks = [
         gates.Check("all selected pLN sections evaluated", summary["sections"],
@@ -225,11 +261,16 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         gates.Check("marker cutoffs available", summary["protein_markers_with_cutoff"],
                     f"of {summary['protein_markers']}; unavailable is preserved",
                     True, blocking=False),
+        gates.Check("candidate status accounts for every cell", summary["candidate_status_cells"],
+                    str(summary["protein_cells"]),
+                    summary["candidate_status_cells"] == summary["protein_cells"]),
+        gates.Check("unique deepest rule candidates", summary["unique_rule_candidates"],
+                    "review only; overlapping matches stay ambiguous", True, blocking=False),
         gates.Check("final cell classes released", 0, "processing approval required",
                     False, blocking=False),
     ]
     return gates.Gate(STAGE, "Dedicated pLN per-section protein rule evidence for review; "
                       "no final class or release admission.", checks,
-                      ["pln_marker_support.png"] + [
+                      ["pln_marker_support.png", "pln_candidate_status.png"] + [
                           f"pln_rule_evidence_{entry}.png"
                           for entry in task.settings["protein_entries"]])

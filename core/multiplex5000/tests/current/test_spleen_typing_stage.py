@@ -98,9 +98,12 @@ def test_stage06_writes_candidate_evidence_without_joining_cells(tmp_path, monke
     rna_calls = pq.read_table(result.path / f"rna/{sample}.parquet")
     assert protein_calls["marker_call:CD8"][-1].as_py() == -1
     assert protein_calls["rule:Immune"][-1].as_py() == -1
+    assert protein_calls["candidate_state"][-1].as_py() == "unavailable"
+    assert protein_calls["candidate_phenotype"][-1].as_py() == ""
     assert rna_calls["gene:CD3E"][-1].as_py() == -1
     assert protein_calls["cell_uid"][0].as_py() != rna_calls["cell_uid"][0].as_py()
     assert (result.path / "gate/assay_evidence.png").is_file()
+    assert (result.path / "gate/spleen_candidate_status.png").is_file()
 
 
 def test_stage06_refuses_a_different_xenium_output_for_the_same_donor(tmp_path, monkeypatch):
