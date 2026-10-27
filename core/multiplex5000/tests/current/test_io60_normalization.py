@@ -8,7 +8,8 @@ from types import SimpleNamespace
 import pandas as pd
 from shapely.geometry import box, mapping
 
-from multiplex5000 import gates, normalization_block as block, normalize, tasks
+from multiplex5000 import gates, normalize, tasks
+from multiplex5000 import normalization_block as block
 from multiplex5000.stages import io60_normalization as stage
 from multiplex5000.stages import normalization
 from multiplex5000.tasks import Input, Task
