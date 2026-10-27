@@ -1,0 +1,35 @@
+schema: multiplex5000-project/1
+id: io60_mixed_protein_full_candidate
+release: io60-mixed-protein-full-candidate-1
+cohort: io60_v3
+stages:
+- 06_typing
+automatic_gates: []
+settings:
+  typing_route: io60_mixed_protein_pilot
+  typing_donors:
+  - '0112'
+  - '115'
+  - '6347'
+  - '6374'
+  - '6380'
+  - '6436'
+  - '6442'
+  - '6450'
+  - '6461'
+  - '6476'
+  - '6482'
+  - '6493'
+  - '6505'
+  - '6521'
+  - '6523'
+  - '6533'
+  - '6534'
+  - '6539'
+  - '6551'
+  - '6566'
+  - '6579'
+  - '6580'
+  - '6591'
+  - '6593'
+  - '6623'

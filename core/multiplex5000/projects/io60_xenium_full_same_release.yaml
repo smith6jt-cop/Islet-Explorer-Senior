@@ -1,0 +1,78 @@
+schema: multiplex5000-project/1
+id: io60_xenium_full_same_release
+release: io60-candidate-1
+cohort: io60_v3
+stages:
+- 00_inventory
+- 04_rna_ingest
+- 06_typing
+automatic_gates: []
+settings:
+  typing_route: io60_xenium_pilot
+  rna_min_median_detected_genes: 20
+  rna_acquisitions:
+  - xenium:0041117:PanT
+  - xenium:0041116:Region_1
+  - xenium:0041396:Pancreas
+  - xenium:0041393:Pancreas
+  - xenium:0041139:Panc
+  - xenium:0041140:Panc_pLN
+  - xenium:0037637:6457_Pan
+  - xenium:0037634:6476_Pan
+  - xenium:0037502:6380_Pan
+  - xenium:0037499:6523_Pan
+  - xenium:0041035:Pan
+  - xenium:0041032:Pan
+  - xenium:0059968:Panc
+  - xenium:0059847:Panc
+  - xenium:0037191:Panc
+  - xenium:0037199:Panc
+  - xenium:0037376:Panc
+  - xenium:0037354:Panc
+  - xenium:0059865:Panc
+  - xenium:0059907:Panc
+  - xenium:0059945:Panc
+  - xenium:0059947:Panc
+  - xenium:0080824:Region_1
+  - xenium:0080836:Region_1
+  - xenium:0081203:6534_Panc
+  - xenium:0081215:6623_Panc
+  - xenium:0041396:pLN
+  - xenium:0041117:pLN
+  - xenium:0041140:pLN
+  - xenium:0041032:pLN
+  - xenium:0037502:6380_pLN
+  - xenium:0059907:PanT
+  - xenium:0059947:pLN
+  - xenium:0080824:Region_2
+  - xenium:0037637:6457_pLN1
+  - xenium:0059847:pLN
+  - xenium:0037634:6476_pLN
+  - xenium:0037354:pLN
+  - xenium:0037191:pLN
+  - xenium:0080836:Region_2
+  - xenium:0037199:pLN
+  - xenium:0037499:6523_pLN
+  - xenium:0041393:pLN
+  - xenium:0081203:6534_pLN1
+  - xenium:0059865:PanT
+  - xenium:0037376:pLN
+  - xenium:0059968:pLN
+  - xenium:0041035:pLN1
+  - xenium:0041139:pLN
+  - xenium:0059945:pLN
+  - xenium:0081215:6623_pLN
+  - xenium:0037637:6457_pLN2
+  - xenium:0041035:pLN2
+  - xenium:0081203:6534_pLN2
+  - xenium:0041035:pLN3
+  - xenium:0080870:panc
+  - xenium:0081366:panc
+  - xenium:0080870:pLN
+  - xenium:0081366:pLN
+  - xenium:0080579:panc
+  - xenium:0080579:pLN
+  - xenium:0080502:panc
+  - xenium:0080502:pLN
+  - xenium:0041323:Region_1
+  - xenium:0041326:Region_1
