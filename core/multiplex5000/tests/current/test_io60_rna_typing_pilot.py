@@ -52,6 +52,9 @@ def _project(tmp_path: Path):
     metadata = tmp_path / "donors.xlsx"
     pd.DataFrame({"donor_id": ["6539"], "sex": ["M"],
                   "disease.status": ["ND"]}).to_excel(metadata, index=False)
+    npod = tmp_path / "npod.xlsx"
+    pd.DataFrame({"case_id": ["6539"], "sex": ["Male"],
+                  "donor_type": ["No Diabetes"]}).to_excel(npod, index=False)
     fields = ("platform", "acquisition_id", "donor_id", "roi", "tissue", "output", "path",
               "condition", "batch_number", "xenium_serial")
     acquisitions = inventory / "acquisitions.csv"
@@ -65,9 +68,12 @@ def _project(tmp_path: Path):
             writer.writerow({"platform": "xenium", "acquisition_id": f"xenium:{serial}:{roi}",
                              "donor_id": donor, "roi": roi, "tissue": tissue,
                              "output": path.name, "path": str(path), "condition": condition,
-                             "batch_number": "10", "xenium_serial": serial})
+                             "batch_number": "10",
+                             "xenium_serial": "" if roi == "Panc" else serial})
     input_hashes = [{"name": "donor_metadata", "path": str(metadata),
-                     "sha256": tasks.sha256_file(metadata)}]
+                     "sha256": tasks.sha256_file(metadata)},
+                    {"name": "npod_cases", "path": str(npod),
+                     "sha256": tasks.sha256_file(npod)}]
     input_hashes += [{"name": f"xenium:{path.name}:{name}",
                       "sha256": tasks.sha256_file(path / name)}
                      for path in (panc, pln, damaged) for name in INSTRUMENT_FILES]
@@ -80,10 +86,12 @@ def _project(tmp_path: Path):
                                                 "passed": True, "checks": []}))
     gates.accept(inventory, by="test")
     selected = ["xenium:0040001:Panc", "xenium:0040001:PanT", "xenium:0040002:PanT"]
-    return SimpleNamespace(release_dir=release, release="pilot", path=tmp_path / "pilot.yaml",
+    return SimpleNamespace(release_dir=release, release="pilot", cohort="io60_v3",
+                           path=tmp_path / "pilot.yaml",
                            settings={"typing_route": "io60_xenium_pilot",
                                      "rna_acquisitions": selected},
-                           source=lambda name: metadata if name == "donor_metadata" else None,
+                           source=lambda name: {"donor_metadata": metadata,
+                                                "npod_cases": npod}.get(name),
                            previous=lambda stage: "00_inventory" if stage == "04_rna_ingest"
                            else "04_rna_ingest", automatic_gates=("04_rna_ingest",))
 
@@ -140,6 +148,9 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["acquisitions"] == 3
     assert summary["called_cells"] == 2
+    assert summary["broad_cells"] == 0
+    assert summary["unresolved_cells"] == 0
+    assert summary["uncalled_cells"] == 0
     assert summary["unavailable_cells"] == (2 if missing_before_ingest else 4)
     assert summary["unavailable"] == ["xenium:0040002:PanT"]
     assert summary["unknown_cell_count"] == (["xenium:0040002:PanT"]
@@ -149,3 +160,30 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
         rows = list(csv.DictReader(handle))
     assert {row["tissue"] for row in rows} == {"pancreas", "pancreatic_lymph_node"}
     assert (result.path / "gate/rna_typing_scope.png").is_file()
+    assert (result.path / "gate/rna_typing_classes.png").is_file()
+
+
+def test_unresolved_t_subsets_and_broad_nonimmune_are_not_counted_as_specific_classes():
+    assert pilot._call_state("T_NK_unresolved") == "unresolved"
+    assert pilot._call_state("T_subset_unresolved") == "unresolved"
+    assert pilot._call_state("Non_immune") == "broad"
+    assert pilot._call_state("Uncalled_ambiguous") == "uncalled"
+    assert pilot._call_state("Unavailable_no_nucleus") == "unavailable"
+    assert pilot._call_state("T_CD8") == "class"
+
+
+def test_donor_metadata_uses_recorded_alias_and_npod_fallback(tmp_path):
+    metadata = tmp_path / "donors.xlsx"
+    npod = tmp_path / "npod.xlsx"
+    pd.DataFrame({"donor_id": ["112"], "sex": ["F"],
+                  "disease.status": ["ND"]}).to_excel(metadata, index=False)
+    pd.DataFrame({"case_id": ["6512", "6618"], "sex": ["Female", "Male"],
+                  "donor_type": ["Autoantibody Positive", "Type 1 Diabetes"]}).to_excel(
+                      npod, index=False)
+    task = SimpleNamespace(project=SimpleNamespace(cohort="io60_v3"),
+                           input=lambda name: {"donor_metadata": metadata,
+                                               "npod_cases": npod}[name])
+    donors = pilot._donors(task)
+    assert donors["0112"] == ("F", "ND")
+    assert donors["6512"] == ("F", "Aab+")
+    assert donors["6618"] == ("M", "T1D")

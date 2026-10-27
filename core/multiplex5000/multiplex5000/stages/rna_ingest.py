@@ -185,29 +185,81 @@ def _figure(task: Task, rows: list[dict], accepted_regions: int) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
-    fig, (left, right) = plt.subplots(1, 2, figsize=(13, 5), layout="constrained")
-    tissues = sorted({r["tissue"] for r in rows})
-    colors = plt.get_cmap("tab10")
-    for n, tissue in enumerate(tissues):
-        selected = [r for r in rows if r["tissue"] == tissue and "cells" in r]
-        label = f"{tissue} ({len(selected)} measured regions)"
-        left.scatter([r["cells"] for r in selected],
-                     [r["typing_eligible"] / r["cells"] if r["cells"] else 0
-                      for r in selected], label=label, color=colors(n), alpha=0.8)
-        right.scatter([r["median_detected_genes"] for r in selected],
-                      [r["median_gene_counts"] for r in selected], label=label,
-                      color=colors(n), alpha=0.8)
-    left.set(xlabel="Cells per Xenium region (n)",
-             ylabel="Fraction with nucleus, eligible for typing")
-    right.set(xlabel="Median detected genes per cell (n)",
-              ylabel="Median raw gene counts per cell (transcripts)")
-    left.legend(fontsize=8)
-    right.legend(fontsize=8)
-    measured = sum("cells" in row for row in rows)
-    fig.suptitle(f"Xenium RNA ingest QC: {measured}/{len(rows)} selected regions measured "
-                 f"({accepted_regions} accepted), {sum(r.get('cells', 0) for r in rows):,} "
-                 f"measured cells")
+    ordered = sorted(rows, key=lambda row: (row["donor_id"], row["tissue"], row["roi"]))
+    n_regions = len(ordered)
+    height = max(9, 5 + 0.34 * n_regions)
+    fig = plt.figure(figsize=(18, height), layout="constrained")
+    grid = fig.add_gridspec(2, 6, height_ratios=[max(3, 0.34 * n_regions), 3])
+    admission = fig.add_subplot(grid[0, :2])
+    genes = fig.add_subplot(grid[0, 2:4], sharey=admission)
+    transcripts = fig.add_subplot(grid[0, 4:], sharey=admission)
+    gene_cdf = fig.add_subplot(grid[1, :3])
+    transcript_cdf = fig.add_subplot(grid[1, 3:])
+    tissue_colors = {"pancreas": "#287ba8", "pancreatic_lymph_node": "#ce6b27"}
+    labels = [f"{row['donor_id']} {row['roi']} "
+              f"({'pLN' if row['tissue'] == 'pancreatic_lymph_node' else 'pancreas'})"
+              for row in ordered]
+    y = np.arange(n_regions)
+    eligible = np.array([row.get("typing_eligible", 0) for row in ordered])
+    no_nucleus = np.array([row.get("no_nucleus", 0) for row in ordered])
+    missing = np.array([row.get("nucleus_missing", 0) for row in ordered])
+    admission.barh(y, eligible, color="#21867a", label="eligible, nucleus measured")
+    admission.barh(y, no_nucleus, left=eligible, color="#e0a047", label="no nucleus")
+    admission.barh(y, missing, left=eligible + no_nucleus, color="#9b72ad",
+                   label="nucleus count missing")
+    admission.set(yticks=y, yticklabels=labels, xlabel="Segmented cells (n)",
+                  title="Cell admission by acquisition")
+    admission.invert_yaxis()
+    admission.legend(loc="lower right", fontsize=8)
+    for axis, title, xlabel in (
+            (genes, "Detected genes in eligible cells", "Detected genes per cell (n)"),
+            (transcripts, "Raw RNA in eligible cells", "Transcripts per cell (n)")):
+        axis.set(title=title, xlabel=xlabel)
+        axis.tick_params(axis="y", left=False, labelleft=False)
+        axis.grid(axis="x", color="#dddddd", linewidth=0.6)
+    for pos, row in enumerate(ordered):
+        if "cells" not in row:
+            admission.text(0, pos, "source unavailable; cell count unknown", va="center",
+                           fontsize=8)
+            continue
+        table = pq.read_table(task.staging / "cells" / f"{row['sample_key']}.parquet",
+                              columns=["typing_eligible", "gene_counts", "detected_genes"])
+        valid = table["typing_eligible"].to_numpy(zero_copy_only=False).astype(bool)
+        color = tissue_colors.get(row["tissue"], "#555555")
+        for column, interval_axis, cdf_axis in (
+                ("detected_genes", genes, gene_cdf),
+                ("gene_counts", transcripts, transcript_cdf)):
+            values = table[column].to_numpy(zero_copy_only=False)[valid]
+            if not len(values):
+                continue
+            p10, p25, median, p75, p90 = np.quantile(values, [.1, .25, .5, .75, .9])
+            interval_axis.hlines(pos, p10, p90, color=color, linewidth=2)
+            interval_axis.hlines(pos, p25, p75, color=color, linewidth=7)
+            interval_axis.plot(median, pos, marker="|", markersize=13, color="black")
+            quantiles = np.quantile(values, np.linspace(0, 1, 301))
+            cdf_axis.plot(quantiles, np.linspace(0, 1, 301), color=color,
+                          alpha=0.9 if n_regions <= 8 else 0.35,
+                          label=f"{row['donor_id']} {row['roi']}: n={len(values):,}, "
+                                f"median={median:,.0f}" if n_regions <= 8 else None)
+    for axis, xlabel in ((gene_cdf, "Detected genes per eligible cell (n)"),
+                         (transcript_cdf, "Raw transcripts per eligible cell (n)")):
+        axis.set(xlabel=xlabel, ylabel="Cumulative fraction of eligible cells",
+                 ylim=(0, 1), xlim=(0, None))
+        axis.grid(color="#dddddd", linewidth=0.6)
+        if n_regions <= 8:
+            axis.legend(loc="lower right", fontsize=8)
+        else:
+            axis.legend(handles=[Line2D([0], [0], color=color, label=tissue)
+                                 for tissue, color in tissue_colors.items()
+                                 if tissue in {row["tissue"] for row in ordered}],
+                        loc="lower right", fontsize=8)
+    fig.suptitle(f"Xenium RNA ingest QC: {sum('cells' in row for row in rows)}/"
+                 f"{n_regions} selected regions measured ({accepted_regions} accepted); "
+                 f"{sum(row.get('cells', 0) for row in rows):,} measured cells\n"
+                 "Intervals: 10th–90th percentile, thick bar: 25th–75th, "
+                 "black tick: median; curves use all eligible cells", fontsize=14)
     fig.savefig(gates.figure_path(task, "rna_ingest_qc.png"), dpi=160)
     plt.close(fig)
 
