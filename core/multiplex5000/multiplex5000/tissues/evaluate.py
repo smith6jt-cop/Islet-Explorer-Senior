@@ -40,17 +40,18 @@ class BatchRuleEvaluation:
 
 @dataclass(frozen=True)
 class BatchRuleCandidates:
-    """Deepest uniquely matched rule per cell, for review rather than release typing.
+    """Deepest uniquely matched lineage rule per cell, for review only.
 
-    A parent is superseded only by one of its matched descendants. Two matched
-    branches stay ambiguous even when one branch is deeper. Missing evidence is
-    counted separately so a unique confirmed rule is never called verified.
+    The selected 6551 manifest names lineage and state roots. A parent is superseded only by one
+    of its matched descendants. Two matched lineage branches stay ambiguous;
+    state annotations never compete with a lineage candidate. Missing lineage
+    evidence is counted separately and no candidate is called verified.
     """
 
     phenotype: np.ndarray
     status: np.ndarray
     maximal_matches: np.ndarray
-    unavailable_rules: np.ndarray
+    unavailable_lineage_rules: np.ndarray
 
 
 def _marker_calls(source: RuleSource, calls: Mapping[str, bool | None]) -> dict[str, bool]:
@@ -182,10 +183,11 @@ def evaluate_rules_batch(source: RuleSource,
 
 def resolve_unique_matched_rules(source: RuleSource,
                                  evaluation: BatchRuleEvaluation) -> BatchRuleCandidates:
-    """Keep one deepest confirmed phenotype, or report why no unique one exists.
+    """Keep one deepest confirmed lineage, or report why no unique one exists.
 
-    This is a mechanical reading of the recorded hierarchy. It does not choose
-    among overlapping leaves or turn a candidate into a served final class.
+    The sheet's state branches remain in the rule evidence, but are
+    excluded from cell-identity competition. This does not choose among
+    overlapping lineage leaves or turn a candidate into a served final class.
     """
     rules = source.by_phenotype
     if set(evaluation.states) != set(rules):
@@ -205,10 +207,32 @@ def resolve_unique_matched_rules(source: RuleSource,
                 raise RuleSourceError(f"{name}: matched child has no matched parent")
             children[rule.parent].append(name)
 
+    declared_roots = set(source.candidate_lineage_roots)
+    lineage_roots = {name for name, rule in rules.items()
+                     if rule.parent == source.lineage_root_parent}
+    if declared_roots and not declared_roots <= lineage_roots:
+        raise RuleSourceError("candidate lineage root is absent from the hierarchy")
+
+    def lineage_rule(name: str) -> bool:
+        current, seen = name, set()
+        while rules[current].parent in rules:
+            if current in seen:
+                raise RuleSourceError(f"cycle in rule parents at {current}")
+            seen.add(current)
+            current = rules[current].parent
+        root_parent = rules[current].parent
+        if root_parent not in {source.lineage_root_parent, source.state_root_parent}:
+            raise RuleSourceError(f"{name}: unknown hierarchy root {root_parent}")
+        return (root_parent == source.lineage_root_parent
+                and (not source.candidate_lineage_roots
+                     or current in source.candidate_lineage_roots))
+
+    names = tuple(name for name in rules if lineage_rule(name))
+    if not names:
+        raise RuleSourceError("candidate resolution needs lineage rules")
     winner = np.full(n, -1, dtype=np.int16)
     maximal = np.zeros(n, dtype=np.uint16)
     unavailable = np.zeros(n, dtype=np.uint16)
-    names = tuple(rules)
     for index, name in enumerate(names):
         state = arrays[name]
         unavailable += (state == -1).astype(np.uint16)

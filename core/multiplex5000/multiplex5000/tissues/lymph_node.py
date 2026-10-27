@@ -37,6 +37,9 @@ class RuleSource:
     rules: tuple[Rule, ...]
     omitted: tuple[tuple[str, str], ...]
     panel_aliases: dict[str, str]
+    lineage_root_parent: str = "all"
+    state_root_parent: str = "any"
+    candidate_lineage_roots: tuple[str, ...] = ()
 
     @property
     def by_phenotype(self) -> dict[str, Rule]:
@@ -92,6 +95,10 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> 
     if len(rows) != spec["rows"]:
         raise RuleSourceError(f"expected {spec['rows']} rule rows, found {len(rows)}")
     allowed = set(spec["tokens"])
+    root_roles = spec.get("root_roles")
+    if (not isinstance(root_roles, dict) or set(root_roles) != {"lineage", "state"}
+            or set(root_roles.values()) != {"all", "any"}):
+        raise RuleSourceError("manifest must distinguish lineage and state root parents")
     omit = set(spec["pln_adaptation"]["omit_from_root_allneg"])
     if not omit <= set(headers[2:]):
         raise RuleSourceError(f"adaptation names unknown marker(s): {sorted(omit-set(headers))}")
@@ -117,7 +124,18 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> 
     for rule in rules:
         if rule.parent not in {"all", "any"} and rule.parent not in names:
             raise RuleSourceError(f"{rule.phenotype}: missing parent {rule.parent}")
-    result = RuleSource(digest, tuple(rules), tuple(omitted), aliases)
+    candidate_roots = spec.get("candidate_lineage_roots")
+    if (not isinstance(candidate_roots, list) or not candidate_roots
+            or not all(isinstance(name, str) for name in candidate_roots)
+            or len(candidate_roots) != len(set(candidate_roots))):
+        raise RuleSourceError("manifest needs distinct candidate lineage roots")
+    available_roots = {rule.phenotype for rule in rules
+                       if rule.parent == root_roles["lineage"]}
+    if not set(candidate_roots) <= available_roots:
+        raise RuleSourceError("candidate lineage root is absent from the selected sheet")
+    result = RuleSource(digest, tuple(rules), tuple(omitted), aliases,
+                        root_roles["lineage"], root_roles["state"],
+                        tuple(candidate_roots))
     for rule in rules:
         result.inherited_markers(rule.phenotype)
     if {marker for _, marker in omitted} != omit:

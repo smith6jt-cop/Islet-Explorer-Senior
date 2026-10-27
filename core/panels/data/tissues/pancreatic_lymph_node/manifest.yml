@@ -9,6 +9,13 @@ rule_table:
   selected_by_maintainer: 2026-10-26
   rows: 69
   role: reference for the hierarchical pLN typing method
+  # The 6551 sheet separates cell identities from orthogonal cell states.
+  # Both groups retain their rule evidence; only lineages compete for a
+  # candidate cell identity.
+  root_roles: {lineage: all, state: any}
+  # The full sheet remains available as evidence. Pancreas-only lineages are
+  # excluded only from the pLN cell-identity candidate.
+  candidate_lineage_roots: [Neural, Stromal, Immune, Endothelial, Smooth_muscle]
   # This is one shared rule source, not a complete typing call for every acquisition.
   # Tissue rules are evaluated against the panel actually acquired on each slide.
   tokens: [pos, allpos, anypos, allneg]

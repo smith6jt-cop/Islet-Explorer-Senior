@@ -117,12 +117,17 @@ use the tissue-specific RNA producer and map its calls into the release's
 class vocabulary. Where the hierarchical protein method writes both
 `cell_class` and `refined_class`, only the final step is served.
 
-The pLN and spleen protein pilots now report a per-cell **review candidate**
-from that recorded hierarchy: the deepest matched rule only if it is unique.
-Matched rules on different branches remain ambiguous. With no matched rule,
-`no_match` and `unavailable` remain distinct. The output records the number
-of unavailable rules even for a unique candidate. `candidate_phenotype` is not
-a verified final class and cannot be served as one before the processing gate
+The pLN and spleen protein pilots report a per-cell **review candidate** from
+the sheet's lineage branches: the deepest matched lineage rule only if it is
+unique. The panel manifest records that `all` roots are lineages and `any`
+roots are orthogonal state annotations. Both retain their rule evidence, but
+state matches do not compete for the cell-identity candidate. The pLN manifest
+also names the lymph-node lineage roots used for that candidate; pancreas-only
+lineages remain in the full sheet as evidence but cannot become pLN identities.
+Matched lineage branches remain ambiguous. With no matched lineage,
+`no_match` and `unavailable` remain distinct. The output records the number of
+unavailable lineage rules even for a unique candidate. `candidate_phenotype` is not a
+verified final class and cannot be served as one before the processing gate
 is accepted.
 
 Stage 06 is the first manual processing review stop. It must show per-tissue,
