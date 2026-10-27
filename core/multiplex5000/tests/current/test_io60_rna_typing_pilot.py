@@ -122,7 +122,10 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
         work.mkdir(parents=True, exist_ok=True)
         pd.DataFrame({"cell_uid": [f"{acquisition_id}:cells:{cell}" for cell in data.obs_names],
                       "cell_id": data.obs_names.tolist(), "acquisition_id": acquisition_id,
-                      "lineage": ["Immune_T", "Unavailable_no_nucleus"]}).to_parquet(
+                      "lineage": ["Immune_T", "Unavailable_no_nucleus"],
+                      "cell_agrees_with_cluster_call": [True, False],
+                      "n_naming_detected_for_cluster_call": [2, None],
+                      "cd3_detected": [True, False]}).to_parquet(
                           work / f"{section}.calls.parquet", index=False)
         seen.append(acquisition_id)
         return {"acquisition_id": acquisition_id}
@@ -161,6 +164,12 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     assert {row["tissue"] for row in rows} == {"pancreas", "pancreatic_lymph_node"}
     assert (result.path / "gate/rna_typing_scope.png").is_file()
     assert (result.path / "gate/rna_typing_classes.png").is_file()
+    assert (result.path / "gate/rna_typing_support.png").is_file()
+    with (result.path / "rna_classes.csv").open(newline="") as handle:
+        evidence = [row for row in csv.DictReader(handle) if row["lineage"] == "Immune_T"]
+    assert len(evidence) == 2
+    assert all(float(row["cluster_agree_fraction"]) == 1.0 for row in evidence)
+    assert all(float(row["naming_gene_fraction"]) == 1.0 for row in evidence)
 
 
 def test_unresolved_t_subsets_and_broad_nonimmune_are_not_counted_as_specific_classes():
