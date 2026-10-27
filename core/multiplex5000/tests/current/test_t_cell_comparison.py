@@ -32,3 +32,15 @@ def test_clipped_t_tie_uses_full_preclip_identity_profile():
     assert tied.tolist() == [True, True, True]
     assert top.tolist() == ["CD68", "CD4", "CD4"]
     assert withdrawn.tolist() == [True, False, False]
+
+
+def test_profile_tie_uses_committed_identity_order_with_cd45_last():
+    raw = pd.DataFrame({"CD8": [12.], "CD4": [12.], "CD68": [20.],
+                        "CD45": [20.]})
+    clipped = raw.clip(0, 10).div(10)
+    scale = pd.DataFrame({"floor": [0.] * 4, "span": [10.] * 4},
+                         index=raw.columns)
+    tied, top, withdrawn = clipped_t_tie_profile(
+        clipped, raw, scale, ["CD8", "CD4", "CD68"])
+    assert tied.tolist() == [True]
+    assert top.tolist() == ["CD68"] and withdrawn.tolist() == [True]

@@ -51,8 +51,9 @@ def clipped_t_tie_profile(values, raw, scale, identity_markers):
     Return the tied mask, the top marker and the cells whose strongest marker is
     outside CD3e/CD8/CD4/CD45. A row with no measured profile stays undecided.
     """
-    markers = [m for m in sorted(set(identity_markers) | {"CD45"})
-               if m in values and m in raw and m in scale.index]
+    # Match the Islet Explorer panel order: sorted identity markers, then CD45.
+    order = sorted(set(identity_markers) - {"CD45"}) + ["CD45"]
+    markers = [m for m in order if m in values and m in raw and m in scale.index]
     n = len(values)
     top = np.full(n, "", dtype=object)
     withdrawn = np.zeros(n, dtype=bool)
