@@ -41,7 +41,9 @@ def _cells(table: pd.DataFrame, *, name: str, eligible_column: str) -> pd.DataFr
     missing = sorted(needed - set(table.columns))
     if missing:
         raise PairedTypingError(f"{name}: missing columns {missing}")
-    if table.empty or table["cell_uid"].isna().any() or table["cell_uid"].duplicated().any():
+    if (table.empty or table["cell_uid"].isna().any()
+            or not table["cell_uid"].map(lambda value: isinstance(value, str) and bool(value)).all()
+            or table["cell_uid"].duplicated().any()):
         raise PairedTypingError(f"{name}: cell_uid must be present and unique")
     if table[eligible_column].isna().any():
         raise PairedTypingError(f"{name}: missing eligibility is not false")
@@ -101,11 +103,18 @@ def link_candidate_cells(
     slide, _ = parse_bundle_path(pair.xenium_output.name)
     if (set(protein["donor_id"]) != {pair.donor_id}
             or set(rna["donor_id"]) != {pair.donor_id}
+            or "tissue" not in protein or set(protein["tissue"]) != {pair.tissue}
+            or "tissue" not in rna or set(rna["tissue"]) != {pair.tissue}
             or "acquisition_id" not in protein
             or set(protein["acquisition_id"]) != {f"phenocycler:{slide}"}
             or "acquisition_id" not in rna
             or set(rna["acquisition_id"]) != {pair.xenium_acquisition_id}):
-        raise PairedTypingError("cell tables do not name the recorded donor and RNA acquisition")
+        raise PairedTypingError("cell tables do not name the recorded donor, tissue or acquisition")
+    if (not protein["cell_uid"].str.startswith(
+            f"phenocycler:{slide}:{pair.protein_entry}:").all()
+            or not rna["cell_uid"].str.startswith(
+                f"{pair.xenium_acquisition_id}:cells:").all()):
+        raise PairedTypingError("cell keys do not name the recorded physical section")
     if "candidate_state" not in protein_calls or "candidate_phenotype" not in protein_calls:
         raise PairedTypingError("protein hierarchy candidates are missing")
     if not any(name.startswith("gene:") for name in rna_calls):

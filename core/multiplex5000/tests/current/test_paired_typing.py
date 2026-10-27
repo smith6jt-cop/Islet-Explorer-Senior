@@ -21,21 +21,24 @@ def _fixture():
         Path("/source/output-XETG00298__0110618__090__20260826__224731"),
         "same_section_after_phenocycler", "crop_local_um", "region_local_um")
     protein = pd.DataFrame({
-        "cell_uid": ["pc:1", "pc:2", "pc:3"], "object_id": ["1", "2", "3"],
+        "cell_uid": [f"phenocycler:0110618:{pair.protein_entry}:digest:{i}"
+                     for i in (1, 2, 3)], "object_id": ["1", "2", "3"],
         "donor_id": ["HDL090"] * 3, "acquisition_id": ["phenocycler:0110618"] * 3,
+        "tissue": ["spleen"] * 3,
         "x_um": [100.0, 110.0, 120.0], "y_um": [0.0] * 3,
         "protein_eligible": [True, True, False]})
     protein_calls = pd.DataFrame({
-        "cell_uid": ["pc:1", "pc:2", "pc:3"], "object_id": ["1", "2", "3"],
+        "cell_uid": protein["cell_uid"], "object_id": ["1", "2", "3"],
         "candidate_phenotype": ["T cell", None, None],
         "candidate_state": ["unique_candidate", "unavailable", "unavailable"]})
     rna = pd.DataFrame({
-        "cell_uid": ["rna:1", "rna:2", "rna:3"], "donor_id": ["HDL090"] * 3,
+        "cell_uid": [f"{pair.xenium_acquisition_id}:cells:{i}" for i in (1, 2, 3)],
+        "donor_id": ["HDL090"] * 3, "tissue": ["spleen"] * 3,
         "acquisition_id": ["xenium:0110618:090"] * 3,
         "x_um": [0.5, 10.5, 20.5], "y_um": [0.0] * 3,
         "typing_eligible": [True, True, False]})
     rna_calls = pd.DataFrame({
-        "cell_uid": ["rna:1", "rna:2", "rna:3"],
+        "cell_uid": rna["cell_uid"],
         "typing_eligible": [True, True, False], "gene:CD3E": [1, -1, -1]})
     transform = Transform(
         affine=np.array([[1, 0, 100], [0, 1, 0]]),
@@ -50,7 +53,8 @@ def test_candidate_links_use_distinct_native_ids_and_keep_missing_gene_state():
     pair, protein, protein_calls, rna, rna_calls, transform = _fixture()
     result = link_candidate_cells(pair, protein, protein_calls, rna, rna_calls, transform)
     assert result.links[["protein_cell_uid", "rna_cell_uid"]].values.tolist() == [
-        ["pc:1", "rna:1"], ["pc:2", "rna:2"]]
+        [protein.loc[0, "cell_uid"], rna.loc[0, "cell_uid"]],
+        [protein.loc[1, "cell_uid"], rna.loc[1, "cell_uid"]]]
     assert result.links["distance_um"].tolist() == pytest.approx([0.5, 0.5])
     assert result.links["gene:CD3E"].tolist() == [1, -1]
     assert result.links["protein_candidate_state"].tolist() == [
@@ -60,12 +64,18 @@ def test_candidate_links_use_distinct_native_ids_and_keep_missing_gene_state():
     assert (result.unmatched_protein_eligible, result.unmatched_rna_eligible) == (0, 0)
 
 
-@pytest.mark.parametrize("change", ["wrong_acquisition", "unreviewed", "serial",
-                                         "lost_call", "wrong_object", "missing_eligibility"])
+@pytest.mark.parametrize("change", ["wrong_acquisition", "wrong_tissue", "wrong_section",
+                                         "unreviewed", "serial", "lost_call", "wrong_object",
+                                         "missing_eligibility"])
 def test_candidate_links_refuse_unverified_or_inconsistent_sources(change):
     pair, protein, protein_calls, rna, rna_calls, transform = _fixture()
     if change == "wrong_acquisition":
         rna.loc[0, "acquisition_id"] = "xenium:0110618:082"
+    elif change == "wrong_tissue":
+        protein.loc[0, "tissue"] = "pancreas"
+    elif change == "wrong_section":
+        protein.loc[0, "cell_uid"] = protein.loc[0, "cell_uid"].replace("-S1", "-S2")
+        protein_calls.loc[0, "cell_uid"] = protein.loc[0, "cell_uid"]
     elif change == "unreviewed":
         transform.meta["reviewed"] = False
     elif change == "serial":
@@ -85,7 +95,7 @@ def test_candidate_links_report_unmatched_cells_without_forcing_a_pair():
     rna.loc[1, "x_um"] = 50.0
     result = link_candidate_cells(pair, protein, protein_calls, rna, rna_calls, transform)
     assert result.links[["protein_cell_uid", "rna_cell_uid"]].values.tolist() == [
-        ["pc:1", "rna:1"]]
+        [protein.loc[0, "cell_uid"], rna.loc[0, "cell_uid"]]]
     assert (result.unmatched_protein_eligible, result.unmatched_rna_eligible) == (1, 1)
 
 
