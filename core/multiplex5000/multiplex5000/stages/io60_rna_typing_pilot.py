@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .. import gates, roots
+from .. import gates, profiles, roots
 from ..artifacts import sha256_file
 from ..cohort import excluded_on
 from ..integration import tissues
@@ -70,11 +70,15 @@ def inputs(project) -> list[Input]:
     metadata = project.source("donor_metadata")
     if metadata is None:
         raise IO60RNATypingError("site must name the recorded donor_metadata workbook")
+    npod = project.source("npod_cases")
+    if npod is None:
+        raise IO60RNATypingError("site must name the Stage 00-bound npod_cases workbook")
     found = [Input("inventory_receipt", inventory / "receipt.json"),
              Input("inventory_acquisitions", inventory / "acquisitions.csv"),
              Input("inventory_gate_summary", inventory / "gate/gate.json"),
              Input("inventory_gate_acceptance", inventory / "gate/accepted.json"),
              Input("donor_metadata", Path(metadata)),
+             Input("npod_cases", Path(npod)),
              Input("rna_receipt", ingest / "receipt.json"),
              Input("rna_regions", ingest / "regions.csv"),
              Input("rna_gate_summary", ingest / "gate/gate.json"),
@@ -105,6 +109,8 @@ def _inventory(task: Task) -> dict[str, dict[str, str]]:
     bound = {item["name"]: item.get("sha256") for item in receipt["inputs"]}
     if bound.get("donor_metadata") != sha256_file(task.input("donor_metadata")):
         raise IO60RNATypingError("donor metadata differs from accepted Stage 00")
+    if bound.get("npod_cases") != sha256_file(task.input("npod_cases")):
+        raise IO60RNATypingError("nPOD cases differ from accepted Stage 00")
     output = [item for item in receipt["outputs"] if item["path"] == "acquisitions.csv"]
     if len(output) != 1 or output[0]["sha256"] != sha256_file(
             task.input("inventory_acquisitions")):
@@ -118,13 +124,36 @@ def _inventory(task: Task) -> dict[str, dict[str, str]]:
 
 
 def _donors(task: Task) -> dict[str, tuple[str, str]]:
+    cohort = profiles.load_all()[("cohort", task.project.cohort)]
+    aliases = cohort.donor_aliases
+    statuses = cohort.disease_status["spellings"]
     frame = pd.read_excel(task.input("donor_metadata"), dtype={"donor_id": str})
     if not {"donor_id", "sex", "disease.status"}.issubset(frame.columns):
         raise IO60RNATypingError("donor metadata lacks sex or disease.status")
     if frame.donor_id.duplicated().any():
         raise IO60RNATypingError("donor metadata has repeated donor_id")
-    return {str(row["donor_id"]): (str(row["sex"]), str(row["disease.status"]))
-            for _, row in frame.iterrows()}
+    donors: dict[str, tuple[str, str]] = {}
+    for _, row in frame.iterrows():
+        raw = str(row["donor_id"])
+        donor = aliases.get(raw, raw)
+        sex = str(row["sex"])
+        disease = statuses.get(str(row["disease.status"]), "")
+        if donor in donors and donors[donor] != (sex, disease):
+            raise IO60RNATypingError(f"{donor}: conflicting donor metadata aliases")
+        donors[donor] = (sex, disease)
+    cases = pd.read_excel(task.input("npod_cases"), dtype={"case_id": str})
+    if not {"case_id", "sex", "donor_type"}.issubset(cases.columns):
+        raise IO60RNATypingError("nPOD cases lack case_id, sex or donor_type")
+    for _, row in cases.iterrows():
+        raw = str(row["case_id"])
+        donor = aliases.get(raw, raw)
+        if donor in donors:
+            continue  # The accepted project workbook is authoritative where it has a row.
+        sex = {"Female": "F", "Male": "M"}.get(str(row["sex"]), "")
+        disease = statuses.get(str(row["donor_type"]), "")
+        if sex and disease:
+            donors[donor] = (sex, disease)
+    return donors
 
 
 def _call_state(lineage: str) -> str:
