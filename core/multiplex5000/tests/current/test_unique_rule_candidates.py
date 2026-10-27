@@ -29,7 +29,7 @@ def test_unique_deepest_rule_and_ambiguous_branches():
     calls = {
         "CD45": np.array([1, 1, 0, -1, 1, 1, 1, 0], dtype=np.int8),
         "CD3": np.array([1, 1, 0, -1, 1, 1, 1, 0], dtype=np.int8),
-        "CD8": np.array([1, 0, 0, -1, -1, 1, 1, 0], dtype=np.int8),
+        "CD8": np.array([1, 0, 0, -1, -1, 1, 1, -1], dtype=np.int8),
         "CD20": np.array([0, 1, 0, -1, 0, 0, 0, 0], dtype=np.int8),
         "CD31": np.array([0, 0, 0, -1, 0, 1, 0, 0], dtype=np.int8),
         "Ki67": np.array([0, 0, 0, -1, 0, 0, 1, -1], dtype=np.int8),
@@ -41,7 +41,7 @@ def test_unique_deepest_rule_and_ambiguous_branches():
                                         "unique_candidate", "no_match"]
     assert resolved.maximal_matches.tolist() == [1, 2, 0, 0, 1, 2, 1, 0]
     assert resolved.unavailable_lineage_rules[4] == 1  # CD8 subtype unavailable; T confirmed.
-    assert resolved.unavailable_lineage_rules[7] == 0  # State gap cannot erase lineage no-match.
+    assert resolved.unavailable_lineage_rules[7] > 0  # Subtype gap cannot erase root no-match.
 
 
 def test_resolver_refuses_a_matched_child_without_its_parent():

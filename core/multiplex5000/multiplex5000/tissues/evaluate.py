@@ -188,6 +188,8 @@ def resolve_unique_matched_rules(source: RuleSource,
     The sheet's state branches remain in the rule evidence, but are
     excluded from cell-identity competition. This does not choose among
     overlapping lineage leaves or turn a candidate into a served final class.
+    When no lineage matches, availability is decided at the broad lineage
+    roots; a missing subtype marker cannot erase a measured negative root.
     """
     rules = source.by_phenotype
     if set(evaluation.states) != set(rules):
@@ -230,6 +232,9 @@ def resolve_unique_matched_rules(source: RuleSource,
     names = tuple(name for name in rules if lineage_rule(name))
     if not names:
         raise RuleSourceError("candidate resolution needs lineage rules")
+    candidate_roots = (source.candidate_lineage_roots or
+                       tuple(name for name in names
+                             if rules[name].parent == source.lineage_root_parent))
     winner = np.full(n, -1, dtype=np.int16)
     maximal = np.zeros(n, dtype=np.uint16)
     unavailable = np.zeros(n, dtype=np.uint16)
@@ -244,7 +249,8 @@ def resolve_unique_matched_rules(source: RuleSource,
     phenotype = np.asarray(names, dtype=object)[np.maximum(winner, 0)]
     phenotype[maximal != 1] = ""
     status = np.full(n, "no_match", dtype=object)
-    status[(maximal == 0) & (unavailable > 0)] = "unavailable"
+    root_unavailable = np.logical_or.reduce([arrays[name] == -1 for name in candidate_roots])
+    status[(maximal == 0) & root_unavailable] = "unavailable"
     status[maximal > 1] = "ambiguous"
     status[maximal == 1] = "unique_candidate"
     return BatchRuleCandidates(phenotype, status, maximal, unavailable)

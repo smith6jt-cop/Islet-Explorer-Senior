@@ -125,8 +125,11 @@ state matches do not compete for the cell-identity candidate. The pLN manifest
 also names the lymph-node lineage roots used for that candidate; pancreas-only
 lineages remain in the full sheet as evidence but cannot become pLN identities.
 Matched lineage branches remain ambiguous. With no matched lineage,
-`no_match` and `unavailable` remain distinct. The output records the number of
-unavailable lineage rules even for a unique candidate. `candidate_phenotype` is not a
+`no_match` means every candidate lineage root was measured and negative;
+`unavailable` means at least one of those roots lacks evidence. A missing
+subtype marker alone does not turn a negative root into `unavailable`.
+The output records the number of unavailable lineage rules even for a unique
+candidate. `candidate_phenotype` is not a
 verified final class and cannot be served as one before the processing gate
 is accepted.
 
