@@ -18,6 +18,7 @@ from .. import gates, roots
 from ..artifacts import sha256_file
 from ..cohort import excluded_on
 from ..integration import tissues
+from ..integration.manifest import parse_bundle_path
 from ..tasks import Input, Task
 from ..tissues import lymph_node_xenium_worker as pln_worker
 from ..tissues import pancreas_xenium_worker as panc_worker
@@ -183,9 +184,11 @@ def run(task: Task) -> dict:
                           called_cells=0, unavailable_cells=record["cells"])
             results.append(record)
             continue
-        serial = source["xenium_serial"]
-        if not serial or serial not in acquisition:
-            raise IO60RNATypingError(f"{acquisition}: missing exact Stage 00 serial")
+        serial, _ = parse_bundle_path(source["output"])
+        recorded = source.get("xenium_serial", "")
+        if (not serial or acquisition.split(":")[1] != serial
+                or (recorded and recorded != serial)):
+            raise IO60RNATypingError(f"{acquisition}: Stage 00 serial differs from output")
         h5ad = task.output(f"_worker/{sample}.h5ad")
         write_worker_h5ad(region, h5ad, sex=sex, disease_status=disease,
                           batch=source["batch_number"])

@@ -65,7 +65,8 @@ def _project(tmp_path: Path):
             writer.writerow({"platform": "xenium", "acquisition_id": f"xenium:{serial}:{roi}",
                              "donor_id": donor, "roi": roi, "tissue": tissue,
                              "output": path.name, "path": str(path), "condition": condition,
-                             "batch_number": "10", "xenium_serial": serial})
+                             "batch_number": "10",
+                             "xenium_serial": "" if roi == "Panc" else serial})
     input_hashes = [{"name": "donor_metadata", "path": str(metadata),
                      "sha256": tasks.sha256_file(metadata)}]
     input_hashes += [{"name": f"xenium:{path.name}:{name}",
