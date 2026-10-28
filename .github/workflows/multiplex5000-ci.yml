@@ -139,7 +139,8 @@ jobs:
           from subprocess import run
           from sys import executable
           from multiplex5000 import roots, profiles, project
-          from multiplex5000.stages import (io60_mixed_protein_pilot, pln_typing_pilot,
+          from multiplex5000.stages import (io60_joint_typing, io60_mixed_protein_pilot,
+                                            pln_typing_pilot,
                                             same_slide_integration, same_slide_registration,
                                             spleen_typing_pilot, typing)
           from multiplex5000.tasks import code_identity
@@ -161,6 +162,12 @@ jobs:
           for stage in ('07_registration', '08_integration'):
               assert (roots.REPO / 'core/multiplex5000/notebooks' / f'{stage}.ipynb').is_file()
           assert typing._route(project.load('io60_xenium_pilot')).__name__ == 'multiplex5000.stages.io60_rna_typing_pilot'
+          joint = project.load('io60_joint_typing_pilot')
+          assert typing._route(joint) is io60_joint_typing
+          assert joint.settings['typing_donors'] == ['6539']
+          assert joint.settings['rna_acquisitions'] == ['xenium:0059865:Panc', 'xenium:0059865:PanT']
+          assert pancreas_xenium_worker.load_panels()['wanted']
+          assert lymph_node_xenium_worker.load_panels()['immune']
           assert (roots.REPO / 'core/multiplex5000/sites/pln_qupath_exports_v3.csv').is_file()
           assert pln_typing_pilot.PANEL.is_file()
           assert spleen_typing_pilot.PANEL.is_file()
@@ -184,6 +191,7 @@ jobs:
         run: |
           mkdir -p /tmp/mplx5k-typing-tests
           cp tests/current/test_io60_mixed_protein_pilot.py \
+             tests/current/test_io60_joint_typing.py \
              tests/current/test_io60_rna_typing_pilot.py \
              tests/current/test_expression.py \
              tests/current/test_pln_typing_candidate_stage.py \
