@@ -71,6 +71,25 @@ def _status(args) -> int:
         print(f"  {stage:<26} complete; gate {'passes' if gate['passed'] else 'FAILS'}; {state}")
     for path in tasks.failed_attempts(project.release_dir):
         print(f"  failed or interrupted run left at {path}")
+    if "06_typing" in project.stages:
+        print("  research comparisons: release gates do not block separate analysis of available "
+              "source data")
+        typing = project.release_dir / "06_typing"
+        if not tasks.is_complete(typing):
+            print("  class-specific comparisons: need Stage 06 output; raw Xenium comparisons "
+                  "can proceed")
+        else:
+            try:
+                accepted = gates.accepted(typing)
+            except gates.GateError:
+                accepted = None
+            if accepted:
+                print("  class-specific comparisons: Stage 06 accepted for this release")
+            else:
+                print("  class-specific comparisons: Stage 06 candidate calls can be analyzed; "
+                      "label them provisional")
+        print("  release-backed claims: require processing acceptance; accepting Stage 06 does "
+              "not run comparative analysis")
     return 0
 
 

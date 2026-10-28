@@ -5,6 +5,10 @@ cohort: io60_v3
 # Donors 6512 and 6618 have Xenium pancreas sections only. This project
 # inventories and types those exact regions without requiring QuPath images
 # or a protein gate. It is a candidate, not the active IO60 release.
+# Research comparisons of available Xenium data are independent of these release
+# gates. Cell-class comparisons need Stage 06 candidate output but not its gate
+# acceptance; label them provisional. Two selected donors alone cannot establish
+# a population-level disease effect. See docs/TYPING_SCOPE_2026-10-26.md.
 stages: [00_inventory, 04_rna_ingest, 06_typing]
 automatic_gates: []
 settings:

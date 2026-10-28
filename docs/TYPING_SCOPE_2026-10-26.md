@@ -170,6 +170,25 @@ per-assay and per-acquisition counts, marker or gene support, controls and
 unavailable calls. The `NO_VERIFIED_TYPING` latch stays down until the
 maintainer accepts processing. No H1–H6 inference runs before that decision.
 
+### Research comparisons and release gates (maintainer clarification, 2026-10-28)
+
+The preceding hold governs **release-backed H1–H6 claims and verified typing**. It
+does not bar separate research comparisons on available Xenium data. The HPG
+analysis may compute and review exploratory comparative estimates, including
+inferential models, before Stage 06 is accepted. Label their inputs and results
+as provisional, record the acquisition and donor scope, and do not present a
+candidate cell class as verified or activate a release on that basis.
+
+Raw gene-signature comparisons do not depend on Stage 06. A comparison by cell
+class needs Stage 06 output, but can read its candidate calls before that gate
+is accepted. In the release workflow, Stage 04 acceptance is required to *run*
+Stage 06; neither gate blocks a separate analysis of already available source
+data. Stages 09 and 10 are not built, so accepting Stage 06 does not start or
+unlock a comparative-analysis stage. For the Xenium-only 0041323/0041326 pilot,
+the project selects two donors; those two alone cannot support a population-level
+disease-effect claim, even if many cells are measured. More donors can enter a
+separate, explicitly recorded comparison cohort.
+
 ## Spleen in the first portable pilot (maintainer, 2026-10-26)
 
 The first **workflow pilot** also includes executable spleen same-slide typing;

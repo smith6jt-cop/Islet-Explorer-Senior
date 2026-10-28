@@ -21,6 +21,20 @@ a second copy of those CSVs; never hand-edit the snapshot.
 
 ## Non-negotiable analysis rules
 
+**Research comparison versus release admission (maintainer, 2026-10-28):**
+Release gates control the next release stage, verified typing and release-backed
+claims. They are not a global lock on separate HPG research analysis. For
+Xenium-only acquisitions 0041323 and 0041326, compare available raw gene
+signatures now; cell-class comparisons require Stage 06 output but may use its
+candidate calls before Stage 06 acceptance if clearly labeled provisional.
+Stage 04 acceptance is required to run Stage 06 within that project. Stage 06
+acceptance does not run comparative analysis: stages 09/10 are not built. The
+older H1–H6 hold applies to release-backed claims, as clarified in
+`docs/TYPING_SCOPE_2026-10-26.md`. Treat donor, not cell, as the independent
+unit for disease inference; two donors alone cannot establish a population
+effect. Do not wait for protein typing, a pLN gate or a same-slide pairing for
+these Xenium-only pancreas acquisitions.
+
 - Never infer positivity from a desired frequency, cross-donor uniformity, or disease ordering.
 - Existing QuPath classifications, annotations, phenotypes, clusters, disease labels and
   gold-standard reviews are **audit context only** — never training, tuning or release-gating inputs.
