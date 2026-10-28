@@ -89,6 +89,7 @@ def _project(tmp_path: Path):
     return SimpleNamespace(release_dir=release, release="pilot", cohort="io60_v3",
                            path=tmp_path / "pilot.yaml",
                            settings={"typing_route": "io60_xenium_pilot",
+                                     "rna_compute_threads": 1,
                                      "rna_acquisitions": selected},
                            source=lambda name: {"donor_metadata": metadata,
                                                 "npod_cases": npod}.get(name),
@@ -99,6 +100,9 @@ def _project(tmp_path: Path):
 @pytest.mark.parametrize("missing_before_ingest", [False, True])
 def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
         tmp_path, monkeypatch, missing_before_ingest):
+    import numba
+
+    before_threads = numba.get_num_threads()
     monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
     project = _project(tmp_path)
     damaged = next(tmp_path.glob("output-*__0040002__PanT__*"))
@@ -115,6 +119,11 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     seen = []
 
     def write_calls(donor, section, h5ad, work, acquisition_id, exact_cells):
+        import numba
+        from threadpoolctl import threadpool_info
+
+        assert numba.get_num_threads() == 1
+        assert all(pool["num_threads"] == 1 for pool in threadpool_info())
         data = ad.read_h5ad(h5ad)
         assert data.obs_names.tolist() == ["same-1", "same-2"]
         assert exact_cells == next(path for path in tmp_path.glob("output-*/cells.parquet")
@@ -147,10 +156,14 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     monkeypatch.setattr(pilot.pln_worker, "process_exact_section", pln)
     result = tasks.run_stage(typing, project)
     assert result.gate_passed
+    assert numba.get_num_threads() == before_threads
     assert seen == project.settings["rna_acquisitions"][:2]
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["acquisitions"] == 3
     assert summary["called_cells"] == 2
+    assert summary["rna_numerical_runtime"]["numba_threads"] == 1
+    assert all(pool["threads"] == 1
+               for pool in summary["rna_numerical_runtime"]["pools"])
     assert summary["specific_cells_by_tissue"] == {
         "pancreas": 1, "pancreatic_lymph_node": 1}
     assert summary["broad_cells"] == 0
@@ -233,6 +246,13 @@ def test_low_signal_rule_refuses_missing_qc_measurement():
     with pytest.raises(pilot.IO60RNATypingError, match="median detected genes"):
         pilot._low_signal({"acquisition_id": "xenium:test:region", "condition": "",
                            "median_detected_genes": "nan"}, 20)
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5, "4"])
+def test_rna_thread_count_refuses_invalid_project_settings(value):
+    project = SimpleNamespace(settings={"rna_compute_threads": value})
+    with pytest.raises(pilot.IO60RNATypingError, match="positive integer"):
+        pilot._compute_threads(project)
 
 
 def test_donor_metadata_uses_recorded_alias_and_npod_fallback(tmp_path):

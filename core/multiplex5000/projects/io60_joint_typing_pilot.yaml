@@ -10,6 +10,7 @@ settings:
   typing_route: io60_joint_typing
   typing_donors: ['6539']
   rna_acquisitions: ['xenium:0059865:Panc', 'xenium:0059865:PanT']
+  rna_compute_threads: 4
   rna_min_median_detected_genes: 20
 # Site sources: typing_geometry_root, typing_export_root, qupath_manifest,
 # donor_acquisition_runs, typing_registry_log and typing_shifts, plus the

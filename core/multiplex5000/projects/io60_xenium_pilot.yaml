@@ -9,6 +9,7 @@ stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 06_typing]
 automatic_gates: [03_protein_measurement]
 settings:
   typing_route: io60_xenium_pilot
+  rna_compute_threads: 4
   rna_acquisitions:
     - xenium:0059865:Panc
     - xenium:0059865:PanT

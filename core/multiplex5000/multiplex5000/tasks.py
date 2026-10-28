@@ -359,6 +359,12 @@ def run_stage(stage, project, *, force: bool = False) -> Result:
     release_dir = Path(project.release_dir)
     destination = release_dir / stage_id
     if is_complete(destination) and not force:
+        if getattr(stage, "REQUIRE_SETTINGS_MATCH_ON_REUSE", False):
+            recorded = json.loads((destination / RECEIPT).read_text())
+            current = dict(stage.settings(project)) if hasattr(stage, "settings") else {}
+            if recorded.get("settings") != current:
+                raise TaskError(f"{stage_id}: published settings differ from this project; "
+                                "use --force to build a new candidate")
         return Result(stage_id, "complete", destination)
     previous = project.previous(stage_id)
     if previous is not None:

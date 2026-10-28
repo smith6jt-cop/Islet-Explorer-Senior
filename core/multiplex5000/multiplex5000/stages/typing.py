@@ -5,6 +5,7 @@ from __future__ import annotations
 from ..tasks import Task
 
 STAGE = "06_typing"
+REQUIRE_SETTINGS_MATCH_ON_REUSE = True
 
 
 class TypingRouteError(ValueError):

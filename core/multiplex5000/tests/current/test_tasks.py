@@ -92,6 +92,23 @@ def test_without_force_a_complete_stage_is_left_alone(tmp_path):
     assert (project.release_dir / "s1" / "out.txt").read_text() == "first"
 
 
+def test_opted_in_stage_refuses_to_reuse_output_with_changed_settings(tmp_path):
+    project = _project(tmp_path)
+    stage = _stage("s1")
+    stage.REQUIRE_SETTINGS_MATCH_ON_REUSE = True
+    current = {"threads": 4}
+    stage.settings = lambda _project: dict(current)
+    tasks.run_stage(stage, project)
+    assert tasks.run_stage(stage, project).status == "complete"
+    current["threads"] = 8
+    with pytest.raises(tasks.TaskError, match="use --force"):
+        tasks.run_stage(stage, project)
+    result = tasks.run_stage(stage, project, force=True)
+    assert result.status == "published"
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert receipt["settings"] == {"threads": 8}
+
+
 def test_force_reruns_and_moves_the_old_output_and_its_acceptance_aside(tmp_path):
     project = _project(tmp_path)
     tasks.run_stage(_stage("s1", text="first"), project)

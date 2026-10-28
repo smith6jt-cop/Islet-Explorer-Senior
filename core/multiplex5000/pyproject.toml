@@ -44,7 +44,8 @@ gpu = ["cupy-cuda12x"]
 # The selected pancreas protein hierarchy uses polygon geometry and NNDescent.
 # The pancreas and pLN Xenium workers use AnnData/Scanpy and Scanpy's igraph
 # Leiden backend. One `.[typing]` install supports both assay routes from a wheel.
-typing = ["shapely", "pynndescent", "anndata", "scanpy", "igraph"]
+typing = ["shapely", "pynndescent", "anndata", "scanpy", "igraph", "numba",
+          "threadpoolctl"]
 # tests/current/test_no_typing_leak.py reads YAML, and test_trajectory_leiden_only.py runs
 # scanpy's leiden with flavor="igraph". The rest of what tests/current reaches through the
 # typing and senior scripts (shapely, anndata, scanpy's pynndescent) is the

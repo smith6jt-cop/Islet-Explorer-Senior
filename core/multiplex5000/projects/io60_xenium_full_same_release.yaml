@@ -9,6 +9,7 @@ stages:
 automatic_gates: []
 settings:
   typing_route: io60_xenium_pilot
+  rna_compute_threads: 4
   rna_min_median_detected_genes: 20
   rna_acquisitions:
   - xenium:0041117:PanT
