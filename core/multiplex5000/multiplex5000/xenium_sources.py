@@ -77,6 +77,11 @@ def _accepted_inventory(stage_dir: Path) -> tuple[list[dict[str, str]], dict[str
                    if item["path"] == table.name), None)
     if output is None or output["sha256"] != sha256_file(table):
         raise XeniumSourceError(f"Stage 00 {table.name} differs from its receipt")
+    selected_index = next((item for item in receipt["outputs"]
+                           if item["path"] == "source_index.csv"), None)
+    if selected_index is not None and selected_index["sha256"] != sha256_file(
+            stage_dir / "source_index.csv"):
+        raise XeniumSourceError("Stage 00 selected source index differs from its receipt")
     inputs = {item["name"]: item.get("sha256") for item in receipt["inputs"]}
     return _rows(table), inputs
 

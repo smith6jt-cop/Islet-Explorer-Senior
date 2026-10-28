@@ -39,7 +39,9 @@ def _inventory(project) -> Path:
 
 
 def _locations(project) -> tuple[Path | None, Path | None]:
-    index = project.source("xenium_source_index")
+    index = (Path(project.release_dir) / "00_inventory" / "source_index.csv"
+             if getattr(project, "settings", {}).get("inventory_scope") == "xenium_only"
+             else project.source("xenium_source_index"))
     records = project.source("xenium_records")
     return (Path(index) if index else None,
             Path(records) / "MANIFEST.tsv" if records else None)
