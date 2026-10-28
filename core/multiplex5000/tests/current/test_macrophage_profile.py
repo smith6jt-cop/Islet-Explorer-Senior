@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from multiplex5000.tissues.macrophage import classify_profile, labels
 
@@ -25,3 +26,19 @@ def test_profile_never_turns_missing_marker_into_negative():
         "CD68-CD163+Macrophage_LGALS3-CD4+",
         None, None,
     ]
+
+
+def test_profile_uses_image_specific_marker_levels():
+    values = pd.DataFrame({
+        "CD68": [0.08, 0.06], "CD163": [0.22, 0.26],
+        "M2Gal3": [0.05, 0.03], "CD4": [0.17, 0.21],
+    })
+    levels = {"CD68": 0.07, "CD163": 0.25, "M2Gal3": 0.04, "CD4": 0.20}
+    assert classify_profile(values, levels).tolist() == [
+        "CD68+CD163-Macrophage_LGALS3+CD4-",
+        "CD68-CD163+Macrophage_LGALS3-CD4+",
+    ]
+    with pytest.raises(ValueError, match="missing markers"):
+        classify_profile(values, {"CD68": 0.07})
+    with pytest.raises(ValueError, match="must be finite"):
+        classify_profile(values, {**levels, "CD4": np.nan})
