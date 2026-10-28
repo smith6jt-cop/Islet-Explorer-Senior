@@ -23,7 +23,7 @@ raw images or cell exports. The current bounded typing routes are:
 | `pln_protein_pilot` | Dedicated pLN protein cells using the adapted full phenotype sheet |
 | `spleen_pilot` | Optional same-slide method pilot: protein rule candidates and RNA gene evidence for one section, with no final cell classes or cell links |
 
-The first active IO60 release covers pancreas and pLN. The spleen project is
+The first planned active IO60 release covers pancreas and pLN. The spleen project is
 separate and does not hold up either tissue's typing or release decision.
 
 For a configured project, `mplx5k stage run 06_typing --project <id>` writes a
