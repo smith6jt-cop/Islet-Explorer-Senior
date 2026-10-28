@@ -297,9 +297,9 @@ the route creates no same-cell links before registration and integration. It
 does not require typing every acquisition to exercise the workflow.
 
 The project uses the same release for Stage 00, 03, 04, 05 and 06. The site must
-name the selected QuPath, geometry, normalization and Xenium inputs; it may
-also name `io60_upstream_release`, but then that path must resolve to the
-project's release. From an installed MultiPlex5000 package, use
+name the selected QuPath, geometry, normalization and Xenium inputs. The joint
+route reads its own release even if an older site file still names an
+`io60_upstream_release` for a separate pilot. From an installed MultiPlex5000 package, use
 `mplx5k graph --project io60_joint_typing_pilot --profile local` or select the
 HiPerGator profile. The protein hierarchy currently uses the committed Senior
 method. The Islet-Explorer session is still refining its CODEX protein rules;

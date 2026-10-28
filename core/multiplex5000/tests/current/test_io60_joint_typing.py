@@ -67,9 +67,9 @@ def test_joint_stage_keeps_assays_separate_and_reports_both_gates(tmp_path, monk
     assert gate["figures"] == ["protein.png", "rna.png"]
 
 
-def test_joint_route_refuses_sources_from_another_release(tmp_path):
+def test_joint_route_refuses_protein_code_reading_another_release(tmp_path, monkeypatch):
     project = _project(tmp_path)
-    project.source = lambda name: tmp_path / "another-release"
+    monkeypatch.setattr(joint.protein, "_upstream", lambda project: tmp_path / "another-release")
     with pytest.raises(joint.IO60JointTypingError, match="this project's release"):
         joint.settings(project)
 

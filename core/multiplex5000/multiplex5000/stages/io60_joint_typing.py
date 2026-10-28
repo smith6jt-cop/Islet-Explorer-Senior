@@ -21,10 +21,10 @@ class IO60JointTypingError(ValueError):
 
 
 def _same_release(project) -> None:
-    upstream = project.source("io60_upstream_release")
-    if upstream is not None and Path(upstream).resolve() != project.release_dir.resolve():
+    upstream = protein._upstream(project)
+    if Path(upstream).resolve() != project.release_dir.resolve():
         raise IO60JointTypingError(
-            "joint typing needs io60_upstream_release to name this project's release; "
+            "joint typing needs the protein route to read this project's release; "
             "Stage 00, 04 and 05 must describe the same selected inputs")
 
 
