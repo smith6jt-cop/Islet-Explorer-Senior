@@ -34,6 +34,21 @@ registration source; serial sections never imply same-cell identity. See
 [`docs/TYPING_SCOPE_2026-10-26.md`](../../docs/TYPING_SCOPE_2026-10-26.md)
 for the current scope and remaining full-cohort work.
 
+### Research analysis and gate scope
+
+Use `mplx5k status --project io60_xenium_only_6512_6618` to see the release
+workflow state. Its gates control progression from Stage 00 to Stage 04 to
+Stage 06 and the admission of verified release results. They do not block a
+separate analysis of available Xenium source data. Raw gene-signature
+comparisons can proceed without Stage 06. Comparisons by cell class need its
+output, but can examine candidate calls before the Stage 06 gate is accepted,
+with those calls and any inference clearly labeled provisional. Stage 04 must
+be accepted before this project's Stage 06 can run. Accepting Stage 06 does
+not launch comparative analysis; Stages 09 and 10 are not yet built. For the
+two selected Xenium-only donors, report observed contrasts without treating
+cells as independent disease replicates. See the dated clarification in the
+typing scope document for release-backed H1–H6 claims.
+
 ## Legacy measurement pipeline
 
 The remainder of this guide describes the earlier `phenocycler` pipeline API.

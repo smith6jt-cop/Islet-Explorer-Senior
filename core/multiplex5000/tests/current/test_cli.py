@@ -41,6 +41,17 @@ def test_run_status_show_and_accept(capsys, synthetic_project):
     assert "accepted by tester" in out
 
 
+def test_status_keeps_research_comparisons_separate_from_release_gates(
+        capsys, synthetic_project):
+    path = str(synthetic_project(stages=("00_inventory", "04_rna_ingest", "06_typing")))
+    code, out, _ = _mplx5k(capsys, "status", "--project", path)
+    assert code == 0
+    assert "release gates do not block separate analysis" in out
+    assert "class-specific comparisons: need Stage 06 output" in out
+    assert "raw Xenium comparisons can proceed" in out
+    assert "accepting Stage 06 does not run comparative analysis" in out
+
+
 def test_accepting_a_failing_gate_is_refused_with_why(capsys, synthetic_project):
     path = str(synthetic_project(notes__txt="IO60panc2nd Notes\n6374: pancTail no pLN, sequential "
                                             "Xenium\n",
