@@ -1,5 +1,9 @@
 # Islet Explorer Senior
 
+For the current Senior/CODEX/HPG coordination, read
+`docs/HANDOFF_2026-10-28_SENIOR_CODEX_COORDINATION.md` before changing typing,
+release, or Xenium-only analysis code.
+
 ## Project scope
 
 Three related but separate systems in one repository:
