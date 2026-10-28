@@ -68,6 +68,8 @@ def _donors(project) -> list[str]:
 
 
 def _upstream(project) -> Path:
+    if project.settings.get("typing_route") == "io60_joint_typing":
+        return Path(project.release_dir)
     return _source(project, "io60_upstream_release")
 
 

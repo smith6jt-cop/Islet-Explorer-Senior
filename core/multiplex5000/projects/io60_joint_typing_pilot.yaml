@@ -1,0 +1,17 @@
+schema: multiplex5000-project/1
+id: io60_joint_typing_pilot
+release: io60-joint-typing-pilot-1
+cohort: io60_v3
+# One release holds both assay routes. This is a bounded workflow pilot, not
+# an active release or a claim that all IO60 acquisitions have been typed.
+stages: [00_inventory, 03_protein_measurement, 04_rna_ingest, 05_normalization, 06_typing]
+automatic_gates: [03_protein_measurement, 05_normalization]
+settings:
+  typing_route: io60_joint_typing
+  typing_donors: ['6539']
+  rna_acquisitions: ['xenium:0059865:Panc', 'xenium:0059865:PanT']
+  rna_min_median_detected_genes: 20
+# Site sources: typing_geometry_root, typing_export_root, qupath_manifest,
+# donor_acquisition_runs, typing_registry_log and typing_shifts, plus the
+# regular IO60 Stage 00/03/04/05 source bindings. The site may set
+# io60_upstream_release, but if set it must name this same release.
