@@ -21,6 +21,10 @@ def _route(project):
         from . import io60_mixed_protein_pilot
 
         return io60_mixed_protein_pilot
+    if explicit == "io60_joint_typing":
+        from . import io60_joint_typing
+
+        return io60_joint_typing
     if explicit is not None:
         raise TypingRouteError(f"unknown Stage 06 typing_route: {explicit}")
     same_slide = bool(project.settings.get("same_slide_source_manifest"))

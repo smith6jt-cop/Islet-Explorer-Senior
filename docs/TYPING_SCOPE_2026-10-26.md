@@ -285,6 +285,28 @@ clustered acquisitions by donor or section name. A new Stage 06 run uses the
 same repaired naming policy but reports that no frozen-partition override was
 applied unless the exact partition identity and membership are verified.
 
+## One Stage 06 workflow for both assays (2026-10-28)
+
+`io60_joint_typing_pilot.yaml` is a bounded, portable pancreas+pLN workflow
+project. It selects donor 6539 for the packaged mixed-slide protein method and
+the two recorded 6539 Xenium regions for the packaged pancreas and pLN RNA
+workers. Its Stage 06 route invokes both existing methods in one task, declares
+their inputs under one release, and publishes one receipt and gate with separate
+protein and RNA checks and figures. Protein and RNA cells keep their own keys;
+the route creates no same-cell links before registration and integration. It
+does not require typing every acquisition to exercise the workflow.
+
+The project uses the same release for Stage 00, 03, 04, 05 and 06. The site must
+name the selected QuPath, geometry, normalization and Xenium inputs. The joint
+route reads its own release even if an older site file still names an
+`io60_upstream_release` for a separate pilot. From an installed MultiPlex5000 package, use
+`mplx5k graph --project io60_joint_typing_pilot --profile local` or select the
+HiPerGator profile. The protein hierarchy currently uses the committed Senior
+method. The Islet-Explorer session is still refining its CODEX protein rules;
+those rules must be reviewed and adopted in this package when that session
+finishes. The joint pilot's gate remains a review candidate and does not
+activate a release.
+
 `io60_xenium_pilot.yaml` now selects the two accepted 6539 Xenium acquisitions
 under the existing IO60 candidate release. Its Stage 06 route takes the Stage
 04 cells and exact raw source, makes a disposable worker h5ad, and calls the
