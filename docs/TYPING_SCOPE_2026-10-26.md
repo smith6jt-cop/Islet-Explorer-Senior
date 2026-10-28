@@ -313,6 +313,16 @@ tissue with only broad or uncalled cells cannot appear as a successful typing
 pilot. Recorded damaged or low-signal acquisitions remain unavailable and do
 not block an intact tissue; their counts and reasons stay in the gate report.
 
+RNA clustering also has a recorded numerical setting: `rna_compute_threads: 4`
+in each IO60 RNA project. On the same accepted 6539 inputs, two four-thread
+wheel runs made identical per-cell calls, while the machine's 64-thread default
+made a different but internally repeatable partition. All 28 declared input
+hashes matched. Stage 06 now preloads its numerical libraries, limits Numba,
+BLAS and OpenMP to the project count while both tissue workers run, and records
+library versions and observed thread pools in its receipt. Changing this
+setting changes the candidate method and requires a new run; a passing gate
+does not make a changed partition biologically correct.
+
 `io60_xenium_pilot.yaml` now selects the two accepted 6539 Xenium acquisitions
 under the existing IO60 candidate release. Its Stage 06 route takes the Stage
 04 cells and exact raw source, makes a disposable worker h5ad, and calls the

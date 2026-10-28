@@ -24,6 +24,7 @@ from ..integration.manifest import parse_bundle_path
 from ..tasks import Input, Task
 from ..tissues import lymph_node_xenium_worker as pln_worker
 from ..tissues import pancreas_xenium_worker as panc_worker
+from ..tissues import rna_runtime
 from ..xenium_typing_input import load_accepted_region, write_worker_h5ad
 
 STAGE = "06_typing"
@@ -69,6 +70,8 @@ def _regions(project) -> list[dict[str, str]]:
 def settings(project) -> dict:
     return {"rna_acquisitions": [row["acquisition_id"] for row in _regions(project)],
             "rna_min_median_detected_genes": _min_genes(project),
+            "rna_compute_threads": _compute_threads(project),
+            "rna_numerical_versions": rna_runtime.versions(),
             "pancreas_naming_policy": "shared_er_exact_v1",
             "frozen_partition_overrides": "not_applied_to_new_clusters",
             "scope": "rna_pilot_review_only"}
@@ -78,6 +81,13 @@ def _min_genes(project) -> int:
     value = project.settings.get("rna_min_median_detected_genes", 0)
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise IO60RNATypingError("rna_min_median_detected_genes must be a nonnegative integer")
+    return value
+
+
+def _compute_threads(project) -> int:
+    value = project.settings.get("rna_compute_threads", 4)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise IO60RNATypingError("rna_compute_threads must be a positive integer")
     return value
 
 
@@ -234,6 +244,12 @@ def _worker_result(path: Path, row: dict[str, str], region) -> tuple[dict[str, i
 
 
 def run(task: Task) -> dict:
+    with rna_runtime.fixed_threads(task.settings["rna_compute_threads"]) as runtime:
+        summary = _run(task)
+    return {**summary, "rna_numerical_runtime": runtime}
+
+
+def _run(task: Task) -> dict:
     inventory = _inventory(task)
     donors = _donors(task)
     with task.input("rna_regions").open(newline="") as handle:
