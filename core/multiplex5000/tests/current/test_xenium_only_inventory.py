@@ -96,6 +96,8 @@ def test_selected_xenium_regions_run_without_qupath_and_bind_stage04(tmp_path, m
         rows = list(csv.DictReader(handle))
     assert [row["acquisition_id"] for row in rows] == project.settings["inventory_acquisitions"]
     assert {row["tissue"] for row in rows} == {"pancreas"}
+    assert {row["donor_id"]: row["disease_status"] for row in rows} == {
+        "6512": "ND", "6618": "T1D"}
     assert all(row["same_block_pln_on_pheno_slide"] == "" for row in rows)
     gates.accept(stage, by="test")
     assert rna_ingest._locations(project)[0] == stage / "source_index.csv"

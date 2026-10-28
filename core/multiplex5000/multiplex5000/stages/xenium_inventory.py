@@ -19,7 +19,8 @@ from ..tasks import Input, Task
 from ..xenium_sources import INSTRUMENT_FILES
 
 STAGE = "00_inventory"
-_COLUMNS = ("platform", "acquisition_id", "donor_id", "roi", "tissue", "output", "path",
+_COLUMNS = ("platform", "acquisition_id", "donor_id", "disease_status",
+            "disease_status_source", "roi", "tissue", "output", "path",
             "condition", "panel", "run", "run_date", "batch_number", "xenium_serial",
             "recorded_region", "section_mode", "same_block_pln_on_pheno_slide",
             "different_block_pln_on_pheno_slide", "lymphoid_in_xenium_pancreas",
@@ -208,6 +209,10 @@ def run(task: Task) -> dict:
         })
     donors = {row["donor_id"] for row in rows}
     statuses, status_disagree, status_unknown = inventory._statuses(task, cohort, donors)
+    for row in rows:
+        status, source = statuses.get(row["donor_id"], ("", ""))
+        row["disease_status"] = status
+        row["disease_status_source"] = source
     _write(task.output("acquisitions.csv"), _COLUMNS, rows)
     _write(task.output("source_index.csv"), _INDEX_COLUMNS,
            [{key: entry[key] for key in _INDEX_COLUMNS} for entry in selected])
@@ -217,8 +222,10 @@ def run(task: Task) -> dict:
         "tissues": dict(Counter(row["tissue"] for row in rows)),
         "issues": issues, "missing_damaged_records": missing,
         "donors_without_status": sorted(donors - set(statuses)),
+        "disease_status": {donor: statuses[donor][0] for donor in sorted(donors & set(statuses))},
         "status_disagreements": status_disagree + status_unknown,
-        "relationship_conflicts": [f"{c.donor_id}: {c.what}" for c in reading.conflicts],
+        "relationship_conflicts": [f"{c.donor_id}: {c.what}" for c in reading.conflicts
+                                   if c.donor_id in donors],
         "unknown_section_modes": [row["acquisition_id"] for row in rows
                                   if row["section_mode"] == "unknown"],
         "scope": "selected Xenium regions only; no PhenoCycler image inputs",
@@ -232,6 +239,7 @@ def _figure(task: Task, rows: list[dict]) -> None:
     import matplotlib.pyplot as plt
 
     donors = sorted({row["donor_id"] for row in rows})
+    status = {row["donor_id"]: row["disease_status"] for row in rows}
     panc = [sum(row["donor_id"] == donor and row["tissue"] == tissues.PANCREAS
                 for row in rows) for donor in donors]
     pln = [sum(row["donor_id"] == donor and row["tissue"] == tissues.LYMPH_NODE
@@ -241,7 +249,9 @@ def _figure(task: Task, rows: list[dict]) -> None:
     y = list(range(len(donors)))
     ax.barh(y, panc, color="#287ba8", label="pancreas")
     ax.barh(y, pln, left=panc, color="#ce6b27", label="pLN")
-    ax.set(yticks=y, yticklabels=donors, xlabel="Recorded Xenium regions (n)",
+    ax.set(yticks=y, yticklabels=[f"{donor} ({status[donor] or 'unknown'})"
+                                 for donor in donors],
+           xlabel="Recorded Xenium regions (n)",
            title=f"Xenium-only source inventory: {len(rows)} selected regions")
     ax.invert_yaxis()
     ax.legend(loc="lower right")
@@ -259,6 +269,8 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     "none", not summary["donors_without_status"]),
         gates.Check("status sources agree", summary["status_disagreements"],
                     "none", not summary["status_disagreements"]),
+        gates.Check("disease status by donor", summary["disease_status"],
+                    "reported from recorded metadata", True, blocking=False),
         gates.Check("damaged instrument records unavailable",
                     summary["missing_damaged_records"], "reported", True, blocking=False),
         gates.Check("recorded section relationships unresolved",
