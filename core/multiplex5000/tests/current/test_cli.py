@@ -48,7 +48,7 @@ def test_status_keeps_research_comparisons_separate_from_release_gates(
     assert code == 0
     assert "release gates do not block separate analysis" in out
     assert "class-specific comparisons: need Stage 06 output" in out
-    assert "raw Xenium comparisons can proceed" in out
+    assert "available source measurements can be compared" in out
     assert "accepting Stage 06 does not run comparative analysis" in out
 
 

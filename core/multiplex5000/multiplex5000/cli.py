@@ -76,8 +76,8 @@ def _status(args) -> int:
               "source data")
         typing = project.release_dir / "06_typing"
         if not tasks.is_complete(typing):
-            print("  class-specific comparisons: need Stage 06 output; raw Xenium comparisons "
-                  "can proceed")
+            print("  class-specific comparisons: need Stage 06 output; available source "
+                  "measurements can be compared")
         else:
             try:
                 accepted = gates.accepted(typing)
