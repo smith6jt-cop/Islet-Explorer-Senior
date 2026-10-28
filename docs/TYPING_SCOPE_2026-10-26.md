@@ -307,6 +307,12 @@ those rules must be reviewed and adopted in this package when that session
 finishes. The joint pilot's gate remains a review candidate and does not
 activate a release.
 
+The Stage 06 RNA gate checks that every tissue with an intact acquisition that
+entered a typing worker has at least one specific lineage call. A processed
+tissue with only broad or uncalled cells cannot appear as a successful typing
+pilot. Recorded damaged or low-signal acquisitions remain unavailable and do
+not block an intact tissue; their counts and reasons stay in the gate report.
+
 `io60_xenium_pilot.yaml` now selects the two accepted 6539 Xenium acquisitions
 under the existing IO60 candidate release. Its Stage 06 route takes the Stage
 04 cells and exact raw source, makes a disposable worker h5ad, and calls the
