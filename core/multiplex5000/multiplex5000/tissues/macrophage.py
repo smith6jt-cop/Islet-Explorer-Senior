@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from itertools import product
 
 import numpy as np
@@ -21,11 +22,25 @@ def labels() -> tuple[str, ...]:
     return tuple(label(v) for v in product((True, False), repeat=4) if v[0] or v[1])
 
 
-def classify_profile(values, threshold: float = 0.10):
-    """Return a profile only when all four markers were measured on the cell."""
+def classify_profile(values, threshold: float | Mapping[str, float] = 0.10):
+    """Classify measured profiles using levels in the same units as ``values``.
+
+    A marker-to-level mapping supports image-specific positivity levels. The
+    scalar form preserves the committed Senior method until its producer is
+    replaced; callers must not infer missing levels from that default.
+    """
     block = values.reindex(columns=PROFILE_MARKERS).to_numpy(dtype=float)
+    if isinstance(threshold, Mapping):
+        missing = sorted(set(PROFILE_MARKERS) - threshold.keys())
+        if missing:
+            raise ValueError(f"macrophage positivity levels missing markers: {missing}")
+        levels = np.array([threshold[marker] for marker in PROFILE_MARKERS], dtype=float)
+    else:
+        levels = np.full(len(PROFILE_MARKERS), threshold, dtype=float)
+    if not np.isfinite(levels).all():
+        raise ValueError("macrophage positivity levels must be finite")
     measured = np.isfinite(block).all(axis=1)
-    positive = block >= threshold
+    positive = block >= levels
     eligible = measured & (positive[:, 0] | positive[:, 1])
     result = np.full(len(values), None, dtype=object)
     result[eligible] = [label(tuple(row)) for row in positive[eligible]]
