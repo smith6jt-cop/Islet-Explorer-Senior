@@ -151,6 +151,8 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["acquisitions"] == 3
     assert summary["called_cells"] == 2
+    assert summary["specific_cells_by_tissue"] == {
+        "pancreas": 1, "pancreatic_lymph_node": 1}
     assert summary["broad_cells"] == 0
     assert summary["unresolved_cells"] == 0
     assert summary["uncalled_cells"] == 0
@@ -196,12 +198,35 @@ def test_low_rna_signal_keeps_cells_but_does_not_issue_classes(tmp_path, monkeyp
     assert result.gate_passed
     summary = json.loads((result.path / "receipt.json").read_text())["summary"]
     assert summary["called_cells"] == 0
+    assert summary["candidate_tissues"] == []
     assert summary["unavailable_cells"] == summary["cells"] == 6
     assert summary["low_signal_regions"] == project.settings["rna_acquisitions"][:2]
     with (result.path / "rna_acquisitions.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert all(row["status"] == "unavailable" for row in rows)
     assert all("median" in row["reason"] for row in rows[:2])
+
+
+def test_rna_gate_refuses_processed_tissue_with_no_specific_calls():
+    task = SimpleNamespace(settings={"rna_acquisitions": ["xenium:panc", "xenium:pln"]})
+    summary = {"acquisitions": 2, "cells": 4, "called_cells": 1, "broad_cells": 0,
+               "unresolved_cells": 0, "uncalled_cells": 3, "unavailable_cells": 0,
+               "unavailable": [], "unknown_cell_count": [], "low_signal_regions": [],
+               "classes": 1, "paired_cell_links": 0,
+               "candidate_tissues": ["pancreas", "pancreatic_lymph_node"],
+               "specific_cells_by_tissue": {"pancreas": 1, "pancreatic_lymph_node": 0}}
+    result = pilot.gate(task, summary)
+    assert not result.passed
+    assert [check.name for check in result.failing] == [
+        "specific cells in pancreatic_lymph_node"]
+
+    # A recorded damaged region has no processed candidate and cannot stop
+    # an intact tissue's pilot merely because its cells were unavailable.
+    summary["candidate_tissues"] = ["pancreas"]
+    summary["unavailable"] = ["xenium:damaged:pln"]
+    summary["uncalled_cells"] = 0
+    summary["unavailable_cells"] = 3
+    assert pilot.gate(task, summary).passed
 
 
 def test_low_signal_rule_refuses_missing_qc_measurement():

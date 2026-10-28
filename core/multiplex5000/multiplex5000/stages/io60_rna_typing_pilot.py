@@ -350,8 +350,16 @@ def run(task: Task) -> dict:
         writer.writeheader()
         writer.writerows(controls)
     _figure(task, results, class_rows)
+    candidate_tissues = sorted({r["tissue"] for r in results if r["status"] == "candidate"})
+    specific_cells_by_tissue = {
+        tissue: sum(r["cells"] for r in class_rows
+                    if r["tissue"] == tissue and r["state"] == "class")
+        for tissue in candidate_tissues
+    }
     return {"acquisitions": len(results), "candidate": sum(r["status"] == "candidate"
                                                        for r in results),
+            "candidate_tissues": candidate_tissues,
+            "specific_cells_by_tissue": specific_cells_by_tissue,
             "unavailable": [r["acquisition_id"] for r in results if r["status"] == "unavailable"],
             "cells": sum(r["cells"] for r in results if isinstance(r["cells"], int)),
             "called_cells": sum(r["called_cells"] for r in results),
@@ -508,6 +516,11 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                           blocking=False),
               gates.Check("paired cell links", summary["paired_cell_links"], "none before Stage 08",
                           summary["paired_cell_links"] == 0)]
+    checks.extend(gates.Check(f"specific cells in {tissue}",
+                              summary["specific_cells_by_tissue"][tissue], ">0",
+                              summary["specific_cells_by_tissue"][tissue] > 0,
+                              detail="Only tissues with an intact processed acquisition are checked")
+                  for tissue in summary["candidate_tissues"])
     return gates.Gate(STAGE, "New-cluster pancreas/pLN Xenium typing candidate by exact "
                       "accepted acquisition. No protein calls, same-cell links, verified accuracy "
                       "or active-release claim.", checks,

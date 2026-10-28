@@ -19,8 +19,12 @@ raw images or cell exports. The current bounded typing routes are:
 |---|---|
 | `io60_xenium_pilot` | Pancreas and pLN Xenium RNA cells |
 | `io60_mixed_protein_pilot` | Pancreas protein cells, including recorded pLN ROIs |
+| `io60_joint_typing_pilot` | Both IO60 assay routes in one release, with separate cell keys |
 | `pln_protein_pilot` | Dedicated pLN protein cells using the adapted full phenotype sheet |
-| `spleen_pilot` | Spleen protein and Xenium RNA cells; Stage 07/08 require a recorded registration source |
+| `spleen_pilot` | Optional same-slide method pilot: protein rule candidates and RNA gene evidence for one section, with no final cell classes or cell links |
+
+The first planned active IO60 release covers pancreas and pLN. The spleen project is
+separate and does not hold up either tissue's typing or release decision.
 
 For a configured project, `mplx5k stage run 06_typing --project <id>` writes a
 candidate and a gate report. Later stages require the previous gate's recorded
