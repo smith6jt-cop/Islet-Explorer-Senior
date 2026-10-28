@@ -1,0 +1,20 @@
+schema: multiplex5000-project/1
+id: io60_xenium_only_6512_6618
+release: io60-xenium-only-6512-6618-pilot-1
+cohort: io60_v3
+# Donors 6512 and 6618 have Xenium pancreas sections only. This project
+# inventories and types those exact regions without requiring QuPath images
+# or a protein gate. It is a candidate, not the active IO60 release.
+stages: [00_inventory, 04_rna_ingest, 06_typing]
+automatic_gates: []
+settings:
+  inventory_scope: xenium_only
+  inventory_acquisitions:
+    - xenium:0041323:Region_1
+    - xenium:0041326:Region_1
+  typing_route: io60_xenium_pilot
+  rna_acquisitions:
+    - xenium:0041323:Region_1
+    - xenium:0041326:Region_1
+  rna_compute_threads: 4
+  rna_min_median_detected_genes: 20

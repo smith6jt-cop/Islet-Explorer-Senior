@@ -209,6 +209,10 @@ def _path(project, name: str, default):
 
 
 def inputs(project) -> list[Input]:
+    if project.settings.get("inventory_scope") == "xenium_only":
+        from . import xenium_inventory
+
+        return xenium_inventory.inputs(project)
     if project.settings.get("same_slide_source_manifest"):
         from . import pilot_inventory
 
@@ -296,6 +300,10 @@ def _export_tag(image_name: str) -> str:
 
 
 def settings(project) -> dict:
+    if project.settings.get("inventory_scope") == "xenium_only":
+        from . import xenium_inventory
+
+        return xenium_inventory.settings(project)
     if project.settings.get("same_slide_source_manifest"):
         from . import pilot_inventory
 
@@ -1116,6 +1124,10 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def run(task: Task) -> dict:
+    if task.project.settings.get("inventory_scope") == "xenium_only":
+        from . import xenium_inventory
+
+        return xenium_inventory.run(task)
     if task.project.settings.get("same_slide_source_manifest"):
         from . import pilot_inventory
 
@@ -1724,6 +1736,10 @@ def _inspection_figure(task: Task, slides: dict[str, list[dict]], groups,
 
 
 def gate(task: Task, summary: dict) -> gates.Gate:
+    if task.project.settings.get("inventory_scope") == "xenium_only":
+        from . import xenium_inventory
+
+        return xenium_inventory.gate(task, summary)
     if task.project.settings.get("same_slide_source_manifest"):
         from . import pilot_inventory
 
