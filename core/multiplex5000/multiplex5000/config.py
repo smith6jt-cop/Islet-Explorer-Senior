@@ -81,6 +81,7 @@ class PipelineConfig:
     redsea_comp_mode: int = 1
     redsea_alpha: float = 1.0
     redsea_gap_bridge: int = 1
+    redsea_despeckle: int = 0
     redsea_norm_form: str = "donor"
     redsea_exclude_no_spillover: bool = True
 
@@ -471,6 +472,7 @@ _INI_SCHEMA = {
         "comp_mode": ("redsea_comp_mode", int),
         "alpha": ("redsea_alpha", float),
         "gap_bridge": ("redsea_gap_bridge", int),
+        "despeckle": ("redsea_despeckle", int),
         "norm_form": ("redsea_norm_form", str),
         "exclude_no_spillover": ("redsea_exclude_no_spillover", _boolean),
     },
@@ -637,6 +639,10 @@ def load_config(
 
     if cfg.redsea_norm_form != "donor":
         raise ValueError("production REDSEA requires mass-conserving norm_form='donor'")
+    if cfg.redsea_despeckle not in (0, 1) and (cfg.redsea_despeckle < 3 or cfg.redsea_despeckle % 2 == 0):
+        raise ValueError(
+            f"[redsea] despeckle must be 0 (off) or an odd kernel size >= 3, got {cfg.redsea_despeckle}"
+        )
     if cfg.cell_qc_missing_geometry_policy not in {"fatal", "exclude"}:
         raise ValueError(
             "geometry_qc missing_geometry_policy must be 'fatal' or 'exclude'"

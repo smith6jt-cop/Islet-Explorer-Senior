@@ -282,6 +282,8 @@ def _identity_config(
             "comp_mode": cfg.redsea_comp_mode,
             "alpha": cfg.redsea_alpha,
             "gap_bridge": cfg.redsea_gap_bridge,
+            # only when on, so stages built before the despeckle keep their identity
+            **({"despeckle": cfg.redsea_despeckle} if cfg.redsea_despeckle > 1 else {}),
             "norm_form": cfg.redsea_norm_form,
             "exclude_no_spillover": cfg.redsea_exclude_no_spillover,
             "output_schema": "Nucleus/Cytoplasm/Membrane/Cell",
