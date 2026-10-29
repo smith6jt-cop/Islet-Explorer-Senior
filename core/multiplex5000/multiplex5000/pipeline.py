@@ -275,6 +275,12 @@ def _identity_config(
             "duplicate_area_tolerance": cfg.cell_qc_duplicate_area_tol,
             "missing_geometry_policy": cfg.cell_qc_missing_geometry_policy,
             "duplicate_policy": cfg.cell_qc_duplicate_policy,
+            # only when on, so stages built before the option keep their identity
+            **(
+                {"retain_missing_nucleus_for_spillover": True}
+                if cfg.cell_qc_retain_missing_nucleus_for_spillover
+                else {}
+            ),
         },
         "redsea": {
             "downsample": cfg.redsea_downsample,
@@ -389,6 +395,9 @@ def _run_geometry(context: RunContext) -> None:
             duplicate_area_tolerance=context.config.cell_qc_duplicate_area_tol,
             missing_geometry_policy=context.config.cell_qc_missing_geometry_policy,
             duplicate_policy=context.config.cell_qc_duplicate_policy,
+            retain_missing_nucleus_for_spillover=(
+                context.config.cell_qc_retain_missing_nucleus_for_spillover
+            ),
         )
         result = run_geometry_qc_for_image(cells, image, config=config)
         write_donor_partition(

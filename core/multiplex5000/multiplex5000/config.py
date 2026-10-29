@@ -74,6 +74,8 @@ class PipelineConfig:
     # InstanSeg fragments without a nucleus remain auditable source objects but
     # cannot enter analysis, model estimation, or physical spillover context.
     cell_qc_missing_geometry_policy: str = "exclude"
+    # Keep those fragments in REDSEA's spillover context only (off; GeometryQCConfig).
+    cell_qc_retain_missing_nucleus_for_spillover: bool = False
 
     # REDSEA. Compartment output and fail-fast alignment are mandatory in code.
     redsea_downsample: float = 1.0
@@ -465,6 +467,10 @@ _INI_SCHEMA = {
         "duplicate_area_tol": ("cell_qc_duplicate_area_tol", float),
         "duplicate_policy": ("cell_qc_duplicate_policy", str),
         "missing_geometry_policy": ("cell_qc_missing_geometry_policy", str),
+        "retain_missing_nucleus_for_spillover": (
+            "cell_qc_retain_missing_nucleus_for_spillover",
+            _boolean,
+        ),
     },
     "redsea": {
         "downsample": ("redsea_downsample", float),
