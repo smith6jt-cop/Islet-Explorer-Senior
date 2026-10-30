@@ -252,7 +252,7 @@ def test_each_marker_is_read_from_the_compartment_the_ruling_names(measurement_p
     admitted = ["c00", "c06", "c10"]
     assert np.allclose(expression.loc[admitted, "CD3e"], redsea.loc[admitted, f"{compartment}__CD3e"],
                        equal_nan=True)
-    assert sum(checks["compartments measured"]["value"].values()) == 72
+    assert sum(checks["compartments measured"]["value"].values()) == 77   # 72 + 5 spleen markers
 
 
 def test_the_ruling_moves_registry_compartments_as_the_october_chain_did():
@@ -261,8 +261,10 @@ def test_the_ruling_moves_registry_compartments_as_the_october_chain_did():
     own = STAGE.own_compartment_registry(payload, ruling)
     from collections import Counter
 
+    # October chain: Membrane 33, Cytoplasm 18, Cell 12, Nucleus 9. The spleen PhenoCycler panel
+    # (2026-10-30) added CD14, CD45, CD45RO (Membrane) and IFNG, Keratin_14 (Cytoplasm).
     assert Counter(m["compartment"] for m in own["markers"]) == {
-        "Membrane": 33, "Cytoplasm": 18, "Cell": 12, "Nucleus": 9}
+        "Membrane": 36, "Cytoplasm": 20, "Cell": 12, "Nucleus": 9}
     assert STAGE.ruling_problems(payload, ruling) == []
     assert STAGE.ruling_problems(payload, {**ruling, "NotAMarker": "Membrane"}) == [
         "NotAMarker: not in the registry"]

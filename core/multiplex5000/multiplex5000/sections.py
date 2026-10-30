@@ -55,7 +55,10 @@ from typing import NamedTuple
 SECTION_KEY_SQL = "lower(regexp_extract(\"Image\", '^[0-9]+[A-Za-z]*[0-9]*'))"
 
 #: ``6539pln2`` -> donor ``6539``, region ``pln``, index ``2``.
-_SECTION_RE = re.compile(r"^(?P<donor>\d+)(?:(?P<region>[a-z]+)(?P<index>\d*))?$")
+#: ``hdl090spl`` -> donor ``hdl090``, region ``spl``: HANDEL donors carry an ``HDL`` prefix, and
+#: the prefix is part of the donor id (``HDL090`` is the id every spleen record joins on). Only
+#: that one prefix is accepted, so a stray letter run still fails instead of becoming a donor.
+_SECTION_RE = re.compile(r"^(?P<donor>(?:hdl)?\d+)(?:(?P<region>[a-z]+)(?P<index>\d*))?$")
 
 #: The Python twin of :data:`SECTION_KEY_SQL`. Kept adjacent so the two cannot drift: the
 #: DuckDB expression builds the partitions and this resolves an image *file* to the same key.
@@ -108,6 +111,8 @@ REGION_TO_ROI: dict[str, tuple[str, str]] = {
     "xpanc": ("panc", SLIDE_XENIUM),
     "xenpln": ("pln_1", SLIDE_XENIUM),
     "xpln": ("pln_1", SLIDE_XENIUM),
+    # Spleen PhenoCycler sections (profiles/tissues/spleen.yaml roi_prefixes: [spl]).
+    "spl": ("spl", SLIDE_PHENO),
 }
 
 #: The ROI of a section whose filename carries no region token at all.
@@ -154,14 +159,21 @@ def parse(key: str) -> Section:
     m = _SECTION_RE.match(text)
     if not m:
         raise SectionError(
-            f"section key {key!r} is not <digits>[<region><index>] — expected e.g. '6539' "
-            f"(pancreas) or '6539pln' (lymph node), from image names like "
+            f"section key {key!r} is not <digits>[<region><index>] (or hdl<digits><region>) — "
+            f"expected e.g. '6539' (pancreas), '6539pln' (lymph node) or 'hdl090spl' (spleen), "
+            f"from image names like "
             f"'6539_Scan1.er.qptiff' / '6539pLN_Scan1.er.qptiff'")
 
     donor = m.group("donor")
+    if donor.startswith("hdl"):
+        donor = "HDL" + donor[3:]      # the key is lowercased; the donor id keeps its spelling
     region = m.group("region") or ""
     index = m.group("index") or ""
     if not region:
+        if donor.startswith("HDL"):
+            raise SectionError(
+                f"section key {key!r} has no region token; an HDL donor key must name its tissue "
+                f"(e.g. '{text}spl'), since the bare-key default is {DEFAULT_ROI}")
         if len(donor) >= 7 and donor.startswith("00"):
             raise SectionError(
                 f"section key {key!r} looks like a Xenium slide serial, not a donor id; "

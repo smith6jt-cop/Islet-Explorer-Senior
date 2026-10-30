@@ -1,0 +1,13 @@
+schema: multiplex5000-profile/1
+kind: cohort
+id: spleen_phenocycler_primary
+platform: phenocycler
+tissues: [spleen]
+# The SpleenFollicleCounterQP primary rs3184504 cohort (Phenocycler, C/C 7 vs T/T 5): four
+# 33-plex donor qptiffs and eight 67-plex sections cut from two whole-slide qptiffs (0110618,
+# 0110979). Section keys are hdl<nnn>spl (sections.parse -> donor HDL<nnn>, ROI spl). Built by
+# SpleenFollicleCounterQP scripts/build_ies_inputs.py; geometry is in each qptiff's level-0
+# frame (67-plex crop offsets, and the 33-plex OME-TIFF crops registered pixel-identically).
+# Genotype is not needed to measure and is not recorded here.
+membership: core/multiplex5000/cohort-spec-spleen-primary.json
+exclusions: multiplex5000.cohort.DONOR_EXCLUSIONS
