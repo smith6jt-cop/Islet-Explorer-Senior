@@ -10,8 +10,9 @@ stages: [03_protein_measurement]
 # the one review of the measurement before anything downstream reads it.
 automatic_gates: []
 settings:
-  # REDSEA partitions at once. Each reads its whole qptiff channel by channel (the 67-plex
-  # slides are 1.15 Gpx); set from the first single-section run's peak memory.
-  measurement_jobs: 3
+  # REDSEA partitions at once. Each reads its whole qptiff channel by channel. The HDL090
+  # trial (one 1.15 Gpx 67-plex slide) peaked at 47 GB in 28.5 min; the 33-plex qptiffs reach
+  # 1.76 Gpx and the HiPerGator allocation stops at 110 GB, so one at a time.
+  measurement_jobs: 1
 # The site file supplies qupath_manifest and analysis_exclusions (SpleenFollicleCounterQP
 # analysis/approved/analysis_exclusions, cells outside the approved refined tissue masks).
