@@ -54,6 +54,7 @@ FILES = (
     "core/multiplex5000/config.ini",
     "core/multiplex5000/cohort-spec.json",
     "core/multiplex5000/cohort-spec-v3.json",
+    "core/multiplex5000/cohort-spec-spleen-primary.json",
     "core/multiplex5000/multiplex5000/marker_registry.json",
     *PANCREAS_TYPING_SCRIPTS,
 )
