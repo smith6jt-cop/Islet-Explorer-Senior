@@ -243,6 +243,20 @@ unavailable rather than assigned a synthetic zero histogram. Stage 05 does
 not set positivity cutoffs or call cells. Its gate needs processing review
 before Stage 06 may use its scales.
 
+**Spleen primary cohort (2026-10-31).** The 12-section `spleen_primary` project replaces
+the pilot. It uses the production Protein Measurement (REDSEA → expression) and a
+per-panel Normalization route, `stages/panel_normalization.py`, selected by
+`settings.normalization: per_panel`:
+- UniFORM is fitted on Protein Measurement expression, separately for each panel:
+  PC67's eight sections together, PC33's four together, never mixed.
+- A marker with fewer than two measurable sections in a panel, or a refused fit, is
+  NaN in the aligned cells.
+- Its gate is automatic.
+- **For this route, Cell Typing does not consume Normalization units.** The spleen
+  typing route reads each marker's REDSEA value against that section's own level, so
+  Normalization is a prerequisite for typing, not its input.
+- The aligned values serve region definitions, classifier rescaling and display.
+
 `multiplex5000.tissues.evaluate.evaluate_rules` is the shared Boolean
 hierarchy evaluator for the selected pLN sheet and its spleen adaptation. It
 takes explicit per-cell positive, negative or unavailable marker calls; it

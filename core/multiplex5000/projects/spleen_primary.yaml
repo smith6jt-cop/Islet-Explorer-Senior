@@ -2,17 +2,21 @@ schema: multiplex5000-project/1
 id: spleen_primary
 release: spleen-primary-candidate-1
 cohort: spleen_phenocycler_primary
-# Production protein measurement only: ingest -> geometry QC -> REDSEA -> expression. No
-# same_slide_source_manifest, so Stage 03 takes the full route, not the pilot adapter.
-# Normalization and typing for spleen are decided after this release's expression exists.
-stages: [03_protein_measurement]
-# Unlike io60, Stage 03 waits for acceptance: it is this release's only stage, so its gate is
-# the one review of the measurement before anything downstream reads it.
-automatic_gates: []
+# Production Protein Measurement (ingest -> geometry QC -> REDSEA -> expression), then
+# Normalization fitted per panel (stages/panel_normalization.py). No
+# same_slide_source_manifest, so neither stage takes a pilot adapter.
+stages: [03_protein_measurement, 05_normalization]
+# Maintainer, 2026-10-30: Protein Measurement and Normalization gates are automatic; the first
+# manual stop is Cell Typing. (Protein Measurement was accepted by hand on 2026-10-31, before
+# this changed.)
+automatic_gates: [03_protein_measurement, 05_normalization]
 settings:
   # REDSEA partitions at once. Each reads its whole qptiff channel by channel. The HDL090
   # trial (one 1.15 Gpx 67-plex slide) peaked at 47 GB in 28.5 min; the 33-plex qptiffs reach
   # 1.76 Gpx and the HiPerGator allocation stops at 110 GB, so one at a time.
   measurement_jobs: 1
-# The site file supplies qupath_manifest and analysis_exclusions (SpleenFollicleCounterQP
-# analysis/approved/analysis_exclusions, cells outside the approved refined tissue masks).
+  # UniFORM per panel: PC67's eight sections together, PC33's four together, never mixed.
+  normalization: per_panel
+# The site file supplies qupath_manifest, analysis_exclusions (SpleenFollicleCounterQP
+# analysis/approved/analysis_exclusions, cells outside the approved refined tissue masks) and
+# uniform_checkout (UniFORM at the commit normalize.UNIFORM_COMMIT pins).
