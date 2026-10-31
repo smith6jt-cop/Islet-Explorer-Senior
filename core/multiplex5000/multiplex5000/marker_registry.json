@@ -135,6 +135,20 @@
    "mutually_exclusive": false
   },
   {
+   "name": "CD14",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
    "name": "CD141",
    "kind": "type",
    "uses": [
@@ -308,6 +322,34 @@
   },
   {
    "name": "CD44",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD45",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Immune",
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "CD45RO",
    "kind": "state",
    "uses": [
     "deferred_state"
@@ -689,6 +731,20 @@
    "mutually_exclusive": false
   },
   {
+   "name": "IFNG",
+   "kind": "state",
+   "uses": [
+    "deferred_state"
+   ],
+   "broad_compartment": null,
+   "calibration_status": "deferred",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
    "name": "INS",
    "kind": "type",
    "uses": [
@@ -726,6 +782,20 @@
    ],
    "broad_compartment": "Epithelial",
    "calibration_status": "unverified",
+   "reference": null,
+   "families": [],
+   "compartment": "Cell",
+   "spillover_policy": "redsea_corrected",
+   "mutually_exclusive": false
+  },
+  {
+   "name": "Keratin_14",
+   "kind": "type",
+   "uses": [
+    "deferred_type"
+   ],
+   "broad_compartment": "Epithelial",
+   "calibration_status": "deferred",
    "reference": null,
    "families": [],
    "compartment": "Cell",

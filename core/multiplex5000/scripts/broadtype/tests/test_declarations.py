@@ -114,7 +114,9 @@ def test_no_state_marker_in_any_label_markers_or_negatives(dec):
         assert not state & set(spec["markers"]), f"{L}: state marker in identity markers"
         assert not state & set(spec["negatives"]), f"{L}: state marker used as a negative"
     assert not state & set(dec["identity_markers"])
-    assert len(state) == 33  # 23 original + 10 deferred state measurements added 2026-09-16
+    # 23 original + 10 deferred state measurements added 2026-09-16 + CD45RO and IFNG, the
+    # spleen PhenoCycler panel's deferred state markers (2026-10-30)
+    assert len(state) == 35
 
 
 def test_negatives_are_identity_markers_of_other_labels(dec):
@@ -147,9 +149,10 @@ def test_neural_is_undeclared_with_the_recorded_reason(dec):
 
 
 def test_conflict_rule_exclusions_are_the_recorded_ones(dec):
-    """The protocol's exclusions plus the two new type measurements without identity rules."""
+    """The protocol's exclusions plus the new type measurements without identity rules: CD141 and
+    CD21 (2026-09-16), and CD14, CD45 and Keratin_14 from the spleen PhenoCycler panel (2026-10-30)."""
     assert set(dec["excluded"]) == {"B3TUBB", "CD11b", "CD34", "CD56", "CD66", "IAPP", "b_Catenin1",
-                                    "CD141", "CD21"}
+                                    "CD141", "CD21", "CD14", "CD45", "Keratin_14"}
     assert dec["excluded"]["CD11b"] == "registry kind=excluded"
     assert dec["excluded"]["IAPP"] == "registry kind=excluded"
     assert "Mes-CD34-fibroblast" in dec["excluded"]["CD34"]
@@ -165,9 +168,11 @@ def test_registry_additions_need_rule_table_support_before_entering_identity(dec
     table = rules.load_rules(pins.RULES_37)
     absent_types = {m for m, spec in registry.items()
                     if spec["kind"] == pins.KIND_TYPE and m not in table.columns}
-    assert absent_types == {"CD141", "CD21", "b_Catenin1"}
+    # CD14, CD45 and Keratin_14 came with the spleen PhenoCycler panel (2026-10-30): deferred type
+    # markers the 37-reference rule table has no rule for, so they stay out of identity.
+    assert absent_types == {"CD141", "CD21", "b_Catenin1", "CD14", "CD45", "Keratin_14"}
     assert absent_types <= set(dec["excluded"])
-    for m in ("CD141", "CD21"):
+    for m in ("CD141", "CD21", "CD14", "CD45", "Keratin_14"):
         assert registry[m]["calibration_status"] == "deferred"
         assert registry[m]["uses"] == ["deferred_type"]
         assert dec["excluded"][m] == "registry type marker absent from the rule table; no identity rule declared"

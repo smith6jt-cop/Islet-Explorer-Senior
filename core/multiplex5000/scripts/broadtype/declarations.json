@@ -178,6 +178,7 @@
   "CD38",
   "CD39",
   "CD44",
+  "CD45RO",
   "CD57",
   "CD99",
   "CS",
@@ -191,6 +192,7 @@
   "ICOS",
   "IDH2",
   "IDO1",
+  "IFNG",
   "Ki67",
   "LAG3",
   "LDHA",
@@ -211,18 +213,21 @@
  "excluded": {
   "B3TUBB": "registry Neural but the rule table makes a definitional claim for it under ['Endocrine', 'Epithelial_nonendocrine'] (rows ['Neural', 'Endo-hormone-negative'])",
   "CD11b": "registry kind=excluded",
+  "CD14": "registry type marker absent from the rule table; no identity rule declared",
   "CD141": "registry type marker absent from the rule table; no identity rule declared",
   "CD21": "registry type marker absent from the rule table; no identity rule declared",
   "CD34": "registry Endothelial but the rule table makes a definitional claim for it under ['Stromal'] (rows ['Mes-CD34-fibroblast'])",
+  "CD45": "registry type marker absent from the rule table; no identity rule declared",
   "CD56": "registry type marker with no broad_compartment; rule-table positive rows ['Epi-endocrine', 'Imm-NK-cell']",
   "CD66": "registry Epithelial but the rule table makes a definitional claim for it under ['B_Plasma', 'Myeloid', 'T_NK'] (rows ['Imm-neutrophil'])",
   "IAPP": "registry kind=excluded",
+  "Keratin_14": "registry type marker absent from the rule table; no identity rule declared",
   "b_Catenin1": "registry type marker with no broad_compartment"
  },
  "notes": [],
  "sources": {
   "registry": "core/multiplex5000/multiplex5000/marker_registry.json",
-  "registry_sha256": "577ab46728ed857943e80d91c1b47d02239b71eb3cc473e84e528b0253edc074",
+  "registry_sha256": "1dcd50dcdc37b917c81fc563cd86b22e7e2fe515010aad30b265a877899a2e08",
   "rules": "phenotype_workflow.csv",
   "rules_sha256": "b010a3f9c6ca40cb4b76957f65a25c39f12849387ef72c616a201deb885a0956"
  }

@@ -35,6 +35,9 @@ CYTOPLASM = (
     "MPO", "Granzyme_B", "IDO1", "iNOS", "Iba1", "M2Gal3",
     "Ker8_18", "Keratin_5", "Pan_Cytokeratin", "Vimentin", "SMA", "B3TUBB",
     "Collagen_IV", "Beta_actin", "Bcl_2",
+    # Spleen PhenoCycler panel (2026-10-30): a secreted cytokine read where it is made, and a
+    # cytokeratin filament, as the marker_compartment_ruling.csv rows for them say.
+    "IFNG", "Keratin_14",
 )
 
 #: Everything else on the panel is a surface or membrane-associated protein and is read from the
@@ -45,6 +48,8 @@ MEMBRANE = (
     "CD39", "CD44", "CD56", "CD57", "CD66", "CD68", "CD99", "CD107a", "CD163", "CD206",
     "CD209", "Caveolin", "E_cadherin", "EpCAM", "Podoplanin", "HLA_A", "HLA_DR",
     "ICOS", "LAG3", "PD_1", "PD_L1", "VISTA", "b_Catenin1",
+    # Spleen PhenoCycler panel (2026-10-30): surface CD14, and CD45 with its RO isoform.
+    "CD14", "CD45", "CD45RO",
 )
 
 #: Not usable for cell typing.  ``IAPP`` is the registry's own ``failed_marker``; ``DAPI`` is the

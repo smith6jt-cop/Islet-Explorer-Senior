@@ -59,3 +59,8 @@ VISTA,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane co
 b_Catenin1,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,selected for production under user instruction to make the most logical choices
 IAPP,not applicable,excluded from typing,do not use as a cell-identity feature,not for typing,selected for production under user instruction to make the most logical choices
 DAPI,not applicable,excluded from typing,do not use as a cell-identity feature,not for typing,selected for production under user instruction to make the most logical choices
+CD14,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,spleen PhenoCycler panel addition (2026-10-30); compartment by analogy with the registry's existing markers of the same class
+CD45,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,spleen PhenoCycler panel addition (2026-10-30); compartment by analogy with the registry's existing markers of the same class
+CD45RO,Membrane,compartment-specific REDSEA measurement,retain REDSEA Membrane component,usable marker,spleen PhenoCycler panel addition (2026-10-30); compartment by analogy with the registry's existing markers of the same class
+IFNG,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,spleen PhenoCycler panel addition (2026-10-30); compartment by analogy with the registry's existing markers of the same class
+Keratin_14,Cytoplasm,compartment-specific REDSEA measurement,retain REDSEA Cytoplasm component,usable marker,spleen PhenoCycler panel addition (2026-10-30); compartment by analogy with the registry's existing markers of the same class
