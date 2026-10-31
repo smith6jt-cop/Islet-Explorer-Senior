@@ -1,7 +1,8 @@
 """Stage 05: one UniFORM shift for each measured protein marker and section.
 
 Both same-slide and dedicated pLN pilot adapters emit the same Stage 03 cell
-table contract. This stage fits one shared marker basis across selected
+table contract. Two production routes sit beside them: io60 (``io60_normalization``) and
+per-panel (``panel_normalization``, chosen by ``settings.normalization: per_panel``). This stage fits one shared marker basis across selected
 sections, without mixing raw and aligned values or choosing positivity cutoffs.
 """
 
@@ -37,6 +38,10 @@ def _require_pilot(project) -> None:
 
 
 def _route(project):
+    from . import panel_normalization
+
+    if panel_normalization.applies(project):
+        return panel_normalization
     if getattr(project, "cohort", None) == "io60_v3" and not (
             project.settings.get("same_slide_source_manifest")
             or project.settings.get("pln_export_images")):
