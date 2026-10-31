@@ -34,9 +34,11 @@ from ..tasks import Input, Task
 STAGE = "05_normalization"
 SETTING = "per_panel"
 MODE_SD_BAR = 0.10
-#: Protein Measurement expression columns that are not markers; every other column is one.
+#: Protein Measurement expression columns that are not markers. Every other column must be a
+#: registry marker; anything else is refused, so a new metadata column cannot be aligned as one.
 META = ("donor_id", "object_id", "qc_analysis_eligible", "qc_estimation_eligible", "image",
-        "cell_region", "islet_num")
+        "X_centroid", "Y_centroid", "cell_region", "islet_num")
+REGISTRY = Path(__file__).resolve().parent.parent / "marker_registry.json"
 _SCALE_COLUMNS = ("donor_id", "panel_id", "marker", "reference_donor", "scale", "shift_log",
                   "n_fit_cells", "status", "mode_sd_before", "mode_sd_after")
 
@@ -94,7 +96,8 @@ def inputs(project) -> list[Input]:
     stage = project.release_dir / "03_protein_measurement"
     found = [Input("protein_receipt", stage / "receipt.json"),
              Input("protein_acceptance", stage / "gate/accepted.json"),
-             Input("cohort_spec", _spec(project))]
+             Input("cohort_spec", _spec(project)),
+             Input("marker_registry", REGISTRY)]
     for donors in _panels(project).values():
         found.extend(Input(f"expression:{d}", _expression(project, d)) for d in donors)
     pinned = project.source("normalization_references")
@@ -121,7 +124,7 @@ def _pinned(path: Path | None) -> dict[tuple[str, str], str]:
     return out
 
 
-def _markers(paths: dict[str, Path]) -> list[str]:
+def _markers(paths: dict[str, Path], registry: Path) -> list[str]:
     schemas = {d: pq.ParquetFile(p).schema_arrow.names for d, p in paths.items()}
     first = next(iter(schemas.values()))
     if any(names != first for names in schemas.values()):
@@ -129,7 +132,13 @@ def _markers(paths: dict[str, Path]) -> list[str]:
     missing = [c for c in ("donor_id", "object_id", "qc_analysis_eligible") if c not in first]
     if missing:
         raise PanelNormalizationError(f"expression is missing {missing}")
-    return [c for c in first if c not in META]
+    known = {m["name"] for m in json.loads(registry.read_text())["markers"]}
+    markers = [c for c in first if c not in META]
+    unknown = [c for c in markers if c not in known]
+    if unknown:
+        raise PanelNormalizationError(f"expression columns that are neither metadata nor "
+                                      f"registry markers: {unknown}")
+    return markers
 
 
 def _sample(path: Path, eligible: np.ndarray, marker: str) -> np.ndarray | None:
@@ -212,7 +221,8 @@ def run(task: Task) -> dict:
                                       "cohort spec")
     if _panels_from(task.input("cohort_spec")) != panels:
         raise PanelNormalizationError("the cohort spec changed after its inputs were declared")
-    markers = _markers({d: task.input(f"expression:{d}") for d in donors})
+    markers = _markers({d: task.input(f"expression:{d}") for d in donors},
+                       task.input("marker_registry"))
     pinned = _pinned(task.input("normalization_references")
                      if "normalization_references" in task.inputs else None)
     registration, normalization = normalize.load_uniform(Path(task.settings["uniform_checkout"]))
