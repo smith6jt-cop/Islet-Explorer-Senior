@@ -16,7 +16,7 @@
   "hdl104spl"
  ],
  "defaults": {
-  "segmentation_version": "qupath-0.7.0__instanseg-fluorescence_nuclei_and_cells-0.1.1__spleen-19ch",
+  "segmentation_version": "instanseg-fnc-0.1.1-19ch",
   "nucleus_geojson": null,
   "pixel_size_um_x": 0.5077663810243286,
   "pixel_size_um_y": 0.5077663810243286
@@ -25,7 +25,7 @@
   {
    "donor_id": "hdl009spl",
    "image_id": "HDL009_PC67_0110979-S2",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL009_PC67_0110979-S2.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL009_PC67_0110979-S2.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
@@ -370,7 +370,7 @@
   {
    "donor_id": "hdl011spl",
    "image_id": "HDL011_PC33.ome.tiff",
-   "panel_id": "spleen-pc33",
+   "panel_id": "spleen_pc33",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL011_PC33.ome.tiff.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL011_PC33.ome.tiff.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL011SPLN_2025Aug6_Scan1.er.qptiff",
@@ -545,7 +545,7 @@
   {
    "donor_id": "hdl014spl",
    "image_id": "HDL014_PC67_0110618-S4",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL014_PC67_0110618-S4.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL014_PC67_0110618-S4.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
@@ -890,7 +890,7 @@
   {
    "donor_id": "hdl034spl",
    "image_id": "HDL034_PC67_0110979-S3",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL034_PC67_0110979-S3.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL034_PC67_0110979-S3.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
@@ -1235,7 +1235,7 @@
   {
    "donor_id": "hdl053spl",
    "image_id": "HDL053_PC33.ome.tif",
-   "panel_id": "spleen-pc33",
+   "panel_id": "spleen_pc33",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL053_PC33.ome.tif.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL053_PC33.ome.tif.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL053_SPLN_2025Aug5_Scan1.er.qptiff",
@@ -1410,7 +1410,7 @@
   {
    "donor_id": "hdl055spl",
    "image_id": "HDL055_PC33.ome.tiff",
-   "panel_id": "spleen-pc33",
+   "panel_id": "spleen_pc33",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL055_PC33.ome.tiff.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL055_PC33.ome.tiff.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL055_SPLN_2025Aug9_Scan1.er.qptiff",
@@ -1585,7 +1585,7 @@
   {
    "donor_id": "hdl059spl",
    "image_id": "HDL059_PC67_0110979-S1",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL059_PC67_0110979-S1.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL059_PC67_0110979-S1.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
@@ -1930,7 +1930,7 @@
   {
    "donor_id": "hdl063spl",
    "image_id": "HDL063_PC33.ome.tiff",
-   "panel_id": "spleen-pc33",
+   "panel_id": "spleen_pc33",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL063_PC33.ome.tiff.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL063_PC33.ome.tiff.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL063_SPLN_2025Aug7_Scan1.er.qptiff",
@@ -2105,7 +2105,7 @@
   {
    "donor_id": "hdl080spl",
    "image_id": "HDL080_PC67_0110979-S4",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL080_PC67_0110979-S4.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL080_PC67_0110979-S4.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
@@ -2450,7 +2450,7 @@
   {
    "donor_id": "hdl082spl",
    "image_id": "HDL082_PC67_0110618-S2",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL082_PC67_0110618-S2.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL082_PC67_0110618-S2.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
@@ -2795,7 +2795,7 @@
   {
    "donor_id": "hdl090spl",
    "image_id": "HDL090_PC67_0110618-S1",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL090_PC67_0110618-S1.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL090_PC67_0110618-S1.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
@@ -3140,7 +3140,7 @@
   {
    "donor_id": "hdl104spl",
    "image_id": "HDL104_PC67_0110618-S3",
-   "panel_id": "spleen-pc67",
+   "panel_id": "spleen_pc67",
    "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL104_PC67_0110618-S3.parquet",
    "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL104_PC67_0110618-S3.geojson",
    "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
