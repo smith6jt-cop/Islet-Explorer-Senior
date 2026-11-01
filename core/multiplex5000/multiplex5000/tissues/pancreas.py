@@ -47,3 +47,8 @@ def check_population(cells: pd.DataFrame, registry, roles: dict, pos: dict, back
     """Endocrine-object hormone-positive cells (``levels.cell_sets``), exactly as the source reads them."""
     from ..positivity import levels as LV
     return LV.cell_sets(cells, pos, roles)[0]
+
+
+def reference_carries(registry) -> frozenset[str]:
+    """Hormone cells carry no leukocyte marker: every immune check on them is a known-negative rate, as at the source."""
+    return frozenset()

@@ -92,9 +92,9 @@ def test_check_bars_are_constants_and_the_method_reads_its_constants(reg):
         reg.const(name)                                  # read unconditionally by levels/identity
 
 
-def test_the_spleen_hook_accepts_it_and_reads_epithelial_and_stromal_references(reg):
-    """P7 (maintainer 2026-11-01): the leukocyte checks' known-negative cells are epithelial and stromal cells; a
-    marker with no chosen level is read at its own background peak, a chosen one at its level."""
+def test_the_spleen_hook_takes_b_cells_as_the_immune_reference(reg):
+    """P12 (maintainer 2026-11-01): CD20 is the immune checks' reference; B cells carry CD45. A marker with no
+    chosen level is read at its own background peak, a chosen one at its level."""
     import numpy as np
 
     hook = TS.hooks("spleen")
@@ -102,14 +102,16 @@ def test_the_spleen_hook_accepts_it_and_reads_epithelial_and_stromal_references(
     roles = LV.roles(reg)
     assert roles["core"] == ["CD3e", "CD45", "CD68", "CD163"] and not roles["hormones"]
     assert set(reg.markers("state")) >= {"Ki67", "PD_1", "PD_L1", "HLA_DR"}
-    assert hook.CHECK_POPULATION == "reference"
+    assert hook.CHECK_POPULATION == "b_cells"
     read = []
-    background = {"Pan_Cytokeratin": np.array([1, 0, 0, 0], bool), "E_cadherin": np.zeros(4, bool),
-                  "EpCAM": np.zeros(4, bool)}
-    cells = hook.check_population(np.zeros(4), reg, roles, {"SMA": np.array([0, 1, 0, 0], bool)},
-                                  lambda m: read.append(m) or background[m])
-    assert cells.tolist() == [True, True, False, False]
-    assert sorted(read) == ["E_cadherin", "EpCAM", "Pan_Cytokeratin"]    # SMA had its level; no CD45, no Vimentin
+    cells = hook.check_population(np.zeros(3), reg, roles, {}, lambda m: read.append(m) or np.array([1, 0, 1], bool))
+    assert cells.tolist() == [True, False, True] and read == ["CD20"]          # not CD79a: not required
+    chosen = hook.check_population(np.zeros(3), reg, roles, {"CD20": np.array([0, 1, 0], bool)}, lambda m: 1 / 0)
+    assert chosen.tolist() == [False, True, False]
+    assert hook.reference_carries(reg) == {"CD45"} == LV.reference_carries(reg)
+    assert LV.reference_carries(RG.load("codex-uniform-32", "pancreas")) == set()
+    assert reg.const("CD3E_AMONG_MYELOID_GATED") == 0                 # reported only; pancreas has no such constant
+    assert "CD3E_AMONG_MYELOID_GATED" not in RG.load("codex-uniform-32", "pancreas").constants
 
 
 def test_every_proposal_named_exists_and_all_are_reviewed(reg):
@@ -120,7 +122,7 @@ def test_every_proposal_named_exists_and_all_are_reviewed(reg):
     assert dict(zip(table["id"], table["status"])) == {
         "P1": "accepted", "P2": "accepted", "P3": "accepted", "P4": "accepted", "P5": "accepted",
         "P6": "rejected", "P7": "accepted", "P8": "rejected", "P9": "rejected", "P10": "accepted",
-        "P11": "accepted"}
+        "P11": "accepted", "P12": "accepted"}
     assert table["decision"].str.startswith("maintainer 2026-11-01").all()
     RG.require_reviewed(reg)
     RG.require_reviewed(RG.load("codex-uniform-32", "pancreas"))   # no proposals file: nothing to wait for
@@ -129,5 +131,5 @@ def test_every_proposal_named_exists_and_all_are_reviewed(reg):
 def test_cd45_and_cd163_take_the_majority_marker_levels(reg):
     """P10/P11 (maintainer 2026-11-01): nearly every spleen cell carries CD45, so its densest peak is not background."""
     assert LV.methods_for(reg, "CD45") == ["edge", "gate"] == LV.methods_for(reg, "CD163")
-    assert LV.check_isolation(reg, "CD45") == "none" and LV.check_isolation(reg, "CD3e") == ""
+    assert LV.check_isolation(reg, "CD45") == "" and LV.check_isolation(reg, "CD3e") == ""     # CD45: positive check (P12)
     assert LV.check_isolation(RG.load("codex-uniform-32", "pancreas"), "CD45") == ""     # no column: the source's rule

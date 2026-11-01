@@ -252,27 +252,33 @@ def structure_objects() -> tuple[str, ...]:
     return ()
 
 
-#: the check columns' name for the known-negative cells (``{marker}_in_reference``)
-CHECK_POPULATION = "reference"
+#: the check columns' name for the reference cells (``{marker}_in_b_cells``)
+CHECK_POPULATION = "b_cells"
 
 
 def check_population(cells, registry, roles: dict, pos: dict, background):
-    """The known-negative cells of the leukocyte-marker checks (P7, maintainer 2026-11-01): spleen has no
-    hormone-positive endocrine cells, so the checks read epithelial and stromal cells instead -- cells positive for an
-    Epithelial majority marker or a defining marker of the Mesenchymal compartment. Each marker is read at its chosen
-    level where one is chosen, otherwise at its own background peak (the immune stage runs before those levels are
-    chosen). ``levels`` then keeps only those with no leukocyte within ISOLATION_UM, as it does hormone cells.
+    """The immune checks' reference cells (P12, maintainer 2026-11-01: "You need to be using CD20 as a ref or mutually
+    exclusive marker for these"): B cells, positive for the B lineage's required marker (CD20). It is read at its
+    chosen level where one is chosen, otherwise at its own background peak, since the immune stage runs before CD20's
+    level is chosen. CD20 is bimodal on every PC67 section; CD79a's background peak is not a usable level, and it is
+    not required.
 
-    No leukocyte-marker criterion enters the definition: a CD45-negative reference would pass the CD45 check by
-    construction. Vimentin is not a stromal marker here: it is shared with leukocytes (lymphocytes carry it, and B
-    cells are not leukocytes in the method's two-marker definition), so it would put B cells in the reference."""
+    ``levels`` keeps the B cells with no T or myeloid leukocyte within ISOLATION_UM for the markers B cells cannot
+    carry (CD3e, CD68, CD163: each <= its bar), and reads the markers they do carry (``reference_carries``: CD45) as
+    a positive rate among all B cells. This replaces P7's epithelial and stromal cells: spleen epithelium and SMA+
+    stroma are scarce and sit among leukocytes, and as a reference they read CD45 in 15-97 % of cells."""
     import numpy as np
 
     measured = set(registry.measured_markers())
-    markers = [m for m in roles["epithelial"] if m in measured] + \
-              [m for m in registry.defining("Mesenchymal") if m in measured]
+    markers = [m for m in registry.broad("B") if m in measured and registry.table.loc[m, "required"] == "yes"]
+    if not markers:
+        raise ValueError("the spleen registry has no required B-lineage marker for the immune checks' reference")
     out = np.zeros(len(cells), bool)
     for m in markers:
         out |= pos[m] if m in pos else background(m)
     return out
 
+
+def reference_carries(registry) -> frozenset[str]:
+    """Markers the reference cells carry, read as a positive rate among them: the pan-leukocyte marker (CD45)."""
+    return frozenset(registry.broad("Leukocyte"))

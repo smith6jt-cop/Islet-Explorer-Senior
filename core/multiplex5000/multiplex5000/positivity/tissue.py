@@ -9,8 +9,10 @@ Every typing tissue module in ``multiplex5000.tissues`` supplies:
 - ``structure_objects() -> tuple``: the structure classes whose objects can place cells;
 - ``check_population(cells, registry, roles, pos, background) -> array`` and ``CHECK_POPULATION``: the known-negative
   cells of the leukocyte-marker checks before isolation from leukocytes, and their name in the check columns
-  (pancreas: endocrine-object hormone-positive cells, 'hormone'; spleen: epithelial and stromal cells, 'reference').
-  ``pos`` holds the markers whose level is chosen; ``background(marker)`` reads any other at its own background peak.
+  (pancreas: endocrine-object hormone-positive cells, 'hormone'; spleen: B cells, 'b_cells').
+  ``pos`` holds the markers whose level is chosen; ``background(marker)`` reads any other at its own background peak;
+- ``reference_carries(registry) -> frozenset``: the immune-core markers those cells carry, read as a positive rate
+  among them instead of a known-negative one (pancreas: none; spleen: CD45).
 """
 from __future__ import annotations
 
@@ -19,7 +21,8 @@ from types import ModuleType
 
 from . import registry as RG
 
-HOOKS = ("start_class", "reference_populations", "selection_sections", "structure_objects", "check_population")
+HOOKS = ("start_class", "reference_populations", "selection_sections", "structure_objects", "check_population",
+         "reference_carries")
 
 
 def hooks(tissue: str) -> ModuleType:

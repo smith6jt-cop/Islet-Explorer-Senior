@@ -345,6 +345,12 @@ def check_population(d: pd.DataFrame, reg: RG.Registry, R: dict, pos: dict, k: f
     return np.asarray(cells, bool), hook.CHECK_POPULATION
 
 
+def reference_carries(reg: RG.Registry) -> frozenset[str]:
+    """The immune-core markers the tissue's check population carries (spleen B cells: CD45; pancreas: none)."""
+    from . import tissue as TS
+    return frozenset(TS.hooks(reg.spec[1]).reference_carries(reg))
+
+
 def carrier_specific(reg: RG.Registry, m: str, markers) -> list[str]:
     """Defining markers whose every lineage is one of marker m's carrier lineages (registry carrier_lineages)."""
     lins = set(RG.split(reg.table.loc[m, 'carrier_lineages'])) if m in reg.table.index else set()
@@ -567,17 +573,27 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
             t_all, t_iso, _ = isolated_rate(t, mye_all, xy, cut, nmin)
             checks = {'leukocyte_among_t': c45, 't_among_myeloid_all': t_all, 't_among_myeloid': t_iso,
                       f'{ref_name}_reference_cells': int(hormone_free.sum())}
-            for m in core:
+            carried = reference_carries(reg)
+            negative = [m for m in core if m not in carried]
+            for m in negative:
                 r_all, r_iso, _ = isolated_rate(pos[m], hormone_free, xy, cut, nmin)
                 # registry check_isolation 'none': read on every reference cell, not only those with no positive cell
-                # within ISOLATION_UM (spleen CD45, maintainer 2026-11-01: nearly every spleen cell carries it)
+                # within ISOLATION_UM
                 checks[f'{m}_in_{ref_name}_all'] = r_all
                 checks[f'{m}_in_{ref_name}'] = r_all if check_isolation(reg, m) == 'none' else r_iso
-            ok = [(c45 >= reg.const('CD45_AMONG_CD3E_MIN')) if np.isfinite(c45) else np.nan,
-                  le(t_iso, reg.const('CD3E_AMONG_MYELOID_MAX'))] + \
-                 [le(checks[f'{m}_in_{ref_name}'], reg.const('CD45_AMONG_HORMONE_MAX')) for m in core]
+            # a marker the reference cells carry (spleen B cells: CD45) is held to the bar of CD45 among CD3e+ cells
+            for m in [m for m in core if m in carried]:
+                checks[f'{m}_among_{ref_name}'] = rate(pos[m], hormone_cells, nmin)
+            # CD3e among myeloid cells gates unless the registry reports it only (constant CD3E_AMONG_MYELOID_GATED 0;
+            # spleen, P12: T/myeloid exclusivity is read on the B-cell reference instead)
+            gated = reg.constants.get('CD3E_AMONG_MYELOID_GATED', 1.0) != 0
+            ok = [(c45 >= reg.const('CD45_AMONG_CD3E_MIN')) if np.isfinite(c45) else np.nan] + \
+                 ([le(t_iso, reg.const('CD3E_AMONG_MYELOID_MAX'))] if gated else []) + \
+                 [le(checks[f'{m}_in_{ref_name}'], reg.const('CD45_AMONG_HORMONE_MAX')) for m in negative] + \
+                 [(checks[f'{m}_among_{ref_name}'] >= reg.const('CD45_AMONG_CD3E_MIN'))
+                  if np.isfinite(checks[f'{m}_among_{ref_name}']) else np.nan for m in core if m in carried]
             good = ok_all(ok) and all(np.isfinite(lv[m]['level_log']) for m in core)
-            oop = np.nanmax([t_iso] + [checks[f'{m}_in_{ref_name}'] for m in core])
+            oop = np.nanmax(([t_iso] if gated else []) + [checks[f'{m}_in_{ref_name}'] for m in negative] + [np.nan])
             checks.update({f'level_raw_{m}': lv[m]['level_raw'] for m in core})
             order = R['core']
             rows.append({'image': tag, 'stage': stage, 'marker': '+'.join(order),
