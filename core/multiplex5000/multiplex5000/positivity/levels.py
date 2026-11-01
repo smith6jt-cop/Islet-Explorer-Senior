@@ -459,13 +459,17 @@ def lineage_report(reg: RG.Registry, m: str, p: np.ndarray, fixed: dict, q: floa
     skip = {lin for x in [m] + req for lin, _ in reg.lineage_entries(x)}
     lineages = dict.fromkeys(lin for x in reg.defining(comp) for lin, _ in reg.lineage_entries(x))
     others = [x for lin in lineages if lin not in skip for x in reg.broad(lin)]
-    other = any_of(fixed, others, n)
+    # Read only the other lineages' markers whose level is already chosen. In pancreas all are by then; in spleen the
+    # NK and neutrophil markers are known-negative too and come after CD20, so the report names what it could not read.
+    read = [x for x in others if x in fixed]
+    other = any_of(fixed, read, n)
     calls = p & required & ~other if 'single_lineage' in need else p & required
     false = (1 - q / 100) * float((required & ~calls).sum())
     return {'positive_cells': int(p.sum()), 'required_among_positive': rate(required, p, nmin),
             'other_lineage_among_positive_required': rate(other, p & required, nmin),
             'calls_plain_level': int(calls.sum()), 'expected_false_calls': false,
-            'expected_false_proportion': false / calls.sum() if calls.sum() else np.nan}
+            'expected_false_proportion': false / calls.sum() if calls.sum() else np.nan,
+            'other_lineage_markers_unread': ';'.join(x for x in others if x not in fixed)}
 
 
 def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, nulls: dict,
