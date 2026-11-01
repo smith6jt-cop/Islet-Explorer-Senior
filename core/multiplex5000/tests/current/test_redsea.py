@@ -476,3 +476,42 @@ def test_one_image_per_donor_is_enforced_at_the_manifest(tmp_path):
 
     # The manifest itself refuses to hold two images for one donor.
     assert hasattr(QuPathCohortManifest, "read_json")
+
+
+def _speckled(dtype):
+    rng = np.random.default_rng(0)
+    a = rng.integers(100, 200, size=(40, 50)).astype(dtype)
+    a[10, 10] = a[20, 30] = a[0, 0] = 60000           # isolated hot pixels, one on the image corner
+    return a
+
+
+def test_despeckle_reads_big_endian_channels_by_value():
+    # The CODEX TIFFs are big-endian; OpenCV on the raw buffer gave values 66-250x too high.
+    little = _speckled("<u2")
+    big = little.astype(">u2")
+    out = redsea.despeckle(big, 3)
+    assert out.dtype.byteorder in ("=", "|", "<" if np.little_endian else ">")
+    np.testing.assert_array_equal(out, redsea.despeckle(little, 3))
+    assert out.max() < 1000                            # every hot pixel removed
+    assert 100 <= out.min() and out.max() < 200
+
+
+def test_despeckle_opencv_and_scipy_agree():
+    cv2 = pytest.importorskip("cv2")
+    from scipy.ndimage import median_filter
+    a = _speckled("<u2")
+    np.testing.assert_array_equal(cv2.medianBlur(a, 3), median_filter(a, size=3, mode="nearest"))
+
+
+def test_despeckle_off_returns_the_channel_unchanged():
+    a = _speckled(">u2")
+    assert redsea.despeckle(a, 0) is a and redsea.despeckle(a, 1) is a
+
+
+def test_despeckle_is_off_by_default_and_validated(tmp_path):
+    from phenocycler import load_config
+    assert redsea.RedseaParams.from_config(load_config()).despeckle == 0
+    assert load_config(redsea_despeckle=3).redsea_despeckle == 3
+    for bad in (2, 4, -3):
+        with pytest.raises(ValueError, match="despeckle"):
+            load_config(redsea_despeckle=bad)

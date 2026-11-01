@@ -123,6 +123,9 @@ def _geometry_config(context, image) -> GeometryQCConfig:
             context.config.cell_qc_missing_geometry_policy
         ),
         duplicate_policy=context.config.cell_qc_duplicate_policy,
+        retain_missing_nucleus_for_spillover=(
+            context.config.cell_qc_retain_missing_nucleus_for_spillover
+        ),
     )
 
 

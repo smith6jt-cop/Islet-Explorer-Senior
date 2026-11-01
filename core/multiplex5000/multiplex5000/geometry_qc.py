@@ -92,6 +92,10 @@ class GeometryQCConfig:
     duplicate_radius_um: float = 1.0
     duplicate_area_tolerance: float = 0.15
     retain_analysis_excluded_for_spillover: bool = True
+    # Keep cells without a nucleus in REDSEA's physical spillover context (they stay out of analysis
+    # and estimation). Off: CODEX Islet-Explorer tested it on 3 images (1b7bcb0, 2026-10-29), two-hormone
+    # cells changed by <= 1 % and marker positive rates by < 0.7 points.
+    retain_missing_nucleus_for_spillover: bool = False
 
     def __post_init__(self) -> None:
         numeric_positive = {
@@ -532,7 +536,8 @@ def evaluate_geometry_metrics(
         if not cell_present[index]:
             spillover_reasons.append("missing_cell_geometry")
         if missing_nucleus[index]:
-            spillover_reasons.append("missing_nucleus_geometry")
+            if not config.retain_missing_nucleus_for_spillover:
+                spillover_reasons.append("missing_nucleus_geometry")
         elif config.require_nucleus_geometry and not valid_nucleus_raster[index]:
             spillover_reasons.append("nucleus_raster_empty")
         if not valid_raster_area[index]:

@@ -105,6 +105,27 @@ def test_explicit_exclude_policy_rejects_missing_nucleus_from_every_qc_role():
     assert first.spillover_context_reason == "missing_nucleus_geometry"
 
 
+def test_missing_nucleus_can_stay_in_spillover_context_only():
+    metrics = _metrics(
+        nucleus_geometry_present=[False, True, True, True, True, True],
+        nucleus_area_px=[float("nan"), 30, 30, 30, 30, 30],
+    )
+    result = evaluate_geometry_metrics(
+        metrics,
+        donor_id="1",
+        config=_config(
+            missing_geometry_policy="exclude",
+            retain_missing_nucleus_for_spillover=True,
+        ),
+    ).to_frame()
+
+    first = result.loc[result.object_id == "c0"].iloc[0]
+    assert not first.analysis_eligible
+    assert not first.estimation_eligible
+    assert first.spillover_context_eligible
+    assert first.analysis_reason == "missing_nucleus_geometry"
+
+
 def test_empty_nucleus_raster_is_rejected_from_every_qc_role():
     metrics = _metrics(
         nucleus_geometry_present=[True, True, True, True, True, True],
