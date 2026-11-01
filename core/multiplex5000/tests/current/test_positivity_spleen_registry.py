@@ -119,7 +119,15 @@ def test_every_proposal_named_exists_and_all_are_reviewed(reg):
     assert named <= set(table["id"])
     assert dict(zip(table["id"], table["status"])) == {
         "P1": "accepted", "P2": "accepted", "P3": "accepted", "P4": "accepted", "P5": "accepted",
-        "P6": "rejected", "P7": "accepted", "P8": "rejected", "P9": "rejected"}
+        "P6": "rejected", "P7": "accepted", "P8": "rejected", "P9": "rejected", "P10": "accepted",
+        "P11": "accepted"}
     assert table["decision"].str.startswith("maintainer 2026-11-01").all()
     RG.require_reviewed(reg)
     RG.require_reviewed(RG.load("codex-uniform-32", "pancreas"))   # no proposals file: nothing to wait for
+
+
+def test_cd45_and_cd163_take_the_majority_marker_levels(reg):
+    """P10/P11 (maintainer 2026-11-01): nearly every spleen cell carries CD45, so its densest peak is not background."""
+    assert LV.methods_for(reg, "CD45") == ["edge", "gate"] == LV.methods_for(reg, "CD163")
+    assert LV.check_isolation(reg, "CD45") == "none" and LV.check_isolation(reg, "CD3e") == ""
+    assert LV.check_isolation(RG.load("codex-uniform-32", "pancreas"), "CD45") == ""     # no column: the source's rule

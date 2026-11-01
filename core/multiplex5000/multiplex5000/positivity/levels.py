@@ -195,7 +195,7 @@ def any_of(fixed: dict, markers: list[str], n: int) -> np.ndarray:
 def methods_for(reg: RG.Registry, m: str) -> list[str]:
     """The level methods a marker's options are chosen among; one, where the registry fixes it (background_method)."""
     if reg.background_method(m):
-        return [reg.background_method(m)]
+        return RG.split(reg.background_method(m))         # one method, or several for the selection to choose among
     cls = reg.positivity_class(m)
     if cls == 'majority_epithelial':
         return ['edge', 'gate']
@@ -318,6 +318,14 @@ def cell_sets(d: pd.DataFrame, fixed: dict, R: dict) -> tuple[np.ndarray, np.nda
     if not all(m in fixed for m in R['core']):
         return hormone, None
     return hormone, any_of(fixed, R['leukocyte'], n) & any_of(fixed, R['t'] + R['myeloid'], n)
+
+
+def check_isolation(reg: RG.Registry, m: str) -> str:
+    """Registry check_isolation: '' reads a check on isolated reference cells (the source), 'none' on all of them."""
+    value = reg.table.loc[m, 'check_isolation'] if 'check_isolation' in reg.table.columns else ''
+    if value not in ('', 'none'):
+        raise PositivityError(f'{m}: unknown check_isolation {value!r}')
+    return value
 
 
 def background_positive(d: pd.DataFrame, reg: RG.Registry, m: str, k: float) -> np.ndarray:
@@ -561,7 +569,10 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
                       f'{ref_name}_reference_cells': int(hormone_free.sum())}
             for m in core:
                 r_all, r_iso, _ = isolated_rate(pos[m], hormone_free, xy, cut, nmin)
-                checks[f'{m}_in_{ref_name}_all'], checks[f'{m}_in_{ref_name}'] = r_all, r_iso
+                # registry check_isolation 'none': read on every reference cell, not only those with no positive cell
+                # within ISOLATION_UM (spleen CD45, maintainer 2026-11-01: nearly every spleen cell carries it)
+                checks[f'{m}_in_{ref_name}_all'] = r_all
+                checks[f'{m}_in_{ref_name}'] = r_all if check_isolation(reg, m) == 'none' else r_iso
             ok = [(c45 >= reg.const('CD45_AMONG_CD3E_MIN')) if np.isfinite(c45) else np.nan,
                   le(t_iso, reg.const('CD3E_AMONG_MYELOID_MAX'))] + \
                  [le(checks[f'{m}_in_{ref_name}'], reg.const('CD45_AMONG_HORMONE_MAX')) for m in core]
