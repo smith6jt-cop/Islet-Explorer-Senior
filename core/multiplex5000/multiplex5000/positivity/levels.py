@@ -215,7 +215,7 @@ def empty_nulls(source, reg: RG.Registry) -> dict:
     at least 20 um outside the Tissue outline (typing/empty_area_nulls.csv, written by redsea_cells.py from the same
     despeckled channels the cells are measured on). Method repair 2026-10-28: the 99.9th percentile was set by single
     debris or artifact objects off the tissue on ND_6539, ND_0112 and ND_6356 and floored those images' levels.
-    A source without nulls gives none: an edge or gate level then has no floor."""
+    In IES the nulls are measured on glass outside every section of the section's slide (positivity.nulls)."""
     return source.empty_nulls(reg.const('EMPTY_NULL_QUANTILE'))
 
 

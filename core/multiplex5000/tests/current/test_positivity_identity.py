@@ -151,7 +151,9 @@ def test_level_selection_runs_every_stage_and_stops_methods_it_cannot_show_worki
         frame["donor_id"] = "t"
         (second / table / "donor_id=t").mkdir()
         frame.to_parquet(second / table / "donor_id=t" / "data.parquet", index=False)
-    source = sources.ProteinMeasurementSource(stage)
+    empty = tmp_path / "empty_area_nulls.csv"            # measured nulls are tested in test_positivity_nulls.py
+    empty.write_text("image,marker,windows,null_p50,null_p99,null_p999,null_p99_before_despeckle\n")
+    source = sources.ProteinMeasurementSource(stage, empty_nulls_csv=empty)
     out = LV.choose(source, reg.spec, ["s", "t"], ["s", "t"], workers=1)
     assert set(out["stops"]) >= set(reg.typing_markers()) - {"PDPN"}
     assert (out["selection"]["decision"] == "stop").any()

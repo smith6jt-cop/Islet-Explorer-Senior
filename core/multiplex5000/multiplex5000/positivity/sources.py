@@ -10,7 +10,8 @@ shape, so the computation is unchanged:
 - ``identity_frame``: the same cells with the structure columns ``in_<class>``, as ``identity.load_values`` built it
   (context merged one-to-one); a Protein Measurement source adds ``start_object``, the tissue object a cell starts in
   (a spleen region), kept apart from ``endocrine_object_class``, which ``levels`` reads as 'in an endocrine object';
-- ``empty_nulls``: the empty-slide null of each (section, marker), the floor of an edge or gate level;
+- ``empty_nulls``: the empty-slide null of each (section, marker), the floor of an edge or gate level
+  (``nulls``: glass outside every section on the section's slide);
 - ``coverage``: the area-coverage frame of a section (``coverage.compute``), checked against ``redsea_ids``, every
   cell of the section's REDSEA table;
 - ``established_calls``: an earlier typing's calls, read only by a labels row ``named_by: established``.
@@ -86,13 +87,20 @@ class ProteinMeasurementSource:
 
     ``qc_analysis_eligible`` (expression) is the admission the method reads: a cell without a nucleus, or outside the
     recorded analysis exclusions, is not analysis-eligible and never enters a level, a reference or a call. Centroids
-    are expression's ``X_centroid``/``Y_centroid`` (µm). ``context_dir``, ``coverage_dir`` and ``empty_nulls_csv`` are
-    optional: what the tissue's objects, the area-coverage step and the empty-slide nulls supply."""
+    are expression's ``X_centroid``/``Y_centroid`` (µm). ``context_dir`` and ``coverage_dir`` are optional: what the
+    tissue's objects and the area-coverage step supply.
+
+    Empty-slide nulls come from ``nulls.cohort_nulls``: the QuPath cohort ``manifest`` names each section's qptiff,
+    ``tissue_dir`` holds every section's tissue outline in that qptiff's level-0 frame. They are cached in (or, when it
+    exists, read from) ``empty_nulls_csv``. A source with neither refuses: an edge or gate level without its floor is
+    not the method."""
 
     stage_dir: Path
     context_dir: Path | None = None
     coverage_dir: Path | None = None
     empty_nulls_csv: Path | None = None
+    manifest: Path | None = None
+    tissue_dir: Path | None = None
 
     def _partition(self, table: str, tag: str) -> Path:
         files = sorted((Path(self.stage_dir) / 'data' / table / f'donor_id={tag}').glob('*.parquet'))
@@ -140,9 +148,19 @@ class ProteinMeasurementSource:
                  + context_columns]
 
     def empty_nulls(self, quantile: float) -> dict:
-        if self.empty_nulls_csv is None:
-            return {}
-        t = pd.read_csv(self.empty_nulls_csv)
+        from . import nulls
+
+        cached = Path(self.empty_nulls_csv) if self.empty_nulls_csv else None
+        if cached is not None and cached.is_file():
+            t = pd.read_csv(cached)
+        elif self.manifest is not None and self.tissue_dir is not None:
+            t = nulls.cohort_nulls(self.manifest, self.tissue_dir)
+            if cached is not None:
+                cached.parent.mkdir(parents=True, exist_ok=True)
+                t.to_csv(cached, index=False)
+        else:
+            raise SourceError('no empty-slide nulls: give empty_nulls_csv, or the manifest and tissue_dir to measure '
+                              'them')
         col = f'null_p{quantile:g}'.replace('.', '')
         return {(r.image, r.marker): float(getattr(r, col)) for r in t.itertuples()}
 
