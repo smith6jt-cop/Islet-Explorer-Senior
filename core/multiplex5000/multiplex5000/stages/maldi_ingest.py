@@ -208,8 +208,7 @@ def _figure(task: Task, sections: list[dict]) -> None:
     for ax, s in zip(axes.ravel(), sections):
         with np.load(task.output(f"images/{s['tissue_id']}.npz")) as data:
             summed, on = data["summed"], data["on_tissue"]
-        shown = np.log1p(np.maximum(np.nan_to_num(summed, nan=0), 0))
-        ax.imshow(np.where(np.isfinite(summed), shown, np.nan), cmap="magma",
+        ax.imshow(maldi.display(summed), cmap="magma", vmin=0, vmax=1,
                   interpolation="nearest")
         off = np.isfinite(summed) & ~on
         if off.any():

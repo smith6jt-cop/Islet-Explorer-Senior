@@ -227,6 +227,25 @@ def spot_image(x_um: np.ndarray, y_um: np.ndarray, values: np.ndarray, grid: Gri
     return image
 
 
+def display(image: np.ndarray) -> np.ndarray:
+    """A MALDI image for display only: each spot's rank among that image's own spots, 0 to 1
+    (histogram equalization), so the structure inside the tissue shows whatever the image's range;
+    equal values share the lowest rank among them, so every undetected spot is 0. A pixel with
+    no spot stays NaN (drawn blank, never as 0). Brightness compares spots within an image, never
+    images with each other."""
+    image = np.asarray(image, float)
+    spots = np.isfinite(image)
+    out = np.full(image.shape, np.nan)
+    if not spots.any():
+        return out
+    values = image[spots]
+    order = np.unique(values, return_inverse=True)[1]
+    counts = np.bincount(order)
+    below = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    out[spots] = below[order] / max(values.size - counts[-1], 1)      # ties take their lowest rank
+    return out
+
+
 def safe_key(tissue_id: str) -> str:
     """A Tissue_id as a partition or file-name key: unchanged where it is already safe."""
     if not re.fullmatch(r"[A-Za-z0-9._-]+", tissue_id):

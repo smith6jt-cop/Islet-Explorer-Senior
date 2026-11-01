@@ -355,9 +355,9 @@ def _figure(task: Task, results: list) -> None:
         g = moving["grid"]
         rows_, cols_ = np.nonzero(np.isfinite(moving["summed"]))
         xy = g.to_microns(np.column_stack([cols_, rows_]))
-        summed = np.log1p(np.maximum(moving["summed"][rows_, cols_], 0))
+        summed = maldi.display(moving["summed"])[rows_, cols_]
         carried = maldi.spot_image(*transform.apply(xy).T, summed, grid)
-        ax.imshow(np.ma.masked_invalid(carried), cmap="magma", alpha=0.45)
+        ax.imshow(np.ma.masked_invalid(carried), cmap="magma", vmin=0, vmax=1, alpha=0.45)
         ax.contour(qc["fixed_mask"], levels=[0.5], colors="#2ca02c", linewidths=0.8)
         ax.contour(qc["warped"], levels=[0.5], colors="#ff7f0e", linewidths=0.8)
         ax.set_title(f"{record['tissue_id']} -> {record['neighbour_acquisition'].replace(' - resolution #1', '')}\n"

@@ -197,18 +197,16 @@ def relationships_for(task: Task, collected: dict) -> list[relationships.Relatio
 
 
 def _thumb(image: np.ndarray) -> np.ndarray:
-    """A summed-ion image as a small RGB picture: log scale, no-spot pixels white."""
+    """A summed-ion image as a small RGB picture (``maldi.display``), no-spot pixels white."""
     import matplotlib
 
     matplotlib.use("Agg")
     from matplotlib import colormaps
     from PIL import Image
 
-    finite = np.isfinite(image)
-    values = np.log1p(np.where(finite, np.maximum(image, 0), 0))
-    top = np.percentile(values[finite], 99.5) if finite.any() else 1.0
-    rgb = colormaps["magma"](np.clip(values / max(top, 1e-9), 0, 1))[..., :3]
-    rgb[~finite] = 1.0
+    shown = maldi.display(image)
+    rgb = colormaps["magma"](np.nan_to_num(shown, nan=0))[..., :3]
+    rgb[~np.isfinite(shown)] = 1.0
     picture = Image.fromarray((rgb * 255).astype(np.uint8))
     picture.thumbnail((THUMB, THUMB))
     return np.asarray(picture)
@@ -298,8 +296,8 @@ def figure(task: Task, collected: dict, acquisitions: list[dict]) -> None:
         for r in sorted(by_donor[donor], key=lambda r: r["tissue_id"]):
             for which, title in (("images", "summed ions"), ("glycogen_images", "glycogen")):
                 image = _image(collected, r["tissue_id"], which)
-                axes[row, k].imshow(np.log1p(np.maximum(np.nan_to_num(image, nan=0), 0)),
-                                    cmap="magma", interpolation="nearest")
+                axes[row, k].imshow(maldi.display(image), cmap="magma", vmin=0, vmax=1,
+                                    interpolation="nearest")
                 axes[row, k].set_title(f"{r['tissue_id']}\nMALDI {title}", fontsize=7)
                 k += 1
         for a in sorted(neighbours.get(donor, []), key=lambda a: (a["platform"], a["acquisition_id"])):
@@ -333,7 +331,9 @@ def figure(task: Task, collected: dict, acquisitions: list[dict]) -> None:
         axes[row, 0].text(-0.15, 0.5, donor, transform=axes[row, 0].transAxes, rotation=90,
                           ha="right", va="center", fontsize=9)
     fig.suptitle("Each IO60 MALDI section beside its donor's slides: record its tissue and the "
-                 "acquisition whose slide it neighbours in maldi_tissue_inspection.csv", fontsize=10)
+                 "acquisition whose slide it neighbours in maldi_tissue_inspection.csv\n"
+                 "each MALDI image shows its spots ranked within that image (histogram-equalized); "
+                 "brightness is not comparable between images", fontsize=10)
     height = fig.get_size_inches()[1]
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.6 / height))
     fig.savefig(gates.figure_path(task, "maldi_sections.png"), dpi=110)
