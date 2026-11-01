@@ -114,6 +114,7 @@ def test_despeckle_is_the_3x3_median_with_replicated_borders():
     windows = np.lib.stride_tricks.sliding_window_view(padded, (3, 3))
     expected = np.median(windows.reshape(17, 23, 9), axis=2).astype(np.uint16)
     assert np.array_equal(AC.despeckle(a), expected)
+    assert np.array_equal(AC.despeckle(a.astype(np.int32)), expected.astype(np.int32))     # the SciPy fallback
     cv2 = pytest.importorskip("cv2")
     assert np.array_equal(AC.despeckle(a), cv2.medianBlur(a.astype(np.uint16), 3))
 

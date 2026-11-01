@@ -45,9 +45,20 @@ DESPECKLE = {'filter': 'median', 'size': 3, 'borders': 'replicated', 'channels':
 
 
 def despeckle(a: np.ndarray) -> np.ndarray:
-    """ImageJ's Despeckle: the 3x3 median of each pixel (borders replicated), on the channel's own integer values."""
-    native = a.dtype.newbyteorder('=')        # some TIFFs are big-endian
-    return median_filter(np.ascontiguousarray(a, dtype=native), size=DESPECKLE['size'], mode='nearest')
+    """ImageJ's Despeckle: the 3x3 median of each pixel (borders replicated), on the channel's own integer values.
+
+    OpenCV's medianBlur where it takes the type (uint8, uint16, float32 at this size; the source's own call), SciPy's
+    median filter otherwise: equal outputs (tests), and on a 1.15 Gpx slide channel about 250x apart in time (2 min
+    against well under a second)."""
+    native = np.ascontiguousarray(a, dtype=a.dtype.newbyteorder('='))       # some TIFFs are big-endian
+    if native.ndim == 2 and native.dtype in (np.uint8, np.uint16, np.float32):
+        try:
+            import cv2
+        except ImportError:
+            pass
+        else:
+            return cv2.medianBlur(native, DESPECKLE['size'])
+    return median_filter(native, size=DESPECKLE['size'], mode='nearest')
 
 
 # --------------------------------------------------------------------------- raster (redsea_cells.py, unchanged)
