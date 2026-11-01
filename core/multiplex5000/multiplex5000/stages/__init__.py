@@ -23,6 +23,9 @@ PLAN: tuple[tuple[str, str], ...] = (
     # 2026-10-26 typing scope requires it before D6 can type Xenium-only and
     # same-slide sections, so it is now a D6 prerequisite.
     ("04_rna_ingest", "D6 prerequisite"),
+    # MALDI imaging of serial sections from the same block series (2026-10-31): its own ingest,
+    # then the Registration and Integration stages' serial MALDI route.
+    ("04b_maldi_ingest", "MALDI"),
     ("05_normalization", "D5"),
     ("06_typing", "D6"),
     ("07_registration", "D10"),
@@ -38,10 +41,11 @@ BUILT: dict[str, str] = {
     "00_inventory": "multiplex5000.stages.inventory",
     "03_protein_measurement": "multiplex5000.stages.measurement",
     "04_rna_ingest": "multiplex5000.stages.rna_ingest",
+    "04b_maldi_ingest": "multiplex5000.stages.maldi_ingest",
     "05_normalization": "multiplex5000.stages.normalization",
     "06_typing": "multiplex5000.stages.typing",
-    "07_registration": "multiplex5000.stages.same_slide_registration",
-    "08_integration": "multiplex5000.stages.same_slide_integration",
+    "07_registration": "multiplex5000.stages.registration_route",
+    "08_integration": "multiplex5000.stages.integration_route",
 }
 
 

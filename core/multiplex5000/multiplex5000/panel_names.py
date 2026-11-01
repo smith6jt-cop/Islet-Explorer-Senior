@@ -12,6 +12,9 @@
   panel code>)`` for an add-on panel, e.g. ``5k+100(6KTRAF)``.
 * **post-Xenium IF** -- one panel for every image (maintainer, 2026-10-21): ``INS, GCG, failed
   marker, AF``. Where an image's channel roles are recorded, they must be that panel.
+* **MALDI** -- the number of features in each exported feature set, in the profile's order,
+  e.g. ``38 N-glycans + 10 glycogen`` (2026-10-31; the wording is confirmed at the Source
+  Inventory gate).
 
 The facts each rule needs -- which markers are not counted, each tissue's reference panel,
 which markers are the metabolic spike-in, what a predesigned panel is called -- are data in the
@@ -86,3 +89,16 @@ def post_xenium_if(rule: dict, roles: Iterable[str] | None = None) -> str:
             raise PanelNameError(f"the channel roles recorded are {recorded}, not the panel every "
                                  f"post-Xenium IF image carries, {sorted(channels)}")
     return ", ".join(rule["written"].get(c, c) for c in channels)
+
+
+def maldi(counts: dict, rule: dict) -> str:
+    """A MALDI panel from the number of features each exported set holds (``{"glycan": 38, ...}``).
+    A set the rule does not name, or a named set with no features, is refused."""
+    named = [entry["role"] for entry in rule["sets"]]
+    unknown = sorted(set(counts) - set(named))
+    if unknown:
+        raise PanelNameError(f"feature sets the MALDI rule does not name: {unknown}")
+    empty = [role for role in named if not counts.get(role)]
+    if empty:
+        raise PanelNameError(f"MALDI feature sets with no features: {empty}")
+    return rule["joiner"].join(f"{counts[e['role']]} {e['written']}" for e in rule["sets"])

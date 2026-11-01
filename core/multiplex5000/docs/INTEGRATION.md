@@ -549,3 +549,49 @@ evidence, not a completed registration result.
   protein evidence onto Xenium cells; the serial section (PhenoCycler ↔ Xenium) supports the registration-free
   niche comparison always, islet-level transfer where the verdict permits, per-cell matching only for endocrine
   cells inside matched islets, and `crossmodal` links only at PASS.
+
+## 2026-10-31 — MALDI imaging, a serial-section platform
+
+The MALDI imaging export (N-glycan compositions and glycogen m/z features, two files over the same
+spots on a 50 µm grid in the instrument's stage frame) enters as platform `maldi`
+(`profiles/platforms/maldi.yaml`, `cohort.PLATFORMS`). The maintainer's rulings (2026-10-31):
+
+- The MALDI sections are **sequential slides from the same series** as the PhenoCycler and Xenium
+  slides: each is a serial section of the slide it neighbours — different cells. No identity or
+  measurement crosses onto a cell; spots relate to the neighbour's QuPath *objects* and to the
+  continuous signed distance to the nearest islet (no bands, no expansion rings).
+- Which tissue a MALDI section is, and which slide it neighbours, is recorded by eye in the tracked
+  `core/phenocycler/data/integration/maldi_tissue_inspection.csv`, from the Source Inventory figure
+  `maldi_sections.png`; the `Tissue_id` is never parsed for either. The Source Inventory gate blocks
+  until every IO60 MALDI section is inspected.
+- The registration images are the ion images themselves. A 0 is *not detected*, kept as a measured
+  value; a missing value stays missing. IO60 donors only: 6426 and the HPAP sections are counted out
+  of cohort. 6457's exclusion covers its PhenoCycler data only, so its MALDI stands.
+
+The route, in project `io60_maldi_serial` (its own release; the accepted io60 inventory is not
+touched):
+
+1. **Source Inventory** (`stages/maldi_inventory.py`, read only where the `maldi_spots` source is
+   named): `maldi:<Tissue_id>` acquisitions, the out-of-cohort tissues, the pairing of the two files,
+   a MALDI section group in the coverage, and the inspection gate.
+2. **MALDI Ingest** (`stages/maldi_ingest.py`, code id `04b_maldi_ingest`): per section, spots keyed
+   `identity.cell_uid("maldi:<Tissue_id>", "spot50", spotId)`, every feature as measured, `on_tissue`
+   (the raster footprint with at least one ion detected), and the summed-ion image on the section's
+   spot grid. No normalization. Automatic gate.
+3. **Serial Registration** (`stages/maldi_serial_registration.py`, the Registration stage's
+   `maldi_serial` route): the MALDI outline onto the neighbour's outline — the `Tissue` or `pLN`
+   annotation of a PhenoCycler pancreas scan, or the DAPI tissue mask of a dedicated pLN slide — by
+   `register.coarse_orientation` (rotation and mirror) and `refine_ecc` (rigid, then affine only where
+   `scale_is_physical`), keeping the candidate with the best outline Dice. QC (Dice, outline RMSE,
+   scale, shear, mirror) is reported, never tuned to. A review stop. A Xenium neighbour is reported
+   unavailable: not built.
+4. **Serial Integration** (`stages/maldi_serial_integration.py`, the Integration stage's
+   `maldi_serial` route): each spot in the neighbour's frame with `signed_dist_islet_um`, its islet,
+   structure and annotation region by centre; per object, detection fraction and median among
+   detecting spots, only where the object still holds a spot centre after shrinking it by the
+   registration RMSE plus half a spot pitch (else `unavailable`, with the reason). Every table
+   carries `relationship = serial_section`.
+
+On a synthetic pose with a 37° rotation and a mirror, the registration recovers the spots to a
+median 22–32 µm, under one spot pitch (`tests/current/test_maldi.py`). That is computation, not a
+claim about any real section.
