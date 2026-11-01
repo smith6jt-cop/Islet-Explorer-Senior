@@ -10,9 +10,18 @@ rule_table:
   adaptation:
     # The selected 6551 sheet remains the sole source. Its pLN adaptation already
     # removes inherited pancreas-hormone negatives from the broad parent rows.
-    drop_branches: [Endocrine, Ductal_Epithelial, Epithelial]
+    # Epithelial, dropped on 2026-10-26, is kept since 2026-11-01 (maintainer:
+    # epithelium is present in spleen).
+    drop_branches: [Endocrine, Ductal_Epithelial]
     drop_rules: [Nerve_fiber, Myofibroblast_CAF, Basement_membrane, Blood_vessel,
                  Lymphatic_vessel, HEV]
+    # Maintainer 2026-11-01: an OR-group (anypos) marker that PC67 does not
+    # acquire is left out of that group, so the rule is read on its measured
+    # members. Only these (rule, marker) pairs; each marker must be absent from
+    # the panel, and every other missing marker still makes its rule unavailable.
+    omit_absent_anypos:
+      Epithelial: [Ker8-18]
+      Macrophage: [Iba1]
     # These marker-qualified leaves describe measured spleen phenotypes; they do
     # not assert a marginal-zone or follicular-dendritic identity from CD21 alone.
     add_rules:
@@ -21,6 +30,16 @@ rule_table:
       - {parent: cDC, phenotype: CD141_positive_cDC, constraints: {CD141: pos}}
       - {parent: Stromal, phenotype: SMA_positive_stromal,
          constraints: {SMA: allpos, Vimentin: allpos, CD31: allneg}}
+      # Maintainer 2026-11-01: red-pulp littoral (sinusoidal lining) cells carry
+      # CD8 with CD31 and no CD3e; they are never CD8 T cells.
+      - {parent: Endothelial, phenotype: Endothelial_Sinusoidal_CD8+, constraints: {CD8: pos}}
+    # The pLN candidate lineage roots, plus Epithelial (kept above).
+    candidate_lineage_roots: [Neural, Stromal, Immune, Endothelial, Smooth_muscle, Epithelial]
+    # Maintainer 2026-11-01, the 10-30 structure-only ruling applied to spleen:
+    # these branches name a cell only inside a structure object of their class.
+    # Until such an object exists (PC67 SmallVessel is being retrained), a match
+    # in them is unavailable, never negative.
+    structure_only: [Endothelial]
 protein_panel:
   file: pc67_export_header.tsv
   source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/*PC67*.csv.gz

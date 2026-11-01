@@ -320,6 +320,23 @@ def cell_sets(d: pd.DataFrame, fixed: dict, R: dict) -> tuple[np.ndarray, np.nda
     return hormone, any_of(fixed, R['leukocyte'], n) & any_of(fixed, R['t'] + R['myeloid'], n)
 
 
+def background_positive(d: pd.DataFrame, reg: RG.Registry, m: str, k: float) -> np.ndarray:
+    """Marker m positive above its own background peak (peak_dense + K widths) on the measurement it is compared on:
+    the reading a tissue's check population uses for a marker whose level is not chosen yet."""
+    meas = reg.differentiation(m) or reg.measurement(m)
+    return level_for(d, reg, m, meas, 'peak_dense', k, np.nan)['pos']
+
+
+def check_population(d: pd.DataFrame, reg: RG.Registry, R: dict, pos: dict, k: float) -> tuple[np.ndarray, str]:
+    """The known-negative cells of the leukocyte-marker checks before isolation from leukocytes, and their name in the
+    check columns, from the tissue hook (pancreas: endocrine-object hormone-positive cells, 'hormone', as at the
+    source; spleen: epithelial and stromal cells, 'reference', maintainer 2026-11-01)."""
+    from . import tissue as TS
+    hook = TS.hooks(reg.spec[1])
+    cells = hook.check_population(d, reg, R, pos, lambda m: background_positive(d, reg, m, k))
+    return np.asarray(cells, bool), hook.CHECK_POPULATION
+
+
 def carrier_specific(reg: RG.Registry, m: str, markers) -> list[str]:
     """Defining markers whose every lineage is one of marker m's carrier lineages (registry carrier_lineages)."""
     lins = set(RG.split(reg.table.loc[m, 'carrier_lineages'])) if m in reg.table.index else set()
@@ -467,7 +484,9 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
     fixed, chosen_levels = chosen_positivity(d, reg, chosen, k, nulls, tag, xy, cut, R)
     inside_endo = d['in_endocrine'].to_numpy()
     ordinary = d['ordinary'].to_numpy()
-    hormone_cells, leuk = cell_sets(d, fixed, R)
+    _, leuk = cell_sets(d, fixed, R)
+    # the tissue's known-negative cells of the leukocyte markers (pancreas: hormone cells; spleen: P7)
+    hormone_cells, ref_name = check_population(d, reg, R, fixed, k)
     rows = []
 
     def row(m, meas, method, lv, **checks):
@@ -535,15 +554,15 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
             c45 = rate(l, t, nmin)
             t_all, t_iso, _ = isolated_rate(t, mye_all, xy, cut, nmin)
             checks = {'leukocyte_among_t': c45, 't_among_myeloid_all': t_all, 't_among_myeloid': t_iso,
-                      'hormone_reference_cells': int(hormone_free.sum())}
+                      f'{ref_name}_reference_cells': int(hormone_free.sum())}
             for m in core:
                 r_all, r_iso, _ = isolated_rate(pos[m], hormone_free, xy, cut, nmin)
-                checks[f'{m}_in_hormone_all'], checks[f'{m}_in_hormone'] = r_all, r_iso
+                checks[f'{m}_in_{ref_name}_all'], checks[f'{m}_in_{ref_name}'] = r_all, r_iso
             ok = [(c45 >= reg.const('CD45_AMONG_CD3E_MIN')) if np.isfinite(c45) else np.nan,
                   le(t_iso, reg.const('CD3E_AMONG_MYELOID_MAX'))] + \
-                 [le(checks[f'{m}_in_hormone'], reg.const('CD45_AMONG_HORMONE_MAX')) for m in core]
+                 [le(checks[f'{m}_in_{ref_name}'], reg.const('CD45_AMONG_HORMONE_MAX')) for m in core]
             good = ok_all(ok) and all(np.isfinite(lv[m]['level_log']) for m in core)
-            oop = np.nanmax([t_iso] + [checks[f'{m}_in_hormone'] for m in core])
+            oop = np.nanmax([t_iso] + [checks[f'{m}_in_{ref_name}'] for m in core])
             checks.update({f'level_raw_{m}': lv[m]['level_raw'] for m in core})
             order = R['core']
             rows.append({'image': tag, 'stage': stage, 'marker': '+'.join(order),
@@ -559,7 +578,7 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
                 inh_all, inh, _ = isolated_rate(p, hormone_free, xy, cut, nmin)
                 ok = le(inh, reg.const('CD45_AMONG_HORMONE_MAX'))
                 row(m, meas, method, lv, out_of_place=inh, sensitivity=rate(p, t, nmin), passes=ok_all([ok]),
-                    in_hormone_all=inh_all, in_hormone=inh)
+                    **{f'in_{ref_name}_all': inh_all, f'in_{ref_name}': inh})
     elif stage == 'epithelial':
         pops = populations(d, reg, '', fixed, xy, cut, R)
         for m in [m for m in reg.measured_markers() if reg.positivity_class(m) == 'majority_epithelial']:
@@ -663,7 +682,7 @@ def image_pass(source, tag: str, reg_name: tuple, stage: str, chosen: dict, null
                 else:
                     inh_all, inh, _ = isolated_rate(p, hormone_free, xy, cut, nmin)
                     _, among_mye, _ = isolated_rate(p, mye_all, xy, cut, nmin)
-                    row(m, meas, method, lv, out_of_place=inh, in_hormone_all=inh_all, in_hormone=inh,
+                    row(m, meas, method, lv, out_of_place=inh, **{f'in_{ref_name}_all': inh_all, f'in_{ref_name}': inh},
                         sensitivity=rate(p, lk, nmin), leukocyte_among_positive=rate(lk, p, nmin),
                         positive_among_myeloid=among_mye,
                         passes=ok_all([le(inh, reg.const('CD45_AMONG_HORMONE_MAX'))]))

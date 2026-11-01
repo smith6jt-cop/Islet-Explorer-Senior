@@ -6,7 +6,9 @@ The pancreas-only parts of the CODEX method, behind the four hooks every typing 
   endocrine and exocrine ones (hormone-positive endocrine cells, exocrine and acinar epithelium);
 - ``selection_sections``: the ND images (owner, Senior 10-01: test classifiers on the non-diabetic controls, because
   disease changes the reference populations);
-- ``structure_objects``: the structure classes whose objects place cells (Blood vessel, Nerve, Lymphatic).
+- ``structure_objects``: the structure classes whose objects place cells (Blood vessel, Nerve, Lymphatic);
+- ``check_population``: the leukocyte-marker checks' known-negative cells, the endocrine-object hormone-positive cells
+  (as at the source).
 """
 from __future__ import annotations
 
@@ -35,3 +37,13 @@ def selection_sections(roster: Mapping[str, Mapping[str, str]]) -> list[str]:
 
 def structure_objects() -> tuple[str, ...]:
     return STRUCTURES
+
+
+#: the check columns' name for the known-negative cells (``{marker}_in_hormone``), as at the source
+CHECK_POPULATION = "hormone"
+
+
+def check_population(cells: pd.DataFrame, registry, roles: dict, pos: dict, background) -> np.ndarray:
+    """Endocrine-object hormone-positive cells (``levels.cell_sets``), exactly as the source reads them."""
+    from ..positivity import levels as LV
+    return LV.cell_sets(cells, pos, roles)[0]

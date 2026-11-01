@@ -69,7 +69,8 @@ def image_levels(source, tag: str, reg_name: tuple, tables: dict) -> list[dict]:
     need = reg.const('KNOWN_NEGATIVE_MIN_ABOVE')
     cut = reg.const('ISOLATION_UM')
     rows = []
-    hormone, _ = LV.cell_sets(d, ref_pos, R)
+    # the tissue's known-negative cells of the leukocyte markers (pancreas: hormone cells, as at the source)
+    hormone, _ = LV.check_population(d, reg, R, ref_pos, reg.const('POSITIVITY_K'))
     epithelial_any = LV.any_of(ref_pos, [x for x in R['epithelial'] if x in ref_pos], len(d)) & d['ordinary'].to_numpy()
     hematopoietic = [x for x in markers if reg.role(x) == 'defining' and reg.table.loc[x, 'compartment'] == 'Hematopoietic']
     for m in markers:

@@ -1,4 +1,7 @@
-"""The spleen PC67 typing registry: acquired, registered, internally consistent, and gated on its proposals."""
+"""The spleen PC67 typing registry: acquired, registered, internally consistent, and reviewed.
+
+Since the maintainer's review of 2026-11-01 the registry holds only what positivity needs; cells are named by the
+spleen hierarchy (positivity.hierarchy), so there is no spleen labels file."""
 
 from __future__ import annotations
 
@@ -9,7 +12,6 @@ import pandas as pd
 import pytest
 
 from multiplex5000 import roots
-from multiplex5000.positivity import identity as ID
 from multiplex5000.positivity import levels as LV
 from multiplex5000.positivity import registry as RG
 from multiplex5000.positivity import tissue as TS
@@ -60,34 +62,27 @@ def test_roles_are_valid_and_compartments_belong_to_defining_markers(reg):
 
 #: the columns that name markers (free-text provenance such as "the sheet's Iba1 row" is not a reference)
 MARKER_COLUMNS = ("channel", "requires", "coexpressed_with")
-LABEL_MARKER_COLUMNS = ("named_by", "profile")
 
 
 def test_no_unacquired_marker_is_referenced(reg):
-    labels = ID.labels_table(reg)
     named = {*reg.table.index}
     for col in MARKER_COLUMNS:
         named |= {m for v in reg.table[col] for m in RG.split(v)}
-    for col in LABEL_MARKER_COLUMNS:
-        named |= {m for v in labels[col] for m in RG.split(v.replace("|", ";"))}
     assert not named & NOT_ON_PC67
-    assert named - {"single_lineage", "broad", "broad_or_subtype"} <= set(reg.table.index) | {
-        c for c in reg.table["channel"]}
+    assert named - {"single_lineage"} <= set(reg.table.index) | {c for c in reg.table["channel"]}
 
 
-def test_labels_name_only_registry_lineages_and_markers(reg):
-    labels = ID.labels_table(reg)
-    lineages = {lin for m in reg.table.index if reg.role(m) == "defining" for lin, _ in reg.lineage_entries(m)}
-    entries = {f"{lin}:{sub}" if sub else lin for m in reg.markers("defining") for lin, sub in reg.lineage_entries(m)}
-    for r in labels.itertuples():
-        if r.kind == "structure":
-            assert r.named_by in reg.table.index and r.compartment in reg.compartments()
-            continue
-        assert r.lineage in entries or r.lineage.split(":")[0] in lineages, r.lineage
-        if r.named_by not in ("", "broad", "broad_or_subtype"):
-            assert r.named_by in reg.table.index
-        for m in RG.split(r.profile.replace("|", ";")):
-            assert m in reg.table.index, m
+def test_names_come_from_the_spleen_hierarchy_not_a_labels_file(reg):
+    """Every sheet marker PC67 acquires has a registry row, so the hierarchy reads a call for it."""
+    from multiplex5000.positivity import hierarchy as H
+    from multiplex5000.tissues import spleen
+
+    assert not (reg.directory / f"{reg.name}__labels.csv").exists()
+    source = spleen.load_rule_source(roots.REPO / "core/panels/data/tissues/spleen/manifest.yml")
+    names = H.sheet_names(source, reg.table.index)
+    sheet = {m for r in source.rules for m in r.markers}
+    assert sheet - set(names.values()) == {"B3TUBB", "Keratin 5"}
+    assert all(reg.role(m) != "never_used" for m in names)
 
 
 def test_check_bars_are_constants_and_the_method_reads_its_constants(reg):
@@ -97,24 +92,34 @@ def test_check_bars_are_constants_and_the_method_reads_its_constants(reg):
         reg.const(name)                                  # read unconditionally by levels/identity
 
 
-def test_the_spleen_hook_accepts_it_and_the_method_reads_its_plan(reg):
-    TS.check_registry(reg, TS.hooks("spleen"))
+def test_the_spleen_hook_accepts_it_and_reads_epithelial_and_stromal_references(reg):
+    """P7 (maintainer 2026-11-01): the leukocyte checks' known-negative cells are epithelial and stromal cells; a
+    marker with no chosen level is read at its own background peak, a chosen one at its level."""
+    import numpy as np
+
+    hook = TS.hooks("spleen")
+    TS.check_registry(reg, hook)
     roles = LV.roles(reg)
     assert roles["core"] == ["CD3e", "CD45", "CD68", "CD163"] and not roles["hormones"]
-    plan = ID.build_plan(reg, reg.typing_markers())
-    assert plan["comp"]["Endothelial"]["structure_only"]          # CD31 places no cell (P5)
-    assert "CD31" in plan["comp"]["Hematopoietic"]["carried"]       # but adds depth (shared evidence)
     assert set(reg.markers("state")) >= {"Ki67", "PD_1", "PD_L1", "HLA_DR"}
+    assert hook.CHECK_POPULATION == "reference"
+    read = []
+    background = {"Pan_Cytokeratin": np.array([1, 0, 0, 0], bool), "E_cadherin": np.zeros(4, bool),
+                  "EpCAM": np.zeros(4, bool)}
+    cells = hook.check_population(np.zeros(4), reg, roles, {"SMA": np.array([0, 1, 0, 0], bool)},
+                                  lambda m: read.append(m) or background[m])
+    assert cells.tolist() == [True, True, False, False]
+    assert sorted(read) == ["E_cadherin", "EpCAM", "Pan_Cytokeratin"]    # SMA had its level; no CD45, no Vimentin
 
 
-def test_every_proposal_named_exists_and_typing_waits_for_their_review(reg):
+def test_every_proposal_named_exists_and_all_are_reviewed(reg):
     table = RG.proposals(reg)
-    labels = ID.labels_table(reg)
     constants = pd.read_csv(reg.directory / f"{reg.name}__constants.csv", keep_default_na=False, dtype=str)
-    named = {p for col in (reg.table["proposal"], labels["proposal"], constants["proposal"]) for v in col
-             for p in RG.split(v)}
+    named = {p for col in (reg.table["proposal"], constants["proposal"]) for v in col for p in RG.split(v)}
     assert named <= set(table["id"])
-    assert set(table["status"]) == {"proposed"}
-    with pytest.raises(RG.RegistryError, match="awaiting review"):
-        RG.require_reviewed(reg)
+    assert dict(zip(table["id"], table["status"])) == {
+        "P1": "accepted", "P2": "accepted", "P3": "accepted", "P4": "accepted", "P5": "accepted",
+        "P6": "rejected", "P7": "accepted", "P8": "rejected", "P9": "rejected"}
+    assert table["decision"].str.startswith("maintainer 2026-11-01").all()
+    RG.require_reviewed(reg)
     RG.require_reviewed(RG.load("codex-uniform-32", "pancreas"))   # no proposals file: nothing to wait for

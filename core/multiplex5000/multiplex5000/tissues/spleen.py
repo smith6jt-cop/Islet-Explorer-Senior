@@ -137,6 +137,8 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     for rule in kept:
         if rule.parent not in {"all", "any"} and rule.parent not in available_names:
             raise RuleSourceError(f"{rule.phenotype}: parent dropped from spleen rules")
+    aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
+    kept, omitted = _omit_absent_anypos(kept, adaptation.get("omit_absent_anypos", {}), panel, aliases)
     additions = adaptation.get("add_rules", [])
     if not isinstance(additions, list):
         raise RuleSourceError("spleen add_rules must be a list")
@@ -152,17 +154,70 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
             raise RuleSourceError(f"{phenotype}: new rule uses absent markers or invalid tokens")
         kept.append(Rule(parent, phenotype, tuple(constraints.items())))
         available_names.add(phenotype)
-    aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
-    candidate_roots = tuple(name for name in source.candidate_lineage_roots
-                            if name in available_names)
+    declared_roots = adaptation.get("candidate_lineage_roots")
+    if declared_roots is None:
+        candidate_roots = tuple(name for name in source.candidate_lineage_roots
+                                if name in available_names)
+    else:
+        lineage_roots = {rule.phenotype for rule in kept if rule.parent == source.lineage_root_parent}
+        if (not isinstance(declared_roots, list) or len(declared_roots) != len(set(declared_roots))
+                or not set(declared_roots) <= lineage_roots):
+            raise RuleSourceError("spleen candidate lineage roots must be distinct kept lineage roots")
+        candidate_roots = tuple(declared_roots)
     if not candidate_roots:
         raise RuleSourceError("spleen adaptation removed every candidate lineage root")
-    result = RuleSource(source.sha256, tuple(kept), source.omitted, aliases,
+    result = RuleSource(source.sha256, tuple(kept), source.omitted + omitted, aliases,
                         source.lineage_root_parent, source.state_root_parent,
                         candidate_roots)
     for rule in result.rules:
         result.inherited_markers(rule.phenotype)
+    _structure_only(adaptation, result)
     return result
+
+
+def _omit_absent_anypos(rules: list[Rule], spec, panel: frozenset[str],
+                        aliases: dict[str, str]) -> tuple[list[Rule], tuple[tuple[str, str], ...]]:
+    """Leave the listed unacquired markers out of their rules' OR groups (maintainer, 2026-11-01).
+
+    Only an ``anypos`` clause on a marker absent from the panel (and its alias) may be left out, and at
+    least one ``anypos`` clause must remain, so the rule is read on its measured members. Every other
+    missing marker still makes its rule unavailable."""
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen omit_absent_anypos must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    omitted: list[tuple[str, str]] = []
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if rule is None or not isinstance(markers, list) or not markers:
+            raise RuleSourceError(f"{phenotype}: omit_absent_anypos names no kept rule or no markers")
+        tokens = dict(rule.constraints)
+        for marker in markers:
+            if tokens.get(marker) != "anypos":
+                raise RuleSourceError(f"{phenotype}/{marker}: only an anypos clause may be left out")
+            if marker in panel or aliases.get(marker) in panel:
+                raise RuleSourceError(f"{phenotype}/{marker}: the panel measures it; it cannot be left out")
+        remaining = tuple((m, t) for m, t in rule.constraints if m not in markers)
+        if not any(t == "anypos" for _, t in remaining):
+            raise RuleSourceError(f"{phenotype}: leaving out {markers} would empty its OR group")
+        by_name[phenotype] = Rule(rule.parent, phenotype, remaining)
+        omitted += [(phenotype, marker) for marker in markers]
+    return [by_name[rule.phenotype] for rule in rules], tuple(omitted)
+
+
+def _structure_only(adaptation: dict, source: RuleSource) -> frozenset[str]:
+    names = adaptation.get("structure_only", [])
+    roots = {rule.phenotype for rule in source.rules if rule.parent == source.lineage_root_parent}
+    if not isinstance(names, list) or not set(names) <= roots:
+        raise RuleSourceError("spleen structure_only must name kept lineage roots")
+    return frozenset(names)
+
+
+def structure_only_branches(manifest_path: Path) -> frozenset[str]:
+    """The lineage roots that name a cell only inside a structure object of their class (maintainer,
+    2026-11-01: the 10-30 structure-only ruling applied to spleen). Without such an object a match in the
+    branch is unavailable, never negative (``positivity.hierarchy``)."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    return _structure_only(manifest["rule_table"]["adaptation"], load_rule_source(manifest_path))
 
 
 # --------------------------------------------------------------------------- per-image typing hooks
@@ -174,8 +229,8 @@ TYPING_POPULATIONS = frozenset({"leukocyte", "epithelial_away", "structure_cells
 
 
 def start_class(cells):
-    """The region object the cell's centroid lies in (``start_object``: Follicle, PALS, RedPulp, Trabeculae,
-    LargeVessel), else Tissue. A region names no cell; it is where the cell starts."""
+    """The cell-derived region the cell's centroid lies in (``start_object``: Follicle, Perifollicular, PALS, RedPulp;
+    maintainer 2026-11-01), else Tissue. A region names no cell; it is where the cell starts."""
     import pandas as pd
 
     column = cells["start_object"] if "start_object" in cells else pd.Series([None] * len(cells), index=cells.index)
@@ -192,6 +247,32 @@ def selection_sections(roster) -> list[str]:
 
 
 def structure_objects() -> tuple[str, ...]:
-    """None yet: no working vessel object exists on PC67 (SmallVessel calls 29-78 % of tissue)."""
+    """None yet: no working vessel object exists on PC67 (SmallVessel calls 29-78 % of tissue; SmallVessel_PC67 is
+    being retrained). Endothelial, structure-only (manifest), stays unavailable until one does."""
     return ()
+
+
+#: the check columns' name for the known-negative cells (``{marker}_in_reference``)
+CHECK_POPULATION = "reference"
+
+
+def check_population(cells, registry, roles: dict, pos: dict, background):
+    """The known-negative cells of the leukocyte-marker checks (P7, maintainer 2026-11-01): spleen has no
+    hormone-positive endocrine cells, so the checks read epithelial and stromal cells instead -- cells positive for an
+    Epithelial majority marker or a defining marker of the Mesenchymal compartment. Each marker is read at its chosen
+    level where one is chosen, otherwise at its own background peak (the immune stage runs before those levels are
+    chosen). ``levels`` then keeps only those with no leukocyte within ISOLATION_UM, as it does hormone cells.
+
+    No leukocyte-marker criterion enters the definition: a CD45-negative reference would pass the CD45 check by
+    construction. Vimentin is not a stromal marker here: it is shared with leukocytes (lymphocytes carry it, and B
+    cells are not leukocytes in the method's two-marker definition), so it would put B cells in the reference."""
+    import numpy as np
+
+    measured = set(registry.measured_markers())
+    markers = [m for m in roles["epithelial"] if m in measured] + \
+              [m for m in registry.defining("Mesenchymal") if m in measured]
+    out = np.zeros(len(cells), bool)
+    for m in markers:
+        out |= pos[m] if m in pos else background(m)
+    return out
 

@@ -6,7 +6,11 @@ Every typing tissue module in ``multiplex5000.tissues`` supplies:
 - ``reference_populations(registry) -> frozenset``: the named populations (``levels.populations``) the tissue's
   registry may use as a level or check reference;
 - ``selection_sections(roster) -> list``: the sections options are chosen on (pancreas: the ND images; spleen: all);
-- ``structure_objects() -> tuple``: the structure classes whose objects can place cells.
+- ``structure_objects() -> tuple``: the structure classes whose objects can place cells;
+- ``check_population(cells, registry, roles, pos, background) -> array`` and ``CHECK_POPULATION``: the known-negative
+  cells of the leukocyte-marker checks before isolation from leukocytes, and their name in the check columns
+  (pancreas: endocrine-object hormone-positive cells, 'hormone'; spleen: epithelial and stromal cells, 'reference').
+  ``pos`` holds the markers whose level is chosen; ``background(marker)`` reads any other at its own background peak.
 """
 from __future__ import annotations
 
@@ -15,12 +19,13 @@ from types import ModuleType
 
 from . import registry as RG
 
-HOOKS = ("start_class", "reference_populations", "selection_sections", "structure_objects")
+HOOKS = ("start_class", "reference_populations", "selection_sections", "structure_objects", "check_population")
 
 
 def hooks(tissue: str) -> ModuleType:
     module = importlib.import_module(f"multiplex5000.tissues.{tissue}")
     missing = [h for h in HOOKS if not callable(getattr(module, h, None))]
+    missing += [] if isinstance(getattr(module, "CHECK_POPULATION", None), str) else ["CHECK_POPULATION"]
     if missing:
         raise RG.RegistryError(f"tissue {tissue!r} has no typing hook(s) {missing}")
     return module
