@@ -227,44 +227,43 @@ def spot_image(x_um: np.ndarray, y_um: np.ndarray, values: np.ndarray, grid: Gri
     return image
 
 
-#: The top of the common display scale: this percentile of the values of every spot of every
-#: section shown together.
-DISPLAY_TOP_PERCENTILE = 99.5
+def signal_range(image: np.ndarray, tissue: np.ndarray | None = None) -> tuple[float, float]:
+    """A section's actual biological low and high, in measured units: the minimum and maximum of
+    its signal after a 3 x 3 median filter, over the on-tissue spots (``tissue``: at least one ion
+    detected, ``ON_TISSUE_METHOD``) whose whole 3 x 3 neighbourhood is on the tissue. The filter
+    takes out single-spot spikes; the neighbourhood rule leaves out the rim's partly ablated spots
+    and the edges of tears and lumens, none of which is tissue signal. Nothing is a percentile or
+    relative to another section (maintainer, 2026-11-01: "each actual biological max and min is
+    the high and low of the colorscale")."""
+    from scipy import ndimage
+
+    image = np.asarray(image, float)
+    spots = np.isfinite(image) & (np.asarray(tissue, bool) if tissue is not None else True)
+    if not spots.any():
+        return 0.0, 0.0
+    filled = np.where(spots, np.maximum(image, 0), 0.0)
+    smooth = ndimage.median_filter(filled, size=3, mode="constant", cval=0.0)
+    interior = ndimage.binary_erosion(spots, np.ones((3, 3), bool))
+    values = smooth[interior] if interior.any() else smooth[spots]
+    return float(values.min()), float(values.max())
 
 
-def display_top(images) -> float:
-    """The top of one display scale shared by ``images``: the ``DISPLAY_TOP_PERCENTILE`` of the
-    values of all their spots pooled, never per image (maintainer, 2026-11-01: the
-    inspection compares sections "on a common scale reflecting true signal", with no compensation
-    for technical differences)."""
-    pooled = [np.maximum(np.asarray(i, float)[np.isfinite(i)], 0) for i in images]
-    pooled = np.concatenate([p for p in pooled if p.size] or [np.zeros(1)])
-    return float(max(np.percentile(pooled, DISPLAY_TOP_PERCENTILE), 1e-9))
-
-
-def display(image: np.ndarray, top: float) -> np.ndarray:
-    """A MALDI image for display only, on a common linear scale: the value as measured, from a
-    true 0 (not detected) to ``top`` (``display_top`` of every image shown with it), as 0 to 1;
-    above ``top`` is the brightest colour. A pixel with no spot stays NaN (drawn blank, never as
-    0). The same value is the same colour in every image, so a section with less signal looks it."""
+def display(image: np.ndarray, low: float, high: float) -> np.ndarray:
+    """A MALDI image for display only: the measured value placed linearly between the section's
+    own biological ``low`` and ``high`` (``signal_range``), as 0 to 1; beyond them, the end
+    colours. A pixel with no spot stays NaN (drawn blank, never as 0). A section whose range is
+    empty (high equal to low, e.g. a feature set it does not detect) is drawn at the low colour."""
     image = np.asarray(image, float)
     out = np.full(image.shape, np.nan)
     spots = np.isfinite(image)
-    out[spots] = np.clip(np.maximum(image[spots], 0) / top, 0, 1)
+    span = high - low
+    out[spots] = (np.clip((np.maximum(image[spots], 0) - low) / span, 0, 1) if span > 0
+                  else 0.0)
     return out
 
 
-def colorbar(fig, axes_rect, top: float, label: str) -> None:
-    """A horizontal colour bar for a common display scale, ticked in measured units."""
-    from matplotlib import cm, colors
-
-    ax = fig.add_axes(axes_rect)
-    bar = fig.colorbar(cm.ScalarMappable(colors.Normalize(0, 1), "magma"), cax=ax,
-                       orientation="horizontal")
-    ticks = np.linspace(0, 1, 5)
-    bar.set_ticks(ticks, labels=[f"{t * top:,.0f}" + ("+" if t == 1 else "") for t in ticks],
-                  fontsize=6)
-    bar.set_label(label, fontsize=7)
+def range_text(low: float, high: float) -> str:
+    return f"{low:,.0f} to {high:,.0f}" if high > low else f"no signal range ({high:,.0f})"
 
 
 def safe_key(tissue_id: str) -> str:

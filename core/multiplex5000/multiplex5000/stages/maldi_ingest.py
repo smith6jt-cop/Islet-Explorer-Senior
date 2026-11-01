@@ -204,7 +204,6 @@ def _figure(task: Task, sections: list[dict]) -> None:
     for s in sections:
         with np.load(task.output(f"images/{s['tissue_id']}.npz")) as data:
             images[s["tissue_id"]] = (data["summed"], data["on_tissue"])
-    top = maldi.display_top([summed for summed, _ in images.values()])
     per_row = min(n, 6)
     rows = -(-n // per_row)
     fig, axes = plt.subplots(rows, per_row, figsize=(2.6 * per_row, 2.8 * rows), squeeze=False)
@@ -212,20 +211,20 @@ def _figure(task: Task, sections: list[dict]) -> None:
         ax.set_axis_off()
     for ax, s in zip(axes.ravel(), sections):
         summed, on = images[s["tissue_id"]]
-        ax.imshow(maldi.display(summed, top), cmap="magma", vmin=0, vmax=1,
+        low, high = maldi.signal_range(summed, on)
+        ax.imshow(maldi.display(summed, low, high), cmap="magma", vmin=0, vmax=1,
                   interpolation="nearest")
         off = np.isfinite(summed) & ~on
         if off.any():
             rr, cc = np.nonzero(off)
             ax.scatter(cc, rr, s=2, c="#00b4d8", marker="s", linewidths=0)
-        ax.set_title(f"{s['tissue_id']}\n{s['on_tissue']} on, {s['off_tissue']} off tissue",
-                     fontsize=7)
+        ax.set_title(f"{s['tissue_id']}: {s['on_tissue']} on, {s['off_tissue']} off tissue\n"
+                     f"summed ions {maldi.range_text(low, high)}", fontsize=7)
     height = fig.get_size_inches()[1]
-    fig.suptitle("MALDI sections: summed ions on one common linear scale, as measured; "
-                 "off-tissue spots (no ion detected) in blue", fontsize=10,
+    fig.suptitle("MALDI sections: summed ions, each from its own biological low to high "
+                 "(titled); off-tissue spots (no ion detected) in blue", fontsize=10,
                  y=1 - 0.12 / height, va="top")
-    fig.tight_layout(rect=(0, 0, 1, 1 - 1.1 / height))
-    maldi.colorbar(fig, (0.3, 1 - 0.85 / height, 0.4, 0.1 / height), top, "summed ions per spot")
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.6 / height))
     fig.savefig(gates.figure_path(task, "maldi_spots.png"), dpi=110)
     plt.close(fig)
 

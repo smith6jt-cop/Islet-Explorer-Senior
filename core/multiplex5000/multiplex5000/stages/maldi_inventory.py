@@ -198,16 +198,16 @@ def relationships_for(task: Task, collected: dict) -> list[relationships.Relatio
     return out
 
 
-def _thumb(image: np.ndarray, top: float) -> np.ndarray:
-    """A summed-ion image as a small RGB picture on the common scale ``top`` (``maldi.display``),
-    no-spot pixels white."""
+def _thumb(image: np.ndarray) -> np.ndarray:
+    """A summed-ion image as a small RGB picture between its own biological low and high
+    (``maldi.signal_range``), no-spot pixels white."""
     import matplotlib
 
     matplotlib.use("Agg")
     from matplotlib import colormaps
     from PIL import Image
 
-    shown = maldi.display(image, top)
+    shown = maldi.display(image, *maldi.signal_range(image, np.nan_to_num(image) > 0))
     rgb = colormaps["magma"](np.nan_to_num(shown, nan=0))[..., :3]
     rgb[~np.isfinite(shown)] = 1.0
     picture = Image.fromarray((rgb * 255).astype(np.uint8))
@@ -228,7 +228,6 @@ def extend_coverage(coverage: dict, collected: dict) -> None:
     from .inventory import (DATASETS, NOT_INSPECTED, PANCREAS_SECTION, PLN_SECTION, SLIDE_NUMBER)
 
     cells, table = coverage["cells"], coverage["table_by_donor"]
-    top = maldi.display_top([_image(collected, r["tissue_id"]) for r in collected["rows"]])
     by_donor: dict[str, list[dict]] = {}
     for r in collected["rows"]:
         by_donor.setdefault(r["donor_id"], []).append(r)
@@ -237,7 +236,7 @@ def extend_coverage(coverage: dict, collected: dict) -> None:
         cells[(donor, MALDI_SLIDE, SLIDE_NUMBER)] = dict(
             text="\n".join(r["tissue_id"] for r in mine), kind=None, damaged=False, missing=False)
         coverage.setdefault("thumbs", {})[(donor, MALDI_SLIDE)] = [
-            _thumb(_image(collected, r["tissue_id"]), top) for r in mine]
+            _thumb(_image(collected, r["tissue_id"])) for r in mine]
         seen = Counter(r["tissue"] for r in mine if r["tissue"])
         for column, tissue in ((PANCREAS_SECTION, PANCREAS), (PLN_SECTION, LYMPH_NODE)):
             if seen.get(tissue):
@@ -291,8 +290,6 @@ def figure(task: Task, collected: dict, acquisitions: list[dict]) -> None:
             neighbours.setdefault(a["donor_id"], []).append(a)
     donors = sorted(by_donor, key=inv._donor_order)
     panels = (("glycan_images", "glycans"), ("glycogen_images", "glycogen"))
-    tops = {which: maldi.display_top([_image(collected, r["tissue_id"], which)
-                                      for r in collected["rows"]]) for which, _ in panels}
     width = max([2 * len(by_donor[d]) + len(neighbours.get(d, [])) for d in donors] or [1])
     fig, axes = plt.subplots(max(len(donors), 1), width, figsize=(2.2 * width, 2.6 * max(len(donors), 1)),
                              squeeze=False)
@@ -303,9 +300,12 @@ def figure(task: Task, collected: dict, acquisitions: list[dict]) -> None:
         for r in sorted(by_donor[donor], key=lambda r: r["tissue_id"]):
             for which, title in panels:
                 image = _image(collected, r["tissue_id"], which)
-                axes[row, k].imshow(maldi.display(image, tops[which]), cmap="magma", vmin=0,
+                tissue = np.nan_to_num(_image(collected, r["tissue_id"])) > 0
+                low, high = maldi.signal_range(image, tissue)
+                axes[row, k].imshow(maldi.display(image, low, high), cmap="magma", vmin=0,
                                     vmax=1, interpolation="nearest")
-                axes[row, k].set_title(f"{r['tissue_id']}\nMALDI {title}, summed", fontsize=7)
+                axes[row, k].set_title(f"{r['tissue_id']} MALDI {title}\n"
+                                       f"{maldi.range_text(low, high)}", fontsize=7)
                 k += 1
         for a in sorted(neighbours.get(donor, []), key=lambda a: (a["platform"], a["acquisition_id"])):
             ax = axes[row, k]
@@ -339,14 +339,12 @@ def figure(task: Task, collected: dict, acquisitions: list[dict]) -> None:
                           ha="right", va="center", fontsize=9)
     fig.suptitle("Each IO60 MALDI section beside its donor's slides: record its tissue and the "
                  "acquisition whose slide it neighbours in maldi_tissue_inspection.csv\n"
-                 "MALDI images on one common linear scale per feature set, as measured (0 = not "
-                 "detected), with no per-section compensation", fontsize=10,
+                 "each MALDI image runs from its own biological low to high (titled, measured "
+                 "units, after a 3 x 3 median filter of spots inside the section); 0 = not detected",
+                 fontsize=10,
                  y=1 - 0.15 / fig.get_size_inches()[1], va="top")
     height = fig.get_size_inches()[1]
-    fig.tight_layout(rect=(0, 0, 1, 1 - 1.5 / height))
-    for i, (which, title) in enumerate(panels):
-        maldi.colorbar(fig, (0.12 + 0.42 * i, 1 - 1.0 / height, 0.32, 0.12 / height), tops[which],
-                       f"MALDI {title}, summed per spot")
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.8 / height))
     fig.savefig(gates.figure_path(task, "maldi_sections.png"), dpi=110)
     plt.close(fig)
 
