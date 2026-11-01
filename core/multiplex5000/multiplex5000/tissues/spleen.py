@@ -163,3 +163,35 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     for rule in result.rules:
         result.inherited_markers(rule.phenotype)
     return result
+
+
+# --------------------------------------------------------------------------- per-image typing hooks
+# The hooks multiplex5000.positivity reads (see tissues/pancreas.py for the CODEX originals). They place no cell:
+# the spleen PC67 registry, which decides what the method may use, is a separate step reviewed by the maintainer.
+#: populations a spleen registry may name as references: no endocrine or exocrine population, since those are
+#: pancreas-only (downstream plan, 2026-10-30); epithelial cells away from leukocytes stay (epithelium is present)
+TYPING_POPULATIONS = frozenset({"leukocyte", "epithelial_away", "structure_cells", "t_cells", "leukocyte_clean"})
+
+
+def start_class(cells):
+    """The region object the cell's centroid lies in (``start_object``: Follicle, PALS, RedPulp, Trabeculae,
+    LargeVessel), else Tissue. A region names no cell; it is where the cell starts."""
+    import pandas as pd
+
+    column = cells["start_object"] if "start_object" in cells else pd.Series([None] * len(cells), index=cells.index)
+    return column.fillna("Tissue").to_numpy(dtype=object)
+
+
+def reference_populations(registry) -> frozenset[str]:
+    return TYPING_POPULATIONS
+
+
+def selection_sections(roster) -> list[str]:
+    """Every section of the run, blind to genotype: a method that fails on any section is revised for all of them."""
+    return list(roster)
+
+
+def structure_objects() -> tuple[str, ...]:
+    """None yet: no working vessel object exists on PC67 (SmallVessel calls 29-78 % of tissue)."""
+    return ()
+
