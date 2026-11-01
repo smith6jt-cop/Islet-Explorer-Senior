@@ -200,15 +200,19 @@ def _figure(task: Task, sections: list[dict]) -> None:
     import matplotlib.pyplot as plt
 
     n = max(len(sections), 1)
+    images = {}
+    for s in sections:
+        with np.load(task.output(f"images/{s['tissue_id']}.npz")) as data:
+            images[s["tissue_id"]] = (data["summed"], data["on_tissue"])
+    top = maldi.display_top([summed for summed, _ in images.values()])
     per_row = min(n, 6)
     rows = -(-n // per_row)
     fig, axes = plt.subplots(rows, per_row, figsize=(2.6 * per_row, 2.8 * rows), squeeze=False)
     for ax in axes.ravel():
         ax.set_axis_off()
     for ax, s in zip(axes.ravel(), sections):
-        with np.load(task.output(f"images/{s['tissue_id']}.npz")) as data:
-            summed, on = data["summed"], data["on_tissue"]
-        ax.imshow(maldi.display(summed), cmap="magma", vmin=0, vmax=1,
+        summed, on = images[s["tissue_id"]]
+        ax.imshow(maldi.display(summed, top), cmap="magma", vmin=0, vmax=1,
                   interpolation="nearest")
         off = np.isfinite(summed) & ~on
         if off.any():
@@ -216,9 +220,12 @@ def _figure(task: Task, sections: list[dict]) -> None:
             ax.scatter(cc, rr, s=2, c="#00b4d8", marker="s", linewidths=0)
         ax.set_title(f"{s['tissue_id']}\n{s['on_tissue']} on, {s['off_tissue']} off tissue",
                      fontsize=7)
-    fig.suptitle("MALDI sections: summed ions; off-tissue spots (no ion detected) in blue",
-                 fontsize=10)
-    fig.tight_layout()
+    height = fig.get_size_inches()[1]
+    fig.suptitle("MALDI sections: summed ions on one common linear scale, as measured; "
+                 "off-tissue spots (no ion detected) in blue", fontsize=10,
+                 y=1 - 0.12 / height, va="top")
+    fig.tight_layout(rect=(0, 0, 1, 1 - 1.1 / height))
+    maldi.colorbar(fig, (0.3, 1 - 0.85 / height, 0.4, 0.1 / height), top, "summed ions per spot")
     fig.savefig(gates.figure_path(task, "maldi_spots.png"), dpi=110)
     plt.close(fig)
 

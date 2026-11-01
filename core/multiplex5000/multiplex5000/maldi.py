@@ -227,23 +227,44 @@ def spot_image(x_um: np.ndarray, y_um: np.ndarray, values: np.ndarray, grid: Gri
     return image
 
 
-def display(image: np.ndarray) -> np.ndarray:
-    """A MALDI image for display only: each spot's rank among that image's own spots, 0 to 1
-    (histogram equalization), so the structure inside the tissue shows whatever the image's range;
-    equal values share the lowest rank among them, so every undetected spot is 0. A pixel with
-    no spot stays NaN (drawn blank, never as 0). Brightness compares spots within an image, never
-    images with each other."""
+#: The top of the common display scale: this percentile of the values of every spot of every
+#: section shown together.
+DISPLAY_TOP_PERCENTILE = 99.5
+
+
+def display_top(images) -> float:
+    """The top of one display scale shared by ``images``: the ``DISPLAY_TOP_PERCENTILE`` of the
+    values of all their spots pooled, never per image (maintainer, 2026-11-01: the
+    inspection compares sections "on a common scale reflecting true signal", with no compensation
+    for technical differences)."""
+    pooled = [np.maximum(np.asarray(i, float)[np.isfinite(i)], 0) for i in images]
+    pooled = np.concatenate([p for p in pooled if p.size] or [np.zeros(1)])
+    return float(max(np.percentile(pooled, DISPLAY_TOP_PERCENTILE), 1e-9))
+
+
+def display(image: np.ndarray, top: float) -> np.ndarray:
+    """A MALDI image for display only, on a common linear scale: the value as measured, from a
+    true 0 (not detected) to ``top`` (``display_top`` of every image shown with it), as 0 to 1;
+    above ``top`` is the brightest colour. A pixel with no spot stays NaN (drawn blank, never as
+    0). The same value is the same colour in every image, so a section with less signal looks it."""
     image = np.asarray(image, float)
-    spots = np.isfinite(image)
     out = np.full(image.shape, np.nan)
-    if not spots.any():
-        return out
-    values = image[spots]
-    order = np.unique(values, return_inverse=True)[1]
-    counts = np.bincount(order)
-    below = np.concatenate([[0], np.cumsum(counts)[:-1]])
-    out[spots] = below[order] / max(values.size - counts[-1], 1)      # ties take their lowest rank
+    spots = np.isfinite(image)
+    out[spots] = np.clip(np.maximum(image[spots], 0) / top, 0, 1)
     return out
+
+
+def colorbar(fig, axes_rect, top: float, label: str) -> None:
+    """A horizontal colour bar for a common display scale, ticked in measured units."""
+    from matplotlib import cm, colors
+
+    ax = fig.add_axes(axes_rect)
+    bar = fig.colorbar(cm.ScalarMappable(colors.Normalize(0, 1), "magma"), cax=ax,
+                       orientation="horizontal")
+    ticks = np.linspace(0, 1, 5)
+    bar.set_ticks(ticks, labels=[f"{t * top:,.0f}" + ("+" if t == 1 else "") for t in ticks],
+                  fontsize=6)
+    bar.set_label(label, fontsize=7)
 
 
 def safe_key(tissue_id: str) -> str:

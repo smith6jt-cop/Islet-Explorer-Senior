@@ -343,6 +343,7 @@ def _figure(task: Task, results: list) -> None:
     import matplotlib.pyplot as plt
 
     n = max(len(results), 1)
+    top = maldi.display_top([moving["summed"] for _, _, moving, _, _ in results])
     per_row = min(n, 4)
     rows = -(-n // per_row)
     fig, axes = plt.subplots(rows, per_row, figsize=(4.2 * per_row, 4.4 * rows), squeeze=False)
@@ -355,7 +356,7 @@ def _figure(task: Task, results: list) -> None:
         g = moving["grid"]
         rows_, cols_ = np.nonzero(np.isfinite(moving["summed"]))
         xy = g.to_microns(np.column_stack([cols_, rows_]))
-        summed = maldi.display(moving["summed"])[rows_, cols_]
+        summed = maldi.display(moving["summed"], top)[rows_, cols_]
         carried = maldi.spot_image(*transform.apply(xy).T, summed, grid)
         ax.imshow(np.ma.masked_invalid(carried), cmap="magma", vmin=0, vmax=1, alpha=0.45)
         ax.contour(qc["fixed_mask"], levels=[0.5], colors="#2ca02c", linewidths=0.8)
