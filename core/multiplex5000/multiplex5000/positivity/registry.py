@@ -174,3 +174,31 @@ def load(panel: str, tissue: str, directory: Path | str = REGISTRY_DIR) -> Regis
             consts[r['name']] = float(r['value']) if r['value'] not in ('', 'pending') else float('nan')
             sources[r['name']] = r['source']
     return Registry(name, table, consts, sources, directory)
+
+
+# -- proposals: registry rows that wait for the maintainer's review ---------------------------------------------------
+PROPOSAL_STATUSES = ('proposed', 'accepted', 'rejected')
+
+
+def proposals(reg: Registry) -> pd.DataFrame:
+    """The registry's proposals file (`<panel>__<tissue>__proposals.csv`: id, topic, proposal, affects, source,
+    rationale, status); empty when there is none. Rows, labels and constants name the proposals they depend on in
+    their `proposal` column."""
+    path = reg.directory / f'{reg.name}__proposals.csv'
+    if not path.is_file():
+        return pd.DataFrame(columns=['id', 'topic', 'proposal', 'affects', 'source', 'rationale', 'status'])
+    table = pd.read_csv(path, keep_default_na=False, dtype=str)
+    bad = sorted(set(table['status']) - set(PROPOSAL_STATUSES))
+    if bad:
+        raise RegistryError(f'{reg.name}: proposal statuses must be one of {PROPOSAL_STATUSES}, found {bad}')
+    return table
+
+
+def require_reviewed(reg: Registry) -> None:
+    """Refuse a registry with proposals the maintainer has not accepted or rejected: nothing a proposal covers is
+    settled in code before that review (Cell Typing gate)."""
+    table = proposals(reg)
+    open_ = table[table['status'] == 'proposed']
+    if len(open_):
+        raise RegistryError(f'{reg.name}: proposals awaiting review: '
+                            + '; '.join(f"{r.id} {r.topic}" for r in open_.itertuples()))

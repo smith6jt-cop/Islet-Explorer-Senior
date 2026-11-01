@@ -1,0 +1,15 @@
+compartment,lineage,kind,label,named_by,subtype_rule,profile,only_in,excluded_in,defined_by_object,source,structure,proposal
+Hematopoietic,Leukocyte,pan,Hematopoietic CD45+,,,,,,,pancreas registry labels (owner 2026-10-29 naming),,
+Hematopoietic,Leukocyte,pan_negative,Hematopoietic CD45-,,,,,,,pancreas registry labels (owner 2026-10-29 naming),,
+Hematopoietic,T,lineage,T cell,broad,higher,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (T_cell); owner 2026-10-27: the higher marker when both subtype markers are positive",,P2;P9
+Hematopoietic,T:CD8,subtype,CD8 T cell,,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (CD8_T_cytotoxic)",,P2
+Hematopoietic,T:CD4,subtype,CD4 T cell,,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (CD4_T_helper)",,
+Hematopoietic,B,lineage,B cell,broad,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (B_cell); the CD21-positive leaf stays descriptive (P3)",,P3
+Hematopoietic,Myeloid,lineage,Macrophage,broad,profile,CD68;CD163|M2Gal3;CD4,,,,"owner 2026-10-27 macrophage rule (CD68 or CD163; profile), in place of the sheet's Iba1 row",,P4
+Hematopoietic,Myeloid:cDC,subtype,cDC,,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (cDC)",,P8
+Hematopoietic,NK,lineage,NK cell,broad,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (NK_cell)",,
+Hematopoietic,Neutrophil,lineage,Neutrophil,broad,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (Neutrophil)",,
+Mesenchymal,Mural,lineage,Stromal SMA+,broad,,,,,,"spleen manifest.yml (6551 sheet, maintainer 2026-10-26) (SMA_positive_stromal, Smooth_muscle)",,
+Epithelial,Epithelial,lineage,Epithelial,broad,,,,,,plan 2026-10-30 (maintainer 2026-10-31: epithelium is present in spleen),,P1
+Endothelial,Blood vessel,structure,Endothelium Blood Vessel,CD31,,,,,,owner 2026-10-30: endothelial cell types only from the structure step; no spleen vessel object yet,Blood vessel,P5
+Endothelial,Lymphatic,structure,Endothelium Lymphatic,Podoplanin,,,,,,owner 2026-10-30: endothelial cell types only from the structure step; no spleen lymphatic object yet,Lymphatic,P5

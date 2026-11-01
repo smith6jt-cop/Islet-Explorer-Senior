@@ -30,7 +30,7 @@ def check_registry(reg: RG.Registry, module: ModuleType) -> None:
     """Refuse a registry that names a reference population its tissue does not have."""
     allowed = module.reference_populations(reg)
     named = set()
-    for column in ("level_reference", "check_reference"):
+    for column in ("level_reference", "check_reference", "cross_fit"):
         if column in reg.table.columns:
             for value in reg.table[column]:
                 named.update(RG.split(str(value).replace("+", ";")))
