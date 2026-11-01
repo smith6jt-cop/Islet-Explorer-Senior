@@ -16,7 +16,9 @@
     "analysis_exclusions": "/data/io60-calibration/pancreas_analysis_assignments_single_exclusions_20261005",
     "pancreas_annotations": "/home/smith6jt/IO60panc2nd/results/v3/export/annotations_2026-10-02/manual_annotations",
     "donor_metadata": "/home/smith6jt/IO60panc2nd/donor_metadata_panc.xlsx",
-    "npod_cases": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/All-Download_From_nPOD_2026-07-27_163844.xlsx"
+    "npod_cases": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/All-Download_From_nPOD_2026-07-27_163844.xlsx",
+    "maldi_spots": "/data/io60-current/sources/maldi/wilkes_2026-10",
+    "typing_export_root": "/home/smith6jt/IO60panc2nd/results/v3/export"
   },
   "releases_root": "/data/io60-current/releases",
   "snakemake": "/data/envs/mplx5k-graph/bin/snakemake",

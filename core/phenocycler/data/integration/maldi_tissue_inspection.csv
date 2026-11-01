@@ -1,0 +1,55 @@
+# The tissue of each IO60 MALDI section and the slide it was cut next to, by visual inspection.
+#
+# INSPECTED BY EYE and recorded by the maintainer; never inferred. The MALDI sections are
+# "sequential slides from the same series of slides we have xenium and phenocycler data for"
+# (maintainer, 2026-10-31): each row makes the MALDI section a serial section of the acquisition
+# it neighbours -- different cells, never a same-cell claim. The Tissue_id is never parsed for
+# either fact (6476, 6566, 6593 and HDL115 carry no block; 6380_01, 6442_03, 6482_02, 6521_02,
+# 6523_01 and 6551_03 carry a bare block number).
+#
+# Look at the Source Inventory figure maldi_sections.png: each MALDI section's summed-ion and
+# glycogen images beside the donor's PhenoCycler pancreas scan (Tissue and pLN annotations), its
+# dedicated pLN slide and its Xenium overview, each titled with its acquisition id.
+#
+#   tissue_id              the MALDI Tissue_id, as the export writes it (pre-filled)
+#   tissue                 pancreas or pLN
+#   neighbour_acquisition  the acquisition id (as titled in maldi_sections.png, e.g.
+#                          "phenocycler:6551_Scan1.er.qptiff - resolution #1") whose slide it neighbours
+#   inspected_by           who looked
+#   note                   anything seen (orientation, pieces, damage); free text, never counted
+#
+# A row with tissue, neighbour_acquisition and inspected_by all blank is not yet inspected; the
+# Source Inventory gate blocks until every IO60 MALDI section has a filled row.
+tissue_id,tissue,neighbour_acquisition,inspected_by,note
+6374_01_pln,,,,
+6374_04,,,,
+6380_01,,,,
+6380_01b,,,,
+6436_04B,,,,
+6442_02D,,,,
+6442_03,,,,
+6457_03,,,,
+6461_02A,,,,
+6461_02_PLN,,,,
+6476,,,,
+6476_01A,,,,
+6482_02,,,,
+6482_02A,,,,
+6493_01_pln,,,,
+6493_02B,,,,
+6521_02,,,,
+6521_02D,,,,
+6523_01,,,,
+6523_02A,,,,
+6539_01A,,,,
+6539_02_pln,,,,
+6551_03,,,,
+6551_03B,,,,
+6566,,,,
+6566_02,,,,
+6579_02A,,,,
+6579_02_PLN,,,,
+6591_02,,,,
+6593,,,,
+6593_02,,,,
+HDL115,,,,

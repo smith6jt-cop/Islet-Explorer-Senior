@@ -1,0 +1,22 @@
+schema: multiplex5000-profile/1
+kind: platform
+id: maldi
+display_name: MALDI imaging (N-glycan + glycogen)
+# The spot pitch of the MALDI acquisition: every spot sits on a 50 um grid in the instrument's
+# stage frame (x, y in um; measured on the 2026-10 export, 2,272,647 of 2,288,540 neighbour steps
+# exactly 50.0 um, the rest within 0.004 um).
+pixel_size_um: 50
+# How a MALDI panel is named: the number of features in each feature set the acquisition
+# exports, in this order, joined by " + ". The 2026-10 export is two files over the same spots:
+# 38 sodiated N-glycan compositions and 10 glycogen m/z features, so "38 N-glycans + 10 glycogen".
+# Applied by multiplex5000.panel_names.maldi; the wording is confirmed at the Source Inventory gate.
+panel_names:
+  sets:
+    - role: glycan
+      written: N-glycans
+    - role: glycogen
+      written: glycogen
+  joiner: " + "
+sources:
+  pixel_size_um: the spot grid of wilkes_pancreas_{glycan,glycogen}_pbp.csv (2026-10), measured
+  panel_names: the two exported feature sets, as their column headers record them

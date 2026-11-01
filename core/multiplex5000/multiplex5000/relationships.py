@@ -322,6 +322,33 @@ def read_section_modes(path: Path, aliases: dict[str, str]) -> tuple[list, Evide
     return out, Evidence("section_modes", str(path), digest, f"{len(out)} declarations")
 
 
+def read_maldi_inspection(path: Path, aliases: dict[str, str]) -> tuple[list[Relationship], Evidence]:
+    """``maldi_tissue_inspection.csv``: each filled row a MALDI section as a serial section of the
+    acquisition it neighbours -- "sequential slides from the same series of slides we have xenium
+    and phenocycler data for" (maintainer, 2026-10-31). Read as written; the Source Inventory
+    checks each row against the acquisitions it lists. Blank template rows are not inspected."""
+    import csv
+
+    path = Path(path)
+    data = path.read_bytes()
+    digest = _sha(data)
+    rows = csv.DictReader(line for line in data.decode("utf-8").splitlines()
+                          if not line.startswith("#"))
+    out = []
+    for n, row in enumerate(rows, start=2):
+        tissue_id = (row.get("tissue_id") or "").strip()
+        neighbour = (row.get("neighbour_acquisition") or "").strip()
+        tissue = (row.get("tissue") or "").strip()
+        if not (tissue and neighbour):
+            continue
+        label = tissue_id.partition("_")[0]
+        out.append(Relationship(
+            SERIAL_SECTION, _alias(label, aliases), f"MALDI section {tissue_id} ({tissue})",
+            neighbour, (Evidence("maldi_tissue_inspection", str(path), digest, f"row {n}"),),
+            "sequential slides from the same series (maintainer, 2026-10-31); different cells"))
+    return out, Evidence("maldi_tissue_inspection", str(path), digest, f"{len(out)} inspected")
+
+
 def _relationships(reading: Reading) -> list[Relationship]:
     out: list[Relationship] = []
     for donor in reading.donors.values():
@@ -397,7 +424,8 @@ KNOWN_DISAGREEMENTS: dict[tuple[str, str], str] = {
 
 def load(*, notes: Optional[Path] = None, notes_copy: Optional[Path] = None,
          pln_blocks: Optional[Path] = None, section_modes: Optional[Path] = None,
-         aliases: Optional[dict[str, str]] = None, cohort_donors=None) -> Reading:
+         aliases: Optional[dict[str, str]] = None, cohort_donors=None,
+         maldi_inspection=False) -> Reading:
     """Read every recorded source this site names, relate them, and list where they disagree.
 
     A source the site does not name, and no argument gives, is reported as unknown -- the
@@ -430,6 +458,10 @@ def load(*, notes: Optional[Path] = None, notes_copy: Optional[Path] = None,
     reading.modes, ev = read_section_modes(section_modes, aliases)
     reading.sources.append(ev)
     reading.relationships = _relationships(reading)
+    if maldi_inspection:      # read only where asked: the report below, or a caller that names it
+        found, ev = read_maldi_inspection(maldi_inspection, aliases)
+        reading.relationships += found
+        reading.sources.append(ev)
     reading.conflicts = _conflicts(reading, copy)
     for name, value in (("donor_notes", notes), ("pln_blocks", pln_blocks)):
         if value is None:
@@ -476,9 +508,13 @@ def main(argv=None) -> int:
     parser.add_argument("--notes-copy", type=Path, help="their repo-root copy (default: the site's)")
     parser.add_argument("--pln-blocks", type=Path, help="pln_blocks.csv (default: the site's)")
     parser.add_argument("--section-modes", type=Path, help="section_modes.csv (default: the repo's)")
+    parser.add_argument("--maldi-inspection", type=Path,
+                        help="maldi_tissue_inspection.csv (default: the repo's, where it has one)")
     args = parser.parse_args(argv)
+    tracked = roots.INTEGRATION / "maldi_tissue_inspection.csv"
     reading = load(notes=args.notes, notes_copy=args.notes_copy, pln_blocks=args.pln_blocks,
-                   section_modes=args.section_modes)
+                   section_modes=args.section_modes,
+                   maldi_inspection=args.maldi_inspection or (tracked if tracked.is_file() else False))
     sys.stdout.write(report(reading))
     return 0
 
