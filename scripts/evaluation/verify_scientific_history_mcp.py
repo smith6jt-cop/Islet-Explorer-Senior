@@ -13,11 +13,11 @@ from mcp.client.stdio import stdio_client
 from multiplex5000.parameter_observations import file_hash
 
 
-async def main(project, checkout):
+async def main(project, checkout, operation="rna_typing"):
     original = project / "parameter_observations.json"
     payload = json.loads(original.read_text())
     # Use a populated, nested scientific record, not the synthetic protocol fixture.
-    item = next(r for r in reversed(payload["records"]) if r["observation"]["operation"] == "rna_typing")
+    item = next(r for r in reversed(payload["records"]) if r["observation"]["operation"] == operation)
     expected_hash = file_hash(original)
     global_db = Path.home() / ".kintsugi/parameter_learning.db"
     global_before = file_hash(global_db) if global_db.is_file() else None
@@ -52,5 +52,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--kintsugi", type=Path, required=True)
+    parser.add_argument("--operation", default="rna_typing", help="Existing scientific operation to verify")
     args = parser.parse_args()
-    asyncio.run(main(args.project.resolve(), args.kintsugi.resolve()))
+    asyncio.run(main(args.project.resolve(), args.kintsugi.resolve(), args.operation))

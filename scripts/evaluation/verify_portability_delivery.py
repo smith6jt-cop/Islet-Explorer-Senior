@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import json
 import sqlite3
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from multiplex5000.parameter_observations import digest, validate
 BASE = Path(__file__).resolve().parents[2]
 DOC = BASE / "docs/evaluations/dynamic_portability_20261102"
 RUN = BASE / "outputs/dynamic_portability_20261102"
+DELIVERY_REVISION = "610a6a1140427ebfd67b8bac86bbaa69b46ac739"
 
 
 def read(path):
@@ -21,6 +23,26 @@ def read(path):
 def sha(path):
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def artifact_binding(artifact):
+    """Historical code/docs can evolve; scientific evidence must retain its bytes.
+
+    For an evolved tracked source, verify the exact delivered Git blob instead.
+    This does not bless current code or permit replacement of history/data files.
+    """
+    path = Path(artifact["path"])
+    if path.is_file() and sha(path) == artifact["sha256"]:
+        return "working_file"
+    relative = path.relative_to(BASE)
+    if relative.parts[0] == "outputs" or path.is_relative_to(DOC):
+        raise AssertionError(f"frozen scientific evidence changed or missing: {path}")
+    if path.suffix not in {".py", ".md", ".toml"} and relative.as_posix() != ".gitignore":
+        raise AssertionError(f"no source-version fallback for {path}")
+    blob = subprocess.run(["git", "show", f"{DELIVERY_REVISION}:{relative.as_posix()}"],
+                          cwd=BASE, check=True, capture_output=True).stdout
+    assert hashlib.sha256(blob).hexdigest() == artifact["sha256"], path
+    return "delivery_git_blob"
 
 
 def main():
@@ -105,14 +127,17 @@ def main():
     for row in requirements["requirements"]:
         assert all((DOC / p).exists() for p in row["evidence"]), row["id"]
     manifest = read(DOC / "artifact_manifest.json")
-    for artifact in manifest["artifacts"]:
-        assert sha(Path(artifact["path"])) == artifact["sha256"], artifact["path"]
+    source_replays = [artifact["id"] for artifact in manifest["artifacts"]
+                      if artifact_binding(artifact) == "delivery_git_blob"]
     print(json.dumps({"status": "pass", "acquisitions": len(acquisitions),
                       "observations": len(revisions), "history_records": len(history["records"]),
                       "evidence_references_verified": len(references), "inspected_panels": len(inspections),
                       "maldi_source_comparisons": len(source_review["sections"]), "exact_codex_source_port_checks": 60,
                       "parameter_declarations_traced": 572, "handoff_requirements": 23,
-                      "manifest_artifacts_verified": len(manifest["artifacts"])}, indent=2))
+                      "manifest_artifacts_verified": len(manifest["artifacts"]),
+                      "historical_source_revision": DELIVERY_REVISION,
+                      "source_artifacts_verified_from_git": source_replays,
+                      "scope": "original delivered source bytes; current code is checked by the separate remediation suite"}, indent=2))
 
 
 if __name__ == "__main__":

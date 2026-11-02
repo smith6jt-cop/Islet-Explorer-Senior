@@ -1,0 +1,51 @@
+{
+  "schema": "codex.replay_contract/1",
+  "proof_sha256": "0e4cdb82ab8a502ff218496c4b647bafa178e774274b1e755b251dff4228019e",
+  "source_pin": "578767eeaf0f95bb1df7272238f361888a0ae75d",
+  "port_pin": "df3fe1d6ecfe534bc1eaf9e1cf94b8ef6d3a7018",
+  "images": [
+    "Aab_6090",
+    "Aab_6450",
+    "Aab_6505",
+    "Aab_6521",
+    "Aab_6538",
+    "Aab_6549",
+    "Aab_6558",
+    "ND_0112",
+    "ND_6232",
+    "ND_6356",
+    "ND_6479",
+    "ND_6516",
+    "ND_6539",
+    "ND_6548",
+    "T1D_6520",
+    "T1D_6533",
+    "T1D_6534",
+    "T1D_6550",
+    "T1D_6551",
+    "T1D_6563"
+  ],
+  "producer_outputs": 95,
+  "runtime": {
+    "python": "3.13.9",
+    "packages": {
+      "numpy": "2.2.6",
+      "pandas": "2.3.3",
+      "scipy": "1.16.3",
+      "scikit-learn": "1.7.2",
+      "pyarrow": "22.0.0",
+      "scikit-image": "0.25.2",
+      "pytest": "8.4.2",
+      "threadpoolctl": "3.6.0"
+    },
+    "thread_environment": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    }
+  },
+  "input_csv_reader": "pandas.read_csv default, as the original producer",
+  "expected_output_csv_reader": "pandas.read_csv float_precision=round_trip",
+  "criterion": "exact equality; no absolute or relative tolerance",
+  "runtime_scope": "Runtime verified by the full-cohort replay, not a historical producer environment lock."
+}
