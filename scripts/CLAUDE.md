@@ -1,5 +1,17 @@
 # Scripts guide
 
+For the current portability evaluation and authorized blocker remediation, start
+with `docs/PORTABILITY_REMEDIATION_USER_GUIDE.md` and
+`docs/evaluations/blocker_remediation_20261102/README.md`. Root
+`scripts/evaluation/` owns receipt/hash validation, source audits, candidate
+verification, diagnostic plots and project-only parameter observations. Those
+tools validate the current `multiplex5000.tasks` stage contracts and explicitly
+pinned historical producers; the legacy layer-builder/run-ID statements below
+do not replace their receipt, provenance or complete-cohort requirements.
+Keep new evidence in the remediation output root and preserve the original
+evaluation. A computational pass does not approve biology, infer a physical
+section relationship or activate an application release.
+
 ## Ownership
 
 `core/multiplex5000/` owns the raw QuPath-to-expression workflow; its development lanes live under
@@ -20,7 +32,7 @@ calibration or typing inputs.
 Join by exact `object_id`. Never row order, rounded centroids, filenames, or a provisional
 `classification`. A missing or invalid measurement stays unavailable.
 
-**There is no run id and no content id to record.** The content-addressed run framework was removed
+**For the legacy stable-root workflow described in this section, there is no run id and no content id to record.** The content-addressed run framework was removed
 on 2026-09-16. Stages write to stable roots — `data/cells`, `data/geometry_qc`, `data/redsea`,
 `data/expression` — and a donor is done when its partition has content; a stage whose output is
 already present is skipped, and `--force` reruns it. `core/phenocycler/data/qupath_manifest.json`

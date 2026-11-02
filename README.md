@@ -13,11 +13,25 @@ The big-data, multimodal successor to Islet Explorer — an interactive R Shiny 
 
 For source inventory, protein/RNA typing, same-slide comparison, serial MALDI,
 parameter recording and evaluation, start with the
-[workflow user guide](docs/PORTABILITY_EVALUATION_USER_GUIDE.md). The
-[2026-11-02 portability report](docs/evaluations/dynamic_portability_20261102/README.md)
-accounts for all 201 declared acquisitions and separates computational checks,
-geometric validity and biological review. Candidate processing and evaluation do
-not activate either app's production release.
+[current workflow user guide](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md) and
+[blocker-remediation report](docs/evaluations/blocker_remediation_20261102/README.md).
+The follow-up preserves all 201 declared acquisitions and separates implemented
+repairs, completed candidates and missing scientific evidence.
+The [original portability evaluation](docs/evaluations/dynamic_portability_20261102/README.md)
+remains frozen historical evidence. Candidate processing and evaluation do not
+activate either app's production release.
+
+- Protein: [CODEX replay](docs/evaluations/blocker_remediation_20261102/codex.md),
+  [received CODEX handoff](docs/evaluations/blocker_remediation_20261102/codex_received_handoff.md),
+  [received component/Ki67 handoff](docs/evaluations/blocker_remediation_20261102/codex_received_component_handoff.md),
+  [IO60 and dedicated pLN candidates](docs/evaluations/blocker_remediation_20261102/README.md#results-and-scope),
+  [spleen provenance](docs/evaluations/blocker_remediation_20261102/spleen_provenance.md).
+- RNA: [Xenium-only and full-cohort workflow](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md#xenium-only-and-full-cohort-rna).
+- Same-slide: [batch coordination](docs/evaluations/blocker_remediation_20261102/geom1.md)
+  and [candidate-link contracts](docs/evaluations/blocker_remediation_20261102/geom2.md).
+- MALDI: [registration/object contracts](docs/evaluations/blocker_remediation_20261102/maldi.md)
+  and the local [32-section scaling plots](outputs/blocker_remediation_20261102/maldi_scaling/index.html).
+- Parameters: [recording, MCP, retry and export](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md#parameters-inspect-record-retry-and-export).
 
 Islet Explorer is a modular R Shiny application serving **two deliberately separate datasets**, one
 at a time, selected by the `ISLET_DOMAIN_CONFIG` environment variable. They share five donors and no

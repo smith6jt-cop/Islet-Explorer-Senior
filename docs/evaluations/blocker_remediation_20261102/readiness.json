@@ -1,0 +1,988 @@
+{
+  "baseline": {
+    "path": "docs/evaluations/dynamic_portability_20261102/readiness.json",
+    "sha256": "177882fe6eaf5e991c3008879fc021679540e18f9bd7808f6044de7f39383c08"
+  },
+  "date": "2026-11-02",
+  "implementation_items": [
+    {
+      "id": "PROV-1",
+      "scope": "Exact CODEX replay and24audited v20 bindings repaired; fullv20 release validation separate.",
+      "status": "completed_with_scope_limit"
+    },
+    {
+      "id": "PROT-1",
+      "scope": "Availability and unavailable refinement implementation fixed; complete execution/evidence required.",
+      "status": "completed_candidate"
+    },
+    {
+      "id": "CORE-1/CORE-2",
+      "scope": "Validated protein cutoff/RNA naming policy and resolved parameter artifacts added. External port hooks and unreported worker fits remain explicit limits.",
+      "status": "implemented_at_changed_boundaries"
+    },
+    {
+      "id": "PANEL-3",
+      "scope": "All19 raw QuPath pLN review candidates complete; no final identity registry or REDSEA equivalence.",
+      "status": "completed_existing_candidate_contract"
+    },
+    {
+      "id": "GEOM-2",
+      "scope": "78tests; actual pair registration/uncertainty/independent identity evidence remains external.",
+      "status": "implemented_and_verified"
+    },
+    {
+      "id": "GEOM-1",
+      "scope": "All12 preflight entries accounted;8spleen inputs blocked,4pancreas adapters unavailable,pLN unresolved. No physical relationships or acceptances invented.",
+      "status": "implemented_and_verified_supported_contracts"
+    },
+    {
+      "id": "MALDI-2",
+      "scope": "Exact Xenium morphology route implemented; tissue/neighbour inspection and accepted real transforms still missing.",
+      "status": "implementation_fixed_external_relationship_blocked"
+    },
+    {
+      "id": "MALDI-3",
+      "scope": "Explicit exact-frame objects,47objects/44areas, uncertainty/overlap/finite denominators; actual object results await accepted geometry.",
+      "status": "implementation_and_source_contract_fixed"
+    },
+    {
+      "id": "PANEL-1/PANEL-2/RNA-2/BIO/MEAS",
+      "scope": "No unapproved PC67 proposals imported, PC33 registry invented, spleen RNA identity worker inferred, or assay measurement equivalence claimed.",
+      "status": "scientific_specification_or_review_required"
+    }
+  ],
+  "interpretation": "axes and current_evidence describe the remediation state; baseline_axes, baseline_evidence and baseline_remediation_ids preserve historical statements. Implementation items identify repaired scope and remaining requirements; computational completion is not scientific approval.",
+  "maldi_source_validation": {
+    "latest_report": {
+      "path": "outputs/blocker_remediation_20261102/hpg_maldi_xenium/results_relocated/source_validation.json",
+      "sha256": "5bf63a55e67087a987dc895116ec42a376d8960a621a41d2c104d27a50594a7d"
+    },
+    "relocation_recheck_complete": true,
+    "scope": "source morphology only; no neighbour selection or registration acceptance",
+    "unavailable": 3,
+    "validated": 62
+  },
+  "production_release_activated": false,
+  "protein_cell_universes": {
+    "embedded_pln_cells": 1767936,
+    "embedded_pln_eligible_cells": 1488546,
+    "evidence": {
+      "path": "outputs/blocker_remediation_20261102/protein/verification/release_audit/per_acquisition.json",
+      "sha256": "5cf4c836217cacda8541dccb92684fe6eedb058ea818c04028047bd63b54c228"
+    },
+    "interpretation": "The segmented universe includes ineligible cells and embedded pLN; it is not the primary pancreas refinement universe. pLN candidate states are not final classes.",
+    "mixed_typing_states": {
+      "ambiguous": 33421,
+      "no_match": 161063,
+      "pancreas_hierarchy": 31385695,
+      "unavailable": 1116736,
+      "unavailable_qc": 6520611,
+      "unique_candidate": 177326
+    },
+    "nucleus_eligible_cells": 32874241,
+    "nucleus_ineligible_cells": 6520611,
+    "pancreas_primary_refinement_cells": 31385695,
+    "pancreas_refinement_states": {
+      "evaluated": 26913153,
+      "not_applicable": 81798,
+      "unavailable_bound": 7597,
+      "unavailable_defining_markers": 2205330,
+      "unavailable_fallback_markers": 32502,
+      "unavailable_fragment_measurement": 57501,
+      "unavailable_measurement": 2087814
+    },
+    "segmented_cells": 39394852
+  },
+  "protein_completion_verification": {
+    "acquisitions": 25,
+    "audited_byte_bindings_not_rehashed": 453,
+    "exact_prelaunch_input_bindings": 268,
+    "inspected": 25,
+    "primary_cells": 31385695,
+    "producer_source_stability": {
+      "audit": {
+        "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_stability.json",
+        "sha256": "0c8defa0e13a31f74344461c5c36e743c0c1d67e48bb9c8e0b9232be7d162b8a"
+      },
+      "checker_binding_scope": "current delivery-time checker source; report schema does not self-identify its producer",
+      "checker_current_source": {
+        "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/scripts/evaluation/check_protein_producer_snapshot.py",
+        "sha256": "d3bf4483a9a10b9d9a0c157c1899df7982e8710332519074db3a77b97212d318"
+      },
+      "closure_sources": 49,
+      "declared_runner_sources": 7,
+      "limitations": "Conditional imports may overinclude files. File comparison proves equality at launch and audit; it does not continuously monitor intermediate writes. Dataset and registry inputs are checked by stage receipts separately.",
+      "runner_manifest": {
+        "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/releases/protein-availability-candidate/06_typing/pancreas/run.json",
+        "sha256": "3492759c4b4ea5152adc6975d2ad1b76ceb25e650ccd7199b9b7e35349ed1a57"
+      },
+      "scope": "declared protein producers and conservative static local-import closure; not a runtime trace",
+      "snapshot": {
+        "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_snapshot_attempt2.json",
+        "sha256": "f84d34df56cde90896cad2b6a4005afe7a99ab1a72d69ac1dd867d15a2f89a16"
+      }
+    },
+    "validated_declared_optional_absences_not_hashes": 15
+  },
+  "received_codex_handoff": {
+    "application_to_current_runs": false,
+    "evidence": {
+      "path": "docs/evaluations/blocker_remediation_20261102/codex_received_handoff.json",
+      "sha256": "e8cc6135fa2974025994f38004e5b5b85cd1452b3ef69fd567c94eba527100b1"
+    },
+    "roster_or_approval_changes": false,
+    "status": "received_verified_reviewed_not_applied"
+  },
+  "routes": [
+    {
+      "acquisitions": [
+        "Aab_6090",
+        "Aab_6450",
+        "Aab_6505",
+        "Aab_6521",
+        "Aab_6538",
+        "Aab_6549",
+        "Aab_6558",
+        "ND_0112",
+        "ND_6232",
+        "ND_6356",
+        "ND_6479",
+        "ND_6516",
+        "ND_6539",
+        "ND_6548",
+        "T1D_6520",
+        "T1D_6533",
+        "T1D_6534",
+        "T1D_6550",
+        "T1D_6551",
+        "T1D_6563"
+      ],
+      "assay": "codex",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "available",
+        "computational_validation": "All20 images/60 exact assertions pass; 3,199,606 eligible cells. 24/24 audited v20 content bindings recovered; full v20 input closure/biological acceptance separate.",
+        "executable_routing": "available",
+        "scientific_specification": "version_specific; portability review required",
+        "valid_inputs": "journal/output hashes recovered; historical endocrine inputs retain stat-only binding limitation"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "available",
+        "computational_validation": "20 exact identity passes; 40 exact CSV assertion failures; all20 direct original-source/port calculations exact; separate producer-thread/parser replay diagnostic",
+        "executable_routing": "available",
+        "scientific_specification": "version_specific; portability review required",
+        "valid_inputs": "journal/output hashes recovered; historical endocrine inputs retain stat-only binding limitation"
+      },
+      "baseline_evidence": [
+        "codex_parity/Aab_6090.log",
+        "codex_parity/Aab_6450.log",
+        "codex_parity/Aab_6505.log",
+        "codex_parity/Aab_6521.log",
+        "codex_parity/Aab_6538.log",
+        "codex_parity/Aab_6549.log",
+        "codex_parity/Aab_6558.log",
+        "codex_parity/ND_0112.log",
+        "codex_parity/ND_6232.log",
+        "codex_parity/ND_6356.log",
+        "codex_parity/ND_6479.log",
+        "codex_parity/ND_6516.log",
+        "codex_parity/ND_6539.log",
+        "codex_parity/ND_6548.log",
+        "codex_parity/T1D_6520.log",
+        "codex_parity/T1D_6533.log",
+        "codex_parity/T1D_6534.log",
+        "codex_parity/T1D_6550.log",
+        "codex_parity/T1D_6551.log",
+        "codex_parity/T1D_6563.log",
+        "codex_journal_proof.json",
+        "codex_completion_summary.json",
+        "codex_numerical_parity.json",
+        "codex_source_to_port_diagnostics.json",
+        "codex_producer_single_thread_tables.json"
+      ],
+      "baseline_remediation_ids": [
+        "PROV-1",
+        "BIO-1",
+        "CORE-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/codex/completion_summary.json",
+          "sha256": "d10dcdb249b13c5481f156f9fa3d4c6ec39b757739fea0db536f5a168c7dd114"
+        }
+      ],
+      "modality": "protein",
+      "panel": "codex-uniform32",
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "maldi:6374_01_pln",
+        "maldi:6374_04",
+        "maldi:6380_01",
+        "maldi:6380_01b",
+        "maldi:6436_04B",
+        "maldi:6442_02D",
+        "maldi:6442_03",
+        "maldi:6457_03",
+        "maldi:6461_02A",
+        "maldi:6461_02_PLN",
+        "maldi:6476",
+        "maldi:6476_01A",
+        "maldi:6482_02",
+        "maldi:6482_02A",
+        "maldi:6493_01_pln",
+        "maldi:6493_02B",
+        "maldi:6521_02",
+        "maldi:6521_02D",
+        "maldi:6523_01",
+        "maldi:6523_02A",
+        "maldi:6539_01A",
+        "maldi:6539_02_pln",
+        "maldi:6551_03",
+        "maldi:6551_03B",
+        "maldi:6566",
+        "maldi:6566_02",
+        "maldi:6579_02A",
+        "maldi:6579_02_PLN",
+        "maldi:6591_02",
+        "maldi:6593",
+        "maldi:6593_02",
+        "maldi:HDL115"
+      ],
+      "assay": "maldi",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current registration supports exact-region Xenium morphology; integration supports explicit receipt-bound pLN/Xenium objects, unavailable nonareas, ambiguity and finite denominators.",
+        "computational_validation": "33 object/Stage08 tests passed. Explicit pLN source manifest:19 acquisitions,47 objects,44 area geometries; source availability does not assign MALDI neighbours.",
+        "executable_routing": "Code available conditional on exact inspected source selection and receipt-bound acceptance; no real accepted Stage07 or Stage08.",
+        "scientific_specification": "Serial spot/object evidence only; inspected tissue/neighbour rows and real registration review remain required. No inferred cell types or new distance bands.",
+        "valid_inputs": "All32 original export/spot audits retained; local Xenium morphology30/65 validated; indexed remote source validation completed with explicit relocation support."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "available",
+        "computational_validation": "all 32 sections / 1,666,450 spots audited for keys, finite values, mask and denominators; no accepted transforms/objects",
+        "executable_routing": "ingest available; registration blocked; Xenium neighbour not built",
+        "scientific_specification": "serial spot/object evidence only; physical tissue, intensity calibration and pLN object semantics unresolved",
+        "valid_inputs": "both source hashes and paired spot keys verified; tissue/neighbour inspections blank"
+      },
+      "baseline_evidence": [
+        "maldi/summary.json",
+        "maldi_source_review.json",
+        "maldi_source_evidence.json",
+        "pln_object_availability.json"
+      ],
+      "baseline_remediation_ids": [
+        "MALDI-1",
+        "MALDI-2",
+        "MALDI-3"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/maldi_stage08_review.json",
+          "sha256": "2876cef82bba8b50b8fe9ea483d56360ffb737f396a968809a466cf391f10464"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/maldi_objects/validation.json",
+          "sha256": "fd543fec5028835f6009fc4fc9277f6177404871541498beed97b2cece1b0855"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/maldi_xenium/source_validation.json",
+          "sha256": "7c7c8ab3d6ebef35f675e5c93c13f142879c3ea73499c129c2c6e2a7d38a3545"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/hpg_maldi_xenium/results_relocated/source_validation.json",
+          "sha256": "5bf63a55e67087a987dc895116ec42a376d8960a621a41d2c104d27a50594a7d"
+        }
+      ],
+      "modality": "maldi",
+      "panel": "38 N-glycans + 10 glycogen",
+      "relationship_type": "serial_section",
+      "tissue": null
+    },
+    {
+      "acquisitions": [
+        "phenocycler:6450panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6505panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6534pacn_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6623panc_Scan1.er.qptiff - resolution #1"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current mixed candidate route honors acquisition/measurement availability and records unavailable refinement; separate CODEX port remains unmerged.",
+        "computational_validation": "Full 25 independent identity/count/primary-parity checks and spatial inspection passed; refinement is newly fitted, with no unexecuted baseline label-parity claim.",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "Full 25 receipt-bound upstream inputs independently audited; optional absent pLN block inputs are explicit no-file declarations, not successful hashes."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "legacy full25 mixed-tissue route; new per-image port has no PhenoCycler pancreas registry",
+        "computational_validation": "all 25 primary tables produced; refinement failed on 0112; primary/source compatibility audited separately; no final receipt",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_evidence": [
+        "protein_primary/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "MEAS-1",
+        "BIO-1",
+        "BIO-2",
+        "CORE-2",
+        "PROT-1"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/remediation_checks.json",
+          "sha256": "bf1bee18997af6d421fcee1dec991ee282a83d9c7903f8804250df2aecf990a3"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/inspection_ledger.json",
+          "sha256": "5696d795b637920cceee6735168df835c14b2b2a390c032fab9829bbdaac6691"
+        }
+      ],
+      "modality": "protein",
+      "panel": "panel-b-catenin1-59ch",
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "phenocycler:HDL115pancLN_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6374_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6380_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6436_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6442_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6461_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6476_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6482_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6493_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6521_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6539_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6551_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6579_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6593_Scan1.er.qptiff - resolution #1"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current mixed candidate route honors acquisition/measurement availability and records unavailable refinement; separate CODEX port remains unmerged.",
+        "computational_validation": "Full 25 independent identity/count/primary-parity checks and spatial inspection passed; refinement is newly fitted, with no unexecuted baseline label-parity claim.",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "Full 25 receipt-bound upstream inputs independently audited; optional absent pLN block inputs are explicit no-file declarations, not successful hashes."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "legacy full25 mixed-tissue route; new per-image port has no PhenoCycler pancreas registry",
+        "computational_validation": "all 25 primary tables produced; refinement failed on 0112; primary/source compatibility audited separately; no final receipt",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_evidence": [
+        "protein_primary/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "MEAS-1",
+        "BIO-1",
+        "BIO-2",
+        "CORE-2",
+        "PROT-1"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/remediation_checks.json",
+          "sha256": "bf1bee18997af6d421fcee1dec991ee282a83d9c7903f8804250df2aecf990a3"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/inspection_ledger.json",
+          "sha256": "5696d795b637920cceee6735168df835c14b2b2a390c032fab9829bbdaac6691"
+        }
+      ],
+      "modality": "protein",
+      "panel": "panel-cd38-59ch",
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "phenocycler:0081366_HDL112_pLNpanc_Scan3.er.qptiff - resolution #1",
+        "phenocycler:0080579_6347_pLNpanc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:0080870_6533_pLNpanc_Scan3.er.qptiff - resolution #1",
+        "phenocycler:0080502_6580_pLNpanc_Scan1.er.qptiff - resolution #1"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current mixed candidate route honors acquisition/measurement availability and records unavailable refinement; separate CODEX port remains unmerged.",
+        "computational_validation": "Full 25 independent identity/count/primary-parity checks and spatial inspection passed; refinement is newly fitted, with no unexecuted baseline label-parity claim.",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "Full 25 receipt-bound upstream inputs independently audited; optional absent pLN block inputs are explicit no-file declarations, not successful hashes."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "legacy full25 mixed-tissue route; new per-image port has no PhenoCycler pancreas registry",
+        "computational_validation": "all 25 primary tables produced; refinement failed on 0112; primary/source compatibility audited separately; no final receipt",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_evidence": [
+        "protein_primary/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "MEAS-1",
+        "BIO-1",
+        "BIO-2",
+        "CORE-2",
+        "PROT-1"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/remediation_checks.json",
+          "sha256": "bf1bee18997af6d421fcee1dec991ee282a83d9c7903f8804250df2aecf990a3"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/inspection_ledger.json",
+          "sha256": "5696d795b637920cceee6735168df835c14b2b2a390c032fab9829bbdaac6691"
+        }
+      ],
+      "modality": "protein",
+      "panel": "panel-metabolic-70ch",
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "phenocycler:6523panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6566panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6591panc_Scan1.er.qptiff - resolution #1"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current mixed candidate route honors acquisition/measurement availability and records unavailable refinement; separate CODEX port remains unmerged.",
+        "computational_validation": "Full 25 independent identity/count/primary-parity checks and spatial inspection passed; refinement is newly fitted, with no unexecuted baseline label-parity claim.",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "Full 25 receipt-bound upstream inputs independently audited; optional absent pLN block inputs are explicit no-file declarations, not successful hashes."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "legacy full25 mixed-tissue route; new per-image port has no PhenoCycler pancreas registry",
+        "computational_validation": "all 25 primary tables produced; refinement failed on 0112; primary/source compatibility audited separately; no final receipt",
+        "executable_routing": "available",
+        "scientific_specification": "pancreas context, hormone references and donor-derived scale remain version-specific",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_evidence": [
+        "protein_primary/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "MEAS-1",
+        "BIO-1",
+        "BIO-2",
+        "CORE-2",
+        "PROT-1"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/remediation_checks.json",
+          "sha256": "bf1bee18997af6d421fcee1dec991ee282a83d9c7903f8804250df2aecf990a3"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/protein/verification/inspection_ledger.json",
+          "sha256": "5696d795b637920cceee6735168df835c14b2b2a390c032fab9829bbdaac6691"
+        }
+      ],
+      "modality": "protein",
+      "panel": "panel-neither-58ch",
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "phenocycler:6476pLN_Scan1.er.qptiff",
+        "phenocycler:6579pLN_Scan1.er.qptiff",
+        "phenocycler:6623pLN_Scan1.er.qptiff",
+        "phenocycler:6380pLN_Scan1.er.qptiff",
+        "phenocycler:6523pLN_Scan1.er.qptiff",
+        "phenocycler:6534pLN_Scan1.er.qptiff",
+        "phenocycler:6450pLN_Scan1.er.qptiff",
+        "phenocycler:HDL115pLN_Scan1.er.qptiff",
+        "phenocycler:6461pLN_Scan1.er.qptiff",
+        "phenocycler:6505pLN_Scan1.er.qptiff",
+        "phenocycler:6521pLN_Scan1.er.qptiff",
+        "phenocycler:6566pLN_Scan1.er.qptiff",
+        "phenocycler:6493pLN_Scan1.er.qptiff",
+        "phenocycler:6482pLN_Scan1.er.qptiff",
+        "phenocycler:6436pLN_Scan1.er.qptiff",
+        "phenocycler:6551pLN_Scan1.er.qptiff",
+        "phenocycler:6539pLN_Scan1.er.qptiff",
+        "phenocycler:6593pLN_Scan1.er.qptiff",
+        "phenocycler:6442pLN_Scan1.er.qptiff"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Existing pLN review candidate now applies validated configured cutoff and emits resolved settings/fits.",
+        "computational_validation": "10,505,964 cells; 9,883,811 nucleus eligible; 1,045 fits; all19 spatial plots inspected; 104,500 sampled marker states exact; final classes0.",
+        "executable_routing": "All19 Stage03/05/06 completed with a fresh shared full19 normalization fit.",
+        "scientific_specification": "Existing raw QuPath candidate contract only; canonical own-compartment REDSEA and final pLN identity registry remain unsupported.",
+        "valid_inputs": "All19 explicit exports and 204/204 upstream input/output hashes verified."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "legacy candidate route accepts configured rosters; per-image pLN port unsupported",
+        "computational_validation": "two sections / 832,062 cells reconciled; 17 blocked; no final classes",
+        "executable_routing": "only two sections have bound upstream artifacts; remaining 17 blocked",
+        "scientific_specification": "version_specific; portability review required",
+        "valid_inputs": "two pilot sections verified; old manifest recovered exactly at producer pin"
+      },
+      "baseline_evidence": [
+        "dependencies.csv#protein.pln",
+        "pln/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "PANEL-3",
+        "BIO-1",
+        "BIO-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/config/completion_summary.json",
+          "sha256": "226261bb0e7bd0ffc3119b690c23bb253b4a816929a1f32615e6d7ee9777d59f"
+        }
+      ],
+      "modality": "protein",
+      "panel": null,
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreatic_lymph_node"
+    },
+    {
+      "acquisitions": [
+        "HDL011_PC33.ome.tiff",
+        "HDL053_PC33.ome.tif",
+        "HDL055_PC33.ome.tiff",
+        "HDL063_PC33.ome.tiff"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "no PC33 registry/lineage route",
+        "computational_validation": "blocked, all four retained",
+        "executable_routing": "unsupported",
+        "scientific_specification": "lineage roots absent; four sections deliberately not typed",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "no PC33 registry/lineage route",
+        "computational_validation": "blocked, all four retained",
+        "executable_routing": "unsupported",
+        "scientific_specification": "lineage roots absent; four sections deliberately not typed",
+        "valid_inputs": "partially_verified"
+      },
+      "baseline_evidence": [
+        "remote/spleen/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "PANEL-2"
+      ],
+      "current_evidence": [],
+      "modality": "protein",
+      "panel": "spleen_pc33",
+      "relationship_type": "independent_acquisition",
+      "tissue": "spleen"
+    },
+    {
+      "acquisitions": [
+        "HDL009_PC67_0110979-S2",
+        "HDL014_PC67_0110618-S4",
+        "HDL034_PC67_0110979-S3",
+        "HDL059_PC67_0110979-S1",
+        "HDL080_PC67_0110979-S4",
+        "HDL082_PC67_0110618-S2",
+        "HDL090_PC67_0110618-S1",
+        "HDL104_PC67_0110618-S3"
+      ],
+      "assay": "phenocycler",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "later a9549cc producer; pinned df3fe1d port proposals remain separate",
+        "computational_validation": "all eight native eligible cell universes reconciled; 4,346,039 cells",
+        "executable_routing": "available",
+        "scientific_specification": "version_specific; portability review required",
+        "valid_inputs": "Original receipt audit plus10/10 formerly unverified large-input bindings pass their declared algorithms:8full geometry hashes and2sampled qptiff fingerprints. New full-file hashes recorded for all207,864,852,220bytes; historical full qptiff identity remains unproven."
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "later a9549cc producer; pinned df3fe1d port proposals remain separate",
+        "computational_validation": "all eight native eligible cell universes reconciled; 4,346,039 cells",
+        "executable_routing": "available",
+        "scientific_specification": "version_specific; portability review required",
+        "valid_inputs": "77 receipt entries checked; 10 large image/geometry input hashes unavailable"
+      },
+      "baseline_evidence": [
+        "remote/spleen/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "PANEL-1",
+        "BIO-3",
+        "MEAS-1"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/hpg_maldi_xenium/spleen_algorithm_verification/verification.json",
+          "sha256": "747e13257e0763d0513a6deacca4b1f7ec92796fae7033b5a53e0e09ed4bdd5c"
+        }
+      ],
+      "modality": "protein",
+      "panel": "spleen_pc67",
+      "relationship_type": "independent_acquisition",
+      "tissue": "spleen"
+    },
+    {
+      "acquisitions": [
+        "xenium:0041117:PanT",
+        "xenium:0041116:Region_1",
+        "xenium:0041396:Pancreas",
+        "xenium:0041393:Pancreas",
+        "xenium:0041139:Panc",
+        "xenium:0041140:Panc_pLN",
+        "xenium:0037637:6457_Pan",
+        "xenium:0037634:6476_Pan",
+        "xenium:0037502:6380_Pan",
+        "xenium:0037499:6523_Pan",
+        "xenium:0041035:Pan",
+        "xenium:0041032:Pan",
+        "xenium:0059968:Panc",
+        "xenium:0059847:Panc",
+        "xenium:0037191:Panc",
+        "xenium:0037199:Panc",
+        "xenium:0037376:Panc",
+        "xenium:0037354:Panc",
+        "xenium:0059865:Panc",
+        "xenium:0059907:Panc",
+        "xenium:0059945:Panc",
+        "xenium:0059947:Panc",
+        "xenium:0080824:Region_1",
+        "xenium:0080836:Region_1",
+        "xenium:0081203:6534_Panc",
+        "xenium:0081215:6623_Panc",
+        "xenium:0080870:panc",
+        "xenium:0081366:panc",
+        "xenium:0080579:panc",
+        "xenium:0080502:panc",
+        "xenium:0041323:Region_1",
+        "xenium:0041326:Region_1"
+      ],
+      "assay": "xenium",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current RNA-only wrapper validates and uses requested existing naming policy and emits gene coverage/settings/fits without protein dependency.",
+        "computational_validation": "Frozen full65 evaluation:60 candidates,5 unavailable; 39 focused configuration tests pass. Full65 not rerun solely for default-preserving policy wiring.",
+        "executable_routing": "available",
+        "scientific_specification": "tissue-specific identity cores and fixed thresholds; actual panel coverage in reports; absent genes are not zeros",
+        "valid_inputs": "receipt hashes and every native/qualified ID validated"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "available",
+        "computational_validation": "all 65 across both tissues accounted; 60 candidates and five expected unavailable; state counts independently reconciled",
+        "executable_routing": "available",
+        "scientific_specification": "tissue-specific identity cores and fixed thresholds; actual panel coverage in reports; absent genes are not zeros",
+        "valid_inputs": "receipt hashes and every native/qualified ID validated"
+      },
+      "baseline_evidence": [
+        "remote/rna/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "RNA-1",
+        "RNA-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/config/validation.json",
+          "sha256": "80adb9899433afeacbb544aef764c5889679c139b51c7b7e060581dc9e82cc3a"
+        }
+      ],
+      "modality": "rna",
+      "panel": null,
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreas"
+    },
+    {
+      "acquisitions": [
+        "xenium:0041396:pLN",
+        "xenium:0041117:pLN",
+        "xenium:0041140:pLN",
+        "xenium:0041032:pLN",
+        "xenium:0037502:6380_pLN",
+        "xenium:0059907:PanT",
+        "xenium:0059947:pLN",
+        "xenium:0080824:Region_2",
+        "xenium:0037637:6457_pLN1",
+        "xenium:0059847:pLN",
+        "xenium:0037634:6476_pLN",
+        "xenium:0037354:pLN",
+        "xenium:0037191:pLN",
+        "xenium:0080836:Region_2",
+        "xenium:0037199:pLN",
+        "xenium:0037499:6523_pLN",
+        "xenium:0041393:pLN",
+        "xenium:0081203:6534_pLN1",
+        "xenium:0059865:PanT",
+        "xenium:0037376:pLN",
+        "xenium:0059968:pLN",
+        "xenium:0041035:pLN1",
+        "xenium:0041139:pLN",
+        "xenium:0059945:pLN",
+        "xenium:0081215:6623_pLN",
+        "xenium:0037637:6457_pLN2",
+        "xenium:0041035:pLN2",
+        "xenium:0081203:6534_pLN2",
+        "xenium:0041035:pLN3",
+        "xenium:0080870:pLN",
+        "xenium:0081366:pLN",
+        "xenium:0080579:pLN",
+        "xenium:0080502:pLN"
+      ],
+      "assay": "xenium",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "Current RNA-only wrapper validates and uses requested existing naming policy and emits gene coverage/settings/fits without protein dependency.",
+        "computational_validation": "Frozen full65 evaluation:60 candidates,5 unavailable; 39 focused configuration tests pass. Full65 not rerun solely for default-preserving policy wiring.",
+        "executable_routing": "available",
+        "scientific_specification": "tissue-specific identity cores and fixed thresholds; actual panel coverage in reports; absent genes are not zeros",
+        "valid_inputs": "receipt hashes and every native/qualified ID validated"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "available",
+        "computational_validation": "all 65 across both tissues accounted; 60 candidates and five expected unavailable; state counts independently reconciled",
+        "executable_routing": "available",
+        "scientific_specification": "tissue-specific identity cores and fixed thresholds; actual panel coverage in reports; absent genes are not zeros",
+        "valid_inputs": "receipt hashes and every native/qualified ID validated"
+      },
+      "baseline_evidence": [
+        "remote/rna/per_acquisition.json"
+      ],
+      "baseline_remediation_ids": [
+        "RNA-1",
+        "RNA-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/config/validation.json",
+          "sha256": "80adb9899433afeacbb544aef764c5889679c139b51c7b7e060581dc9e82cc3a"
+        }
+      ],
+      "modality": "rna",
+      "panel": null,
+      "relationship_type": "independent_acquisition",
+      "tissue": "pancreatic_lymph_node"
+    },
+    {
+      "acquisitions": [
+        "xenium:0110618:090",
+        "xenium:0110618:082",
+        "xenium:0110618:104",
+        "xenium:0110618:014",
+        "xenium:0110979:059",
+        "xenium:0110979:009",
+        "xenium:0110979:034",
+        "xenium:0110979:080"
+      ],
+      "assay": "xenium",
+      "axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "bounded gene-evidence pilot only",
+        "computational_validation": "blocked for eight; pilot is not substituted",
+        "executable_routing": "full independent spleen RNA typing unavailable",
+        "scientific_specification": "full spleen RNA lineage specification missing",
+        "valid_inputs": "all eight source bundles verified; 5,001 genes with identical gene-set hash; 4,167,720 cell IDs reconciled and nucleus admission measured"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; no acceptance asserted",
+        "code_availability": "bounded gene-evidence pilot only",
+        "computational_validation": "blocked for eight; pilot is not substituted",
+        "executable_routing": "full independent spleen RNA typing unavailable",
+        "scientific_specification": "full spleen RNA lineage specification missing",
+        "valid_inputs": "all eight source bundles verified; 5,001 genes with identical gene-set hash; 4,167,720 cell IDs reconciled and nucleus admission measured"
+      },
+      "baseline_evidence": [
+        "remote/spleen_rna_inputs.json"
+      ],
+      "baseline_remediation_ids": [
+        "RNA-2",
+        "GEOM-1"
+      ],
+      "current_evidence": [],
+      "modality": "rna",
+      "panel": "gene_set_sha256:89fe237cc4e29aadfdc49ca9446fa4d1fb525984be32d85342a0fa360ffd988d",
+      "relationship_type": "independent_acquisition",
+      "tissue": "spleen"
+    },
+    {
+      "assay": "PhenoCycler/Xenium",
+      "axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "Independent per-pair batch coordinator plus candidate matcher retaining ties, alternatives, both calls, explicit hierarchy comparison and supplied uncertainty.",
+        "computational_validation": "98 combined tests (20batch+78matching/crossmodal); all12 real preflight entries accounted; no real same-cell or cross-assay truth claim.",
+        "executable_routing": "Batch coordinator implemented; all12 pairs accounted (8blocked spleen inputs,4unavailable pancreas adapters); pLN relationships unresolved. No real accepted cohort geometry.",
+        "scientific_specification": "Existing5um cap retained. Uncertainty requires an evidence-bound supplied radial bound; missing bound/segmentation overlap/lineage map remains unavailable.",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "one-pair spleen candidate-link pilot; shared matching functions",
+        "computational_validation": "contract tests and adversarial probes only; no real same-cell links validated",
+        "executable_routing": "bounded single-pair pilot; no full-cohort route/accepted transforms",
+        "scientific_specification": "hierarchy mapping, split/merge policy and uncertainty propagation missing",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_evidence": [
+        "pair_dispositions.json",
+        "fault_probes/results.json"
+      ],
+      "baseline_remediation_ids": [
+        "GEOM-1",
+        "GEOM-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/geom2_revision1/completion_summary.json",
+          "sha256": "042ae287b1decf933132ecf73dd29764fcafa627f0cf5fd7a47cdad231ea1b88"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/full_cohort_preflight/ledger.json",
+          "sha256": "d5516d39641df2aeaabbdf7bb1b7926bced3780d019177a914be8e21681c6a3a"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/completion_summary.json",
+          "sha256": "122273ba2567cd23f8e4c7b30eedf79c0333fb683a1cd4f1719124c0d3d406ef"
+        }
+      ],
+      "modality": "protein/rna",
+      "panel": null,
+      "relationship_type": "same_section",
+      "tissue": "pancreas"
+    },
+    {
+      "assay": "PhenoCycler/Xenium",
+      "axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "Independent per-pair batch coordinator plus candidate matcher retaining ties, alternatives, both calls, explicit hierarchy comparison and supplied uncertainty.",
+        "computational_validation": "98 combined tests (20batch+78matching/crossmodal); all12 real preflight entries accounted; no real same-cell or cross-assay truth claim.",
+        "executable_routing": "Batch coordinator implemented; all12 pairs accounted (8blocked spleen inputs,4unavailable pancreas adapters); pLN relationships unresolved. No real accepted cohort geometry.",
+        "scientific_specification": "Existing5um cap retained. Uncertainty requires an evidence-bound supplied radial bound; missing bound/segmentation overlap/lineage map remains unavailable.",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "one-pair spleen candidate-link pilot; shared matching functions",
+        "computational_validation": "contract tests and adversarial probes only; no real same-cell links validated",
+        "executable_routing": "bounded single-pair pilot; no full-cohort route/accepted transforms",
+        "scientific_specification": "hierarchy mapping, split/merge policy and uncertainty propagation missing",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_evidence": [
+        "pair_dispositions.json",
+        "fault_probes/results.json"
+      ],
+      "baseline_remediation_ids": [
+        "GEOM-1",
+        "GEOM-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/geom2_revision1/completion_summary.json",
+          "sha256": "042ae287b1decf933132ecf73dd29764fcafa627f0cf5fd7a47cdad231ea1b88"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/full_cohort_preflight/ledger.json",
+          "sha256": "d5516d39641df2aeaabbdf7bb1b7926bced3780d019177a914be8e21681c6a3a"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/completion_summary.json",
+          "sha256": "122273ba2567cd23f8e4c7b30eedf79c0333fb683a1cd4f1719124c0d3d406ef"
+        }
+      ],
+      "modality": "protein/rna",
+      "panel": null,
+      "relationship_type": "same_section",
+      "tissue": "pancreatic_lymph_node"
+    },
+    {
+      "assay": "PhenoCycler/Xenium",
+      "axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "Independent per-pair batch coordinator plus candidate matcher retaining ties, alternatives, both calls, explicit hierarchy comparison and supplied uncertainty.",
+        "computational_validation": "98 combined tests (20batch+78matching/crossmodal); all12 real preflight entries accounted; no real same-cell or cross-assay truth claim.",
+        "executable_routing": "Batch coordinator implemented; all12 pairs accounted (8blocked spleen inputs,4unavailable pancreas adapters); pLN relationships unresolved. No real accepted cohort geometry.",
+        "scientific_specification": "Existing5um cap retained. Uncertainty requires an evidence-bound supplied radial bound; missing bound/segmentation overlap/lineage map remains unavailable.",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_axes": {
+        "biological_review": "not performed; concordance cannot establish truth",
+        "code_availability": "one-pair spleen candidate-link pilot; shared matching functions",
+        "computational_validation": "contract tests and adversarial probes only; no real same-cell links validated",
+        "executable_routing": "bounded single-pair pilot; no full-cohort route/accepted transforms",
+        "scientific_specification": "hierarchy mapping, split/merge policy and uncertainty propagation missing",
+        "valid_inputs": "eight verified spleen source pairs / four pancreas declarations; pLN physical relationships unresolved"
+      },
+      "baseline_evidence": [
+        "pair_dispositions.json",
+        "fault_probes/results.json"
+      ],
+      "baseline_remediation_ids": [
+        "GEOM-1",
+        "GEOM-2"
+      ],
+      "current_evidence": [
+        {
+          "path": "outputs/blocker_remediation_20261102/geom2_revision1/completion_summary.json",
+          "sha256": "042ae287b1decf933132ecf73dd29764fcafa627f0cf5fd7a47cdad231ea1b88"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/full_cohort_preflight/ledger.json",
+          "sha256": "d5516d39641df2aeaabbdf7bb1b7926bced3780d019177a914be8e21681c6a3a"
+        },
+        {
+          "path": "outputs/blocker_remediation_20261102/geom1/completion_summary.json",
+          "sha256": "122273ba2567cd23f8e4c7b30eedf79c0333fb683a1cd4f1719124c0d3d406ef"
+        }
+      ],
+      "modality": "protein/rna",
+      "panel": "PC67/RNA",
+      "relationship_type": "same_section",
+      "tissue": "spleen"
+    }
+  ],
+  "schema": "portability-remediation-readiness/1",
+  "scientific_approvals_added": false,
+  "serial_order_context": {
+    "evidence": {
+      "path": "docs/evaluations/blocker_remediation_20261102/relationship_context.json",
+      "sha256": "90b990ff4a6332cd5aa493cee6a3b6f410073fab318320799ab1d5e1501b7c31"
+    },
+    "exact_assignments_changed": false,
+    "exceptions": "not_enumerated",
+    "same_slide_inventory_unchanged": true,
+    "scope_qualifier": "For the most part",
+    "typical_order": [
+      "Xenium",
+      "PhenoCycler",
+      "MALDI"
+    ]
+  }
+}

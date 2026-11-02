@@ -1,5 +1,10 @@
 # Running and reviewing the portability evaluation
 
+> Historical workflow: this guide describes the original evaluation before the
+> subsequent blocker-fix authorization. Use the [current remediation guide](PORTABILITY_REMEDIATION_USER_GUIDE.md)
+> and [follow-up report](evaluations/blocker_remediation_20261102/README.md) for
+> implemented repairs and current status. The dated evidence below remains unchanged.
+
 This guide explains how to inspect the completed 2026-11-02 evaluation, repeat its
 supported computational checks, and prepare a new candidate evaluation. It covers
 protein typing, RNA-only typing, same-slide comparison, serial-section MALDI and
