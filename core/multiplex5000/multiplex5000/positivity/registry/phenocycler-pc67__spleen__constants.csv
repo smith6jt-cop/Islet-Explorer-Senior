@@ -3,6 +3,7 @@ ISOLATION_UM,13.0,measured on the 8 PC67 sections (derive_spleen_typing_registry
 LEVEL_QUANTILE,99.0,Barlow et al. eLife 2024 (owner-approved known-negative rule),positive above the 99th percentile of cells known not to express the marker,
 KNOWN_NEGATIVE_MIN_ABOVE,10,readability floor,a percentile needs at least 10 reference cells above it,
 BACKGROUND_K,1.731,measured on the 8 PC67 sections,"median (known-negative level - background mode) / half-width over 312 marker-sections, IQR 1.17-2.68",
+POSITIVE_LINEAGE_MIN,0.5,"positivity pass criterion (delegated to the agent, owner 10-28)","a level must leave most of the lineage that must carry the marker above it, or the marker is unavailable",
 CANARY_MARGIN,1,owner 2026-10-29,a group resolves at one more canary-positive marker than the runner-up,
 CANARY_MIN_DEPTH,2,owner 2026-10-28 (the Xenium canary logic),the resolving group needs two markers,
 CANARY_TIE_INTERIOR_LEAD,0.0,owner 2026-10-29: 'both are brighter and cover more cell area',no extra lead: the CODEX 0.15 was fitted on CODEX cells,

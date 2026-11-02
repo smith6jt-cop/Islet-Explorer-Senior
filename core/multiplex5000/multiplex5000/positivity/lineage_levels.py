@@ -17,7 +17,11 @@ spleen populations and spleen-measured constants:
   not the marker's background; the cell itself stays, since its own tail is what the percentile measures. A reference
   with fewer than KNOWN_NEGATIVE_MIN_ABOVE cells above the percentile gives no level.
 - **Non-haematopoietic cells** (CD45's reference): above their levels for a marker of the Mesenchymal, Endothelial or
-  Epithelial compartment, in neither lymphoid lineage, with no lymphocyte within ISOLATION_UM.
+  Epithelial compartment, above no haematopoietic lineage marker's level, with no lymphocyte within ISOLATION_UM.
+- **Markers most cells carry** (``edge``): the expressing mode minus BACKGROUND_K half-widths (owner 10-29).
+- **Positive lineage:** a marker whose carriers are certain (registry ``positive_population``: CD3e on T cells; CD20,
+  CD79a and HLA-DR on B cells; CD45 on lymphocytes) has no level on a section where fewer than POSITIVE_LINEAGE_MIN of
+  them are above it -- the reading does not separate the lineage that must carry it, so it is unavailable.
 - **Markers no lineage excludes** (registry method ``valley``): the density minimum between the two highest modes;
   ``background``: the background mode plus BACKGROUND_K half-widths (K measured on the spleen known-negative markers).
 - **Readings:** each marker's positivity measurement (whole cell; nuclear antigens on the nucleus), and for a marker
@@ -41,7 +45,7 @@ from scipy.stats import gaussian_kde
 from . import registry as RG
 
 POPULATIONS = ("b_cells", "t_cells", "lymphocytes", "non_haematopoietic")
-METHODS = ("known_negative", "valley", "background")
+METHODS = ("known_negative", "valley", "background", "edge")
 NON_HAEM_COMPARTMENTS = ("Mesenchymal", "Endothelial", "Epithelial")
 KDE_SAMPLE = 200_000
 GRID = 600
@@ -118,6 +122,23 @@ def background(v: np.ndarray, k: float) -> tuple[float, float, float]:
     return float(grid[i]), w, float(grid[i] + k * w)
 
 
+def edge(v: np.ndarray, k: float) -> tuple[float, float, float]:
+    """(mode, right half-width, mode - k half-widths): the lower edge of the expressing population, for a marker most
+    cells carry, whose highest mode is the positive one (owner 10-29: CD44-like markers take E-cadherin's edge
+    method)."""
+    grid, dens = _kde(v)
+    if grid is None:
+        return np.nan, np.nan, np.nan
+    i = int(np.argmax(dens))
+    j = i
+    while j < len(dens) - 1 and dens[j] > dens[i] / 2:
+        j += 1
+    if dens[j] > dens[i] / 2:
+        return float(grid[i]), np.nan, np.nan
+    w = float(grid[j] - grid[i]) / np.sqrt(2 * np.log(2))
+    return float(grid[i]), w, float(grid[i] - k * w)
+
+
 def away(xy: np.ndarray, ref: np.ndarray, src: np.ndarray, cut: float) -> np.ndarray:
     """Cells of `ref` with no `src` cell other than themselves within `cut` um."""
     if cut <= 0 or not src.any() or not ref.any():
@@ -191,15 +212,27 @@ def image_levels(source, tag: str, reg_name: tuple) -> list[dict]:
                 center, _, lvl = valley(v)
             elif method == "background":
                 center, width, lvl = background(v, k)
+            elif method == "edge":
+                center, width, lvl = edge(v, k)
             else:
                 raise LineageLevelError(f"{m}: method {method!r} is not among {METHODS}")
+            # a marker whose carriers are known (registry positive_population) is not measured on this section when
+            # its level leaves most of them below it (POSITIVE_LINEAGE_MIN): unavailable, never negative
+            carriers = reg.table.loc[m, "positive_population"] if "positive_population" in reg.table.columns else ""
+            recovered = np.nan
+            if carriers and np.isfinite(lvl):
+                lin = pops[carriers]
+                recovered = float((v[lin] > lvl).mean()) if lin.any() else np.nan
+                if not (recovered >= reg.const("POSITIVE_LINEAGE_MIN")):
+                    lvl = np.nan
             levels[(m, meas)] = lvl
             pos = v > lvl if np.isfinite(lvl) else np.zeros(n, bool)
             rows.append({"image": tag, "marker": m, "measurement": meas, "method": method, "reading": reading,
                          "pass": npass, "center": center, "width": width, "level_log": lvl,
                          "level_raw": float(np.expm1(lvl)) if np.isfinite(lvl) else np.nan,
                          "positive_fraction": float(pos.mean()), "zero_fraction": float(np.mean(v <= 0)),
-                         "reference_cells": ref_n, "background_center": center, "background_width": width})
+                         "reference_cells": ref_n, "positive_lineage_recovered": recovered,
+                         "background_center": center, "background_width": width})
             return lvl
 
         deferred = []
@@ -208,13 +241,22 @@ def image_levels(source, tag: str, reg_name: tuple) -> list[dict]:
                     ([(reg.differentiation(m), "differentiation")] if reg.differentiation(m) else []):
                 if one(m, meas, reading) is None:
                     deferred.append((m, meas, reading))
-        nonhaem = np.zeros(n, bool)
+        # non-haematopoietic: a Mesenchymal/Endothelial/Epithelial marker above its level and no haematopoietic
+        # lineage marker above its level (macrophages carry Vimentin and CD31), away from lymphocytes
+        nonhaem, haem = np.zeros(n, bool), B | T
         for m in markers:
-            if reg.role(m) == "defining" and reg.table.loc[m, "compartment"] in NON_HAEM_COMPARTMENTS:
-                lvl = levels.get((m, reg.measurement(m)), np.nan)
-                if np.isfinite(lvl):
-                    nonhaem |= _reading(d, reg, m, reg.measurement(m)) > lvl
-        pops["non_haematopoietic"] = away(xy, nonhaem & ~(B | T), B | T, cut)
+            if reg.role(m) != "defining":
+                continue
+            lvl = levels.get((m, reg.measurement(m)), np.nan)
+            if not np.isfinite(lvl):
+                continue
+            above = _reading(d, reg, m, reg.measurement(m)) > lvl
+            if reg.table.loc[m, "compartment"] in NON_HAEM_COMPARTMENTS:
+                nonhaem |= above
+            elif reg.table.loc[m, "compartment"] == "Hematopoietic" and reg.background_method(m) == "known_negative" \
+                    and "non_haematopoietic" not in reg.table.loc[m, "level_reference"]:
+                haem |= above
+        pops["non_haematopoietic"] = away(xy, nonhaem & ~haem, B | T, cut)
         for m, meas, reading in deferred:
             one(m, meas, reading)
         if npass == 1:                      # pass 2: the lineages from the two markers' own known-negative levels

@@ -112,7 +112,7 @@ def test_nothing_is_carried_from_another_dataset(reg):
     consts = pd.read_csv(reg.directory / f"{reg.name}__constants.csv", keep_default_na=False, dtype=str)
     assert not consts["source"].str.contains("carried from").any()
     assert not reg.table["source"].str.contains("carried from").any()
-    for name in ("ISOLATION_UM", "LEVEL_QUANTILE", "BACKGROUND_K", "KNOWN_NEGATIVE_MIN_ABOVE", "CANARY_MARGIN",
+    for name in ("ISOLATION_UM", "LEVEL_QUANTILE", "BACKGROUND_K", "KNOWN_NEGATIVE_MIN_ABOVE", "POSITIVE_LINEAGE_MIN", "CANARY_MARGIN",
                  "CANARY_MIN_DEPTH", "CANARY_TIE_INTERIOR_LEAD"):
         reg.const(name)
     assert consts.set_index("name").loc["ISOLATION_UM", "source"].startswith("measured on the 8 PC67 sections")

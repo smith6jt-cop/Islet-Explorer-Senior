@@ -23,7 +23,8 @@ ROWS = [  # marker, role, compartment, lineage, required, measurement, different
     ("Ki67", "state", "", "", "no", "nucleus", "", "valley", ""),
     ("CD44", "state", "", "", "no", "whole_cell", "", "background", ""),
 ]
-CONSTANTS = {"ISOLATION_UM": 10, "LEVEL_QUANTILE": 99, "KNOWN_NEGATIVE_MIN_ABOVE": 10, "BACKGROUND_K": 3}
+CONSTANTS = {"ISOLATION_UM": 10, "LEVEL_QUANTILE": 99, "KNOWN_NEGATIVE_MIN_ABOVE": 10, "BACKGROUND_K": 3,
+             "POSITIVE_LINEAGE_MIN": 0.5}
 
 
 @pytest.fixture()
