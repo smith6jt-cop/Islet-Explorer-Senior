@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "scope": "Every catalog declaration and registry row; exact static consumer references, conservative output candidates, explicit unproven runtime values.",
+  "complete": false,
+  "completion_interpretation": "Static accounting is complete for the catalog. Runtime source-to-output trace and scientific transfer acceptance remain incomplete.",
+  "summary": {
+    "catalog_declarations": 572,
+    "catalog_source_hashes_verified": 51,
+    "classifications": {
+      "assay_specific_measurement": 45,
+      "panel_configuration": 27,
+      "registration_geometry": 112,
+      "shared_computation": 66,
+      "tissue_biology": 207,
+      "unresolved_assumption": 115
+    },
+    "declaration_dispositions": {
+      "no_resolved_read_in_inspected_sources": 23,
+      "reported_parameter_values_verified_for_recorded_invocations": 8,
+      "static_trace_runtime_unresolved": 541
+    },
+    "declarations_with_receipt_bound_reported_values": 8,
+    "fitted_artifact_groups": 4,
+    "literal_dispositions": {
+      "measurement_or_numeric_representation_candidate": 233,
+      "nonparameter_diagnostic_text_candidate": 559,
+      "nonparameter_index_candidate": 177,
+      "nonparameter_schema_key_candidate": 1681,
+      "scientific_criterion_or_reported_criterion_candidate": 17,
+      "scientific_method_argument_candidate": 30,
+      "scientific_numeric_transform_candidate": 71,
+      "tissue_gene_or_marker_literal_candidate": 34,
+      "unresolved_input_or_output_path_configuration": 360,
+      "unresolved_literal_context": 7584,
+      "unresolved_threshold_or_validation_bound": 472
+    },
+    "receipt_declared_settings": 15,
+    "registry_rows": 341,
+    "registry_tables": 13,
+    "remaining_literal_candidates": 11218,
+    "traced_declarations": 572,
+    "unique_parameter_ids": 572
+  },
+  "method_limits": [
+    "AST is static evidence, not execution coverage.",
+    "Lexical/import resolution does not prove runtime monkeypatching, dynamic import, method receiver type or branches.",
+    "Output assignment closure is flow-insensitive and may overapproximate dependencies; no artifact-level causality is claimed.",
+    "Default callsite analysis covers explicit lexical/import bindings only; unresolvable methods, star arguments and dynamic calls remain unresolved.",
+    "Complete route receipts establish route outputs; individual source declarations can remain unused or overridden."
+  ],
+  "remaining_work": [
+    {
+      "id": "CORE-1-runtime",
+      "requirement": "Add opt-in consumer-entry parameter receipts with explicit fixed/selected/fitted/review roles, qualified producer identities, unavailable values, input/output receipts and branch scope. Evaluation does not authorize this scientific instrumentation change."
+    },
+    {
+      "id": "CORE-1-literals",
+      "requirement": "The literal inventory explicitly disposes every candidate using labelled AST heuristics. Review the unresolved contexts and confirm scientific candidates when specifying production resolved-parameter emission; preserve nonparameter roles. Do not call the 572-entry declaration catalog exhaustive."
+    },
+    {
+      "id": "CORE-1-library-defaults",
+      "requirement": "Pin and report external library defaults (including pLN normalize_total target_sum=None), CLI/env-derived values, fit populations and actual overrides; retain reconstructed values separately."
+    },
+    {
+      "id": "CORE-2-hooks",
+      "requirement": "Specify which tissue hooks must be invoked by each route, test dispatch and absent context separately; current hook declarations are not evidence of enforcement."
+    }
+  ]
+}

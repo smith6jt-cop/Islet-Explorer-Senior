@@ -1,5 +1,18 @@
 # MultiPlex5000
 
+The [workflow user guide](../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md)
+covers every evaluation route, its prerequisites and runnable commands. The
+[portability report](../../docs/evaluations/dynamic_portability_20261102/README.md)
+records full-cohort evidence and remaining scientific blockers; code availability
+alone does not imply a validated tissue/panel route.
+
+Parameter observations are opt-in and project-only. Install the optional
+`parameter-recording` extra in a separate environment for MCP, or use the
+CLI without the optional MCP extra. The pinned engine still requires NumPy. See
+[recording setup and schema](../../docs/evaluations/dynamic_portability_20261102/recording.md).
+Recording supports proposed/evaluated/failed/blocked settings, immutable revisions
+and durable retries. Automatic application, recommendations and approval are disabled.
+
 ## Tissue typing workflow
 
 Install the package with its typing dependencies from this directory (or install

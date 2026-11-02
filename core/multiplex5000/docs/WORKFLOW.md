@@ -1,5 +1,14 @@
 # Current QuPath-to-expression workflow
 
+**Scope of this page:** the legacy measurement API below. The receipt-backed
+`mplx5k` projects also provide inventory, assay-specific candidate typing and
+integration routes. Follow the
+[complete workflow user guide](../../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md)
+for those commands and their gates, and the
+[portability evaluation](../../../docs/evaluations/dynamic_portability_20261102/README.md)
+for the verified cohort dispositions. Do not apply the legacy API's stable-root
+or no-receipt semantics to those newer projects.
+
 This document is the operational and scientific contract for the current
 Phenocycler workflow. It produces an auditable, UUID-keyed expression table
 from declared QuPath inputs.

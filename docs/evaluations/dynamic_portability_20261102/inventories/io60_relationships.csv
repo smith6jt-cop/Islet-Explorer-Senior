@@ -1,0 +1,59 @@
+kind,donor_id,a,b,reason,evidence
+serial_section,6374,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 2
+serial_section,6482,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 3
+serial_section,6539,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 4
+serial_section,6493,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 5
+serial_section,6593,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 6
+serial_section,6442,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 7
+serial_section,6461,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 8
+serial_section,6380,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 9
+serial_section,6476,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 10
+serial_section,6521,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 11
+serial_section,6551,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 12
+serial_section,115,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 13
+serial_section,6457,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 14
+serial_section,6579,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 15
+serial_section,6436,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 16
+serial_section,6505,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 17
+serial_section,6623,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 18
+serial_section,6450,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 19
+serial_section,6534,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 20
+serial_section,6591,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 21
+serial_section,6566,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 22
+serial_section,6523,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 23
+same_section,6533,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 24
+same_section,0112,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 25
+same_section,6347,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 26
+same_section,6580,PhenoCycler pancreas section,Xenium section (the notes name no serial),,donor_notes line 27
+different_block,6580,pancreas tissue,pLN annotation ee6522ed-8576-443a-aaf8-357463cb9ea4 (1 piece(s)),,pln_blocks row 2
+shared_slide,6580,image 0080502_6580_pLNpanc_Scan1.er.qptiff - resolution #1,pLN annotation ee6522ed-8576-443a-aaf8-357463cb9ea4 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 2
+same_block,6580,pancreas tissue,pLN annotation 2585dc7c-9c78-4010-bf31-d11fa98641f1 (1 piece(s)),,pln_blocks row 3
+shared_slide,6580,image 0080502_6580_pLNpanc_Scan1.er.qptiff - resolution #1,pLN annotation 2585dc7c-9c78-4010-bf31-d11fa98641f1 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 3
+different_block,6347,pancreas tissue,pLN annotation ed8f8a13-54f3-4bf5-9f79-70cf1207ede1 (1 piece(s)),,pln_blocks row 4
+shared_slide,6347,image 0080579_6347_pLNpanc_Scan1.er.qptiff - resolution #1,pLN annotation ed8f8a13-54f3-4bf5-9f79-70cf1207ede1 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 4
+same_block,6347,pancreas tissue,pLN annotation f0939722-6119-45ae-9a7c-dc78e362e9f2 (1 piece(s)),,pln_blocks row 5
+shared_slide,6347,image 0080579_6347_pLNpanc_Scan1.er.qptiff - resolution #1,pLN annotation f0939722-6119-45ae-9a7c-dc78e362e9f2 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 5
+different_block,6533,pancreas tissue,pLN annotation 733e19b4-582c-4827-9a29-163d97a00783 (3 piece(s)),,pln_blocks row 6
+shared_slide,6533,image 0080870_6533_pLNpanc_Scan3.er.qptiff - resolution #1,pLN annotation 733e19b4-582c-4827-9a29-163d97a00783 (3 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 6
+different_block,0112,pancreas tissue,pLN annotation 2b123ea5-2aa3-41d0-a44b-2213b89c15e5 (1 piece(s)),,pln_blocks row 7
+shared_slide,0112,image 0081366_HDL112_pLNpanc_Scan3.er.qptiff - resolution #1,pLN annotation 2b123ea5-2aa3-41d0-a44b-2213b89c15e5 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 7
+same_block,6450,pancreas tissue,pLN annotation 2ac90997-21c2-41ce-84a2-c9374d7f3242 (1 piece(s)),,pln_blocks row 8
+shared_slide,6450,image 6450panc_Scan1.er.qptiff - resolution #1,pLN annotation 2ac90997-21c2-41ce-84a2-c9374d7f3242 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 8
+same_block,6534,pancreas tissue,pLN annotation ddc0e539-3a95-4871-8d58-9e89566f2108 (1 piece(s)),,pln_blocks row 9
+shared_slide,6534,image 6534pacn_Scan1.er.qptiff - resolution #1,pLN annotation ddc0e539-3a95-4871-8d58-9e89566f2108 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 9
+same_block,6539,pancreas tissue,pLN annotation 65787303-8207-452b-b52b-a7feb9ec2752 (1 piece(s)),,pln_blocks row 10
+shared_slide,6539,image 6539_Scan1.er.qptiff - resolution #1,pLN annotation 65787303-8207-452b-b52b-a7feb9ec2752 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 10
+same_block,6551,pancreas tissue,pLN annotation 09a83f2b-69b4-4768-afd2-d5762b8b14e9 (1 piece(s)),,pln_blocks row 11
+shared_slide,6551,image 6551_Scan1.er.qptiff - resolution #1,pLN annotation 09a83f2b-69b4-4768-afd2-d5762b8b14e9 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 11
+same_block,6579,pancreas tissue,pLN annotation b3659361-11e5-4fb2-b9f0-5fd007cdd4b0 (2 piece(s)),,pln_blocks row 12
+shared_slide,6579,image 6579_Scan2.er.qptiff - resolution #1,pLN annotation b3659361-11e5-4fb2-b9f0-5fd007cdd4b0 (2 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 12
+different_block,115,pancreas tissue,pLN annotation 019f5ef5-fb89-4552-b159-e8b438259463 (1 piece(s)),,pln_blocks row 13
+shared_slide,115,image HDL115pancLN_Scan1.er.qptiff - resolution #1,pLN annotation 019f5ef5-fb89-4552-b159-e8b438259463 (1 piece(s)),the annotation is drawn on the pancreas image,pln_blocks row 13
+serial_section,0112,PhenoCycler panc section,every Xenium section of this donor and ROI not declared on its own,,"section_modes (112, panc, *)"
+serial_section,0112,PhenoCycler panc section,Xenium section 0041396,,"section_modes (112, panc, 0041396)"
+same_section,0112,PhenoCycler panc section,Xenium section 0081366,,"section_modes (112, panc, 0081366)"
+same_section,6347,PhenoCycler panc section,Xenium section 0080579,,"section_modes (6347, panc, 0080579)"
+serial_section,6533,PhenoCycler panc section,every Xenium section of this donor and ROI not declared on its own,,"section_modes (6533, panc, *)"
+serial_section,6533,PhenoCycler panc section,Xenium section 0041393,,"section_modes (6533, panc, 0041393)"
+same_section,6533,PhenoCycler panc section,Xenium section 0080870,,"section_modes (6533, panc, 0080870)"
+same_section,6580,PhenoCycler panc section,Xenium section 0080502,,"section_modes (6580, panc, 0080502)"

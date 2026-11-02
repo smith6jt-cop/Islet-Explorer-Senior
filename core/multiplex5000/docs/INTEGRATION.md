@@ -552,6 +552,23 @@ evidence, not a completed registration result.
 
 ## 2026-10-31 — MALDI imaging, a serial-section platform
 
+The [workflow user guide](../../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md)
+gives the operational commands. The
+[2026-11-02 evaluation](../../../docs/evaluations/dynamic_portability_20261102/README.md)
+audits every recorded same-slide pair and all 32 IO60 MALDI sections. It does not
+approve transforms or establish same-cell links. A later read-only source audit
+also records the supplier archive, section metadata and available pLN object
+sources; unresolved physical relationships remain explicit. Xenium-neighbour
+registration and dedicated-pLN object integration remain remediation specifications,
+not active scientific implementations.
+
+The current `raster_footprint_any_ion` mask excludes all-zero spots. In the evaluated
+IO60 exports this removes 12,486 spots, so masked detection fractions have a
+different denominator from all-raster fractions. The evaluation retains both;
+zero is a measured non-detection wherever the spot remains in the chosen universe.
+Do not describe these denominator choices as interchangeable or infer a tissue
+outline solely from a feature's positivity.
+
 The MALDI imaging export (N-glycan compositions and glycogen m/z features, two files over the same
 spots on a 50 µm grid in the instrument's stage frame) enters as platform `maldi`
 (`profiles/platforms/maldi.yaml`, `cohort.PLATFORMS`). The maintainer's rulings (2026-10-31):

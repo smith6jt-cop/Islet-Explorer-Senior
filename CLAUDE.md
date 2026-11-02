@@ -1,5 +1,13 @@
 # Islet Explorer Senior
 
+For the dynamic-typing and multimodal portability work, read
+`docs/PORTABILITY_EVALUATION_USER_GUIDE.md` and
+`docs/evaluations/dynamic_portability_20261102/README.md`. The evaluation pins
+separate scientific producers, accounts for every declared acquisition and records
+unsupported routes. KINTSUGI project-only parameter observations are its sole
+production-code addition; scientific remediation is specified separately. The
+evaluation's success does not approve a scientific gate or activate a release.
+
 For the current Senior/CODEX/HPG coordination, read
 `docs/HANDOFF_2026-10-28_SENIOR_CODEX_COORDINATION.md` before changing typing,
 release, or Xenium-only analysis code.
@@ -222,10 +230,12 @@ stages' `maldi_serial` route. IO60 donors only; 6426 and HPAP are out of cohort.
 the site source `maldi_spots`; the repo-root `MALDI/` folder is gitignored. See
 `core/multiplex5000/docs/INTEGRATION.md` and `docs/PLAN_2026-10-31_MALDI_SEQUENTIAL.md`.
 
-Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
+The legacy `multiplex5000.pipeline` API stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
 
-**The content-addressed run framework was removed on 2026-09-16.** Stages write to stable roots —
+**The legacy content-addressed run framework was removed on 2026-09-16.** The following
+stable-root behavior applies to `multiplex5000.pipeline`, not the separate receipt-backed
+`mplx5k` project stages described above. Legacy stages write to stable roots —
 `data/cells`, `data/geometry_qc`, `data/redsea`, `data/expression` — and a donor is done when its
 partition has content. There is no `run_id`, no stage manifest, no donor receipt and no fingerprint
 validation. A stage whose output is already present is skipped; `--force` reruns it.

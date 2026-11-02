@@ -1,0 +1,4813 @@
+{
+  "schema": "codex.exact_source_port_and_csv_diagnostics/1",
+  "results": [
+    {
+      "image": "Aab_6090",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195108e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2038582964136214e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.3120445927535878e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.194034422677078e-17,
+              "max_relative_difference": 1.2903447744041975e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 9.76988393328371e-15
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 12,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195108e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2038582964136214e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.3120445927535878e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.194034422677078e-17,
+              "max_relative_difference": 1.2903447744041975e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 9.76988393328371e-15
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 12,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.949029909160572e-17,
+              "max_relative_difference": 5.2838700826946995e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 6.358682732472239e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.949029909160572e-17,
+              "max_relative_difference": 5.2838700826946995e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 6.358682732472239e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.427388570718365e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.1604556995901033e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.0982623816113498e-13
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.427388570718365e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.1604556995901033e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.0982623816113498e-13
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6450",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8552029654310711e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8127178735075295e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.9644799863280148e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.156044839329532e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 19,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.673617379884035e-17,
+              "max_relative_difference": 1.833916680986937e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8552029654310711e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8552029654310711e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8127178735075295e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.9644799863280148e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.156044839329532e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 19,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.673617379884035e-17,
+              "max_relative_difference": 1.833916680986937e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8552029654310711e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4849522934840153e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.4393950837572486e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 6.1378388065928945e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 2.0072073817618805e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4849522934840153e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.4393950837572486e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 6.1378388065928945e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 2.0072073817618805e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.6653570148110417e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 2.396476650990254e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 8.693570110831653e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.6653570148110417e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 2.396476650990254e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 8.693570110831653e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6505",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2583245005306358e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.637978807091713e-12,
+              "max_relative_difference": 1.8686320332414235e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 2.0472274430032172e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 4.705452160983529e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2583245005306358e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.637978807091713e-12,
+              "max_relative_difference": 1.8686320332414235e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 2.0472274430032172e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 4.705452160983529e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.140160156309854e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.7755575615628914e-17,
+              "max_relative_difference": 3.9161835569591935e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3053031964679834e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.140160156309854e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.7755575615628914e-17,
+              "max_relative_difference": 3.9161835569591935e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3053031964679834e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7716378228724484e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.6698441838508754e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.253717061805796e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7716378228724484e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.6698441838508754e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.253717061805796e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6521",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.195424763231256e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 2.5105991923266277e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 5.549601704446497e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.5502359073481682e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.195424763231256e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 2.5105991923266277e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 5.549601704446497e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.5502359073481682e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.7466698125555598e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 7.286543992767394e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 5.138951972651788e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.188342353812418e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.7466698125555598e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 7.286543992767394e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 5.138951972651788e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.188342353812418e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.888268646514037e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.478523901611837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.194034422677078e-17,
+              "max_relative_difference": 2.3666398701883147e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.888268646514037e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.478523901611837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.194034422677078e-17,
+              "max_relative_difference": 2.3666398701883147e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6538",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.304363240728812e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5479533209651835e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 5.3782321062435177e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.587277429911922e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.178627648656099e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.304363240728812e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5479533209651835e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 5.3782321062435177e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.587277429911922e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.178627648656099e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.188342353812417e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.2847524914089962e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.245004513516506e-17,
+              "max_relative_difference": 2.241268844524996e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.136675294951008e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.188342353812417e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.2847524914089962e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.245004513516506e-17,
+              "max_relative_difference": 2.241268844524996e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.136675294951008e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.0671195307094149e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 5.1353183332400494e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.0671195307094149e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 5.1353183332400494e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6549",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.9819905686169028e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.0116302735003164e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 4.6300075701495356e-14
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.9819905686169028e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.0116302735003164e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 4.6300075701495356e-14
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.112366251504909e-17,
+              "max_relative_difference": 1.3587496229653412e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.621745350749317e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.112366251504909e-17,
+              "max_relative_difference": 1.3587496229653412e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.621745350749317e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8722210729514071e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.105427357601002e-15,
+              "max_relative_difference": 2.1622083907968456e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.627715291671279e-17,
+              "max_relative_difference": 2.882916972580656e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8722210729514071e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.105427357601002e-15,
+              "max_relative_difference": 2.1622083907968456e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.627715291671279e-17,
+              "max_relative_difference": 2.882916972580656e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "Aab_6558",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.994207113900883e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.3553934508963984e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.943024360026862e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.07802010162657e-15
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.994207113900883e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.3553934508963984e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.943024360026862e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.07802010162657e-15
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.2594608255112612e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 6.444140555865453e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.2594608255112612e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 6.444140555865453e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.46312229168437e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.1576758781223016e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.80118763926896e-17,
+              "max_relative_difference": 1.4248449425534968e-13
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.46312229168437e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.1576758781223016e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.80118763926896e-17,
+              "max_relative_difference": 1.4248449425534968e-13
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_0112",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8079967831045808e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.1373949170113976e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.3853550022407732e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 2.7481207084601694e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 7.326556028531254e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8079967831045808e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8079967831045808e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.1373949170113976e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.3853550022407732e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 2.7481207084601694e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 7.326556028531254e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8079967831045808e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5630483236897921e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.85722573273506e-17,
+              "max_relative_difference": 2.1226326462768134e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 5.61163911498983e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5630483236897921e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.85722573273506e-17,
+              "max_relative_difference": 2.1226326462768134e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 5.61163911498983e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.779596626000062e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.8725072659036972e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 2.516398505764461e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.779596626000062e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.8725072659036972e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 2.516398505764461e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6232",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5728755377706536e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 5.066925767466176e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.673617379884035e-17,
+              "max_relative_difference": 1.7762837826286456e-13
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 9,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.5728755377706536e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 5.066925767466176e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.673617379884035e-17,
+              "max_relative_difference": 1.7762837826286456e-13
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 9,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.188342353812417e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7830641530863548e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.892991815694472e-17,
+              "max_relative_difference": 1.6149021239743518e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.7755575615628914e-17,
+              "max_relative_difference": 2.040325508221931e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.188342353812417e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7830641530863548e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 7.892991815694472e-17,
+              "max_relative_difference": 1.6149021239743518e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.7755575615628914e-17,
+              "max_relative_difference": 2.040325508221931e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9255900698105697e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7465952511162737e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.0440519494995176e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.454242944073599e-17,
+              "max_relative_difference": 1.0073094702107615e-13
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7465952511162737e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.0440519494995176e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.454242944073599e-17,
+              "max_relative_difference": 1.0073094702107615e-13
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6356",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.6863734747403533e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.224950867830909e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 9.876220798345968e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.6888857222315523e-14
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.6863734747403533e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.224950867830909e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 9.876220798345968e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.6888857222315523e-14
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.898059818321144e-17,
+              "max_relative_difference": 1.5214129473902667e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 8.084174346585131e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.898059818321144e-17,
+              "max_relative_difference": 1.5214129473902667e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 8.084174346585131e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9236385677131494e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1635014046056153e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 4.852883069353622e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9236385677131494e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1635014046056153e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 4.852883069353622e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6479",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4864854575411146e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.975506185666685e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 1.0040713834988692e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.7207769586277958e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.737268302591932e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4864854575411146e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.975506185666685e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.540979117872439e-17,
+              "max_relative_difference": 1.0040713834988692e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.7207769586277958e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.737268302591932e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9518246121490597e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.7597486369094963e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.591949208711867e-17,
+              "max_relative_difference": 1.022645754267728e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.9569035497858646e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.1883423538124176e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9518246121490597e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.2737367544323206e-13,
+              "max_relative_difference": 1.7597486369094963e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.591949208711867e-17,
+              "max_relative_difference": 1.022645754267728e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.9569035497858646e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.1883423538124176e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.325889458462837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.291612618200773e-17,
+              "max_relative_difference": 9.57692572305405e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.325889458462837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.291612618200773e-17,
+              "max_relative_difference": 9.57692572305405e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6516",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.094947017729282e-13,
+              "max_relative_difference": 2.314588535878811e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 20,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.0865099142968896e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.898564917319937e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195132e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.094947017729282e-13,
+              "max_relative_difference": 2.314588535878811e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 20,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.0865099142968896e-13
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.898564917319937e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195132e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.542353720528818e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.2266072957220344e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.8163916471489756e-17,
+              "max_relative_difference": 2.0911971410430373e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 5.932501899532767e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.542353720528818e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.2266072957220344e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.8163916471489756e-17,
+              "max_relative_difference": 2.0911971410430373e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 5.932501899532767e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.460055415569464e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7386817884674562e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 5.702288049075488e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.460055415569464e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7386817884674562e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 22,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 5.702288049075488e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6539",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.2449300849463414e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4556797122820854e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.2358467065578525e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 9.98085187387937e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 1.0526452600221346e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 9,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.2449300849463414e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.4556797122820854e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.2358467065578525e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 9.98085187387937e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 1.0526452600221346e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2084060131974494e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 9,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.418476861114186e-17,
+              "max_relative_difference": 1.3042650219785516e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 1.009058700758588e-15
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.418476861114186e-17,
+              "max_relative_difference": 1.3042650219785516e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 1.009058700758588e-15
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.735675353826816e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.552713678800501e-15,
+              "max_relative_difference": 2.0170651582013003e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.276296940317505e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.735675353826816e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 3.552713678800501e-15,
+              "max_relative_difference": 2.0170651582013003e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.276296940317505e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "ND_6548",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2718871489541882e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.432635262634579e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 4.0940981590360827e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.532297208603188e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.737268302591932e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 10,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2718871489541882e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.432635262634579e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 4.0940981590360827e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.532297208603188e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.737268302591932e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 10,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.1786276486560995e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.7709332023198258e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.1101060462656622e-15
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.7709332023198258e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 1.1101060462656622e-15
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7682602605769098e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.573505183047004e-17,
+              "max_relative_difference": 9.922201698753585e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7682602605769098e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.573505183047004e-17,
+              "max_relative_difference": 9.922201698753585e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6520",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8408126991546322e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 2.1316438158401088e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.107298248878237e-17,
+              "max_relative_difference": 1.4189511131500117e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.500145032286355e-17,
+              "max_relative_difference": 2.8564535641959363e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.93655790991653e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8408126991546322e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 2.1316438158401088e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.107298248878237e-17,
+              "max_relative_difference": 1.4189511131500117e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.500145032286355e-17,
+              "max_relative_difference": 2.8564535641959363e-13
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.93655790991653e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 2.2726581585862016e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 2.1280692982744892e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 2.2726581585862016e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 2.1280692982744892e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7204424594675551e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8795674383679725e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 2.0153146814832686e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 1.3677841214441544e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8795674383679725e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 2.0153146814832686e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 1.3677841214441544e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6533",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.91286276584679e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 3.105705221745937e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 7.548898058802305e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 7.063678857664165e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 11,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.91286276584679e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 3.105705221745937e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 7.548898058802305e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 26,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 7.063678857664165e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.780808861554136e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 11,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.85722573273506e-17,
+              "max_relative_difference": 1.3585205400866567e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.2222133507712014e-15
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.85722573273506e-17,
+              "max_relative_difference": 1.3585205400866567e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.2222133507712014e-15
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9315180026937992e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.8359578288732734e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 3.8368759586866565e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9315180026937992e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.8359578288732734e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 3.8368759586866565e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6534",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2064850658719615e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.094947017729282e-13,
+              "max_relative_difference": 2.5097923783025876e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.775954630513416e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 20,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 8.155572177189123e-15
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.452418432437396e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.2064850658719615e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.094947017729282e-13,
+              "max_relative_difference": 2.5097923783025876e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.775954630513416e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 20,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 8.155572177189123e-15
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.874782943958048e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 1.4524184324374016e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.656276773333567e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.1316060737642e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.930602813081018e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.439140012660861e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.656276773333567e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.656276773333567e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1368683772161603e-13,
+              "max_relative_difference": 1.1316060737642e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.020562075079397e-17,
+              "max_relative_difference": 1.930602813081018e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.439140012660861e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.656276773333567e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8152174137318746e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.098790121755602e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.7312930333613655e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8152174137318746e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.098790121755602e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 4.7312930333613655e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6550",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.9521939503912314e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 3.267705266060158e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.0971200342591936e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.8189894035458565e-12,
+              "max_relative_difference": 1.9521939503912314e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 3.267705266060158e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.326672684688674e-17,
+              "max_relative_difference": 1.0971200342591936e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.8265880096660674e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 6,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9518246121490597e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.204170427930421e-17,
+              "max_relative_difference": 5.3510677586445175e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.917425912564186e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.9518246121490597e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.204170427930421e-17,
+              "max_relative_difference": 5.3510677586445175e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.917425912564186e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.005295921256837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 3.7566012485068926e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.005295921256837e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.367506770274758e-17,
+              "max_relative_difference": 3.7566012485068926e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6551",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.3023536320566413e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.9436402334950186e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.6710833785707e-17,
+              "max_relative_difference": 3.5049276229343496e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.113576162524386e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 10,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8673951274195157e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.3023536320566413e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 8,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.547473508864641e-13,
+              "max_relative_difference": 1.9436402334950186e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.6710833785707e-17,
+              "max_relative_difference": 3.5049276229343496e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 7.113576162524386e-14
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7631333393550874e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 10,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.1102230246251565e-16,
+              "max_relative_difference": 1.8673951274195157e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.4071490582400106e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 6.449073735920879e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 5.471475111242806e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.3071765891936593e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.684341886080802e-14,
+              "max_relative_difference": 1.4071490582400106e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 6.938893903907228e-17,
+              "max_relative_difference": 6.449073735920879e-15
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 5.471475111242806e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2805958649384613e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.8967533624655217e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.521704412583899e-15
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.2805958649384613e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 3,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.8967533624655217e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 21,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 9.521704412583899e-15
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    },
+    {
+      "image": "T1D_6563",
+      "direct_source_to_port": [
+        {
+          "computation": "levels",
+          "status": "pass"
+        },
+        {
+          "computation": "canary",
+          "status": "pass"
+        }
+      ],
+      "artifact_diagnostics": [
+        {
+          "table": "levels",
+          "port_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7389787284744202e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.4210854715202004e-14,
+              "max_relative_difference": 1.3600551478512522e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 3.035442973271854e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 2.7986794894231375e-13
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "width",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4524184324374016e-16
+            },
+            {
+              "column": "level_log",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 8.881784197001252e-16,
+              "max_relative_difference": 1.7389787284744202e-16
+            },
+            {
+              "column": "level_raw",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.4210854715202004e-14,
+              "max_relative_difference": 1.3600551478512522e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 23,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.71445146547012e-17,
+              "max_relative_difference": 3.035442973271854e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 25,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.8879238130678e-17,
+              "max_relative_difference": 2.7986794894231375e-13
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 5,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.0110409064517845e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "levels_differentiation",
+          "port_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1763952578809607e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4276722402407367e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8792110098442687e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.178627648656099e-16
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "center",
+              "unequal_finite": 2,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1763952578809607e-16
+            },
+            {
+              "column": "positive_fraction",
+              "unequal_finite": 4,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.4276722402407367e-14
+            },
+            {
+              "column": "zero_fraction",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 5.551115123125783e-17,
+              "max_relative_difference": 1.8792110098442687e-16
+            },
+            {
+              "column": "background_center",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 4.440892098500626e-16,
+              "max_relative_difference": 1.1314374773250003e-16
+            },
+            {
+              "column": "background_width",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 2.220446049250313e-16,
+              "max_relative_difference": 2.178627648656099e-16
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        },
+        {
+          "table": "canary_levels",
+          "port_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7434230413382276e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.1448749462162316e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.974659986866641e-17,
+              "max_relative_difference": 6.786301145576354e-14
+            }
+          ],
+          "original_vs_default_csv": [
+            {
+              "column": "canary_log",
+              "unequal_finite": 1,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 1.7434230413382276e-16
+            },
+            {
+              "column": "canary_fold_over_level",
+              "unequal_finite": 7,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 1.7763568394002505e-15,
+              "max_relative_difference": 2.1448749462162316e-16
+            },
+            {
+              "column": "null_rate_at_level",
+              "unequal_finite": 24,
+              "missing_disagreements": 0,
+              "max_absolute_difference": 9.974659986866641e-17,
+              "max_relative_difference": 6.786301145576354e-14
+            }
+          ],
+          "port_vs_roundtrip_csv": []
+        }
+      ]
+    }
+  ],
+  "images_completed": 20,
+  "expected_images": 20,
+  "criterion": "Exact equality; no tolerance added or criterion relaxed.",
+  "computations": [
+    "levels",
+    "canary"
+  ],
+  "threads": "1",
+  "status": "complete",
+  "note": "Round-trip CSV parsing is a diagnostic only. The original fixture was not edited."
+}

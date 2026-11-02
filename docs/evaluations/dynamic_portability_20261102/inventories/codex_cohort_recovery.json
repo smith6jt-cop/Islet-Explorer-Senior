@@ -1,0 +1,17 @@
+[
+  {
+    "commit": "0417264",
+    "sha256": "daca63999ee82d96c44ff9feb0139b41c6bf7aad6990b040e1f4f3291b0f45bc",
+    "matches_project_inventory": false
+  },
+  {
+    "commit": "c3ac421",
+    "sha256": "8e5607ce7bb94c28eeaec37008fa82afcaf7f03a5641cc72320d6dc29241160e",
+    "matches_project_inventory": false
+  },
+  {
+    "commit": "fd3c4de",
+    "sha256": "4523bde4f889524a3f57601bf9cb8226ddb583a2568b6f377a4b22c6e3360c71",
+    "matches_project_inventory": true
+  }
+]

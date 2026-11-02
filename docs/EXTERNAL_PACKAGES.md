@@ -92,3 +92,19 @@ local commits nobody has described.
 The exact D.4a audit, URLs, tips, and dispositions are in
 `SOURCE_RECONCILIATION_2026-09-04.md`. All six archive-list repositories remain unarchived until
 the A.4b identity release makes D.3 and the replacement proof possible.
+
+## KINTSUGI parameter observation engine — 2026-11-02
+
+The project-only observation adapter reuses the SQLite engine from
+`https://github.com/smith6jt-cop/KINTSUGI.git`, pinned at
+`716d1ebd87db916ab04910c6374e04d2d9ea508e` in the ignored
+`external/KINTSUGI` checkout. The engine source is additionally checked against
+SHA256 `9c29be884f5dd9d405033a9224b998778fe3905f99093036849a0b9436be6db5`.
+It is distinct from the historical, unused KINTSUGI-docs fork listed above.
+
+The recorder loads only the engine and uses `global_db=False`; it does not install
+KINTSUGI's imaging/GPU stack into the scientific environment. MCP uses the optional
+`mcp==1.30.0` dependency in a separate environment. Setup, engine pin checks,
+connection, schema, export and retry commands are in the
+[recording guide](evaluations/dynamic_portability_20261102/recording.md) and
+[workflow user guide](PORTABILITY_EVALUATION_USER_GUIDE.md).

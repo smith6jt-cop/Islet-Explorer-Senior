@@ -1,0 +1,281 @@
+{
+  "schema": "dynamic-portability-handoff-requirements/1",
+  "task": "Evaluate dynamic typing and multimodal integration portability",
+  "evaluation_delivery": "complete_with_explicit_scientific_blockers",
+  "full_scientific_acceptance": false,
+  "requirements": [
+    {
+      "id": "BASE-1",
+      "requirement": "Pin distinct main, port, MALDI, originating CODEX and v20 producers",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "pins.json",
+        "artifact_manifest.json"
+      ],
+      "conclusion": "Environments and input bindings are distinct; historical missing hash limitations are explicit."
+    },
+    {
+      "id": "BASE-2",
+      "requirement": "Freeze authoritative acquisition rosters and separate identity scopes",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "acquisition_dispositions.json",
+        "inventories/",
+        "pair_dispositions.json"
+      ],
+      "conclusion": "201 acquisition dispositions; donor equality does not establish section or pair identity."
+    },
+    {
+      "id": "BASE-3",
+      "requirement": "Trace parameters, registries, hidden defaults and biological dependencies",
+      "evaluation_work": "completed",
+      "acceptance": "runtime_evidence_partial",
+      "evidence": [
+        "dependencies.csv",
+        "parameter_trace_summary.json",
+        "parameter_traces.json.gz",
+        "parameter_literal_candidates.json.gz"
+      ],
+      "conclusion": "Every catalog item is dispositioned. Static reads are not runtime-value proof; resolved-configuration emission remains CORE-1."
+    },
+    {
+      "id": "BASE-4",
+      "requirement": "Separate six readiness axes for every modality/tissue/panel/relationship",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "readiness.json"
+      ],
+      "conclusion": "Code availability is distinct from inputs, specification, routing, computational validation and biology."
+    },
+    {
+      "id": "PROTEIN-1",
+      "requirement": "Establish original CODEX parity before interpreting v20",
+      "evaluation_work": "completed",
+      "acceptance": "reproducibility_limits_documented",
+      "evidence": [
+        "codex_journal_proof.json",
+        "codex_numerical_parity.json",
+        "codex_source_to_port_diagnostics.json",
+        "validation.json"
+      ],
+      "conclusion": "Original guard failures and exact CSV comparison failures are retained separately from producer-bound diagnostic comparisons; no tolerance was weakened."
+    },
+    {
+      "id": "PROTEIN-2",
+      "requirement": "Evaluate all pancreas/embedded pLN protein acquisitions",
+      "evaluation_work": "completed",
+      "acceptance": "full_route_blocked",
+      "evidence": [
+        "validation.json",
+        "acquisition_dispositions.json",
+        "remediation.md"
+      ],
+      "conclusion": "All25 primary native-ID universes reconcile; refinement fails on unavailable Ker8_18 before any refined donor completes."
+    },
+    {
+      "id": "PROTEIN-3",
+      "requirement": "Evaluate dedicated pLN, PC67 proposals and PC33 requirements",
+      "evaluation_work": "completed",
+      "acceptance": "partially_supported",
+      "evidence": [
+        "readiness.json",
+        "parameter_history.json",
+        "remediation.md"
+      ],
+      "conclusion": "Two pLN candidates and all8 later PC67 outputs reconcile; remaining17 pLN and four PC33 are explicitly blocked; proposals remain unapproved."
+    },
+    {
+      "id": "RNA-1",
+      "requirement": "Validate every inventory Xenium-only acquisition including0041323/0041326",
+      "evaluation_work": "completed",
+      "acceptance": "computationally_fulfilled",
+      "evidence": [
+        "validation.json",
+        "acquisition_dispositions.json"
+      ],
+      "conclusion": "All65 source/count/identity audits pass;60 candidate and5 unavailable outcomes preserved without protein requirements."
+    },
+    {
+      "id": "RNA-2",
+      "requirement": "Audit genes, QC, normalization, legacy rosters and scope of labels",
+      "evaluation_work": "completed",
+      "acceptance": "biological_transfer_unapproved",
+      "evidence": [
+        "README.md",
+        "parameter_trace_summary.json",
+        "parameter_history.json"
+      ],
+      "conclusion": "Missing genes are distinct from zeros; fitted pLN embedding targets are recovered; no disease effect or absent hormone identity inferred."
+    },
+    {
+      "id": "PAIR-1",
+      "requirement": "Verify every recorded same-slide relation and independent assay typing",
+      "evaluation_work": "completed",
+      "acceptance": "full_route_blocked",
+      "evidence": [
+        "pair_dispositions.json",
+        "readiness.json",
+        "validation.json"
+      ],
+      "conclusion": "Four exact pancreas and eight spleen declarations accounted; pLN physical relationships unresolved; eight spleen RNA inputs audited but full independent lineage method absent."
+    },
+    {
+      "id": "PAIR-2",
+      "requirement": "Audit frames, matching, ambiguity, unmatched cells and uncertainty",
+      "evaluation_work": "completed",
+      "acceptance": "accepted_links_unavailable",
+      "evidence": [
+        "fault_coverage.csv",
+        "validation.json",
+        "remediation.md"
+      ],
+      "conclusion": "No accepted07/08 receipts; synthetic ties and boundary sensitivity exposed; no links manufactured or tuning to concordance."
+    },
+    {
+      "id": "MALDI-1",
+      "requirement": "Validate all32 source exports, identifiers, features, units and grids",
+      "evaluation_work": "completed",
+      "acceptance": "computationally_fulfilled_with_unit_limit",
+      "evidence": [
+        "README.md",
+        "maldi_source_evidence.json",
+        "acquisition_dispositions.json"
+      ],
+      "conclusion": "1,666,450 IO60 spots/48features; full paired-source hashes verified; exported calibration units undeclared."
+    },
+    {
+      "id": "MALDI-2",
+      "requirement": "Test all-zero masking, missing values and detection denominators",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "README.md",
+        "parameter_history.json",
+        "validation.json"
+      ],
+      "conclusion": "12,486 all-zero spots excluded; all-raster and masked denominators retained; no mask changed."
+    },
+    {
+      "id": "MALDI-3",
+      "requirement": "Inspect every section and assess serial geometry and neighbours",
+      "evaluation_work": "completed",
+      "acceptance": "registration_blocked",
+      "evidence": [
+        "maldi_source_review.json",
+        "maldi_source_evidence.json",
+        "inspection_ledger.json"
+      ],
+      "conclusion": "32 source comparisons plus32 spatial/value diagnostics reviewed; thumbnails do not establish physical scale, exact region frame or accepted neighbours."
+    },
+    {
+      "id": "MALDI-4",
+      "requirement": "Audit pancreas/pLN objects and unbuilt Xenium-neighbour route",
+      "evaluation_work": "completed",
+      "acceptance": "scientific_routes_unsupported",
+      "evidence": [
+        "pln_object_availability.json",
+        "remediation.md",
+        "readiness.json"
+      ],
+      "conclusion": "19pLN acquisitions/47objects,44area geometries;3LineStrings unavailable; no cell transfer or distance bands."
+    },
+    {
+      "id": "EXEC-1",
+      "requirement": "Use isolated outputs and account for every acquisition without silent reductions",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "artifact_manifest.json",
+        "cohort_accounting.json",
+        "acquisition_dispositions.json"
+      ],
+      "conclusion": "Existing exclusions and unavailable regions retain identities/counts; upstream reuse requires matching provenance."
+    },
+    {
+      "id": "EXEC-2",
+      "requirement": "Per-section diagnostics, representative review and fault probes",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled_for_available_outputs",
+      "evidence": [
+        "inspection_ledger.json",
+        "maldi_source_review.json",
+        "fault_coverage.csv",
+        "validation.json"
+      ],
+      "conclusion": "144 per-section diagnostic panels plus32 source comparisons; unsupported outputs are not fabricated."
+    },
+    {
+      "id": "REC-1",
+      "requirement": "Pin KINTSUGI SQLite engine and expose project-only observation MCP",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "recording.md",
+        "parameter_history.json",
+        "validation.json"
+      ],
+      "conclusion": "Actual pinned engine used; only proposed/evaluated/failed/blocked operations; no automatic application or recommendation tools."
+    },
+    {
+      "id": "REC-2",
+      "requirement": "Record context, fixed/method/fitted/review settings and unavailable quality",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled_with_explicit_missing_values",
+      "evidence": [
+        "parameter_history.json",
+        "recording.md"
+      ],
+      "conclusion": "Markers, genes, feature sets, acquisitions, pairs and geometry supported; missing measurements null; compatibility never inferred."
+    },
+    {
+      "id": "REC-3",
+      "requirement": "Verify persistence, retries, revisions, isolation, export and failure durability",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "validation.json",
+        "recording.md"
+      ],
+      "conclusion": "ActualMCP andSQLite checks; zeroapproved; duplicate retries; immutable revisions; outbox retry preserves scientific outputs."
+    },
+    {
+      "id": "DELIVERY-1",
+      "requirement": "Tracked report, matrices, manifest, populated history and remediation",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "README.md",
+        "readiness.json",
+        "artifact_manifest.json",
+        "parameter_history.json",
+        "remediation.md"
+      ],
+      "conclusion": "Compressed full parameter trace supplements grouped dependencies; detailed raw outputs remain hash-referenced."
+    },
+    {
+      "id": "DELIVERY-2",
+      "requirement": "Update ignore rules, workflow documentation and grouped commits",
+      "evaluation_work": "completed",
+      "acceptance": "verification_recorded",
+      "evidence": [
+        "../../PORTABILITY_EVALUATION_USER_GUIDE.md",
+        "HANDOFF_COMPLETION.md"
+      ],
+      "conclusion": "Runtime state ignored; reviewed exports tracked; final commit hashes are supplied in the completion response."
+    },
+    {
+      "id": "BOUNDARY-1",
+      "requirement": "No scientific fixes, registry approval, deployment or release activation",
+      "evaluation_work": "completed",
+      "acceptance": "fulfilled",
+      "evidence": [
+        "HANDOFF_COMPLETION.md",
+        "remediation.md"
+      ],
+      "conclusion": "KINTSUGI recorder is the sole production implementation addition; other new code is evaluation tooling."
+    }
+  ]
+}
