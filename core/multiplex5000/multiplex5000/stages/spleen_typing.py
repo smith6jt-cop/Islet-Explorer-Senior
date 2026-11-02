@@ -4,9 +4,8 @@ Maintainer, 2026-10-30 and 2026-11-01:
 
 - **Sections:** the 67-plex (PC67) sections of the accepted Protein Measurement. The 33-plex sections are listed in the
   gate as not typed: their panel lacks the lineage roots.
-- **Positivity** is the CODEX per-image method ported into ``multiplex5000.positivity``: each marker's level per
-  section from its own background or known-negative reference (``levels``), a stricter canary level (``canary``), and
-  the share of a cell's interior above the level (``coverage``).
+- **Positivity** is binary, from each section's own cells: a marker's level is its known-negative percentile in the
+  spleen lineage that cannot carry it (``lineage_levels``); interior coverage (``coverage``) serves the tiebreak.
 - **Names** come from the 6551 spleen hierarchy (``tissues.spleen.load_rule_source``) through
   ``positivity.hierarchy``, never from the CODEX identity step. Endothelial is structure-only and waits for a vessel
   object; a cell matching two branches is settled by the CODEX canary rule or stays ambiguous.
@@ -14,18 +13,19 @@ Maintainer, 2026-10-30 and 2026-11-01:
   against that section's own level.
 - **The gate is the first manual stop.**
 
-Steps:
-1. empty-slide nulls, on glass outside every section outline of each typed slide (``positivity.nulls``);
-2. levels, chosen on every typed section (the spleen hook's selection);
-3. canary levels;
-4. area coverage per section, on the section's window of its qptiff (the cell geometry the manifest names);
-5. calls, the hierarchy and the tiebreak.
+Steps (maintainer 2026-11-01: the spleen registry starts over, measured on spleen, nothing carried from another
+dataset):
+1. levels per section from mutually exclusive lineages (``positivity.lineage_levels``): B and T cells from the data,
+   each marker's known-negative percentile in the population that cannot carry it;
+2. canary levels (in spleen the canary null is that same population, so the canary level is the level);
+3. area coverage per section, on the section's window of its qptiff (the cell geometry the manifest names);
+4. calls, the hierarchy and the tiebreak.
 
 A required marker without a passing level on every section stops the run before naming: the method is repaired for
 every section, not excused on one.
 
-Outputs: ``data/cells/donor_id=<section>``, ``data/coverage/<section>.parquet``, ``tables/*.csv`` (empty-slide
-nulls, options, selections, levels, canary levels) and the gate figures.
+Outputs: ``data/cells/donor_id=<section>``, ``data/coverage/<section>.parquet``, ``tables/*.csv`` (options,
+selections, levels, canary levels) and the gate figures.
 """
 
 from __future__ import annotations
@@ -49,7 +49,6 @@ PANEL_FILES = {"panel_manifest": PANEL_DIR / "spleen/manifest.yml",
                "pln_manifest": PANEL_DIR / "pancreatic_lymph_node/manifest.yml",
                "rule_sheet": PANEL_DIR / "pancreatic_lymph_node/phenotype_rules.csv"}
 CONTEXT = "typing_context"       # site source: <dir>/<section>.parquet (object_id, context, start_object)
-OUTLINES = "section_outlines"    # site source: <dir>/<section>.geojson, each qptiff's level-0 frame
 WINDOW_MARGIN_PX = 16
 TABLES = ("options", "selection", "differentiation_selection", "levels", "levels_differentiation")
 
@@ -131,7 +130,7 @@ def inputs(project) -> list[Input]:
              Input("normalization_acceptance", release / "05_normalization/gate/accepted.json"),
              Input("cohort_spec", _spec(project)), Input("qupath_manifest", _manifest_path(project))]
     found += [Input(name, path) for name, path in PANEL_FILES.items()]
-    context, outlines = _source_dir(project, CONTEXT), _source_dir(project, OUTLINES)
+    context = _source_dir(project, CONTEXT)
     for d in _typed(project):
         found += [Input(f"redsea:{d}", _partition(release, "redsea", d)),
                   Input(f"expression:{d}", _partition(release, "expression", d)),
@@ -139,11 +138,10 @@ def inputs(project) -> list[Input]:
     for qptiff, images in _slides(project).items():
         stem = Path(qptiff).name.split(".")[0]
         found.append(Input(f"qptiff:{stem}", Path(qptiff), hash=False, recorded_sha256=images[0].qptiff.sha256))
-        found.append(Input(f"slide_tissue:{stem}", outlines / f"_slide__{stem}.geojson", required=False))
         for image in images:
-            found.append(Input(f"outline:{image.donor_id}", outlines / f"{image.donor_id}.geojson"))
-            found.append(Input(f"cell_geojson:{image.donor_id}", Path(image.cell_geojson.path), hash=False,
-                               recorded_sha256=image.cell_geojson.sha256))
+            if image.donor_id in _typed(project):
+                found.append(Input(f"cell_geojson:{image.donor_id}", Path(image.cell_geojson.path), hash=False,
+                                   recorded_sha256=image.cell_geojson.sha256))
     return found
 
 
@@ -161,20 +159,6 @@ def _check_prerequisites(task: Task) -> None:
     for name in ("protein_acceptance", "normalization_acceptance"):
         if not json.loads(task.input(name).read_text()).get("accepted_by"):
             raise SpleenTypingError(f"{name}: the gate is not accepted")
-
-
-def _nulls(task: Task, typed: list[str]) -> Path:
-    """Empty-slide nulls of the typed sections, cached as a table the source reads."""
-    from ..positivity import nulls
-
-    table = nulls.cohort_nulls(task.input("qupath_manifest"), task.input(f"outline:{typed[0]}").parent,
-                               sections=typed)
-    missing = sorted(set(typed) - set(table["image"]))
-    if missing:
-        raise SpleenTypingError(f"no empty-slide nulls for {missing}")
-    path = task.output("tables/empty_nulls.csv")
-    table.to_csv(path, index=False)
-    return path
 
 
 def _window(features: list[dict], shape: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -309,11 +293,9 @@ def run(task: Task) -> dict:
     import matplotlib
 
     matplotlib.use("Agg")
-    from ..positivity import canary as CN
-    from ..positivity import levels as LV
+    from ..positivity import lineage_levels as LL
     from ..positivity import registry as RG
     from ..positivity import sources as SRC
-    from ..positivity import tissue as TS
     from ..tissues import spleen
 
     _check_prerequisites(task)
@@ -321,33 +303,29 @@ def run(task: Task) -> dict:
     workers = task.settings["workers"]
     reg = RG.load(*REGISTRY)
     RG.require_reviewed(reg)
-    hook = TS.hooks("spleen")
-    TS.check_registry(reg, hook)
     rules = spleen.load_rule_source(task.input("panel_manifest"))
     branches = spleen.structure_only_branches(task.input("panel_manifest"))
     images = {i.donor_id: i for i in _manifest_from(task).images}
 
-    null_csv = _nulls(task, typed)
     stage_dir = task.input("protein_receipt").parent
-    source = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=task.input(f"context:{typed[0]}").parent,
-                                          empty_nulls_csv=null_csv)
-    tables = LV.choose(source, reg.spec, typed, hook.selection_sections(typed), workers=workers)
+    source = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=task.input(f"context:{typed[0]}").parent)
+    tables = LL.choose(source, reg.spec, typed, workers=workers)
     for name in TABLES:
         tables[name].to_csv(task.output(f"tables/{name}.csv"), index=False)
     summary = {"sections": typed, "not_typed": task.settings["not_typed"], "stops": list(tables["stops"]),
-               "immune_set_aside": list(tables["immune_set_aside"]),
-               "markers": _marker_summary(tables["selection"], reg)}
+               "markers": _marker_summary(tables["selection"], reg),
+               "lineages": tables["options"].groupby("image")[["b_cells", "t_cells"]].first().to_dict("index")}
     _level_figures(task, source, reg, tables, typed)
-    if tables["stops"]:
+    if summary["markers"]["required_stopped"]:
         summary["typed"] = False
         return summary
 
-    canary = CN.levels(source, reg.spec, typed, tables, workers=workers)
+    canary = LL.canary_levels(tables, reg.spec)
     canary.to_csv(task.output("tables/canary_levels.csv"), index=False)
     for tag in typed:
         _coverage(task, images[tag], tag, tables["levels"], reg)
     covered = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=source.context_dir,
-                                           coverage_dir=task.staging / "data/coverage", empty_nulls_csv=null_csv)
+                                           coverage_dir=task.staging / "data/coverage")
     cells = {tag: _named(task, covered, tag, images[tag], reg, tables, canary, rules, branches) for tag in typed}
     summary["typed"] = True
     summary["per_section"] = {tag: _section_summary(c) for tag, c in cells.items()}

@@ -1,7 +1,8 @@
-"""The spleen PC67 typing registry: acquired, registered, internally consistent, and reviewed.
+"""The spleen PC67 typing registry: acquired, registered, measured on spleen, and reviewed.
 
-Since the maintainer's review of 2026-11-01 the registry holds only what positivity needs; cells are named by the
-spleen hierarchy (positivity.hierarchy), so there is no spleen labels file."""
+Maintainer 2026-11-01: "Start the registry over"; "Stop trying to apply parameters used from a different dataset."
+The registry (written by SpleenFollicleCounterQP scripts/build_spleen_typing_registry.py) holds each marker's role,
+reading and lineage-levels method; cells are named by the spleen hierarchy (positivity.hierarchy)."""
 
 from __future__ import annotations
 
@@ -85,33 +86,36 @@ def test_names_come_from_the_spleen_hierarchy_not_a_labels_file(reg):
     assert all(reg.role(m) != "never_used" for m in names)
 
 
-def test_check_bars_are_constants_and_the_method_reads_its_constants(reg):
-    for bar in filter(None, reg.table["check_bar"]):
-        assert reg.const(bar) == reg.const(bar)        # present and a number
-    for name in ("HORMONE_SCALE_TOP_QUANTILE", "CD45_AMONG_HORMONE_MAX", "EMPTY_NULL_QUANTILE", "ISOLATION_UM"):
-        reg.const(name)                                  # read unconditionally by levels/identity
+def test_every_typing_and_state_marker_has_a_lineage_levels_method(reg):
+    from multiplex5000.positivity import lineage_levels as LL
+
+    for m in reg.table.index:
+        method = reg.background_method(m)
+        if reg.role(m) in ("defining", "shared", "state"):
+            assert method in LL.METHODS, m
+            if method == "known_negative":
+                assert set(RG.split(reg.table.loc[m, "level_reference"].replace("+", ";"))) <= set(LL.POPULATIONS), m
+        else:
+            assert reg.role(m) == "none" and method == "", m
+    for lineage, marker in (("B", "CD20"), ("T", "CD3e")):
+        assert [m for m in reg.broad(lineage) if reg.table.loc[m, "required"] == "yes"] == [marker]
 
 
-def test_the_spleen_hook_takes_b_cells_as_the_immune_reference(reg):
-    """P12 (maintainer 2026-11-01): CD20 is the immune checks' reference; B cells carry CD45. A marker with no
-    chosen level is read at its own background peak, a chosen one at its level."""
-    import numpy as np
+def test_nuclear_antigens_are_read_on_the_nucleus_and_everything_else_on_the_whole_cell(reg):
+    nuclear = {"Ki67", "PCNA", "Histone_H3_(p_Ser28)", "FOXP3", "TCF_1", "TOX", "TP63", "SOX2"}
+    for m in reg.table.index:
+        assert reg.measurement(m) == ("nucleus" if m in nuclear else "whole_cell"), m
+        assert reg.differentiation(m) in ("", "membrane"), m
 
-    hook = TS.hooks("spleen")
-    TS.check_registry(reg, hook)
-    roles = LV.roles(reg)
-    assert roles["core"] == ["CD3e", "CD45", "CD68", "CD163"] and not roles["hormones"]
-    assert set(reg.markers("state")) >= {"Ki67", "PD_1", "PD_L1", "HLA_DR"}
-    assert hook.CHECK_POPULATION == "b_cells"
-    read = []
-    cells = hook.check_population(np.zeros(3), reg, roles, {}, lambda m: read.append(m) or np.array([1, 0, 1], bool))
-    assert cells.tolist() == [True, False, True] and read == ["CD20"]          # not CD79a: not required
-    chosen = hook.check_population(np.zeros(3), reg, roles, {"CD20": np.array([0, 1, 0], bool)}, lambda m: 1 / 0)
-    assert chosen.tolist() == [False, True, False]
-    assert hook.reference_carries(reg) == {"CD45"} == LV.reference_carries(reg)
-    assert LV.reference_carries(RG.load("codex-uniform-32", "pancreas")) == set()
-    assert reg.const("CD3E_AMONG_MYELOID_GATED") == 0                 # reported only; pancreas has no such constant
-    assert "CD3E_AMONG_MYELOID_GATED" not in RG.load("codex-uniform-32", "pancreas").constants
+
+def test_nothing_is_carried_from_another_dataset(reg):
+    consts = pd.read_csv(reg.directory / f"{reg.name}__constants.csv", keep_default_na=False, dtype=str)
+    assert not consts["source"].str.contains("carried from").any()
+    assert not reg.table["source"].str.contains("carried from").any()
+    for name in ("ISOLATION_UM", "LEVEL_QUANTILE", "BACKGROUND_K", "KNOWN_NEGATIVE_MIN_ABOVE", "CANARY_MARGIN",
+                 "CANARY_MIN_DEPTH", "CANARY_TIE_INTERIOR_LEAD"):
+        reg.const(name)
+    assert consts.set_index("name").loc["ISOLATION_UM", "source"].startswith("measured on the 8 PC67 sections")
 
 
 def test_every_proposal_named_exists_and_all_are_reviewed(reg):
@@ -122,14 +126,8 @@ def test_every_proposal_named_exists_and_all_are_reviewed(reg):
     assert dict(zip(table["id"], table["status"])) == {
         "P1": "accepted", "P2": "accepted", "P3": "accepted", "P4": "accepted", "P5": "accepted",
         "P6": "rejected", "P7": "accepted", "P8": "rejected", "P9": "rejected", "P10": "accepted",
-        "P11": "accepted", "P12": "accepted"}
+        "P11": "accepted", "P12": "accepted", "R1": "accepted"}
     assert table["decision"].str.startswith("maintainer 2026-11-01").all()
     RG.require_reviewed(reg)
     RG.require_reviewed(RG.load("codex-uniform-32", "pancreas"))   # no proposals file: nothing to wait for
 
-
-def test_cd45_and_cd163_take_the_majority_marker_levels(reg):
-    """P10/P11 (maintainer 2026-11-01): nearly every spleen cell carries CD45, so its densest peak is not background."""
-    assert LV.methods_for(reg, "CD45") == ["edge", "gate"] == LV.methods_for(reg, "CD163")
-    assert LV.check_isolation(reg, "CD45") == "" and LV.check_isolation(reg, "CD3e") == ""     # CD45: positive check (P12)
-    assert LV.check_isolation(RG.load("codex-uniform-32", "pancreas"), "CD45") == ""     # no column: the source's rule
