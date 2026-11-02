@@ -98,13 +98,16 @@ def _project(tmp_path: Path):
 
 
 @pytest.mark.parametrize("missing_before_ingest", [False, True])
+@pytest.mark.parametrize("naming_policy", [None, "native"])
 def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
-        tmp_path, monkeypatch, missing_before_ingest):
+        tmp_path, monkeypatch, missing_before_ingest, naming_policy):
     import numba
 
     before_threads = numba.get_num_threads()
     monkeypatch.setattr(tasks.roots, "tmp_dir", lambda: None)
     project = _project(tmp_path)
+    if naming_policy is not None:
+        project.settings["pancreas_naming_policy"] = naming_policy
     damaged = next(tmp_path.glob("output-*__0040002__PanT__*"))
     if missing_before_ingest:
         (damaged / "cell_feature_matrix.h5").unlink()
@@ -143,7 +146,7 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     monkeypatch.setattr(pilot.pln_worker, "load_panels", lambda: {})
 
     def panc(donor, section, h5ad, panels, work, **kwargs):
-        assert kwargs["naming_policy"] == "shared_er_exact_v1"
+        assert kwargs["naming_policy"] == (naming_policy or "shared_er_exact_v1")
         assert kwargs["source_serial"] == "0040001"
         return write_calls(donor, section, h5ad, work, kwargs["acquisition_id"],
                            kwargs["exact_cells"])
@@ -185,6 +188,17 @@ def test_stage06_rna_routes_both_tissues_and_keeps_cell_ids_distinct(
     assert len(evidence) == 2
     assert all(float(row["cluster_agree_fraction"]) == 1.0 for row in evidence)
     assert all(float(row["naming_gene_fraction"]) == 1.0 for row in evidence)
+    parameters = json.loads((result.path / "resolved_parameters.json").read_text())
+    assert parameters["parameters"][0]["value"] == (naming_policy or "shared_er_exact_v1")
+    assert len(parameters["acquisitions"]) == 3
+    assert parameters["acquisitions"][0]["gene_panel"]["genes"] == ["CD3E", "TRDC"]
+    assert parameters["acquisitions"][1]["selected_naming_policy"] is None
+    assert parameters["acquisitions"][2]["fitted"] is None
+    assert summary["resolved_parameters"]["status"] == "written"
+    assert not any("protein" in item["name"] for item in parameters["input_bindings"])
+    project.settings["pancreas_naming_policy"] = "shared_er_exact_v1" if naming_policy else "native"
+    with pytest.raises(tasks.TaskError, match="published settings differ"):
+        tasks.run_stage(pilot, project)
 
 
 def test_unresolved_t_subsets_and_broad_nonimmune_are_not_counted_as_specific_classes():
@@ -253,6 +267,12 @@ def test_rna_thread_count_refuses_invalid_project_settings(value):
     project = SimpleNamespace(settings={"rna_compute_threads": value})
     with pytest.raises(pilot.IO60RNATypingError, match="positive integer"):
         pilot._compute_threads(project)
+
+
+@pytest.mark.parametrize("value", ["unsupported", "", None, True, ["native"]])
+def test_rna_naming_policy_rejects_unsupported_values_before_loading_inputs(value):
+    with pytest.raises(pilot.IO60RNATypingError, match="pancreas_naming_policy"):
+        pilot._run(SimpleNamespace(settings={"pancreas_naming_policy": value}))
 
 
 def test_donor_metadata_uses_recorded_alias_and_npod_fallback(tmp_path):

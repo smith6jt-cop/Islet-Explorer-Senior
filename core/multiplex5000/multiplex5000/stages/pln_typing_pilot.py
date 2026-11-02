@@ -10,18 +10,22 @@ from __future__ import annotations
 
 import csv
 import json
+from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .. import gates, roots
+from .. import gates, protein_evidence, roots
+from ..resolved_parameters import write_resolved_parameters
 from ..tasks import Input, Task
+from ..tissues import protein_section
 from ..tissues.evaluate import CANDIDATE_STATES, resolve_unique_matched_rules
 from ..tissues.lymph_node import load_rule_source
 from ..tissues.protein_section import evaluate_protein_section
 
 STAGE = "06_typing"
+REQUIRE_SETTINGS_MATCH_ON_REUSE = True
 PANEL = roots.REPO / "core/panels/data/tissues/pancreatic_lymph_node/manifest.yml"
 RULES = PANEL.parent / "phenotype_rules.csv"
 THRESHOLD_COLUMNS = ("protein_entry", "marker", "floor", "top", "cutoff", "shift_scale",
@@ -51,8 +55,16 @@ def _sections(project) -> list[dict[str, str]]:
 
 def settings(project) -> dict:
     return {"protein_entries": [row["protein_entry"] for row in _sections(project)],
-            "protein_cutoff_fraction": 0.10,
+            "protein_cutoff_fraction": _cutoff_fraction(project.settings),
             "scope": "review_candidate_no_final_cell_class"}
+
+
+def _cutoff_fraction(settings: dict) -> float:
+    try:
+        return protein_evidence.validate_cutoff_fraction(
+            settings.get("protein_cutoff_fraction", protein_evidence.REQUIRE_MIN))
+    except protein_evidence.ProteinEvidenceError as error:
+        raise PLNTypingPilotError(str(error)) from error
 
 
 def inputs(project) -> list[Input]:
@@ -90,6 +102,7 @@ def _complete(task: Task, name: str, stage: str) -> None:
 
 
 def run(task: Task) -> dict:
+    cutoff_fraction = _cutoff_fraction(task.settings)
     _complete(task, "protein_receipt", "03_protein_measurement")
     _complete(task, "normalization_receipt", "05_normalization")
     with task.input("protein_sections").open(newline="") as handle:
@@ -100,6 +113,7 @@ def run(task: Task) -> dict:
     source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"))
     scales = _scales(task)
     threshold_rows, rule_rows, candidate_rows = [], [], []
+    parameter_sections = []
     total_cells = no_nucleus = 0
     for row in sections:
         entry = row["protein_entry"]
@@ -113,7 +127,23 @@ def run(task: Task) -> dict:
                         for marker in markers}
         section = evaluate_protein_section(
             source, entry, measurements, eligible,
-            {marker: scales.get((entry, marker)) for marker in markers})
+            {marker: scales.get((entry, marker)) for marker in markers},
+            cutoff_fraction=cutoff_fraction)
+        parameter_sections.append({
+            "protein_entry": entry, "acquisition_id": row.get("acquisition_id"),
+            "section_id": row.get("section_id"), "tissue": row["tissue"],
+            "cells": len(eligible), "nucleus_eligible": int(eligible.sum()),
+            "fit_population": "nucleus-eligible, finite nonnegative shifted measurements; positive values fit background",
+            "units": "source mean-intensity units multiplied by the declared UniFORM shift",
+            "missing_markers_by_rule": section.missing_markers_by_rule,
+            "markers": [{"marker": marker, "cutoff_fraction": evidence.cutoff_fraction,
+                         "status": "unavailable" if evidence.unavailable_reason else "fitted",
+                         "unavailable_reason": evidence.unavailable_reason,
+                         "fitted": {"floor": evidence.floor, "top": evidence.top,
+                                    "cutoff": evidence.cutoff,
+                                    "background_support": evidence.n_background_support},
+                         "normalization_shift": evidence.shift_scale}
+                        for marker, evidence in section.markers.items()]})
         candidates = resolve_unique_matched_rules(source, section.rules)
         payload = {"cell_uid": table["cell_uid"], "object_id": table["object_id"],
                    "protein_eligible": table["protein_eligible"],
@@ -156,6 +186,23 @@ def run(task: Task) -> dict:
     _marker_figure(task, threshold_rows, sections)
     _rule_figures(task, rule_rows, sections)
     _candidate_figure(task, candidate_rows, sections)
+    parameter_artifact = write_resolved_parameters(
+        task, operation="protein_typing",
+        context={"modality": "protein", "assay": "PhenoCycler",
+                 "tissue": "pancreatic_lymph_node", "relationship_type": None,
+                 "relationship_reason": "independent section typing; no cell matching",
+                 "scope": task.settings["scope"], "panel_input": "pln_panel", "rules_input": "pln_rules"},
+        parameters=[{"name": "protein_cutoff_fraction", "role": "fixed", "value": cutoff_fraction,
+                     "units": "fraction of background-to-bright-end span", "source": "task.settings"},
+                    {"name": "positivity_method", "role": "selected_method",
+                     "value": "multiplex5000.protein_evidence.candidate_calls"},
+                    {"name": "robust_top_percentile", "role": "fixed", "value": protein_evidence.ROBUST_TOP_Q},
+                    {"name": "background_histogram_bins", "role": "fixed", "value": protein_evidence.MODE_BINS},
+                    {"name": "minimum_background_support", "role": "fixed",
+                     "value": protein_evidence.MIN_BACKGROUND_SUPPORT, "units": "eligible positive measurements"}],
+        acquisitions=parameter_sections,
+        input_names=("protein_receipt", "normalization_receipt", "normalization_scales", "pln_panel", "pln_rules"),
+        producer_paths=(Path(__file__), Path(protein_evidence.__file__), Path(protein_section.__file__)))
     return {"sections": len(sections), "protein_cells": total_cells,
             "protein_cells_without_nucleus": no_nucleus,
             "protein_markers": len(threshold_rows),
@@ -166,7 +213,8 @@ def run(task: Task) -> dict:
             "candidate_status_cells": sum(row["cells"] for row in candidate_rows),
             "unique_rule_candidates": sum(row["cells"] for row in candidate_rows
                                           if row["status"] == "unique_candidate"),
-            "candidate_only": True, "final_cell_classes": 0}
+            "candidate_only": True, "final_cell_classes": 0,
+            "resolved_parameters": parameter_artifact}
 
 
 def _marker_figure(task: Task, rows: list[dict], sections: list[dict]) -> None:

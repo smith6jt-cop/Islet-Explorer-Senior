@@ -129,12 +129,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "celltype"))
 
-import subpanel_io as S                                      # noqa: E402
-from islet_identity import STRUCTURAL                        # noqa: E402
-import panel                                                 # noqa: E402
-import rules as R                                            # noqa: E402
-import score as SC                                           # noqa: E402
-import run_step3 as S3                                       # noqa: E402
+import panel  # noqa: E402
+import rules as R  # noqa: E402
+import run_step3 as S3  # noqa: E402
+import score as SC  # noqa: E402
+import subpanel_io as S  # noqa: E402
+from islet_identity import STRUCTURAL  # noqa: E402
 
 #: The share of its K nearest neighbours a cell needs to share its label with before it counts
 #: as clear.  Pre-registered on the recovered run; not a tunable.
@@ -186,6 +186,11 @@ DROP_PROVENANCE = "refused_reagent_change"
 
 SHIFTS = pathlib.Path(os.environ.get(
     "IO60_SHIFTS_PATH", S.REPO / "data/development/celltype/shifts.json"))
+AVAILABILITY_ROOT = (pathlib.Path(os.environ["IO60_AVAILABILITY_ROOT"])
+                     if os.environ.get("IO60_AVAILABILITY_ROOT") else None)
+NORMALIZATION_SCALES = (pathlib.Path(os.environ["IO60_NORMALIZATION_SCALES"])
+                        if os.environ.get("IO60_NORMALIZATION_SCALES") else None)
+AVAILABILITY_SCHEMA = "refinement-marker-availability/1"
 #: How the pass reads CD8: with UniFORM's shift, like every other marker and like the primary calls.
 #: Ruled 2026-10-19 for all 25 donors ("Do the shift"); the typing compares markers within a cell,
 #: so one marker read in other units than the rest would skew those comparisons. ``unshifted``
@@ -452,6 +457,57 @@ def scale_for_unshifted_cd8(scale: pd.DataFrame, donor: str, shifts: dict) -> pd
     return result
 
 
+def marker_availability(donor: str, markers: list[str], columns: list[str]) -> dict:
+    """Resolve acquired/aligned markers independently of union-table column presence.
+
+    The package stage supplies both producer contracts. Historical standalone
+    callers without them retain their declared column set and explicitly record
+    that limitation; a supplied but incomplete contract is never ignored.
+    """
+    if (AVAILABILITY_ROOT is None) != (NORMALIZATION_SCALES is None):
+        raise ValueError("refinement needs both availability root and normalization scales")
+    panel, normalized, sources = {}, {}, []
+    if AVAILABILITY_ROOT is not None:
+        path = AVAILABILITY_ROOT / f"donor_id={donor}/data.parquet"
+        table = pq.ParquetFile(path).read().to_pandas()
+        if ({"donor_id", "marker", "available"} - set(table) or
+                not table.donor_id.astype(str).eq(donor).all() or table.marker.duplicated().any()
+                or table.available.isna().any()):
+            raise ValueError(f"{donor}: invalid measurement availability contract")
+        if not table.available.map(lambda value: isinstance(value, (bool, np.bool_))).all():
+            raise ValueError(f"{donor}: marker availability must be boolean")
+        panel = table.set_index("marker").available.to_dict()
+        table = pd.read_csv(NORMALIZATION_SCALES, dtype={"donor_id": str})
+        if {"donor_id", "marker", "status"} - set(table):
+            raise ValueError("normalization scales lack marker availability fields")
+        table = table.loc[table.donor_id.eq(donor)]
+        if table.empty or table.marker.duplicated().any() or table.status.isna().any():
+            raise ValueError(f"{donor}: invalid normalization marker contract")
+        normalized = table.set_index("marker").status.to_dict()
+        absent = sorted(set(markers) - (set(panel) & set(normalized)))
+        if absent:
+            raise ValueError(f"{donor}: requested markers absent from availability contract: {absent}")
+        sources = [{"path": str(p), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+                   for p in (path, NORMALIZATION_SCALES)]
+    decisions = []
+    for marker in markers:
+        acquired, status = panel.get(marker), normalized.get(marker)
+        if marker not in columns:
+            reason = "column_absent"
+        elif acquired is False:
+            reason = "not_acquired"
+        elif status is not None and status not in {"aligned", "single_sample"}:
+            reason = f"normalization_{status}"
+        else:
+            reason = "carried"
+        decisions.append({"marker": marker, "column_present": marker in columns,
+                          "panel_available": acquired, "normalization_status": status,
+                          "carried": reason == "carried", "reason": reason})
+    return {"schema": AVAILABILITY_SCHEMA, "donor_id": donor, "sources": sources,
+            "contract": "stage03_and_stage05" if sources else "legacy_column_schema_only",
+            "decisions": decisions}
+
+
 def donor_values(donor: str, markers: list[str]) -> tuple[pd.DataFrame, list[str]]:
     """The donor's UniFORM-aligned values for ``markers``, and which of them it carries.
 
@@ -462,7 +518,8 @@ def donor_values(donor: str, markers: list[str]) -> tuple[pd.DataFrame, list[str
     """
     path = S.ALIGNED / f"donor_id={donor}/data.parquet"
     file = pq.ParquetFile(path)
-    have = [m for m in markers if m in file.schema_arrow.names]
+    decision = marker_availability(donor, markers, file.schema_arrow.names)
+    have = [r["marker"] for r in decision["decisions"] if r["carried"]]
     df = file.read(columns=["object_id"] + have).to_pandas()
     if CD8_ALIGNMENT == "unshifted" and "CD8" in have:
         df = restore_unshifted_cd8(df, donor, json.loads(SHIFTS.read_text()))
@@ -471,7 +528,11 @@ def donor_values(donor: str, markers: list[str]) -> tuple[pd.DataFrame, list[str
     geometry = pq.ParquetFile(S.cell_source(donor)[0]).read(
         columns=["object_id", "qc_analysis_eligible"]).to_pandas()
     df = df.merge(geometry, on="object_id", how="inner", validate="one_to_one")
+    hormones = [m for m in S.HORMONES if m in have]
+    before_mask = np.isfinite(df[hormones].to_numpy(float))
     df = S.mask_fragment_hormones(df, donor)
+    df["_refinement_fragment_masked"] = (before_mask & ~np.isfinite(df[hormones].to_numpy(float))).any(axis=1)
+    df.attrs["marker_availability"] = decision
     return df, have
 
 
@@ -512,7 +573,7 @@ def representation_params(donors: list[str], markers: list[str], n_per_donor: in
         z = np.arcsinh(v / cof)
         rows[m] = {"cofactor": float(cof), "centre": float(np.nanmean(z)),
                    "spread": float(np.nanstd(z)), "n": int(np.isfinite(v).sum())}
-    out = pd.DataFrame(rows).T
+    out = pd.DataFrame.from_dict(rows, orient="index", columns=["cofactor", "centre", "spread", "n"])
     out.index.name = "marker"
     return out
 
@@ -543,6 +604,8 @@ def to_Z(values: np.ndarray, markers: list[str], params: pd.DataFrame) -> np.nda
 
 def neighbours(Z: np.ndarray, k: int = K, seed: int = SEED) -> np.ndarray:
     """Index of each cell's ``k`` nearest neighbours in marker space, self dropped."""
+    if len(Z) <= k or Z.shape[1] == 0:
+        raise ValueError(f"{k} neighbours require more than {k} cells and at least one carried marker")
     from pynndescent import NNDescent
     idx = NNDescent(Z, n_neighbors=k + 1, metric="euclidean", random_state=seed, n_jobs=-1)
     nbr, _ = idx.neighbor_graph
@@ -621,7 +684,8 @@ def _demote(Z: np.ndarray, markers: list[str], labels: np.ndarray, strata: np.nd
 
 
 def apply_once(Z: np.ndarray, markers: list[str], labels: np.ndarray, strata: np.ndarray,
-               immune_leaf: np.ndarray, nbr: np.ndarray | None = None) -> dict:
+               immune_leaf: np.ndarray, nbr: np.ndarray | None = None,
+               required_markers: list[str] | None = None) -> dict:
     """THE pass, applied ONCE to a matrix that is already in the representation.
 
     The whole rule in one call, so a caller cannot assemble half of it or run it twice by
@@ -637,14 +701,48 @@ def apply_once(Z: np.ndarray, markers: list[str], labels: np.ndarray, strata: np
     if (labels == UNRESOLVED).any():
         raise RefinementAlreadyApplied(
             f"{UNRESOLVED!r} is produced only by this pass -- refusing to apply it twice")
+    if len(Z) <= K or not markers:
+        note = (f"refinement unavailable: {len(Z)} measurable cells cannot supply {K} neighbours"
+                if markers else "refinement unavailable: no carried markers")
+        return {"labels": labels.copy(), "demoted": np.zeros(len(labels), bool),
+                "note": np.full(len(labels), note, dtype=object), "bounds": {},
+                "concordance_before": np.full(len(labels), np.nan),
+                "concordance": np.full(len(labels), np.nan),
+                "neighbours": np.empty((len(labels), 0), dtype=int),
+                "state": np.full(len(labels), "unavailable_neighbours" if markers else "unavailable_markers", dtype=object),
+                "graph_available": False}
     nbr = neighbours(Z) if nbr is None else nbr
     before = concordance(nbr, labels)
     bounds = fit_bounds(Z, markers, labels, strata, before)
+    required = set(markers if required_markers is None else required_markers)
+    incomplete = {cls: sorted((set(own) & required) - set(markers))
+                  for cls, own in OWN_MARKERS.items()}
+    bounds = {key: value for key, value in bounds.items() if not incomplete[key[0]]}
     demoted, note = _demote(Z, markers, labels, strata, bounds)
+    state = np.full(len(labels), "evaluated", dtype=object)
+    no_bound = np.fromiter((str(value).startswith("bound unavailable") for value in note), dtype=bool, count=len(note))
+    for cls, own in OWN_MARKERS.items():
+        selected = labels == cls
+        missing = incomplete[cls]
+        if missing or not set(own) & set(markers):
+            state[selected] = "unavailable_defining_markers"
+            note[selected] = "refinement unavailable: missing defining markers " + ", ".join(missing or own)
+            demoted[selected] = False
+        else:
+            state[selected & no_bound] = "unavailable_bound"
+    state[~np.isin(labels, list(OWN_MARKERS))] = "not_applicable"
     new = route(labels, demoted, immune_leaf)
+    # A proposed fallback is also a class conclusion: missing target evidence
+    # cannot be converted into an Exocrine/Immune call by the complement rule.
+    for cls, missing in incomplete.items():
+        blocked = demoted & (new == cls) if missing else np.zeros(len(labels), bool)
+        new[blocked] = labels[blocked]
+        demoted[blocked] = False
+        state[blocked] = "unavailable_fallback_markers"
+        note[blocked] = "refinement unavailable: fallback defining markers missing " + ", ".join(missing)
     return {"labels": new, "demoted": demoted, "note": note, "bounds": bounds,
             "concordance_before": before, "concordance": concordance(nbr, new),
-            "neighbours": nbr}
+            "neighbours": nbr, "state": state, "graph_available": True}
 
 
 def route(labels: np.ndarray, demoted: np.ndarray, immune_leaf: np.ndarray) -> np.ndarray:
@@ -724,8 +822,10 @@ def refine_donor(donor: str, params: pd.DataFrame, markers: list[str] | None = N
     _refuse_second_pass(cells)
 
     values, have = donor_values(donor, markers)
+    availability = values.attrs.get("marker_availability", {"contract": "provided_test_values", "decisions": []})
     elig = values.loc[values["qc_analysis_eligible"], "object_id"]
-    frame = cells.merge(values[["object_id"] + have], on="object_id", how="left",
+    extra = ["_refinement_fragment_masked"] if "_refinement_fragment_masked" in values else []
+    frame = cells.merge(values[["object_id"] + have + extra], on="object_id", how="left",
                         validate="one_to_one")
 
     # Who the pass may act on. A cell excluded from the analysis is excluded from this
@@ -733,13 +833,19 @@ def refine_donor(donor: str, params: pd.DataFrame, markers: list[str] | None = N
     measurable = (frame["object_id"].isin(set(elig)) & frame["qc_analysis_eligible"]
                   & ~frame["cell_class"].isin(UNTOUCHED)
                   & np.isfinite(frame[have].to_numpy("float64")).all(axis=1)).to_numpy()
+    if not have:
+        measurable[:] = False
 
     reason = np.full(len(frame), "", dtype=object)
     reason[~measurable] = "not measured (excluded, ineligible or no aligned value)"
+    fragment_masked = (frame["_refinement_fragment_masked"].fillna(False).to_numpy(bool)
+                       if extra else np.zeros(len(frame), bool))
+    reason[~measurable & fragment_masked] = "not measured: fragment-masked hormone evidence"
     for c in UNTOUCHED:
         reason[(frame["cell_class"] == c).to_numpy()] = f"{c}: outside the pass"
 
-    Z = to_Z(frame.loc[measurable, have].to_numpy("float32"), have, params)
+    Z = (to_Z(frame.loc[measurable, have].to_numpy("float32"), have, params)
+         if have else np.empty((0, 0), dtype="float32"))
     labels = frame.loc[measurable, "cell_class"].to_numpy().astype(object)
     strata = frame.loc[measurable, "size_stratum"].to_numpy().astype(object)
 
@@ -748,7 +854,7 @@ def refine_donor(donor: str, params: pd.DataFrame, markers: list[str] | None = N
             .fillna(False).to_numpy(bool))
 
     t0 = time.time()
-    got = apply_once(Z, have, labels, strata, flag[measurable])
+    got = apply_once(Z, have, labels, strata, flag[measurable], required_markers=markers)
     t_graph = time.time() - t0
     new, demoted, why = got["labels"], got["demoted"], got["note"]
     conc_before, conc_after = got["concordance_before"], got["concordance"]
@@ -766,16 +872,25 @@ def refine_donor(donor: str, params: pd.DataFrame, markers: list[str] | None = N
         "concordance_before": np.full(len(frame), np.nan),
         "demoted": np.zeros(len(frame), bool),
         "refine_note": reason,
-        "refine_pass": np.where(measurable, 1, 0),
+        "refine_pass": np.where(measurable & got["graph_available"], 1, 0),
+        "refine_state": np.where(frame.cell_class.isin(UNTOUCHED), "not_applicable",
+                                 "unavailable_measurement" if have else "unavailable_markers"),
     })
     out.loc[measurable, "refined_class"] = new
     out.loc[measurable, "concordance"] = conc_after
     out.loc[measurable, "concordance_before"] = conc_before
     out.loc[measurable, "demoted"] = demoted
     out.loc[measurable, "refine_note"] = why
+    out.loc[measurable, "refine_state"] = got["state"]
+    out.loc[~measurable & fragment_masked & ~frame.cell_class.isin(UNTOUCHED),
+            "refine_state"] = "unavailable_fragment_measurement"
 
     log = _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag[measurable],
                conc_before, conc_after, strata, t_graph)
+    log["marker_availability"] = availability
+    log["defining_marker_policy"] = "complete originally requested defining set; missing source or fallback defining markers preserve primary call with unavailable refinement"
+    log["refinement_states"] = out.refine_state.value_counts().to_dict()
+    log["neighbours"]["available"] = got["graph_available"]
     return out, log
 
 
@@ -801,6 +916,12 @@ def _refuse_second_pass(cells: pd.DataFrame) -> None:
 
 def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, before, after,
          strata, t_graph) -> dict:
+    def scatter(values):
+        return round(100 * float((values < LOW).mean()), 2) if len(values) and np.isfinite(values).all() else None
+
+    def median(values):
+        return round(float(np.median(values)), 3) if len(values) and np.isfinite(values).all() else None
+
     rows = []
     for (cls, st), rec in sorted(bounds.items()):
         m = (labels == cls) & (strata == st)
@@ -815,6 +936,8 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
     endo = np.isin(labels, ["Beta", "Alpha", "Delta", *endocrine_uncertainty])
     return {
         "donor_id": donor,
+        "fixed_settings": {"K": K, "concordance_min": LOW, "bound_percentile": BOUND_PCT,
+                           "min_clear": MIN_CLEAR, "seed": SEED},
         "rule": ("keep a class only if its own defining marker reaches the "
                  f"{BOUND_PCT}th percentile of that class's own concordant members "
                  f"(concordance >= {LOW}) in the same donor and size stratum; demoted cells "
@@ -857,15 +980,15 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
                    "Immune": int((oth & flag).sum()),
                    "Exocrine": int((oth & ~flag).sum())},
         "demoted_islet_core_endocrine_to_exocrine": int((oth & ~flag & core & endo).sum()),
-        "scattered_pct_before": round(100 * float((before < LOW).mean()), 2),
-        "scattered_pct_after": round(100 * float((after < LOW).mean()), 2),
+        "scattered_pct_before": scatter(before),
+        "scattered_pct_after": scatter(after),
         "before": [{"cell_class": c, "n": int((labels == c).sum()),
-                    "median_concordance": round(float(np.median(before[labels == c])), 3),
-                    "pct_scattered": round(100 * float((before[labels == c] < LOW).mean()), 1)}
+                    "median_concordance": median(before[labels == c]),
+                    "pct_scattered": scatter(before[labels == c])}
                    for c in sorted(pd.unique(labels))],
         "after": [{"cell_class": c, "n": int((new == c).sum()),
-                   "median_concordance": round(float(np.median(after[new == c])), 3),
-                   "pct_scattered": round(100 * float((after[new == c] < LOW).mean()), 1)}
+                   "median_concordance": median(after[new == c]),
+                   "pct_scattered": scatter(after[new == c])}
                   for c in sorted(pd.unique(new))],
         "iterated": False,
         "single_pass_reason": ("step 2 was tested and rejected: it removed cells carrying 3+ SD "
@@ -875,7 +998,7 @@ def _log(donor, frame, measurable, have, bounds, labels, new, demoted, flag, bef
 
 
 def main(argv=None) -> int:
-    global CD8_ALIGNMENT, SHIFTS
+    global CD8_ALIGNMENT, SHIFTS, AVAILABILITY_ROOT, NORMALIZATION_SCALES
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", required=True, type=pathlib.Path,
                     help="directory to write donor_id=<d>/data.parquet and refine_log.json")
@@ -891,9 +1014,15 @@ def main(argv=None) -> int:
                          "refinement")
     ap.add_argument("--shifts", type=pathlib.Path, default=SHIFTS,
                     help="matching UniFORM multiplier record for this aligned input")
+    ap.add_argument("--availability-root", type=pathlib.Path, default=AVAILABILITY_ROOT,
+                    help="Stage 03 per-donor measurement availability partitions")
+    ap.add_argument("--normalization-scales", type=pathlib.Path, default=NORMALIZATION_SCALES,
+                    help="Stage 05 per-donor marker statuses for the aligned input")
     args = ap.parse_args(argv)
     CD8_ALIGNMENT = args.cd8_alignment
     SHIFTS = args.shifts.resolve()
+    AVAILABILITY_ROOT = args.availability_root.resolve() if args.availability_root else None
+    NORMALIZATION_SCALES = args.normalization_scales.resolve() if args.normalization_scales else None
     if CD8_ALIGNMENT == "unshifted" and args.params:
         raise ValueError("unshifted CD8 requires fresh representation parameters; "
                          "omit --params to avoid reusing an aligned-CD8 representation")
@@ -908,6 +1037,8 @@ def main(argv=None) -> int:
           f"bound = p{BOUND_PCT:g} of each class's concordant members per donor x stratum")
 
     using_cached_params = bool(args.params and args.params.exists())
+    if using_cached_params and AVAILABILITY_ROOT is not None:
+        raise ValueError("availability-aware refinement requires a freshly bound representation; omit --params")
     if using_cached_params:
         params = pd.read_parquet(args.params)
         print(f"  representation read from {args.params}")
@@ -926,6 +1057,10 @@ def main(argv=None) -> int:
     (args.out / "representation_provenance.json").write_text(json.dumps({
         "fit_state": "provided_cache" if using_cached_params else "fresh",
         "fit_donors": None if using_cached_params else representation_donors,
+        "fit_population": "QC-eligible exact inner join of aligned and declared geometry IDs; fragment hormones remain unavailable",
+        "availability_schema": AVAILABILITY_SCHEMA,
+        "marker_availability": [marker_availability(d, markers, pq.ParquetFile(
+            S.ALIGNED / f"donor_id={d}/data.parquet").schema_arrow.names) for d in representation_donors],
         "aligned_root": str(S.ALIGNED),
         "cd8_alignment": CD8_ALIGNMENT,
         "shifts_path": str(SHIFTS),
@@ -947,12 +1082,13 @@ def main(argv=None) -> int:
         out.to_parquet(p / "data.parquet", index=False)
         log["seconds"] = round(time.time() - t0, 1)
         logs.append(log)
+        (args.out / "refine_log.json").write_text(json.dumps(logs, indent=1, allow_nan=False))
         print(f"  {d}: {log['n_measured']:,} measured, {log['n_demoted']:,} demoted "
               f"-> Unresolved {log['routed']['Unresolved']:,} · "
               f"Immune {log['routed']['Immune']:,} · Exocrine {log['routed']['Exocrine']:,}"
               f"   scatter {log['scattered_pct_before']}% -> {log['scattered_pct_after']}%"
               f"   {log['seconds']}s", flush=True)
-    (args.out / "refine_log.json").write_text(json.dumps(logs, indent=1))
+    (args.out / "refine_log.json").write_text(json.dumps(logs, indent=1, allow_nan=False))
     print(f"recorded to {args.out / 'refine_log.json'}")
     return 0
 

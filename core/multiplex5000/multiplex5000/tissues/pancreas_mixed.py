@@ -66,7 +66,8 @@ def assemble(aligned: pd.DataFrame, pancreas: pd.DataFrame, pln: pd.DataFrame,
     out.insert(3, "segmentation_id", segmentation_id)
     out["native_cell_id"] = out.object_id
     out["tissue"] = np.where(node, "pancreatic_lymph_node", "pancreas")
-    out = out.merge(pancreas[["object_id", "cell_class", "refined_class"]],
+    refinement = [c for c in ("refine_state", "refine_note", "refine_pass") if c in pancreas]
+    out = out.merge(pancreas[["object_id", "cell_class", "refined_class", *refinement]],
                     on="object_id", how="left", validate="one_to_one", sort=False)
     out = out.merge(pln[["object_id", "candidate_phenotype", "candidate_state"]],
                     on="object_id", how="left", validate="one_to_one", sort=False)

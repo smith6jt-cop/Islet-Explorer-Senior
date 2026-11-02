@@ -152,6 +152,7 @@ DERIVED = ("X_centroid", "Y_centroid", "qc_analysis_eligible", "islet_num",
 #: puts the pass in front of the app instead of in a directory nobody reads.
 REFINE_CARRY = ("refined_class", "refine_note", "refine_pass", "demoted",
                 "concordance", "concordance_before", "immune_leaf")
+REFINE_OPTIONAL = ("refine_state",)
 
 #: Sidecar column -> the producer column that already answers the same question.
 #:
@@ -206,7 +207,7 @@ def _carry(calls: pd.DataFrame, donor: str) -> pd.DataFrame:
             f"{donor}: the producer already writes {sorted(taken)}, which is the name this file "
             "renames its own column to. Two columns would end up sharing one name.")
     carried = calls.rename(columns=CARRY_RENAME)
-    unexpected = set(carried.columns) & (set(DERIVED) | set(REFINE_CARRY))
+    unexpected = set(carried.columns) & (set(DERIVED) | set(REFINE_CARRY) | set(REFINE_OPTIONAL))
     if unexpected:
         raise AssertionError(
             f"{donor}: the producer now writes {sorted(unexpected)}, which this file also writes. "
@@ -243,6 +244,7 @@ def _join_refinement(frame: pd.DataFrame, donor: str,
 
     restated = [c for c in REFINE_CHECK if c in side.columns]
     wanted = ["object_id"] + list(REFINE_CARRY) + restated
+    wanted += [c for c in REFINE_OPTIONAL if c in side]
     merged = frame.merge(side[wanted], on="object_id", how="left", validate="one_to_one",
                          suffixes=("", "__refine"))
     absent = int(merged["refine_pass"].isna().sum())
@@ -250,6 +252,8 @@ def _join_refinement(frame: pd.DataFrame, donor: str,
         raise AssertionError(
             f"{donor}: {absent:,} typed cells have no row in the refinement sidecar -- the pass "
             "was run against a different generation of the typing")
+    if "refine_state" not in merged:
+        merged["refine_state"] = "legacy_status_unavailable"
 
     found: dict = {"refine_demoted": int(merged["demoted"].fillna(False).to_numpy(bool).sum())}
     for their in restated:
@@ -300,6 +304,7 @@ def _no_refinement(frame: pd.DataFrame) -> pd.DataFrame:
     frame["refined_class"] = pd.array([None] * n, dtype="string")
     frame["refine_note"] = NOT_REFINED
     frame["refine_pass"] = np.zeros(n, dtype="int64")
+    frame["refine_state"] = "not_run"
     frame["demoted"] = pd.array([None] * n, dtype="boolean")
     frame["immune_leaf"] = pd.array([None] * n, dtype="boolean")
     frame["concordance"] = np.full(n, np.nan)

@@ -7,8 +7,7 @@ import pytest
 
 from multiplex5000.tissues.lymph_node import Rule, RuleSource
 from multiplex5000.tissues.lymph_node import load_rule_source as load_pln
-from multiplex5000.tissues.protein_section import (ProteinSectionError,
-                                                   evaluate_protein_section)
+from multiplex5000.tissues.protein_section import ProteinSectionError, evaluate_protein_section
 from multiplex5000.tissues.spleen import load_rule_source as load_spleen
 
 REPO = Path(__file__).resolve().parents[4]
@@ -53,3 +52,17 @@ def test_unscaled_marker_is_unavailable_and_nucleus_rule_applies_to_empty_rule()
     with pytest.raises(ProteinSectionError, match="absent"):
         evaluate_protein_section(source, "section-1", {"CD20": values}, admitted,
                                  {"CD38": 1.0})
+
+
+def test_section_fraction_controls_rule_evidence_and_preserves_unavailable():
+    source = RuleSource("synthetic", (Rule("all", "B", (("CD20", "pos"),)),), (), {})
+    values = np.r_[np.linspace(5, 6, 1200), np.full(20, 100.0), 25.0, np.nan, 100.0]
+    eligible = np.ones(len(values), dtype=bool)
+    eligible[-1] = False
+    default = evaluate_protein_section(source, "section", {"CD20": values}, eligible,
+                                       {"CD20": 1.0})
+    selected = evaluate_protein_section(source, "section", {"CD20": values}, eligible,
+                                        {"CD20": 1.0}, cutoff_fraction=0.5)
+    assert default.rules.states["B"][-3:].tolist() == [1, -1, -1]
+    assert selected.rules.states["B"][-3:].tolist() == [0, -1, -1]
+    assert selected.markers["CD20"].cutoff_fraction == 0.5

@@ -59,3 +59,24 @@ def test_input_identity_and_scale_must_be_valid():
         candidate_calls("HDL090-S1", "CD8", values[:-1], eligible, shift_scale=1.0)
     with pytest.raises(ProteinEvidenceError, match="shift"):
         candidate_calls("HDL090-S1", "CD8", values, eligible, shift_scale=0.0)
+
+
+def test_selected_fraction_reaches_cutoff_and_calls_without_changing_fit_population():
+    values, eligible = _section()
+    values[1200] = 25.0
+    default = candidate_calls("section", "CD8", values, eligible, shift_scale=1.0)
+    selected = candidate_calls("section", "CD8", values, eligible, shift_scale=1.0,
+                               cutoff_fraction=0.5)
+    assert (selected.floor, selected.top, selected.n_background_support) == (
+        default.floor, default.top, default.n_background_support)
+    assert selected.cutoff_fraction == 0.5
+    assert selected.cutoff == selected.floor + 0.5 * (selected.top - selected.floor)
+    assert default.states[1200] == 1 and selected.states[1200] == 0
+    assert selected.states[-3:].tolist() == [-1, -1, -1]
+
+
+@pytest.mark.parametrize("value", [True, None, "0.1", -0.1, 1.1, float("nan"), float("inf")])
+def test_invalid_fraction_is_rejected_even_when_marker_is_unavailable(value):
+    with pytest.raises(ProteinEvidenceError, match="protein_cutoff_fraction"):
+        candidate_calls("section", "CD8", None, np.array([True]), shift_scale=None,
+                        cutoff_fraction=value)
