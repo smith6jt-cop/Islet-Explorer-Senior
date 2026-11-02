@@ -192,7 +192,7 @@ def _shifted(features: list[dict], x0: int, y0: int) -> list[dict]:
     return out
 
 
-def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg) -> pd.DataFrame:
+def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids) -> pd.DataFrame:
     """coverage.compute on the section's window of its qptiff, from the cell geometry the manifest names."""
     import tifffile
     import zarr
@@ -213,6 +213,9 @@ def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg) -> pd.Data
             return np.asarray(z[index[name], y0:y1, x0:x1])
 
         frame = AC.compute(tag, _shifted(feats, x0, y0), (y1 - y0, x1 - x0), read, list(index), levels, reg)
+    # every geometry object is drawn (each cell's pixels are its own), but the table keeps the canonical cells, as
+    # REDSEA does: the GeoJSON can hold objects the measurement table does not
+    frame = frame[frame["object_id"].isin(set(redsea_ids))].reset_index(drop=True)
     frame.to_parquet(task.output(f"data/coverage/{tag}.parquet"), index=False)      # the layout the source reads
     return frame
 
@@ -323,7 +326,7 @@ def run(task: Task) -> dict:
     canary = LL.canary_levels(tables, reg.spec)
     canary.to_csv(task.output("tables/canary_levels.csv"), index=False)
     for tag in typed:
-        _coverage(task, images[tag], tag, tables["levels"], reg)
+        _coverage(task, images[tag], tag, tables["levels"], reg, source.redsea_ids(tag))
     covered = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=source.context_dir,
                                            coverage_dir=task.staging / "data/coverage")
     cells = {tag: _named(task, covered, tag, images[tag], reg, tables, canary, rules, branches) for tag in typed}
