@@ -1,0 +1,70 @@
+{
+  "schema": "multiplex5000-same-slide-batch/1",
+  "roster": {
+    "path": "../../../docs/evaluations/dynamic_portability_20261102/pair_dispositions.json",
+    "sha256": "9863464267ce9959dac24bf263a5f4d631869fb820f929bea763b09b6202872c"
+  },
+  "workspace_root": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/geom1/pair_releases",
+  "pairs": [
+    {
+      "pair_id": "HDL090_PC67_0110618-S1__xenium:0110618:090",
+      "project": "same_slide_evaluation/same_slide_hdl090_pc67_0110618_s1.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL082_PC67_0110618-S2__xenium:0110618:082",
+      "project": "same_slide_evaluation/same_slide_hdl082_pc67_0110618_s2.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL104_PC67_0110618-S3__xenium:0110618:104",
+      "project": "same_slide_evaluation/same_slide_hdl104_pc67_0110618_s3.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL014_PC67_0110618-S4__xenium:0110618:014",
+      "project": "same_slide_evaluation/same_slide_hdl014_pc67_0110618_s4.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL059_PC67_0110979-S1__xenium:0110979:059",
+      "project": "same_slide_evaluation/same_slide_hdl059_pc67_0110979_s1.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL009_PC67_0110979-S2__xenium:0110979:009",
+      "project": "same_slide_evaluation/same_slide_hdl009_pc67_0110979_s2.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL034_PC67_0110979-S3__xenium:0110979:034",
+      "project": "same_slide_evaluation/same_slide_hdl034_pc67_0110979_s3.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "HDL080_PC67_0110979-S4__xenium:0110979:080",
+      "project": "same_slide_evaluation/same_slide_hdl080_pc67_0110979_s4.yaml",
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "io60:0081366:panc",
+      "project": null,
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "io60:0080579:panc",
+      "project": null,
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "io60:0080870:panc",
+      "project": null,
+      "required_evidence": "independent_calls"
+    },
+    {
+      "pair_id": "io60:0080502:panc",
+      "project": null,
+      "required_evidence": "independent_calls"
+    }
+  ]
+}

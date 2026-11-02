@@ -1,0 +1,22 @@
+# Pending evaluation project. No upstream inputs, transform, hierarchy map or gate acceptance is supplied by this file.
+schema: multiplex5000-project/1
+id: same_slide_hdl090_pc67_0110618_s1
+release: hdl090_pc67_0110618-s1
+cohort: spleen_same_slide_pilot
+stages:
+- 00_inventory
+- 03_protein_measurement
+- 04_rna_ingest
+- 05_normalization
+- 06_typing
+- 07_registration
+- 08_integration
+automatic_gates: []
+releases_root: /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/geom1/pair_releases
+sources:
+  same_slide_sources: /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
+  same_slide_registrations: /home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/geom1/supplied_registrations
+settings:
+  same_slide_source_manifest: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
+  rna_acquisitions:
+  - xenium:0110618:090
