@@ -387,7 +387,9 @@ def _level_figures(task: Task, source, reg, tables: dict, typed: list[str]) -> N
         for ax in axes.ravel()[n:]:
             ax.axis("off")
         fig.suptitle(f"{tag}: typing-marker levels (red), log1p of the positivity reading", fontsize=9)
-        fig.savefig(gates.figure_path(task, f"levels/{tag}.png"), dpi=100)
+        path = gates.figure_path(task, f"levels/{tag}.png")
+        path.parent.mkdir(parents=True, exist_ok=True)          # figure_path makes the gate folder, not subfolders
+        fig.savefig(path, dpi=100)
         plt.close(fig)
 
 
