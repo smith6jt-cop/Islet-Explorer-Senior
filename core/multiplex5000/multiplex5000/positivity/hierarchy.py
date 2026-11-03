@@ -32,6 +32,7 @@ The sheet's state roots (parent ``any``) never compete for identity; the ones a 
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from collections.abc import Iterable, Mapping
 
 import numpy as np
@@ -43,7 +44,7 @@ from . import identity as ID
 from . import registry as RG
 
 STATUSES = ('unique', 'tie_settled', 'subtype_ambiguous', 'lineage_ambiguous', 'doublet_suspected', 'unavailable',
-            'no_match')
+            'no_match', 'no_supported_subtype')
 
 
 class HierarchyError(ValueError):
@@ -126,6 +127,42 @@ def evaluate(source: RuleSource, calls: Mapping[str, np.ndarray], structure_only
     return BatchRuleEvaluation(states, {k: int((v == -1).sum()) for k, v in states.items()})
 
 
+
+def evaluate_profiles(source: RuleSource, calls: Mapping[str, np.ndarray],
+                      structure_only: Iterable[str] = (),
+                      in_structure: Mapping[str, np.ndarray] | None = None, *,
+                      defer_exclusions: Mapping[str, Iterable[str]] | None = None) -> BatchRuleEvaluation:
+    """Compare affirmative profiles before resolving recorded lineage exclusions.
+
+    The tissue explicitly names exclusion markers whose positive signal is a
+    competing profile, rather than a veto before that comparison. Original
+    calls and rules are retained. Missing exclusion measurements still make
+    their descendants unavailable; structure-only admission is unchanged.
+    With no tissue policy this is the strict recorded Boolean evaluation.
+    """
+    if not defer_exclusions:
+        return evaluate(source, calls, structure_only, in_structure)
+    by_name = source.by_phenotype
+    scopes = {name: set(markers) for name, markers in defer_exclusions.items()}
+    if not set(scopes) <= set(by_name):
+        raise HierarchyError('profile exclusions name an unknown hierarchy branch')
+    known = {marker for rule in source.rules for marker in rule.markers}
+    if any(not markers <= known for markers in scopes.values()):
+        raise HierarchyError('profile exclusions name an unknown marker')
+    profiled = []
+    for rule in source.rules:
+        ancestors = set(_chain(by_name, rule.phenotype))
+        deferred = set().union(*(markers for branch, markers in scopes.items() if branch in ancestors))
+        profiled.append(replace(rule, constraints=tuple(
+            (marker, token) for marker, token in rule.constraints
+            if not (token == 'allneg' and marker in deferred))))
+    strict = evaluate(source, calls, structure_only, in_structure)
+    candidates = evaluate(replace(source, rules=tuple(profiled)), calls, structure_only, in_structure)
+    states = {name: np.where(strict.states[name] == -1, -1, value).astype(np.int8)
+              for name, value in candidates.states.items()}
+    return BatchRuleEvaluation(states, {name: int((value == -1).sum()) for name, value in states.items()})
+
+
 def _lineage_names(source: RuleSource) -> list[str]:
     rules = source.by_phenotype
     roots = set(source.candidate_lineage_roots) or {n for n, r in rules.items() if r.parent == source.lineage_root_parent}
@@ -147,7 +184,8 @@ def broad_class(source: RuleSource, name: str) -> str:
 
 
 def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Mapping, margin: float,
-               min_depth: float, lead: float) -> pd.DataFrame:
+               min_depth: float, lead: float, *, require_specific: Iterable[str] = (),
+               inherit_depth: bool = False) -> pd.DataFrame:
     """One row per cell: cell_class, refined_class, status, tie_basis, n_matched, states.
 
     ``evidence``: ``columns`` (sheet marker names, in matrix order), ``P`` and ``C`` (plain and canary positive, cells x
@@ -155,6 +193,9 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
     (cells with interior pixels), and ``typing`` (the sheet markers with a typing role and a canary level; only these
     detect a group)."""
     rules = source.by_phenotype
+    required = set(require_specific)
+    if not required <= set(rules):
+        raise HierarchyError('specific-profile policy names an unknown rule')
     base = resolve_unique_matched_rules(source, evaluation)
     n = len(base.status)
     names = _lineage_names(source)
@@ -201,7 +242,17 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
             groups.setdefault(c[c.index(lca) - 1] if lca else c[-1], []).append(m)
         gnames = list(groups)
         det = [detecting(g, groups[g]) for g in gnames]
-        res = ID.placed(P[rows], C[rows], F[rows], COV[rows], det, det, margin, min_depth, lead, valid[rows])
+        # A subtype retains affirmative parent evidence for confidence.
+        # OR-group alternatives do not independently support every branch.
+        # Brightness and coverage still use only each branch's detecting markers.
+        shared = set()
+        if inherit_depth and lca:
+            for ancestor in _chain(rules, lca):
+                for marker, token in rules[ancestor].constraints:
+                    if token in ('pos', 'allpos') and marker in typing and marker in col:
+                        shared.add(col[marker])
+        count = [sorted(set(markers) | shared) for markers in det]
+        res = ID.placed(P[rows], C[rows], F[rows], COV[rows], det, count, margin, min_depth, lead, valid[rows])
         st = res['status'].astype(str)
         ok = np.where(res['basis'] == 'canary', np.isin(st, ID.PLACED),
                       (res['n_plain'] == 1) | (st == 'below_canary_resolved')) & (res['group'] >= 0)
@@ -224,12 +275,22 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
 
     if (status == '').any():
         raise HierarchyError('a cell was left without a status')
+    broad = [broad_class(source, name) for name in refined]
+    for name in required:
+        unresolved = refined == name
+        unique = unresolved & np.isin(status, ('unique', 'tie_settled'))
+        missing = np.logical_or.reduce([states[c] == -1 for c in children[name]] or [np.zeros(n, bool)])
+        status[unique & missing] = 'unavailable'
+        status[unique & ~missing] = 'no_supported_subtype'
+        if rules[name].parent == source.lineage_root_parent:
+            status[unresolved & (status == 'subtype_ambiguous')] = 'lineage_ambiguous'
+        refined[unresolved] = ''
     state_roots = [k for k, r in rules.items() if _chain(rules, k)[-1] in rules
                    and rules[_chain(rules, k)[-1]].parent == source.state_root_parent]
     matched_states = np.full(n, '', dtype=object)
     for k in state_roots:
         hit = states[k] == 1
         matched_states[hit] = np.where(matched_states[hit] == '', k, matched_states[hit] + ';' + k)
-    return pd.DataFrame({'cell_class': [broad_class(source, r) for r in refined], 'refined_class': refined,
+    return pd.DataFrame({'cell_class': broad, 'refined_class': refined,
                          'status': status, 'tie_basis': basis, 'n_matched': base.maximal_matches.astype(int),
                          'states': matched_states})

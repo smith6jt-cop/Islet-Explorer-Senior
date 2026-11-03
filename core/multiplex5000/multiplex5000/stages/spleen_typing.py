@@ -114,11 +114,14 @@ def _partition(release: Path, table: str, donor: str) -> Path:
 
 
 def settings(project) -> dict:
+    from ..tissues import spleen
+
     panels = _panels(project)
     return {"registry": list(REGISTRY), "typed_panel": TYPED_PANEL, "typed": _typed(project),
             "not_typed": {p: ds for p, ds in panels.items() if p != TYPED_PANEL},
             "not_typed_reason": "panel lacks the lineage roots (maintainer 2026-10-30)",
             "workers": int(project.settings.get("typing_workers", 4)),
+            "naming_policy": spleen.naming_policy(PANEL_FILES["panel_manifest"]),
             "method": "per-image levels, canary, coverage (positivity) -> 6551 spleen hierarchy (hierarchy)"}
 
 
@@ -239,7 +242,9 @@ def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.Da
                   | {reg.column(m, ld.loc[m, "measurement"]) for m in typing if m in ld.index})
     d = source.identity_frame(tag, cols, [])
     calls = H.marker_calls(d, reg, lv, used)
-    ev = H.evaluate(rules, {names[m]: calls[m] for m in used if m in names}, branches)
+    policy = spleen.naming_policy(task.input("panel_manifest"))
+    ev = H.evaluate_profiles(rules, {names[m]: calls[m] for m in used if m in names}, branches,
+                             defer_exclusions=policy["defer_exclusions"])
 
     ev_markers = [m for m in typing if m in names]
     value = lambda m, meas: np.log1p(np.clip(np.nan_to_num(d[reg.column(m, meas)].to_numpy(float), nan=0.0), 0, None))
@@ -255,7 +260,8 @@ def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.Da
                 "C": V > Lc, "F": F, "COV": cov[[AC.INTERIOR_PREFIX + m for m in ev_markers]].to_numpy(float),
                 "interior_valid": cov[AC.INTERIOR_COUNT].to_numpy(np.int64) > 0, "typing": [names[m] for m in ev_markers]}
     out = H.name_cells(rules, ev, evidence, reg.const("CANARY_MARGIN"), reg.const("CANARY_MIN_DEPTH"),
-                       reg.const("CANARY_TIE_INTERIOR_LEAD"))
+                       reg.const("CANARY_TIE_INTERIOR_LEAD"), require_specific=policy["require_specific"],
+                       inherit_depth=policy["inherit_depth"])
     out.insert(0, "cell_uid", [cell_uid(image.image_id, image.segmentation_version, str(o)) for o in d["object_id"]])
     out.insert(1, "object_id", d["object_id"].to_numpy())
     out.insert(2, "start_class", spleen.start_class(d))
@@ -356,9 +362,11 @@ def _marker_summary(selection: pd.DataFrame, reg) -> dict:
 
 def _section_summary(cells: pd.DataFrame) -> dict:
     return {"cells": int(len(cells)),
+            "forbidden_final_classes": int(cells["refined_class"].isin(["Immune", "T_cell", "DN_T_cell"]).sum()),
+
             "status": {k: int(v) for k, v in cells["status"].value_counts().items()},
             "cell_class": {k or "(none)": int(v) for k, v in cells["cell_class"].value_counts().items()},
-            "refined_class": {k or "(none)": int(v) for k, v in cells["refined_class"].value_counts().head(30).items()},
+            "refined_class": {k or "(none)": int(v) for k, v in cells["refined_class"].value_counts().items()},
             "tie_settled": int((cells["status"] == "tie_settled").sum()),
             "named_below_level": int((cells["violations"] > 0).sum()),
             "outside_regions": int((cells["start_class"] == "Tissue").sum())}
@@ -399,7 +407,7 @@ def _level_figures(task: Task, source, reg, tables: dict, typed: list[str]) -> N
 def _class_figure(task: Task, cells: dict[str, pd.DataFrame]) -> None:
     import matplotlib.pyplot as plt
 
-    frame = pd.DataFrame({tag: c["cell_class"].replace("", "(none)").value_counts(normalize=True)
+    frame = pd.DataFrame({tag: c["refined_class"].replace("", "(none)").value_counts(normalize=True)
                           for tag, c in cells.items()}).fillna(0.0)
     frame = frame.loc[frame.max(axis=1).sort_values(ascending=False).index]
     fig, ax = plt.subplots(figsize=(10, 5), layout="constrained")
@@ -407,7 +415,7 @@ def _class_figure(task: Task, cells: dict[str, pd.DataFrame]) -> None:
     for cls, row in frame.iterrows():
         ax.bar(frame.columns, row.to_numpy(), bottom=bottom, label=cls)
         bottom += row.to_numpy()
-    ax.set_ylabel("share of typed cells")
+    ax.set_ylabel("share of eligible cells")
     ax.legend(fontsize=7, ncol=2, bbox_to_anchor=(1.01, 1), loc="upper left")
     ax.tick_params(axis="x", rotation=45, labelsize=8)
     fig.savefig(gates.figure_path(task, "cell_classes.png"), dpi=120)
@@ -424,6 +432,11 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     bool(summary.get("typed")) and set(per) == set(summary["sections"])),
         gates.Check("cells named by a marker below its level", {t: v["named_below_level"] for t, v in per.items()},
                     "0", bool(per) and all(v["named_below_level"] == 0 for v in per.values())),
+        gates.Check("forbidden broad or double-negative T final calls",
+                    {t: v.get("forbidden_final_classes", 0) for t, v in per.items()}, "0",
+                    bool(per) and all(v.get("forbidden_final_classes", 0) == 0 for v in per.values())),
+        gates.Check("final class by section", {t: v["refined_class"] for t, v in per.items()},
+                    "reported", True, blocking=False),
         gates.Check("sections not typed (panel lacks the lineage roots)", summary["not_typed"], "listed", True,
                     blocking=False),
         gates.Check("markers whose level method stops (left out of typing)", summary["markers"]["stop"],

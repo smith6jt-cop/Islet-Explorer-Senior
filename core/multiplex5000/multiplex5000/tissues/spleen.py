@@ -282,3 +282,23 @@ def check_population(cells, registry, roles: dict, pos: dict, background):
 def reference_carries(registry) -> frozenset[str]:
     """Markers the reference cells carry, read as a positive rate among them: the pan-leukocyte marker (CD45)."""
     return frozenset(registry.broad("Leukocyte"))
+
+
+
+def naming_policy(manifest_path: Path) -> dict:
+    """Spleen review rulings of 2026-11-02; no fitted levels or margins change."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    adaptation = manifest["rule_table"]["adaptation"]
+    deferred = adaptation.get("defer_profile_exclusions", {})
+    required = adaptation.get("require_specific_profile", [])
+    source = load_rule_source(manifest_path)
+    known = {marker for rule in source.rules for marker in rule.markers}
+    if (not isinstance(deferred, dict) or not set(deferred) <= source.by_phenotype.keys()
+            or any(not isinstance(markers, list) or not set(markers) <= known for markers in deferred.values())):
+        raise RuleSourceError("invalid spleen profile-exclusion policy")
+    if not isinstance(required, list) or not set(required) <= source.by_phenotype.keys():
+        raise RuleSourceError("invalid spleen specific-profile policy")
+    inherit = adaptation.get("inherit_profile_depth", False)
+    if not isinstance(inherit, bool):
+        raise RuleSourceError("invalid spleen inherited-profile depth policy")
+    return {"defer_exclusions": deferred, "require_specific": required, "inherit_depth": inherit}

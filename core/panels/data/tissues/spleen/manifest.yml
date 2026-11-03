@@ -14,11 +14,22 @@ rule_table:
     # epithelium is present in spleen).
     drop_branches: [Endocrine, Ductal_Epithelial]
     drop_rules: [Nerve_fiber, Myofibroblast_CAF, Basement_membrane, Blood_vessel,
-                 Lymphatic_vessel, HEV]
+                 Lymphatic_vessel, HEV, DN_T_cell]
     # Maintainer 2026-11-01: an OR-group (anypos) marker that PC67 does not
     # acquire is left out of that group, so the rule is read on its measured
     # members. Only these (rule, marker) pairs; each marker must be absent from
     # the panel, and every other missing marker still makes its rule unavailable.
+    # Maintainer 2026-11-02: compare measured lineage profiles before
+    # opposing immune/CD4/CD8 signals veto a supported subtype. Original
+    # negative clauses remain recorded and missing calls stay unavailable.
+    # FOXP3 negatives remain strict for ordinary CD4 helper profiles.
+    defer_profile_exclusions:
+      Immune: [CD68, CD11c, CD20, CD79a, CD3e, CD11b, CD4, CD8]
+    # No compartment catchall, and no renaming prohibited DN profiles T_cell.
+    require_specific_profile: [Immune, T_cell]
+    # Count required parent positives toward confidence without mixing them
+    # into CD4/CD8 brightness or coverage comparisons.
+    inherit_profile_depth: true
     omit_absent_anypos:
       Epithelial: [Ker8-18]
       Macrophage: [Iba1]
