@@ -1,0 +1,198 @@
+{
+  "schema": "senior.codex_app_layout_addendum_receipt/1",
+  "recorded_utc": "2026-11-03T13:52:41.547765+00:00",
+  "status": "received_and_read_with_cosmetic_caveat_and_prior_portability_finding_retained",
+  "source_repository": "/data/panc_CODEX/Islet-Explorer",
+  "baseline_code": "b5fae5cf9421579e03b089c548c92f25859577c5",
+  "code_commits": [
+    "926c7aee0b6c500ad18287bc00b2cdff7b177d6e",
+    "1573a33a36e4bc42e1b0da84f49eeead3e51c86d",
+    "5e6580fe68af12dd18bee430988bc1ed64061526"
+  ],
+  "final_build_source": "5e6580fe68af12dd18bee430988bc1ed64061526",
+  "final_documentation_commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+  "evidence": {
+    "source_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/source_review.json",
+      "sha256": "cc080f85fd1cf8f02ec9985fdf87ec34f2acbf0d3d2dbe61266c4be37beb159a",
+      "bytes": 14209
+    },
+    "ui_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/ui_review.json",
+      "sha256": "b212d41194662956e4412be610f812cb48b04a46f69f9d08bb92a7976500378c",
+      "bytes": 42216
+    },
+    "documentation_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/documentation_review.json",
+      "sha256": "aa5a90f649da35b6ecd8883326436b2c15a7e57b06e8921b98d1a0fe5a2ee1b1",
+      "bytes": 33791
+    },
+    "final_document_bindings.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/final_document_bindings.json",
+      "sha256": "ea0540ad114ac5ee7c2512e02d94a1b88caa0f709922ac4c45156edcefb66aca",
+      "bytes": 24477
+    },
+    "prior_delivery_verification.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/prior_delivery_verification.json",
+      "sha256": "aa7d6cfa333dfe905416987f72621d067a96c4e0f9731f61de71f01388341f44",
+      "bytes": 5204
+    },
+    "artifact_manifest.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/artifact_manifest.json",
+      "sha256": "02d93b4b64ef60dc50fd10df1a1a622965677e24d849f58f11f66ecbf262b76f",
+      "bytes": 14345
+    }
+  },
+  "committed_document_snapshots": [
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/app_display_fixes_20261103.md",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/committed_evidence/docs/app_display_fixes_20261103.md",
+      "sha256": "bdf54f9f64dac298842c139932ccbcdae69ba48d2f965b5018e05e5ef6df0d40",
+      "bytes": 7231,
+      "commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+      "working_bytes_match_commit": true
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_display_validation_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/committed_evidence/docs/evidence/app_display_validation_20261103.json",
+      "sha256": "d41b6816b4acf24ecbd002819a5c3673190b24d152fc9619516478db0a4c9fd0",
+      "bytes": 10528,
+      "commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+      "working_bytes_match_commit": true
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_display_visual_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/committed_evidence/docs/evidence/app_display_visual_20261103.json",
+      "sha256": "0417464c5d8ebbd9f819aa0bf899e54f771c6a8bbadc5420510108dad846cc84",
+      "bytes": 17842,
+      "commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+      "working_bytes_match_commit": true
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_donor_composition_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/committed_evidence/docs/evidence/app_donor_composition_20261103.json",
+      "sha256": "1dd5258424f93b20f566bc0e8672bbd5a01025dfc02d145230b544d76b3cb957",
+      "bytes": 25947,
+      "commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+      "working_bytes_match_commit": true
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_phenotype_hierarchy_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_layout_addendum_20261103/committed_evidence/docs/evidence/app_phenotype_hierarchy_20261103.json",
+      "sha256": "e9fbbd392d54a66c51fd89d11c05cbf9cc641a89a5c1def54578d3068ada4918",
+      "bytes": 1626,
+      "commit": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+      "working_bytes_match_commit": true
+    }
+  ],
+  "prior_receipts": [
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/codex_app_fixes_receipt_20261103/receipt.json",
+      "sha256": "602746a2f95f6dce348215c80c910e57b6cfc1fcf4c69b91483790a8611bd456",
+      "unchanged": true
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/codex_component_resolution_receipt_20261102/receipt.json",
+      "sha256": "f2492d77449537e1ce32d42dc065b1c6f8774052bed2bf20a85e75e40e53e7ee",
+      "unchanged": true
+    }
+  ],
+  "independent_checks": {
+    "pure_R_checks": 26,
+    "synthetic_JavaScript_checks": 10,
+    "source_hashes_matching_final_code": 73,
+    "saved_reports_hash_verified": 8,
+    "saved_screenshots_hash_verified_and_visually_inspected": 8,
+    "committed_document_snapshots": 5,
+    "compact_receipt_bound_files_verified": 22,
+    "documentation_changes": {
+      "markdown": 24,
+      "compact_evidence_json": 4,
+      "unchanged_other_git_entries": 781,
+      "added_relative_file_links_resolve": 73
+    },
+    "unchanged_prior_delivery_checks": 8
+  },
+  "visual_conclusion": {
+    "default_and_all_27_tissue_legends_complete_at_viewport_widths": [
+      1200,
+      1600
+    ],
+    "sender_measured_panel_height_range_px": [
+      406.8228261247817,
+      482.5363404328895
+    ],
+    "umap_legends_and_colorbars_below_plots_with_clear_titles": true,
+    "final_tissue_evidence": "Final source launch; four final dynamic tissue images inspected.",
+    "reused_scope": "Four final-r5 UMAP images and prior Plot/Trajectory/taxonomy checks; not a newly repeated full final-source browser suite.",
+    "interaction_limits": "Stable DOM and download-link placement are sender-run checks. Brush/reset exercised only for all27/1600. Download contents not tested; raw coordmap ranges not retained for independent reconstruction of scaled map height."
+  },
+  "open_findings": [
+    {
+      "id": "LAYOUT-1200-AXIS-TICK",
+      "status": "visually_confirmed_cosmetic_caveat",
+      "condition": "Both 1200-width raw tissue images clip the rightmost 5000 x-axis tick at the image edge. Legends remain complete.",
+      "remediation": "Check the entire axis while preserving map area and full legends in both viewport widths."
+    },
+    {
+      "id": "APP-MACROPHAGE-MIXED-ROOT-1",
+      "status": "prior_reproduction_retained_source_unchanged",
+      "source": "app/shiny_app/R/00_globals.R:805-846",
+      "source_sha256": "0844f958e1d77b965300746a7574956fd20b8df10e2ee6022ecae574841577ae",
+      "condition": "Raw Macrophage residual plus marker-profile roots with no split marker selected.",
+      "effects": "Merged peri-proportion/count, enrichment and minimum-distance destination columns are dropped; enrichment also reads an overwritten residual count.",
+      "remediation": "Compute from immutable original member columns and retain every destination family; test exact mixed-input proportions/counts/enrichment/distances.",
+      "current_cohort_limit": "No current supplied-cohort failure established; its macrophages are marker profiles only."
+    }
+  ],
+  "supplied_not_reexecuted": {
+    "full_R_parse_files": 35,
+    "full_R_expectations_passed": 588,
+    "Python_tests_passed": 3,
+    "real_donor_scenarios": 48,
+    "test_log_nuance": "R test summary has zero failures/warnings/skips, but log emits tibble package-build-version warning; Python log emits anndata/zarr deprecation warning.",
+    "expanded_loopback_smoke": {
+      "passed": 45,
+      "total": 49,
+      "failed": [
+        "expanded_image_inventory_and_ranges",
+        "viewer_range_16_bytes",
+        "viewer_canvas_rendered",
+        "viewer_control_semantics"
+      ]
+    },
+    "new_dev_build": "Sender reports isolated build in progress; no image, installed-runtime or live-service claim verified here."
+  },
+  "adaptation_requirements": [
+    "Resolve the mixed residual/profile helper defect before generic reuse across datasets.",
+    "Preserve original calls, source identifiers/counts, unavailable evidence and original denominators; display labels remain separate.",
+    "Distinguish parent totals from disjoint additive leaves, and object memberships from unique cells.",
+    "Record retained feature lists and fitting provenance for live trajectory computations separately from frozen embeddings.",
+    "Require new immutable-image/runtime/browser acceptance for deployment; prior image evidence is historical."
+  ],
+  "preserved_portability_delivery": {
+    "counts": {
+      "completed": 132,
+      "blocked": 44,
+      "excluded": 20,
+      "unavailable": 5
+    },
+    "declared_acquisitions": 201,
+    "all_eight_checks_pass": true,
+    "fresh_manifest_hashes": 2973
+  },
+  "mutation_scope": {
+    "source_repository_changed": false,
+    "scientific_code_or_data_changed": false,
+    "previous_receipts_changed": false,
+    "parameter_history_changed": false,
+    "port_applied": false,
+    "image_built": false,
+    "service_changed": false,
+    "biological_or_release_approval": false
+  },
+  "notification": {
+    "source_thread": "01a19c87-d04f-7ff3-b64d-e4c87ab527b6",
+    "status_at_recording": "Final send attempted after local commit; outcome recorded separately. Receipt creation does not assert upstream delivery."
+  }
+}
