@@ -1,0 +1,142 @@
+{
+  "schema": "senior-codex-handoff-receipt/1",
+  "recorded_utc": "2026-11-03T02:54:38.597859+00:00",
+  "recipient": "Local Senior monorepo and its core/multiplex5000; no claim of updating separate HPG checkouts",
+  "recipient_commit_before_receipt": "f2fc573395c849344d9e2871cfd9ffb7972b1240",
+  "package": {
+    "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution",
+    "source_commit": "5b72a9b022766f5ddb828845e5789bfcf3f15063",
+    "incremental_base": "2150edd93ea379acd60cc36db3eb0b18eeb207d4",
+    "checksum_manifest": {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/SHA256SUMS",
+      "sha256": "7bac1f63c355c99db1045826f599c745a8b26a1767187c3c08f39e8921ee3901"
+    },
+    "payload_files_excluding_checksum_manifest": 18,
+    "total_regular_files": 19,
+    "payload_bytes": 2015949,
+    "archived_regular_source_files": 223,
+    "archive_directory_entries": 22,
+    "total_archive_entries": 245
+  },
+  "status": {
+    "received": true,
+    "integrity": "pass",
+    "read": "complete",
+    "content_review": "complete_with_documented_projection_defect",
+    "applied": false,
+    "source_history_imported": false,
+    "scientific_replay_performed": false,
+    "service_verification_performed": false,
+    "recipient_scientific_approval_added": false
+  },
+  "read_resources": [
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/typing_change_notice_20261102.md",
+      "sha256": "c10049bbb6776bbef475b194b28a502c28d966d730daf620b48e80ebed545870"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/workflow_user_guide.md",
+      "sha256": "d49d8a0f55592d6be6e3996494a21281a1b28fcf7f9ae66cdbc35292af884b0e"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/component_build_v2_20261102.md",
+      "sha256": "13cc4aaf5d17ece7a1f5dc169f105202db5583c79f6c581033520e824d847379"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/component_resolution_20261102.md",
+      "sha256": "4cfa4ec6a08fef92ce9d06bf8c57700f62c457d140bea638c3eaa0c52b6e56ab"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/evidence/component_build_v2_20261102.json",
+      "sha256": "ba80b8aa34886bf6e28729a58dd0484cbf16b1a367ffe6cc19dd3ce1dbb77af8"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/evidence/component_release_validation_20261102.json",
+      "sha256": "58823334c80ac1051dd8ff847e734f2b65489c02c6effff0daf6533705590110"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/evidence/pubapps_live_20261102.json",
+      "sha256": "1f635a08d79f0ef1fcdff698bcce5671ce5ed7b049c42a5d6c59441560c5bf54"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-resolution/evidence/compact_final_reports.json",
+      "sha256": "8c1071abf4cba6f615fe07abb8602dc7aef43497e508df70884903c6b3ca17e9"
+    }
+  ],
+  "independent_evidence": {
+    "payload_archive_and_header_verification": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_component_resolution_receipt_20261102/integrity.json",
+      "sha256": "2fb695913015f57fd76331ed726272f42347985a1d7c1753badf889d603c2e32"
+    },
+    "content_and_report_byte_review": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_component_resolution_receipt_20261102/content_review.json",
+      "sha256": "d160a97d78234530fab5e52a0f323df4abc38b75f9bd39420e0f2836845f83f4"
+    },
+    "preserved_prior_delivery_verification": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_component_resolution_receipt_20261102/prior_delivery_verification.json",
+      "sha256": "aa7d6cfa333dfe905416987f72621d067a96c4e0f9731f61de71f01388341f44"
+    }
+  },
+  "verification_scope": {
+    "payload_and_archive_hashes": "independently verified locally",
+    "bundle": "advertised head and prerequisite header match; history not imported or independently reconstructed",
+    "compact_content_checks": 51,
+    "source_report_byte_bindings_checked": 14,
+    "source_report_scope": "Regular compact-referenced report/manifest files only; their bytes and supplied sizes match. No raw data or image arrays reprocessed.",
+    "scientific_and_runtime_results": "Supplied results; package/report-byte verification does not reproduce scientific calculations, biological accuracy, deployment or endpoint tests."
+  },
+  "producer_roles": {
+    "scientific_producer": "67ee6c9d0b28f467eee589fea24829a6546e3d74",
+    "release_and_image_producer": "e5689f6453e68bc9e94cbe83689cb9db4d3d0b83",
+    "corrected_verifier": "d3ec00e113fbbdb8abb7eb4b57ee4ffc7ca46580",
+    "evidence_composer": "c3dc4944afda1d257c4c73d69ccaaa3b00da8c72",
+    "package_documentation_source": "5b72a9b022766f5ddb828845e5789bfcf3f15063"
+  },
+  "supplied_scientific_summary": {
+    "donors": 20,
+    "eligible_cells": 3199606,
+    "selected_named_endocrine_cells": 110721,
+    "Unclassified": 7398,
+    "Ki67_positive_cells": 78680,
+    "permitted_Lymphatic_label_changes": 353,
+    "classifier_lineage_objects": 10080,
+    "exact_Single_cell_associations": 5227,
+    "corrected_cell_negative_populated_objects_retained": 953,
+    "centroid_member_set_differences_retained": 13,
+    "centroid_count_anomalies_retained": 3,
+    "ambiguous_split_parent_sets_retained": 3
+  },
+  "parity_scope": "Original failed full report is retained. The accepted composite reuses 24 unchanged passing checks and a corrected complete state gate plus independent UUID proof; it is not a newly rerun 25-check full suite. Scientific, image/data, validator and composer versions remain separate.",
+  "projection_caveat": {
+    "path": "evidence/compact_final_reports.json: available_reports.release_inventory.image_count",
+    "reported_value": 14,
+    "meaning": "Incorrect projection of the number of keys in the full inventory images metadata mapping. It is not an image or donor count.",
+    "verified_full_report_sha256": "6147832fc3ea1693ded18dff8ee05b8602db8542ff564a6dd8f92bcad11ae248",
+    "actual_full_inventory_fields": {
+      "images.files": 20,
+      "images.tiff_files": 20,
+      "images.ome_tiff_files": 20,
+      "images.tiff_pages": 690
+    },
+    "supplied_package_modified": false
+  },
+  "hpg_delivery": {
+    "status": "sender_reported_verified_not_independently_checked_by_recipient",
+    "published_path": "/blue/maigan/smith6jt/CODEX-handoff-20261102-component-resolution",
+    "reported_permanent_symlink_backing": "/blue/maigan/smith6jt/CODEX-handoff-20261102-component-resolution.partial-e3b6f36e42954461aa9d5b782edb9c73",
+    "retention_note": "Sender identifies this backing directory as the permanent published package, not a cleanup candidate. No remote file was touched."
+  },
+  "prior_delivery": {
+    "final_documentation_commit": "f2fc573395c849344d9e2871cfd9ffb7972b1240",
+    "manifest": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/blocker_remediation_20261102/artifact_manifest.json",
+      "sha256": "7f41ddf1f42a08aeaf2e404d3735ec3b771e8b28010a67e6aa8d7e46bbf1e081"
+    },
+    "verification": "all eight checks pass; existing delivery files and manifest were not rewritten"
+  },
+  "adaptation_boundary": [
+    "Shared mechanics may inform a separately scoped recipient implementation: explicit component/reference bindings, preserved failure evidence, full-cohort invariants, state-export parity and unchanged-input proof.",
+    "CODEX numerical thresholds, selected v19 identities, named-four endocrine membership and cohort assumptions are not defaults for other assays, tissues or panels.",
+    "No recipient port, registry change, scientific run or deployment is part of this receipt."
+  ]
+}
