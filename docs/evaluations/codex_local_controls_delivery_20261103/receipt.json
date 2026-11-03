@@ -1,0 +1,69 @@
+{
+  "schema": "senior.codex_local_controls_delivery/1",
+  "recorded_utc": "2026-11-03T16:49:44.966512+00:00",
+  "status": "received_and_read_delivery_only",
+  "source_commit": "1596b0336096a949a954c9793fa6600ed09c7f1a",
+  "documentation_commit": "d7e20a6b6f6261b95fc6ec93c05cc18e9c31f001",
+  "image": "sha256:846962f791ed226fe22c50f8590eef6330fa76726fa616f78e4d9b106e6a0ddc",
+  "url": "http://127.0.0.1:3845/islet-explorer/",
+  "accepted_data_producer": "5e6580fe68af12dd18bee430988bc1ed64061526",
+  "data_manifest_sha256": "03038ebdcd172e82ff7afba1f2025cb905e5859bcee423b05618b04c993f7320",
+  "document_snapshots": [
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/local_duckdb_review_20261103.md",
+      "source_commit": "d7e20a6b6f6261b95fc6ec93c05cc18e9c31f001",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_local_controls_delivery_20261103/snapshots/docs/local_duckdb_review_20261103.md",
+      "sha256": "df2c56c840e4bb161fd54edc1991d59561fe1e9e0849e15ac28fc6cf19c5c044",
+      "bytes": 5921
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/local_controls_review_20261103.json",
+      "source_commit": "d7e20a6b6f6261b95fc6ec93c05cc18e9c31f001",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_local_controls_delivery_20261103/snapshots/docs/evidence/local_controls_review_20261103.json",
+      "sha256": "1ee06c6ddee832f231b0b7640f8ae5ea77380a123bdbbdb7a79bc859e60e6817",
+      "bytes": 15188
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/category_counts_by_disease_status_20261103.json",
+      "source_commit": "d7e20a6b6f6261b95fc6ec93c05cc18e9c31f001",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_local_controls_delivery_20261103/snapshots/docs/evidence/category_counts_by_disease_status_20261103.json",
+      "sha256": "13aa53e43e55a808b5635159104f6c19b79ee6b19bfda3208a469c903b4ee0cb",
+      "bytes": 4789
+    }
+  ],
+  "prior_delivery_note": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/codex_local_preview_delivery_20261103/README.md",
+    "sha256": "af30db5dc911e2880ac3830534689b24c645a91a5f9457eada8c774469d30f6a",
+    "bytes": 1919
+  },
+  "prior_delivery_note_unchanged": true,
+  "recorded_lifecycle": {
+    "service": "islet-explorer-local-review-20261103-r2.service",
+    "persistent_unit": true,
+    "enabled": true,
+    "linger": true,
+    "additional_reboot_test": false,
+    "scope": "Sender-recorded current configuration; recipient performed no systemctl, Podman, browser or service query."
+  },
+  "retain_active_backing": {
+    "data_root": "/data/panc_CODEX/Islet-Explorer/tmp/duckdb-dev-ui-release-20261103/final-5e6580f/artifacts/release-5e6580f/data",
+    "runtime_and_launchers": "/data/panc_CODEX/Islet-Explorer/tmp/duckdb-local-controls-20261103/runtime-1596b03",
+    "image_evidence": "/data/panc_CODEX/Islet-Explorer/tmp/duckdb-local-controls-20261103/image-1596b03",
+    "image": "sha256:846962f791ed226fe22c50f8590eef6330fa76726fa616f78e4d9b106e6a0ddc",
+    "instruction": "Preserve while the local preview is used or may be relaunched."
+  },
+  "supplied_validation_scope": {
+    "fresh": "49 browser checks; seven closed controls/toggles and four post-render screens; native scan/decoder checks.",
+    "inherited": "Prior Parquet and font-renderer tests and broader visual suites keep historical producer identities; not rerun for current candidate.",
+    "category_counts": "Saved unfiltered whole-tissue census by disease status; not chart-filtered object counts, and no new disease inference."
+  },
+  "limits": [
+    "Boot persistence is configured, not verified by another reboot.",
+    "The user manager private socket still refuses connections; Podman automatic health-timer creation/removal may fail. The dedicated timer uses the working user bus and has two verified scheduled passes. No manager reexecution was performed.",
+    "The cgroup-v1 delegated environment does not enforce the requested per-service 4 GiB and 2048-task limits.",
+    "Browser checks cover a subset of accessibility; color-contrast entries still require manual review. One missing default favicon produced a console message; application HTTP and page-error checks passed.",
+    "The focused check is not a pixel-level TIFF scientific audit, an exhaustive visual review, an external-authentication test, an off-campus-access test or public-deployment acceptance.",
+    "The superseded source-overlay diagnostic is qualified historical evidence only; current closed-first-render acceptance comes from the native focused receipt."
+  ],
+  "recipient_actions": "Read the runbook/receipt/category-count document; checked declared receipt hash, committed byte identity and source/image/data identity agreement; no broader review, port, scientific rerun, service action or activation approval."
+}
