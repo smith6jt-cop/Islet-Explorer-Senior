@@ -27,6 +27,11 @@ rule_table:
       Immune: [CD68, CD11c, CD20, CD79a, CD3e, CD11b, CD4, CD8]
     # No compartment catchall, and no renaming prohibited DN profiles T_cell.
     require_specific_profile: [Immune, T_cell]
+    # Maintainer: no double-negative T calls, including marker-qualified leaves.
+    # Put support on the ancestor so it does not inflate a competing leaf's
+    # detecting-marker set or count OR alternatives as shared depth evidence.
+    require_anypos:
+      T_cell: [CD4, CD8]
     # Count required parent positives toward confidence without mixing them
     # into CD4/CD8 brightness or coverage comparisons.
     inherit_profile_depth: true

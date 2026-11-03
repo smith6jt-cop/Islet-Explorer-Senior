@@ -266,6 +266,7 @@ def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.Da
     out.insert(1, "object_id", d["object_id"].to_numpy())
     out.insert(2, "start_class", spleen.start_class(d))
     out["violations"] = _below_level(rules, out["refined_class"].to_numpy(object), calls, names)
+    out["unsupported_t_cell"] = _unsupported_t_cells(rules, out["refined_class"].to_numpy(object), calls)
     for m in used:
         out[f"call__{m}"] = calls[m]
     for j, m in enumerate(ev_markers):
@@ -296,6 +297,22 @@ def _below_level(rules, refined: np.ndarray, calls: dict, names: dict) -> np.nda
                 hit = np.logical_or.reduce([by_sheet.get(m, np.zeros(len(refined)))[rows] == 1 for m in anyp])
                 out[rows] += ~hit
     return out
+
+
+def _unsupported_t_cells(rules, refined: np.ndarray, calls: dict) -> np.ndarray:
+    """Independently check marker support for every final T descendant, whatever its label."""
+    by_name, t_classes = rules.by_phenotype, set()
+    for name in set(refined) - {""}:
+        current = name
+        while current in by_name:
+            if current == "T_cell":
+                t_classes.add(name)
+                break
+            current = by_name[current].parent
+    absent = np.full(len(refined), -1, dtype=np.int8)
+    supported = ((calls.get("CD3e", absent) == 1)
+                 & ((calls.get("CD4", absent) == 1) | (calls.get("CD8", absent) == 1)))
+    return np.isin(refined, list(t_classes)) & ~supported
 
 
 def run(task: Task) -> dict:
@@ -363,6 +380,7 @@ def _marker_summary(selection: pd.DataFrame, reg) -> dict:
 def _section_summary(cells: pd.DataFrame) -> dict:
     return {"cells": int(len(cells)),
             "forbidden_final_classes": int(cells["refined_class"].isin(["Immune", "T_cell", "DN_T_cell"]).sum()),
+            "unsupported_t_cells": int(cells["unsupported_t_cell"].sum()),
 
             "status": {k: int(v) for k, v in cells["status"].value_counts().items()},
             "cell_class": {k or "(none)": int(v) for k, v in cells["cell_class"].value_counts().items()},
@@ -435,6 +453,9 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         gates.Check("forbidden broad or double-negative T final calls",
                     {t: v.get("forbidden_final_classes", 0) for t, v in per.items()}, "0",
                     bool(per) and all(v.get("forbidden_final_classes", 0) == 0 for v in per.values())),
+        gates.Check("T-cell calls without CD3e and CD4-or-CD8 support",
+                    {t: v.get("unsupported_t_cells") for t, v in per.items()}, "0",
+                    bool(per) and all(v.get("unsupported_t_cells") == 0 for v in per.values())),
         gates.Check("final class by section", {t: v["refined_class"] for t, v in per.items()},
                     "reported", True, blocking=False),
         gates.Check("sections not typed (panel lacks the lineage roots)", summary["not_typed"], "listed", True,

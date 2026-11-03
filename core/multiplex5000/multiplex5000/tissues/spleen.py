@@ -139,6 +139,7 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
             raise RuleSourceError(f"{rule.phenotype}: parent dropped from spleen rules")
     aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
     kept, omitted = _omit_absent_anypos(kept, adaptation.get("omit_absent_anypos", {}), panel, aliases)
+    kept = _require_anypos(kept, adaptation.get("require_anypos", {}), panel)
     additions = adaptation.get("add_rules", [])
     if not isinstance(additions, list):
         raise RuleSourceError("spleen add_rules must be a list")
@@ -173,6 +174,28 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
         result.inherited_markers(rule.phenotype)
     _structure_only(adaptation, result)
     return result
+
+
+def _require_anypos(rules: list[Rule], spec, panel: frozenset[str]) -> list[Rule]:
+    """Add a declared positive-support OR group to an ancestor and its descendants.
+
+    An existing OR group cannot be merged: that would weaken its requirement.
+    Missing calls retain the evaluator's unavailable semantics.
+    """
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen require_anypos must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if (rule is None or not isinstance(markers, list) or not markers
+                or any(not isinstance(m, str) for m in markers)
+                or len(markers) != len(set(markers)) or not set(markers) <= panel):
+            raise RuleSourceError(f"{phenotype}: require_anypos needs a kept rule and distinct acquired markers")
+        if any(token == "anypos" for _, token in rule.constraints) or set(markers) & set(rule.markers):
+            raise RuleSourceError(f"{phenotype}: require_anypos cannot replace or merge existing clauses")
+        by_name[phenotype] = Rule(rule.parent, phenotype,
+                                  rule.constraints + tuple((m, "anypos") for m in markers))
+    return [by_name[rule.phenotype] for rule in rules]
 
 
 def _omit_absent_anypos(rules: list[Rule], spec, panel: frozenset[str],
