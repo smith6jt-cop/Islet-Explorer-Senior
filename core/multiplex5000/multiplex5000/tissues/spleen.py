@@ -74,32 +74,46 @@ def normalized_markers(manifest_path: Path, *, table_path: Path | None = None,
     return frozenset(markers)
 
 
-def observed_markers(manifest_path: Path) -> frozenset[str]:
-    """Read the versioned PC67 export-column inventory, including its aliases."""
+def _panel_spec(manifest: dict, panel_id: str) -> dict:
+    if panel_id == "spleen_pc67":
+        panel = manifest.get("protein_panel")
+    else:
+        panel = manifest.get("protein_panels", {}).get(panel_id)
+    if not isinstance(panel, dict) or panel_id not in {"spleen_pc67", "spleen_pc33"}:
+        raise RuleSourceError(f"unknown spleen protein panel: {panel_id}")
+    return panel
+
+
+def observed_markers(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> frozenset[str]:
+    """Read the selected, versioned export-column inventory; default remains PC67."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
     if not isinstance(manifest, dict) or manifest.get("tissue_id") != "spleen":
         raise RuleSourceError("expected the spleen panel manifest")
-    panel = manifest.get("protein_panel")
-    if not isinstance(panel, dict) or panel.get("checked_exports") != 8:
-        raise RuleSourceError("the eight PC67 export headers have not been declared")
+    panel = _panel_spec(manifest, panel_id)
+    count, exports = (67, 8) if panel_id == "spleen_pc67" else (33, 4)
+    label = "PC67" if panel_id == "spleen_pc67" else "PC33"
+    if panel.get("checked_exports") != exports:
+        raise RuleSourceError(f"the {exports} {label} export headers have not been declared")
     panel_path = manifest_path.parent / panel["file"]
     header = panel_path.read_bytes()
     if hashlib.sha256(header).hexdigest() != panel.get("source_header_sha256"):
-        raise RuleSourceError("PC67 export header differs from the recorded source")
+        raise RuleSourceError(f"{label} export header differs from the recorded source")
     if header.count(b"\n") != 1:
-        raise RuleSourceError("PC67 inventory must contain exactly one export header")
+        raise RuleSourceError(f"{label} inventory must contain exactly one export header")
     columns = header.decode("utf-8").strip().split("\t")
-    if columns[:3] != ["object_id", "x_um", "y_um"]:
-        raise RuleSourceError("PC67 header does not name the expected cell identity")
+    identity = (["object_id", "x_um", "y_um"] if panel_id == "spleen_pc67"
+                else ["Image", "Object ID", "Parent"])
+    if columns[:3] != identity:
+        raise RuleSourceError(f"{label} header does not name the expected cell identity")
     names = [column.removeprefix("Cell: ").removesuffix(": Mean") for column in columns
              if column.startswith("Cell: ") and column.endswith(": Mean")]
-    if len(names) != 67 or len(set(names)) != len(names):
-        raise RuleSourceError("expected 67 unique PC67 marker columns")
+    if len(names) != count or len(set(names)) != len(names):
+        raise RuleSourceError(f"expected {count} unique {label} marker columns")
     return frozenset(names)
 
 
-def load_rule_source(manifest_path: Path) -> RuleSource:
+def load_rule_source(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> RuleSource:
     """Apply the recorded spleen adaptation to the one selected source sheet."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
@@ -115,7 +129,7 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     adaptation = spec.get("adaptation")
     if not isinstance(adaptation, dict):
         raise RuleSourceError("spleen adaptation is missing")
-    panel = observed_markers(manifest_path)
+    panel = observed_markers(manifest_path, panel_id=panel_id)
     names = source.by_phenotype
     branches = set(adaptation.get("drop_branches", []))
     individual = set(adaptation.get("drop_rules", []))
@@ -137,9 +151,15 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     for rule in kept:
         if rule.parent not in {"all", "any"} and rule.parent not in available_names:
             raise RuleSourceError(f"{rule.phenotype}: parent dropped from spleen rules")
-    aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
+    aliases = {**source.panel_aliases, **_panel_spec(manifest, panel_id).get("aliases", {})}
     kept, omitted = _omit_absent_anypos(kept, adaptation.get("omit_absent_anypos", {}), panel, aliases)
     kept = _require_anypos(kept, adaptation.get("require_anypos", {}), panel)
+    panel_adaptation = _panel_adaptation(manifest, panel_id)
+    kept, extra_or = _omit_absent_anypos(
+        kept, panel_adaptation.get("omit_absent_anypos", {}), panel, aliases)
+    kept, extra_neg = _omit_absent_allneg(
+        kept, panel_adaptation.get("omit_absent_allneg", {}), panel, aliases)
+    omitted += extra_or + extra_neg
     additions = adaptation.get("add_rules", [])
     if not isinstance(additions, list):
         raise RuleSourceError("spleen add_rules must be a list")
@@ -174,6 +194,78 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
         result.inherited_markers(rule.phenotype)
     _structure_only(adaptation, result)
     return result
+
+
+def _panel_adaptation(manifest: dict, panel_id: str) -> dict:
+    """Only explicitly declared panel projections may omit unavailable clauses."""
+    if panel_id == "spleen_pc67":
+        return {}
+    spec = manifest["rule_table"].get("panel_adaptations", {}).get(panel_id)
+    if not isinstance(spec, dict):
+        raise RuleSourceError(f"{panel_id}: panel adaptation is not declared")
+    if set(spec) - {"rationale", "omit_absent_anypos", "omit_absent_allneg"}:
+        raise RuleSourceError(f"{panel_id}: unsupported panel-adaptation fields")
+    if not isinstance(spec.get("rationale"), str) or not spec["rationale"].strip():
+        raise RuleSourceError(f"{panel_id}: panel adaptation needs its rationale")
+    return spec
+
+
+def _omit_absent_allneg(rules: list[Rule], spec, panel: frozenset[str],
+                       aliases: dict[str, str]) -> tuple[list[Rule], tuple[tuple[str, str], ...]]:
+    """Project explicit unacquired exclusions out of a panel's measured profile.
+
+    This changes the panel-specific rule, never a marker call. Every measured
+    exclusion and all required positive evidence stay intact. The omitted
+    clauses are recorded, so a missing assay is never reported as negative.
+    """
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen omit_absent_allneg must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    omitted: list[tuple[str, str]] = []
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if (rule is None or not isinstance(markers, list) or not markers
+                or any(not isinstance(m, str) for m in markers)
+                or len(markers) != len(set(markers))):
+            raise RuleSourceError(f"{phenotype}: omit_absent_allneg needs a kept rule and distinct markers")
+        tokens = dict(rule.constraints)
+        for marker in markers:
+            if tokens.get(marker) != "allneg":
+                raise RuleSourceError(f"{phenotype}/{marker}: only an allneg exclusion may be left out")
+            if marker in panel or aliases.get(marker) in panel:
+                raise RuleSourceError(f"{phenotype}/{marker}: the panel measures it; it cannot be left out")
+        remaining = tuple((m, t) for m, t in rule.constraints if m not in markers)
+        by_name[phenotype] = Rule(rule.parent, phenotype, remaining)
+        omitted.extend((phenotype, marker) for marker in markers)
+    return [by_name[rule.phenotype] for rule in rules], tuple(omitted)
+
+
+def panel_adaptation_audit(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> dict:
+    """Receipt-ready evidence of the measured panel and explicit omitted clauses."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    source = load_rule_source(manifest_path, panel_id=panel_id)
+    spec = _panel_adaptation(manifest, panel_id)
+    omitted = [
+        {"phenotype": phenotype, "marker": marker, "token": token,
+         "reason": ("unacquired OR alternative; acquired alternatives retained"
+                    if token == "anypos" else
+                    "unacquired exclusion; no negative marker call fabricated")}
+        for field, token in (("omit_absent_anypos", "anypos"), ("omit_absent_allneg", "allneg"))
+        for phenotype, markers in spec.get(field, {}).items()
+        for marker in markers
+    ]
+    observed = observed_markers(manifest_path, panel_id=panel_id)
+    return {
+        "panel_id": panel_id,
+        "rationale": spec.get("rationale", "Original recorded PC67 adaptation is unchanged."),
+        "observed_markers": sorted(observed),
+        "omitted_clauses": omitted,
+        "all_omitted_pairs": [list(pair) for pair in source.omitted],
+        "unavailable_required_markers_by_phenotype": {
+            name: list(markers) for name, markers in source.missing_by_phenotype(observed).items()
+            if markers
+        },
+    }
 
 
 def _require_anypos(rules: list[Rule], spec, panel: frozenset[str]) -> list[Rule]:
@@ -235,12 +327,13 @@ def _structure_only(adaptation: dict, source: RuleSource) -> frozenset[str]:
     return frozenset(names)
 
 
-def structure_only_branches(manifest_path: Path) -> frozenset[str]:
+def structure_only_branches(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> frozenset[str]:
     """The lineage roots that name a cell only inside a structure object of their class (maintainer,
     2026-11-01: the 10-30 structure-only ruling applied to spleen). Without such an object a match in the
     branch is unavailable, never negative (``positivity.hierarchy``)."""
     manifest = yaml.safe_load(Path(manifest_path).read_text())
-    return _structure_only(manifest["rule_table"]["adaptation"], load_rule_source(manifest_path))
+    return _structure_only(manifest["rule_table"]["adaptation"],
+                           load_rule_source(manifest_path, panel_id=panel_id))
 
 
 # --------------------------------------------------------------------------- per-image typing hooks
@@ -308,13 +401,13 @@ def reference_carries(registry) -> frozenset[str]:
 
 
 
-def naming_policy(manifest_path: Path) -> dict:
+def naming_policy(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> dict:
     """Spleen review rulings of 2026-11-02; no fitted levels or margins change."""
     manifest = yaml.safe_load(Path(manifest_path).read_text())
     adaptation = manifest["rule_table"]["adaptation"]
     deferred = adaptation.get("defer_profile_exclusions", {})
     required = adaptation.get("require_specific_profile", [])
-    source = load_rule_source(manifest_path)
+    source = load_rule_source(manifest_path, panel_id=panel_id)
     known = {marker for rule in source.rules for marker in rule.markers}
     if (not isinstance(deferred, dict) or not set(deferred) <= source.by_phenotype.keys()
             or any(not isinstance(markers, list) or not set(markers) <= known for markers in deferred.values())):

@@ -56,6 +56,37 @@ rule_table:
     # Until such an object exists (PC67 SmallVessel is being retrained), a match
     # in them is unavailable, never negative.
     structure_only: [Endothelial]
+  panel_adaptations:
+    spleen_pc33:
+      rationale: >-
+        Maintainer 2026-11-03 requests typing all four PC33 donors with the same
+        spleen hierarchy. Project explicit unacquired exclusions and redundant
+        OR alternatives out of measured profiles; retain every acquired clause
+        and all defining positive requirements. An omitted exclusion is not a
+        negative measurement. Unsupported positive identities stay unavailable.
+      omit_absent_anypos:
+        Epithelial: [Pan-Cytokeratin, EpCAM]
+        Immune: [CD11b]
+        B_cell: [CD79a]
+        Myeloid: [M2Gal3, CD11b]
+        Effector_CD8: [Bcl-2]
+        Macrophage: [M2Gal3]
+        Immunosuppressive: [IDO1, VISTA]
+      omit_absent_allneg:
+        Neural: [Pan-Cytokeratin, EpCAM]
+        Stromal: [Pan-Cytokeratin, EpCAM]
+        Immune: [Pan-Cytokeratin]
+        Endothelial: [Pan-Cytokeratin]
+        Progenitor_Epithelial: [B3TUBB]
+        T_cell: [CD79a]
+        Myeloid: [CD79a]
+        Exhausted_CD8: [Granzyme B]
+        Progenitor_exhausted: [LAG3, CD39]
+        Terminally_exhausted: [Granzyme B, Bcl-2]
+        GC_B_cell: [Bcl-2]
+        Macrophage: [MPO]
+        M1_macrophage: [CD206]
+        M2_macrophage: [iNOS]
 protein_panel:
   file: pc67_export_header.tsv
   source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/*PC67*.csv.gz
@@ -64,6 +95,20 @@ protein_panel:
   aliases: {PD-L1: PDL1}
   # These exports are raw Cell means. Presence in this panel is not evidence of
   # successful normalization or marker positivity.
+protein_panels:
+  spleen_pc33:
+    file: pc33_export_header.tsv
+    source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/*PC33*.parquet
+    source_kind: identical accepted Parquet export schemas; all four donors checked
+    source_header_sha256: 120a3e4b009866392a46fd7b8744bc8534e2ddbc7cd4d8e1e184cad75be8f50d
+    checked_exports: 4
+    source_exports:
+    - HDL011_PC33.ome.tiff.parquet
+    - HDL053_PC33.ome.tif.parquet
+    - HDL055_PC33.ome.tiff.parquet
+    - HDL063_PC33.ome.tiff.parquet
+    aliases:
+      PD-L1: PDL1
 protein_normalization:
   # This existing HPG scale table was fitted for the 33 classifier channels,
   # not all 67 markers measured in cells_full. It is comparison evidence for
@@ -76,7 +121,8 @@ protein_normalization:
   role: existing_classifier_scale_comparison
 notes: |
   Same-slide spleen typing needs separate PhenoCycler and Xenium evidence.
-  The PC67 marker inventory is read from all eight current protein export headers.
+  PC67 inventory binds all eight exports; PC33 inventory binds all four accepted
+  Parquet export schemas. Each panel has its own recorded rule projection.
   Rules requiring B3TUBB, Iba1, CD206 or other unmeasured markers are unavailable;
   missing values are never interpreted as negatives. FollicleCounterQP remains
   an independent read-only source during the pilot. Cell-to-cell links require

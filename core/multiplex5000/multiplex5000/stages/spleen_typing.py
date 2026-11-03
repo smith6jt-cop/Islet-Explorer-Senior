@@ -2,8 +2,8 @@
 
 Maintainer, 2026-10-30 and 2026-11-01:
 
-- **Sections:** the 67-plex (PC67) sections of the accepted Protein Measurement. The 33-plex sections are listed in the
-  gate as not typed: their panel lacks the lineage roots.
+- **Sections:** every PC67 and PC33 section of the accepted Protein Measurement. Each panel uses its own
+  registry and marker availability; level selection never pools sections from different panels.
 - **Positivity** is binary, from each section's own cells: a marker's level is its known-negative percentile in the
   spleen lineage that cannot carry it (``lineage_levels``); interior coverage (``coverage``) serves the tiebreak.
 - **Names** come from the 6551 spleen hierarchy (``tissues.spleen.load_rule_source``) through
@@ -41,11 +41,13 @@ from ..tasks import Input, Task
 
 STAGE = "06_typing"
 ROUTE = "spleen_protein"
-REGISTRY = ("phenocycler-pc67", "spleen")
+REGISTRY = ("phenocycler-pc67", "spleen")  # Default for existing PC67 review adapters.
 TYPED_PANEL = "spleen_pc67"
+REGISTRIES = {TYPED_PANEL: REGISTRY, "spleen_pc33": ("phenocycler-pc33", "spleen")}
 PANEL_DIR = roots.REPO / "core/panels/data/tissues"
 PANEL_FILES = {"panel_manifest": PANEL_DIR / "spleen/manifest.yml",
                "panel_header": PANEL_DIR / "spleen/pc67_export_header.tsv",
+               "panel_header_pc33": PANEL_DIR / "spleen/pc33_export_header.tsv",
                "pln_manifest": PANEL_DIR / "pancreatic_lymph_node/manifest.yml",
                "rule_sheet": PANEL_DIR / "pancreatic_lymph_node/phenotype_rules.csv"}
 CONTEXT = "typing_context"       # site source: <dir>/<section>.parquet (object_id, context, start_object)
@@ -83,11 +85,15 @@ def _manifest(project):
     return QuPathCohortManifest.read_json(_manifest_path(project))
 
 
-def _typed(project) -> list[str]:
+def _typed_panels(project) -> dict[str, list[str]]:
     panels = _panels(project)
-    if TYPED_PANEL not in panels:
-        raise SpleenTypingError(f"the cohort spec has no {TYPED_PANEL} section")
-    return panels[TYPED_PANEL]
+    if not panels or set(panels) - REGISTRIES.keys():
+        raise SpleenTypingError(f"the cohort spec names unsupported spleen panels: {sorted(set(panels) - REGISTRIES.keys())}")
+    return {p: panels[p] for p in sorted(panels, key=lambda p: p != "spleen_pc33")}
+
+
+def _typed(project) -> list[str]:
+    return [tag for tags in _typed_panels(project).values() for tag in tags]
 
 
 def _slides(project) -> dict[str, list]:
@@ -116,13 +122,11 @@ def _partition(release: Path, table: str, donor: str) -> Path:
 def settings(project) -> dict:
     from ..tissues import spleen
 
-    panels = _panels(project)
-    return {"registry": list(REGISTRY), "typed_panel": TYPED_PANEL, "typed": _typed(project),
-            "not_typed": {p: ds for p, ds in panels.items() if p != TYPED_PANEL},
-            "not_typed_reason": "panel lacks the lineage roots (maintainer 2026-10-30)",
-            "workers": int(project.settings.get("typing_workers", 4)),
-            "naming_policy": spleen.naming_policy(PANEL_FILES["panel_manifest"]),
-            "method": "per-image levels, canary, coverage (positivity) -> 6551 spleen hierarchy (hierarchy)"}
+    panels = _typed_panels(project)
+    return {"registries": {p: list(REGISTRIES[p]) for p in panels}, "panels": panels, "typed": _typed(project),
+            "not_typed": {}, "workers": int(project.settings.get("typing_workers", 4)),
+            "naming_policy": {p: spleen.naming_policy(PANEL_FILES["panel_manifest"], panel_id=p) for p in panels},
+            "method": "per-panel, per-image levels, canary, coverage (positivity) -> 6551 spleen hierarchy (hierarchy)"}
 
 
 def inputs(project) -> list[Input]:
@@ -133,6 +137,17 @@ def inputs(project) -> list[Input]:
              Input("normalization_acceptance", release / "05_normalization/gate/accepted.json"),
              Input("cohort_spec", _spec(project)), Input("qupath_manifest", _manifest_path(project))]
     found += [Input(name, path) for name, path in PANEL_FILES.items()]
+    from ..positivity.registry import REGISTRY_DIR
+
+    for panel_id in _typed_panels(project):
+        registry_name = "__".join(REGISTRIES[panel_id])
+        for suffix in ("", "__constants", "__proposals"):
+            path = REGISTRY_DIR / f"{registry_name}{suffix}.csv"
+            if suffix != "__proposals" or path.exists():
+                found.append(Input(f"registry:{panel_id}{suffix}", path))
+    provenance = roots.REPO / "_build_provenance.json"
+    if provenance.is_file():
+        found.append(Input("build_provenance", provenance))
     context = _source_dir(project, CONTEXT)
     for d in _typed(project):
         found += [Input(f"redsea:{d}", _partition(release, "redsea", d)),
@@ -195,6 +210,18 @@ def _shifted(features: list[dict], x0: int, y0: int) -> list[dict]:
     return out
 
 
+def _coverage_channel_index(image, array_shape: tuple[int, ...], axes: str) -> dict[str, int]:
+    """Reject a channel map that could silently read the wrong OME-TIFF/qptiff plane."""
+    if len(array_shape) != 3 or axes[-2:] != "YX" or any(n <= 0 for n in array_shape):
+        raise SpleenTypingError(f"{image.donor_id}: coverage requires channel/Y/X image data, found {axes} {array_shape}")
+    names = [c.channel_name for c in image.channel_map]
+    indices = [c.channel_index for c in image.channel_map]
+    if (not names or len(set(names)) != len(names) or len(set(indices)) != len(indices)
+            or any(i < 0 or i >= array_shape[0] for i in indices)):
+        raise SpleenTypingError(f"{image.donor_id}: channel map does not fit the image shape {array_shape}")
+    return dict(zip(names, indices))
+
+
 def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids) -> pd.DataFrame:
     """coverage.compute on the section's window of its qptiff, from the cell geometry the manifest names."""
     import tifffile
@@ -208,9 +235,9 @@ def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids
     qptiff = Path(image.qptiff.path)
     with tifffile.TiffFile(task.input(f"qptiff:{qptiff.name.split('.')[0]}")) as tf:
         z = zarr.open(tf.series[0].aszarr(level=0), mode="r")
+        index = _coverage_channel_index(image, z.shape, tf.series[0].axes)
         H, W = z.shape[-2:]
         x0, y0, x1, y1 = _window(feats, (H, W))
-        index = {c.channel_name: c.channel_index for c in image.channel_map}
 
         def read(name):
             return np.asarray(z[index[name], y0:y1, x0:x1])
@@ -223,13 +250,24 @@ def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids
     return frame
 
 
-def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.DataFrame, rules, branches) -> pd.DataFrame:
+def _panel_tables(tables: dict, panel_id: str) -> dict:
+    """Allow review adapters to read either aggregate or unchanged panel-local tables."""
+    return {name: value.loc[value["panel_id"] == panel_id].drop(columns="panel_id").copy()
+            if isinstance(value, pd.DataFrame) and "panel_id" in value else value
+            for name, value in tables.items()}
+
+
+def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.DataFrame, rules, branches,
+           *, panel_id: str = TYPED_PANEL) -> pd.DataFrame:
     from ..identity import cell_uid
     from ..positivity import coverage as AC
     from ..positivity import hierarchy as H
     from ..positivity import identity as ID
     from ..tissues import spleen
 
+    tables = _panel_tables(tables, panel_id)
+    if "panel_id" in canary:
+        canary = canary.loc[canary["panel_id"] == panel_id].drop(columns="panel_id")
     sel = tables["selection"].set_index("marker")
     used = [m for m in reg.table.index if m in sel.index and sel.loc[m, "decision"] == "use"]
     lv = tables["levels"][tables["levels"]["image"] == tag].set_index("marker")
@@ -242,7 +280,7 @@ def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.Da
                   | {reg.column(m, ld.loc[m, "measurement"]) for m in typing if m in ld.index})
     d = source.identity_frame(tag, cols, [])
     calls = H.marker_calls(d, reg, lv, used)
-    policy = spleen.naming_policy(task.input("panel_manifest"))
+    policy = spleen.naming_policy(task.input("panel_manifest"), panel_id=panel_id)
     ev = H.evaluate_profiles(rules, {names[m]: calls[m] for m in used if m in names}, branches,
                              defer_exclusions=policy["defer_exclusions"])
 
@@ -315,6 +353,107 @@ def _unsupported_t_cells(rules, refined: np.ndarray, calls: dict) -> np.ndarray:
     return np.isin(refined, list(t_classes)) & ~supported
 
 
+def _write_panel_table(task: Task, name: str, frames: dict[str, pd.DataFrame]) -> None:
+    """Panel-local CSVs retain their original schema; aggregates label their panel explicitly."""
+    for panel_id, frame in frames.items():
+        frame.to_csv(task.output(f"tables/by_panel/{panel_id}/{name}.csv"), index=False)
+    aggregate = (next(iter(frames.values())) if len(frames) == 1 else
+                 pd.concat([frame.assign(panel_id=panel_id) for panel_id, frame in frames.items()], ignore_index=True))
+    aggregate.to_csv(task.output(f"tables/{name}.csv"), index=False)
+
+
+def _file_record(path: Path) -> dict:
+    from ..artifacts import sha256_file
+
+    return {"path": str(path.resolve()), "bytes": path.stat().st_size, "sha256": sha256_file(path)}
+
+
+def _review_code_identity() -> dict:
+    from ..tasks import code_identity
+    from ..positivity import coverage, hierarchy, identity, lineage_levels, registry, sources
+    from ..tissues import lymph_node, spleen
+
+    code = code_identity()
+    code["files"] = {module.__name__: _file_record(Path(module.__file__))
+                     for module in (coverage, hierarchy, identity, lineage_levels, registry, sources, lymph_node, spleen)}
+    code["files"][__name__] = _file_record(Path(__file__))
+    return code
+
+
+def _write_section_review_ready(task: Task, tag: str, panel_id: str, cells: pd.DataFrame,
+                                panel_summary: dict, code: dict) -> Path | None:
+    """An atomic, explicitly provisional handoff; never a complete-stage receipt or acceptance."""
+    import pyarrow.parquet as pq
+
+    if not code.get("commit") or code.get("dirty") is not False:
+        return None
+    protein_receipt = task.input("protein_receipt")
+    receipt = json.loads(protein_receipt.read_text())
+
+    def accepted_measurement_record(name):
+        path = task.input(f"{name}:{tag}")
+        accepted = next((r for r in receipt.get("outputs", [])
+                         if (protein_receipt.parent / r["path"]).resolve() == path.resolve()), None)
+        actual = _file_record(path)
+        if not accepted or any(actual[k] != accepted.get(k) for k in ("sha256", "bytes")):
+            raise SpleenTypingError(f"{tag}: {name} input differs from the accepted Protein Measurement receipt")
+        return actual
+
+    expression = task.input(f"expression:{tag}")
+    expression_record = accepted_measurement_record("expression")
+    redsea_record = accepted_measurement_record("redsea")
+    eligible = pq.ParquetFile(expression).read(columns=["object_id", "qc_analysis_eligible"]).to_pandas()
+    if eligible["qc_analysis_eligible"].isna().any():
+        raise SpleenTypingError(f"{tag}: missing analysis eligibility in accepted Protein Measurement")
+    expected = pd.Index(eligible.loc[eligible["qc_analysis_eligible"], "object_id"])
+    actual = pd.Index(cells["object_id"])
+    uuid_match = (not expected.hasnans and not actual.hasnans and expected.is_unique and actual.is_unique
+                  and len(expected) == len(actual) and expected.difference(actual).empty)
+    per = _section_summary(cells)
+    required_stopped = panel_summary["markers"]["required_stopped"]
+    checks = [
+        {"name": "every required marker has a passing level on every section", "value": required_stopped,
+         "passed": not required_stopped},
+        {"name": "cells typed", "value": len(cells), "passed": bool(uuid_match)},
+        {"name": "cells named by a marker below its level", "value": per["named_below_level"],
+         "passed": per["named_below_level"] == 0},
+        {"name": "forbidden broad or double-negative T final calls", "value": per["forbidden_final_classes"],
+         "passed": per["forbidden_final_classes"] == 0},
+        {"name": "T-cell calls without CD3e and CD4-or-CD8 support", "value": per["unsupported_t_cells"],
+         "passed": per["unsupported_t_cells"] == 0},
+    ]
+    if not all(check["passed"] for check in checks) or not code.get("commit"):
+        return None
+    panel_dir = task.staging / "tables/by_panel" / panel_id
+    outputs = {"cells": _file_record(task.staging / f"data/cells/donor_id={tag}/data.parquet"),
+               "coverage": _file_record(task.staging / f"data/coverage/{tag}.parquet")}
+    outputs.update({f"tables/{name}": _file_record(panel_dir / f"{name}.csv")
+                    for name in (*TABLES, "canary_levels")})
+    inputs = set(PANEL_FILES) | {"protein_receipt", "protein_acceptance", "normalization_receipt",
+                               "normalization_acceptance", "cohort_spec", "qupath_manifest", f"context:{tag}"}
+    inputs.update(name for name in task.inputs if name.startswith(f"registry:{panel_id}") or name == "build_provenance")
+    record = {
+        "schema": "spleen-section-review-ready/1", "status": "provisional", "section": tag, "donor_id": tag,
+        "panel": panel_id, "cells": len(cells), "code_commit": code["commit"],
+        "code": {k: v for k, v in code.items() if k != "files"}, "code_files": code["files"],
+        "attempt_id": task.staging.name, "attempt_dir": str(task.staging.resolve()),
+        "outputs": outputs, "inputs": {name: _file_record(task.input(name)) for name in sorted(inputs)},
+        "panel_adaptations": _file_record(panel_dir / "rule_adaptations.json"),
+        "eligibility": {"expression_input": str(expression.resolve()), "expression_output": expression_record,
+                        "redsea_output": redsea_record, "source_hashes_verified": True,
+                        "contract": "qc_analysis_eligible == true", "expected_cells": len(expected),
+                        "uuid_set_matches": bool(uuid_match)},
+        "checks": checks,
+        "note": "One finished donor for immediate review; full-stage publication and gate acceptance remain separate.",
+    }
+    path = task.output(f"review/ready/{tag}.json")
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    temporary.replace(path)
+    print(f"Provisional review ready: {tag} ({len(cells):,} cells), {path}", flush=True)
+    return path
+
+
 def run(task: Task) -> dict:
     import matplotlib
 
@@ -325,40 +464,65 @@ def run(task: Task) -> dict:
     from ..tissues import spleen
 
     _check_prerequisites(task)
+    review_code = _review_code_identity()
     typed = task.settings["typed"]
+    panels = {p: task.settings["panels"][p]
+              for p in sorted(task.settings["panels"], key=lambda p: p != "spleen_pc33")}
     workers = task.settings["workers"]
-    reg = RG.load(*REGISTRY)
-    RG.require_reviewed(reg)
-    rules = spleen.load_rule_source(task.input("panel_manifest"))
-    branches = spleen.structure_only_branches(task.input("panel_manifest"))
     images = {i.donor_id: i for i in _manifest_from(task).images}
-
+    if (set(typed) != {t for tags in panels.values() for t in tags}
+            or set(typed) - images.keys()
+            or any(images[tag].panel_id != panel_id for panel_id, tags in panels.items() for tag in tags)):
+        raise SpleenTypingError("typed section/panel assignments disagree with the QuPath manifest")
     stage_dir = task.input("protein_receipt").parent
     source = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=task.input(f"context:{typed[0]}").parent)
-    tables = LL.choose(source, reg.spec, typed, workers=workers)
+    summary = {"sections": typed, "not_typed": {}, "panels": {}, "stops": [], "lineages": {}}
+    fitted = {}
+    for panel_id, tags in panels.items():
+        reg = RG.load(*REGISTRIES[panel_id])
+        RG.require_reviewed(reg)
+        rules = spleen.load_rule_source(task.input("panel_manifest"), panel_id=panel_id)
+        branches = spleen.structure_only_branches(task.input("panel_manifest"), panel_id=panel_id)
+        observed = spleen.observed_markers(task.input("panel_manifest"), panel_id=panel_id)
+        tables = LL.choose(source, reg.spec, tags, workers=workers)
+        fitted[panel_id] = (reg, rules, branches, tables)
+        marker_summary = _marker_summary(tables["selection"], reg)
+        summary["panels"][panel_id] = {
+            "sections": tags, "registry": list(REGISTRIES[panel_id]), "markers": marker_summary,
+            "observed_markers": sorted(observed),
+            "unavailable_rules": sorted(name for name, gap in rules.missing_by_phenotype(observed).items() if gap),
+            "structure_only": sorted(branches),
+            "rule_adaptations": spleen.panel_adaptation_audit(task.input("panel_manifest"), panel_id=panel_id),
+        }
+        task.output(f"tables/by_panel/{panel_id}/rule_adaptations.json").write_text(
+            json.dumps(summary["panels"][panel_id]["rule_adaptations"], indent=2, sort_keys=True) + "\n")
+        summary["lineages"].update(tables["options"].groupby("image")[["b_cells", "t_cells"]].first().to_dict("index"))
+        summary["stops"].extend(f"{panel_id}:{marker}" for marker in tables["stops"])
+        _level_figures(task, source, reg, tables, tags)
     for name in TABLES:
-        tables[name].to_csv(task.output(f"tables/{name}.csv"), index=False)
-    summary = {"sections": typed, "not_typed": task.settings["not_typed"], "stops": list(tables["stops"]),
-               "markers": _marker_summary(tables["selection"], reg),
-               "lineages": tables["options"].groupby("image")[["b_cells", "t_cells"]].first().to_dict("index")}
-    _level_figures(task, source, reg, tables, typed)
+        _write_panel_table(task, name, {p: values[3][name] for p, values in fitted.items()})
+    summary["markers"] = {key: sorted({m for p in summary["panels"].values() for m in p["markers"][key]})
+                          for key in ("use", "stop", "required_stopped")}
+    summary["unavailable_rules"] = {p: s["unavailable_rules"] for p, s in summary["panels"].items()}
+    summary["structure_only"] = {p: s["structure_only"] for p, s in summary["panels"].items()}
     if summary["markers"]["required_stopped"]:
         summary["typed"] = False
         return summary
 
-    canary = LL.canary_levels(tables, reg.spec)
-    canary.to_csv(task.output("tables/canary_levels.csv"), index=False)
-    for tag in typed:
-        _coverage(task, images[tag], tag, tables["levels"], reg, source.redsea_ids(tag))
+    canaries = {p: LL.canary_levels(values[3], values[0].spec) for p, values in fitted.items()}
+    _write_panel_table(task, "canary_levels", canaries)
+    cells = {}
     covered = SRC.ProteinMeasurementSource(stage_dir=stage_dir, context_dir=source.context_dir,
                                            coverage_dir=task.staging / "data/coverage")
-    cells = {tag: _named(task, covered, tag, images[tag], reg, tables, canary, rules, branches) for tag in typed}
+    for panel_id, tags in panels.items():
+        reg, rules, branches, tables = fitted[panel_id]
+        for tag in tags:
+            _coverage(task, images[tag], tag, tables["levels"], reg, source.redsea_ids(tag))
+            cells[tag] = _named(task, covered, tag, images[tag], reg, tables, canaries[panel_id], rules, branches,
+                                panel_id=panel_id)
+            _write_section_review_ready(task, tag, panel_id, cells[tag], summary["panels"][panel_id], review_code)
     summary["typed"] = True
     summary["per_section"] = {tag: _section_summary(c) for tag, c in cells.items()}
-    summary["unavailable_rules"] = sorted(
-        name for name, gap in rules.missing_by_phenotype(spleen.observed_markers(task.input("panel_manifest"))).items()
-        if gap)
-    summary["structure_only"] = sorted(branches)
     _class_figure(task, cells)
     return summary
 
@@ -443,9 +607,12 @@ def _class_figure(task: Task, cells: dict[str, pd.DataFrame]) -> None:
 # --------------------------------------------------------------------------------- gate ----
 def gate(task: Task, summary: dict) -> gates.Gate:
     per = summary.get("per_section", {})
+    panels = summary.get("panels", {})
+    required_stops = ({p: s["markers"]["required_stopped"] for p, s in panels.items()}
+                      if panels else summary["markers"]["required_stopped"])
     checks = [
         gates.Check("every required marker has a passing level on every section",
-                    summary["markers"]["required_stopped"], "none stopped", not summary["markers"]["required_stopped"]),
+                    required_stops, "none stopped within either panel", not summary["markers"]["required_stopped"]),
         gates.Check("cells typed", {t: v["cells"] for t, v in per.items()}, "every typed section",
                     bool(summary.get("typed")) and set(per) == set(summary["sections"])),
         gates.Check("cells named by a marker below its level", {t: v["named_below_level"] for t, v in per.items()},
@@ -460,20 +627,27 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     "reported", True, blocking=False),
         gates.Check("sections not typed (panel lacks the lineage roots)", summary["not_typed"], "listed", True,
                     blocking=False),
-        gates.Check("markers whose level method stops (left out of typing)", summary["markers"]["stop"],
+        gates.Check("markers whose level method stops (left out of typing)",
+                    {p: s["markers"]["stop"] for p, s in panels.items()} if panels else summary["markers"]["stop"],
                     "reported; a stop on a required marker blocks", True, blocking=False),
         gates.Check("status by section", {t: v["status"] for t, v in per.items()}, "reported", True, blocking=False),
         gates.Check("broad class by section", {t: v["cell_class"] for t, v in per.items()}, "reported", True,
                     blocking=False),
-        gates.Check("rules unavailable on PC67 (marker not acquired)", summary.get("unavailable_rules", []),
+        gates.Check("markers available and selected by panel",
+                    {p: {"observed": s["observed_markers"], **s["markers"]} for p, s in panels.items()},
+                    "reported separately; no marker availability pooled across panels", True, blocking=False),
+        gates.Check("panel-specific rule adaptations",
+                    {p: s["rule_adaptations"] for p, s in panels.items()}, "explicit unavailable clauses only", True,
+                    blocking=False),
+        gates.Check("rules unavailable by panel (marker not acquired)", summary.get("unavailable_rules", {}),
                     "unavailable, never negative", True, blocking=False),
         gates.Check("structure-only branches (no vessel object yet)", summary.get("structure_only", []),
-                    "unavailable until SmallVessel_PC67 objects are accepted", True, blocking=False),
+                    "unavailable until the panel's vessel objects are accepted", True, blocking=False),
         gates.Check("cells outside every cell-derived region (start class Tissue)",
                     {t: v["outside_regions"] for t, v in per.items()}, "reported", True, blocking=False),
     ]
     figures = sorted(f"levels/{p.name}" for p in (task.staging / gates.GATE_DIR / "levels").glob("*.png"))
     if summary.get("typed"):
         figures.append("cell_classes.png")
-    return gates.Gate(STAGE, "Spleen PC67 Cell Typing: per-image levels (positivity), named by the 6551 spleen "
+    return gates.Gate(STAGE, "Spleen PC67 and PC33 Cell Typing: panel-specific per-image levels (positivity), named by the 6551 spleen "
                       "hierarchy; the first manual stop.", checks, figures)

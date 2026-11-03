@@ -23,13 +23,15 @@ def _project(tmp_path, sources=None):
                            source=lambda name: named.get(name))
 
 
-def test_the_route_is_chosen_by_name_and_only_pc67_is_typed(tmp_path):
+def test_the_route_types_each_declared_panel_with_its_own_registry(tmp_path):
     project = _project(tmp_path)
     assert typing._route(project) is stage
     s = stage.settings(project)
-    assert s["typed"] == ["a67", "b67"]
-    assert s["not_typed"] == {"spleen_pc33": ["c33"]} and "lineage roots" in s["not_typed_reason"]
-    assert s["registry"] == ["phenocycler-pc67", "spleen"]
+    assert s["typed"] == ["c33", "a67", "b67"]
+    assert s["not_typed"] == {}
+    assert s["panels"] == {"spleen_pc33": ["c33"], "spleen_pc67": ["a67", "b67"]}
+    assert s["registries"] == {"spleen_pc33": ["phenocycler-pc33", "spleen"],
+                                "spleen_pc67": ["phenocycler-pc67", "spleen"]}
 
 
 def test_inputs_need_the_typing_context_and_outlines(tmp_path):
