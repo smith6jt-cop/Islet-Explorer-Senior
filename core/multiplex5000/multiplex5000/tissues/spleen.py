@@ -74,32 +74,46 @@ def normalized_markers(manifest_path: Path, *, table_path: Path | None = None,
     return frozenset(markers)
 
 
-def observed_markers(manifest_path: Path) -> frozenset[str]:
-    """Read the versioned PC67 export-column inventory, including its aliases."""
+def _panel_spec(manifest: dict, panel_id: str) -> dict:
+    if panel_id == "spleen_pc67":
+        panel = manifest.get("protein_panel")
+    else:
+        panel = manifest.get("protein_panels", {}).get(panel_id)
+    if not isinstance(panel, dict) or panel_id not in {"spleen_pc67", "spleen_pc33"}:
+        raise RuleSourceError(f"unknown spleen protein panel: {panel_id}")
+    return panel
+
+
+def observed_markers(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> frozenset[str]:
+    """Read the selected, versioned export-column inventory; default remains PC67."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
     if not isinstance(manifest, dict) or manifest.get("tissue_id") != "spleen":
         raise RuleSourceError("expected the spleen panel manifest")
-    panel = manifest.get("protein_panel")
-    if not isinstance(panel, dict) or panel.get("checked_exports") != 8:
-        raise RuleSourceError("the eight PC67 export headers have not been declared")
+    panel = _panel_spec(manifest, panel_id)
+    count, exports = (67, 8) if panel_id == "spleen_pc67" else (33, 4)
+    label = "PC67" if panel_id == "spleen_pc67" else "PC33"
+    if panel.get("checked_exports") != exports:
+        raise RuleSourceError(f"the {exports} {label} export headers have not been declared")
     panel_path = manifest_path.parent / panel["file"]
     header = panel_path.read_bytes()
     if hashlib.sha256(header).hexdigest() != panel.get("source_header_sha256"):
-        raise RuleSourceError("PC67 export header differs from the recorded source")
+        raise RuleSourceError(f"{label} export header differs from the recorded source")
     if header.count(b"\n") != 1:
-        raise RuleSourceError("PC67 inventory must contain exactly one export header")
+        raise RuleSourceError(f"{label} inventory must contain exactly one export header")
     columns = header.decode("utf-8").strip().split("\t")
-    if columns[:3] != ["object_id", "x_um", "y_um"]:
-        raise RuleSourceError("PC67 header does not name the expected cell identity")
+    identity = (["object_id", "x_um", "y_um"] if panel_id == "spleen_pc67"
+                else ["Image", "Object ID", "Parent"])
+    if columns[:3] != identity:
+        raise RuleSourceError(f"{label} header does not name the expected cell identity")
     names = [column.removeprefix("Cell: ").removesuffix(": Mean") for column in columns
              if column.startswith("Cell: ") and column.endswith(": Mean")]
-    if len(names) != 67 or len(set(names)) != len(names):
-        raise RuleSourceError("expected 67 unique PC67 marker columns")
+    if len(names) != count or len(set(names)) != len(names):
+        raise RuleSourceError(f"expected {count} unique {label} marker columns")
     return frozenset(names)
 
 
-def load_rule_source(manifest_path: Path) -> RuleSource:
+def load_rule_source(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> RuleSource:
     """Apply the recorded spleen adaptation to the one selected source sheet."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
@@ -115,7 +129,7 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     adaptation = spec.get("adaptation")
     if not isinstance(adaptation, dict):
         raise RuleSourceError("spleen adaptation is missing")
-    panel = observed_markers(manifest_path)
+    panel = observed_markers(manifest_path, panel_id=panel_id)
     names = source.by_phenotype
     branches = set(adaptation.get("drop_branches", []))
     individual = set(adaptation.get("drop_rules", []))
@@ -137,6 +151,15 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
     for rule in kept:
         if rule.parent not in {"all", "any"} and rule.parent not in available_names:
             raise RuleSourceError(f"{rule.phenotype}: parent dropped from spleen rules")
+    aliases = {**source.panel_aliases, **_panel_spec(manifest, panel_id).get("aliases", {})}
+    kept, omitted = _omit_absent_anypos(kept, adaptation.get("omit_absent_anypos", {}), panel, aliases)
+    kept = _require_anypos(kept, adaptation.get("require_anypos", {}), panel)
+    panel_adaptation = _panel_adaptation(manifest, panel_id)
+    kept, extra_or = _omit_absent_anypos(
+        kept, panel_adaptation.get("omit_absent_anypos", {}), panel, aliases)
+    kept, extra_neg = _omit_absent_allneg(
+        kept, panel_adaptation.get("omit_absent_allneg", {}), panel, aliases)
+    omitted += extra_or + extra_neg
     additions = adaptation.get("add_rules", [])
     if not isinstance(additions, list):
         raise RuleSourceError("spleen add_rules must be a list")
@@ -152,14 +175,246 @@ def load_rule_source(manifest_path: Path) -> RuleSource:
             raise RuleSourceError(f"{phenotype}: new rule uses absent markers or invalid tokens")
         kept.append(Rule(parent, phenotype, tuple(constraints.items())))
         available_names.add(phenotype)
-    aliases = {**source.panel_aliases, **manifest["protein_panel"].get("aliases", {})}
-    candidate_roots = tuple(name for name in source.candidate_lineage_roots
-                            if name in available_names)
+    declared_roots = adaptation.get("candidate_lineage_roots")
+    if declared_roots is None:
+        candidate_roots = tuple(name for name in source.candidate_lineage_roots
+                                if name in available_names)
+    else:
+        lineage_roots = {rule.phenotype for rule in kept if rule.parent == source.lineage_root_parent}
+        if (not isinstance(declared_roots, list) or len(declared_roots) != len(set(declared_roots))
+                or not set(declared_roots) <= lineage_roots):
+            raise RuleSourceError("spleen candidate lineage roots must be distinct kept lineage roots")
+        candidate_roots = tuple(declared_roots)
     if not candidate_roots:
         raise RuleSourceError("spleen adaptation removed every candidate lineage root")
-    result = RuleSource(source.sha256, tuple(kept), source.omitted, aliases,
+    result = RuleSource(source.sha256, tuple(kept), source.omitted + omitted, aliases,
                         source.lineage_root_parent, source.state_root_parent,
                         candidate_roots)
     for rule in result.rules:
         result.inherited_markers(rule.phenotype)
+    _structure_only(adaptation, result)
     return result
+
+
+def _panel_adaptation(manifest: dict, panel_id: str) -> dict:
+    """Only explicitly declared panel projections may omit unavailable clauses."""
+    if panel_id == "spleen_pc67":
+        return {}
+    spec = manifest["rule_table"].get("panel_adaptations", {}).get(panel_id)
+    if not isinstance(spec, dict):
+        raise RuleSourceError(f"{panel_id}: panel adaptation is not declared")
+    if set(spec) - {"rationale", "omit_absent_anypos", "omit_absent_allneg"}:
+        raise RuleSourceError(f"{panel_id}: unsupported panel-adaptation fields")
+    if not isinstance(spec.get("rationale"), str) or not spec["rationale"].strip():
+        raise RuleSourceError(f"{panel_id}: panel adaptation needs its rationale")
+    return spec
+
+
+def _omit_absent_allneg(rules: list[Rule], spec, panel: frozenset[str],
+                       aliases: dict[str, str]) -> tuple[list[Rule], tuple[tuple[str, str], ...]]:
+    """Project explicit unacquired exclusions out of a panel's measured profile.
+
+    This changes the panel-specific rule, never a marker call. Every measured
+    exclusion and all required positive evidence stay intact. The omitted
+    clauses are recorded, so a missing assay is never reported as negative.
+    """
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen omit_absent_allneg must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    omitted: list[tuple[str, str]] = []
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if (rule is None or not isinstance(markers, list) or not markers
+                or any(not isinstance(m, str) for m in markers)
+                or len(markers) != len(set(markers))):
+            raise RuleSourceError(f"{phenotype}: omit_absent_allneg needs a kept rule and distinct markers")
+        tokens = dict(rule.constraints)
+        for marker in markers:
+            if tokens.get(marker) != "allneg":
+                raise RuleSourceError(f"{phenotype}/{marker}: only an allneg exclusion may be left out")
+            if marker in panel or aliases.get(marker) in panel:
+                raise RuleSourceError(f"{phenotype}/{marker}: the panel measures it; it cannot be left out")
+        remaining = tuple((m, t) for m, t in rule.constraints if m not in markers)
+        by_name[phenotype] = Rule(rule.parent, phenotype, remaining)
+        omitted.extend((phenotype, marker) for marker in markers)
+    return [by_name[rule.phenotype] for rule in rules], tuple(omitted)
+
+
+def panel_adaptation_audit(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> dict:
+    """Receipt-ready evidence of the measured panel and explicit omitted clauses."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    source = load_rule_source(manifest_path, panel_id=panel_id)
+    spec = _panel_adaptation(manifest, panel_id)
+    omitted = [
+        {"phenotype": phenotype, "marker": marker, "token": token,
+         "reason": ("unacquired OR alternative; acquired alternatives retained"
+                    if token == "anypos" else
+                    "unacquired exclusion; no negative marker call fabricated")}
+        for field, token in (("omit_absent_anypos", "anypos"), ("omit_absent_allneg", "allneg"))
+        for phenotype, markers in spec.get(field, {}).items()
+        for marker in markers
+    ]
+    observed = observed_markers(manifest_path, panel_id=panel_id)
+    return {
+        "panel_id": panel_id,
+        "rationale": spec.get("rationale", "Original recorded PC67 adaptation is unchanged."),
+        "observed_markers": sorted(observed),
+        "omitted_clauses": omitted,
+        "all_omitted_pairs": [list(pair) for pair in source.omitted],
+        "unavailable_required_markers_by_phenotype": {
+            name: list(markers) for name, markers in source.missing_by_phenotype(observed).items()
+            if markers
+        },
+    }
+
+
+def _require_anypos(rules: list[Rule], spec, panel: frozenset[str]) -> list[Rule]:
+    """Add a declared positive-support OR group to an ancestor and its descendants.
+
+    An existing OR group cannot be merged: that would weaken its requirement.
+    Missing calls retain the evaluator's unavailable semantics.
+    """
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen require_anypos must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if (rule is None or not isinstance(markers, list) or not markers
+                or any(not isinstance(m, str) for m in markers)
+                or len(markers) != len(set(markers)) or not set(markers) <= panel):
+            raise RuleSourceError(f"{phenotype}: require_anypos needs a kept rule and distinct acquired markers")
+        if any(token == "anypos" for _, token in rule.constraints) or set(markers) & set(rule.markers):
+            raise RuleSourceError(f"{phenotype}: require_anypos cannot replace or merge existing clauses")
+        by_name[phenotype] = Rule(rule.parent, phenotype,
+                                  rule.constraints + tuple((m, "anypos") for m in markers))
+    return [by_name[rule.phenotype] for rule in rules]
+
+
+def _omit_absent_anypos(rules: list[Rule], spec, panel: frozenset[str],
+                        aliases: dict[str, str]) -> tuple[list[Rule], tuple[tuple[str, str], ...]]:
+    """Leave the listed unacquired markers out of their rules' OR groups (maintainer, 2026-11-01).
+
+    Only an ``anypos`` clause on a marker absent from the panel (and its alias) may be left out, and at
+    least one ``anypos`` clause must remain, so the rule is read on its measured members. Every other
+    missing marker still makes its rule unavailable."""
+    if not isinstance(spec, dict):
+        raise RuleSourceError("spleen omit_absent_anypos must map rules to markers")
+    by_name = {rule.phenotype: rule for rule in rules}
+    omitted: list[tuple[str, str]] = []
+    for phenotype, markers in spec.items():
+        rule = by_name.get(phenotype)
+        if rule is None or not isinstance(markers, list) or not markers:
+            raise RuleSourceError(f"{phenotype}: omit_absent_anypos names no kept rule or no markers")
+        tokens = dict(rule.constraints)
+        for marker in markers:
+            if tokens.get(marker) != "anypos":
+                raise RuleSourceError(f"{phenotype}/{marker}: only an anypos clause may be left out")
+            if marker in panel or aliases.get(marker) in panel:
+                raise RuleSourceError(f"{phenotype}/{marker}: the panel measures it; it cannot be left out")
+        remaining = tuple((m, t) for m, t in rule.constraints if m not in markers)
+        if not any(t == "anypos" for _, t in remaining):
+            raise RuleSourceError(f"{phenotype}: leaving out {markers} would empty its OR group")
+        by_name[phenotype] = Rule(rule.parent, phenotype, remaining)
+        omitted += [(phenotype, marker) for marker in markers]
+    return [by_name[rule.phenotype] for rule in rules], tuple(omitted)
+
+
+def _structure_only(adaptation: dict, source: RuleSource) -> frozenset[str]:
+    names = adaptation.get("structure_only", [])
+    roots = {rule.phenotype for rule in source.rules if rule.parent == source.lineage_root_parent}
+    if not isinstance(names, list) or not set(names) <= roots:
+        raise RuleSourceError("spleen structure_only must name kept lineage roots")
+    return frozenset(names)
+
+
+def structure_only_branches(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> frozenset[str]:
+    """The lineage roots that name a cell only inside a structure object of their class (maintainer,
+    2026-11-01: the 10-30 structure-only ruling applied to spleen). Without such an object a match in the
+    branch is unavailable, never negative (``positivity.hierarchy``)."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    return _structure_only(manifest["rule_table"]["adaptation"],
+                           load_rule_source(manifest_path, panel_id=panel_id))
+
+
+# --------------------------------------------------------------------------- per-image typing hooks
+# The hooks multiplex5000.positivity reads (see tissues/pancreas.py for the CODEX originals). They place no cell:
+# the spleen PC67 registry, which decides what the method may use, is a separate step reviewed by the maintainer.
+#: populations a spleen registry may name as references: no endocrine or exocrine population, since those are
+#: pancreas-only (downstream plan, 2026-10-30); epithelial cells away from leukocytes stay (epithelium is present)
+TYPING_POPULATIONS = frozenset({"leukocyte", "epithelial_away", "structure_cells", "t_cells", "leukocyte_clean"})
+
+
+def start_class(cells):
+    """The cell-derived region the cell's centroid lies in (``start_object``: Follicle, Perifollicular, PALS, RedPulp;
+    maintainer 2026-11-01), else Tissue. A region names no cell; it is where the cell starts."""
+    import pandas as pd
+
+    column = cells["start_object"] if "start_object" in cells else pd.Series([None] * len(cells), index=cells.index)
+    return column.fillna("Tissue").to_numpy(dtype=object)
+
+
+def reference_populations(registry) -> frozenset[str]:
+    return TYPING_POPULATIONS
+
+
+def selection_sections(roster) -> list[str]:
+    """Every section of the run, blind to genotype: a method that fails on any section is revised for all of them."""
+    return list(roster)
+
+
+def structure_objects() -> tuple[str, ...]:
+    """None yet: no working vessel object exists on PC67 (SmallVessel calls 29-78 % of tissue; SmallVessel_PC67 is
+    being retrained). Endothelial, structure-only (manifest), stays unavailable until one does."""
+    return ()
+
+
+#: the check columns' name for the reference cells (``{marker}_in_b_cells``)
+CHECK_POPULATION = "b_cells"
+
+
+def check_population(cells, registry, roles: dict, pos: dict, background):
+    """The immune checks' reference cells (P12, maintainer 2026-11-01: "You need to be using CD20 as a ref or mutually
+    exclusive marker for these"): B cells, positive for the B lineage's required marker (CD20). It is read at its
+    chosen level where one is chosen, otherwise at its own background peak, since the immune stage runs before CD20's
+    level is chosen. CD20 is bimodal on every PC67 section; CD79a's background peak is not a usable level, and it is
+    not required.
+
+    ``levels`` keeps the B cells with no T or myeloid leukocyte within ISOLATION_UM for the markers B cells cannot
+    carry (CD3e, CD68, CD163: each <= its bar), and reads the markers they do carry (``reference_carries``: CD45) as
+    a positive rate among all B cells. This replaces P7's epithelial and stromal cells: spleen epithelium and SMA+
+    stroma are scarce and sit among leukocytes, and as a reference they read CD45 in 15-97 % of cells."""
+    import numpy as np
+
+    measured = set(registry.measured_markers())
+    markers = [m for m in registry.broad("B") if m in measured and registry.table.loc[m, "required"] == "yes"]
+    if not markers:
+        raise ValueError("the spleen registry has no required B-lineage marker for the immune checks' reference")
+    out = np.zeros(len(cells), bool)
+    for m in markers:
+        out |= pos[m] if m in pos else background(m)
+    return out
+
+
+def reference_carries(registry) -> frozenset[str]:
+    """Markers the reference cells carry, read as a positive rate among them: the pan-leukocyte marker (CD45)."""
+    return frozenset(registry.broad("Leukocyte"))
+
+
+
+def naming_policy(manifest_path: Path, *, panel_id: str = "spleen_pc67") -> dict:
+    """Spleen review rulings of 2026-11-02; no fitted levels or margins change."""
+    manifest = yaml.safe_load(Path(manifest_path).read_text())
+    adaptation = manifest["rule_table"]["adaptation"]
+    deferred = adaptation.get("defer_profile_exclusions", {})
+    required = adaptation.get("require_specific_profile", [])
+    source = load_rule_source(manifest_path, panel_id=panel_id)
+    known = {marker for rule in source.rules for marker in rule.markers}
+    if (not isinstance(deferred, dict) or not set(deferred) <= source.by_phenotype.keys()
+            or any(not isinstance(markers, list) or not set(markers) <= known for markers in deferred.values())):
+        raise RuleSourceError("invalid spleen profile-exclusion policy")
+    if not isinstance(required, list) or not set(required) <= source.by_phenotype.keys():
+        raise RuleSourceError("invalid spleen specific-profile policy")
+    inherit = adaptation.get("inherit_profile_depth", False)
+    if not isinstance(inherit, bool):
+        raise RuleSourceError("invalid spleen inherited-profile depth policy")
+    return {"defer_exclusions": deferred, "require_specific": required, "inherit_depth": inherit}

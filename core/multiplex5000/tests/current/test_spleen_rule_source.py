@@ -10,7 +10,8 @@ import yaml
 from multiplex5000.integration import tissues
 from multiplex5000.same_slide_sources import load_pairs
 from multiplex5000.tissues.lymph_node import RuleSourceError
-from multiplex5000.tissues.spleen import load_rule_source, normalized_markers, observed_markers
+from multiplex5000.tissues.spleen import (load_rule_source, normalized_markers, observed_markers,
+                                          structure_only_branches)
 
 REPO = Path(__file__).resolve().parents[4]
 MANIFEST = REPO / "core/panels/data/tissues/spleen/manifest.yml"
@@ -38,10 +39,11 @@ def test_spleen_rules_drop_pancreas_branches_and_reuse_one_source():
     source = load_rule_source(MANIFEST)
     classes = source.by_phenotype
     assert source.sha256 == yaml.safe_load(MANIFEST.read_text())["rule_table"]["source_sha256"]
-    assert not {"Endocrine", "Beta_cell", "Ductal_Epithelial", "Epithelial",
+    assert not {"Endocrine", "Beta_cell", "Ductal_Epithelial",
                 "Myofibroblast_CAF", "HEV", "Basement_membrane"} & classes.keys()
     assert {"FRC", "GC_B_cell", "T_cell", "B_cell", "CD21_positive_B_cell",
-            "CD45RO_positive_T_cell", "CD141_positive_cDC", "SMA_positive_stromal"} <= classes.keys()
+            "CD45RO_positive_T_cell", "CD141_positive_cDC", "SMA_positive_stromal",
+            "Epithelial", "Endothelial_Sinusoidal_CD8+"} <= classes.keys()
     assert "INS" not in source.inherited_markers("T_cell")
     assert "GCG" not in source.inherited_markers("B_cell")
 
@@ -51,7 +53,46 @@ def test_missing_markers_are_unavailable_not_negative():
     missing = source.missing_by_phenotype(observed_markers(MANIFEST))
     assert missing["T_cell"] == missing["CD21_positive_B_cell"] == ()
     assert missing["Schwann_cell"] == ("B3TUBB",)
-    assert "Iba1" in missing["Macrophage"]
+    assert missing["Basal_Epithelial"] == ("Keratin 5",)
+    assert {name for name, gap in missing.items() if gap} == {
+        "Neural", "Schwann_cell", "Basal_Epithelial", "Progenitor_Epithelial"}
+
+
+def test_maintainer_rulings_of_2026_11_01():
+    """Epithelium kept; unacquired OR-group markers left out; littoral cells under Endothelial, which is
+    structure-only; cDC and Treg exactly as the sheet has them."""
+    source = load_rule_source(MANIFEST)
+    rules = source.by_phenotype
+    assert "Epithelial" in source.candidate_lineage_roots
+    assert dict(rules["Macrophage"].constraints) == {
+        "CD68": "anypos", "M2Gal3": "anypos", "CD163": "anypos", "CD11c": "allneg", "MPO": "allneg"}
+    assert "Ker8-18" not in dict(rules["Epithelial"].constraints)
+    assert {("Epithelial", "Ker8-18"), ("Macrophage", "Iba1")} <= set(source.omitted)
+    littoral = rules["Endothelial_Sinusoidal_CD8+"]
+    assert littoral.parent == "Endothelial" and dict(littoral.constraints) == {"CD8": "pos"}
+    assert dict(rules["Endothelial"].constraints)["CD3e"] == "allneg"
+    assert structure_only_branches(MANIFEST) == {"Endothelial"}
+    assert rules["cDC"].parent == "Myeloid" and dict(rules["cDC"].constraints)["CD68"] == "allneg"
+    assert rules["Treg"].parent == "T_cell" and dict(rules["Treg"].constraints)["FOXP3"] == "allpos"
+
+
+@pytest.mark.parametrize("change, match", [
+    (lambda a: a["omit_absent_anypos"].update({"Macrophage": ["CD68"]}), "only an anypos clause|measures it"),
+    (lambda a: a["omit_absent_anypos"].update({"Myeloid": ["CD163"]}), "measures it"),
+    (lambda a: a["omit_absent_anypos"].update({"Macrophage": ["MPO"]}), "only an anypos clause"),
+    (lambda a: a.update({"structure_only": ["Blood_vessel"]}), "structure_only"),
+    (lambda a: a.update({"candidate_lineage_roots": ["Immune", "T_cell"]}), "candidate lineage roots"),
+])
+def test_adaptation_refuses_what_the_rulings_do_not_allow(tmp_path, change, match):
+    manifest = yaml.safe_load(MANIFEST.read_text())
+    manifest["rule_table"]["source_manifest"] = str(
+        MANIFEST.parent.parent / "pancreatic_lymph_node/manifest.yml")
+    manifest["protein_panel"]["file"] = str(MANIFEST.parent / "pc67_export_header.tsv")
+    change(manifest["rule_table"]["adaptation"])
+    fixture = tmp_path / "manifest.yml"
+    fixture.write_text(yaml.safe_dump(manifest))
+    with pytest.raises(RuleSourceError, match=match):
+        load_rule_source(fixture)
 
 
 def test_scale_table_is_declared_as_partial_coverage_not_full_panel():

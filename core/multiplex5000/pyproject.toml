@@ -43,9 +43,10 @@ dependencies = [
 gpu = ["cupy-cuda12x"]
 # The selected pancreas protein hierarchy uses polygon geometry and NNDescent.
 # The pancreas and pLN Xenium workers use AnnData/Scanpy and Scanpy's igraph
-# Leiden backend. One `.[typing]` install supports both assay routes from a wheel.
+# Leiden backend. One `.[typing]` install supports both assay routes from a wheel. The per-image
+# method's empty-slide nulls (positivity/nulls.py) draw and erode outlines with OpenCV.
 typing = ["shapely", "pynndescent", "anndata", "scanpy", "igraph", "numba",
-          "threadpoolctl"]
+          "threadpoolctl", "opencv-python-headless"]
 # tests/current/test_no_typing_leak.py reads YAML, and test_trajectory_leiden_only.py runs
 # scanpy's leiden with flavor="igraph". The rest of what tests/current reaches through the
 # typing and senior scripts (shapely, anndata, scanpy's pynndescent) is the
@@ -131,11 +132,13 @@ mplx5k = "multiplex5000.cli:main"
 
 [tool.setuptools]
 # `phenocycler` is only the temporary import alias (phenocycler/__init__.py); the code is multiplex5000.
-packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.stages",
-            "multiplex5000.tissues", "phenocycler"]
+packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.positivity",
+            "multiplex5000.stages", "multiplex5000.tissues", "phenocycler"]
 include-package-data = true
 
 [tool.setuptools.package-data]
+# the per-image typing registries (panel x tissue), read beside positivity/registry.py
+"multiplex5000.positivity" = ["registry/*.csv"]
 multiplex5000 = [
     "adoption_compatibility.json",
     "broad_gates.json",
