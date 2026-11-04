@@ -1,0 +1,160 @@
+{
+  "schema": "senior.pubapps_status_correction_receipt/1",
+  "recorded_utc": "2026-11-04T13:45:10.784122+00:00",
+  "disposition": "reviewed_with_findings_unapplied",
+  "publication": {
+    "workstation_mirror": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261104-status-correction",
+    "hpg_publication": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction",
+    "hpg_resolved_path": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction.content",
+    "checksum_manifest_sha256": "a76c6fe35975cd50acd39afa8e719440185730110a639b92188360a1c02fb505",
+    "total_files": 10,
+    "total_bytes": 151644
+  },
+  "package_files": [
+    {
+      "relative_path": "CLAUDE.md",
+      "bytes": 54602,
+      "sha256": "3ad12fd446454d99b781ff5e68b8e87df621138bdc976dcf8231cf2638828c07"
+    },
+    {
+      "relative_path": "PUBAPPS_UFRC_HANDOFF.md",
+      "bytes": 37606,
+      "sha256": "bfdec800412b2f29341fa55d6480fd1bfcae73a823701234f7825902ccc34714"
+    },
+    {
+      "relative_path": "README.md",
+      "bytes": 900,
+      "sha256": "822ecc8daeaad7af4bd6d07b5f5a2a3634cf59456ae156776519db2c7ad81e84"
+    },
+    {
+      "relative_path": "SHA256SUMS",
+      "bytes": 826,
+      "sha256": "a76c6fe35975cd50acd39afa8e719440185730110a639b92188360a1c02fb505"
+    },
+    {
+      "relative_path": "deploy/BASE_HARDENING.md",
+      "bytes": 19973,
+      "sha256": "2320914866d7a8af4ad841c91d06f73414c09d6d2a44ac18b3bde1815ecbdcfa"
+    },
+    {
+      "relative_path": "evidence/pubapps_live_20261104_ui_refresh.json",
+      "bytes": 3302,
+      "sha256": "056f3a479d039aa1ef0bdb4182df3fc77e4d011f99aa9f027e12ea73055479f2"
+    },
+    {
+      "relative_path": "evidence/pubapps_refresh_agent_handoff_20261104.json",
+      "bytes": 2358,
+      "sha256": "db7514f3b4e560768847adbddf48248105c4afb59d5bf410b6122fbda70af14e"
+    },
+    {
+      "relative_path": "manifest.json",
+      "bytes": 637,
+      "sha256": "8d92b141edc6f1541128fe39091e33d7d4bd103d3b04d6e11fab1fb5aa874c35"
+    },
+    {
+      "relative_path": "status-correction.bundle",
+      "bytes": 5549,
+      "sha256": "09db58392a2c2a61f9478095be31f267f716fb6b5d06c7d529c1397614d68e77"
+    },
+    {
+      "relative_path": "status-correction.patch",
+      "bytes": 25891,
+      "sha256": "4b59a9474f6cfe8c15fdb100ef541e9f9306487a2151d023f8892b2422386ab2"
+    }
+  ],
+  "previous_receipt": {
+    "path": "docs/evaluations/codex_pubapps_refresh_receipt_20261104/receipt.json",
+    "sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438",
+    "bytes": 7380
+  },
+  "base_commit": "a2f945ac4c20d06a1354a38cfb93d5491f1f8cef",
+  "tip_commit": "44daf5155ea14d015882aa876da1189be94dad5a",
+  "tip_tree": "eedc990814d9fab34ed5d6ca517129b650f8f330",
+  "bundle": {
+    "prerequisite": "a2f945ac4c20d06a1354a38cfb93d5491f1f8cef",
+    "fsck_full": "pass",
+    "commits": 2,
+    "incremental_objects_matching_upstream": 15
+  },
+  "patch": {
+    "messages": 2,
+    "direct_replay_from_base_on_private_index": "both resulting trees match upstream",
+    "net_changes": [
+      "M\tCLAUDE.md",
+      "M\tPUBAPPS_UFRC_HANDOFF.md",
+      "M\tREADME.md",
+      "M\tdeploy/BASE_HARDENING.md",
+      "A\tdocs/evidence/pubapps_refresh_agent_handoff_20261104.json"
+    ]
+  },
+  "verified_status_closure": {
+    "previous_finding": "GUIDE-STALE-STATUS",
+    "corrected_at_tip": [
+      "README.md:34\u201347",
+      "CLAUDE.md:3\u201323",
+      "PUBAPPS_UFRC_HANDOFF.md:3\u201319",
+      "deploy/BASE_HARDENING.md:3\u201320"
+    ],
+    "production_release": "pubapps-2026-11-ui-refresh-1659c9d",
+    "preview": "stopped, as recorded in the supplied guidance",
+    "production_receipt_byte_identical_to_previous_handoff": true
+  },
+  "findings": [
+    {
+      "id": "PRIOR-RECEIPT-DIGEST",
+      "evidence": "evidence/pubapps_refresh_agent_handoff_20261104.json#/recipient_notification/read_acknowledgement/recipient_receipt_sha256",
+      "path": "docs/evaluations/codex_pubapps_refresh_receipt_20261104/receipt.json",
+      "commit": "1ce6007c234acfb01614d39127b14f83021b956b",
+      "declared_sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4434",
+      "actual_sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438",
+      "matches": false
+    },
+    {
+      "id": "STANDALONE-PROJECT-README",
+      "source": "README.md",
+      "package_index_sha256": "822ecc8daeaad7af4bd6d07b5f5a2a3634cf59456ae156776519db2c7ad81e84",
+      "project_readme_tip_sha256": "4099324befb941e684d2ef83e198accdb5fe04f1adc5ebe74fbacf081f1dbc63",
+      "project_readme_delivery": "present in Git bundle and patch; loose file is the index",
+      "other_three_standalone_documents_match_tip": true
+    },
+    {
+      "id": "README-LOWER-SETTINGS",
+      "condition": "Pre-existing Development section still describes prior settings",
+      "items": [
+        {
+          "path_at_tip": "README.md:425\u2013427",
+          "value_in_text": "127.0.0.1:3838; pending confirmation",
+          "value_in_live_receipt": "10.13.41.21:3838"
+        },
+        {
+          "path_at_tip": "README.md:456",
+          "value_in_text": "schema 1",
+          "value_in_live_receipt": "schema 5"
+        }
+      ]
+    }
+  ],
+  "review_scope": "Direct HPG and mirror byte inventory, Git verification, committed documentation and prior-receipt digest checks. Deployment identity and state are sourced from the existing November 4 live receipt.",
+  "review_records": {
+    "package_read.json": {
+      "path": "outputs/codex_pubapps_status_correction_20261104/package_read.json",
+      "sha256": "a07abb6621d41a6dfb6b8c7130d1f425f36d7a7807291e936be6d1be7bec966e",
+      "bytes": 5414
+    },
+    "git_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_20261104/git_review.json",
+      "sha256": "c8d4e1fe6ac0578e753f92d7f21112120375478eeb673b20ba807d692aa16f1f",
+      "bytes": 3839
+    },
+    "status_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_20261104/status_review.json",
+      "sha256": "4fc5d4bf83e6ce0ffb98a9f1f254501921bae0a5ce80ff18a38b871ba08c9b95",
+      "bytes": 10856
+    },
+    "hpg_checksums.txt": {
+      "path": "outputs/codex_pubapps_status_correction_20261104/hpg_checksums.txt",
+      "sha256": "b74022451f631ab2ce2d7dfa22c8d27470c5966b2d9a8e3662f7384d8aeef2d5",
+      "bytes": 1377
+    }
+  }
+}
