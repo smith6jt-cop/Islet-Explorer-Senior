@@ -1,0 +1,11 @@
+# PubApps status correction R3 receipt
+
+**R3 closes the outstanding receipt-digest finding.** The corrected original receipt hash is `9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438` at recipient commit `1ce6007`. The R2 receipt hash is `edfae112d205423e4b5ea527834bab5045a2c36377b421e5573cbaefe650ad5f` at `f630a5a`. Both match the referenced Git blobs and the current receipt files. [Original receipt](../codex_pubapps_refresh_receipt_20261104/receipt.json) · [R2 receipt](../codex_pubapps_status_correction_r2_20261104/receipt.json)
+
+All five files match on HPG and the workstation. The four payload checksums pass and `SHA256SUMS` has the supplied SHA-256 `c2e9947940bb0b86db706f75473dd9c302a94fa2a8e1b70a60a27a07b7dd5c37`. The HPG publication resolves to `/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r3.content`. [Package comparison](../../../outputs/codex_pubapps_status_correction_r3_20261104/package_read.json)
+
+The bundle passed full Git integrity verification. In a separate disposable repository, direct patch replay from `276822242c78c50d77d1e1323e767939db50d9b0` reproduced all three upstream trees through `532af6c982830f7f2b71f454b4cd0d4f75c5806b`. Every commit modified only `docs/evidence/pubapps_refresh_agent_handoff_20261104.json`. [Git verification](../../../outputs/codex_pubapps_status_correction_r3_20261104/git_review.json)
+
+Two fields in the added R2 summary need clarification. `regular_files` is `10`. The R2 inventory contains ten listed payloads plus `SHA256SUMS`, for eleven regular files and 184,972 bytes. The summary also records R2 publication and HPG checksum verification at `14:05:00Z`, 14 minutes 49 seconds after its `13:50:11Z` review timestamp. The earlier recipient HPG check is recorded at `13:48:52Z`. These records establish the byte match but leave the initial publication time unresolved. In the replay summary, each of the four R2 trees matched its corresponding source commit. The fourth matched the tip. [Cross-reference review](../../../outputs/codex_pubapps_status_correction_r3_20261104/cross_reference_review.json)
+
+The recipient disposition is **review only, patch unapplied**. [Machine-readable receipt](receipt.json)
