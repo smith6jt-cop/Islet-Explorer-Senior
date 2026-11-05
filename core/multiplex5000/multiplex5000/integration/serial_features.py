@@ -1,10 +1,12 @@
-"""Area support for serial-section features; never cell correspondence.
+"""Projected-area diagnostics and native regional feature comparisons.
 
 The CRO N-glycan report, sections 9.4-9.5 (pp. 19-20), motivates fractional
 coverage, area precision/recall/Dice/IoU and purity-yield reporting. Here both
 sections are independent observations: neither mask is biological ground truth.
 All geometry must already share a declared calibrated micrometre frame.
-No thresholds in this module confer production acceptance.
+Serial-section anatomical correspondence does not require projected overlap.
+Intersection graphs and overlap thresholds must not define correspondence or
+release eligibility. No thresholds in this module confer production acceptance.
 """
 from __future__ import annotations
 
@@ -28,11 +30,12 @@ def _area_object(geometry, name: str):
 
 
 def overlap_metrics(source, target) -> dict:
-    """Exact common area and directional support, including interior holes.
+    """Exact projected common area, including interior holes; a diagnostic only.
 
     source_coverage is precision if source is treated as the prediction;
     target_coverage is recall. Those names are algebraic, not truth claims.
     Missing geometry remains unavailable; disjoint observed objects give zeros.
+    Zero overlap does not reject a serial-section anatomical relationship.
     """
     source=_area_object(source, "source");target=_area_object(target, "target")
     fields=("source_area_um2", "target_area_um2", "intersection_um2", "union_um2",
@@ -54,7 +57,11 @@ def overlap_metrics(source, target) -> dict:
 def fractional_links(source: Mapping[str, object], target: Mapping[str, object], *,
                      source_frame: str, target_frame: str,
                      target_available: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Every positive-area link and unmatched/ambiguous source area.
+    """Every positive-area intersection link and uncovered/ambiguous source area.
+
+    This is an intersection graph, not a serial-section correspondence graph.
+    Its missing edges do not exclude anatomical relationships; uncovered area
+    does not imply an unmatched region across independently sampled sections.
 
     Source-area fractions are NOT renormalized over observed targets. Area in
     overlapping targets is explicitly ambiguous and removed from each edge's
@@ -161,14 +168,18 @@ def footprint_coverages(footprints, objects: Sequence[object] | None) -> np.ndar
     return out
 
 
-def paired_feature_summary(source_values, target_values, weights) -> dict:
-    """Descriptive regional comparison with common finite feature support.
+def paired_feature_summary(source_values, target_values, weights=None) -> dict:
+    """Compare native regional features on pairs with finite measurements.
 
-    Weights are geometric support, not calibrated probabilities; measured zeros
-    remain values. No source measurement is copied onto a target cell or object.
+    Defaults to equal pair weights, independent of projected area overlap.
+    Optional weights describe an explicitly requested weighted diagnostic, not
+    correspondence probabilities. Overlap weights must not silently exclude
+    serial-section pairs from the primary comparison. Measured zeros remain
+    values. No source measurement is copied onto a target cell or object.
     Effective weight count describes concentration, not independent sample size.
     """
-    a=np.asarray(source_values,float);b=np.asarray(target_values,float);w=np.asarray(weights,float)
+    a=np.asarray(source_values,float);b=np.asarray(target_values,float)
+    w=np.ones(a.shape,dtype=float) if weights is None else np.asarray(weights,float)
     if a.ndim!=1 or a.shape!=b.shape or a.shape!=w.shape:raise ValueError("equal-length vectors required")
     if np.any(np.isinf(w)) or np.any(np.isfinite(w)&((w<0)|(w>1))):raise ValueError("support weights must be fractions or NaN")
     good=np.isfinite(a)&np.isfinite(b)&np.isfinite(w)&(w>0)
@@ -185,6 +196,7 @@ def shift_sensitivity(source, target, radii_um: Sequence[float]=(25.,50.,100.)) 
 
     Pair identity stays fixed. No correction is selected by the resulting overlap.
     Use independently estimated displacement models for calibrated uncertainty.
+    Changes in overlap under shifts do not measure pair-identity stability.
     """
     baseline=overlap_metrics(source,target);out=[]
     for radius in radii_um:

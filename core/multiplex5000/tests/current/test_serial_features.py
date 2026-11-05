@@ -77,6 +77,15 @@ def test_zero_is_measured_and_missing_values_share_denominator():
     assert np.isnan(paired_feature_summary([1],[2],[0])['source_weighted_mean'])
 
 
+def test_native_comparison_defaults_to_equal_weights_without_overlap_input():
+    row=paired_feature_summary([0,100,np.nan],[4,0,7])
+    assert row['n_supported']==2
+    assert row['weight_sum']==2
+    assert row['source_weighted_mean']==50
+    assert row['target_weighted_mean']==2
+    assert row['source_minus_target_weighted_mean']==48
+
+
 def test_shift_bounds_include_baseline_and_expose_small_object_fragility():
     a=shapely.box(0,0,10,10)
     r=shift_sensitivity(a,a,radii_um=[20])[0]

@@ -1,112 +1,92 @@
-# Sequential-section feature support
+# Sequential-section regional correspondence and diagnostics
 
-The implementation is `multiplex5000.integration.serial_features`. It measures
-the support for comparing features between independently sampled area objects.
-It does not transfer cell identities, fit a registration, normalize expression,
-or change a release acceptance receipt.
+## Correction: projected overlap is not required
 
-The motivating source is `MALDI/T1D_Nglycan_CRO_Report.pdf`, report date July 9,
-2026, sections 9.4–9.5 on pages 19–20, with the masking and purity figures on
-pages 8–10 and 29. The source's one-core masking scores are not thresholds or
-expected results for another acquisition.
+Sequential sections sample different depths. Related anatomical regions can
+change position, shape, extent and segmentation and can have zero projected
+intersection after registration. Projected overlap is neither a prerequisite
+nor sufficient evidence for relating their native regional features.
 
-## What is applied
+The earlier November 5 interpretation overextended the MALDI report's sampling
+fidelity method into a criterion for serial-section correspondence. The 152-pair
+high-overlap set and the 62-pair overlap-under-shifts set are geometric diagnostic
+subsets, not accepted-pair counts. None of the 117 zero-overlap pairs is rejected
+on overlap alone. All 473 historical candidates remain; the earlier 297-pair
+stability/cell-support sensitivity set includes 24 zero-overlap pairs.
 
-- **Area support:** `overlap_metrics` reports exact intersection/union area,
-  source-only/target-only area, both directional coverage fractions, Dice and
-  IoU. Native vector objects preserve holes and avoid introducing a raster
-  approximation into the Xenium–PhenoCycler comparison. Neither section is
-  designated biological ground truth. An observed disjoint pair has zero
-  overlap; unavailable geometry has missing metrics.
-- **Fractional assignment:** `fractional_links` records every positive-area
-  object link, unassigned source area and area covered by competing targets.
-  Competing area is excluded from each link's exclusive fraction. Fractions are
-  not renormalized to make incomplete support sum to one. Splits and merges
-  remain explicit. Inputs require the same declared calibrated `:um` frame and
-  stable native object IDs; invalid area objects are refused without repair.
-  If some target geometry is missing, coverage describes only known targets;
-  exclusive, ambiguous and unassigned fractions remain unavailable.
-- **Sampling fidelity:** `footprint_coverages` intersects sampling footprints
-  with the union of reference objects, so overlapping objects do not count
-  twice. `coverage_fidelity` implements the report's area precision, recall,
-  Dice and IoU at coverage thresholds 0.3, 0.5 and 0.7 (other thresholds can be
-  supplied). These measure representation loss, not registration accuracy.
-  Sampling footprints must be non-overlapping for aggregate area metrics.
-- **Feature application:** `paired_feature_summary` computes descriptive
-  comparisons of the two native regional measurements on their common finite
-  support. A geometric fraction may weight a comparison; it is not a calibrated
-  probability. Measured zeros remain values. Missing measurements and zero
-  support contribute no weight. The effective weight count is not an independent
-  biological sample size. No features are imputed or copied into another assay.
-- **Transform sensitivity:** `shift_sensitivity` keeps pair IDs fixed while
-  translating the source by 25, 50 and 100 µm in eight directions. Reported
-  ranges include the stored transform. They are sensitivity ranges, not
-  uncertainty intervals, probabilities or a reason to choose a better-fitting
-  transform. Calibrated uncertainty requires independently measured residuals.
+## Correspondence and feature comparison
 
-## Applying it to the October 6 run
+The historical pairing uses independently measured regional objects and the
+stored Xenium-to-PhenoCycler transform, with position, size, shape and competing
+candidate costs. The audit also assesses the whole-section structural pattern.
+All eight transforms were structurally corroborated, including six historically
+marked WARN. This evidence supports qualified exploratory regional comparison;
+it does not individually validate every pair.
 
-The reproducible consumer is:
+The existing sensitivity set requires stable pair IDs across all three original
+matching parameter settings, no low cost-margin flag, and at least 10 cells in
+both assays. RNA cell support is reassessed at each original depth setting.
+There is no projected-overlap cutoff, overlap-derived confidence or overlap
+weight in the primary or correspondence-sensitivity comparison. Native features
+are compared with equal pair weights and a common finite-measurement denominator;
+measured zeros remain values and missing values remain unavailable. Donor remains
+the independent unit for biological inference. Cell identities are not transferred.
 
-`/home/smith6jt/Documents/papers/consolidation/sequential_methods_20261105/run_feature_validation.py`
+Anatomical context, relative structural arrangement, independent registration
+landmarks/residuals, competing candidates and pair-ID stability are the relevant
+correspondence evidence. Local anatomical agreement has not been independently
+reviewed for every historical pair. Relating tissue areas must also be kept
+separate from asserting an identical islet or identical cells.
 
-Run it using the repository environment, with a new output directory:
+## What the MALDI methods measure
+
+The source is `MALDI/T1D_Nglycan_CRO_Report.pdf`, 9 July 2026, sections 9.4–9.5,
+pp. 19–20. Fractional spot coverage and precision/recall/Dice/IoU describe how a
+sampling footprint represents an annotated compartment. They remain useful for
+MALDI mixture and spatial-resolution diagnostics. They do not establish that
+serial-section regions must intersect in projection to be related. The report's
+one-core masking scores are not serial-section acceptance thresholds.
+
+`multiplex5000.integration.serial_features` provides:
+
+- `overlap_metrics`: exact projected intersection, union, directional coverage,
+  Dice and IoU, preserving holes. Zero intersection is an observed geometric
+  difference, not a failed anatomical relationship.
+- `fractional_links`: an intersection graph, with uncovered and competing area.
+  It is not a complete correspondence graph. Missing edges do not rule out
+  relationships. Fractions are not renormalized; missing geometry remains
+  unavailable and invalid geometry is rejected without repair.
+- `footprint_coverages` and `coverage_fidelity`: native sampling/mixture and
+  representation diagnostics. Footprints must not overlap when aggregating area.
+- `paired_feature_summary`: equal weights by default. Optional weights require
+  an explicitly labeled diagnostic; projected coverage must not silently filter
+  serial-section comparisons or be called a correspondence probability.
+- `shift_sensitivity`: change in projected overlap for fixed pair IDs under
+  imposed translations. This does not measure stability of the pair identities.
+
+The reported 30/50/70/90% coverage curves, 25/50/100 µm overlap perturbations,
+500 µm displacement controls and virtual 50 µm masks are retained as diagnostics.
+Their values do not determine eligibility, release status or biological agreement.
+The report's classifier, normalization and expected biological findings are not
+used to choose correspondences or thresholds.
+
+## Reproduction and current assessment
+
+The corrected consumer uses the verified historical pair measurements and native
+own-section counts, preserving all existing transforms and geometry diagnostics:
 
 ```sh
-.venv/bin/python /home/smith6jt/Documents/papers/consolidation/sequential_methods_20261105/run_feature_validation.py --out /absolute/new/output
+.venv/bin/python /home/smith6jt/Documents/papers/consolidation/sequential_correspondence_20261105/correct_correspondence.py --out /absolute/new/output
 ```
 
-The runner pins the already-audited input files, reconstructs the exact eight
-donors' geometry in the PhenoCycler micrometre frame and measures all three
-historical matching settings. It retains the original 473 primary candidates
-and their original PASS/WARN fields. It adds:
+The current report and machine-readable assessment are in
+`/home/smith6jt/Documents/papers/consolidation/sequential_correspondence_20261105/`.
+The earlier `sequential_methods_20261105` package is a historical diagnostic
+snapshot; its overlap-based eligibility interpretation is superseded.
 
-- Pair-specific area and competing-object support, and all fractional links.
-- Purity–yield curves at 0.3, 0.5, 0.7 and 0.9 for all primary candidates and
-  the earlier 297-pair geometry/cell-support sensitivity set.
-- A separately labeled sensitivity set requiring that earlier flag plus at
-  least 0.5 exclusive reciprocal area support. This threshold is an explicit
-  sensitivity choice, not a fitted accuracy threshold or a new primary result.
-- Native regional feature comparisons at all four original RNA-depth settings,
-  including continuous support weighting and thresholded sensitivities. Cell
-  support is reassessed at each depth.
-- Structured 500-µm displacement controls in 16 directions, preserving source
-  shape and spacing. Because displacement can change tissue support, these
-  controls produce descriptive overlap comparisons, not null p-values.
-- Virtual 50-µm sampling at two grid phases, explicitly separated from native
-  geometry and from cross-section registration accuracy. This is the direct
-  analogue of the report's coarse-mask fidelity calculation, not a decision to
-  downsample Xenium or PhenoCycler to MALDI resolution.
-
-Low area overlap does not by itself prove a wrong anatomical pair: separate
-sections can change shape, and segmentation can differ. It does expose weak
-support for assigning/comparing a feature as though its entire region were
-shared. Whole-section registration corroboration cannot substitute for this
-pair-level measurement.
-
-## Boundaries of the report adaptation
-
-The report estimates scale from annotation point-cloud extent and fits tissue
-footprint overlap. That does not replace instrument pixel calibration or
-independent registration review here. Existing transforms stay fixed. Its
-glycan-trained classifier, APPNP smoothing, disease-protected normalization,
-peri-islet distance bins and disease results are not part of this implementation.
-The report itself shows that random-split classification gains weaken under
-spatial holdout and that the classifier overcalls islet regions. A future learned
-assignment method must therefore evaluate held-out spatial blocks and donors;
-there is no learned classifier to cross-validate in this geometry-only module.
-
-No thresholds are selected to recover a biological result. Donor remains the
-independent unit for disease inference. An area-support pass is not a production
-gate acceptance, cell-level validation, or certification of the historical
-typing labels.
-
-## Validation
-
-`tests/current/test_serial_features.py` uses analytically known geometry to
-check fractional overlap, holes, three-way ambiguity, conservation of exclusive
-plus ambiguous plus unassigned area, missing versus empty source sets, frame
-errors, measured zeros, missing measurements and transform-shift sensitivity.
-The real-data runner checks that exact virtual footprint coverage sums to the
-native object-union area. The normal repository `make test-fast` includes the
-module tests.
+The consumer verifies that selection is invariant to removing or changing all
+overlap measurements, retains the 24 zero-overlap pairs in the 297-pair set,
+and reproduces the previously computed unweighted native feature comparisons.
+The module tests cover exact geometry, conservation, missingness and the default
+equal-weight comparison. Historical PASS/WARN fields, typing limitations and
+source-provenance caveats remain explicit; no production receipt is changed.
