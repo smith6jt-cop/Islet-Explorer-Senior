@@ -72,6 +72,12 @@ used to choose correspondences or thresholds.
 
 ## Reproduction and current assessment
 
+The subsequent anatomical-neighborhood reassessment is documented in
+`SEQUENTIAL_ANATOMICAL_CONTEXT.md` and implemented by
+`multiplex5000.integration.serial_context`. It tests all six WARN registrations
+using neighboring structures and morphology-weight sensitivities, with no
+projected-overlap requirement.
+
 The corrected consumer uses the verified historical pair measurements and native
 own-section counts, preserving all existing transforms and geometry diagnostics:
 
