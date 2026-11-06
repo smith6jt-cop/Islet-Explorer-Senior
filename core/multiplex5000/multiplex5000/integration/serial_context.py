@@ -33,7 +33,7 @@ def geometry_descriptor(geometry):
     values=np.maximum(np.linalg.eigvalsh(moment/g.area),0)
     eccentricity=float(np.sqrt(max(0.,1-values[0]/values[-1]))) if values[-1]>0 else 0.
     return dict(x_um=float(center[0]),y_um=float(center[1]),area_um2=float(g.area),
-        eccentricity=eccentricity,solidity=float(g.area/g.convex_hull.area),
+        eccentricity=eccentricity,solidity=float(np.clip(g.area/g.convex_hull.area,0,1)),
         circularity=float(np.clip(4*np.pi*g.area/(g.length*g.length),0,1)))
 
 

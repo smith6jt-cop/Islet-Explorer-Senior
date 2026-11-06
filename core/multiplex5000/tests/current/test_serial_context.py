@@ -52,3 +52,15 @@ def test_invalid_geometry_and_out_of_range_candidates_are_not_forced():
     b=pd.DataFrame([dict(structure_id='b',**geometry_descriptor(box(1000,0,1010,10)))])
     assert assign_geometry(a,b).empty
     with pytest.raises(ValueError):assign_geometry(pd.concat([a,a]),b)
+
+
+def test_convex_object_solidity_stays_bounded_after_affine_roundoff():
+    from shapely.geometry import MultiPoint
+    from shapely.affinity import affine_transform
+    rng=np.random.default_rng(7)
+    for _ in range(30):
+        g=affine_transform(MultiPoint(rng.normal(size=(20,2))*100).convex_hull,
+                           [.935,.345,-.333,.925,1700,9200])
+        descriptor=geometry_descriptor(g)
+        assert 0<=descriptor['solidity']<=1
+        assert descriptor['solidity']==pytest.approx(1)

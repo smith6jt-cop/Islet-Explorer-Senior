@@ -6,6 +6,11 @@ Run `run_anatomy_audit.py` with the repository `.venv/bin/python`, then
 `verify_anatomy.py`. `analysis_plan.json` records the evidence rubric before
 the new neighborhood results. Historical sources and transforms are read-only.
 
+For acquisitions without IF masks, the subsequent RNA-derived boundary producer
+and its separate candidate assessment are documented in
+[XENIUM_ISLET_BOUNDARIES.md](XENIUM_ISLET_BOUNDARIES.md). The historical IF-based
+release decisions below are not automatically inherited by RNA-derived pairs.
+
 ## What is assessed
 
 `multiplex5000.integration.serial_context` keeps focal-object geometric
