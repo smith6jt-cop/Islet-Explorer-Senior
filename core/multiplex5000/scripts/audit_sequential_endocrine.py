@@ -1,10 +1,15 @@
-"""Prespecified all-category correspondence; geometry leads, overlap never gates."""
+"""Multicell correspondence; geometry leads, overlap never gates.
+
+Singles are retained in native construction but excluded before assignment.
+Anatomical context cannot establish identity between isolated cells.
+"""
 from pathlib import Path
 import json,sys,concurrent.futures
 import numpy as np,pandas as pd,shapely
 from shapely.affinity import affine_transform
 from scipy.spatial.distance import cdist
-from multiplex5000.integration.serial_context import geometry_descriptor,assign_geometry,compare_neighbor_vectors
+from multiplex5000.integration.serial_context import (geometry_descriptor,assign_multicell_geometry,compare_neighbor_vectors,
+    multicell_objects,MULTICELL_CLASSES,SERIAL_CORRESPONDENCE_POLICY)
 from multiplex5000.integration.endocrine_objects import verify_source,digest
 O=None;S=[];PLAN={}
 
@@ -25,8 +30,13 @@ def anchors(objects,radius):
 def one(donor):
  ps=next(s for s in S if s['role']=='protein' and s['donor_id']==donor);rs=next(s for s in S if s['role']=='RNA' and s['donor_id']==donor)
  p=O/'results'/donor;p.mkdir(parents=True,exist_ok=True)
- if (p/'decision.json').exists():return json.loads((p/'decision.json').read_text())
+ if (p/'decision.json').exists():
+  cached=json.loads((p/'decision.json').read_text())
+  if cached.get('correspondence_policy')!=SERIAL_CORRESPONDENCE_POLICY:raise RuntimeError('Incompatible cached correspondence; use a fresh run directory')
+  return cached
  a=load(rs);excluded=a[~a.proposal_evidence_available].copy();a=a[a.proposal_evidence_available].copy();b=load(ps)
+ n_single_a=int(a.object_class.eq('EndocrineSingle').sum());n_single_b=int(b.object_class.eq('EndocrineSingle').sum())
+ a=multicell_objects(a);b=multicell_objects(b)
  verify_source(ps['transform_path'],ps['transform_sha256']);tf=json.loads(Path(ps['transform_path']).read_text());assert not tf.get('has_displacement')
  m=np.array(tf['affine']);params=[m[0,0],m[0,1],m[1,0],m[1,1],m[0,2],m[1,2]]
  a['source_coordinate_frame']=a.coordinate_frame
@@ -37,7 +47,7 @@ def one(donor):
  for k in desc:a[k]=desc[k].to_numpy()
  a=a.sort_values('structure_id').reset_index(drop=True);b=b.sort_values('structure_id').reset_index(drop=True)
  a.drop(columns='geometry').to_parquet(p/'RNA_registered_objects.parquet',index=False)
- assignments={w:assign_geometry(a,b,position_weight=w,max_dist_um=200,area_ratio=2.5) for w in [.25,.5,.75]}
+ assignments={w:assign_multicell_geometry(a,b,position_weight=w,max_dist_um=200,area_ratio=2.5) for w in [.25,.5,.75]}
  pair=assignments[.25];pair['donor_id']=donor
  for w in [.5,.75]:
   other=dict(zip(assignments[w].moving_id,assignments[w].fixed_id));pair[f'same_target_weight_{w}']=[other.get(i)==j for i,j in zip(pair.moving_id,pair.fixed_id)]
@@ -84,7 +94,7 @@ def one(donor):
   rng=np.random.default_rng(20261106);null=[float(np.median([rng.choice(v) for v in pools])) for _ in range(199)] if pools else []
   actualmedian=float(np.median(actuals)) if actuals else np.nan;p95=float(np.percentile(null,95)) if null else np.nan
   radiusstats.append(dict(donor_id=donor,radius_um=radius,n_contextual_queries=len(actuals),actual_median=actualmedian,control_median_p95=p95,exceeds_control=bool(len(actuals)>=10 and actualmedian>p95)))
-  for cls in ['Islet','EndocrineCluster','EndocrineSingle']:
+  for cls in MULTICELL_CLASSES:
    ix=[i for i,c in enumerate(poolclasses) if c==cls];cp=[pools[i] for i in ix];ca=[actuals[i] for i in ix]
    crng=np.random.default_rng(20261106);cn=[float(np.median([crng.choice(v) for v in cp])) for _ in range(199)] if cp else []
    cm=float(np.median(ca)) if ca else np.nan;c95=float(np.percentile(cn,95)) if cn else np.nan
@@ -107,8 +117,10 @@ def one(donor):
  qc=json.loads(Path(ps['transform_path']).with_name('qc.json').read_text());ncc=qc['footprint_ncc_z']
  npositive=sum(q['positive'] for q in blocks if q['radius_um']==1500);nr=sum(r['exceeds_control'] for r in radiusstats)
  support=ncc>=5 and nr>=2 and npositive>=3
- accepted_classes=[cls for cls in ['Islet','EndocrineCluster','EndocrineSingle'] if ncc>=5 and sum(c['exceeds_control'] for c in classstats if c['RNA_object_class']==cls)>=2 and next(c['n_positive_blocks'] for c in classstats if c['RNA_object_class']==cls and c['radius_um']==1500)>=3]
+ accepted_classes=[cls for cls in MULTICELL_CLASSES if ncc>=5 and sum(c['exceeds_control'] for c in classstats if c['RNA_object_class']==cls)>=2 and next(c['n_positive_blocks'] for c in classstats if c['RNA_object_class']==cls and c['radius_um']==1500)>=3]
  decision=dict(donor_id=donor,historical_verdict=ps['historical_verdict'],n_RNA_objects=len(a),n_protein_objects=len(b),n_excluded_without_RNA_seed=len(excluded),n_pairs=len(pair),
+  correspondence_policy=SERIAL_CORRESPONDENCE_POLICY,n_RNA_singles_excluded_before_assignment=n_single_a,n_protein_singles_excluded_before_assignment=n_single_b,
+  single_scope='native_within_section_measurements_only; no cross-section single-involving pairs or identity evidence',
   n_RNA_unmatched=len(a)-len(pair),n_protein_unmatched=len(b)-len(pair),n_zero_overlap=int(pair.zero_projected_overlap.sum()),n_category_transitions=int(pair.category_transition.sum()),
   n_geometry_weight_stable=int(pair.geometry_weight_stable.sum()),n_local_context_supported=int(pair.local_context_supported.sum()),n_regionally_supported_unambiguous_candidates=int(pair.regional_candidate_for_review.sum()),
   historical_NCC_z=ncc,n_supporting_radii=nr,n_positive_blocks=npositive,regional_rubric_met=bool(support),
@@ -124,6 +136,7 @@ def main(argv=None):
  import argparse
  ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--run',required=True,type=Path)
  args=ap.parse_args(argv);O=args.run;S=json.loads((O/'run_specs.json').read_text());PLAN=json.loads((O/'analysis_plan.json').read_text())
+ if PLAN.get('correspondence_policy')!=SERIAL_CORRESPONDENCE_POLICY:raise ValueError('Analysis plan must explicitly declare the multicell-only correspondence policy')
  assert json.loads((O/'visual_review.json').read_text())['complete'],'Actual-image visual review must precede correspondence'
  with concurrent.futures.ProcessPoolExecutor(max_workers=5) as ex:r=list(ex.map(one,[s['donor_id'] for s in S if s['role']=='protein']))
  (O/'release_decisions.json').write_text(json.dumps(r,indent=2)+'\n')

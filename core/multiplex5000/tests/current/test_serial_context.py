@@ -4,7 +4,8 @@ import pytest
 from shapely.geometry import box
 from shapely.affinity import rotate,translate
 from multiplex5000.integration.serial_context import (
-    geometry_descriptor,neighbor_vectors,compare_neighbor_vectors,assign_geometry)
+    geometry_descriptor,neighbor_vectors,compare_neighbor_vectors,assign_geometry,
+    assign_multicell_geometry,multicell_objects)
 
 
 def test_exact_moments_are_translation_and_rotation_invariant():
@@ -64,3 +65,32 @@ def test_convex_object_solidity_stays_bounded_after_affine_roundoff():
         descriptor=geometry_descriptor(g)
         assert 0<=descriptor['solidity']<=1
         assert descriptor['solidity']==pytest.approx(1)
+
+
+@pytest.mark.parametrize('single_side', ['source', 'target', 'both'])
+def test_singles_cannot_compete_with_multicell_assignment(single_side):
+    def row(key, cls, x):
+        return dict(structure_id=key, object_class=cls,
+                    n_whole_cells=1 if cls=='EndocrineSingle' else 2,
+                    **geometry_descriptor(box(x,0,x+10,10)))
+    source=pd.DataFrame([row('rna_cluster','EndocrineCluster',0)])
+    target=pd.DataFrame([row('protein_islet','Islet',50)])
+    if single_side in ('source','both'):
+        source=pd.concat([source,pd.DataFrame([row('rna_single','EndocrineSingle',50)])])
+    if single_side in ('target','both'):
+        target=pd.concat([target,pd.DataFrame([row('protein_single','EndocrineSingle',0)])])
+    # Filtering the unrestricted result afterward loses the multicell pair:
+    # each Single is closer and has identical geometry to the opposite object.
+    unrestricted=assign_geometry(source,target)
+    assert not ((unrestricted.moving_id=='rna_cluster') & (unrestricted.fixed_id=='protein_islet')).any()
+    pairs=assign_multicell_geometry(source,target)
+    assert list(zip(pairs.moving_id,pairs.fixed_id))==[('rna_cluster','protein_islet')]
+
+
+def test_single_only_sections_have_no_correspondence_candidates():
+    row=dict(structure_id='single',object_class='EndocrineSingle',n_whole_cells=1,
+             **geometry_descriptor(box(0,0,10,10)))
+    singles=pd.DataFrame([row])
+    assert assign_multicell_geometry(singles,singles).empty
+    mislabeled=singles.assign(object_class='EndocrineCluster')
+    with pytest.raises(ValueError,match='at least two'):multicell_objects(mislabeled)

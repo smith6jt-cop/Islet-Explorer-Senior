@@ -13,6 +13,32 @@ from scipy.spatial.distance import cdist
 from shapely.geometry.polygon import orient
 
 
+MULTICELL_CLASSES = ('Islet', 'EndocrineCluster')
+SERIAL_CORRESPONDENCE_POLICY = 'multicell_only_no_single_identity_v1'
+
+
+def multicell_objects(objects):
+    """Select serial-section objects without inferring isolated-cell identity.
+
+    Native Singles remain valid within-section measurements. Geometry, overlap,
+    and anatomical neighborhood agreement do not establish that two isolated
+    cells are the same cell. Exclude Singles on BOTH sides before assignment,
+    including Single-to-multicell transitions and competition for other targets.
+    Any future single-cell matching needs an independent identity workflow.
+    """
+    if not objects.object_class.isin((*MULTICELL_CLASSES, 'EndocrineSingle')).all():
+        raise ValueError('Known endocrine object categories required')
+    selected = objects[objects.object_class.isin(MULTICELL_CLASSES)].copy()
+    if 'n_whole_cells' in selected and not selected.n_whole_cells.ge(2).all():
+        raise ValueError('Multicell correspondence requires at least two whole cells')
+    return selected
+
+
+def assign_multicell_geometry(source, target, **kwargs):
+    """Generate multicell candidates; isolated cells cannot compete for matches."""
+    return assign_geometry(multicell_objects(source), multicell_objects(target), **kwargs)
+
+
 def geometry_descriptor(geometry):
     """Exact area moments plus size, solidity and circularity of a native object."""
     g=geometry

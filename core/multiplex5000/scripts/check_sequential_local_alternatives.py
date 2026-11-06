@@ -11,9 +11,12 @@ import json,concurrent.futures
 import numpy as np,pandas as pd
 from scipy.spatial.distance import cdist
 from audit_sequential_endocrine import anchors,compare_neighbor_vectors
+from multiplex5000.integration.serial_context import multicell_objects,SERIAL_CORRESPONDENCE_POLICY
 O=None;S=[]
 def one(d):
  donor=d['donor_id'];p=O/'results'/donor;a=pd.read_parquet(p/'RNA_registered_objects.parquet');ps=next(s for s in S if s['role']=='protein' and s['donor_id']==donor);b=pd.read_parquet(Path(ps['output'])/'objects.parquet')
+ if d.get('correspondence_policy')!=SERIAL_CORRESPONDENCE_POLICY:raise ValueError('Recompute primary assignment under the multicell-only policy first')
+ a=multicell_objects(a);b=multicell_objects(b)
  pairs=pd.read_parquet(p/'pairs.parquet');av=anchors(a,1500);bv=anchors(b,1500);dist=cdist(pairs[['RNA_x_um','RNA_y_um']],b[['x_um','y_um']]);rows=[];flags=[]
  for i,r in enumerate(pairs.itertuples()):
   candidates=b[(dist[i]<=200)&b.object_class.eq(r.protein_object_class)&b.structure_id.ne(r.fixed_id)];near=[]

@@ -28,9 +28,9 @@ review uses its own Xenium DAPI image and measured OME calibration.
 The live PubApp has no Xenium proposal producer. The RNA proposal adapter below
 is a declared extension feeding the same constructor. The PubApp's CODEX donor
 cohort and cell calls are not substituted into the separate IO60 cohort. The
-PubApp counts singles but omits them from aggregate islet rows; sequential
-single-object candidates are the requested extension, not a claim that the live
-app already publishes single-cell correspondence.
+PubApp counts singles but omits them from aggregate islet rows. Native Single
+construction is included here, but no Single is paired across serial sections.
+The live app does not supply independent cell-to-cell correspondence evidence.
 
 ## Proposal and construction rules
 
@@ -90,13 +90,28 @@ is not independent histological confirmation. Record seed membership changes at
 
 ## Correspondence and release scope
 
-Retain all three categories. Reuse the existing, checksum-pinned PASS/WARN
+Retain all three categories in native outputs. **Exclude EndocrineSingle on both
+sides before assignment**, controls and correspondence release statistics.
+Neither anatomical context nor similar cell geometry establishes that isolated
+cells on two sections are the same cell. Single-to-Islet and Single-to-Cluster
+transitions are excluded too. Filtering completed assignments afterward is
+incorrect: Singles would already have competed for multicell targets. The
+`multicell_only_no_single_identity_v1` policy applies this restriction before
+every primary and sensitivity assignment. Native Single counts remain available
+per section; regional abundance comparisons require independently validated
+tissue regions and comparable sampling denominators, not paired single-cell IDs.
+Any future Single pairing requires a separate workflow with independent evidence
+of cell identity, unavailable in this run.
+
+Reuse the existing, checksum-pinned PASS/WARN
 transforms; exclude failed or missing transformations. Do not refit a transform
 to maximize endocrine agreement. The primary one-to-one candidate assignment
 weights position 25% and geometry 75%, with 200 µm distance and 2.5 area-ratio
 limits, an unmatched option, and no projected-overlap term. Position weights of
-50% and 75% are sensitivity comparisons. Category transitions are allowed because
-adjacent sections can change an object's observed size and cell count.
+50% and 75% are sensitivity comparisons. Islet-to-Cluster and Cluster-to-Islet
+transitions are allowed because adjacent sections can change a multicell
+structure's observed size and cell count. These remain provisional tissue-area
+relationships; small-cluster identity is not established by a good context score.
 
 Anatomical evidence combines actual tissue context and focal-excluded
 neighborhoods of up to six Islet-category anchors within 750, 1500 and 2250 µm.
@@ -151,16 +166,31 @@ Every object passed whole-cell ownership/count, diameter-category and Single
 geometry checks, and has positive-area original-proposal provenance. All 39
 actual-image overview/category/outlier sheets were reviewed.
 
-The 6,644 new regional candidates include 5,538 without projected intersection.
-All six original warning donors (6374, 6482, 6493, 6521, 6523, 6551) support all
-three categories regionally. Across the expanded cohort, 12 of 14 donors are
-accepted for exploratory regional review. Additional donors 6461 and 6534
-remain diagnostic-only; 6534 passes the pooled rubric but fails every category's
-stratified controls. Of all candidates, 1,400 pass the primary local-context, geometry ambiguity
-and image-sampling review filters in supported categories. Actual-image review
-then identified a plausible competing islet outside the primary area-ratio
-gate. The secondary local-alternative diagnostic retains that case explicitly
-and reduces the review set to 1,271. It checks other same-target-category objects
+The first correspondence attempt incorrectly allowed Singles to compete in
+object assignments. Its 6,644 candidates and 1,271 review candidates are
+superseded. Calling Single pairs "regional" did not establish their identity.
+That attempt contained 3,128 Single-involving pairs, including 305 in its review
+subset; none is accepted for correspondence release.
+
+The corrected run is
+`/home/smith6jt/Documents/papers/consolidation/sequential_multicell_correspondence_20261106`.
+It reuses unchanged native boundaries and transforms, excludes Singles before
+matching on both sides, and recomputes assignment, sensitivity, controls and
+release statistics. It contains 3,659 multicell candidates, 2,569 with zero
+projected overlap, and 1,009 final candidates for exploratory regional review.
+Compared with the former multicell subset, 3,440 pairs remain, 76 are replaced
+and 219 are added. This is not a post-assignment deletion of Single rows.
+
+All six original warning donors (6374, 6482, 6493, 6521, 6523, 6551) retain
+regional support for both Islet and EndocrineCluster categories. Across the
+expanded cohort, 12 of 14 donors qualify for exploratory regional review;
+6461 and 6534 remain diagnostic-only and now both fail the pooled rubric.
+No donor is accepted for Single correspondence. Native counts remain 10,907
+RNA Singles across 25 sections and 16,452 protein Singles across 14 sections.
+These are descriptive within-section counts, not validated matched-region
+density estimates or cross-section cell identities.
+
+The retained secondary local-alternative diagnostic checks other same-target-category objects
 within 200 µm, without the area gate: a closer alternative within 0.05 neighbor
 score of the assignment, or an alternative ahead by more than 0.05, triggers
 review. Zero/0.05/0.10 score tolerances remain available as sensitivity columns.
@@ -174,7 +204,10 @@ checked once in the final generation; they were not each independently rerun.
 The prior historical geometry and 473-pair evidence retain their original hashes.
 
 The audit command `scripts/audit_sequential_endocrine.py --run /path/to/run`
-requires the completed native image-review receipt. The run bundle also contains
+requires the completed native image-review receipt and the explicit
+`multicell_only_no_single_identity_v1` policy in `analysis_plan.json`. It refuses
+cached decisions from the previous all-category policy. Use a fresh directory
+with `run_specs.json` pointing to the verified native outputs. The run bundle also contains
 the image review, category-specific release filtering, report and packaging
 programs. No production deployment or named cell-typing release was changed.
 
