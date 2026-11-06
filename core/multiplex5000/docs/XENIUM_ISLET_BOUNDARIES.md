@@ -1,5 +1,9 @@
 # Xenium-derived islet boundary estimates
 
+For the current all-size method, including endocrine clusters and singles, use
+[Sequential endocrine objects](SEQUENTIAL_ENDOCRINE_OBJECTS.md). This document
+describes the retained islet-only replay method.
+
 `multiplex5000.integration.xenium_islets` supplies an executable RNA-derived
 boundary path for sections without post-Xenium IF. Apply the RNA method across
 the selected cohort to keep region definitions consistent. Available independent

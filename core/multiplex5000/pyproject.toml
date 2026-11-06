@@ -67,6 +67,7 @@ workflow = [
 # `maxfuse` is deliberately absent — its only release is 0.0.2 (2023) with unpinned deps, so
 # multiplex5000.integration.crossmodal implements the algorithm directly instead.
 integration = [
+    "ijson",
     "anndata",
     "scanpy",
     "spatialdata",
@@ -146,7 +147,7 @@ multiplex5000 = [
     "workflow/profiles/local/config.yaml",
     "workflow/profiles/hipergator/config.yaml",
 ]
-"multiplex5000.integration" = ["data/*.json"]
+"multiplex5000.integration" = ["data/*.json", "*.groovy"]
 
 [tool.setuptools_scm]
 # Version comes from the nearest git tag. A tagged commit gives a clean release version

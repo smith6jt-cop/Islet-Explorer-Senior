@@ -1,5 +1,7 @@
 """Estimated Xenium islet outlines from explicitly declared RNA seed evidence.
 
+Historical islet-only producer retained for replay. For all-size whole-cell
+objects (including endocrine clusters and singles), use endocrine_workflow.
 DBSCAN uses the existing structure caller. Convex hulls export its geometric
 support as boundaries in native micrometres. These are expression-dependent
 estimates, not IF segmentation, cell identities or accepted registrations.
