@@ -29,6 +29,9 @@ def one(donor):
  a=load(rs);excluded=a[~a.proposal_evidence_available].copy();a=a[a.proposal_evidence_available].copy();b=load(ps)
  verify_source(ps['transform_path'],ps['transform_sha256']);tf=json.loads(Path(ps['transform_path']).read_text());assert not tf.get('has_displacement')
  m=np.array(tf['affine']);params=[m[0,0],m[0,1],m[1,0],m[1,1],m[0,2],m[1,2]]
+ a['source_coordinate_frame']=a.coordinate_frame
+ a['coordinate_frame']=f'phenocycler:{donor}:um'
+ a['transform_sha256']=ps['transform_sha256']
  a['geometry']=[affine_transform(g,params) for g in a.geometry];a['geometry_wkb']=[g.wkb for g in a.geometry]
  desc=pd.DataFrame([geometry_descriptor(g) for g in a.geometry]);
  for k in desc:a[k]=desc[k].to_numpy()
