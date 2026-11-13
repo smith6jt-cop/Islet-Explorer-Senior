@@ -72,6 +72,9 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path, con
     parameters = json.loads((result.path / "resolved_parameters.json").read_text())
     fraction = 0.10 if configured_fraction is None else configured_fraction
     assert parameters["parameters"][0]["value"] == fraction
+    omissions = next(item["value"] for item in parameters["parameters"]
+                     if item["name"] == "omitted_rule_constraints")
+    assert ["Neural", "EpCAM"] in omissions and ["Stromal", "EpCAM"] in omissions
     marker = parameters["acquisitions"][0]["markers"][0]
     assert marker["cutoff_fraction"] == fraction
     fit = marker["fitted"]

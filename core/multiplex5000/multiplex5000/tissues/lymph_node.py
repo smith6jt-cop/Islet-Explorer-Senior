@@ -71,7 +71,8 @@ class RuleSource:
         }
 
 
-def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> RuleSource:
+def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
+                     dedicated: bool = False) -> RuleSource:
     """Verify the source and apply only the maintainer-approved pLN adaptation."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
@@ -102,6 +103,11 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> 
     omit = set(spec["pln_adaptation"]["omit_from_root_allneg"])
     if not omit <= set(headers[2:]):
         raise RuleSourceError(f"adaptation names unknown marker(s): {sorted(omit-set(headers))}")
+    # Dedicated sections can retire a channel from the rule criteria while
+    # retaining the measurements and the reference rules for other tissues.
+    retired = set(spec["pln_adaptation"].get("dedicated_omit_markers", ())) if dedicated else set()
+    if not retired <= set(headers[2:]):
+        raise RuleSourceError(f"unknown dedicated pLN marker(s): {sorted(retired - set(headers[2:]))}")
     aliases = dict(spec.get("panel_aliases") or {})
     if not set(aliases) <= set(headers[2:]):
         raise RuleSourceError("panel_aliases names a marker absent from the sheet")
@@ -116,10 +122,12 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> 
             token = (row[marker] or "").strip()
             if token and token not in allowed:
                 raise RuleSourceError(f"{phenotype}/{marker}: unsupported token {token!r}")
-            if parent == "all" and marker in omit and token == "allneg":
+            if token and (marker in retired or (parent == "all" and marker in omit and token == "allneg")):
                 omitted.append((phenotype, marker))
             elif token:
                 clauses.append((marker, token))
+        if not clauses and any((row[m] or "").strip() for m in retired):
+            raise RuleSourceError(f"{phenotype}: dedicated omission removed every constraint")
         rules.append(Rule(parent, phenotype, tuple(clauses)))
     for rule in rules:
         if rule.parent not in {"all", "any"} and rule.parent not in names:
@@ -138,6 +146,6 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None) -> 
                         tuple(candidate_roots))
     for rule in rules:
         result.inherited_markers(rule.phenotype)
-    if {marker for _, marker in omitted} != omit:
-        raise RuleSourceError("an approved omitted marker was not a root allneg constraint")
+    if {marker for _, marker in omitted} != omit | retired:
+        raise RuleSourceError("a declared omission did not match a marker constraint")
     return result

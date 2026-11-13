@@ -110,7 +110,8 @@ def run(task: Task) -> dict:
     entries = [row["protein_entry"] for row in sections]
     if entries != task.settings["protein_entries"]:
         raise PLNTypingPilotError("pLN sections changed after input declaration")
-    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"))
+    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"),
+                              dedicated=True)
     scales = _scales(task)
     threshold_rows, rule_rows, candidate_rows = [], [], []
     parameter_sections = []
@@ -199,7 +200,10 @@ def run(task: Task) -> dict:
                     {"name": "robust_top_percentile", "role": "fixed", "value": protein_evidence.ROBUST_TOP_Q},
                     {"name": "background_histogram_bins", "role": "fixed", "value": protein_evidence.MODE_BINS},
                     {"name": "minimum_background_support", "role": "fixed",
-                     "value": protein_evidence.MIN_BACKGROUND_SUPPORT, "units": "eligible positive measurements"}],
+                     "value": protein_evidence.MIN_BACKGROUND_SUPPORT, "units": "eligible positive measurements"},
+                    {"name": "omitted_rule_constraints", "role": "fixed",
+                     "value": [list(item) for item in source.omitted], "source": "pln_panel",
+                     "units": "phenotype-marker pairs"}],
         acquisitions=parameter_sections,
         input_names=("protein_receipt", "normalization_receipt", "normalization_scales", "pln_panel", "pln_rules"),
         producer_paths=(Path(__file__), Path(protein_evidence.__file__), Path(protein_section.__file__)))

@@ -21,6 +21,19 @@ def test_full_selected_sheet_and_explicit_pln_adaptation():
     assert "INS" not in source.inherited_markers("T_cell")
 
 
+def test_dedicated_epcam_retirement_preserves_shared_reference_and_other_clauses():
+    reference = load_rule_source(MANIFEST)
+    dedicated = load_rule_source(MANIFEST, dedicated=True)
+    assert dedicated.sha256 == reference.sha256
+    assert dedicated.candidate_lineage_roots == reference.candidate_lineage_roots
+    assert set(dedicated.omitted) - set(reference.omitted) == {
+        (root, "EpCAM") for root in ("Neural", "Ductal_Epithelial", "Epithelial", "Stromal")
+    }
+    for name, rule in reference.by_phenotype.items():
+        assert dedicated.by_phenotype[name].constraints == tuple(
+            item for item in rule.constraints if item[0] != "EpCAM")
+
+
 def test_missing_markers_are_reported_for_the_actual_pln_panel():
     source = load_rule_source(MANIFEST)
     panel = yaml.safe_load(PANEL.read_text())["panel_names"]["reference"]["pancreatic_lymph_node"]
