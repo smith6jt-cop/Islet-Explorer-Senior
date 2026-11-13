@@ -20,8 +20,10 @@ def test_region_area_and_donor_isolation():
                         n_peri_immune=[0,0,1,0,3,3]))
     o=apply_order(z)
     np.testing.assert_allclose(o.combined_immune_per_mm2,[0,.5,.5,np.nan,1,1],equal_nan=True)
-    np.testing.assert_allclose(o.pseudotime_rank,[0,1,1,np.nan,np.nan,np.nan],equal_nan=True)
-    assert list(o.burden.astype('string').dropna())==['Zero','Lower','Lower','Lower','Lower']
+    np.testing.assert_allclose(o.within_donor_density_rank,[0,1,1,np.nan,np.nan,np.nan],equal_nan=True)
+    np.testing.assert_allclose(o.pseudotime,[0,.5,.5,np.nan,1,1],equal_nan=True)
+    np.testing.assert_allclose(o.pseudotime_rank,[0,3/7,3/7,np.nan,1,1],equal_nan=True)
+    assert list(o.burden.astype('string').dropna())==['Zero','Lower','Lower','Upper','Upper']
 
 def test_native_band_excludes_core_neighbors_clusters_and_nontissue(tmp_path):
     import json, math

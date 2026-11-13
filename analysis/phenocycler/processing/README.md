@@ -1,10 +1,10 @@
 # Islet inflammation ordering
 
-The input is the pancreas release that excludes EpCAM from protein typing. The outcome is an ordering of islets within each donor by observed local immune-cell density. Native islet membership and the established exterior 20 µm band are reused. The pancreas tissue mask excludes pLN, and the exterior band excludes every islet core and endocrine cluster. Bands from two different islets can overlap, as they do in the native membership table; each islet is measured separately.
+The input is the pancreas release that excludes EpCAM from protein typing. The output includes independent donor composition graphs and an immune-density scale shared across all donors. Native islet membership and the established exterior 20 µm band are reused. The pancreas tissue mask excludes pLN, and the exterior band excludes every islet core and endocrine cluster. Bands from two different islets can overlap, as they do in the native membership table; each islet is measured separately.
 
-For each islet, count admitted cells with final primary type **Immune** in the core and surrounding band. Add the counts and divide by the sum of the two assessed areas, in mm². This is an area-weighted density, not the sum of two densities. Both regions must have positive area and an admitted cell; an assessed region can have zero immune cells. Within a donor, average the ranks of exactly tied densities and rescale the smallest and largest rank to 0 and 1. All measured zeros share 0. An all-zero donor has rank 0 throughout; a donor with only one distinct positive density and no zero has no relative rank. The smallest positive value may be rank 0 if that donor has no measured zero.
+For each islet, count admitted cells with final primary type **Immune** in the core and surrounding band. Add the counts and divide by the sum of the two assessed areas, in mm². This is an area-weighted density, not the sum of two densities. Both regions must have positive area and an admitted cell; an assessed region can have zero immune cells. Use the resulting immune cells/mm² directly for cross-donor and disease comparisons. The shared inflammation score divides each density by the maximum density in the complete assessed cohort. The pooled rank uses average tied ranks rescaled once across the cohort. The within-donor rank is stored separately. Report zero-density islets and unassessed islets separately.
 
-The primary fields are `combined_immune_per_mm2`, `pseudotime_rank`, and `density_eligible` in the islet AnnData; `islet_pseudotime_rank` in cell AnnData inherits it only through a unique region link. This order is not an estimate of elapsed time. The original composition graph is available as `X_islet_graph`, `composition_dpt`, and `composition_dpt_rank`.
+The islet AnnData stores absolute density as `combined_immune_per_mm2`, the shared score as `pseudotime`, the cohort rank as `pseudotime_rank` and the within-donor order as `within_donor_density_rank`. Cell AnnData inherits values through a unique native region link. The original composition graph is available as `X_islet_graph`, `composition_dpt` and `composition_dpt_rank`.
 
 To rebuild from the private full-section features, memberships, native image calibration, and masks:
 
@@ -15,7 +15,7 @@ python islet_inflammation.py attach --source "$original" \
   --islets "$staging/pancreas_islets.h5ad" --output "$staging"
 ```
 
-The optional `--geometry-root` and `--tissue-root` relocate the mask files by basename. Use a new private staging directory; apply its contents only after the complete run succeeds. To attach an already verified islet result at a second location, copy the islet AnnData, donor summary CSV, islet ranks Parquet and islet method JSON to staging, then run only `attach` against the original cell files. The file manifest records pre/post cell hashes and linkage totals. The typing release records the hashes of the producer, islet data, method and cell-file manifest. Untouched assay tables and pLN files stay with the original typing release.
+The optional `--geometry-root` and `--tissue-root` relocate the mask files by basename. Use a new private staging directory; apply its contents only after the complete run succeeds. To attach an already verified islet result at a second location, copy the islet AnnData, donor summary CSV, islet ranks Parquet and islet method JSON, disease summary and donor graph tables to staging, then run only `attach` against the original cell files. The file manifest records pre/post cell hashes and linkage totals. The typing release records the hashes of the producer, islet data, method and cell-file manifest. Untouched assay tables and pLN files stay with the original typing release.
 
 ## Dedicated pLN compartment sensitivity
 
@@ -48,3 +48,21 @@ python lineage_review.py --data-dir "$scanpy_bundle" --calls-dir "$epcam_exclude
 The cluster directory contains `cluster_heterogeneity.csv` and the original donor-level cluster assignment parquets. The review joins each admitted cell's UUID to its cluster, its own marker preference and the raw compartment check. It writes `pln_lineage_review_cells.parquet`, `pln_lineage_review_counts.parquet` and review fields on the existing `pln_umap.h5ad`.
 
 The residual pLN marker audit uses native whole-cell positive calls for cells that failed the strict rules and received no broad lineage assignment in cluster review. Run `pln_residual_markers.py --review-cells pln_lineage_review_cells.parquet --marker-calls "$dedicated/06_typing/protein" --donor-reference pln_unmatched_review_markers.parquet --output pln_residual_marker_support.parquet`. Each donor row reports the Pan-Cytokeratin veto, positivity among the five immune-root markers and five complementary markers, and paired T-cell, B-cell, myeloid and granulocyte signatures. The paired counts can overlap. Their union counts each cell once.
+
+## Pancreatic macrophage profiles
+
+After the immune hierarchy assigns the macrophage parent, classify the M2Gal3 (galectin-3) measurement as positive or negative. A positive CD68 or CD163 anchor, including both, establishes the parent. A missing galectin-3 measurement leaves its subtype unavailable. CD4 remains available for T-cell subtyping and full-panel expression plots.
+
+To rebuild the primary and final macrophage calls from an existing release, run the following with the donor-aligned native protein directory and the pancreas typing stage containing the two immune outputs.
+
+```bash
+python pancreas_macrophage_profiles.py --stage "$pancreas_stage" --aligned "$aligned_proteins" --output "$staging"
+```
+
+The output contains both sets of calls, their per-donor counts and a record of the measured markers, thresholds and source files. Notebook 02 displays the resulting profiles under `LEVEL = "macrophage_profile"`.
+
+## Individual islet trajectories
+
+For each donor, construct a 15-neighbor cosine graph from native islet core and peri-islet cell compositions. Root each graph at a fitted islet with the lowest measured combined immune density. Resolve ties by proximity to the established nonimmune reference and then the native islet UUID. The islet AnnData contains `donor_graph_dpt`, `donor_graph_root`, `donor_graph_cluster`, `donor_graph_exclusion` and `obsm["X_donor_islet_trajectory"]`. Cells with a unique islet link carry `islet_donor_graph_dpt`. Notebook 03 draws the measured edges of each donor’s PAGA tree and the core and rim immune densities along the trajectory.
+
+The four `donor_islet_trajectory_*` files contain the native points, cluster positions, weighted connections and methods. The `measure` command builds these files. To export the one-page-per-donor PDF from a notebook release, run `python notebooks/export_donor_trajectories.py --data scanpy --output rendered/donor_islet_trajectories.pdf` from the analysis directory.

@@ -30,7 +30,7 @@ IMMUNE = ["CD3e", "CD20", "CD79a", "CD68", "CD163", "Iba1", "CD11c", "CD209",
           "MPO", "CD66", "CD11b", "CD56", "Granzyme_B", "CD38", "CD57", "IDO1", "HLA_DR"]
 T_CELL = ["CD3e", "CD4", "CD8", "FOXP3", "ICOS", "CD39", "PD_1", "TOX", "LAG3",
           "VISTA", "TCF_1", "Bcl_2", "CD107a", "Granzyme_B", "CD44", "CD57", "Ki67", "HLA_DR", "Vimentin"]
-MACROPHAGE = ["CD68", "CD163", "M2Gal3", "CD4"]
+MACROPHAGE = ["CD68", "CD163", "M2Gal3"]
 PLN_MYELOID = ["CD68", "CD163", "M2Gal3", "Iba1", "CD206", "CD11b", "CD11c",
                "HLA_DR", "iNOS", "CD209", "CD14", "CD141"]
 PAN_ORDER = ["Alpha", "Beta", "Delta", AMBIGUOUS, BELOW_FLOOR, "Exocrine", "Blood vessel", "Lymphatic",
@@ -166,7 +166,7 @@ def show_profiles(counts,evidence,*,tissue="Pancreas",level="subtype",disease=No
     scope = f"Donor {donor}" if donor is not None else f"{disease or 'Cohort'} · {total} donors"
     unit = "Single section" if donor is not None else ("Equal donor weight" if weighting=="donors" else "Pooled cells")
     rows = names_in_order(support.index.tolist(), tissue)
-    markers = full_panel(evidence, tissue)
+    markers = MACROPHAGE if tissue == "Pancreas" and level == "macrophage_profile" else full_panel(evidence, tissue)
     captions = []
     for row in rows:
         item = support.loc[row]
@@ -235,6 +235,12 @@ def validate_release(data):
     receipt = json.loads(receipt_file.read_text())
     if receipt["release_id"] != expected or "EpCAM" not in receipt["typing_excluded_markers"]:
         raise ValueError(f"Select the {expected} bundle with PHENOCYCLER_DATA")
+    profile_labels = pd.read_parquet(data / "donor_counts.parquet", columns=["tissue", "level", "label"])
+    profiles = profile_labels.loc[profile_labels.tissue.eq("Pancreas") &
+                                  profile_labels.level.eq("macrophage_profile"), "label"]
+    profile_types = set(profiles.dropna()).difference({"Macrophage, profile unavailable"})
+    if profile_types != {"Macrophage_Gal3+", "Macrophage_Gal3-"}:
+        raise ValueError("Select the release with Gal3+ and Gal3- macrophage subtypes.")
     expected_markers = list(receipt["markers_used_for_pancreas_umap"])
     with h5py.File(data/"pancreas_umap.h5ad", "r") as panel:
         actual_id = ad.io.read_elem(panel["uns/release_id"])
@@ -463,9 +469,8 @@ def cell_subtypes(obs, tissue):
 
 def subtype_display_name(label):
     """Compact labels on axes; the notebook tables retain the release identifiers."""
-    if "Macrophage_LGALS3" in label:
-        return ("Mac " + label.replace("Macrophage_LGALS3", " Gal3")
-                .replace("CD163", " CD163").replace("CD4", " CD4"))
+    if label in {"Macrophage_Gal3+", "Macrophage_Gal3-"}:
+        return "Macrophage · Gal3" + ("+" if label.endswith("+") else "−")
     return DISPLAY_NAMES.get(label, label).replace("_", " ")
 
 

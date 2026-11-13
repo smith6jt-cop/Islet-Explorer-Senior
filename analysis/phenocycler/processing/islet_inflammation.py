@@ -1,6 +1,6 @@
 """Build the PhenoCycler-only, per-donor islet inflammation ordering from native outlines.
 
-measure writes an islet AnnData and compact audit tables. attach copies only the affected
+measure builds the shared density scale and independent donor graphs; attach copies the affected
 cell AnnData files to a staging directory, then joins the validated islet information.
 Run attach at each data host to avoid transferring complete sections. It neither infers
 new cell identities nor assigns a cell to one of several overlapping peri-islet bands.
@@ -25,13 +25,16 @@ import shapely
 from shapely.affinity import scale
 from shapely.geometry import shape
 
-VERSION = 'native-core-peri20-density-rank-v1'
+PREVIOUS_VERSION = 'native-core-peri20-density-rank-v1'
+VERSION = 'native-core-peri20-shared-density-v2'
 BAND_UM = 20
 QUAD_SEGS = 64
 CELL_FIELDS = {'islet_core_area_um2':'core_area_um2', 'islet_peri_area_um2':'peri_area_um2',
                'core_immune_per_mm2':'core_immune_per_mm2','peri_immune_per_mm2':'peri_immune_per_mm2',
                'combined_immune_per_mm2':'combined_immune_per_mm2',
-               'islet_pseudotime':'pseudotime', 'islet_pseudotime_rank':'pseudotime_rank'}
+               'islet_pseudotime':'pseudotime', 'islet_pseudotime_rank':'pseudotime_rank',
+               'islet_inflammation_rank_within_donor':'within_donor_density_rank',
+               'islet_donor_graph_dpt':'donor_graph_dpt'}
 PREV = {'islet_pseudotime':'islet_composition_dpt','islet_pseudotime_rank':'islet_composition_dpt_rank',
         'islet_inflammation':'islet_core_only_burden','core_immune_per_mm2':'islet_previous_core_immune_per_mm2'}
 
@@ -40,7 +43,7 @@ def sha(path):
         return hashlib.file_digest(f,'sha256').hexdigest()
 
 def inflammation_order(density):
-    """Average ranks of exact ties, then min-max ranks, within one donor. Preserve missing."""
+    """Average ranks of exact ties within the supplied reference population. Preserve missing."""
     s=pd.Series(density,dtype='float64')
     valid=s.dropna()
     if (~np.isfinite(valid) | valid.lt(0)).any():
@@ -134,21 +137,30 @@ def apply_order(o):
     o['combined_area_um2']=o.core_area_um2+o.peri_area_um2
     o['n_combined_immune']=o.n_core_immune+o.n_peri_immune
     o['combined_immune_per_mm2']=(1e6*o.n_combined_immune/o.combined_area_um2).where(o.density_eligible)
-    o['pseudotime_rank']=np.nan
+    o['within_donor_density_rank']=np.nan
     o['burden']=pd.Series(None,index=o.index,dtype='object')
     o['density_order_status']=pd.Series(None,index=o.index,dtype='object')
     for donor,ids in o.groupby('donor',observed=True).groups.items():
         values=o.loc[ids,'combined_immune_per_mm2']
         rank,status=inflammation_order(values)
-        o.loc[ids,'pseudotime_rank']=rank
+        o.loc[ids,'within_donor_density_rank']=rank
         o.loc[ids,'density_order_status']=status
         pos=values[values.gt(0)]
         o.loc[values[values.eq(0)].index,'burden']='Zero'
         o.loc[pos[pos.le(pos.median())].index,'burden']='Lower'
         o.loc[pos[pos.gt(pos.median())].index,'burden']='Upper'
-    o['burden']=pd.Categorical(o.burden,categories=['Zero','Lower','Upper'],ordered=True)
+    o['within_donor_burden']=pd.Categorical(o.burden,categories=['Zero','Lower','Upper'],ordered=True)
     o['density_order_status']=o.density_order_status.astype('category')
-    o['pseudotime']=o.pseudotime_rank
+    density=o['combined_immune_per_mm2']
+    maximum=density.max()
+    o['pseudotime']=density / maximum if maximum > 0 else density.copy()
+    # Use a single pooled reference for all donors. Tied measured zeros share zero.
+    o['pseudotime_rank'],_=inflammation_order(density)
+    positive=density[density.gt(0)]
+    o['burden']=pd.Categorical(
+        np.select([density.eq(0), density.gt(0) & density.le(positive.median()), density.gt(positive.median())],
+                  ['Zero','Lower','Upper'], default=None),
+        categories=['Zero','Lower','Upper'], ordered=True)
     return o
 
 def measure(args):
@@ -180,16 +192,18 @@ def measure(args):
     for col in ['core_area_um2','peri_area_um2']:o[col]=merged[col]
     src.obs=apply_order(o)
     src.uns['inflammation_order_version']=VERSION
-    notes={'primary':'Ascending average-tie ranks of combined measured immune-cell density, min-max normalized within each donor; exact zeros share 0. Not an elapsed time or inferred chronology.',
+    notes={'primary':'pseudotime is the combined measured immune density divided by the maximum assessed density in the complete cohort. Absolute density in immune cells/mm² is the primary disease comparison. pseudotime_rank uses average tied ranks rescaled once across all assessed islets. within_donor_density_rank retains the separate within-donor order.',
            'density':'(n_core_immune + n_peri_immune) / ((core_area_um2 + peri_area_um2)/1e6); no addition of compartment densities.',
            'regions':'Native islet core and exterior 20 µm band, clipped to annotated Tissue minus pLN. Band excludes every islet core and endocrine cluster, matching native region memberships.',
-           'support':'Both regions require positive finite assessed area and at least one admitted cell. Zero immune cells is a measured zero; an empty region is unassessed. All-zero donors have rank 0; a constant positive donor has undefined rank.',
-           'burden':'Zero for observed zero combined density; Lower / Upper split positive combined densities at the donor median, ties at the median are Lower.',
+           'support':'Both regions require positive finite assessed area and at least one admitted cell. Zero immune cells is a measured zero; an empty region is unassessed. Zero inflammation maps to zero. A constant-positive donor receives its cohort score; its within-donor order is undefined. A cohort with a single positive density has a score of 1 and no relative order.',
+           'burden':'Zero for observed zero combined density; Lower / Upper split positive combined densities at the pooled positive-islet median, ties at the median are Lower.',
            'old_dpt':'composition_dpt, composition_dpt_rank and X_islet_graph preserve the prior protein composition graph and its coordinates; unavailable graph positions do not remove density-ranked islets.',
            'band_buffer_quadrant_segments':QUAD_SEGS}
+    notes['reference_max_immune_per_mm2']=float(src.obs.combined_immune_per_mm2.max())
+    notes['positive_median_immune_per_mm2']=float(src.obs.loc[src.obs.combined_immune_per_mm2.gt(0),'combined_immune_per_mm2'].median())
     if 'trajectory_measurements' in src.uns:
         old=src.uns['trajectory_measurements'];old['previous_core_only_burden']=old.pop('burden','')
-        old['burden']=notes['burden'];old['pseudotime_rank']=notes['primary']
+        old['burden']=notes['burden'];old['pseudotime']=notes['primary'];old['pseudotime_rank']=notes['primary']
     src.uns['inflammation_order_method']=notes
     out=args.output/'pancreas_islets.h5ad'
     tmp=out.with_suffix('.building.h5ad');src.write_h5ad(tmp,compression='gzip')
@@ -205,18 +219,67 @@ def measure(args):
             assert valid.sort_values('combined_immune_per_mm2').pseudotime_rank.is_monotonic_increasing and valid.groupby('combined_immune_per_mm2').pseudotime_rank.nunique().max()<=1
         assert valid.loc[valid.combined_immune_per_mm2.eq(0),'pseudotime_rank'].eq(0).all()
         cmp=z[['pseudotime_rank','composition_dpt_rank']].dropna()
-        rows.append(dict(donor=str(d),islets=len(z),ranked=len(valid),zero=int(z.combined_immune_per_mm2.eq(0).sum()),
+        rows.append(dict(donor=str(d),disease=str(z.disease.iloc[0]),islets=len(z),ranked=len(valid),
+                         min_immune_per_mm2=valid.combined_immune_per_mm2.min(),median_immune_per_mm2=valid.combined_immune_per_mm2.median(),
+                         max_immune_per_mm2=valid.combined_immune_per_mm2.max(),min_shared_score=z.pseudotime.min(),max_shared_score=z.pseudotime.max(),
+                         zero=int(z.combined_immune_per_mm2.eq(0).sum()),
                          peri_positive_core_zero=int((z.peri_immune_per_mm2.gt(0)&z.core_immune_per_mm2.eq(0)).sum()),
                          graph_fitted=z.composition_dpt_rank.notna().sum(), shared=len(cmp),
                          difference_gt_0_1=int((cmp.pseudotime_rank-cmp.composition_dpt_rank).abs().gt(.1).sum()),
                          prior_dpt_rho=cmp.corr(method='spearman').iloc[0,1],
                          native_core_rank_rho=valid.pseudotime_rank.corr(valid.core_immune_per_mm2,method='spearman')))
     pd.DataFrame(rows).to_csv(args.output/'islet_inflammation_by_donor.csv',index=False)
-    audit=['donor','disease','core_area_um2','peri_area_um2','combined_area_um2','n_core','n_peri','n_core_immune','n_peri_immune','n_combined_immune','core_immune_per_mm2','peri_immune_per_mm2','combined_immune_per_mm2','density_eligible','density_order_status','burden','pseudotime_rank','composition_dpt_rank']
+    audit=['donor','disease','core_area_um2','peri_area_um2','combined_area_um2','n_core','n_peri','n_core_immune','n_peri_immune','n_combined_immune','core_immune_per_mm2','peri_immune_per_mm2','combined_immune_per_mm2','density_eligible','density_order_status','burden','pseudotime','pseudotime_rank','within_donor_density_rank','within_donor_burden','composition_dpt_rank']
     o[audit].to_parquet(args.output/'islet_inflammation_ranks.parquet')
+    disease=o.groupby('disease',observed=True).agg(donors=('donor','nunique'), native_islets=('donor','size'),
+        assessed_islets=('combined_immune_per_mm2','count'),zero_islets=('combined_immune_per_mm2',lambda x:x.eq(0).sum()),
+        min_immune_per_mm2=('combined_immune_per_mm2','min'),median_immune_per_mm2=('combined_immune_per_mm2','median'),
+        max_immune_per_mm2=('combined_immune_per_mm2','max'),min_shared_score=('pseudotime','min'),max_shared_score=('pseudotime','max'))
+    disease.to_csv(args.output/'islet_inflammation_by_disease.csv')
     state={'version':VERSION,'method':notes,'islets_source_sha256':sha(args.islets),'islets_sha256':sha(out),'sources':source_hashes,
            'manifest_sha256':sha(args.manifest),'donors':len(rows),'native_islets':len(o),'ranked_islets':int(o.pseudotime_rank.notna().sum()),'composition_graph_fitted_islets':int(o.composition_dpt_rank.notna().sum()),'zero_immune_islets':int(o.combined_immune_per_mm2.eq(0).sum())}
     (args.output/'islet_inflammation_method.json').write_text(json.dumps(state,indent=2)+'\n')
+
+def attach_donor_graph(directory):
+    """Link independently fitted donor graphs to the native AnnData by donor and islet UUID."""
+    directory=Path(directory)
+    path=directory/'pancreas_islets.h5ad'
+    data=ad.read_h5ad(path)
+    method_file=directory/'donor_islet_trajectory_method.json'
+    method=json.loads(method_file.read_text())
+    for name,expected in method['output_sha256'].items():
+        if sha(directory/name)!=expected:
+            raise ValueError(f'Incorrect donor trajectory evidence: {name}')
+    points=pd.read_parquet(directory/'donor_islet_trajectory_points.parquet').set_index('islet_id',verify_integrity=True)
+    if len(points)!=data.n_obs or not data.obs_names.isin(points.index).all():
+        raise ValueError('Donor graphs and native islets have different UUIDs')
+    points=points.loc[data.obs_names]
+    np.testing.assert_array_equal(points.donor.astype(str),data.obs.donor.astype(str))
+    np.testing.assert_allclose(points.combined_immune_per_mm2,data.obs.combined_immune_per_mm2,equal_nan=True)
+    np.testing.assert_allclose(points.composition_dpt,data.obs.composition_dpt,equal_nan=True)
+    data.obs['donor_graph_dpt']=points.graph_dpt.to_numpy()
+    data.obs['donor_graph_root']=points.graph_root.to_numpy()
+    data.obs['donor_graph_cluster']=pd.Categorical(points.graph_cluster)
+    data.obs['donor_graph_exclusion']=pd.Categorical(points.graph_exclusion)
+    data.obsm['X_donor_islet_trajectory']=points[['graph_x','graph_y']].to_numpy()
+    data.uns['donor_trajectory_method']={k:method[k] for k in ['version','graph','root','coordinates','interpretation']}
+    data.obs['inflammation_score']=data.obs.pseudotime
+    data.obs['cohort_density_rank']=data.obs.pseudotime_rank
+    ad.settings.allow_write_nullable_strings=True
+    with tempfile.NamedTemporaryFile(dir=directory,suffix='.h5ad',delete=False) as temp:
+        staged=Path(temp.name)
+    try:
+        data.write_h5ad(staged,compression='gzip')
+        np.testing.assert_allclose(read_islet_column(staged,'donor_graph_dpt'),points.graph_dpt,equal_nan=True)
+        staged.replace(path)
+    finally:
+        staged.unlink(missing_ok=True)
+    state_file=directory/'islet_inflammation_method.json'
+    state=json.loads(state_file.read_text())
+    state['islets_sha256']=sha(path)
+    state['donor_graph_method_sha256']=sha(method_file)
+    state_file.write_text(json.dumps(state,indent=2)+'\n')
+
 
 def read_islet_column(path,col):
     with h5py.File(path,'r') as h:return np.asarray(read_elem(h['obs'][col]))
@@ -236,7 +299,8 @@ def attach_one(job):
         with h5py.File(tmp,'r+') as f:
             oc=f['obs'];us=f['uns']
             if read_elem(us['release_id'])!='io60-phenocycler-20261113-no-epcam':raise ValueError('Unexpected cell typing release')
-            if 'inflammation_order_version' in us:raise ValueError('Expected an unmodified source file')
+            prior=read_elem(us['inflammation_order_version']) if 'inflammation_order_version' in us else None
+            if prior not in (None,PREVIOUS_VERSION):raise ValueError(f'Unexpected source version: {prior}')
             cats=read_elem(oc['islet_id'])
             # Map categories once; never clip missing/ambiguous memberships into an islet.
             if not isinstance(cats,pd.Categorical):cats=pd.Categorical(cats)
@@ -248,9 +312,12 @@ def attach_one(job):
             if not np.array_equal(donor,ix.donor.astype(str).to_numpy()[codes[good]]):raise ValueError('Cell linked to incorrect donor')
             def vector(field,dtype='float32'):
                 x=np.full(len(codes),np.nan,dtype=dtype);x[good]=ix[field].to_numpy(dtype=dtype)[codes[good]];return x
-            np.testing.assert_allclose(read_elem(oc['islet_pseudotime_rank']),vector('composition_dpt_rank'),equal_nan=True)
-            np.testing.assert_allclose(read_elem(oc['islet_pseudotime']),vector('composition_dpt'),equal_nan=True)
-            for old,new in PREV.items():oc.move(old,new)
+            if prior is None:
+                for old,new in PREV.items():oc.move(old,new)
+            else:
+                np.testing.assert_allclose(read_elem(oc['islet_pseudotime_rank']),vector('within_donor_density_rank'),equal_nan=True)
+            np.testing.assert_allclose(read_elem(oc['islet_composition_dpt_rank']),vector('composition_dpt_rank'),equal_nan=True)
+            np.testing.assert_allclose(read_elem(oc['islet_composition_dpt']),vector('composition_dpt'),equal_nan=True)
             for name,field in CELL_FIELDS.items():write_elem(oc,name,vector(field),dataset_kwargs={'compression':'lzf'})
             burden=np.full(len(codes),-1,dtype='int8');burden[good]=ix.burden.cat.codes.to_numpy()[codes[good]]
             write_elem(oc,'islet_inflammation',pd.Categorical.from_codes(burden,categories=ix.burden.cat.categories,ordered=True),dataset_kwargs={'compression':'lzf'})
@@ -287,6 +354,9 @@ def attach(args):
     meta['islet_inflammation_order']={k:details[k] for k in ['version','native_islets','ranked_islets','composition_graph_fitted_islets','zero_immune_islets','islets_sha256']}
     meta['islet_inflammation_order']['cell_file_manifest']='islet_inflammation_cell_files.csv'
     meta['islet_inflammation_order']['method']='islet_inflammation_method.json'
+    meta['islet_inflammation_order'].update(donor_trajectories='donor_islet_trajectory_method.json',
+        trajectory_method_sha256=details['donor_graph_method_sha256'], absolute_density='combined_immune_per_mm2',
+        shared_score='pseudotime', donor_graph_dpt='donor_graph_dpt')
     meta['fitted_islets']=details['composition_graph_fitted_islets']
     (args.output/'typing_release.json').write_text(json.dumps(meta,indent=2)+'\n')
     stamp(args.output,args.islets)
@@ -296,7 +366,7 @@ def stamp(output,islets):
     output,islets=Path(output),Path(islets)
     method_file=islets.parent/'islet_inflammation_method.json'
     record=json.loads(method_file.read_text())
-    hashes={name:sha(islets.parent/name) for name in ('islet_inflammation_by_donor.csv','islet_inflammation_ranks.parquet')}
+    hashes={name:sha(islets.parent/name) for name in ('islet_inflammation_by_donor.csv','islet_inflammation_by_disease.csv','islet_inflammation_ranks.parquet')}
     code_hash=sha(Path(__file__).resolve())
     record['producer_sha256']=code_hash
     record['audit_sha256']=hashes
@@ -320,6 +390,12 @@ def main():
     for field in ('islets','source','output'):b.add_argument('--'+field,type=Path,required=True)
     b.add_argument('--workers',type=int,default=3)
     args=parser.parse_args()
-    (measure if args.cmd=='measure' else attach)(args)
+    if args.cmd=='measure':
+        measure(args)
+        from donor_islet_trajectories import build
+        build(args.output/'pancreas_islets.h5ad',args.output)
+        attach_donor_graph(args.output)
+    else:
+        attach(args)
 
 if __name__=='__main__':main()
