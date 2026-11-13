@@ -29,6 +29,8 @@ because inside the prior we already know the cell is endocrine and the only ques
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import pathlib
 import sys
 import time
@@ -97,7 +99,9 @@ def native_hormone_resolver(donor, aligned, scale, gate):
         from multiplex5000.artifacts import QuPathCohortManifest
         from multiplex5000.tissues.interior_dominance import measure_conflicts
 
-        manifest = roots.source("qupath_manifest") or roots.INTEGRATION.parent / "qupath_manifest.json"
+        manifest = pathlib.Path(os.environ.get("IO60_QUPATH_MANIFEST")
+                                or (roots.source("qupath_manifest") if hasattr(roots, "source") else None)
+                                or roots.INTEGRATION.parent / "qupath_manifest.json")
         if not manifest.is_file():
             return {}
         images = [i for i in QuPathCohortManifest.read_json(manifest).images
@@ -121,7 +125,10 @@ def native_hormone_resolver(donor, aligned, scale, gate):
                 if not np.allclose(x[keep] * factor, y[keep], rtol=1e-5, atol=1e-7):
                     raise ValueError(f"{donor} {marker}: aligned expression differs from its source scaling")
                 calibration[marker] = (factor, scale.loc[marker, "floor"], scale.loc[marker, "span"])
-        return measure_conflicts(images[0], contenders, calibration, gate)
+        results = measure_conflicts(images[0], contenders, calibration, gate)
+        for oid, result in results.items():
+            result.update(image_content_id=images[0].content_id, contenders=contenders[oid], gate=gate)
+        return results
     return resolve
 
 
@@ -131,7 +138,8 @@ def subtype_endocrine(Xs: np.ndarray, markers: list, min_scaled: float,
     n = len(Xs)
     names = [name for name, marker in HORMONE.items() if marker in markers]
     out = pd.DataFrame({"call": ["Endo-unresolved"] * n, "score": np.nan, "runner_up": "",
-                        "margin": np.nan, "hormone_status": "missing_hormone_measurement"})
+                        "margin": np.nan, "hormone_status": "missing_hormone_measurement",
+                        "hormone_interior_evidence": None})
     if not names or not n:
         return out
     values = Xs[:, [markers.index(HORMONE[name]) for name in names]]
@@ -171,6 +179,7 @@ def subtype_endocrine(Xs: np.ndarray, markers: list, min_scaled: float,
             evidence = measured.get(ids[i])
             if evidence is None:
                 continue
+            out.at[i, "hormone_interior_evidence"] = json.dumps(evidence, sort_keys=True, allow_nan=False)
             winner = evidence["winner"]
             out.at[i, "hormone_status"] = evidence["status"]
             if winner is not None:
@@ -236,7 +245,8 @@ def run_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
     for column in ("call", "runner_up", "score", "margin"):
         out.loc[rows, column] = sub[column].to_numpy()
     out.loc[rows, "reason"] = "endocrine_by_islet_prior"
-    out.loc[rows, "hormone_status"] = sub["hormone_status"].to_numpy()
+    for column in ("hormone_status", "hormone_interior_evidence"):
+        out.loc[rows, column] = sub[column].to_numpy()
 
     out.insert(0, "object_id", df["object_id"].to_numpy())
     out.insert(0, "donor_id", donor)
