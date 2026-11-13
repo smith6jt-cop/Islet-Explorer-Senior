@@ -136,6 +136,8 @@ import time
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+from multiplex5000.artifacts import QuPathCohortManifest
+from multiplex5000.tissues.interior_dominance import METHOD, TYPED, measure_conflicts
 from multiplex5000.tissues.t_cell import clipped_t_tie_profile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -1147,10 +1149,75 @@ def ordinary_endocrine_identity(values: pd.DataFrame, name_of: dict,
     return names, status
 
 
+def _native_calibration(donor, markers, scale):
+    """Bind pixel ADUs to the SAME alignment inputs as the classified cell table."""
+    declared = os.environ.get("IO60_PIXEL_ALIGNMENT_SCALES")
+    path = pathlib.Path(declared) if declared else S.ALIGNED.parent.parent / "scales.csv"
+    shifts = {}
+    if path.is_file():
+        records = pd.read_csv(path, dtype={"donor_id": str})
+        subset = records.loc[records.donor_id.eq(str(donor))]
+        if subset.marker.duplicated().any():
+            raise ValueError(f"{donor}: duplicate marker alignment scales")
+        shifts = subset.loc[subset.status.eq("aligned")].set_index("marker")["scale"].to_dict()
+    elif declared:
+        raise FileNotFoundError(f"declared pixel alignment scales do not exist: {path}")
+    else:
+        declared_shifts = os.environ.get("IO60_SHIFTS_PATH")
+        if declared_shifts:
+            shifts_path = pathlib.Path(declared_shifts)
+        elif S.ALIGNED == S.REPO / "data/development/celltype/uniform":
+            shifts_path = S.REPO / "data/development/celltype/shifts.json"
+        else:
+            return {}
+        if not shifts_path.is_file() and not declared_shifts:
+            return {}
+        raw = json.loads(shifts_path.read_text())
+        shifts = {m: cfg.get("scale", {}).get(str(donor)) for m, cfg in raw["shifts"].items()}
+    return {m: (float(shifts[m]), float(scale.at[m, "floor"]), float(scale.at[m, "span"]))
+            for m in markers if m in scale.index and shifts.get(m) is not None}
+
+
+def resolve_endocrine_ties(donor, ids, values, mask, names, status, name_of, scale, gate,
+                           *, native=True):
+    """Only subtype positive clipped ties already admitted by the applicable route."""
+    evidence = np.full(len(ids), None, dtype=object)
+    selected = np.flatnonzero(mask & (status == "tied_highest_hormones"))
+    if not len(selected) or not native:
+        return evidence
+    oid = ids.astype(str).to_numpy()[selected]
+    if len(set(oid)) != len(oid):
+        raise ValueError(f"{donor}: duplicate native Object IDs")
+    x = values.reindex(columns=S.HORMONES).iloc[selected].to_numpy(float)
+    markers = np.asarray(S.HORMONES)
+    contenders = {k: tuple(markers[row == np.nanmax(row)]) for k, row in zip(oid, x)}
+    cal = _native_calibration(donor, set().union(*contenders.values()), scale)
+    rows = {}
+    image_id = None
+    manifest = pathlib.Path(os.environ.get("IO60_QUPATH_MANIFEST", getattr(
+        S, "QUPATH_MANIFEST", S.REPO / "core/phenocycler/data/qupath_manifest.json")))
+    if cal and manifest.is_file():
+        cohort = QuPathCohortManifest.read_json(manifest)
+        matched = [image for image in cohort.images if image.donor_id == str(donor)]
+        if len(matched) > 1:
+            raise ValueError(f"{donor}: expected one contracted image per donor")
+        if matched:
+            image_id = matched[0].content_id
+            rows = measure_conflicts(matched[0], contenders, cal, gate)
+    for i, k in zip(selected, oid):
+        row = rows.get(k, {"status": "unavailable_native_inputs", "winner": None})
+        if row["status"] == TYPED:
+            names[i], status[i] = name_of[row["winner"]], TYPED
+        evidence[i] = json.dumps(dict(method=METHOD, image_content_id=image_id,
+                                      contenders=contenders[k], gate=float(gate) if pd.notna(gate) and np.isfinite(gate) else None,
+                                      **row), sort_keys=True, allow_nan=False)
+    return evidence
+
+
 def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
              log: dict, detail: bool, require_top_marker: bool = True,
              islet_chain: bool = True, quantile: float = S.ENDOCRINE_QUANTILE,
-             audit: dict | None = None) -> pd.DataFrame:
+             audit: dict | None = None, native_ties: bool = True) -> pd.DataFrame:
     """The subpanel classification for one donor.
 
     THE ISLET CHAIN, for a cell whose centroid is inside an islet outline:
@@ -1262,11 +1329,16 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     A["stratum_cells"] = {s: int((stratum == s).sum()) for s in S.SIZE_STRATA}
 
     if not islet_chain:
+        evidence = resolve_endocrine_ties(donor, ctx["object_id"], values,
+                                          base_class == ORDINARY_ENDOCRINE_NAMES[1],
+                                          base_class, endocrine_status, name_of, scale,
+                                          levels["hormone"], native=native_ties)
         A["islet_chain"] = False
         frame = _emit(donor, ctx, base_class, base_definition, base_resolved, base_reason,
                       islet_cells, stratum, np.full(n, "", dtype=object),
                       identity_columns, passed_through, detail)
         endocrine_typed = np.isin(base_class, list(endocrine_names))
+        frame["endocrine_interior_evidence"] = evidence
         frame["endocrine_subtype_status"] = np.where(endocrine_typed, endocrine_status, "")
         frame["immune_rules_unavailable_count"] = unavailable_count
         A["ordinary_endocrine_subtype_status"] = {
@@ -1342,9 +1414,15 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     endocrine[single] = True
     definition[single] = ""
     reason[single] = ""
+    admitted = (cell_class == ORDINARY_ENDOCRINE_NAMES[1]) | single
+    status = np.where(single, single_status, endocrine_status)
+    evidence = resolve_endocrine_ties(donor, ctx["object_id"], values, admitted,
+                                      cell_class, status, name_of, scale, levels["hormone"],
+                                      native=native_ties)
+    endocrine_status[~single], single_status[single] = status[~single], status[single]
     # Human decision, 2026-10-05: exclude Singles without a unique usable
     # hormone, rather than treating uncertainty statuses as biological types.
-    single_excluded = single & (single_status != "unique_highest_hormone")
+    single_excluded = single & ~np.isin(single_status, ["unique_highest_hormone", TYPED])
     cell_class[single_excluded] = "Excluded"
     resolved_by[single_excluded] = "excluded_single_hormone"
     route[single_excluded] = ""
@@ -1405,6 +1483,7 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     frame = _emit(donor, ctx, cell_class, definition, resolved_by, reason, islet_cells, stratum,
                   route, identity_columns, passed_through, detail)
     frame["endocrine_subtype_status"] = subtype_status
+    frame["endocrine_interior_evidence"] = evidence
     frame["immune_rules_unavailable_count"] = unavailable_count
     return frame
 
@@ -1639,7 +1718,8 @@ def main() -> int:
         audit: dict = {}
         frame = classify(donor, ctx, per_donor[donor], scale, log, args.emit_detail,
                          not args.no_top_marker, islet_chain=not args.no_islet_chain,
-                         quantile=args.endocrine_quantile, audit=audit)
+                         quantile=args.endocrine_quantile, audit=audit,
+                         native_ties=not (args.gate and args.levels == "pooled"))
         audits.append(audit)
         report_identity_argmax(audit)
         report_islet_audit(audit)

@@ -18,6 +18,8 @@ from pathlib import Path
 
 from multiplex5000.tissues import t_cell as T_CELL
 from multiplex5000.tissues import macrophage as MACROPHAGE
+from multiplex5000.tissues import interior_dominance
+from multiplex5000 import tiff_window, redsea
 
 
 HERE = Path(__file__).resolve().parent
@@ -103,8 +105,13 @@ def main() -> int:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
     script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
                     SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py",
+                    Path(interior_dominance.__file__), Path(redsea.__file__), Path(tiff_window.__file__),
                     Path(T_CELL.__file__).resolve(), Path(MACROPHAGE.__file__).resolve()]
+    pixel_scales = Path(os.environ.get("IO60_PIXEL_ALIGNMENT_SCALES", aligned.parent.parent / "scales.csv"))
     run = {
+        "pixel_conflict_method": interior_dominance.METHOD,
+        "pixel_alignment_scales": str(pixel_scales) if pixel_scales.is_file() else None,
+        "pixel_alignment_scales_sha256": sha256(pixel_scales) if pixel_scales.is_file() else None,
         "schema_version": 1,
         "status": "running",
         "started_utc": datetime.now(timezone.utc).isoformat(),
