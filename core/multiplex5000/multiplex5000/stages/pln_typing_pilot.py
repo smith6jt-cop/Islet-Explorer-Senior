@@ -98,7 +98,7 @@ def run(task: Task) -> dict:
     if entries != task.settings["protein_entries"]:
         raise PLNTypingPilotError("pLN sections changed after input declaration")
     source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"),
-                              dedicated=True)
+                              pln_identity=True)
     scales = _scales(task)
     threshold_rows, rule_rows, candidate_rows = [], [], []
     total_cells = no_nucleus = 0
