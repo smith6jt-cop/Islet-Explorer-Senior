@@ -40,9 +40,9 @@ rule_table:
     # Approved 2026-10-26. These were pancreas-only negatives on broad parent
     # rows. A missing marker is never treated as a measured negative.
     omit_from_root_allneg: [INS, GCG, SST, Ker8-18]
-    # The dedicated-node candidate omits EpCAM from identity evidence.
-    # Its measured values and calls remain available for expression review.
-    dedicated_omit_markers: [EpCAM]
+    # Dedicated nodes and pLN regions on pancreas slides share this identity policy.
+    # EpCAM measurements remain available from the protein measurement stage.
+    omit_from_pln_identity: [EpCAM]
     unavailable_when_required_marker_missing: true
 notes: |
   The full source includes pancreas and lymph-node classes. The pLN plugin must

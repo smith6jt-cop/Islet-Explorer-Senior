@@ -23,7 +23,10 @@ def test_full_selected_sheet_and_explicit_pln_adaptation():
 
 def test_dedicated_epcam_retirement_preserves_shared_reference_and_other_clauses():
     reference = load_rule_source(MANIFEST)
-    dedicated = load_rule_source(MANIFEST, dedicated=True)
+    dedicated = load_rule_source(MANIFEST, pln_identity=True)
+    assert dedicated == load_rule_source(MANIFEST, dedicated=True)
+    assert dedicated.excluded_identity_markers == ("EpCAM",)
+    assert reference.excluded_identity_markers == ()
     assert dedicated.sha256 == reference.sha256
     assert dedicated.candidate_lineage_roots == reference.candidate_lineage_roots
     assert set(dedicated.omitted) - set(reference.omitted) == {
