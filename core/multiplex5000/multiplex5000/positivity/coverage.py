@@ -7,9 +7,8 @@ qptiff's level-0 frame) instead of read from a CODEX run, and the run-directory 
 receipt. The despeckle is the same 3x3 median with replicated borders, computed with scipy instead of OpenCV.
 
 Owner 2026-10-29: "There are two markers for a T Cell CD8a and both are brighter and cover more cell area than any
-myeloid marker so this should not be a conflicting call." A marker a cell expresses covers the cell; a neighbor's signal
-that REDSEA leaves behind sits at the contact rim. identity.py uses this measure, with brightness (fold over level), to
-settle a canary conflict between two groups of equal depth.
+myeloid marker so this should not be a conflicting call." These marginal fractions describe each marker separately.
+Identity conflicts use exclusive native-interior pixel votes in interior_signal.py.
 
 Pixels: the despeckled channel, uncompensated. Level: the image's level of the marker (levels level_raw, on the
 marker's measurement). Measured over the measurement's pixels: the whole cell, or REDSEA's 1-pixel inner boundary band
@@ -128,6 +127,13 @@ def read_validated(frame: pd.DataFrame, all_ids: pd.Series, tag: str, object_ids
     return frame.set_index('object_id').loc[object_ids].reset_index()
 
 
+def interior_positions(mask):
+    """Flat positions owned by the same cell throughout the interior erosion window."""
+    width = 2 * INTERIOR_PX + 1
+    return np.flatnonzero(((minimum_filter(mask, size=width) == mask) &
+                           (maximum_filter(mask, size=width) == mask) & (mask > 0)).ravel())
+
+
 def compute(tag: str, features: Iterable[dict], shape: tuple[int, int], read_channel: Callable[[str], np.ndarray],
             channel_names: list[str], levels: pd.DataFrame, reg: RG.Registry) -> pd.DataFrame:
     """area_coverage.one(): `features` the section's cell GeoJSON features, `shape` the image (H, W), `read_channel`
@@ -140,9 +146,7 @@ def compute(tag: str, features: Iterable[dict], shape: tuple[int, int], read_cha
     flat = mask.ravel()
     size = np.bincount(flat, minlength=n + 1)[1:].astype(float)
     band = np.flatnonzero(find_boundaries(mask, mode='inner', connectivity=2, background=0).ravel())
-    w = 2 * INTERIOR_PX + 1                     # a pixel is interior when its whole w x w window is the same cell
-    interior = np.flatnonzero(((minimum_filter(mask, size=w) == mask) & (maximum_filter(mask, size=w) == mask)
-                               & (mask > 0)).ravel())
+    interior = interior_positions(mask)
     del mask
     iflat = flat[interior]
     isize = np.bincount(iflat, minlength=n + 1)[1:].astype(float)
