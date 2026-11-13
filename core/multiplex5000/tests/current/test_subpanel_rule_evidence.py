@@ -17,6 +17,23 @@ sys.path.insert(0, str(REPO / "core/multiplex5000/scripts/celltype"))
 import subpanel as SUB  # noqa: E402
 
 
+def test_epcam_cannot_veto_an_io60_immune_call_or_compete_for_identity():
+    import refine
+    import immune_subtype
+    table, rules = immune_subtype.immune_rules()
+    assert "EpCAM" not in table.columns
+    assert "EpCAM" not in SUB.IDENTITY_MARKERS
+    assert "EpCAM" not in {m for rule in rules.values() for m in immune_subtype.rule_markers(rule)}
+    flat = refine.R.flatten(refine.R.load_rules())
+    assert not any("EpCAM" in constraints for constraints in flat.values())
+    evidence = pd.DataFrame({"CD3e": [1., 1.], "EpCAM": [0., 1.]})
+    rule = SUB.immune_rules()["Imm-T-cell"]
+    for marker in immune_subtype.rule_markers(rule):
+        if marker not in evidence:
+            evidence[marker] = 0.
+    assert SUB.fires(evidence, rule).tolist() == [True, True]
+
+
 def test_owner_macrophage_parent_accepts_cd163_with_other_requirements_measured():
     rule = SUB.immune_rules()["Imm-macrophage"]
     assert rule[0] == [] and rule[1] == [["CD68", "CD163"]]
