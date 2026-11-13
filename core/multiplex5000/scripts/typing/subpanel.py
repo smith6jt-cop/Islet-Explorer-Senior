@@ -363,6 +363,7 @@ def scaled_markers(donor: str, wanted: set[str], scale: pd.DataFrame,
     needing it simply cannot fire -- which is the correct behaviour and not zero-filling.
     """
     path = S.ALIGNED / f"donor_id={donor}/data.parquet"
+    wanted = wanted - RULES.EXCLUDED_FROM_TYPING
     have = set(pq.ParquetFile(path).schema_arrow.names)
     present = sorted(wanted & have)
     frame = pq.read_table(path, columns=["object_id"] + present).to_pandas()
@@ -1271,6 +1272,7 @@ def classify(donor: str, ctx: pd.DataFrame, levels: dict, scale: pd.DataFrame,
     name_of = {v: k for k, v in log["hormones"].items()}
     A = {} if audit is None else audit
     A["donor_id"] = donor
+    A["excluded_typing_markers"] = sorted(RULES.EXCLUDED_FROM_TYPING)
     A["n_cells"] = n
     A["n_in_islet"] = int(in_islet.sum())
     A["scale_unavailable_markers"] = list(values.attrs.get("scale_unavailable", []))
