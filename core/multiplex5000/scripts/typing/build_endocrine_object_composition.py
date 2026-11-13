@@ -19,7 +19,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
-from multiplex5000.tissues.macrophage import current_profile_names, labels as macrophage_labels
+from multiplex5000.tissues.macrophage import archived_profile_groups, current_profile_names, labels as macrophage_labels
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -244,14 +244,14 @@ def rebuild_analytic_object_composition(objects: pd.DataFrame, cells: pd.DataFra
     legacy_fields = []
     for name in macrophage_labels():
         key = 'count_macrophage_profile__' + name
-        old_counts = [key + suffix for suffix in ('CD4+', 'CD4-')]
-        if key not in result and all(count in result for count in old_counts):
-            result[key] = result[old_counts].sum(axis=1, min_count=2)
-        for suffix in ('CD4+', 'CD4-'):
-            old = name + suffix
-            legacy_fields.extend(['count_macrophage_profile__' + old,
-                                  'feature__immune__macrophage_profile_' + old + '_per_endocrine',
-                                  'available__immune__macrophage_profile_' + old + '_per_endocrine'])
+        for old_profiles in archived_profile_groups(name):
+            old_counts = ['count_macrophage_profile__' + old for old in old_profiles]
+            if key not in result and all(col in result for col in old_counts):
+                result[key] = result[old_counts].sum(axis=1, min_count=len(old_counts))
+            for old in old_profiles:
+                legacy_fields.extend(['count_macrophage_profile__' + old,
+                                      'feature__immune__macrophage_profile_' + old + '_per_endocrine',
+                                      'available__immune__macrophage_profile_' + old + '_per_endocrine'])
     if result.duplicated(['donor_id', 'endocrine_object_id']).any():
         raise ValueError('composition has duplicate donor/object keys')
     raw_fields = [c for c in result if c.startswith(('primary_count__', 'refined_count__', 'count_', 'process_overlap_', 'supplementary_'))]

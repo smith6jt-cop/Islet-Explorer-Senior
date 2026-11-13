@@ -1,53 +1,45 @@
-"""Pancreas macrophage marker profiles in the shared typing hierarchy."""
+"""Pancreas macrophage identity and Gal3 subtypes in the protein hierarchy."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from itertools import product
 
 import numpy as np
 
-# The PhenoCycler M2Gal3 antibody reads galectin-3 (LGALS3 in the CODEX panel).
 PROFILE_MARKERS = ("CD68", "CD163", "M2Gal3")
 
 
-def label(signs: tuple[bool, bool, bool]) -> str:
-    """Use the owner's CODEX label spelling with Senior's marker alias resolved."""
-    a, b, c = ("+" if x else "-" for x in signs)
-    return f"CD68{a}CD163{b}Macrophage_LGALS3{c}"
+def labels() -> tuple[str, str]:
+    return ("Macrophage_Gal3+", "Macrophage_Gal3-")
 
 
-def labels() -> tuple[str, ...]:
-    """The six measured profiles with CD68 or CD163 positive."""
-    return tuple(label(v) for v in product((True, False), repeat=3) if v[0] or v[1])
+def archived_profile_groups(name):
+    """The two former schemas both reported three mutually exclusive anchor profiles."""
+    sign = {labels()[0]: "+", labels()[1]: "-"}[name]
+    six = [anchor + "Macrophage_LGALS3" + sign
+           for anchor in ("CD68+CD163+", "CD68+CD163-", "CD68-CD163+")]
+    twelve = [profile + suffix for profile in six for suffix in ("CD4+", "CD4-")]
+    return six, twelve
 
 
 def current_profile_names(series):
-    """Pool archived CD4-split names into their measured three-marker profiles."""
-    legacy = {name + suffix: name for name in labels() for suffix in ("CD4+", "CD4-")}
-    return series.astype(object).replace(legacy)
+    """Pool either archived schema; retain missing and unrecognized source values."""
+    old = {prior: name for name in labels() for group in archived_profile_groups(name) for prior in group}
+    return series.astype(object).replace(old)
 
 
 def classify_profile(values, threshold: float | Mapping[str, float] = 0.10):
-    """Classify measured profiles using levels in the same units as ``values``.
-
-    A marker-to-level mapping supports image-specific positivity levels. The
-    scalar form preserves the committed Senior method until its producer is
-    replaced; callers must not infer missing levels from that default.
-    """
+    """A measured CD68+ or CD163+ establishes the parent. M2Gal3 determines its subtype."""
     block = values.reindex(columns=PROFILE_MARKERS).to_numpy(dtype=float)
     if isinstance(threshold, Mapping):
-        missing = sorted(set(PROFILE_MARKERS) - threshold.keys())
-        if missing:
-            raise ValueError(f"macrophage positivity levels missing markers: {missing}")
-        levels = np.array([threshold[marker] for marker in PROFILE_MARKERS], dtype=float)
+        levels = np.array([threshold.get(marker, np.nan) for marker in PROFILE_MARKERS], dtype=float)
     else:
         levels = np.full(len(PROFILE_MARKERS), threshold, dtype=float)
-    if not np.isfinite(levels).all():
-        raise ValueError("macrophage positivity levels must be finite")
-    measured = np.isfinite(block).all(axis=1)
-    positive = block >= levels
-    eligible = measured & (positive[:, 0] | positive[:, 1])
+    # A missing channel or channel-specific level cannot serve as a witness.
+    # Another calibrated positive anchor independently establishes the parent.
+    measured = np.isfinite(block) & np.isfinite(levels)
+    positive = measured & (block >= levels)
+    parent = positive[:, 0] | positive[:, 1]
     result = np.full(len(values), None, dtype=object)
-    result[eligible] = [label(tuple(row)) for row in positive[eligible]]
+    result[parent & measured[:, 2]] = np.where(positive[parent & measured[:, 2], 2], *labels())
     return result
