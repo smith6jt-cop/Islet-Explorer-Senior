@@ -22,6 +22,12 @@ def labels() -> tuple[str, ...]:
     return tuple(label(v) for v in product((True, False), repeat=3) if v[0] or v[1])
 
 
+def current_profile_names(series):
+    """Pool archived CD4-split names into their measured three-marker profiles."""
+    legacy = {name + suffix: name for name in labels() for suffix in ("CD4+", "CD4-")}
+    return series.astype(object).replace(legacy)
+
+
 def classify_profile(values, threshold: float | Mapping[str, float] = 0.10):
     """Classify measured profiles using levels in the same units as ``values``.
 
