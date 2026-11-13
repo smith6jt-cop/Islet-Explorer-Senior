@@ -40,3 +40,18 @@ def test_inner_log_names_published_outputs_but_preserves_execution_command(tmp_p
     assert result["stages"][0]["log"] == str(release / "06_typing/pancreas/subpanel.log")
     assert result["stages"][0]["command"] == command
     assert Path(result["stages"][0]["log"]).is_relative_to(release)
+
+
+def test_embedded_pln_uses_node_identity_rules_and_omits_epcam_from_marker_support():
+    from types import SimpleNamespace
+    import pandas as pd
+
+    panel = Path(__file__).resolve().parents[4] / "core/panels/data/tissues/pancreatic_lymph_node"
+    inputs = {"pln_panel": panel / "manifest.yml", "pln_rules": panel / "phenotype_rules.csv"}
+    task = SimpleNamespace(input=inputs.__getitem__)
+    aligned = pd.DataFrame({"object_id": ["node", "pancreas"], "cell_region": ["pLN", "tissue"],
+                            "qc_analysis_eligible": [True, True], "EpCAM": [600., 800.],
+                            "CD20": [10., 15.]})
+    candidate, support = mixed._protein_candidate(task, "synthetic", aligned)
+    assert candidate.object_id.tolist() == ["node"]
+    assert "CD20" in support and "EpCAM" not in support

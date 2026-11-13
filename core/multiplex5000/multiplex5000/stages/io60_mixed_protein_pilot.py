@@ -110,7 +110,7 @@ def settings(project) -> dict:
             "pancreas_excluded_typing_markers": sorted(io60_pancreas_markers.EXCLUDED_FROM_TYPING),
             "endocrine_hormone_ties": interior_dominance.METHOD,
             "pancreas_method": "selected_hierarchy_with_single_donor_representation_fit",
-            "pln_method": "full_6551_sheet_section_local_0.10_candidate"}
+            "pln_method": "pln_identity_6551_sheet_section_local_0.10_candidate"}
 
 
 def inputs(project) -> list[Input]:
@@ -185,9 +185,12 @@ def _protein_candidate(task: Task, donor: str, aligned: pd.DataFrame):
     if node.empty:
         return pd.DataFrame({"object_id": [], "candidate_phenotype": [],
                              "candidate_state": []}), {}
-    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"))
+    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"),
+                              pln_identity=True)
+    excluded = set(source.excluded_identity_markers)
+    excluded.update(source.panel_aliases.get(marker, marker) for marker in source.excluded_identity_markers)
     measurements = {marker: node[marker].to_numpy("float64")
-                    for marker in node.columns if marker not in META}
+                    for marker in node.columns if marker not in META and marker not in excluded}
     # The selected sheet uses PD-L1; dedicated pLN exports call it PDL1,
     # while this recorded IO60 panel calls the same channel PD_L1.
     if "PD_L1" in measurements:
