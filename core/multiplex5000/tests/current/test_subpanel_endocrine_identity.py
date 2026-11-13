@@ -104,6 +104,7 @@ def test_classify_preserves_keys_routes_and_broad_counts_while_reporting_subtype
         s: {"n_confirmed": 6, "CD99": .5,
             SUB.SHAPE_FEATURE: 1.5 if s == SUB.S.LARGE_STRATUM else None}
         for s in SUB.S.SIZE_STRATA})
+    monkeypatch.setattr(SUB, "_native_calibration", lambda *args: {})
     audit = {}
     frame = SUB.classify("fixture-donor", ctx, levels, pd.DataFrame(), log, True, audit=audit)
     assert frame["object_id"].tolist() == ids
@@ -121,6 +122,30 @@ def test_classify_preserves_keys_routes_and_broad_counts_while_reporting_subtype
     assert audit["ordinary_endocrine_subtype_status"]["tied_highest_hormones"] == 1
     assert audit["ordinary_endocrine_subtype_status"]["incomplete_hormone_comparison"] == 1
     assert frame["immune_rules_unavailable_count"].tolist()[:5] == [1, 0, 0, 0, 1]
+
+    # Force an additional positive tie on a direct Single. Both routes consume
+    # native evidence under literal IDs, and all other cells stay untouched.
+    from types import SimpleNamespace
+    import json
+
+    values.loc[5, ["INS", "GCG"]] = 1.
+    monkeypatch.setattr(SUB, "_native_calibration", lambda *args: {"INS": (1,0,1), "GCG": (1,0,1)})
+    monkeypatch.setenv("IO60_QUPATH_MANIFEST", __file__)
+    image = SimpleNamespace(donor_id="fixture-donor", content_id="synthetic")
+    monkeypatch.setattr(SUB.QuPathCohortManifest, "read_json", lambda path: SimpleNamespace(images=[image]))
+    from multiplex5000.tissues.interior_dominance import score_interior
+    def native_result(image, contenders, calibration, gate):
+        assert contenders == {ids[1]: ("INS", "GCG"), ids[5]: ("INS", "GCG")}
+        return {oid: score_interior({"INS": np.ones(5), "GCG": np.full(5, 2.)},
+                                       {"INS": gate, "GCG": gate}) for oid in contenders}
+    monkeypatch.setattr(SUB, "measure_conflicts", native_result)
+    corrected = SUB.classify("fixture-donor", ctx, levels, pd.DataFrame(), log, True)
+    assert corrected.loc[[1,5], "cell_class"].tolist() == ["Alpha", "Alpha"]
+    assert corrected.loc[[1,5], "resolved_by"].tolist() == ["cd99", "single_hormone"]
+    assert corrected.loc[[1,5], "endocrine_subtype_status"].tolist() == [SUB.TYPED]*2
+    assert json.loads(corrected.at[5, "endocrine_interior_evidence"])["interior_pixels"] == 5
+    assert frame.drop([1,5]).cell_class.equals(corrected.drop([1,5]).cell_class)
+
 
 
 def test_builder_retains_uncertain_endocrine_admission_and_evidence_columns(tmp_path, monkeypatch):
