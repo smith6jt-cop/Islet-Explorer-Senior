@@ -401,3 +401,60 @@ def summarize_neighbors(frame, keys):
     summary["low_pct_of_measured"] = summary.low_concordance.mul(100)/summary.concordance_measured.replace(0,np.nan)
     summary["zero_pct_of_measured"] = summary.zero_concordance.mul(100)/summary.concordance_measured.replace(0,np.nan)
     return summary
+
+
+def plot_matched_hormones(matched, *, scope, weighting="donors"):
+    """Each dot is one independently matched pair/contender/arm, with exact measured support."""
+    if matched.empty:
+        print(f"{scope} · no retained pair")
+        return
+    if weighting not in ("donors","cells"):
+        raise ValueError("Choose 'donors' or 'cells'")
+    mean_col, pct_col = (("equal_donor_mean_scaled","equal_donor_positive_pct") if weighting=="donors"
+                         else ("pooled_mean_scaled","pooled_positive_pct"))
+    rows = matched.sort_values(["pair","hormone","population"],key=lambda x:
+                               x.map({"Competing hormones":0}).fillna(1) if x.name=="population" else x)
+    if rows.duplicated(["pair","hormone","population"]).any():
+        raise ValueError("Each pair and hormone must have one record per comparison arm")
+    groups = rows[["pair","hormone"]].drop_duplicates().itertuples(index=False,name=None)
+    entries = []
+    for pair, hormone in groups:
+        panel = rows[(rows.pair==pair) & (rows.hormone==hormone)]
+        if len(panel)!=2 or panel.donors_measured_in_both.nunique()!=1:
+            raise ValueError(f"Comparison arms disagree for {pair}, {hormone}")
+        unknown = panel[panel.population.eq("Competing hormones")].iloc[0]
+        named = panel[panel.population.ne("Competing hormones")].iloc[0]
+        row_label = f"{pair}  ·  {hormone}"
+        entries.append({"row":row_label, "unknown":unknown[mean_col], "named":named[mean_col],
+                        "unknown_fraction":unknown[pct_col]/100, "named_fraction":named[pct_col]/100,
+                        "annotation":f"{named.population}   |   {int(unknown.matched_measured):,} / {int(named.matched_measured):,}   |   "
+                                     f"{int(named.donors_measured_in_both)} / {int(named.donors_with_this_pair)}"})
+    frame = pd.DataFrame(entries).set_index("row")
+    # The two columns use each row's same hormone and identical donor roster.
+    # Quantities are precomputed once for each arm. The AnnData only supplies the Scanpy grouping axes.
+    columns = ["Competing pair", "Named subtype"]
+    means = frame[["unknown","named"]].set_axis(columns,axis=1)
+    fractions = frame[["unknown_fraction","named_fraction"]].set_axis(columns,axis=1)
+    chart_labels=[f"{label}    |    {note}" for label,note in frame.annotation.items()]
+    means.index = chart_labels
+    fractions.index = chart_labels
+    obj = ad.AnnData(means.to_numpy(), obs=pd.DataFrame(
+        {"comparison":pd.Categorical(chart_labels,categories=chart_labels,ordered=True)},index=chart_labels),
+        var=pd.DataFrame(index=columns))
+    mode = "Equal donor weight" if weighting=="donors" else "Pooled measured cells"
+    title = f"{scope} · Hormone signal in competing and named cells\n{mode} · same cytoplasmic compartment"
+    plot = sc.pl.DotPlot(obj,columns,"comparison",categories_order=chart_labels,
+                         dot_color_df=means,dot_size_df=fractions.fillna(0),vmin=0,vmax=1,
+                         figsize=(6.0,max(3.4,.42*len(frame)+2.2)),title=title)
+    plot.style(cmap="viridis",dot_min=0,dot_max=1,size_exponent=1,largest_dot=155).legend(
+        colorbar_title="Mean scaled protein",size_title="Measured cells ≥ 0.10 (%)")
+    plot.make_figure()
+    ax=plot.get_axes()["mainplot_ax"]
+    yy,xx=np.where(~np.isfinite(means.to_numpy()))
+    ax.scatter(xx+.5,yy+.5,marker="x",s=18,c="#767d80",lw=.8)
+    ax.tick_params(axis="both",labelsize=8)
+    ax.set_ylabel("")
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+    ax.text(0,-.17,"Pair · hormone  |  named subtype  |  measured cells (pair / named)  |  donors (matched / available)",
+            ha="center",va="top",transform=ax.transAxes,fontsize=7.5,color="#364047")
+    plt.show()
