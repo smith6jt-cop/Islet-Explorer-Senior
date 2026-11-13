@@ -15,7 +15,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from multiplex5000.tissues import interior_dominance
+from multiplex5000.tissues import interior_dominance, io60_pancreas_markers
 from multiplex5000 import tiff_window, redsea
 
 from multiplex5000.tissues import t_cell as T_CELL
@@ -103,12 +103,14 @@ def main() -> int:
     manifest_path = out / "run.json"
     if manifest_path.exists() and not args.force:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
-    script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
+    script_paths = [Path(io60_pancreas_markers.__file__), SCRIPTS / "lineages.py",
+                    SCRIPTS.parent / "celltype/rules.py", Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
                     SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py",
                     Path(T_CELL.__file__).resolve(), Path(MACROPHAGE.__file__).resolve()]
     script_paths.extend([Path(interior_dominance.__file__), Path(redsea.__file__), Path(tiff_window.__file__)])
     pixel_scales = Path(os.environ.get("IO60_PIXEL_ALIGNMENT_SCALES", aligned.parent.parent / "scales.csv"))
     run = {
+        "excluded_typing_markers": sorted(io60_pancreas_markers.EXCLUDED_FROM_TYPING),
         "pixel_conflict_method": interior_dominance.METHOD,
         "pixel_alignment_scales": str(pixel_scales) if pixel_scales.is_file() else None,
         "pixel_alignment_scales_sha256": sha256(pixel_scales) if pixel_scales.is_file() else None,
