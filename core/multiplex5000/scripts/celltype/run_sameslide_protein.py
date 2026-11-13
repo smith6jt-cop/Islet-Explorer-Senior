@@ -367,20 +367,22 @@ def islet_regions(donor: str, df: pd.DataFrame) -> pd.DataFrame:
 
 
 #: The two reasons that mean "this cell is endocrine", as opposed to a marker-profile call.
-ENDOCRINE_REASONS = ("hormone_argmax", "cd99_islet_endocrine")
+ENDOCRINE_REASONS = ("hormone_argmax", "hormone_interior_dominance", "cd99_islet_endocrine",
+                     "hormone_conflict_unresolved")
 
 
 def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intruders: list,
                         require_min: float, score_rows, structure: np.ndarray,
-                        available: set) -> pd.DataFrame | None:
+                        available: set, object_ids=None, resolve=None) -> pd.DataFrame | None:
     """Inside `Islet_N`: hormone, then CD99, then everything else. In that order.
 
     The islet polygons were drawn by a QuPath pixel classifier on **INS, GCG, SST and CD99**,
     so those four are what the annotation is made of and the cascade reads them in the order
     the annotation was built:
 
-    1. **Hormone.** The argmax over INS/GCG/SST, if it clears the floor, IS the call --
-       ``Endo-beta`` / ``Endo-alpha`` / ``Endo-delta``. Nothing else is consulted, because
+    1. **Hormone.** A unique positive leader among INS/GCG/SST gives the call --
+       ``Endo-beta`` / ``Endo-alpha`` / ``Endo-delta``. Two positive co-leaders require interior area and brightness evidence.
+       Unresolved positive conflicts retain an endocrine prior because
        inside a hormone-drawn polygon a hormone-bright cell is not an open question.
     2. **CD99.** A cell with no hormone but bright CD99 is still endocrine, hormone-negative
        -- a real category in T1D islets, and the one the pixel classifier's fourth channel
@@ -408,8 +410,9 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
     idx = np.flatnonzero(core)
     m = {k: i for i, k in enumerate(markers)}
 
-    sub = RI.subtype_endocrine(Xs[idx], markers, require_min)
-    by_hormone = (sub["call"] != "Endo-hormone-negative").to_numpy()
+    sub = RI.subtype_endocrine(Xs[idx], markers, require_min,
+                               None if object_ids is None else np.asarray(object_ids)[idx], resolve)
+    by_hormone = sub["score"].ge(require_min).to_numpy()
     cd99 = (Xs[idx, m["CD99"]] >= require_min) if "CD99" in m else np.zeros(len(idx), bool)
     by_cd99 = ~by_hormone & cd99
     rest = ~by_hormone & ~cd99
@@ -417,8 +420,12 @@ def _islet_core_cascade(Xs: np.ndarray, markers: list, core: np.ndarray, intrude
     out = sub.copy()
     # "pending" is deliberate: step 4 claims every row it is handed, so a surviving "pending"
     # after the cascade would be a routing bug, not a cell type. The assert below says so.
-    out["reason"] = np.where(by_hormone, "hormone_argmax",
+    hormone_reason = np.where(sub["call"].eq("Endo-unresolved"), "hormone_conflict_unresolved",
+                              sub["hormone_status"])
+    out["reason"] = np.where(by_hormone, hormone_reason,
                              np.where(by_cd99, "cd99_islet_endocrine", "pending"))
+    out.loc[~by_hormone, "hormone_status"] = ""
+    out.loc[by_cd99, "call"] = "Endo-hormone-negative"
     out["n_candidates"] = np.nan
     def _write(rows_in_core: np.ndarray, refs: list, reason: str) -> np.ndarray:
         """Score `rows_in_core` against `refs`; return who was actually called."""
@@ -523,7 +530,8 @@ def call_donor(donor: str, Rm: pd.DataFrame, reqs: dict, scale: pd.DataFrame,
         return o
 
     core_out = _islet_core_cascade(Xs, have, core, intruder, require_min, _call,
-                                   df["structure"].to_numpy(dtype=object), set(usable))
+                                   df["structure"].to_numpy(dtype=object), set(usable),
+                                   df["object_id"], RI.native_hormone_resolver(donor, df, scale, require_min))
     parts = [x for x in (core_out, _call(~core, usable)) if x is not None]
     out = pd.concat(parts).sort_index().reset_index(drop=True)
     out["islet_endocrine"] = out["reason"].isin(ENDOCRINE_REASONS).to_numpy()
