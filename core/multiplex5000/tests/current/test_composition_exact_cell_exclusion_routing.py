@@ -101,21 +101,22 @@ def test_other_donor_exclusion_does_not_remove_valid_alpha():
     assert out.count_endocrine__alpha == 1
 
 
-def test_archived_cd4_profiles_pool_in_object_counts_and_immune_input(tmp_path):
+@pytest.mark.parametrize("suffixes", [("",), ("CD4+", "CD4-")])
+def test_archived_profiles_pool_in_object_counts_and_immune_input(tmp_path, suffixes):
     objects, cells, exclusions = two_cell_single()
-    profile = "CD68+CD163-Macrophage_LGALS3+"
-    prior = [profile + "CD4+", profile + "CD4-"]
-    cells["macrophage_profile"] = prior
-    count = "count_macrophage_profile__" + profile
-    for suffix in ("CD4+", "CD4-"):
-        objects[count + suffix] = 1
-        objects["feature__immune__macrophage_profile_" + profile + suffix + "_per_endocrine"] = 1.0
+    anchors = ["CD68+CD163+", "CD68+CD163-", "CD68-CD163+"]
+    old = [anchor + "Macrophage_LGALS3+" + suffix for anchor in anchors for suffix in suffixes]
+    cells["macrophage_profile"] = [old[0], old[-1]]
+    count = "count_macrophage_profile__Macrophage_Gal3+"
+    for name in old:
+        objects["count_macrophage_profile__" + name] = int(name in [old[0], old[-1]])
+        objects["feature__immune__macrophage_profile_" + name + "_per_endocrine"] = 1.0
     result = composition.apply_and_rebuild_composition_cell_exclusions(objects, cells, "115", exclusions)
     assert result[count].item() == 1
     assert result["original_" + count].item() == 2
-    assert not any("CD4" in key for key in result if "macrophage_profile" in key and not key.startswith("original_"))
+    assert not any("LGALS3" in key for key in result if not key.startswith("original_"))
     path = tmp_path / "immune" / "donor_id=115"
     path.mkdir(parents=True)
     cells[["object_id", "immune_class", "immune_subtype", "macrophage_profile"]].to_parquet(path / "data.parquet")
     immune, _ = composition.read_immune(tmp_path, "115")
-    assert immune.macrophage_profile.tolist() == [profile, profile]
+    assert immune.macrophage_profile.tolist() == ["Macrophage_Gal3+"] * 2
