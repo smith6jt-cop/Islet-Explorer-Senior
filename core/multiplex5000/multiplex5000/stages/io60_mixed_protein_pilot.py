@@ -23,6 +23,7 @@ from ..artifacts import sha256_file
 from ..identity import check_cell_keys
 from ..resolved_parameters import write_resolved_parameters
 from ..tasks import Input, Task
+from ..tissues import interior_dominance
 from ..tissues.evaluate import resolve_unique_matched_rules
 from ..tissues.lymph_node import load_rule_source
 from ..tissues.pancreas_mixed import assemble
@@ -86,7 +87,9 @@ def _exports(project, donor: str) -> list[Input]:
         raise IO60MixedPilotError(f"{donor}: expected one recorded QuPath image")
     stem = rows[0]["image_id"].split(" - ")[0].replace(".qptiff", "")
     root = _source(project, "typing_export_root")
-    found = []
+    found = [Input(f"native_{field}:{donor}", Path(rows[0][field]["path"]),
+                   hash=False, recorded_sha256=rows[0][field]["sha256"], required=False)
+             for field in ("qptiff", "cell_geojson")]
     for folder in STRUCTURE_FOLDERS:
         matches = sorted(path for path in (root / "structures" / folder).glob("*.geojson")
                          if stem in path.name)
@@ -108,6 +111,7 @@ def _exports(project, donor: str) -> list[Input]:
 def settings(project) -> dict:
     return {"donors": _donors(project), "scope": "bounded_review_pilot",
             "upstream_release": str(_upstream(project)),
+            "endocrine_hormone_ties": interior_dominance.METHOD,
             "pancreas_method": "selected_hierarchy_with_declared_cohort_representation_fit",
             "representation_donors": _donors(project),
             "refinement_availability": "stage03_and_stage05; complete requested defining-marker set",
@@ -119,6 +123,8 @@ def inputs(project) -> list[Input]:
     geometry = _source(project, "typing_geometry_root")
     found = [Input("cohort_spec", COHORT), Input("pancreas_runner", RUNNER),
              Input("pancreas_refinement_source", RUNNER.parent / "refine.py"),
+             Input("native_conflict_method", Path(interior_dominance.__file__)),
+             Input("pancreas_subpanel", RUNNER.with_name("subpanel.py")),
              Input("pln_panel", PANEL), Input("pln_rules", RULES),
              Input("inventory_acquisitions", upstream / "00_inventory/acquisitions.csv"),
              Input("inventory_receipt", upstream / "00_inventory/receipt.json"),
@@ -282,6 +288,7 @@ def run(task: Task) -> dict:
     env = os.environ.copy()
     env.update(IO60_EXPORT_ROOT=str(_source(task.project, "typing_export_root")),
                IO60_QUPATH_MANIFEST=str(task.input("qupath_manifest")),
+               IO60_PIXEL_ALIGNMENT_SCALES=str(task.input("normalization_scales")),
                IO60_DONOR_ACQUISITION_RUNS=str(task.input("donor_acquisition_runs")))
     result = subprocess.run(runner, env=env, cwd=roots.REPO, text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
@@ -309,6 +316,7 @@ def run(task: Task) -> dict:
         pancreas = pq.read_table(task.staging / "pancreas/cells"
                                  / f"donor_id={donor}/data.parquet",
                                  columns=["object_id", "cell_class", "refined_class",
+                                          "endocrine_subtype_status", "endocrine_interior_evidence",
                                           "refine_state", "refine_note", "refine_pass"]).to_pandas()
         pln, marker_support[donor] = _protein_candidate(task, donor, aligned)
         block_path = task.input(f"pln_blocks:{donor}")
