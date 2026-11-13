@@ -25,7 +25,7 @@ LINEAGE_MARKERS: dict[str, tuple[str, ...]] = {
     "Endocrine":    ("INS", "GCG", "SST"),
     # Exocrine pancreas.  The panel carries no acinar-specific and no ductal-specific marker, so
     # this stays one label; Keratin_5/TP63 are basal-associated and inform it but cannot split it.
-    "Exocrine":     ("Pan_Cytokeratin", "Ker8_18", "E_cadherin", "EpCAM", "Keratin_5", "TP63"),
+    "Exocrine":     ("Pan_Cytokeratin", "Ker8_18", "E_cadherin", "Keratin_5", "TP63"),
     "Vascular":     ("CD31", "Caveolin", "Podoplanin", "CD34"),
     "Stromal":      ("SMA", "Vimentin", "Collagen_IV"),
     "T_NK":         ("CD3e", "CD8", "CD4", "FOXP3", "CD56"),

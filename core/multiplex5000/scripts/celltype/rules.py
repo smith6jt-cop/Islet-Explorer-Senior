@@ -39,7 +39,9 @@ import pandas as pd
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(1, str(HERE.parents[1]))
 import panel                                     # noqa: E402
+from multiplex5000.tissues.io60_pancreas_markers import EXCLUDED_FROM_TYPING
 
 #: The maintainer's rule table.  Overridable so a new version can be checked before it is
 #: adopted; the crosswalk is regenerated from whichever file is named, and the test suite
@@ -137,6 +139,8 @@ def load_rules(path: pathlib.Path | None = None) -> pd.DataFrame:
     d = pd.read_csv(path or RULES_CSV)
     unnamed = [c for c in d.columns if str(c).startswith("Unnamed:")]
     cw = load_crosswalk(path)
+    d = d.drop(columns=[name for name, marker in cw.items() if marker in EXCLUDED_FROM_TYPING],
+               errors="ignore")
     if len(unnamed) >= 2:
         d.columns = ["parent", "phenotype"] + [cw[c] for c in d.columns[2:]]
         return d
