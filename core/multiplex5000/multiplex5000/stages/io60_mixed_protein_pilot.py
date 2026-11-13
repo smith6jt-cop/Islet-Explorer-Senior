@@ -21,7 +21,7 @@ import pyarrow.parquet as pq
 from .. import cohort_scale, gates, roots
 from ..identity import check_cell_keys
 from ..tasks import Input, Task
-from ..tissues import interior_dominance
+from ..tissues import interior_dominance, io60_pancreas_markers
 from ..tissues.evaluate import resolve_unique_matched_rules
 from ..tissues.lymph_node import load_rule_source
 from ..tissues.pancreas_mixed import assemble
@@ -109,6 +109,7 @@ def _exports(project, donor: str) -> list[Input]:
 def settings(project) -> dict:
     return {"donors": _donors(project), "scope": "bounded_review_pilot",
             "upstream_release": str(_upstream(project)),
+            "pancreas_excluded_typing_markers": sorted(io60_pancreas_markers.EXCLUDED_FROM_TYPING),
             "endocrine_hormone_ties": interior_dominance.METHOD,
             "pancreas_method": "selected_hierarchy_with_single_donor_representation_fit",
             "pln_method": "full_6551_sheet_section_local_0.10_candidate"}
@@ -118,6 +119,9 @@ def inputs(project) -> list[Input]:
     upstream = _upstream(project)
     geometry = _source(project, "typing_geometry_root")
     found = [Input("cohort_spec", COHORT), Input("pancreas_runner", RUNNER),
+             Input("pancreas_marker_policy", Path(io60_pancreas_markers.__file__)),
+             Input("pancreas_marker_rules", RUNNER.parent.parent / "celltype/rules.py"),
+             Input("pancreas_lineages", RUNNER.with_name("lineages.py")),
              Input("native_conflict_method", Path(interior_dominance.__file__)),
              Input("pancreas_subpanel", RUNNER.with_name("subpanel.py")),
              Input("pln_panel", PANEL), Input("pln_rules", RULES),
@@ -160,7 +164,8 @@ def _marker_roster(task: Task) -> list[str]:
         rows = list(csv.DictReader(handle))
     # A marker refused for every donor (CD57 in this selected Stage 05 run)
     # has no aligned observation. It cannot enter a comparison as zero.
-    markers = sorted({row["marker"] for row in rows if row["status"] == "aligned"})
+    markers = sorted({row["marker"] for row in rows if row["status"] == "aligned"}
+                     - io60_pancreas_markers.EXCLUDED_FROM_TYPING)
     donors = {row["donor_id"] for row in rows}
     if not markers or donors != {str(row["donor_id"]) for row in _cohort_rows()}:
         raise IO60MixedPilotError("Stage 05 scale roster differs from the v3 cohort")
