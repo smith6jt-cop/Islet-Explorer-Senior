@@ -466,11 +466,29 @@ def _count_or_empty(counts: pd.Series, label: str, unavailable: dict[str, list[s
     return int(counts.get(label, 0)), "measured", ""
 
 
+def immune_parent_cells(path, *, primary=False):
+    """Select immune cells from the delivered hierarchy, preserving their original primary calls."""
+    schema = pq.ParquetFile(path).schema_arrow.names
+    requested = ["object_id", "cell_class", "resolved_by", "acq_run", "stain_group",
+                 "refined_class", "refine_state"]
+    cells = pq.read_table(path, columns=[name for name in requested if name in schema]).to_pandas()
+    if primary or "refined_class" not in cells:
+        return cells, cells["cell_class"].eq("Immune"), "primary"
+    final = cells["refined_class"]
+    if final.notna().all():
+        return cells, final.eq("Immune"), "refined"
+    if final.isna().all() and ("refine_state" not in cells or cells.refine_state.eq("not_run").all()):
+        return cells, cells["cell_class"].eq("Immune"), "primary"
+    raise ValueError(f"{path}: incomplete final parent labels; inspect the refinement handoff")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--donors", nargs="*", default=None)
     parser.add_argument("--include-marginal", action="store_true")
     parser.add_argument("--all", action="store_true", help="every manifest donor, not just clean")
+    parser.add_argument("--primary-parents", action="store_true",
+                        help="diagnostic: evaluate primary immune parents before refinement")
     args = parser.parse_args()
 
     marginal_left_out: dict[str, str] = {}
@@ -530,11 +548,10 @@ def main() -> int:
 
     for donor in donors:
         started = time.time()
-        cells = pq.read_table(S.OUT / f"cells/donor_id={donor}/data.parquet",
-                              columns=["object_id", "cell_class", "acq_run",
-                                       "stain_group"]).to_pandas()
+        cells, parent_mask, parent_stage = immune_parent_cells(
+            S.OUT / f"cells/donor_id={donor}/data.parquet", primary=args.primary_parents)
         batch = {v: sorted(set(cells[v].dropna().astype(str))) for v in ("acq_run", "stain_group")}
-        immune = cells[cells["cell_class"] == "Immune"]
+        immune = cells.loc[parent_mask]
         if immune.empty:
             coverage[donor] = {"state": "empty", "n_cells": int(len(cells)), "n_immune": 0,
                                "reason": "no cell of this donor carries the class Immune"}
@@ -636,6 +653,7 @@ def main() -> int:
         skipped_report[donor] = skip2
         target = OUT / f"donor_id={donor}"
         target.mkdir(parents=True, exist_ok=True)
+        out["immune_parent_stage"] = parent_stage
         out.to_parquet(target / "data.parquet", index=False)
 
         class_counts = out["immune_class"].value_counts()
