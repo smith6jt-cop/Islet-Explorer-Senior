@@ -29,6 +29,8 @@ because inside the prior we already know the cell is endocrine and the only ques
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import pathlib
 import sys
 import time
@@ -90,30 +92,104 @@ def intruder_references(rules: pd.DataFrame, columns) -> list:
 HORMONE = {"Endo-beta": "INS", "Endo-alpha": "GCG", "Endo-delta": "SST"}
 
 
-def subtype_endocrine(Xs: np.ndarray, markers: list, min_scaled: float) -> pd.DataFrame:
-    """Which hormone, for cells the prior already says are endocrine.
+def native_hormone_resolver(donor, aligned, scale, gate):
+    """Recover the applied alignment by cell ID and use the fitted floor and span."""
+    def resolve(contenders):
+        from multiplex5000 import roots
+        from multiplex5000.artifacts import QuPathCohortManifest
+        from multiplex5000.tissues.interior_dominance import measure_conflicts
 
-    A cell showing none is ``Endo-hormone-negative`` -- a real category in T1D islets, not a
-    failure to call.  A cell showing more than one keeps the strongest and records the
-    runner-up, because hormone spillover between touching endocrine cells is expected and
-    hiding it would misreport a measurement as a certainty.
-    """
-    idx = {m: i for i, m in enumerate(markers)}
-    names = [k for k, m in HORMONE.items() if m in idx]
-    if not names:
-        return pd.DataFrame({"call": ["Endo-unresolved"] * len(Xs), "score": np.nan,
-                             "runner_up": "", "margin": np.nan})
-    V = np.column_stack([Xs[:, idx[HORMONE[k]]] for k in names])
-    order = np.argsort(-V, axis=1)
-    top, second = order[:, 0], order[:, 1] if V.shape[1] > 1 else order[:, 0]
-    tv = V[np.arange(len(V)), top]
-    sv = V[np.arange(len(V)), second] if V.shape[1] > 1 else np.zeros(len(V))
-    call = np.where(tv >= min_scaled, np.asarray(names, dtype=object)[top],
-                    "Endo-hormone-negative")
-    return pd.DataFrame({
-        "call": call, "score": tv,
-        "runner_up": np.where(tv >= min_scaled, np.asarray(names, dtype=object)[second], ""),
-        "margin": np.where(tv >= min_scaled, tv - sv, np.nan)})
+        manifest = pathlib.Path(os.environ.get("IO60_QUPATH_MANIFEST")
+                                or (roots.source("qupath_manifest") if hasattr(roots, "source") else None)
+                                or roots.INTEGRATION.parent / "qupath_manifest.json")
+        if not manifest.is_file():
+            return {}
+        images = [i for i in QuPathCohortManifest.read_json(manifest).images
+                  if panel._same_donor(i.donor_id, donor)]
+        if len(images) != 1:
+            return {}
+        markers = sorted({m for pair in contenders.values() for m in pair})
+        selected = aligned.set_index("object_id", verify_integrity=True)
+        selected.index = selected.index.astype(str)
+        selected = selected.loc[list(contenders), markers]
+        raw = pq.ParquetFile(panel.expression_path(donor)).read(
+            columns=["object_id", *markers]).to_pandas().set_index("object_id", verify_integrity=True)
+        raw.index = raw.index.astype(str)
+        raw = raw.reindex(selected.index)
+        calibration = {}
+        for marker in markers:
+            x, y = raw[marker].to_numpy(float), selected[marker].to_numpy(float)
+            keep = np.isfinite(x) & np.isfinite(y) & (x > 0)
+            if keep.any():
+                factor = np.median(y[keep] / x[keep])
+                if not np.allclose(x[keep] * factor, y[keep], rtol=1e-5, atol=1e-7):
+                    raise ValueError(f"{donor} {marker}: aligned expression differs from its source scaling")
+                calibration[marker] = (factor, scale.loc[marker, "floor"], scale.loc[marker, "span"])
+        results = measure_conflicts(images[0], contenders, calibration, gate)
+        for oid, result in results.items():
+            result.update(image_content_id=images[0].content_id, contenders=contenders[oid], gate=gate)
+        return results
+    return resolve
+
+
+def subtype_endocrine(Xs: np.ndarray, markers: list, min_scaled: float,
+                      object_ids=None, resolve=None) -> pd.DataFrame:
+    """Resolve two positive co-leaders using native interior area and median brightness."""
+    n = len(Xs)
+    names = [name for name, marker in HORMONE.items() if marker in markers]
+    out = pd.DataFrame({"call": ["Endo-unresolved"] * n, "score": np.nan, "runner_up": "",
+                        "margin": np.nan, "hormone_status": "missing_hormone_measurement",
+                        "hormone_interior_evidence": None})
+    if not names or not n:
+        return out
+    values = Xs[:, [markers.index(HORMONE[name]) for name in names]]
+    scores = np.where(np.isfinite(values), values, -np.inf)
+    order = np.argsort(-scores, axis=1, kind="stable")
+    rows = np.arange(n)
+    first = order[:, 0]
+    best = scores[rows, first]
+    finite = np.isfinite(best)
+    positive = finite & (best >= min_scaled)
+    ties = (scores == best[:, None]) & positive[:, None]
+    unique = positive & (ties.sum(axis=1) == 1)
+    out.loc[finite, "score"] = best[finite]
+    out.loc[finite & ~positive, ["call", "hormone_status"]] = ["Endo-hormone-negative", "below_gate"]
+    out.loc[unique, "call"] = np.asarray(names)[first[unique]]
+    out.loc[unique, "hormone_status"] = "hormone_argmax"
+    if len(names) > 1:
+        second = order[:, 1]
+        runner = unique & np.isfinite(scores[rows, second])
+        out.loc[runner, "runner_up"] = np.asarray(names)[second[runner]]
+        out.loc[runner, "margin"] = best[runner] - scores[rows[runner], second[runner]]
+    else:
+        out.loc[unique, "margin"] = best[unique]
+    tied = positive & ~unique
+    out.loc[tied, "margin"] = 0.0
+    out.loc[tied, "hormone_status"] = "multiple_positive_leaders"
+    pairs = np.flatnonzero(ties.sum(axis=1) == 2)
+    out.loc[pairs, "hormone_status"] = "missing_native_evidence"
+    if len(pairs) and resolve is not None and object_ids is not None:
+        ids = np.asarray(object_ids, dtype=str)
+        if len(ids) != n or len(set(ids[pairs])) != len(pairs):
+            raise ValueError("Hormone conflicts require unique matching source object IDs")
+        contenders = {ids[i]: tuple(HORMONE[names[j]] for j in np.flatnonzero(ties[i])) for i in pairs}
+        measured = resolve(contenders)
+        labels = {v: k for k, v in HORMONE.items()}
+        for i in pairs:
+            evidence = measured.get(ids[i])
+            if evidence is None:
+                continue
+            out.at[i, "hormone_interior_evidence"] = json.dumps(evidence, sort_keys=True, allow_nan=False)
+            winner = evidence["winner"]
+            out.at[i, "hormone_status"] = evidence["status"]
+            if winner is not None:
+                a, b = contenders[ids[i]]
+                if winner not in (a, b):
+                    raise ValueError("Native hormone winner was not a contender")
+                out.at[i, "call"] = labels[winner]
+                out.at[i, "runner_up"] = labels[b if winner == a else a]
+                out.at[i, "hormone_status"] = "hormone_interior_dominance"
+    return out
 
 
 def run_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
@@ -162,16 +238,15 @@ def run_donor(donor: str, Rm: pd.DataFrame, scale: pd.DataFrame, reqs: dict,
 
     # Inside Islet_N, a cell that shows no intruder is endocrine BY THE PRIOR, and is
     # subtyped by hormone rather than left Ambiguous.
-    sub = subtype_endocrine(Xs, have, require_min)
     fell_through = core & (out["call"] == "Ambiguous").to_numpy()
-    for c in ("call", "runner_up"):
-        out[c] = np.where(fell_through, sub[c].to_numpy(dtype=object),
-                          out[c].to_numpy(dtype=object))
-    for c in ("score", "margin"):
-        out[c] = np.where(fell_through, sub[c].to_numpy("float64"),
-                          out[c].to_numpy("float64"))
-    out["reason"] = np.where(fell_through, "endocrine_by_islet_prior",
-                             out.get("reason", pd.Series([""] * len(out))).to_numpy(dtype=object))
+    rows = np.flatnonzero(fell_through)
+    sub = subtype_endocrine(Xs[rows], have, require_min, df.loc[rows, "object_id"],
+                            native_hormone_resolver(donor, df, scale, require_min))
+    for column in ("call", "runner_up", "score", "margin"):
+        out.loc[rows, column] = sub[column].to_numpy()
+    out.loc[rows, "reason"] = "endocrine_by_islet_prior"
+    for column in ("hormone_status", "hormone_interior_evidence"):
+        out.loc[rows, column] = sub[column].to_numpy()
 
     out.insert(0, "object_id", df["object_id"].to_numpy())
     out.insert(0, "donor_id", donor)
