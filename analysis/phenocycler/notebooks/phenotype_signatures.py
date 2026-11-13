@@ -5,7 +5,6 @@ Immune markers follow phenotype_workflow.csv, the recorded macrophage rule and
 the recovered protein profiles. pLN markers follow the independent tissue rule
 table in core/panels/data/tissues/pancreatic_lymph_node/phenotype_rules.csv.
 """
-from collections import OrderedDict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -34,59 +33,61 @@ T_CELL = ["CD3e", "CD4", "CD8", "FOXP3", "ICOS", "CD39", "PD_1", "TOX", "LAG3",
 MACROPHAGE = ["CD68", "CD163", "M2Gal3", "CD4"]
 PLN_MYELOID = ["CD68", "CD163", "M2Gal3", "Iba1", "CD206", "CD11b", "CD11c",
                "HLA_DR", "iNOS", "CD209", "CD14", "CD141"]
-PAN_ORDER = ["Alpha", "Beta", "Delta", BELOW_FLOOR, "Exocrine", "Blood vessel", "Lymphatic",
-             "Nerve", "Immune", "Unresolved (no lineage evidence)"]
-PLN_ORDER = ["Endothelial", "Stromal", "Smooth_muscle", "Neural", "Immune", "Ambiguous candidate", "No rule match"]
-PLN_STROMAL = {"Neural", "Nerve_fiber", "Schwann_cell", "Stromal", "Fibroblast", "FRC",
-               "Pericyte", "Basement_membrane", "Smooth_muscle", "Endothelial", "Blood_vessel",
-               "Lymphatic_vessel", "HEV", "Myofibroblast_CAF", "Epithelial", "Ductal_Epithelial", "Basal_Epithelial", "Progenitor_Epithelial"}
+PAN_ORDER = ["Alpha", "Beta", "Delta", AMBIGUOUS, BELOW_FLOOR, "Exocrine", "Blood vessel", "Lymphatic",
+             "Nerve", "Immune", "Imm-T-cell", "Imm-B-cell", "Imm-plasma-cell", "Imm-NK-cell", "Imm-neutrophil",
+             "Imm-dendritic-cell", "Imm-macrophage", "T-CD4-helper", "T-regulatory", "T-CD8", "T-CD8-cytotoxic",
+             "T-exhausted", "T-progenitor-memory"]
+PLN_ORDER = ["Endothelial", "Blood_vessel", "HEV", "Lymphatic_vessel", "Stromal", "FRC", "Fibroblast",
+             "Basement_membrane", "Pericyte", "Smooth_muscle", "Neural", "Nerve_fiber", "Schwann_cell", "Immune"]
 
 
 def names_in_order(labels, tissue):
+    remaining = set(labels)
     preferred = PAN_ORDER if tissue == "Pancreas" else PLN_ORDER
-    return [x for x in preferred if x in labels] + sorted(set(labels).difference(preferred))
+    unresolved = [s for s in ["Immune, class unspecified", "Unresolved (no lineage evidence)",
+                              "Ambiguous candidate", "No rule match", "Unavailable candidate"] if s in remaining]
+    first = [s for s in preferred if s in remaining]
+    return first + sorted(remaining.difference(first, unresolved)) + unresolved
 
 
-def marker_panels(tissue, level, labels):
-    """Keep every named assignment visible; group long leaf lists by the relevant panel."""
-    ordered = names_in_order(labels, tissue)
-    structural = PAN_STRUCTURE if tissue == "Pancreas" else PLN_STRUCTURE
-    immune = list(IMMUNE)
-    if tissue == "pLN":
-        immune = list(dict.fromkeys(immune + PLN_MYELOID))
-    if level == "primary":
-        # Every named population has its own distinguishing channels on these same axes.
-        anchors = (["CD3e","CD20","CD68","Iba1","CD79a","MPO","CD66","CD11c","CD209"]
-                   if tissue == "Pancreas" else ["CD3e","CD20","CD68","CD11c","CD11b"])
-        return [("Primary lineage markers", ordered, list(dict.fromkeys(structural + anchors)))]
-    if level == "immune_class":
-        return [("Immune lineages", ordered, immune)]
-    if level == "t_subtype":
-        return [("T-cell phenotypes", ordered, T_CELL)]
-    if level == "macrophage_profile":
-        return [("Macrophage protein profiles", ordered, MACROPHAGE)]
-    if level != "detail":
-        raise ValueError(f"Unknown hierarchy level {level}")
-    groups = OrderedDict((name, []) for name in ("Tissue", "Immune", "B cell", "T cell"))
-    for label in ordered:
-        if (tissue == "Pancreas" and label in PAN_ORDER) or label in PLN_STROMAL:
-            key = "Tissue"
-        elif tissue == "pLN" and label in {"B_cell", "Memory_B_cell", "GC_B_cell", "Naive_B_cell", "Plasma_cell", "Plasmablast"}:
-            key = "B cell"
-        elif label.startswith("T-") or label in {"T_cell", "Tfh", "Treg", "DN_T_cell", "Progenitor_exhausted", "Terminally_exhausted"} or any(
-                term in label for term in ("CD4", "CD8", "Treg")):
-            key = "T cell"
-        else:
-            key = "Immune"
-        groups[key].append(label)
-    return [(k, v, {"Tissue": structural, "Immune": immune, "B cell": ["CD20", "CD79a", "CD38", "Bcl_2", "Ki67"], "T cell": T_CELL}[k]) for k, v in groups.items() if v]
+def full_panel(evidence, tissue):
+    """Return every released calibrated protein except the excluded identity channel."""
+    available = set(evidence.loc[evidence.tissue.eq(tissue), "marker"].dropna()) - {"EpCAM"}
+    preferred = (PAN_STRUCTURE if tissue == "Pancreas" else PLN_STRUCTURE) + IMMUNE + T_CELL + MACROPHAGE + PLN_MYELOID
+    first = [name for name in dict.fromkeys(preferred) if name in available]
+    return first + sorted(available.difference(first))
 
 
-def measured_profiles(counts, evidence, *, tissue="Pancreas", level="primary", disease=None,
+def hierarchy_tables(counts, evidence=None, level="subtype"):
+    """Add a mutually exclusive leaf level while retaining the source hierarchy for QC."""
+    if level != "subtype":
+        return counts, evidence
+
+    def leaves(frame):
+        keep_detail = frame.level.eq("detail") & ~(frame.tissue.eq("Pancreas") & frame.label.eq("Imm-macrophage"))
+        profiles = frame.tissue.eq("Pancreas") & frame.level.eq("macrophage_profile")
+        return frame.loc[keep_detail | profiles].assign(level="subtype")
+
+    if "subtype" not in counts.level.unique():
+        deep = leaves(counts)
+        deep["parent_cells"] = deep.eligible_cells
+        deep["fraction_parent"] = deep.fraction_tissue
+        grouped = deep.groupby(["tissue", "donor"], observed=True)
+        if not grouped.cells.sum().eq(grouped.eligible_cells.first()).all():
+            raise ValueError("Deepest subtype counts do not partition each complete section")
+        counts = pd.concat([counts, deep], ignore_index=True)
+    if evidence is not None and "subtype" not in evidence.level.unique():
+        evidence = pd.concat([evidence, leaves(evidence)], ignore_index=True)
+    return counts, evidence
+
+
+def measured_profiles(counts, evidence, *, tissue="Pancreas", level="subtype", disease=None,
                       donor=None, weighting="donors"):
     """Return phenotype support and exact donor/cell denominators for every displayed measurement."""
     if weighting not in ("donors", "cells"):
         raise ValueError("Choose weighting='donors' or 'cells'.")
+    if level == "subtype":
+        counts, evidence = hierarchy_tables(counts, evidence)
     scope = counts.loc[counts.tissue.eq(tissue) & counts.level.eq(level)].copy()
     if disease is not None:
         scope = scope.loc[scope.disease.eq(disease)]
@@ -113,8 +114,8 @@ def measured_profiles(counts, evidence, *, tissue="Pancreas", level="primary", d
     return support, values.drop(columns="signal_sum"), scope.donor.nunique()
 
 
-def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, scope_note):
-    """Identical axes/scales for independently selectable dotplots and heatmaps."""
+def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, scope_note, applicable_only=False):
+    """Draw Scanpy profiles from full-section means and measured positivity fractions."""
     if not labels or not markers:
         return
     idx = pd.MultiIndex.from_product([labels,markers], names=["label","marker"])
@@ -130,30 +131,33 @@ def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, sc
     summary = ad.AnnData(means, obs=rows, var=pd.DataFrame(index=markers))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e2e2e2")
-    size = (max(10.2, .48 * len(markers) + 4.3), max(4.4, .34 * len(labels) + 2.3))
+    size = (max(6.2, .32 * len(markers) + 3.5), max(4.5, .27 * len(labels) + 2.0))
     params = dict(categories_order=row_text, title=title+"\n"+scope_note, figsize=size, vmin=0, vmax=1)
     if measure == "heatmap":
         plot = sc.pl.MatrixPlot(summary, markers, "phenotype", values_df=mean, **params)
         plot.style(cmap=cmap, edge_lw=.25, edge_color="white").legend(title="Mean scaled protein")
     else:
         plot = sc.pl.DotPlot(summary, markers, "phenotype", dot_color_df=mean,
-                             dot_size_df=fraction.fillna(0), **params)
+                             dot_size_df=fraction.fillna(0), standard_scale="var", **params)
         plot.style(cmap=cmap, dot_min=0, dot_max=1, size_exponent=1, largest_dot=115).legend(
-            colorbar_title="Mean scaled protein", size_title="Measured cells ≥ 0.10 (%)")
+            colorbar_title="Mean expression\nscaled per marker", size_title="Measured cells\n≥ 0.10 (%)")
     plot.make_figure()
     ax = plot.get_axes()["mainplot_ax"]
-    y, x = np.where(~np.isfinite(means))
+    missing = ~np.isfinite(means)
+    if applicable_only:
+        missing &= idx.isin(values.index).reshape(means.shape)
+    y, x = np.where(missing)
     if measure == "heatmap":
         for row, column in zip(y,x):
             ax.add_patch(Rectangle((column,row),1,1,facecolor="#c6c9cc",edgecolor="white",linewidth=.3))
     else:
         ax.scatter(x+.5, y+.5, marker="x", s=12, linewidths=.7, color="#92989a")
     ax.tick_params(axis="both", labelsize=8)
-    plt.setp(ax.get_xticklabels(), rotation=50, ha="right", rotation_mode="anchor")
+    plt.setp(ax.get_xticklabels(), rotation=90 if len(markers) > 15 else 0, ha="center")
     plt.show()
 
 
-def show_profiles(counts,evidence,*,tissue="Pancreas",level="primary",disease=None,donor=None,
+def show_profiles(counts,evidence,*,tissue="Pancreas",level="subtype",disease=None,donor=None,
                   weighting="donors",measures=("dotplot","heatmap")):
     support, values, total = measured_profiles(counts,evidence,tissue=tissue,level=level,disease=disease,
                                                donor=donor,weighting=weighting)
@@ -161,24 +165,25 @@ def show_profiles(counts,evidence,*,tissue="Pancreas",level="primary",disease=No
         return values
     scope = f"Donor {donor}" if donor is not None else f"{disease or 'Cohort'} · {total} donors"
     unit = "Single section" if donor is not None else ("Equal donor weight" if weighting=="donors" else "Pooled cells")
-    # Include registered but absent or unassessable phenotypes for the selected section.
-    labels = [x for x in support.index if x != AMBIGUOUS]
-    for title, rows, markers in marker_panels(tissue,level,labels):
-        captions = []
-        for row in rows:
-            item=support.loc[row]
-            n = f"{int(item.cells):,}" if pd.notna(item.cells) else "unassessable"
-            nrow = f"{n} cells" if pd.notna(item.cells) else n
-            if donor is None:
-                nrow += f", {int(item.contributing)}/{total} donors"
-            captions.append(f"{DISPLAY_NAMES.get(row,row)}  ·  {nrow}")
-        for measure in measures:
-            draw_matrix(values, rows, markers, captions, title=f"{tissue} · {scope} · {title}",
-                        measure=measure,tissue=tissue,scope_note=f"{unit}   |   Gray {'×' if measure=='dotplot' else 'tile'} = no reportable measurement")
-    return values.loc[values.index.get_level_values("label") != AMBIGUOUS]
+    rows = names_in_order(support.index.tolist(), tissue)
+    markers = full_panel(evidence, tissue)
+    captions = []
+    for row in rows:
+        item = support.loc[row]
+        n = f"{int(item.cells):,} cells" if pd.notna(item.cells) else "unassessable"
+        if donor is None:
+            n += f", {int(item.contributing)}/{total} donors"
+        captions.append(f"{subtype_display_name(row)}  ·  {n}")
+    for measure in measures:
+        draw_matrix(values, rows, markers, captions, title=f"{tissue} · {scope} · {level.replace('_', ' ')}{' candidates' if tissue == 'pLN' else ''}",
+                    measure=measure, tissue=tissue,
+                    scope_note=f"{unit}   |   {len(markers)} proteins   |   Gray {'×' if measure=='dotplot' else 'tile'} = no reportable measurement")
+    return values.loc[values.index.get_level_values("marker").isin(markers)]
+
 
 
 def donor_heatmap(counts,evidence,*,tissue,level,label,markers):
+    counts, evidence = hierarchy_tables(counts, evidence, level)
     all_sections = counts.loc[(counts.tissue==tissue)&(counts.level==level)&(counts.label==label)].copy()
     if all_sections.empty:
         raise ValueError(f"No {label} label at {level} in {tissue}")
@@ -412,49 +417,106 @@ def plot_matched_hormones(matched, *, scope, weighting="donors"):
         raise ValueError("Choose 'donors' or 'cells'")
     mean_col, pct_col = (("equal_donor_mean_scaled","equal_donor_positive_pct") if weighting=="donors"
                          else ("pooled_mean_scaled","pooled_positive_pct"))
-    rows = matched.sort_values(["pair","hormone","population"],key=lambda x:
-                               x.map({"Competing hormones":0}).fillna(1) if x.name=="population" else x)
-    if rows.duplicated(["pair","hormone","population"]).any():
-        raise ValueError("Each pair and hormone must have one record per comparison arm")
-    groups = rows[["pair","hormone"]].drop_duplicates().itertuples(index=False,name=None)
-    entries = []
-    for pair, hormone in groups:
-        panel = rows[(rows.pair==pair) & (rows.hormone==hormone)]
-        if len(panel)!=2 or panel.donors_measured_in_both.nunique()!=1:
-            raise ValueError(f"Comparison arms disagree for {pair}, {hormone}")
-        unknown = panel[panel.population.eq("Competing hormones")].iloc[0]
-        named = panel[panel.population.ne("Competing hormones")].iloc[0]
-        row_label = f"{pair}  ·  {hormone}"
-        entries.append({"row":row_label, "unknown":unknown[mean_col], "named":named[mean_col],
-                        "unknown_fraction":unknown[pct_col]/100, "named_fraction":named[pct_col]/100,
-                        "annotation":f"{named.population}   |   {int(unknown.matched_measured):,} / {int(named.matched_measured):,}   |   "
-                                     f"{int(named.donors_measured_in_both)} / {int(named.donors_with_this_pair)}"})
-    frame = pd.DataFrame(entries).set_index("row")
-    # The two columns use each row's same hormone and identical donor roster.
-    # Quantities are precomputed once for each arm. The AnnData only supplies the Scanpy grouping axes.
-    columns = ["Competing pair", "Named subtype"]
-    means = frame[["unknown","named"]].set_axis(columns,axis=1)
-    fractions = frame[["unknown_fraction","named_fraction"]].set_axis(columns,axis=1)
-    chart_labels=[f"{label}    |    {note}" for label,note in frame.annotation.items()]
-    means.index = chart_labels
-    fractions.index = chart_labels
-    obj = ad.AnnData(means.to_numpy(), obs=pd.DataFrame(
-        {"comparison":pd.Categorical(chart_labels,categories=chart_labels,ordered=True)},index=chart_labels),
-        var=pd.DataFrame(index=columns))
-    mode = "Equal donor weight" if weighting=="donors" else "Pooled measured cells"
-    title = f"{scope} · Hormone signal in competing and named cells\n{mode} · same cytoplasmic compartment"
-    plot = sc.pl.DotPlot(obj,columns,"comparison",categories_order=chart_labels,
-                         dot_color_df=means,dot_size_df=fractions.fillna(0),vmin=0,vmax=1,
-                         figsize=(6.0,max(3.4,.42*len(frame)+2.2)),title=title)
-    plot.style(cmap="viridis",dot_min=0,dot_max=1,size_exponent=1,largest_dot=155).legend(
-        colorbar_title="Mean scaled protein",size_title="Measured cells ≥ 0.10 (%)")
-    plot.make_figure()
-    ax=plot.get_axes()["mainplot_ax"]
-    yy,xx=np.where(~np.isfinite(means.to_numpy()))
-    ax.scatter(xx+.5,yy+.5,marker="x",s=18,c="#767d80",lw=.8)
-    ax.tick_params(axis="both",labelsize=8)
-    ax.set_ylabel("")
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-    ax.text(0,-.17,"Pair · hormone  |  named subtype  |  measured cells (pair / named)  |  donors (matched / available)",
-            ha="center",va="top",transform=ax.transAxes,fontsize=7.5,color="#364047")
-    plt.show()
+    keys = ["pair", "hormone", "population"]
+    if matched.duplicated(keys).any():
+        raise ValueError("Repeated comparison arm")
+    named = {"GCG": "Alpha", "INS": "Beta", "SST": "Delta"}
+    for (pair, hormone), arms in matched.groupby(["pair", "hormone"], observed=True):
+        if (set(arms.population) != {"Competing hormones", named[hormone]}
+                or arms.donors_measured_in_both.nunique() != 1):
+            raise ValueError(f"Inconsistent matched arms for {pair}, {hormone}")
+    markers = [m for m in HORMONES if m in set(matched.hormone)]
+    rows, captions, records = [], [], []
+    for pair, frame in matched.groupby("pair", sort=True, observed=True):
+        for population in ["Competing hormones", *[named[m] for m in markers]]:
+            selected = frame[frame.population.eq(population)].sort_values("hormone")
+            if selected.empty:
+                continue
+            label = f"{pair}  ·  {population}"
+            rows.append(label)
+            notes = {}
+            for item in selected.to_dict("records"):
+                m = item["hormone"]
+                notes[m] = (f'{item["matched_measured"]:,} cells, {item["donors_measured_in_both"]}'
+                            f'/{item["donors_with_this_pair"]} donors')
+                records.append({"label": label, "marker": m, "mean": item[mean_col], "fraction": item[pct_col]/100})
+            support = next(iter(notes.values())) if len(set(notes.values())) == 1 else " · ".join(
+                f"{m} {value}" for m, value in notes.items())
+            captions.append(f"{label}  ·  {support}")
+    values = pd.DataFrame(records).set_index(["label", "marker"])
+    unit = "Equal donor weight" if weighting == "donors" else "Pooled measured cells"
+    draw_matrix(values, rows, markers, captions, title=f"{scope} · Matched endocrine comparisons",
+                measure="dotplot", tissue="Pancreas", applicable_only=True,
+                scope_note=f"{unit}  |  Blank = outside comparison; × = no matched measurement")
+
+
+def cell_subtypes(obs, tissue):
+    """Return the deepest recorded assignment for each cell in the tissue hierarchy."""
+    labels = obs["detail"].astype("string").fillna(obs["primary"].astype("string"))
+    if tissue == "Pancreas":
+        profiles = obs["macrophage_profile"].astype("string")
+        labels = labels.mask(labels.eq("Imm-macrophage") & profiles.notna(), profiles)
+    if labels.isna().any():
+        raise ValueError(f"Missing cell assignment in the {tissue} release")
+    return labels.astype("category")
+
+
+def subtype_display_name(label):
+    """Compact labels on axes; the notebook tables retain the release identifiers."""
+    if "Macrophage_LGALS3" in label:
+        return ("Mac " + label.replace("Macrophage_LGALS3", " Gal3")
+                .replace("CD163", " CD163").replace("CD4", " CD4"))
+    return DISPLAY_NAMES.get(label, label).replace("_", " ")
+
+
+def phenotype_colors(counts, tissue, extra_labels=()):
+    """Stable colors from the complete tissue census, shared by all donor and group views."""
+    fixed = ({"Alpha":"#cf6c30", "Beta":"#287cac", "Delta":"#4c8b58", "Immune":"#965084",
+              "Exocrine":"#c1b7a6", AMBIGUOUS:"#bda559", BELOW_FLOOR:"#99853f",
+              "Blood vessel":"#b34b50", "Lymphatic":"#68a69a", "Nerve":"#5b558c",
+              "Unresolved (no lineage evidence)":"#868686"} if tissue == "Pancreas" else
+             {"Ambiguous candidate":"#294e77", "Endothelial":"#bf6a2c", "Immune":"#348472",
+              "Neural":"#9062a5", "No rule match":"#ac4e62", "Smooth_muscle":"#86734c",
+              "Stromal":"#608aa5", "Unavailable candidate":"#737373"})
+    present = set(counts.loc[counts.tissue.eq(tissue), "label"].dropna())
+    present.update(extra_labels)
+    others = sorted(present.difference(fixed))
+    colors = [c for c in sc.pl.palettes.default_102 if c.lower() not in {x.lower() for x in fixed.values()}]
+    if len(others) > len(colors):
+        raise ValueError(f"The {tissue} census exceeds the available categorical colors")
+    return {**fixed, **dict(zip(others, colors))}
+
+
+def phenotype_key(ax, labels, palette, *, columns=2, title=None):
+    """Show the identity key in its own figure area."""
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], marker="o", linestyle="", markersize=5, color=palette[label],
+                      label=subtype_display_name(label)) for label in labels]
+    ax.set_axis_off()
+    ax.legend(handles=handles, loc="center", ncol=columns, title=title, frameon=False,
+              fontsize=8, title_fontsize=9, columnspacing=1.2, handletextpad=.35)
+
+
+def pln_review_labels(group, status):
+    """Keep explicit provenance on each broad review or unresolved row."""
+    return group.astype("string").where(~status.eq("Cell and named cluster agree"), "Review · " + group.astype("string"))
+
+
+def pln_evidence_profiles(counts, evidence, review_counts, review_markers):
+    """Partition strict no-matches once using native full-section review measurements."""
+    base = counts.loc[counts.tissue.eq("pLN") & counts.level.eq("subtype")].copy()
+    markers = evidence.loc[evidence.tissue.eq("pLN") & evidence.level.eq("subtype")]
+    keys = ["tissue", "donor", "disease"]
+    no_match = base.loc[base.label.eq("No rule match")]
+    added = review_counts.merge(no_match[keys+["eligible_cells"]], on=keys, validate="many_to_one")
+    totals = added.groupby(keys, observed=True).cells.sum().sort_index()
+    expected = no_match.set_index(keys).cells.sort_index().astype("int64")
+    pd.testing.assert_series_equal(totals, expected, check_dtype=False)
+    added["label"] = pln_review_labels(added.review_group, added.review_status)
+    added = added.assign(level="subtype", assessable=True, comparable=True,
+                         parent_cells=added.eligible_cells, fraction_tissue=added.cells / added.eligible_cells)
+    added["fraction_parent"] = added.fraction_tissue
+    extra = review_markers.assign(label=pln_review_labels(review_markers.review_group, review_markers.review_status),
+                                  level="subtype")
+    return (pd.concat([base.loc[base.label.ne("No rule match")], added], ignore_index=True),
+            pd.concat([markers.loc[markers.label.ne("No rule match")], extra], ignore_index=True))
