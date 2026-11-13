@@ -48,6 +48,10 @@ otherwise.
 | **Aab+** | Burnt Umber (#CC6633) | Autoantibody-positive (pre-T1D) |
 | **T1D** | Forest Green (#228833) | Type 1 diabetic donors |
 
+## PhenoCycler analysis notebooks
+
+Open [Cell type phenotyping and annotation](analysis/phenocycler/notebooks/02_phenotyping.ipynb) for cohort UMAPs, marker heatmaps and dotplots using the corrected protein assignments. The [PhenoCycler analysis directory](analysis/phenocycler/) also includes donor proportions, spatial neighborhoods, islet inflammation trajectories and pancreas–pLN comparisons.
+
 ## Quick Start
 
 ```bash
