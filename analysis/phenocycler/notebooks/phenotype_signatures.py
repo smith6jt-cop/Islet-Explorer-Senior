@@ -114,6 +114,15 @@ def measured_profiles(counts, evidence, *, tissue="Pancreas", level="subtype", d
     return support, values.drop(columns="signal_sum"), scope.donor.nunique()
 
 
+def _scale_heatmap_columns(mean):
+    """Scale finite displayed group means per marker and flag values with an undefined range."""
+    measured = mean.where(np.isfinite(mean))
+    minimum = measured.min(axis=0)
+    span = measured.max(axis=0) - minimum
+    scaled = (measured - minimum).div(span.where(span.gt(0)))
+    return scaled, measured.notna() & span.eq(0)
+
+
 def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, scope_note, applicable_only=False):
     """Draw Scanpy profiles from full-section means and measured positivity fractions."""
     if not labels or not markers:
@@ -134,8 +143,9 @@ def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, sc
     size = (max(6.2, .32 * len(markers) + 3.5), max(4.5, .27 * len(labels) + 2.0))
     params = dict(categories_order=row_text, title=title+"\n"+scope_note, figsize=size, vmin=0, vmax=1)
     if measure == "heatmap":
-        plot = sc.pl.MatrixPlot(summary, markers, "phenotype", values_df=mean, **params)
-        plot.style(cmap=cmap, edge_lw=.25, edge_color="white").legend(title="Mean scaled protein")
+        scaled, constant = _scale_heatmap_columns(mean)
+        plot = sc.pl.MatrixPlot(summary, markers, "phenotype", values_df=scaled, **params)
+        plot.style(cmap=cmap, edge_lw=.25, edge_color="white").legend(title="Mean expression\nmin–max per marker")
     else:
         plot = sc.pl.DotPlot(summary, markers, "phenotype", dot_color_df=mean,
                              dot_size_df=fraction.fillna(0), standard_scale="var", **params)
@@ -150,6 +160,20 @@ def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, sc
     if measure == "heatmap":
         for row, column in zip(y,x):
             ax.add_patch(Rectangle((column,row),1,1,facecolor="#c6c9cc",edgecolor="white",linewidth=.3))
+        keys = []
+        for mask, face, edge, note in (
+                (constant & mean.ne(0), "#fff2da", "#987348", "Constant mean"),
+                (constant & mean.eq(0), "#482173", "#ddd0ed", "Constant zero")):
+            if not mask.to_numpy().any():
+                continue
+            style = dict(facecolor=face, edgecolor=edge, hatch="//", linewidth=.3)
+            for row, column in zip(*np.where(mask)):
+                ax.add_patch(Rectangle((column,row),1,1,**style))
+            keys.append(Rectangle((0,0),1,1,label=note,**style))
+        if keys:
+            plot.get_axes()["color_legend_ax"].legend(
+                handles=keys, loc="lower center", bbox_to_anchor=(.5, 2.7), borderaxespad=0,
+                frameon=False, fontsize=8)
     else:
         ax.scatter(x+.5, y+.5, marker="x", s=12, linewidths=.7, color="#92989a")
     ax.tick_params(axis="both", labelsize=8)
