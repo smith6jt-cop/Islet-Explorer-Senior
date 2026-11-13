@@ -97,7 +97,8 @@ def run(task: Task) -> dict:
     entries = [row["protein_entry"] for row in sections]
     if entries != task.settings["protein_entries"]:
         raise PLNTypingPilotError("pLN sections changed after input declaration")
-    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"))
+    source = load_rule_source(task.input("pln_panel"), table_path=task.input("pln_rules"),
+                              dedicated=True)
     scales = _scales(task)
     threshold_rows, rule_rows, candidate_rows = [], [], []
     total_cells = no_nucleus = 0
@@ -157,6 +158,7 @@ def run(task: Task) -> dict:
     _rule_figures(task, rule_rows, sections)
     _candidate_figure(task, candidate_rows, sections)
     return {"sections": len(sections), "protein_cells": total_cells,
+            "omitted_rule_constraints": [list(item) for item in source.omitted],
             "protein_cells_without_nucleus": no_nucleus,
             "protein_markers": len(threshold_rows),
             "protein_markers_with_cutoff": sum(row["cutoff"] is not None

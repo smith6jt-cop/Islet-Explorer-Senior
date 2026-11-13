@@ -64,3 +64,6 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path):
     with (result.path / "protein_candidate_status.csv").open(newline="") as handle:
         assert sum(int(row["cells"]) for row in csv.DictReader(handle)) == count
     assert (result.path / "gate/pln_candidate_status.png").is_file()
+    with (result.path / "receipt.json").open() as handle:
+        omissions = json.load(handle)["summary"]["omitted_rule_constraints"]
+    assert ["Neural", "EpCAM"] in omissions and ["Stromal", "EpCAM"] in omissions
