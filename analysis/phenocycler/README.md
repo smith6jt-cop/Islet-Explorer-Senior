@@ -1,14 +1,16 @@
 # PhenoCycler single-cell analysis
 
-Open [Cell type phenotyping and annotation](notebooks/02_phenotyping.ipynb) for the cohort UMAP, marker heatmaps, dotplots, marker-pair scatterplots and endocrine quality checks. Change `DONOR`, `DISEASE` or `LEVEL` to inspect a section or hierarchy branch. `WEIGHTING = "donors"` averages measured donor means. Use `"cells"` to pool the measured cells. The default shows the deepest available subtype for every cell. CD68 or CD163 positivity establishes the macrophage parent. Galectin-3 (M2Gal3) separates Gal3+ from Gal3− macrophages. CD4 contributes to T-cell subtyping. Dotplots include the full calibrated panel after EpCAM exclusion and use Scanpy’s per-marker (`standard_scale="var"`) color scale. Dot area gives the measured fraction ≥0.10. Heatmaps retain calibrated means.
+Open [Cell type phenotyping and annotation](notebooks/02_phenotyping.ipynb) for the cohort UMAP, marker heatmaps, dotplots, marker-pair scatterplots and endocrine quality checks. Change `DONOR`, `DISEASE` or `LEVEL` to inspect a section or hierarchy branch. `WEIGHTING = "donors"` averages measured donor means. Use `"cells"` to pool the measured cells. The default shows the deepest available subtype for every cell. CD68 or CD163 positivity establishes the macrophage parent. Galectin-3 (M2Gal3) separates Gal3+ from Gal3− macrophages. CD4 contributes to T-cell subtyping. Dotplots include the full calibrated panel after EpCAM exclusion and use Scanpy’s per-marker (`standard_scale="var"`) color scale. Dot area gives the measured fraction ≥0.10. In each expression heatmap, the lowest and highest displayed means of each varying marker map to 0 and 1. Hatching identifies a constant measured marker and solid gray tiles identify unavailable measurements. The returned tables retain calibrated means for comparisons across panels.
 
 | Notebook | Analysis |
 | --- | --- |
 | [01 · Quality control](notebooks/01_preprocessing.ipynb) | Marker availability, missing measurements and mapped-cell coverage |
 | [02 · Phenotyping](notebooks/02_phenotyping.ipynb) | Cohort, group and donor signatures, hormone conflicts matched to named cells, and weak named-call support |
 | [03 · Spatial analysis](notebooks/03_spatial_analysis.ipynb) | Native section coordinates, cell neighborhoods and independently fitted donor islet trajectories with measured core and peri-islet immune cells per mm² on a shared scale |
-| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Full-section proportions, disease-group signature plots and a donor heatmap for each selected phenotype |
+| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Donor subtype percentages and disease-group medians on a shared broken y-axis, individual donor points, disease-group signatures and a donor heatmap for a selected phenotype |
 | [05 · Tissue comparisons](notebooks/05_tissue_comparisons.ipynb) | Paired pancreas and pLN sections, independent embeddings, full-panel protein profiles and a 19-donor audit of unmatched pLN candidates |
+
+The private Senior installation includes the rendered [pancreas subtype heatmap](rendered/pancreas_subtype_marker_heatmap.png) and [disease-group proportions with individual donors](rendered/pancreas_subtype_proportions_by_disease.png).
 
 ## Measured data
 
@@ -33,6 +35,6 @@ The endocrine quality checks in notebook 02 read three hormone columns and relev
 
 See the individual trajectories in notebook 03 and the private [one-page-per-donor atlas](rendered/donor_islet_trajectories.pdf). Each donor has its own islet-composition graph, minimum-inflammation root, and measured density curves. The color and density scales are shared across the cohort.
 
-Run the notebooks from this checkout, its notebook directory, or an upstream-style `notebooks/` directory. Keep `phenotype_signatures.py` alongside the notebooks. Expected dependencies include Scanpy, AnnData, pandas, PyArrow, h5py, NumPy, SciPy and Matplotlib.
+Run the notebooks from this checkout, its notebook directory, or an upstream-style `notebooks/` directory. Keep the accompanying plotting helpers in the notebook directory. Expected dependencies include Scanpy, AnnData, pandas, PyArrow, h5py, NumPy, SciPy and Matplotlib.
 
 The workflow follows the [original PhenoCycler analysis notebooks](https://github.com/smith6jt-cop/Phenocycler_Analysis/tree/ee170f13ebb892bc395bb289625df038ad0fadb1/notebooks).
