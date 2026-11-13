@@ -12,7 +12,7 @@ The hierarchy is the table's own, three levels deep:
               Imm-NK-cell | Imm-neutrophil | Imm-plasma-cell
       Imm-T-cell     -> T-regulatory | T-exhausted | T-progenitor-memory
                         T-CD8-cytotoxic | T-CD8 | T-CD4-helper
-      Imm-macrophage -> CD68/CD163/LGALS3/CD4 measured profile
+      Imm-macrophage -> CD68/CD163/LGALS3 measured profile
 
 **CD4 and CD8 are read only after the T-cell parent is established.** The recorded
 rules still name the more specific T-cell leaves. If none fires, the higher
@@ -776,7 +776,7 @@ def main() -> int:
             rows.append({"donor_id": donor, "level": "macrophage_profile", "label": label,
                          "count": int(profile_counts.get(label, 0)) if profile_complete else "",
                          "status": "measured" if profile_complete else "EMPTY_profile_unavailable",
-                         "reason": "" if profile_complete else "macrophage parent or one of CD68, CD163, M2Gal3, CD4 unavailable",
+                         "reason": "" if profile_complete else "macrophage parent or one of CD68, CD163, M2Gal3 unavailable",
                          "count_without_majority_term": "", "supporting_only_note": ""})
         for name, requirement in reduced.items():
             rows_here = evaluated.get(name)
