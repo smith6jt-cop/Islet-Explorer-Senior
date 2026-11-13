@@ -1,4 +1,4 @@
-"""Owner-approved macrophage labels use measured signs and one hierarchy."""
+"""Pancreas macrophage profiles use measured signs and one hierarchy."""
 
 import numpy as np
 import pandas as pd
@@ -7,9 +7,9 @@ import pytest
 from multiplex5000.tissues.macrophage import classify_profile, labels
 
 
-def test_twelve_labels_exclude_double_negative_parent():
+def test_six_labels_exclude_double_negative_parent():
     all_labels = labels()
-    assert len(all_labels) == len(set(all_labels)) == 12
+    assert len(all_labels) == len(set(all_labels)) == 6
     assert all("Macrophage_LGALS3" in label for label in all_labels)
     assert all(not label.startswith("CD68-CD163-") for label in all_labels)
 
@@ -22,8 +22,8 @@ def test_profile_never_turns_missing_marker_into_negative():
         "CD4": [0.0, 0.3, 0.3, 0.0],
     })
     assert classify_profile(scaled).tolist() == [
-        "CD68+CD163-Macrophage_LGALS3+CD4-",
-        "CD68-CD163+Macrophage_LGALS3-CD4+",
+        "CD68+CD163-Macrophage_LGALS3+",
+        "CD68-CD163+Macrophage_LGALS3-",
         None, None,
     ]
 
@@ -35,10 +35,17 @@ def test_profile_uses_image_specific_marker_levels():
     })
     levels = {"CD68": 0.07, "CD163": 0.25, "M2Gal3": 0.04, "CD4": 0.20}
     assert classify_profile(values, levels).tolist() == [
-        "CD68+CD163-Macrophage_LGALS3+CD4-",
-        "CD68-CD163+Macrophage_LGALS3-CD4+",
+        "CD68+CD163-Macrophage_LGALS3+",
+        "CD68-CD163+Macrophage_LGALS3-",
     ]
     with pytest.raises(ValueError, match="missing markers"):
         classify_profile(values, {"CD68": 0.07})
     with pytest.raises(ValueError, match="must be finite"):
-        classify_profile(values, {**levels, "CD4": np.nan})
+        classify_profile(values, {**levels, "M2Gal3": np.nan})
+
+def test_profile_is_independent_of_cd4():
+    markers = pd.DataFrame({"CD68": [0.2]*3, "CD163": [0.0]*3, "M2Gal3": [0.2]*3})
+    expected = ["CD68+CD163-Macrophage_LGALS3+"] * 3
+    assert classify_profile(markers).tolist() == expected
+    assert classify_profile(markers.assign(CD4=[0.0, 1.0, np.nan])).tolist() == expected
+    assert classify_profile(markers, {m: 0.1 for m in markers}).tolist() == expected
