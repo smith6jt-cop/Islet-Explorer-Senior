@@ -40,6 +40,7 @@ class RuleSource:
     lineage_root_parent: str = "all"
     state_root_parent: str = "any"
     candidate_lineage_roots: tuple[str, ...] = ()
+    excluded_identity_markers: tuple[str, ...] = ()
 
     @property
     def by_phenotype(self) -> dict[str, Rule]:
@@ -72,7 +73,7 @@ class RuleSource:
 
 
 def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
-                     dedicated: bool = False) -> RuleSource:
+                     pln_identity: bool = False, dedicated: bool = False) -> RuleSource:
     """Verify the source and apply only the maintainer-approved pLN adaptation."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
@@ -103,11 +104,14 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
     omit = set(spec["pln_adaptation"]["omit_from_root_allneg"])
     if not omit <= set(headers[2:]):
         raise RuleSourceError(f"adaptation names unknown marker(s): {sorted(omit-set(headers))}")
-    # Dedicated sections can retire a channel from the rule criteria while
-    # retaining the measurements and the reference rules for other tissues.
-    retired = set(spec["pln_adaptation"].get("dedicated_omit_markers", ())) if dedicated else set()
+    # The same pLN identity policy applies to dedicated sections and node regions
+    # on a pancreas slide. The reference sheet is also used by the spleen adapter.
+    # Earlier dedicated-node callers can use their original argument and manifest.
+    adaptation = spec["pln_adaptation"]
+    exclusions = adaptation.get("omit_from_pln_identity", adaptation.get("dedicated_omit_markers", ()))
+    retired = set(exclusions) if pln_identity or dedicated else set()
     if not retired <= set(headers[2:]):
-        raise RuleSourceError(f"unknown dedicated pLN marker(s): {sorted(retired - set(headers[2:]))}")
+        raise RuleSourceError(f"unknown pLN identity marker(s): {sorted(retired - set(headers[2:]))}")
     aliases = dict(spec.get("panel_aliases") or {})
     if not set(aliases) <= set(headers[2:]):
         raise RuleSourceError("panel_aliases names a marker absent from the sheet")
@@ -127,7 +131,7 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
             elif token:
                 clauses.append((marker, token))
         if not clauses and any((row[m] or "").strip() for m in retired):
-            raise RuleSourceError(f"{phenotype}: dedicated omission removed every constraint")
+            raise RuleSourceError(f"{phenotype}: pLN identity omission removed every constraint")
         rules.append(Rule(parent, phenotype, tuple(clauses)))
     for rule in rules:
         if rule.parent not in {"all", "any"} and rule.parent not in names:
@@ -143,7 +147,7 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
         raise RuleSourceError("candidate lineage root is absent from the selected sheet")
     result = RuleSource(digest, tuple(rules), tuple(omitted), aliases,
                         root_roles["lineage"], root_roles["state"],
-                        tuple(candidate_roots))
+                        tuple(candidate_roots), tuple(sorted(retired)))
     for rule in rules:
         result.inherited_markers(rule.phenotype)
     if {marker for _, marker in omitted} != omit | retired:
