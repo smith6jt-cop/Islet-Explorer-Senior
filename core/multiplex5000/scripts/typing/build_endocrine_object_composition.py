@@ -19,7 +19,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
-from multiplex5000.tissues.macrophage import labels as macrophage_labels
+from multiplex5000.tissues.macrophage import current_profile_names, labels as macrophage_labels
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -239,6 +239,19 @@ def rebuild_analytic_object_composition(objects: pd.DataFrame, cells: pd.DataFra
     analysis, even when its independent outline geometry remains measured.
     """
     result = objects.copy()
+    if 'macrophage_profile' in cells:
+        cells = cells.assign(macrophage_profile=current_profile_names(cells['macrophage_profile']))
+    legacy_fields = []
+    for name in macrophage_labels():
+        key = 'count_macrophage_profile__' + name
+        old_counts = [key + suffix for suffix in ('CD4+', 'CD4-')]
+        if key not in result and all(count in result for count in old_counts):
+            result[key] = result[old_counts].sum(axis=1, min_count=2)
+        for suffix in ('CD4+', 'CD4-'):
+            old = name + suffix
+            legacy_fields.extend(['count_macrophage_profile__' + old,
+                                  'feature__immune__macrophage_profile_' + old + '_per_endocrine',
+                                  'available__immune__macrophage_profile_' + old + '_per_endocrine'])
     if result.duplicated(['donor_id', 'endocrine_object_id']).any():
         raise ValueError('composition has duplicate donor/object keys')
     raw_fields = [c for c in result if c.startswith(('primary_count__', 'refined_count__', 'count_', 'process_overlap_', 'supplementary_'))]
@@ -343,7 +356,7 @@ def rebuild_analytic_object_composition(objects: pd.DataFrame, cells: pd.DataFra
             row['supplementary_n_measured__' + hormone] = int(finite.sum())
             row['supplementary_available__' + hormone] = bool(original['original_supplementary_available__' + hormone] and len(block))
         rows.append(row)
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).drop(columns=legacy_fields, errors='ignore')
 
 
 def disease_status_map(sections: list[dict]) -> dict[str, str]:
@@ -425,6 +438,8 @@ def read_immune(typing_root: Path, donor: str) -> tuple[pd.DataFrame, dict]:
     keep += [name for name in ("macrophage_profile", "macrophage_profile_status")
              if name in schema]
     frame = pq.read_table(path, columns=keep).to_pandas()
+    if "macrophage_profile" in frame:
+        frame["macrophage_profile"] = current_profile_names(frame["macrophage_profile"])
     coverage_path = typing_root / "immune" / "coverage.json"
     coverage = json.loads(coverage_path.read_text()).get("per_donor", {}).get(donor, {}) \
         if coverage_path.is_file() else {}
