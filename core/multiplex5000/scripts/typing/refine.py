@@ -368,7 +368,7 @@ def derive_markers() -> list[str]:
                                strict=False)
     Rm = Rm.loc[(Rm != 0).any(axis=1)]
     shifts = json.loads(SHIFTS.read_text())["shifts"]
-    drop = set(DROP_BY_NAME) | {m for m, r in shifts.items()
+    drop = set(DROP_BY_NAME) | R.EXCLUDED_FROM_TYPING | {m for m, r in shifts.items()
                                 if r.get("provenance") == DROP_PROVENANCE}
     return [m for m in Rm.index if m not in drop]
 
@@ -696,7 +696,7 @@ def immune_leaf(donor: str, markers: list[str] | None = None,
     reported in ``REFINEMENT.md``.
     """
     reqs, leaves = immune_leaves()
-    markers = markers or derive_markers()
+    markers = [m for m in (markers or derive_markers()) if m not in R.EXCLUDED_FROM_TYPING]
     t, have = donor_values(donor, markers)
     t = t[t["qc_analysis_eligible"]]
     scale = S.load_scale()
@@ -719,7 +719,7 @@ def refine_donor(donor: str, params: pd.DataFrame, markers: list[str] | None = N
     keeps its class and carries the reason it was not measured, which a table that had been
     overwritten in place could no longer say.
     """
-    markers = markers or derive_markers()
+    markers = [m for m in (markers or derive_markers()) if m not in R.EXCLUDED_FROM_TYPING]
     cells = load_cells(donor) if cells is None else cells
     _refuse_second_pass(cells)
 

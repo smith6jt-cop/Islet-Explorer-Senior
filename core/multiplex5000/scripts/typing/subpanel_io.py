@@ -116,8 +116,8 @@ TYPING = OUT / "subpanel_rebuilt"
 #: Declared negatives no immune definition may veto with, because not every panel in the cohort
 #: acquired them. Ker8_18 is absent from the 70-channel same-slide panel (0112, 6347, 6533, 6580);
 #: while it was required measured-negative, no immune definition could fire on those four donors at
-#: all. Ruled 2026-10-18 ("Shared markers, all 25"): epithelium is excluded by E-cadherin, EpCAM and
-#: pan-cytokeratin on every donor, and Ker8_18 is a veto nowhere -- one rule and one marker set for
+#: all. Ruled 2026-10-18 ("Shared markers, all 25"): the shared epithelial negatives include E-cadherin and
+#: pan-cytokeratin. EpCAM was retired from IO60 typing on 2026-11-13. Ker8_18 is a veto nowhere -- one rule and one marker set for
 #: the whole cohort, as the 2026-09-15 unshared-markers ruling implies. Positive uses are unchanged.
 UNSHARED_NEGATIVES = frozenset({"Ker8_18"})
 

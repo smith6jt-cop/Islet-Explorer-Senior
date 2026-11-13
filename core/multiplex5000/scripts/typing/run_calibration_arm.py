@@ -95,9 +95,13 @@ def main() -> int:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
     script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
                     SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py"]
-    script_paths.extend([Path(interior_dominance.__file__), Path(redsea.__file__), Path(tiff_window.__file__)])
+    from multiplex5000.tissues import io60_pancreas_markers
+    script_paths.extend([Path(io60_pancreas_markers.__file__), SCRIPTS / "lineages.py",
+                         SCRIPTS.parent / "celltype/rules.py",
+                         Path(interior_dominance.__file__), Path(redsea.__file__), Path(tiff_window.__file__)])
     pixel_scales = Path(os.environ.get("IO60_PIXEL_ALIGNMENT_SCALES", aligned.parent.parent / "scales.csv"))
     run = {
+        "excluded_typing_markers": sorted(io60_pancreas_markers.EXCLUDED_FROM_TYPING),
         "pixel_conflict_method": interior_dominance.METHOD,
         "pixel_alignment_scales": str(pixel_scales) if pixel_scales.is_file() else None,
         "pixel_alignment_scales_sha256": sha256(pixel_scales) if pixel_scales.is_file() else None,
