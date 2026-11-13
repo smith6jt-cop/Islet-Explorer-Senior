@@ -212,7 +212,7 @@ def despeckle(a, size):
 
 
 # --------------------------------------------------------------------------- rasterize
-def _draw_geometry(target, geom, label, shape, s):
+def _draw_geometry(target, geom, label, shape, s, origin=(0, 0)):
     """Rasterize one (Multi)Polygon into `target` at `label`; carve interior rings. Returns #holes."""
     n_holes = 0
     polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
@@ -220,8 +220,8 @@ def _draw_geometry(target, geom, label, shape, s):
         ext = np.asarray(poly[0], dtype=np.float64)
         if ext.shape[0] < 3:
             continue
-        cc = ext[:, 0] * s                        # x -> col
-        rr = ext[:, 1] * s                        # y -> row
+        cc = ext[:, 0] * s - origin[0]                        # x -> col
+        rr = ext[:, 1] * s - origin[1]                        # y -> row
         pr, pc = draw_polygon(rr, cc, shape=shape)
         target[pr, pc] = label
         for hole in poly[1:]:                     # carve interior rings back to background
@@ -229,7 +229,7 @@ def _draw_geometry(target, geom, label, shape, s):
             if h.shape[0] < 3:
                 continue
             n_holes += 1
-            hr, hc = draw_polygon(h[:, 1] * s, h[:, 0] * s, shape=shape)
+            hr, hc = draw_polygon(h[:, 1] * s - origin[1], h[:, 0] * s - origin[0], shape=shape)
             target[hr, hc] = 0
     return n_holes
 
