@@ -14,6 +14,8 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 
+from phenotype_categories import QC_COLORS, category_panels, is_qc_label
+
 
 AMBIGUOUS = "Endocrine (ambiguous subtype)"
 BELOW_FLOOR = "Endocrine (unresolved subtype)"
@@ -58,6 +60,38 @@ def full_panel(evidence, tissue):
     return first + sorted(available.difference(first))
 
 
+def donor_marker_coverage(counts, evidence, *, tissue):
+    """Report full-section measurements independently of positivity and phenotype frequency."""
+    donors = sorted(counts.loc[counts.tissue.eq(tissue), "donor"].astype(str).unique())
+    markers = full_panel(evidence, tissue)
+    measured = evidence.loc[evidence.tissue.eq(tissue) & evidence.n_measured.gt(0),
+                            ["donor", "marker"]].copy()
+    measured["donor"] = measured.donor.astype(str)
+    measured = measured.drop_duplicates().assign(measured=True)
+    return (measured.pivot(index="donor", columns="marker", values="measured")
+            .reindex(index=donors, columns=markers).eq(True))
+
+
+def marker_panels(coverage, markers, donors=None):
+    """Return shared and subset markers, grouping by the exact tissue-wide donor set."""
+    if not coverage.index.is_unique or not coverage.columns.is_unique:
+        raise ValueError("Expected distinct donors and markers in the coverage matrix")
+    active = set(coverage.index if donors is None else map(str, donors))
+    if not active.issubset(coverage.index):
+        raise ValueError("Selected donors missing from the tissue-wide coverage matrix")
+    grouped = {}
+    for marker in markers:
+        members = tuple(coverage.index[coverage[marker]])
+        if active.intersection(members):
+            grouped.setdefault(members, []).append(marker)
+    n = len(coverage)
+    result = []
+    for members in sorted(grouped, key=lambda k: (-len(k), k)):
+        kind = "Shared markers" if len(members) == n else "Subset markers"
+        result.append((f"{kind} · {len(members)}/{n} donors", grouped[members], members))
+    return result
+
+
 def hierarchy_tables(counts, evidence=None, level="subtype"):
     """Add a mutually exclusive leaf level while retaining the source hierarchy for QC."""
     if level != "subtype":
@@ -81,6 +115,12 @@ def hierarchy_tables(counts, evidence=None, level="subtype"):
     return counts, evidence
 
 
+def _profile_support(scope):
+    return scope.groupby("label", observed=True).agg(
+        cells=("cells", lambda s: s.sum(min_count=1)), contributing=("cells", lambda s: s.gt(0).sum()),
+        assessable=("cells", "count"))
+
+
 def measured_profiles(counts, evidence, *, tissue="Pancreas", level="subtype", disease=None,
                       donor=None, weighting="donors"):
     """Return phenotype support and exact donor/cell denominators for every displayed measurement."""
@@ -100,14 +140,13 @@ def measured_profiles(counts, evidence, *, tissue="Pancreas", level="subtype", d
     eligible = "assessable" if donor is not None else "comparable"
     frame = frame.loc[frame[eligible] & frame.n_measured.gt(0)].copy()
     scope.loc[~scope[eligible], "cells"] = np.nan
-    support = scope.groupby("label", observed=True).agg(
-        cells=("cells", lambda s: s.sum(min_count=1)), contributing=("cells", lambda s: s.gt(0).sum()),
-        assessable=("cells","count"))
+    support = _profile_support(scope)
     frame["signal_sum"] = frame.mean_scaled * frame.n_measured
     values = frame.groupby(["label", "marker"], observed=True).agg(
         mean=("mean_scaled", "mean"), fraction=("positive_fraction", "mean"),
         donors=("donor", "nunique"), measured=("n_measured", "sum"),
-        positive=("n_positive", "sum"), signal_sum=("signal_sum","sum"))
+        positive=("n_positive", "sum"), signal_sum=("signal_sum","sum"),
+        measured_donor_ids=("donor", lambda s: tuple(sorted(set(map(str, s))))))
     if weighting == "cells":
         values["mean"] = values.signal_sum / values.measured
         values["fraction"] = values.positive / values.measured
@@ -177,52 +216,82 @@ def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, sc
     else:
         ax.scatter(x+.5, y+.5, marker="x", s=12, linewidths=.7, color="#92989a")
     ax.tick_params(axis="both", labelsize=8)
-    plt.setp(ax.get_xticklabels(), rotation=90 if len(markers) > 15 else 0, ha="center")
+    plt.setp(ax.get_xticklabels(), rotation=90 if len(markers) > 5 else 0, ha="center")
     plt.show()
 
 
 def show_profiles(counts,evidence,*,tissue="Pancreas",level="subtype",disease=None,donor=None,
-                  weighting="donors",measures=("dotplot","heatmap")):
-    support, values, total = measured_profiles(counts,evidence,tissue=tissue,level=level,disease=disease,
-                                               donor=donor,weighting=weighting)
-    if total == 0:
-        return values
+                  weighting="donors",measures=("dotplot","heatmap"),coverage=None):
+    """Plot biological and QC rows separately within exact donor assay panels."""
+    if coverage is None:
+        coverage = donor_marker_coverage(counts, evidence, tissue=tissue)
+    counts, evidence = hierarchy_tables(counts, evidence, level)
+    support, values, total = measured_profiles(counts, evidence, tissue=tissue, level=level,
+                                               disease=disease, donor=donor, weighting=weighting)
+    section = counts.loc[counts.tissue.eq(tissue) & counts.level.eq(level)].copy()
+    if disease is not None:
+        section = section.loc[section.disease.eq(disease)]
+    if donor is not None:
+        section = section.loc[section.donor.astype(str).eq(str(donor))]
+    eligible = section["assessable" if donor is not None else "comparable"]
+    section.loc[~eligible, "cells"] = np.nan
+    selected = set(section.donor.astype(str))
+    markers = MACROPHAGE if tissue == "Pancreas" and level == "macrophage_profile" else list(coverage.columns)
+    panels = marker_panels(coverage, markers, selected)
     scope = f"Donor {donor}" if donor is not None else f"{disease or 'Cohort'} · {total} donors"
     unit = "Single section" if donor is not None else ("Equal donor weight" if weighting=="donors" else "Pooled cells")
-    rows = names_in_order(support.index.tolist(), tissue)
-    markers = MACROPHAGE if tissue == "Pancreas" and level == "macrophage_profile" else full_panel(evidence, tissue)
-    captions = []
-    for row in rows:
-        item = support.loc[row]
-        n = f"{int(item.cells):,} cells" if pd.notna(item.cells) else "unassessable"
-        if donor is None:
-            n += f", {int(item.contributing)}/{total} donors"
-        captions.append(f"{subtype_display_name(row)}  ·  {n}")
-    for measure in measures:
-        draw_matrix(values, rows, markers, captions, title=f"{tissue} · {scope} · {level.replace('_', ' ')}{' candidates' if tissue == 'pLN' else ''}",
-                    measure=measure, tissue=tissue,
-                    scope_note=f"{unit}   |   {len(markers)} proteins   |   Gray {'×' if measure=='dotplot' else 'tile'} = no reportable measurement")
-    return values.loc[values.index.get_level_values("marker").isin(markers)]
+    row_panels = category_panels(names_in_order(support.index, tissue), tissue)
+
+    for panel, panel_markers, members in panels:
+        carriers = selected.intersection(members)
+        counts_here = _profile_support(section.loc[section.donor.astype(str).isin(carriers)]).reindex(support.index)
+        for row_kind, rows in row_panels:
+            if not rows:
+                continue
+            captions = []
+            for row in rows:
+                item = counts_here.loc[row]
+                n = f"{int(item.cells):,} eligible cells" if pd.notna(item.cells) else "unassessable"
+                if donor is None:
+                    n += f", {int(item.contributing) if pd.notna(item.contributing) else 0}/{len(carriers)} donors"
+                captions.append(f"{subtype_display_name(row)}  ·  {n}")
+            for measure in measures:
+                draw_matrix(values, rows, panel_markers, captions,
+                            title=f"{tissue} · {scope} · {row_kind}\n{panel}",
+                            measure=measure, tissue=tissue,
+                            scope_note=f"{unit} · {len(carriers)} selected with panel · Gray = unavailable")
+    result = values.loc[values.index.get_level_values("marker").isin(markers)].copy()
+    result.attrs["marker_donors"] = {m: tuple(coverage.index[coverage[m]]) for m in markers}
+    result.attrs["selected_donors"] = tuple(sorted(selected))
+    return result
 
 
-
-def donor_heatmap(counts,evidence,*,tissue,level,label,markers):
+def donor_heatmap(counts,evidence,*,tissue,level,label,markers,coverage=None):
+    """Compare a phenotype across donors on each panel shared by those sections."""
+    if coverage is None:
+        coverage = donor_marker_coverage(counts, evidence, tissue=tissue)
     counts, evidence = hierarchy_tables(counts, evidence, level)
-    all_sections = counts.loc[(counts.tissue==tissue)&(counts.level==level)&(counts.label==label)].copy()
-    if all_sections.empty:
+    sections = counts.loc[(counts.tissue==tissue)&(counts.level==level)&(counts.label==label)].copy()
+    if sections.empty:
         raise ValueError(f"No {label} label at {level} in {tissue}")
-    all_sections["group_order"] = all_sections.disease.map({"ND":0,"AAb+":1,"T1D":2})
-    all_sections["donor_num"] = all_sections.donor.astype(int)
-    all_sections = all_sections.sort_values(["group_order","donor_num"])
-    frame = evidence.loc[(evidence.tissue==tissue)&(evidence.level==level)&(evidence.label==label)]
-    # This graph compares donors, so require comparable class and channel measurements.
-    frame = frame.merge(all_sections.loc[all_sections.comparable,["donor"]],on="donor",validate="many_to_one")
+    sections["group_order"] = sections.disease.map({"ND":0,"AAb+":1,"T1D":2})
+    sections["donor_num"] = sections.donor.astype(int)
+    sections = sections.sort_values(["group_order","donor_num"])
+    frame = evidence.loc[(evidence.tissue==tissue) & (evidence.level==level) & (evidence.label==label)]
+    frame = frame.merge(sections.loc[sections.comparable,["donor"]],on="donor",validate="many_to_one")
     frame = frame.set_index(["donor","marker"]).rename(columns={"mean_scaled":"mean","positive_fraction":"fraction"})
-    support = [f"{r.disease} · {r.donor}  ·  {int(r.cells):,} cells" if pd.notna(r.cells) else f"{r.disease} · {r.donor} · unassessable"
-               for r in all_sections.itertuples()]
-    draw_matrix(frame, all_sections.donor.tolist(),markers,support,title=f"{tissue} · {DISPLAY_NAMES.get(label,label)}",
-                measure="heatmap",tissue=tissue,scope_note="One section per row   |   Gray = no comparable measurement")
-    return frame[["n_measured","n_positive","mean","fraction"]]
+    row_kind = "Assignment QC and review" if is_qc_label(label, tissue) else "Cell identities"
+    for panel, panel_markers, members in marker_panels(coverage, markers, sections.donor):
+        displayed = sections.loc[sections.donor.astype(str).isin(members)]
+        captions = [f"{r.disease} · {r.donor}  ·  {int(r.cells):,} cells" if pd.notna(r.cells)
+                    else f"{r.disease} · {r.donor} · unassessable" for r in displayed.itertuples()]
+        draw_matrix(frame, displayed.donor.tolist(), panel_markers, captions,
+                    title=f"{tissue} · {subtype_display_name(label)} · {row_kind}\n{panel}",
+                    measure="heatmap", tissue=tissue, scope_note="One section per row · Gray = no comparable measurement")
+    result = frame[["n_measured","n_positive","mean","fraction"]].copy()
+    result.attrs["marker_donors"] = {m: tuple(coverage.index[coverage[m]]) for m in markers}
+    result.attrs["selected_donors"] = tuple(sections.donor.astype(str))
+    return result
 
 
 def conflict_summary(data,counts,*,disease=None,donor=None):
@@ -513,7 +582,9 @@ def phenotype_colors(counts, tissue, extra_labels=()):
     colors = [c for c in sc.pl.palettes.default_102 if c.lower() not in {x.lower() for x in fixed.values()}]
     if len(others) > len(colors):
         raise ValueError(f"The {tissue} census exceeds the available categorical colors")
-    return {**fixed, **dict(zip(others, colors))}
+    palette = {**fixed, **dict(zip(others, colors))}
+    palette.update({label: QC_COLORS[label] for label in palette if is_qc_label(label, tissue)})
+    return palette
 
 
 def phenotype_key(ax, labels, palette, *, columns=2, title=None):
