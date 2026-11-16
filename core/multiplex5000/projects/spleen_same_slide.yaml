@@ -1,0 +1,13 @@
+schema: multiplex5000-project/1
+id: spleen_same_slide
+release: spleen-same-slide-candidate-1
+cohort: spleen_same_slide_pilot
+# The eight same-slide sections on PC67 slides 0110618 and 0110979. Protein Measurement and Cell
+# Typing come from the spleen_primary release. This route adds the Xenium side: the source roster,
+# RNA Ingest for all eight regions, then registration and class transfer. Every gate is manual.
+stages: [00_inventory, 04_rna_ingest]
+automatic_gates: []
+settings:
+  same_slide_source_manifest: core/multiplex5000/sites/hipergator/spleen_same_slide_20261026.yaml
+  rna_acquisitions: [xenium:0110618:090, xenium:0110618:082, xenium:0110618:104, xenium:0110618:014,
+                     xenium:0110979:059, xenium:0110979:009, xenium:0110979:034, xenium:0110979:080]
