@@ -89,6 +89,21 @@ def polygonal(geoms) -> tuple[np.ndarray, int]:
     return g, int((bad | reduce).sum())
 
 
+def centroid_xy(geoms) -> tuple[np.ndarray, np.ndarray]:
+    """Centroid coordinates, NaN for an empty or missing geometry.
+
+    GEOS 3.12+ raises on ``getX`` of an empty point, and ``polygonal`` empties a degenerate
+    polygon (InstanSeg emits a few with every vertex identical), so an empty centroid is real.
+    """
+    c = shapely.centroid(np.asarray(geoms, dtype=object))
+    x = np.full(len(c), np.nan)
+    y = np.full(len(c), np.nan)
+    ok = ~shapely.is_missing(c)
+    ok[ok] = ~shapely.is_empty(c[ok])
+    x[ok], y[ok] = shapely.get_x(c[ok]), shapely.get_y(c[ok])
+    return x, y
+
+
 def overlap_graph(a, b) -> pd.DataFrame:
     """Every positive-area intersection between an object of ``a`` and an object of ``b``.
 
@@ -245,9 +260,8 @@ def compare(a, b, *, a_in_domain=None, b_in_domain=None, a_strata=None, b_strata
 
     edges = overlap_graph(a, b)
     area_a, area_b = shapely.area(a), shapely.area(b)
-    ca, cb = shapely.centroid(a), shapely.centroid(b)
-    xa, ya = shapely.get_x(ca), shapely.get_y(ca)
-    xb, yb = shapely.get_x(cb), shapely.get_y(cb)
+    xa, ya = centroid_xy(a)
+    xb, yb = centroid_xy(b)
 
     hold = holders(edges, n_a, n_b)
     deg_a = np.bincount(edges["a"].to_numpy(np.int64), minlength=n_a)

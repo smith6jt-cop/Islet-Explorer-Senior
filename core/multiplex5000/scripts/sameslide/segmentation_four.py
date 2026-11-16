@@ -139,8 +139,7 @@ def nearest_tissue(xy_from, xy_to, tissue_to):
 
 
 def centroids(geoms):
-    c = shapely.centroid(geoms)
-    return np.column_stack([shapely.get_x(c), shapely.get_y(c)])
+    return np.column_stack(sc.centroid_xy(geoms))
 
 
 def nc_ratio(nuc_geoms, nuc_parent, cell_geoms):

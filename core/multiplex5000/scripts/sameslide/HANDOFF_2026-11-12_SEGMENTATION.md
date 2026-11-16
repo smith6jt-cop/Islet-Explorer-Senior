@@ -130,3 +130,46 @@ ceiling share computed over the stratum's finite values; the reuse fingerprint e
 module that shapes the outputs (boundaries, join_four, workflow). `match()`'s optimality,
 `shift_ceiling`'s vertex ordering (holes, multipolygons), `shared_area` row/col indexing, and
 all side a/b bookkeeping were verified clean.
+
+## First real run (2026-11-12, HiPerGator, spleen Xenium session)
+
+**Checks before the first real run:**
+1. **Import resolves.** `phenocycler` is an import alias for `multiplex5000`, and `_read_boundary_rings`
+   is at `multiplex5000/integration/boundaries.py:191`.
+2. **Nuclei are polygons.** `nucleus_wkb` holds polygons on all four preparations, with 0.1-0.2%
+   multipolygons.
+3. **Routing works.** `panc/cells.parquet` and `pln_1/cells.parquet` carry `object_id` for every donor.
+4. **Method is recorded.** Every bundle has `segmentation_method`, in three values: boundary stain,
+   interior stain (18S), and 5 µm nucleus expansion.
+5. **Counting domain.** The lane has no mask to reuse: `reseed_four.footprint_mask` is a 50 µm grid,
+   closed and then dilated 100 µm, built to include nuclei for the seed. `shared_area` stays. Its
+   three grid constants await the maintainer's ruling (spleen ledger: `docs/XENIUM_PARAMETER_LEDGER.csv`
+   in SpleenFollicleCounterQP).
+
+**Tests:** 23 passed on the real tree with the lane venv (shapely 2.2) and with `xenium_analysis`
+(shapely 2.1.2, GEOS 3.14).
+
+**Run:** job 51065698 from this worktree. The lane code is identical to Islet-Explorer-Senior-main
+40fde07. Outputs are in `Islet-Explorer-Senior-main/data/development/sameslide_four`. All 7 available
+sections are `validated_complete`. 6533 pLN recorded `scientifically_unavailable`, from registration
+(7/14 islets measurable). Shares are at IoU 0.5, InstanSeg / Xenium:
+
+| section | nuclei matched | nucleus PQ | cells matched | cell PQ |
+|---|---|---|---|---|
+| 112 panc | 0.674 / 0.702 | 0.458 | 0.631 / 0.708 | 0.446 |
+| 112 pLN | 0.564 / 0.608 | 0.387 | 0.616 / 0.676 | 0.434 |
+| 6347 panc | 0.539 / 0.546 | 0.341 | 0.533 / 0.587 | 0.355 |
+| 6347 pLN | 0.674 / 0.579 | 0.419 | 0.709 / 0.642 | 0.458 |
+| 6580 panc | 0.683 / 0.662 | 0.445 | 0.662 / 0.685 | 0.446 |
+| 6580 pLN | 0.653 / 0.573 | 0.409 | 0.657 / 0.615 | 0.427 |
+| 6533 panc | 0.567 / 0.613 | 0.385 | 0.595 / 0.680 | 0.421 |
+
+The registration ceiling at IoU 0.5 is 0.99-1.00 everywhere. Most unmatched objects are `boundary`.
+InstanSeg nuclei are larger (112 panc median 38.3 vs 26.7 µm²), which caps IoU. Over 90% of 112 panc's
+Xenium nuclei sit more than half inside exactly one InstanSeg nucleus.
+
+**Bug found and fixed on real data.** One spleen InstanSeg nucleus (HDL059) is a ring with every vertex
+identical. `polygonal()` empties it, and `shapely.get_x` then raises on its empty centroid under
+GEOS 3.14. The fix is `segcompare.centroid_xy`: NaN for an empty or missing centroid, used in `compare()`
+and in `segmentation_four.centroids`. A regression test makes 24. The pancreas sections ran on the
+pre-fix code, and they completed, so they held no such geometry. Their outputs are unaffected.

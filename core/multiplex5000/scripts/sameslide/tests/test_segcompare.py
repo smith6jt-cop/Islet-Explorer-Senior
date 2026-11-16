@@ -162,6 +162,22 @@ def test_invalid_geometry_is_repaired_and_counted():
     assert out["objects_a"].loc[0, "area_um2"] == pytest.approx(50.0)
 
 
+def test_degenerate_polygon_is_emptied_and_stays_an_unmatched_object():
+    # Real InstanSeg output (HDL059, 2026-11-12): a nucleus ring with every vertex identical.
+    # Repair empties it; its centroid is then an empty point, which GEOS 3.12+ will not read.
+    dot = shapely.Polygon([(5, 5)] * 5)
+    out = sc.compare(np.array([dot, square(20, 0)], dtype=object),
+                     np.array([square(0, 0), square(20, 0)], dtype=object))
+    oa = out["objects_a"]
+    assert out["summary"]["repaired_geometries"]["a"] == 1
+    assert np.isnan(oa.loc[0, "x_um"]) and np.isnan(oa.loc[0, "y_um"])
+    assert oa.loc[0, "reason"] == "no_overlap" and oa.loc[0, "area_um2"] == 0
+    assert oa.loc[1, "reason"] == "matched"
+    x, y = sc.centroid_xy(np.array([dot, None, square(0, 0)], dtype=object))
+    assert x[2] == pytest.approx(5.0) and y[2] == pytest.approx(5.0)
+    assert np.isnan(x[1]) and not np.isnan(x[0])   # unrepaired, the degenerate ring has a centroid
+
+
 def test_shared_area_counts_only_where_both_segmented_and_reports_the_rest():
     # a covers x 0-600, b covers x 300-900, both y 0-300, one centroid every 8 um.
     g = np.stack(np.meshgrid(np.arange(0, 900, 8.0), np.arange(0, 300, 8.0)), -1).reshape(-1, 2)
