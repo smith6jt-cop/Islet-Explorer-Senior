@@ -39,41 +39,6 @@ def percent_windows(values):
     return ((0, float(low)), (float(high), top))
 
 
-def _percent_ticks(maximum):
-    """Choose a short linear percentage scale, including for sub-percent values."""
-    locator = MaxNLocator(nbins=4, min_n_ticks=2, steps=[1, 2, 2.5, 5, 10])
-    ticks = locator.tick_values(0, min(100, maximum * 1.06))
-    return ticks[(ticks >= 0) & (ticks <= 100)]
-
-
-def _pack_facets(bands):
-    """Keep a scale local to the types that use it; balance large bands across rows."""
-    rows = []
-    for band, labels in bands:
-        pages = math.ceil(len(labels) / 11)
-        for page in np.array_split(np.arange(len(labels)), pages):
-            block = [labels[i] for i in page]
-            width = max(2.5, len(block) + 1)
-            if not rows or sum(item[2] for item in rows[-1]) + width > 15:
-                rows.append([])
-            rows[-1].append((band, block, width))
-    return rows
-
-
-def _bar_axes(fig, spec, broken):
-    if not broken:
-        return [fig.add_subplot(spec)]
-    nested = spec.subgridspec(2, 1, height_ratios=[3, 1], hspace=.05)
-    upper = fig.add_subplot(nested[0])
-    lower = fig.add_subplot(nested[1], sharex=upper)
-    upper.spines["bottom"].set_visible(False)
-    upper.tick_params(axis="x", bottom=False, labelbottom=False)
-    for axis, y in [(upper, 0), (lower, 1)]:
-        axis.plot(0, y, transform=axis.transAxes, marker=[(-1,-.6),(1,.6)], markersize=7,
-                  linestyle="none", color="#343b40", markeredgewidth=.95, clip_on=False)
-    return [upper, lower]
-
-
 def _status_lines(summary, labels, groups, format_label, char_limit):
     """List unplotted zero/unavailable calls with their explicit series support."""
     by_state = {}
@@ -94,133 +59,295 @@ def _status_lines(summary, labels, groups, format_label, char_limit):
     return lines
 
 
-def plot_percentages(summary, *, colors, windows, title, format_label=str,
-                     groups=None, observations=None, group_colors=None):
-    """Plot absolute percentages, grouped by observed frequency, in one figure.
+def _band(peak):
+    """Return a reproducible frequency range and file suffix for a positive percentage."""
+    if peak >= 10:
+        return 1, "above_10pct", "≥10%"
+    if peak >= 1:
+        return 0, "common", "1% to <10%"
+    power = math.floor(math.log10(peak)) + 1
+    upper = 10.0 ** power
+    slug = np.format_float_positional(upper, trim="-").replace(".", "p")
+    return power - 1, f"below_{slug}pct", f"{upper/10:g}% to <{upper:g}%"
 
-    Summary rows are cell types and columns are series. Donor observations
-    use a disease index level and one column per type. Abundance panels are
-    based on the highest displayed percentage for each type.
-    """
+
+def _nice_axis(peak):
+    """Round just above a measured maximum, even when it is below 0.001%."""
+    locator = MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10])
+    ticks = locator.tick_values(0, min(100., peak * 1.035))
+    ticks = ticks[(ticks >= 0) & (ticks <= 100)]
+    if ticks[-1] < peak:
+        ticks = np.append(ticks, min(100., peak))
+    # A full extra interval can dominate a small panel if the maximum is
+    # already a round value. Keep the whitespace to at most 10%.
+    top = min(ticks[-1], peak * 1.10, 100.)
+    return top, ticks[ticks <= top + np.spacing(top)]
+
+
+def _frequency_pages(summary, groups, observations, windows):
     if not summary.index.is_unique or not summary.columns.is_unique:
         raise ValueError("Duplicate percentage-series labels")
-    groups = list(summary.columns if groups is None else groups)
-    labels = list(summary.index)
-    if not groups:
-        raise ValueError("A proportion figure needs at least one series")
-    series = summary.loc[:,groups].to_numpy(dtype=float).T
-    arrays = [series]
+    if not groups or summary.empty:
+        raise ValueError("A proportion figure needs at least one cell type and series")
+    summary = summary.loc[:, groups]
+    values = summary.to_numpy(dtype=float).T
     if observations is not None:
-        displayed = observations.loc[observations.index.get_level_values("disease").isin(groups), labels]
-        arrays.append(displayed.to_numpy(dtype=float))
-    data = np.vstack(arrays)
-    finite = np.isfinite(data)
-    if np.isinf(data).any() or (data[finite] < 0).any() or (data[finite] > 100+1e-9).any():
+        mask = observations.index.get_level_values("disease").isin(groups)
+        observations = observations.loc[mask, summary.index]
+        values = np.vstack((values, observations.to_numpy(dtype=float)))
+    finite = np.isfinite(values)
+    if np.isinf(values).any() or (values[finite] < 0).any() or (values[finite] > 100 + 1e-9).any():
         raise ValueError("A percentage must be between 0 and 100 or missing")
-    covered = np.zeros(data.shape, bool)
+    covered = np.zeros(values.shape, dtype=bool)
     for low, high in windows:
-        covered |= (data >= low-1e-9) & (data <= high+1e-9)
+        covered |= (values >= low - 1e-9) & (values <= high + 1e-9)
     if (finite & ~covered).any():
         raise ValueError("A proportion falls in the supplied axis break or outside the plot")
-    maxima = np.max(np.where(finite, data, 0), axis=0)
-    bands = {}
-    inactive = []
-    for label, peak in zip(labels, maxima):
+
+    peaks = np.max(np.where(finite, values, 0), axis=0)
+    medians = summary.max(axis=1)
+    bins = {}
+    for label, peak in zip(summary.index, peaks):
+        typical = medians[label]
         if peak == 0:
-            inactive.append(label)
+            key = (2, 0, "zero_or_unavailable", "Measured zero or unavailable")
+        elif np.isfinite(typical) and typical > 0:
+            order, slug, size = _band(typical)
+            if len(windows) == 2 and typical >= windows[1][0]:
+                order, slug, size = 2, "dominant", f"≥{windows[1][0]:g}%"
+            description = ("Largest disease median " if observations is not None else "Frequency ") + size
+            key = (0, -order, slug, description)
+        else:
+            # Zero disease medians can coexist with a substantial individual donor.
+            # Separate these by donor frequency so each positive observation is visible.
+            order, slug, size = _band(peak)
+            status = "Median 0%" if np.isfinite(typical) else "Median unavailable"
+            key = (1, -order, ("zero_median_" if np.isfinite(typical) else "no_median_") + slug,
+                   f"{status} · highest individual donor {size}")
+        bins.setdefault(key, []).append(label)
+    pages = {}
+    for (_, _, slug, description), types in sorted(bins.items()):
+        n = 1 if slug == "zero_or_unavailable" else math.ceil(len(types) / 10)
+        for i, indices in enumerate(np.array_split(np.arange(len(types)), n)):
+            part = [types[j] for j in indices]
+            suffix = f"_{i+1}" if n > 1 else ""
+            if slug.startswith(("zero_median_", "no_median_")):
+                status = "Median 0%" if slug.startswith("zero_median_") else "Median unavailable"
+                description = f"{status} · individual donors up to {observations[part].max().max():.4g}%"
+            subtitle = f"{description} · {i+1}/{n}" if n > 1 else description
+            pages[slug + suffix] = (part, subtitle)
+    return summary, observations, pages
+
+
+def _axis_style(axis):
+    axis.spines[["top", "right"]].set_visible(False)
+    axis.set_axisbelow(True)
+    axis.grid(False)
+    axis.grid(axis="y", linewidth=.45, color="#dfe2e3")
+    axis.tick_params(axis="both", labelsize=8, pad=2)
+    axis.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+
+
+def _draw_page(fig, *, summary, observations, groups, colors, group_colors, format_label,
+               title, description, page, windows, width):
+    labels = list(summary.index)
+    title_lines = textwrap.wrap(title, width=int(width * 11.3), break_long_words=False)
+    subtitle = textwrap.wrap(description, width=int(width * 10.6), break_long_words=False)
+    fig.suptitle("\n".join(title_lines + subtitle), x=.015, ha="left", fontsize=10,
+                 fontweight="bold")
+    if page == "zero_or_unavailable":
+        lines = _status_lines(summary, labels, groups, format_label, int(width * 14))
+        axis = fig.add_subplot()
+        axis.set_axis_off()
+        axis.text(.008, .96, "\n".join(lines), transform=axis.transAxes, va="top", fontsize=8.6)
+        return
+
+    if len(labels) == 1 and len(groups) == 1 and observations is None and page != "dominant":
+        label = labels[0]
+        value = float(summary.iloc[0, 0])
+        limit, ticks = _nice_axis(value)
+        axis = fig.add_subplot()
+        axis.barh(0, value, height=.44, color=group_colors[groups[0]] if group_colors else colors[label])
+        axis.set(xlim=(0, limit), xticks=ticks, ylim=(-.5, .5), yticks=[])
+        axis.spines[["left", "right", "top"]].set_visible(False)
+        axis.grid(False)
+        axis.tick_params(axis="x", labelsize=8, pad=1)
+        axis.set_xlabel("Admitted cells (%)", fontsize=8, labelpad=1)
+        axis.set_title(f"{format_label(label)}  ·  {value:.4g}%", fontsize=9, loc="left", pad=1)
+        return
+
+    raw = summary.to_numpy(dtype=float)
+    donor_peak = 0 if observations is None else observations.max().max()
+    positive_maximum = max(np.nanmax(np.nan_to_num(raw)), np.nan_to_num(donor_peak))
+    peak = np.nanmax(np.nan_to_num(raw))
+    bounded = len(windows) == 2 and peak >= windows[1][0]
+    # A zero median may be supported by many zero observations plus a small,
+    # tightly grouped set of positive donors. Show only the observed ranges.
+    positive_donors = observations.to_numpy(dtype=float) if peak == 0 and observations is not None else np.array([])
+    positive_donors = positive_donors[np.isfinite(positive_donors) & (positive_donors > 0)]
+    zero_gap = positive_donors.size > 0 and positive_donors.min() >= .65 * positive_maximum
+    if zero_gap:
+        spread = positive_maximum - positive_donors.min()
+        pad = max(.025 * positive_maximum, .2 * spread)
+        locator = MaxNLocator(nbins=3, steps=[1, 2, 2.5, 5, 10])
+        upper_low = max(0., positive_donors.min() - pad)
+        upper_high = min(100., positive_maximum + pad)
+        ticks = locator.tick_values(upper_low, upper_high)
+        focus_top = min(.04 * positive_maximum, upper_low / 2)
+        focus_ticks = [0]
+        upper_label = "Positive individual donors"
+        bounded = True
+    elif bounded:
+        focus_top, focus_ticks = windows[0][1], list(windows[0])
+        # Give the common populations below the exocrine break readable ticks.
+        if focus_top > 0:
+            focus_ticks = np.linspace(0, focus_top, 3)
+        upper_low, upper_high = windows[1]
+        upper_label = None
+    else:
+        focus_top, focus_ticks = _nice_axis(peak or positive_maximum)
+        upper_low, upper_high = focus_top, _nice_axis(positive_maximum)[0]
+        upper_label = "Higher individual donors"
+    has_upper = bounded or (peak > 0 and donor_peak > focus_top)
+    handles = [Line2D([], [], linestyle="none", marker="s", color=group_colors[g], label=g)
+               for g in groups] if group_colors else []
+    if np.any(raw == 0):
+        handles.append(Line2D([], [], linestyle="none", marker="_", color="#273038", label="Measured zero"))
+    if np.isnan(raw).any():
+        handles.append(Line2D([], [], linestyle="none", marker="x", color="#555b5d", label="Unavailable"))
+    cols = min(len(handles), max(2, int(width * 1.1))) if handles else 1
+    heights = ([.17 * math.ceil(len(handles)/cols)] if handles else []) + ([1.1 if bounded else .56] if has_upper else []) + [.38 if bounded else 1.18]
+    grid = fig.add_gridspec(len(heights), 1, height_ratios=heights, hspace=.025)
+    if handles:
+        header = fig.add_subplot(grid[0])
+        header.set_axis_off()
+        header.legend(handles=handles, loc="center left", borderaxespad=0, ncol=cols,
+                      fontsize=8, frameon=False, handletextpad=.25, columnspacing=.9)
+    base = fig.add_subplot(grid[-1])
+    base.set_ylim(0, focus_top)
+    base.set_yticks(focus_ticks)
+    if bounded:
+        fig.supylabel("Admitted cells (%)", fontsize=8.5)
+    else:
+        base.set_ylabel("Admitted cells (%)", fontsize=8.5)
+    axes = [base]
+    if has_upper:
+        upper = fig.add_subplot(grid[-2], sharex=base)
+        upper.set_ylim(upper_low, upper_high)
+        # Keep the small upper panel legible. Numeric ticks are independent
+        # of the lower axis and include the highest individual data point.
+        if zero_gap:
+            upper.set_yticks(ticks[(ticks >= upper_low) & (ticks <= upper_high)])
+        elif bounded:
+            upper.set_yticks([upper_low, (upper_low + upper_high) / 2, upper_high])
+        else:
+            upper.yaxis.set_major_locator(MaxNLocator(nbins=2, min_n_ticks=2))
+        upper.spines["bottom"].set_visible(False)
+        upper.tick_params(axis="x", bottom=False, labelbottom=False)
+        if upper_label:
+            upper.set_title(upper_label, fontsize=8, loc="left", pad=1)
+        for ax, edge in ([(upper, 0), (base, 1)] if bounded else []):
+            ax.plot(0, edge, transform=ax.transAxes, marker=[(-1,-.6),(1,.6)], markersize=6,
+                    linestyle="none", color="#343b40", markeredgewidth=.8, clip_on=False)
+        axes.append(upper)
+    positions = np.arange(len(labels))
+    bar_width = .82 / len(groups)
+    for ax in axes:
+        _axis_style(ax)
+        ax.set_xlim(-.54, len(labels) - .46)
+    for i, g in enumerate(groups):
+        center = positions + (i-(len(groups)-1)/2) * bar_width
+        heights = summary[g].to_numpy(dtype=float)
+        inks = np.asarray([group_colors[g] if group_colors else colors[label] for label in labels])
+        valid = np.isfinite(heights)
+        for ax in (axes if bounded else [base]):
+            ax.bar(center[valid], heights[valid], width=.9*bar_width, color=inks[valid],
+                   alpha=.72 if group_colors else 1, edgecolor="none")
+        for mask, marker in [(valid & (heights == 0), "_"), (~valid, "x")]:
+            if mask.any():
+                base.scatter(center[mask], np.zeros(mask.sum()), marker=marker, s=18,
+                             c="#343b40", linewidths=.9, zorder=6, clip_on=False)
+        if observations is None:
             continue
-        # Keep the discontinuity local to bars that actually reach its upper segment.
-        band = math.inf if len(windows)==2 and peak >= windows[1][0] else math.ceil(math.log10(peak))
-        bands.setdefault(band, []).append(label)
-    rows = _pack_facets(sorted(bands.items(), reverse=True))
-    widths = [sum(item[2] for item in row) for row in rows]
-    width = min(13.2, max(4.1, .71*max(widths, default=3) + .6))
-    title_lines = textwrap.wrap(title, max(36, int(width*10.7)), break_long_words=False)
-    notes = _status_lines(summary, inactive, groups, format_label, max(45,int(width*15)))
-    active = np.asarray([label not in inactive for label in labels])
-    active_data = series[:,active]
-    show_zero = np.any(active_data == 0)
-    show_missing = np.isnan(active_data).any()
-    legend = [Line2D([],[],linestyle="none",marker="s",color=group_colors[g],label=g)
-              for g in groups] if group_colors else []
-    if show_zero:
-        legend.append(Line2D([],[],linestyle="none",marker="_",color="#1f292b",label="Measured zero"))
-    if show_missing:
-        legend.append(Line2D([],[],linestyle="none",marker="x",color="#6c7274",label="Unavailable"))
-    legend_cols = min(len(legend), max(2, int(width*1.25))) if legend else 1
-    legend_rows = math.ceil(len(legend)/legend_cols)
-    header_height = .22*len(title_lines) + .20*legend_rows + .06
-    # Reserve the header in inches so tall multi-panel figures don't acquire a
-    # larger title gap. The layout engine handles ticks and rotated labels.
-    data_height = 1.50
-    notes_height = .18*len(notes) if notes else 0
-    ratios = [data_height]*len(rows) + ([notes_height] if notes else [])
-    if not ratios:
-        raise ValueError("A proportion figure needs at least one cell type")
-    figure_height = max(1.0, header_height + (data_height+1.05)*len(rows) + notes_height + .20)
-    fig = plt.figure(figsize=(width,figure_height), layout="constrained")
-    fig.get_layout_engine().set(w_pad=.06, h_pad=.04, wspace=.03, hspace=.025,
-                                rect=(0, 0, 1, 1-header_height/figure_height))
-    grid = fig.add_gridspec(len(ratios),1,height_ratios=ratios)
-    header_x = .06 / width
-    fig.text(header_x,1-.035/figure_height,"\n".join(title_lines),va="top",weight="bold",fontsize=11)
-    if legend:
-        fig.legend(handles=legend,loc="upper left",
-                   bbox_to_anchor=(header_x,1-(.04+.22*len(title_lines))/figure_height),borderaxespad=0,
-                   frameon=False,ncol=legend_cols,fontsize=8,handletextpad=.25,columnspacing=.9)
-    maxima_by_label = dict(zip(labels, maxima))
-    for row_index, row in enumerate(rows):
-        slots = grid[row_index].subgridspec(1,len(row),width_ratios=[item[2] for item in row],wspace=.07)
-        for col, (band, block, _) in enumerate(row):
-            broken = math.isinf(band)
-            axes = _bar_axes(fig, slots[col], broken)
-            peak = max(maxima_by_label[label] for label in bands[band])
-            if broken:
-                top_lo, top_hi = windows[1]
-                axes[0].set_ylim(top_lo,top_hi)
-                axes[0].set_yticks([top_lo, (top_lo+top_hi)/2, top_hi])
-                axes[1].set_ylim(*windows[0]); axes[1].set_yticks(windows[0])
-            else:
-                ticks = _percent_ticks(peak)
-                axes[0].set_ylim(0, max(peak,ticks[-1])); axes[0].set_yticks(ticks)
-            positions = np.arange(len(block))
-            bar_width = .82/len(groups)
-            for axis in axes:
-                axis.spines[["top","right"]].set_visible(False)
-                axis.set_axisbelow(True);axis.grid(False)
-                axis.grid(axis="y",linewidth=.45,color="#dfe2e3")
-                axis.tick_params(axis="both",labelsize=8,pad=2)
-                axis.yaxis.set_major_formatter(FuncFormatter(lambda v,_: f"{v:g}"))
-                axis.set_xlim(-.55, len(block)-.45)
-            for i,g in enumerate(groups):
-                mids = positions + (i-(len(groups)-1)/2)*bar_width
-                heights = summary.loc[block,g].to_numpy(dtype=float)
-                bar_colors = [group_colors[g] if group_colors else colors[label] for label in block]
-                valid = np.isfinite(heights)
-                for axis in axes:
-                    axis.bar(mids[valid],heights[valid],width=.91*bar_width,
-                             color=np.asarray(bar_colors)[valid],edgecolor="none",alpha=.75 if group_colors else 1)
-                for mask,marker in [(valid & (heights==0),"_"),(~valid,"x")]:
-                    if mask.any():
-                        axes[-1].scatter(mids[mask],np.zeros(mask.sum()),marker=marker,s=18,c="#44494c",
-                                         linewidths=.9,zorder=6,clip_on=False)
-                if observations is not None:
-                    donor_values = displayed.loc[displayed.index.get_level_values("disease")==g,block].sort_index()
-                    jitter = (np.linspace(-.29,.29,len(donor_values)) if len(donor_values)>1 else np.zeros(len(donor_values))) * bar_width
-                    for j,label in enumerate(block):
-                        values = donor_values[label].to_numpy(dtype=float)
-                        for axis in axes:
-                            lo, hi = axis.get_ylim()
-                            measured = np.isfinite(values) & (values>=lo) & (values<=hi)
-                            axis.scatter(mids[j]+jitter[measured],values[measured],s=10,linewidth=.28,
-                                         edgecolor="white",color=bar_colors[j],zorder=4,clip_on=False)
-            rotation = 40 if len(block)>1 else 0
-            axes[-1].set_xticks(positions,[textwrap.fill(format_label(label), width=22, break_long_words=False)
-                                           for label in block],rotation=rotation,ha="right" if rotation else "center",
-                                rotation_mode="anchor")
-    if rows:
-        fig.supylabel("Admitted cells (%)",fontsize=9)
-    if notes:
-        ax=fig.add_subplot(grid[-1]);ax.axis("off")
-        ax.text(0,1,"\n".join(notes),transform=ax.transAxes,va="top",fontsize=8,linespacing=1.3)
+        donors = observations.loc[observations.index.get_level_values("disease") == g].sort_index()
+        jitter = (np.linspace(-.32, .32, len(donors)) if len(donors) > 1 else np.zeros(len(donors))) * bar_width
+        for j,label in enumerate(labels):
+            y = donors[label].to_numpy(dtype=float)
+            for k, ax in enumerate(axes):
+                lo, hi = ax.get_ylim()
+                inside = np.isfinite(y) & (y >= lo) & (y <= hi)
+                if k and not bounded:  # The two zoom ranges meet at one value.
+                    inside &= y > focus_top
+                ax.scatter(center[j] + jitter[inside], y[inside], s=13, linewidth=.32,
+                           edgecolor="white", color=inks[j], zorder=4, clip_on=False)
+    wrap = min(28, max(11, int((width - .55) * 12 / len(labels))))
+    xticks = [textwrap.fill(format_label(label), width=wrap, break_long_words=False,
+                            break_on_hyphens=True) for label in labels]
+    base.set_xticks(positions, xticks, ha="center")
+
+
+def _page_size(title, page, labels, description, summary, groups, observations, format_label):
+    if page == "zero_or_unavailable":
+        width = min(8., max(4.3, 1.1+max(len(title), len(description)) / 12.))
+        notes = _status_lines(summary, labels, groups, format_label, int(width * 14))
+        return width, .49 + .17 * (len(textwrap.wrap(title, int(width * 11.3))) + len(notes))
+    if len(labels) == 1 and len(groups) == 1 and observations is None and page != "dominant":
+        width = min(7.0, max(4.3, len(title) / 11.7))
+        title_rows = len(textwrap.wrap(title, int(width * 11.3)))
+        return width, 1.39 + .18 * title_rows
+    width = min(13.3, max(4.1, .95 + len(labels) * (1.13 if observations is not None else .99)))
+    title_rows = (len(textwrap.wrap(title, int(width * 11.3)))
+                  + len(textwrap.wrap(description, int(width * 10.6))) - 1)
+    wrap = min(28, max(11, int((width - .55) * 12 / len(labels))))
+    label_rows = max(len(textwrap.wrap(format_label(label), width=wrap, break_long_words=False)) for label in labels)
+    peak = np.nanmax(np.nan_to_num(summary.to_numpy(dtype=float)))
+    donor_peak = observations.max().max() if observations is not None else 0
+    has_upper = peak > 0 and donor_peak > _nice_axis(peak)[0]
+    # Exocrine sections also require space for the upper measured segment.
+    if peak >= 40:
+        has_upper = True
+    return width, 1.85 + .17 * (title_rows + label_rows) + .77 * has_upper + .14 * (observations is not None)
+
+
+def plot_percentage_pages(summary, *, colors, windows, title, format_label=str,
+                          groups=None, observations=None, group_colors=None):
+    """Return separate labelled figures for observed frequencies and disease median ranges.
+
+    Per-donor percentages use all admitted cells. For group summaries, the largest
+    measured disease median determines membership in a figure. Donors exceeding
+    the median plot's scale appear on the aligned upper axis at their actual value.
+    """
+    groups = list(summary.columns if groups is None else groups)
+    summary, observations, pages = _frequency_pages(summary, groups, observations, windows)
+    figures = {}
+    for slug, (labels, description) in pages.items():
+        selected = summary.loc[labels]
+        donors = observations.loc[:, labels] if observations is not None else None
+        size = _page_size(title, slug, labels, description, selected, groups, donors, format_label)
+        fig = plt.figure(figsize=size, layout="constrained")
+        fig.get_layout_engine().set(h_pad=.035, w_pad=.045, hspace=.025)
+        _draw_page(fig, summary=selected, observations=donors, groups=groups, colors=colors,
+                   group_colors=group_colors, format_label=format_label, title=title,
+                   description=description, page=slug, windows=windows, width=size[0])
+        figures[slug] = fig
+    return figures
+
+
+def plot_percentages(summary, *, colors, windows, title, format_label=str, groups=None,
+                     observations=None, group_colors=None):
+    """Return one figure containing all ranges for callers using the original API."""
+    groups = list(summary.columns if groups is None else groups)
+    summary, observations, pages = _frequency_pages(summary, groups, observations, windows)
+    sizes = [_page_size(title, slug, labels, desc, summary.loc[labels], groups,
+                        observations.loc[:, labels] if observations is not None else None, format_label)
+             for slug, (labels, desc) in pages.items()]
+    width = max(w for w, _ in sizes)
+    heights = [h for _, h in sizes]
+    fig = plt.figure(figsize=(width, sum(heights)), layout="constrained")
+    sections = fig.subfigures(len(pages), 1, height_ratios=heights, squeeze=False)
+    for section, (slug, (labels, description)) in zip(sections.flat, pages.items()):
+        _draw_page(section, summary=summary.loc[labels], observations=(
+            observations.loc[:, labels] if observations is not None else None),
+            groups=groups, colors=colors, group_colors=group_colors, format_label=format_label,
+            title=title, description=description, page=slug, windows=windows, width=width)
     return fig
