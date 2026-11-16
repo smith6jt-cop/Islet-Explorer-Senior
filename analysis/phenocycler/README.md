@@ -7,10 +7,17 @@ Open [Cell type phenotyping and annotation](notebooks/02_phenotyping.ipynb) for 
 | [01 · Quality control](notebooks/01_preprocessing.ipynb) | Marker availability, missing measurements and mapped-cell coverage |
 | [02 · Phenotyping](notebooks/02_phenotyping.ipynb) | Cohort, group and donor signatures, hormone conflicts matched to named cells, and weak named-call support |
 | [03 · Spatial analysis](notebooks/03_spatial_analysis.ipynb) | Native section coordinates, cell neighborhoods and independently fitted donor islet trajectories with measured core and peri-islet immune cells per mm² on a shared scale |
-| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Donor subtype percentages and disease-group medians in panels grouped by abundance, with a broken y-axis for dominant exocrine cells, individual donor points, disease-group signatures and a donor heatmap for a selected phenotype |
+| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Donor subtype percentages, disease-group medians and individual donor points, with separate figures for low-frequency subtypes and dominant exocrine cells. Also includes disease-group signatures and a donor heatmap for a selected phenotype |
 | [05 · Tissue comparisons](notebooks/05_tissue_comparisons.ipynb) | Paired pancreas and pLN sections, independent embeddings, full-panel protein profiles and a 19-donor audit of unmatched pLN candidates |
 
-The private Senior installation includes the rendered [pancreas subtype heatmap](rendered/pancreas_subtype_marker_heatmap.png), the separate [QC heatmap](rendered/pancreas_assignment_qc_shared_heatmap.png), [disease-group proportions](rendered/pancreas_subtype_proportions_by_disease.png), and [QC proportions](rendered/pancreas_assignment_qc_proportions_by_disease.png).
+Notebook 04 groups pancreatic subtypes by the largest median across ND, AAb+ and T1D. Low-frequency groups have their own figures and percentage axes. Higher individual donor values appear on a labeled upper axis. A zero disease median can accompany a positive donor frequency. Per-donor plots in notebooks 04 and 05 use the selected donor’s observed percentages. Every percentage uses the full admitted cell count for that donor and tissue.
+
+The private Senior installation includes the [pancreas subtype heatmap](rendered/pancreas_subtype_marker_heatmap.png) and [assignment QC heatmap](rendered/pancreas_assignment_qc_shared_heatmap.png).
+
+| Pancreas frequency figures | Disease-group medians and individual donors |
+| --- | --- |
+| Cell identities | [Exocrine](rendered/pancreas_subtype_proportions_by_disease_dominant.png) · [1% to <10%](rendered/pancreas_subtype_proportions_by_disease.png) · [0.1% to <1%](rendered/pancreas_subtype_proportions_by_disease_below_1pct.png) · [0.01% to <0.1%](rendered/pancreas_subtype_proportions_by_disease_below_0p1pct.png) · [0.001% to <0.01%](rendered/pancreas_subtype_proportions_by_disease_below_0p01pct.png) |
+| Assignment QC | [Immune, class unspecified](rendered/pancreas_assignment_qc_proportions_by_disease.png) · [Competing endocrine hormones](rendered/pancreas_assignment_qc_proportions_by_disease_below_0p001pct.png) · [Zero medians with positive donors, unresolved lineage](rendered/pancreas_assignment_qc_proportions_by_disease_zero_median_common.png) · [Zero medians with positive donors, endocrine below floor](rendered/pancreas_assignment_qc_proportions_by_disease_zero_median_below_0p01pct.png) |
 
 ## Measured data
 
