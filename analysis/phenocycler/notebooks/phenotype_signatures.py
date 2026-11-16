@@ -153,16 +153,19 @@ def measured_profiles(counts, evidence, *, tissue="Pancreas", level="subtype", d
     return support, values.drop(columns="signal_sum"), scope.donor.nunique()
 
 
-def _scale_heatmap_columns(mean):
-    """Scale finite displayed group means per marker and flag values with an undefined range."""
+def _scale_heatmap_columns(mean, reference=None):
+    """Use the same finite marker extrema for both views of a comparison."""
     measured = mean.where(np.isfinite(mean))
-    minimum = measured.min(axis=0)
-    span = measured.max(axis=0) - minimum
+    population = measured if reference is None else reference.loc[:, mean.columns]
+    population = population.where(np.isfinite(population))
+    minimum = population.min(axis=0)
+    span = population.max(axis=0) - minimum
     scaled = (measured - minimum).div(span.where(span.gt(0)))
     return scaled, measured.notna() & span.eq(0)
 
 
-def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, scope_note, applicable_only=False):
+def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, scope_note,
+                applicable_only=False, heatmap_reference=None):
     """Draw Scanpy profiles from full-section means and measured positivity fractions."""
     if not labels or not markers:
         return
@@ -174,17 +177,31 @@ def draw_matrix(values, labels, markers, row_text, *, title, measure, tissue, sc
         raise ValueError("Choose heatmap or dotplot")
     mean = pd.DataFrame(means, index=row_text, columns=markers)
     fraction = pd.DataFrame(fractions, index=row_text, columns=markers)
+    cmap = plt.get_cmap("viridis").copy()
+    if measure == "heatmap":
+        scaled, constant = _scale_heatmap_columns(mean, heatmap_reference)
+        # A single marker or a whole row in the colormap's top bin is more
+        # informative on a quantitative axis. Keep measured values unchanged.
+        top_bin = 1.0 - 1.0 / cmap.N
+        if len(markers) == 1 or scaled.ge(top_bin).all(axis=1).any():
+            from marker_profile_plots import plot_calibrated_profiles
+            reference_max = (heatmap_reference[markers[0]].max()
+                             if len(markers) == 1 and heatmap_reference is not None else None)
+            plot_calibrated_profiles(mean, title=title, scope_note=scope_note, reference_max=reference_max)
+            return
+        scope_note += " · Gray = unavailable"
     rows = pd.DataFrame({"phenotype": pd.Categorical(row_text, categories=row_text, ordered=True)},
                         index=row_text)
     summary = ad.AnnData(means, obs=rows, var=pd.DataFrame(index=markers))
-    cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e2e2e2")
     size = (max(6.2, .32 * len(markers) + 3.5), max(4.5, .27 * len(labels) + 2.0))
     params = dict(categories_order=row_text, title=title+"\n"+scope_note, figsize=size, vmin=0, vmax=1)
     if measure == "heatmap":
-        scaled, constant = _scale_heatmap_columns(mean)
         plot = sc.pl.MatrixPlot(summary, markers, "phenotype", values_df=scaled, **params)
-        plot.style(cmap=cmap, edge_lw=.25, edge_color="white").legend(title="Mean expression\nmin–max per marker")
+        reference_label = ("cell types + QC" if heatmap_reference is not None
+                           else "displayed rows")
+        plot.style(cmap=cmap, edge_lw=.25, edge_color="white").legend(
+            title=f"Per-marker min–max\n{reference_label}")
     else:
         plot = sc.pl.DotPlot(summary, markers, "phenotype", dot_color_df=mean,
                              dot_size_df=fraction.fillna(0), standard_scale="var", **params)
@@ -242,7 +259,11 @@ def show_profiles(counts,evidence,*,tissue="Pancreas",level="subtype",disease=No
     unit = "Single section" if donor is not None else ("Equal donor weight" if weighting=="donors" else "Pooled cells")
     row_panels = category_panels(names_in_order(support.index, tissue), tissue)
 
+    paired_heatmaps = "heatmap" in measures and all(rows for _, rows in row_panels)
+    profile_means = values["mean"].unstack("marker") if paired_heatmaps else None
     for panel, panel_markers, members in panels:
+        reference = (profile_means.reindex(columns=panel_markers)
+                     if profile_means is not None else None)
         carriers = selected.intersection(members)
         counts_here = _profile_support(section.loc[section.donor.astype(str).isin(carriers)]).reindex(support.index)
         for row_kind, rows in row_panels:
@@ -256,10 +277,13 @@ def show_profiles(counts,evidence,*,tissue="Pancreas",level="subtype",disease=No
                     n += f", {int(item.contributing) if pd.notna(item.contributing) else 0}/{len(carriers)} donors"
                 captions.append(f"{subtype_display_name(row)}  ·  {n}")
             for measure in measures:
+                note = f"{unit} · {len(carriers)} selected with panel"
+                if measure == "dotplot":
+                    note += " · Gray = unavailable"
                 draw_matrix(values, rows, panel_markers, captions,
                             title=f"{tissue} · {scope} · {row_kind}\n{panel}",
-                            measure=measure, tissue=tissue,
-                            scope_note=f"{unit} · {len(carriers)} selected with panel · Gray = unavailable")
+                            measure=measure, tissue=tissue, heatmap_reference=reference,
+                            scope_note=note)
     result = values.loc[values.index.get_level_values("marker").isin(markers)].copy()
     result.attrs["marker_donors"] = {m: tuple(coverage.index[coverage[m]]) for m in markers}
     result.attrs["selected_donors"] = tuple(sorted(selected))
@@ -283,11 +307,21 @@ def donor_heatmap(counts,evidence,*,tissue,level,label,markers,coverage=None):
     row_kind = "Assignment QC and review" if is_qc_label(label, tissue) else "Cell identities"
     for panel, panel_markers, members in marker_panels(coverage, markers, sections.donor):
         displayed = sections.loc[sections.donor.astype(str).isin(members)]
-        captions = [f"{r.disease} · {r.donor}  ·  {int(r.cells):,} cells" if pd.notna(r.cells)
-                    else f"{r.disease} · {r.donor} · unassessable" for r in displayed.itertuples()]
+        captions = []
+        for row in displayed.itertuples():
+            if pd.isna(row.cells):
+                count = "unassessable"
+            elif row.cells == 1:
+                count = "1 cell †"
+            else:
+                count = f"{int(row.cells):,} cells"
+            captions.append(f"{row.disease} · {row.donor}  ·  {count}")
+        note = "One section per row"
+        if displayed.cells.eq(1).any():
+            note += " · † single-cell mean"
         draw_matrix(frame, displayed.donor.tolist(), panel_markers, captions,
                     title=f"{tissue} · {subtype_display_name(label)} · {row_kind}\n{panel}",
-                    measure="heatmap", tissue=tissue, scope_note="One section per row · Gray = no comparable measurement")
+                    measure="heatmap", tissue=tissue, scope_note=note)
     result = frame[["n_measured","n_positive","mean","fraction"]].copy()
     result.attrs["marker_donors"] = {m: tuple(coverage.index[coverage[m]]) for m in markers}
     result.attrs["selected_donors"] = tuple(sections.donor.astype(str))
