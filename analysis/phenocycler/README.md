@@ -7,7 +7,7 @@ Open [Cell type phenotyping and annotation](notebooks/02_phenotyping.ipynb) for 
 | [01 · Quality control](notebooks/01_preprocessing.ipynb) | Marker availability, missing measurements and mapped-cell coverage |
 | [02 · Phenotyping](notebooks/02_phenotyping.ipynb) | Cohort, group and donor signatures, hormone conflicts matched to named cells, and weak named-call support |
 | [03 · Spatial analysis](notebooks/03_spatial_analysis.ipynb) | Native section coordinates, cell neighborhoods and independently fitted donor islet trajectories with measured core and peri-islet immune cells per mm² on a shared scale |
-| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Donor subtype percentages and disease-group medians on a shared broken y-axis, individual donor points, disease-group signatures and a donor heatmap for a selected phenotype |
+| [04 · Group comparisons](notebooks/04_group_comparisons.ipynb) | Donor subtype percentages and disease-group medians in panels grouped by abundance, with a broken y-axis for dominant exocrine cells, individual donor points, disease-group signatures and a donor heatmap for a selected phenotype |
 | [05 · Tissue comparisons](notebooks/05_tissue_comparisons.ipynb) | Paired pancreas and pLN sections, independent embeddings, full-panel protein profiles and a 19-donor audit of unmatched pLN candidates |
 
 The private Senior installation includes the rendered [pancreas subtype heatmap](rendered/pancreas_subtype_marker_heatmap.png), the separate [QC heatmap](rendered/pancreas_assignment_qc_shared_heatmap.png), [disease-group proportions](rendered/pancreas_subtype_proportions_by_disease.png), and [QC proportions](rendered/pancreas_assignment_qc_proportions_by_disease.png).
