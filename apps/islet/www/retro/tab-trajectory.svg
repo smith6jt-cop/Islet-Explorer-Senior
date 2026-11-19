@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Trajectory — where the cells are headed"><defs><clipPath id="pl"><circle cx="256" cy="256" r="222"/></clipPath></defs><circle cx="256" cy="256" r="250" fill="#083a44"/><circle cx="256" cy="256" r="238" fill="#f0b93a"/><circle cx="256" cy="256" r="222" fill="#f6ecd0"/><path d="M92,404 Q150,250 300,214" fill="none" stroke="#083a44" stroke-width="7" stroke-dasharray="2 20" stroke-linecap="round"/>
+<circle cx="92" cy="404" r="14" fill="#d8246e" stroke="#083a44" stroke-width="6"/><circle cx="142" cy="318" r="12" fill="#f58a23" stroke="#083a44" stroke-width="6"/>
+<circle cx="214" cy="252" r="10" fill="#f0b93a" stroke="#083a44" stroke-width="6"/>
+<g transform="translate(340 180) rotate(52)">
+<path d="M-22,74 Q0,140 22,74Z" fill="#f58a23" stroke="#083a44" stroke-width="6" stroke-linejoin="round"/>
+<path d="M-40,30 L-78,92 L-34,74Z M40,30 L78,92 L34,74Z" fill="#d8452b" stroke="#083a44" stroke-width="7" stroke-linejoin="round"/>
+<path d="M0,-110 Q56,-40 38,78 L-38,78 Q-56,-40 0,-110Z" fill="#fffaf0" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<path d="M0,-110 Q26,-78 36,-50 L-36,-50 Q-26,-78 0,-110Z" fill="#d8452b" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="0" cy="-4" r="22" fill="#1fb9b0" stroke="#083a44" stroke-width="8"/></g><path fill="#f0b93a" d="M120,132 Q120,150 138,150 Q120,150 120,168 Q120,150 102,150 Q120,150 120,132Z"/><path fill="#f0b93a" d="M400,318 Q400,340 422,340 Q400,340 400,362 Q400,340 378,340 Q400,340 400,318Z"/><path fill="#d8452b" d="M330,408 Q330,420 342,420 Q330,420 330,432 Q330,420 318,420 Q330,420 330,408Z"/></svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Viewer — take a closer look"><defs><clipPath id="pl"><circle cx="256" cy="256" r="222"/></clipPath></defs><circle cx="256" cy="256" r="250" fill="#083a44"/><circle cx="256" cy="256" r="238" fill="#f0b93a"/><circle cx="256" cy="256" r="222" fill="#f6ecd0"/><path d="M150,410 H370" stroke="#083a44" stroke-width="26" stroke-linecap="round"/>
+<path d="M300,400 Q392,330 330,214" fill="none" stroke="#083a44" stroke-width="24" stroke-linecap="round"/>
+<path d="M176,356 H300" stroke="#083a44" stroke-width="14" stroke-linecap="round"/>
+<g transform="rotate(-28 262 220)"><rect x="232" y="104" width="60" height="170" rx="12" fill="#d8452b" stroke="#083a44" stroke-width="8"/>
+<rect x="240" y="78" width="44" height="34" rx="6" fill="#f6ecd0" stroke="#083a44" stroke-width="8"/>
+<rect x="244" y="274" width="36" height="34" fill="#f6ecd0" stroke="#083a44" stroke-width="8"/></g>
+<circle cx="340" cy="250" r="20" fill="#f0b93a" stroke="#083a44" stroke-width="7"/><path fill="#f0b93a" d="M206,292 Q206,318 232,318 Q206,318 206,344 Q206,318 180,318 Q206,318 206,292Z"/><path fill="#d8452b" d="M140,176 Q140,190 154,190 Q140,190 140,204 Q140,190 126,190 Q140,190 140,176Z"/></svg>
