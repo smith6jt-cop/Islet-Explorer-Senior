@@ -1,0 +1,83 @@
+{
+  "acquisitions": 201,
+  "by_cohort_modality_disposition": [
+    {
+      "cohort": "codex_baseline",
+      "modality": "codex",
+      "disposition": "completed",
+      "count": 20
+    },
+    {
+      "cohort": "io60",
+      "modality": "if",
+      "disposition": "excluded",
+      "count": 20
+    },
+    {
+      "cohort": "io60",
+      "modality": "maldi",
+      "disposition": "blocked",
+      "count": 32
+    },
+    {
+      "cohort": "io60",
+      "modality": "phenocycler",
+      "disposition": "blocked",
+      "count": 42
+    },
+    {
+      "cohort": "io60",
+      "modality": "phenocycler",
+      "disposition": "completed",
+      "count": 2
+    },
+    {
+      "cohort": "io60",
+      "modality": "xenium",
+      "disposition": "completed",
+      "count": 60
+    },
+    {
+      "cohort": "io60",
+      "modality": "xenium",
+      "disposition": "unavailable",
+      "count": 5
+    },
+    {
+      "cohort": "spleen",
+      "modality": "phenocycler",
+      "disposition": "blocked",
+      "count": 4
+    },
+    {
+      "cohort": "spleen",
+      "modality": "phenocycler",
+      "disposition": "completed",
+      "count": 8
+    },
+    {
+      "cohort": "spleen",
+      "modality": "xenium",
+      "disposition": "blocked",
+      "count": 8
+    }
+  ],
+  "explicit_same_slide_pairs": 12,
+  "central_exclusions": [
+    {
+      "donor": "6457",
+      "platform": "phenocycler",
+      "reason": "existing platform-specific exclusion; absent from frozen PhenoCycler inventory",
+      "applies_to_xenium": false,
+      "applies_to_maldi": false
+    }
+  ],
+  "unknown": "null section/panel/segmentation/count fields mean unavailable, never inferred from donor IDs",
+  "final_disposition_counts": {
+    "completed": 90,
+    "excluded": 20,
+    "unavailable": 5,
+    "blocked": 86
+  },
+  "followup": "CODEX20 evaluated by exact original-source/port parity and identity reconciliation; original artifact assertion failures remain separately recorded."
+}

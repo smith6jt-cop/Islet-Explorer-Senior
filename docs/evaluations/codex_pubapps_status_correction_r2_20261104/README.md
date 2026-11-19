@@ -1,0 +1,11 @@
+# PubApps status correction R2 receipt
+
+Verified all 11 files against both the HPG publication and workstation mirror. The ten listed payloads match their checksums, and the `SHA256SUMS` file matches the supplied SHA-256 `0b9baf8ed5c11a084e97dea64ce3f82befb48f773a7179fdc5f7988fd7a4710d`. The HPG publication resolves to `/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r2.content`. [Receipt](receipt.json) · [Inventory and file comparisons](../../../outputs/codex_pubapps_status_correction_r2_20261104/package_read.json)
+
+The package is cumulative from `a2f945ac4c20d06a1354a38cfb93d5491f1f8cef`. The bundle passed full Git integrity verification. Direct replay of all four email patches in a disposable index reproduced each upstream tree and ended at `09facf04362edc7b3e375da4b8d9213f92e45e69`, the tree for `276822242c78c50d77d1e1323e767939db50d9b0`. Relative to the first correction, the two changed paths are the project README and the handoff evidence record. The packaged production-release receipt matches its previously verified bytes. [Git verification](../../../outputs/codex_pubapps_status_correction_r2_20261104/git_review.json)
+
+Two findings from the first correction are closed. The package index identifies `project-README.md` as the standalone project document, and all four supplied document snapshots match the tip. The project README now records the production backend at `10.13.41.21:3838` (line 426) and schema `5` for the 20-donor release (line 455). Both values agree with the production receipt. [First correction receipt](../codex_pubapps_status_correction_20261104/receipt.json)
+
+**One receipt reference is still incorrect.** In `evidence/pubapps_refresh_agent_handoff_20261104.json`, the field `recipient_notification.read_acknowledgement.recipient_receipt_sha256` ends in `4434`. The receipt at recipient commit `1ce6007c234acfb01614d39127b14f83021b956b` hashes to `9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438`. The separate `published_review_pending` entry describes the first correction at publication. Its subsequent review was recorded in `4e81822`. [Status and receipt comparison](../../../outputs/codex_pubapps_status_correction_r2_20261104/status_review.json)
+
+Recipient disposition is **review only, patch unapplied**.

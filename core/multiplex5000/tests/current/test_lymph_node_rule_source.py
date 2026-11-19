@@ -33,8 +33,16 @@ def test_dedicated_epcam_retirement_preserves_shared_reference_and_other_clauses
         (root, "EpCAM") for root in ("Neural", "Ductal_Epithelial", "Epithelial", "Stromal")
     }
     for name, rule in reference.by_phenotype.items():
-        assert dedicated.by_phenotype[name].constraints == tuple(
-            item for item in rule.constraints if item[0] != "EpCAM")
+        if name == "NK_cell":
+            assert set(dedicated.by_phenotype[name].constraints) == {
+                ("CD56", "allpos"), ("CD57", "anypos"), ("Granzyme B", "anypos"),
+                ("CD3e", "allneg"), ("Pan-Cytokeratin", "allneg"),
+            }
+        else:
+            assert dedicated.by_phenotype[name].constraints == tuple(
+                item for item in rule.constraints if item[0] != "EpCAM")
+    assert dedicated.independent_entries == ("NK_cell",)
+    assert not dedicated.inherited_markers("Mature_NK").intersection({"CD20", "CD68", "CD11b"})
 
 
 def test_missing_markers_are_reported_for_the_actual_pln_panel():

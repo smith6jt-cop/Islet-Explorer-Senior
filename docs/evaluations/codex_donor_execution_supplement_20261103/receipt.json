@@ -1,0 +1,48 @@
+{
+  "schema": "senior.codex_donor_execution_supplement_receipt/1",
+  "recorded_utc": "2026-11-03T14:24:13.879704+00:00",
+  "status": "received_read_byte_bindings_and_saved_arithmetic_verified",
+  "source_commit": "81b3857b45e7870fd4d43dee3751c8d956619052",
+  "documentation_commit": "68c1cf6cc6dd9bdac004ee09f4243e258cacfac1",
+  "supplied_compact_receipt_sha256": "d95903db8f31bac357f552155f4f770c769315a82e77fa8a0466b7e6b3c3a16a",
+  "evidence_review": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_donor_execution_supplement_20261103/evidence_review.json",
+    "sha256": "d6d46ef430399d8234463030e237ab9e027f9d1202bae36f06f9c75b7edc9c3c",
+    "bytes": 21690
+  },
+  "arithmetic_review": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_donor_execution_supplement_20261103/arithmetic_review.json",
+    "sha256": "754a5b4e2570af3b5315ab4df26d12a2df2cda19f30d5de9f751e9046cf2f448",
+    "bytes": 4190
+  },
+  "receipt_verifier_source": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_donor_execution_supplement_20261103/verify_received_evidence.py",
+    "sha256": "323126b35fb66eacd9c0742bede9146eadd781cff162371bfb5ddb62243d172e",
+    "bytes": 6342
+  },
+  "previous_review": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/codex_app_findings_followup_20261103/receipt.json",
+    "sha256": "dc9f2523a7fba1976c3cfe78c61d5fa3aa71e4af5f425d86badd1e7d70f44b71",
+    "bytes": 5065
+  },
+  "verified_counts": {
+    "declared_artifacts": 7,
+    "exact_source_git_blobs": 10,
+    "current_files_matching_recorded_before_after": 31,
+    "saved_execution_events": 42,
+    "distinct_declared_source_and_data_paths_in_events": 18,
+    "scenarios": 48,
+    "donors": 20,
+    "donor_scenario_rows": 960
+  },
+  "numerical_result": {
+    "five_membership_measures": "exact for every saved row",
+    "maximum_percentage_difference": 1.4210854715202004e-14,
+    "declared_tolerance": 1e-07,
+    "scenario_sums_reconcile": true
+  },
+  "provenance_conclusion": "New evidence supplies runner/runtime-source execution bindings and donor-keyed comparisons absent from the older report. Before/during/after chronology is producer-recorded and internally consistent; old reports are not retrospectively changed.",
+  "review_scope": "Exact supplied bytes, Git identities, saved trace coverage, runner text and saved numerical comparisons. No independent real-data recomputation, new code tests, browser/service/image/security inspection or deployment approval.",
+  "immutability": "All earlier recipient receipts and source evidence remain unchanged. Failed producer preparations remain preserved as declared.",
+  "notification": "Final receipt creation is separate from outbound messaging delivery; internal MCP transport has previously been unavailable."
+}

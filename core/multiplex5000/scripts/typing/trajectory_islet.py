@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """Islet-level trajectory on composition -- the pooled islet-composition ordering and its H5AD.
 
-The ordering is over **what an islet is made of**, not over marker averages.  For islet *i* and
-class *t*, in region *r*:
-
-    alr[i, r, t] = log( (n[i, r, t] + c) / (n_core_endocrine[i] + c) )        c = 0.5
-
-The denominator is the islet's own **core endocrine count** in every region, because the hormone
-question is only asked inside the islet.  That makes the expansion axis read "immune cells around
-this islet per endocrine cell in it" rather than a fraction of a peri-zone whose size varies.  An
-islet with no core endocrine cell has no defined ratio: it is ``Unavailable`` with its reason
-recorded, and the count is reported rather than hidden.
+Each measured cell class supplies one graph column. Endocrine counts come from the core,
+exocrine counts from the peri band, and all other retained counts are summed across both.
+Measured macrophage profiles are pooled by Gal3 sign. The graph uses
+log1p(count / max(core_endocrine_count, 1)). Senior retains its eligibility rules,
+Euclidean graph, root policy and validation gates. Legacy regional ALR matrices
+remain available to older readers. All composition DPT and Leiden fits use X_composition_pooled.
 
 **Two things this script deliberately does not do.**
 
@@ -62,7 +58,7 @@ So what this script owns is:
 decide which script owns a deployed path.
 
 ``--leiden-only`` writes the clustering and nothing else.  It builds the same neighbourhood graph
-the ordering is built on -- ``X_composition_alr`` of the islets above the composition floor,
+the ordering is built on -- ``X_composition_pooled`` of the islets above the composition floor,
 ``N_NEIGHBORS``, ``METRIC`` -- and runs UMAP and Leiden on it, but picks no root, fits no
 pseudotime, runs no method check and writes no H5AD, so it cannot fail on the pooled ordering's
 own gate.  The layer driver's ``islet_leiden`` node runs it this way (2026-09-24): the gate judges
@@ -74,6 +70,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import sys
 
 import anndata as ad
@@ -158,6 +155,83 @@ def alr_matrix(frame: pd.DataFrame, classes: list[str], prefix: str,
     counts = np.column_stack([frame[f"{prefix}count_{c}"].to_numpy(float) for c in classes])
     return np.log((counts + ALR_PSEUDOCOUNT)
                   / (denominator + ALR_PSEUDOCOUNT)[:, None]).astype(np.float32)
+
+
+def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
+                                  denominator: np.ndarray, region: str):
+    """Select graph inputs by biological class and region, then apply this lane's ALR.
+
+    Display proportions and raw counts are not filtered. Gal3 profiles are pooled at
+    the count level before ALR; absence of a measured profile is never filled with zero.
+    This lane retains its own ALR and Euclidean distance, unlike the CODEX log1p/cosine
+    graph. It must therefore not be described as numerically equivalent to that graph.
+    """
+    if region not in ("core", "peri", "pooled"):
+        raise ValueError(f"unknown trajectory region: {region}")
+    retired = {"endocrine", "acinar", "endothelial", "unknown",
+               "ecad+", "structural", "apcs", "hematopoietic cd45+",
+               "hematopoietic cd45-", "t cell", "tissue", "unclassified",
+               "doublet suspected", "unresolved"}
+    endocrine = {"beta cell", "alpha cell", "delta cell", "chga+ hormone-negative",
+                 "chga+ hormone negative"}
+    exocrine = {"exocrine", "acinar cell", "ductal cell", "ductal"}
+    # Senior's coarse Immune label represents supported lineage evidence, not
+    # CODEX's unresolved immune residual. Keep it when it is the only measured
+    # immune identity. A table containing both the parent and named subtypes
+    # does not prove that those subtypes are disjoint or complete. Refuse it
+    # rather than discarding measured parent cells or double-counting them.
+    normalised = [re.sub(r"[_\s]+", " ", str(x)).strip().lower() for x in classes]
+    def is_qc_label(label):
+        return bool(set(re.findall(r"[a-z]+", label)).intersection(
+            {"conflict", "unresolved", "unclassified", "doublet", "qc",
+             "ambiguous", "unavailable", "excluded"}))
+    has_immune_subtypes = any(
+        re.search(r"\b(?:macrophage|[tb]\s*-?\s*cell|dendritic|neutrophil|"
+                  r"plasma\s*-?\s*cell|natural\s+killer|nk\s*-?\s*cell)\b", label)
+        for label in normalised if label not in retired and not is_qc_label(label))
+    if "immune" in normalised and has_immune_subtypes:
+        raise ValueError("coarse Immune and immune subtype counts overlap or have "
+                         "unknown coverage; provide a non-overlapping measured schema")
+    grouped = {}
+    for label in classes:
+        clean = re.sub(r"[_\s]+", " ", str(label)).strip().lower()
+        if clean in retired or is_qc_label(clean):
+            continue
+        if (clean in endocrine and region == "peri") or (clean in exocrine and region == "core"):
+            continue
+        # Normalize only explicitly identified Gal3 phenotypes. A broad macrophage
+        # or immune class does not become a measured Gal3 subgroup.
+        gal3 = re.search(r"(?:LGALS3|Gal3)([+-])", str(label), re.IGNORECASE)
+        group = ("Macrophage_LGALS3" + gal3.group(1)
+                 if "macrophage" in clean and gal3 else label)
+        scope = region
+        if region == "pooled":
+            scope = "core" if clean in endocrine else "peri" if clean in exocrine else "combined"
+        grouped.setdefault((scope, group), []).append(label)
+    names, values = [], []
+    for (scope, group), members in grouped.items():
+        # A pre-pooled count and its individual source profiles overlap: summing
+        # both silently double-counts cells. Require the input table to resolve it.
+        if len(members) > 1 and any(
+                re.fullmatch(r"Macrophage_(?:LGALS3|Gal3)[+-]", x, re.IGNORECASE)
+                for x in members):
+            raise ValueError(f"overlapping pre-pooled and source macrophage counts: {members}")
+        prefixes = {"core": ("count_",), "peri": ("peri_count_",), "combined": ("count_", "peri_count_")}
+        columns = [prefix + x for prefix in prefixes[scope] for x in members]
+        missing = [x for x in columns if x not in frame]
+        if missing:
+            raise ValueError(f"missing measured {region} trajectory counts: {missing}")
+        counts = frame[columns].to_numpy(float)
+        if not np.isfinite(counts).all():
+            raise ValueError(f"unavailable trajectory counts in {columns}")
+        pooled = counts.sum(axis=1)
+        if region == "pooled":
+            values.append(np.log1p(pooled / np.maximum(denominator, 1)))
+        else:
+            values.append(np.log((pooled + ALR_PSEUDOCOUNT) / (denominator + ALR_PSEUDOCOUNT)))
+        names.append(f"{scope}_{group}")
+    return (names, np.column_stack(values).astype(np.float32) if values
+            else np.empty((len(frame), 0), dtype=np.float32))
 
 
 def cluster_islets(fitted: ad.AnnData) -> None:
@@ -324,8 +398,11 @@ def main() -> int:
     frame = frame[defined].reset_index(drop=True)
     endocrine_core = endocrine_core[defined]
 
-    core = alr_matrix(frame, classes, "", endocrine_core)
-    peri = alr_matrix(frame, classes, "peri_", endocrine_core)
+    core_names, core = trajectory_composition_inputs(frame, classes, endocrine_core, "core")
+    peri_names, peri = trajectory_composition_inputs(frame, classes, endocrine_core, "peri")
+    pooled_names, pooled = trajectory_composition_inputs(frame, classes, endocrine_core, "pooled")
+    if not core_names:
+        raise ValueError("no measured core trajectory inputs after policy selection")
     counts = np.column_stack([frame[f"count_{c}"].to_numpy(float) for c in classes])
     # X is what the Trajectory tab plots against pseudotime, under the axis label
     # "normalized expression (mean per islet, 0-1)". Counts there run to ~1,500 and make that
@@ -364,6 +441,11 @@ def main() -> int:
                                         index=pd.Index(classes)))
     adata.obsm["X_composition_alr"] = core
     adata.obsm["X_composition_alr_combined"] = np.hstack([core, peri]).astype(np.float32)
+    adata.obsm["X_composition_pooled"] = pooled
+    adata.uns["trajectory_pooled_inputs"] = np.asarray(pooled_names, dtype=str)
+    adata.uns["trajectory_feature_policy"] = "region-pooled/2026-11-19"
+    adata.uns["trajectory_core_inputs"] = np.asarray(core_names, dtype=str)
+    adata.uns["trajectory_combined_inputs"] = np.asarray(core_names + peri_names, dtype=str)
 
     # The graph is built on the islets above the floor only; the rest carry an Unavailable
     # pseudotime.  Including them poisons the graph for everyone, which is what the floor-0 row
@@ -378,25 +460,26 @@ def main() -> int:
     if args.leiden_only:
         # The graph diffusion_pseudotime builds, without the ordering built on it.
         fitted = ordered.copy()
-        sc.pp.neighbors(fitted, n_neighbors=N_NEIGHBORS, use_rep="X_composition_alr",
+        sc.pp.neighbors(fitted, n_neighbors=N_NEIGHBORS, use_rep="X_composition_pooled",
                         metric=METRIC)
         cluster_islets(fitted)
         write_leiden(leiden_table(adata, ordered, fitted), out_dir / args.leiden_name)
         print(f"\n--leiden-only: {out_dir / args.leiden_name}; no ordering, no H5AD")
         return 0
 
-    root, root_meta = pick_root(ordered, "X_composition_alr")
+    root, root_meta = pick_root(ordered, "X_composition_pooled")
     print(f"root: {ordered.obs_names[root]} "
           f"(donor {ordered.obs['imageid'].iloc[root]}, "
           f"{int(ordered.obs['total_cells'].iloc[root])} core cells, "
           f"endocrine fraction {ordered.obs['endocrine_fraction'].iloc[root]:.3f})")
 
-    pseudotime, fitted = diffusion_pseudotime(ordered, "X_composition_alr", root, N_NEIGHBORS)
-    combined, _ = diffusion_pseudotime(ordered, "X_composition_alr_combined", root, N_NEIGHBORS)
+    pseudotime, fitted = diffusion_pseudotime(ordered, "X_composition_pooled", root, N_NEIGHBORS)
+    # Both public composition fields now describe the same pooled ordering.
+    combined = pseudotime
 
     # --- Method checks. None of these is a biological result. -------------------------------
     finite = np.isfinite(pseudotime)
-    alt_neighbors, _ = diffusion_pseudotime(ordered, "X_composition_alr", root, N_NEIGHBORS_ALT)
+    alt_neighbors, _ = diffusion_pseudotime(ordered, "X_composition_pooled", root, N_NEIGHBORS_ALT)
     both = finite & np.isfinite(alt_neighbors)
     rho_neighbors = float(spearmanr(pseudotime[both], alt_neighbors[both])[0])
 
@@ -408,7 +491,7 @@ def main() -> int:
     for candidate in root_meta["pool"]:
         if candidate == root:
             continue
-        alt, _ = diffusion_pseudotime(ordered, "X_composition_alr", candidate, N_NEIGHBORS)
+        alt, _ = diffusion_pseudotime(ordered, "X_composition_pooled", candidate, N_NEIGHBORS)
         ok = finite & np.isfinite(alt)
         if ok.sum() > 10:
             rhos.append(float(spearmanr(pseudotime[ok], alt[ok])[0]))

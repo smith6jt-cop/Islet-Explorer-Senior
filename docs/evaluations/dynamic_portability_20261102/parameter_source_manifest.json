@@ -1,0 +1,1370 @@
+{
+  "producer_snapshots": [
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "8486c54804937b15f460e65b87f0c2768cd10708ce6e32e19a68b4d54b006fae",
+      "matches_current": false,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "99e5cf99437a2088e68e818719b2e9392037795a14cd095fd0f435eabffd42a6",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/stages/io60_rna_typing_pilot.py",
+      "source": "core/multiplex5000/multiplex5000/stages/io60_rna_typing_pilot.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "9e683449d16626b69ca84dadaa43ed1d5ad7233b57adddca43ed640966c668a5",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "9e683449d16626b69ca84dadaa43ed1d5ad7233b57adddca43ed640966c668a5",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/tissues/pancreas_xenium_worker.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/pancreas_xenium_worker.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "0a4617bef929f767cf96792bcf6ac16dc6087dda1595cfe1e306088e655ff7a3",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "0a4617bef929f767cf96792bcf6ac16dc6087dda1595cfe1e306088e655ff7a3",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "2ffd63dcef4f4317f572712cda66b73a8c19ee6cb5bbb5f34b3156f45768bb16",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "2ffd63dcef4f4317f572712cda66b73a8c19ee6cb5bbb5f34b3156f45768bb16",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/tissues/pancreas_rna_naming.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/pancreas_rna_naming.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "fe060b037aa873564358b43562787747f557e50068407276ec9e0f3b2d3b8de3",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "fe060b037aa873564358b43562787747f557e50068407276ec9e0f3b2d3b8de3",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/xenium_typing_input.py",
+      "source": "core/multiplex5000/multiplex5000/xenium_typing_input.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "4a6dc0bc2fffd8ca49e35f54462be484020cdb52dcd3dd05d0354d3838668b84",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "4a6dc0bc2fffd8ca49e35f54462be484020cdb52dcd3dd05d0354d3838668b84",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/xenium_region.py",
+      "source": "core/multiplex5000/multiplex5000/xenium_region.py"
+    },
+    {
+      "commit": "7fe0d32119687fe7f68792598e429678e7023284",
+      "current_sha256": "779a960b18389881e902af3993a601cad48f6c355a5923fa5339566934edffc6",
+      "matches_current": false,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/rna/receipt.json",
+        "sha256": "893a973e035b50c4e67eb2734e9d48b5ba28435c59d0ec410ae815c2cf9ba113"
+      },
+      "route": "rna",
+      "sha256": "65dd04bdf3c91b198622b4a94936d22f73ca6e208daaa43e0b68326c4a2b72a5",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/7fe0d32119687fe7f68792598e429678e7023284/core/multiplex5000/multiplex5000/xenium_sources.py",
+      "source": "core/multiplex5000/multiplex5000/xenium_sources.py"
+    },
+    {
+      "commit": "5d1e1ce4f39bc0d42990359ba75ab8f275390594",
+      "current_sha256": "1f673cb209b9bc755b5245312575b87900889e8f1d8fb1361624e7a22cc09976",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/pln/receipt.json",
+        "sha256": "dac01ab2d3e01ee5ea2faf86166a9fb15008bca6e4fea0dc4829656ed9e2d7aa"
+      },
+      "route": "pln",
+      "sha256": "1f673cb209b9bc755b5245312575b87900889e8f1d8fb1361624e7a22cc09976",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/5d1e1ce4f39bc0d42990359ba75ab8f275390594/core/multiplex5000/multiplex5000/stages/pln_typing_pilot.py",
+      "source": "core/multiplex5000/multiplex5000/stages/pln_typing_pilot.py"
+    },
+    {
+      "commit": "5d1e1ce4f39bc0d42990359ba75ab8f275390594",
+      "current_sha256": "4088814c6b4ba7f6a29e312ae683802e9833386f6f787f80d0a381b24b0e2e50",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/pln/receipt.json",
+        "sha256": "dac01ab2d3e01ee5ea2faf86166a9fb15008bca6e4fea0dc4829656ed9e2d7aa"
+      },
+      "route": "pln",
+      "sha256": "4088814c6b4ba7f6a29e312ae683802e9833386f6f787f80d0a381b24b0e2e50",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/5d1e1ce4f39bc0d42990359ba75ab8f275390594/core/multiplex5000/multiplex5000/protein_evidence.py",
+      "source": "core/multiplex5000/multiplex5000/protein_evidence.py"
+    },
+    {
+      "commit": "5d1e1ce4f39bc0d42990359ba75ab8f275390594",
+      "current_sha256": "ad865cbb90d7aebfdb3d93b11e39890e3a987c5c34e8245d4a86d5734ef50c12",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/pln/receipt.json",
+        "sha256": "dac01ab2d3e01ee5ea2faf86166a9fb15008bca6e4fea0dc4829656ed9e2d7aa"
+      },
+      "route": "pln",
+      "sha256": "ad865cbb90d7aebfdb3d93b11e39890e3a987c5c34e8245d4a86d5734ef50c12",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/5d1e1ce4f39bc0d42990359ba75ab8f275390594/core/multiplex5000/multiplex5000/tissues/protein_section.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/protein_section.py"
+    },
+    {
+      "commit": "5d1e1ce4f39bc0d42990359ba75ab8f275390594",
+      "current_sha256": "d251a987f43374ff51dc430ae27e0525dcddf537f935c0bcb3f49118f03d8746",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/pln/receipt.json",
+        "sha256": "dac01ab2d3e01ee5ea2faf86166a9fb15008bca6e4fea0dc4829656ed9e2d7aa"
+      },
+      "route": "pln",
+      "sha256": "d251a987f43374ff51dc430ae27e0525dcddf537f935c0bcb3f49118f03d8746",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/5d1e1ce4f39bc0d42990359ba75ab8f275390594/core/multiplex5000/multiplex5000/tissues/evaluate.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/evaluate.py"
+    },
+    {
+      "commit": "5d1e1ce4f39bc0d42990359ba75ab8f275390594",
+      "current_sha256": "1eb146f7d36b7af0e0480994b2663b52f4ccc708a2439b6809ec61fee8fc36d3",
+      "matches_current": true,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/pln/receipt.json",
+        "sha256": "dac01ab2d3e01ee5ea2faf86166a9fb15008bca6e4fea0dc4829656ed9e2d7aa"
+      },
+      "route": "pln",
+      "sha256": "1eb146f7d36b7af0e0480994b2663b52f4ccc708a2439b6809ec61fee8fc36d3",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/5d1e1ce4f39bc0d42990359ba75ab8f275390594/core/multiplex5000/multiplex5000/tissues/lymph_node.py",
+      "source": "core/multiplex5000/multiplex5000/tissues/lymph_node.py"
+    },
+    {
+      "commit": "a9549cce6674d7a7536a325ae650c7210b1a9bf7",
+      "current_sha256": null,
+      "matches_current": false,
+      "receipt": {
+        "json_pointer": "/code",
+        "path": "outputs/dynamic_portability_20261102/remote/spleen/receipt.json",
+        "sha256": "b1b26cc29b853c063019771e7df36266736e3c45e04a35f62f8753244242c681"
+      },
+      "route": "spleen",
+      "sha256": "131a3af7c6acbc0ff7036d1e25dd85a89238b97d28612f85f40e690649392628",
+      "snapshot": "outputs/handoff_completion_20261102/producer_sources/a9549cce6674d7a7536a325ae650c7210b1a9bf7/core/multiplex5000/multiplex5000/stages/spleen_typing.py",
+      "source": "core/multiplex5000/multiplex5000/stages/spleen_typing.py"
+    }
+  ],
+  "sources": [
+    {
+      "module": "multiplex5000",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/__init__.py",
+      "sha256": "8f604edef5b2d7b2834d5c18042541144d7b9bcbe7cdef2d500cdc41c15cf7ed"
+    },
+    {
+      "module": "multiplex5000._version",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/_version.py",
+      "sha256": "15190a7e787cff9c6293556ec95ea6606bedf5d3352e14c7f7165bbc83bec37f"
+    },
+    {
+      "module": "multiplex5000.acquisition_records",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/acquisition_records.py",
+      "sha256": "943fd0cdc4d591f8b5f11d84bccf516edf207e13db2cc7320d2fe1da1e1bf180"
+    },
+    {
+      "module": "multiplex5000.artifacts",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/artifacts.py",
+      "sha256": "5f42bcd5c0393407a8f65a71fcbd47cfc7baa1f1927f3178aef33c0a850f7b8e"
+    },
+    {
+      "module": "multiplex5000.cells_parquet",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/cells_parquet.py",
+      "sha256": "da8bdc896537203df2a5f95b0a4e76a8d6b3a576c71b7c9a1723a6b8a4a8c66f"
+    },
+    {
+      "module": "multiplex5000.cli",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/cli.py",
+      "sha256": "fc28c5fe6279465388c15c9547a53fb56cdde8bd8119af42d72b7d25b2558a99"
+    },
+    {
+      "module": "multiplex5000.cohort",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/cohort.py",
+      "sha256": "733bfeb69bf474093e4984d7bff122ffdda8c57be28dcdfcace96236acfaf919"
+    },
+    {
+      "module": "multiplex5000.cohort_scale",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/cohort_scale.py",
+      "sha256": "5d1f1cb4a3c7cbac7d8a2b98c314b5754ab5928b897c8a9756dda05efb009dd2"
+    },
+    {
+      "module": "multiplex5000.config",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/config.py",
+      "sha256": "e5f2a3c8899f8f181b82c89acde5b0007242851b84139825518ff0f7ed95a058"
+    },
+    {
+      "module": "multiplex5000.donor_pipeline",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/donor_pipeline.py",
+      "sha256": "b3f6977019314114553750e5e2397f8d3f67684529432b269be9268e9fb3c99e"
+    },
+    {
+      "module": "multiplex5000.empirical_tail",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/empirical_tail.py",
+      "sha256": "3fe1c710ae65fc078646058d91309d2fc62a182fedb4d5cb0feda39eb133c3f0"
+    },
+    {
+      "module": "multiplex5000.expression",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/expression.py",
+      "sha256": "91a1343f00487ce718af0ff7fb78cf47521f1100812d5352f1d9e5c4928c7356"
+    },
+    {
+      "module": "multiplex5000.gates",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/gates.py",
+      "sha256": "6e617c94535aefecfba7ad64fb4b8e3ce6ea3e39317aba4c8a307644ccb2c204"
+    },
+    {
+      "module": "multiplex5000.geometry_qc",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/geometry_qc.py",
+      "sha256": "462a8eb368e6bd6900de3be17f5e17931138086b6eb13368978d19b5300b0710"
+    },
+    {
+      "module": "multiplex5000.geometry_stage",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/geometry_stage.py",
+      "sha256": "c2a6ae787ae44f0741e5c89cd1780c2345c915a37fba682cd68f29a75d7bd65e"
+    },
+    {
+      "module": "multiplex5000.gpu",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/gpu.py",
+      "sha256": "e334f35abf2ab21f9a1ee5ba759f7bcfaa547393fb823ca0c5fe1b5038654227"
+    },
+    {
+      "module": "multiplex5000.identity",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/identity.py",
+      "sha256": "ff92c3bad05ed3dfa8d68724cb249e35988eae61dee6244f7c3ccb9236c49055"
+    },
+    {
+      "module": "multiplex5000.integration",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/__init__.py",
+      "sha256": "3c557234c5e076323bacd01a7c6efafef4882ff72a028378aaf158cbed6d60be"
+    },
+    {
+      "module": "multiplex5000.integration.boundaries",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/boundaries.py",
+      "sha256": "f1bde6a0228d1b8bf060ad4cc4918a792a2e45bcdad81523eb8749aacad77c2f"
+    },
+    {
+      "module": "multiplex5000.integration.cellmatch",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/cellmatch.py",
+      "sha256": "9844742bae50e195cf45b48dc5ad98e56354ce6a5b447018d096aa620b3a2b62"
+    },
+    {
+      "module": "multiplex5000.integration.contract",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/contract.py",
+      "sha256": "bf33d7b2073fe50406d310e23152428909d25bfd353444079fd39d59e6567899"
+    },
+    {
+      "module": "multiplex5000.integration.crossmodal",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/crossmodal.py",
+      "sha256": "75e5819c87f51ebe5925c7a54c82ecee3beb764ecf2f408f737a4b152e827615"
+    },
+    {
+      "module": "multiplex5000.integration.donor",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/donor.py",
+      "sha256": "60d6b2aa544fa5fdcd1a6fc3df8365bd7fc618aa081da9611e5c99768c8e4822"
+    },
+    {
+      "module": "multiplex5000.integration.export_pheno",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/export_pheno.py",
+      "sha256": "57553a567cd55602878a579f2818464f98718c1f6dc311d7969c31cdc86ff98e"
+    },
+    {
+      "module": "multiplex5000.integration.figures",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/figures.py",
+      "sha256": "64eb1fd5bbf2eced78f5a857c03ade3f083913785be16cf3222804d4c02558c4"
+    },
+    {
+      "module": "multiplex5000.integration.grid",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/grid.py",
+      "sha256": "5200723d7cee72abd85b9357fe98e8cdc6eca61a47502ebbfdfe06f05b6417fc"
+    },
+    {
+      "module": "multiplex5000.integration.import_xenium",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/import_xenium.py",
+      "sha256": "47afd8dce08bd4d71765faebe5af0ba7e77120fd154c7424fb1b97e637af70dd"
+    },
+    {
+      "module": "multiplex5000.integration.manifest",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/manifest.py",
+      "sha256": "1dc850cac12729db172528b51853d847315ac5f2e167e27371fd3d11a7d7b5c3"
+    },
+    {
+      "module": "multiplex5000.integration.match",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/match.py",
+      "sha256": "d54d93896777035607511c8af06cc3ba54bc47497faf7912b1de7baeac73b582"
+    },
+    {
+      "module": "multiplex5000.integration.modes",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/modes.py",
+      "sha256": "e7149a7b9c4e59efc41fafed3ab0251c52b8681b164ace30e854617103192fbb"
+    },
+    {
+      "module": "multiplex5000.integration.paired_typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/paired_typing.py",
+      "sha256": "5f5427e1ff4edcd021fe3e1a9f7debbfe7b0b226e7c4805ffc4039fe84eef531"
+    },
+    {
+      "module": "multiplex5000.integration.phenospace",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/phenospace.py",
+      "sha256": "29f9d2fd102a810da3fbf48f28a159dcdce778c9f4639fdda2abf9051b4db1e0"
+    },
+    {
+      "module": "multiplex5000.integration.pipeline",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/pipeline.py",
+      "sha256": "60b2123ddf5336bb088eec6903f68b3aafb73a84e622af2bc27ad1d96fa5f9db"
+    },
+    {
+      "module": "multiplex5000.integration.postxen",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/postxen.py",
+      "sha256": "a70e376035f239df3039aa1f343ecf948197eec6395873d60f83ed52f7c8bfd2"
+    },
+    {
+      "module": "multiplex5000.integration.qc",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/qc.py",
+      "sha256": "4cf06abdd5ad42402a99f47b310dc658a06fc350b67bd574375fc9d1a1066020"
+    },
+    {
+      "module": "multiplex5000.integration.rasterize",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/rasterize.py",
+      "sha256": "5d0605b2c9c8252035b097ab386bf24b727d7769bb23814f1bcf6750f800a12b"
+    },
+    {
+      "module": "multiplex5000.integration.register",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/register.py",
+      "sha256": "c816b6be717725d5116ae3a6803f1012c15c5c79f1327da2e12d90ca863e0f59"
+    },
+    {
+      "module": "multiplex5000.integration.sameslide",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/sameslide.py",
+      "sha256": "31ebb385aa396b7067ec790aad59ae40e3e217161055abaaacbd475642a6397f"
+    },
+    {
+      "module": "multiplex5000.integration.structures",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/structures.py",
+      "sha256": "d368f41db2e37fc213ecb36a3772137917f278bb8fad2a1a0268e694507e8218"
+    },
+    {
+      "module": "multiplex5000.integration.tissues",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/tissues.py",
+      "sha256": "68f312a5cb0cde9624a9db6c97126e2c4a4e642ef8b5af1fbd331ba8b3867193"
+    },
+    {
+      "module": "multiplex5000.integration.transform",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/transform.py",
+      "sha256": "30f628ae6b0ac12ba666c0e5825a40285057c3e36f02c76ed89bab45011fb6c4"
+    },
+    {
+      "module": "multiplex5000.integration.vocab",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/integration/vocab.py",
+      "sha256": "eeae123ab2675c185f29aecac0a8a5bf716a2bdebc5412f8d6cac66c4893a425"
+    },
+    {
+      "module": "multiplex5000.maldi",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/maldi.py",
+      "sha256": "9d9affb9a744641c715daee448cad2906603f43f03ca8162d7c40cfeeefb41c1"
+    },
+    {
+      "module": "multiplex5000.marker_registry",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/marker_registry.py",
+      "sha256": "539dec3152a1fb2b4e83b01238f9567f85789ecc130c53db187c427e718357a7"
+    },
+    {
+      "module": "multiplex5000.marker_taxonomy",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/marker_taxonomy.py",
+      "sha256": "36f61213ea37e414caed868d02d7a24aadbd97a4bf6f389980b5ca91d496e04d"
+    },
+    {
+      "module": "multiplex5000.normalization_block",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/normalization_block.py",
+      "sha256": "24a6a22739e019bc142998c6c53f9270ece58af28092f697e4474ecea0cb50a0"
+    },
+    {
+      "module": "multiplex5000.normalize",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/normalize.py",
+      "sha256": "a57470d51e97bf9fbf9e2fb1ab6bafab8faaec7683d26dc1a5c743341bbb41b5"
+    },
+    {
+      "module": "multiplex5000.notebooks",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/notebooks.py",
+      "sha256": "ed346ec3c10d6bb70c8b519441dbcf0d8434af457fdea5c39aee653894d84b0e"
+    },
+    {
+      "module": "multiplex5000.panel_names",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/panel_names.py",
+      "sha256": "6801868cd4b892141322469113d446889108558234d7b43be3660ea5535ce4ed"
+    },
+    {
+      "module": "multiplex5000.parallel",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/parallel.py",
+      "sha256": "e624cad89b68a878cc5c1d571d98f1fa8ef38575cb5516c19faa681b76812818"
+    },
+    {
+      "module": "multiplex5000.parameter_observations",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/parameter_observations.py",
+      "sha256": "c9923e211182d08b563c5be6316a63502d983ef4b2233e9ecbf73109bb9e56c3"
+    },
+    {
+      "module": "multiplex5000.partial_run_guard",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/partial_run_guard.py",
+      "sha256": "ecaeb401620e9d4e0407c84197111783887d1543506719a8dfeaa6a0c26f2f59"
+    },
+    {
+      "module": "multiplex5000.pipeline",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/pipeline.py",
+      "sha256": "69ed106f5404c95bcf7c6e4c0698de6100fb4cc82aec2e63a24cdf11c6320151"
+    },
+    {
+      "module": "multiplex5000.pln_sources",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/pln_sources.py",
+      "sha256": "41f962ba75772c3157c211c08bb57a54bb49e382d4981aa3ce3af395f65b463e"
+    },
+    {
+      "module": "multiplex5000.production_typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/production_typing.py",
+      "sha256": "df19f47c23774fdb7857f4e637740b3a9530ec0e8423e432c0b8bae4b8c534fe"
+    },
+    {
+      "module": "multiplex5000.profiles",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/profiles.py",
+      "sha256": "4963672ac33a86af774a08b23c2b2a5b1deed37b296e1fc1ff2cb9e87d8e2aee"
+    },
+    {
+      "module": "multiplex5000.project",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/project.py",
+      "sha256": "fb01ee547af344847ecf16d2d121fae0f44be12dc543d68edacf06c9c060e96d"
+    },
+    {
+      "module": "multiplex5000.protein_evidence",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/protein_evidence.py",
+      "sha256": "4088814c6b4ba7f6a29e312ae683802e9833386f6f787f80d0a381b24b0e2e50"
+    },
+    {
+      "module": "multiplex5000.qupath_export",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/qupath_export.py",
+      "sha256": "70fc3cf64677955354c340fae31f528fb97d80faf1b0fedbc79f668a7ba9ef46"
+    },
+    {
+      "module": "multiplex5000.qupath_manifest",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/qupath_manifest.py",
+      "sha256": "cfd1d09e61c02a40f75eb497b28dc758dabd382b5987c36157ac68f31f411a1a"
+    },
+    {
+      "module": "multiplex5000.redsea",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/redsea.py",
+      "sha256": "0667b2e2042314bf234621a6c04b922b3d83b631bd9df59b6bc73a6feea0a196"
+    },
+    {
+      "module": "multiplex5000.reference_controls",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/reference_controls.py",
+      "sha256": "7db4baa5ed9534b23257962d4511cabec5a8b638a5fe97a6a3a8d6ce2d1d59ad"
+    },
+    {
+      "module": "multiplex5000.relationships",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/relationships.py",
+      "sha256": "bf5823805ad1f0a3307435f24b0a3b6946048d6386f69c3461573ffb7a30e33d"
+    },
+    {
+      "module": "multiplex5000.restore_seeded",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/restore_seeded.py",
+      "sha256": "fc0affe20594caf369205186b65dcb823711b9ed10b61c4060f0fe2d1e4007c3"
+    },
+    {
+      "module": "multiplex5000.restore_stage",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/restore_stage.py",
+      "sha256": "659f05dcbd19cb6ba715a5f00103546799580d656f69b6a9d9ceff8d3a007778"
+    },
+    {
+      "module": "multiplex5000.restore_validation",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/restore_validation.py",
+      "sha256": "a7efab03f80b623136c3183203ca1fd2e1af123678c56f929681232cc31c77e8"
+    },
+    {
+      "module": "multiplex5000.rna_evidence",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/rna_evidence.py",
+      "sha256": "97505796890ac513ecc8a61311d177fd9dfefb0000ad959a6f08383243b59ada"
+    },
+    {
+      "module": "multiplex5000.roots",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/roots.py",
+      "sha256": "3eb3451dee12d87958f0e4c45e895c55f6734e432cca24f5b576707c4799c37c"
+    },
+    {
+      "module": "multiplex5000.same_slide_sources",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/same_slide_sources.py",
+      "sha256": "2e4021f8e522e20ce33200f6b5125d94726b3cb31420d924fc24aed2ff0eaedb"
+    },
+    {
+      "module": "multiplex5000.sections",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/sections.py",
+      "sha256": "da390261244f70007389e0abc541563040f48e8cfd9cd08efa990c00e6722b11"
+    },
+    {
+      "module": "multiplex5000.simultaneous_typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/simultaneous_typing.py",
+      "sha256": "b4fe0940857ad5bfd46ca2f8e171479a5f8c70ec5ca62feb70dbe04bbdb48bdc"
+    },
+    {
+      "module": "multiplex5000.stages",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/__init__.py",
+      "sha256": "1f4b692e8f16c472c01008dfce777fb067899e4446cb9995e0d3fdb9226f1218"
+    },
+    {
+      "module": "multiplex5000.stages.integration_route",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/integration_route.py",
+      "sha256": "630f3ea273670bb1d545c7648c2766e7917f464b739f46ca994dffbe7976dd92"
+    },
+    {
+      "module": "multiplex5000.stages.inventory",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/inventory.py",
+      "sha256": "3d979a42931c529b86a4c240149b213b585e3c22aa34bd1c4f26750c021c6b56"
+    },
+    {
+      "module": "multiplex5000.stages.io60_joint_typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/io60_joint_typing.py",
+      "sha256": "83c27790b6f15e673ff5d20b4131b8e9c82203b82e805d2dbd0f17cb6154248a"
+    },
+    {
+      "module": "multiplex5000.stages.io60_mixed_protein_pilot",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/io60_mixed_protein_pilot.py",
+      "sha256": "5e49b6b76e9a95f1be5d91ed08503bef4297eaa977016eaba638af40014d4e4e"
+    },
+    {
+      "module": "multiplex5000.stages.io60_normalization",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/io60_normalization.py",
+      "sha256": "f82f7e83b0602bf2a924573e1ff30f04ac15330919a97724609e7c325cff1b0c"
+    },
+    {
+      "module": "multiplex5000.stages.io60_rna_typing_pilot",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/io60_rna_typing_pilot.py",
+      "sha256": "8486c54804937b15f460e65b87f0c2768cd10708ce6e32e19a68b4d54b006fae"
+    },
+    {
+      "module": "multiplex5000.stages.maldi_ingest",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/maldi_ingest.py",
+      "sha256": "12ceb9d2e223c2e155808db16806aa6a9216e33d8a32ffba4b187ff208262dcc"
+    },
+    {
+      "module": "multiplex5000.stages.maldi_inventory",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/maldi_inventory.py",
+      "sha256": "ffee5247035275fcac53d301c0ec4d3a8bfabeca5780c4b89dbea9aeb1354b05"
+    },
+    {
+      "module": "multiplex5000.stages.maldi_serial_integration",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/maldi_serial_integration.py",
+      "sha256": "cce2ea8dcbf914278a3403376d466fa6a53c66dbe34b65dcdf9079f3e7c74268"
+    },
+    {
+      "module": "multiplex5000.stages.maldi_serial_registration",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/maldi_serial_registration.py",
+      "sha256": "1fdc702cbfe40ebd32ba674893d9f19f1a5252e9bc483a62134478d2f269b3c5"
+    },
+    {
+      "module": "multiplex5000.stages.measurement",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/measurement.py",
+      "sha256": "4b5b57133e9b510a5a67dd781df23177eaf4917331fb0e960ac9d73ddf64deb4"
+    },
+    {
+      "module": "multiplex5000.stages.normalization",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/normalization.py",
+      "sha256": "e8f29b99736c0567b0d99c3e0ad86205a36db7c9f6cd0a68e815c68c4972277a"
+    },
+    {
+      "module": "multiplex5000.stages.panel_normalization",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/panel_normalization.py",
+      "sha256": "dce64b3c0b929fa10ee1d857b47b00895333c1351237af7530f46f187b4dbd79"
+    },
+    {
+      "module": "multiplex5000.stages.pilot_inventory",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/pilot_inventory.py",
+      "sha256": "67510365096197893b025451c96cc340b216c1396fc527e17863b98194c171e6"
+    },
+    {
+      "module": "multiplex5000.stages.pilot_pln_protein",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/pilot_pln_protein.py",
+      "sha256": "6c6d3573782f5bfef0cc07882f53b904e69d57140a1a0282838ffa86c17a2de1"
+    },
+    {
+      "module": "multiplex5000.stages.pilot_protein",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/pilot_protein.py",
+      "sha256": "92f45ed65f7c887c211bbaf2db92df08109fda6567c738b8ade5ca08e2d88dba"
+    },
+    {
+      "module": "multiplex5000.stages.pln_typing_pilot",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/pln_typing_pilot.py",
+      "sha256": "1f673cb209b9bc755b5245312575b87900889e8f1d8fb1361624e7a22cc09976"
+    },
+    {
+      "module": "multiplex5000.stages.registration_route",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/registration_route.py",
+      "sha256": "bbb0d89ec6ea279d875e688a3f5faa67959201767c5877a6892dc874a9d54391"
+    },
+    {
+      "module": "multiplex5000.stages.rna_ingest",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/rna_ingest.py",
+      "sha256": "e8190170a81777f867156c4db25e70edbb4ae472f9c6e27050efce3637e98e0a"
+    },
+    {
+      "module": "multiplex5000.stages.same_slide_integration",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/same_slide_integration.py",
+      "sha256": "b5134b88cf5522183048412ca362adda1007bec89e16489d3c75e858a831e649"
+    },
+    {
+      "module": "multiplex5000.stages.same_slide_registration",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/same_slide_registration.py",
+      "sha256": "283ee446d28dc19483c6254fd8295c3fa86d70a688b74b91940b5717cd1746c2"
+    },
+    {
+      "module": "multiplex5000.stages.spleen_typing_pilot",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/spleen_typing_pilot.py",
+      "sha256": "62af90b33a8da0ab8b4da39a1ce1528db8edb6c6599be0d9369a47095116ddf8"
+    },
+    {
+      "module": "multiplex5000.stages.typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/typing.py",
+      "sha256": "fac275a93079765659d1c00eeb2c04fbefbcf84b4c00fb71431baf2210e91c28"
+    },
+    {
+      "module": "multiplex5000.stages.xenium_inventory",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/stages/xenium_inventory.py",
+      "sha256": "cab50b53a0bf35a945f4368c6c5694621f18e63a14602eac129d566f3d19a07e"
+    },
+    {
+      "module": "multiplex5000.state_markers",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/state_markers.py",
+      "sha256": "2d43d72fecf93d983698d181311a1dfd6d964c1e0fa3a6c6afaeaa9d5e226b76"
+    },
+    {
+      "module": "multiplex5000.tasks",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tasks.py",
+      "sha256": "3137ef3fecb568f0ac6e212158ba07893411306d415cd93e0079c98b388093ab"
+    },
+    {
+      "module": "multiplex5000.tissues",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/__init__.py",
+      "sha256": "361e5bb9dfb48430b700f428f7fa2b374b1987137f219c33d75a98bfadf87e5b"
+    },
+    {
+      "module": "multiplex5000.tissues.evaluate",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/evaluate.py",
+      "sha256": "d251a987f43374ff51dc430ae27e0525dcddf537f935c0bcb3f49118f03d8746"
+    },
+    {
+      "module": "multiplex5000.tissues.lymph_node",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/lymph_node.py",
+      "sha256": "1eb146f7d36b7af0e0480994b2663b52f4ccc708a2439b6809ec61fee8fc36d3"
+    },
+    {
+      "module": "multiplex5000.tissues.lymph_node_xenium_worker",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/lymph_node_xenium_worker.py",
+      "sha256": "0a4617bef929f767cf96792bcf6ac16dc6087dda1595cfe1e306088e655ff7a3"
+    },
+    {
+      "module": "multiplex5000.tissues.macrophage",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/macrophage.py",
+      "sha256": "ac16cacf20c4f83ecad46914a69f0c4b712ed7ddcf64c300a8d41d82c4be454a"
+    },
+    {
+      "module": "multiplex5000.tissues.pancreas_mixed",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/pancreas_mixed.py",
+      "sha256": "f8751a3449c1c23969e992e7077d4461aae3d0dd7f33834801bee4e3d7e7e8fa"
+    },
+    {
+      "module": "multiplex5000.tissues.pancreas_rna_naming",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/pancreas_rna_naming.py",
+      "sha256": "2ffd63dcef4f4317f572712cda66b73a8c19ee6cb5bbb5f34b3156f45768bb16"
+    },
+    {
+      "module": "multiplex5000.tissues.pancreas_xenium_worker",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/pancreas_xenium_worker.py",
+      "sha256": "9e683449d16626b69ca84dadaa43ed1d5ad7233b57adddca43ed640966c668a5"
+    },
+    {
+      "module": "multiplex5000.tissues.pln_clustering",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/pln_clustering.py",
+      "sha256": "6c8474cea445d5dc8a2aec02f857c4e6029e5366a3aab5a92018f66542d59caf"
+    },
+    {
+      "module": "multiplex5000.tissues.protein_section",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/protein_section.py",
+      "sha256": "ad865cbb90d7aebfdb3d93b11e39890e3a987c5c34e8245d4a86d5734ef50c12"
+    },
+    {
+      "module": "multiplex5000.tissues.rna_runtime",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/rna_runtime.py",
+      "sha256": "b7e5e2bf1f98fcfd1b458087b26266eee42da25d111dbf79f7544de51e0d4796"
+    },
+    {
+      "module": "multiplex5000.tissues.spleen",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/spleen.py",
+      "sha256": "7cd9574e40fb46c6c3fae65341fe95f12c696e556c02ce0c9463b0f132efdfa0"
+    },
+    {
+      "module": "multiplex5000.tissues.t_cell",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/tissues/t_cell.py",
+      "sha256": "3d1c20370ea103b57a67d0f25e59a9ca613870d29e84e12d0dd955e97ce1d874"
+    },
+    {
+      "module": "multiplex5000.xenium_region",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/xenium_region.py",
+      "sha256": "4a6dc0bc2fffd8ca49e35f54462be484020cdb52dcd3dd05d0354d3838668b84"
+    },
+    {
+      "module": "multiplex5000.xenium_sources",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/xenium_sources.py",
+      "sha256": "779a960b18389881e902af3993a601cad48f6c355a5923fa5339566934edffc6"
+    },
+    {
+      "module": "multiplex5000.xenium_typing_input",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/multiplex5000/xenium_typing_input.py",
+      "sha256": "fe060b037aa873564358b43562787747f557e50068407276ec9e0f3b2d3b8de3"
+    },
+    {
+      "module": "scripts.typing.aggregate_islets",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/aggregate_islets.py",
+      "sha256": "e402a8aadfcf1e722410dda961612a563819636fdc1015d81bfc3a1211800165"
+    },
+    {
+      "module": "scripts.typing.analyze_protein_literature_endpoints",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/analyze_protein_literature_endpoints.py",
+      "sha256": "6d50dc1d7e91783b2eca6f8df046e44c03a31f96ab21c84125745fac76beb8ec"
+    },
+    {
+      "module": "scripts.typing.build_app_data",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_app_data.py",
+      "sha256": "73324ca7a1e52ee1c5e69319ce08ae3f8ffab286c70532972ea059ffc0ad9e88"
+    },
+    {
+      "module": "scripts.typing.build_calibration_comparison",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_calibration_comparison.py",
+      "sha256": "e2bef9df403a30de3cbae879e26c1c5ad65267b4148aeaf053263d2d2ed7279f"
+    },
+    {
+      "module": "scripts.typing.build_cells",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_cells.py",
+      "sha256": "25c2055689ed1f92efe6a412b795448e917cbbced84fe0d9a519748e0a375efc"
+    },
+    {
+      "module": "scripts.typing.build_crossed_fraction",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_crossed_fraction.py",
+      "sha256": "db28f7e54aea30ad25e33fa0a73eaa5aded973e0d591c163dc9eaf9cdfa2d7bc"
+    },
+    {
+      "module": "scripts.typing.build_current_input_manifest",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_current_input_manifest.py",
+      "sha256": "e78cf9e8edaf5ef6b2cadf4be4e0410cb8959f527b78c95d40425b4fd0a4f46f"
+    },
+    {
+      "module": "scripts.typing.build_embedded_pln_typing",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_embedded_pln_typing.py",
+      "sha256": "e9300b24972219e64ccdf965c4463b1b93b860804bae054594817ef39737c41e"
+    },
+    {
+      "module": "scripts.typing.build_endocrine_object_composition",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_endocrine_object_composition.py",
+      "sha256": "79a0e2d34b94145b252f9c74519d71c74083cf43444db5bab9f7578577ec25f5"
+    },
+    {
+      "module": "scripts.typing.build_galectin_layer",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_galectin_layer.py",
+      "sha256": "d812a1d1589b2044125d236b917e942b59a643e61f09eeec67a9c4d55f6ede05"
+    },
+    {
+      "module": "scripts.typing.build_islet_geometry",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_islet_geometry.py",
+      "sha256": "b882fdd33916d725857eb028e418ee18ee4209ae16ad911447b3f7195b2a79f8"
+    },
+    {
+      "module": "scripts.typing.build_islet_marker_means",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_islet_marker_means.py",
+      "sha256": "3cfcc20167fe31404cd158c72ce73616200b2d8e087017acfdd5d0c2cc07c461"
+    },
+    {
+      "module": "scripts.typing.build_nd_referenced_trajectories",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_nd_referenced_trajectories.py",
+      "sha256": "10489cbd2369a37867c1a5b3a4b9ee4f1f2f3f3d725f67906f7e2eaea6665a73"
+    },
+    {
+      "module": "scripts.typing.build_nonendocrine_outline",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_nonendocrine_outline.py",
+      "sha256": "85fc85cd1d0dbe388979e226c760ba7001206639607c44ee904f8e8cdff7a50f"
+    },
+    {
+      "module": "scripts.typing.build_pancreas_cell_release",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_pancreas_cell_release.py",
+      "sha256": "eea07b2fa783bfc3704b13f88c77ac20b88c1a47a0fd30e2ce0334f9ee0d85ba"
+    },
+    {
+      "module": "scripts.typing.build_parquet_views",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_parquet_views.py",
+      "sha256": "fe1ea2a25819216eff548ea5ee827931a9d32982f1e096fec85a0a2a35c91ab5"
+    },
+    {
+      "module": "scripts.typing.build_phenotype_rules",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_phenotype_rules.py",
+      "sha256": "17f3251ec58006b930b97cc6cd50fe432b7b4394fc9d6d1ac833e0f202b6767f"
+    },
+    {
+      "module": "scripts.typing.build_pln_immune_pheno",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_pln_immune_pheno.py",
+      "sha256": "3a0493310b3eefebb2b5591ebca10ccf9f4dbce12ac86157c9844cecd328e172"
+    },
+    {
+      "module": "scripts.typing.build_workbook",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/build_workbook.py",
+      "sha256": "687d8d5583347a9199f2b3bba4e0783ac0e7a0460d2b017f1758022f4382e573"
+    },
+    {
+      "module": "scripts.typing.check_revised_export",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/check_revised_export.py",
+      "sha256": "9d80965f0a1553f538dfee303af4c756b86f122e4754ddcaa7ea8e60b8f6bfcf"
+    },
+    {
+      "module": "scripts.typing.cluster_kodama",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/cluster_kodama.py",
+      "sha256": "e37a017d2b2c8ebd93e448f533bbe5ad0db57002b0899208670c456d90444595"
+    },
+    {
+      "module": "scripts.typing.cluster_lda",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/cluster_lda.py",
+      "sha256": "3167d27db892e1a1f3e4277e09333ba9e051fd05ac6804ebde827a96563fe2af"
+    },
+    {
+      "module": "scripts.typing.cluster_leiden",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/cluster_leiden.py",
+      "sha256": "715f4ff2d54d7df5bbb0e61c5cc8063894cff2c615f6b319725ffcd8e359ad2d"
+    },
+    {
+      "module": "scripts.typing.cohort",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/cohort.py",
+      "sha256": "40f6e18f0c9d87679eee2ee3a32194bba8c5262f70cd93c0197617d10eb2d16e"
+    },
+    {
+      "module": "scripts.typing.compartments",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/compartments.py",
+      "sha256": "e37e59202a4abff980f44447f1036ba01839467045d6ee2ed65d8a54c49c2677"
+    },
+    {
+      "module": "scripts.typing.context",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/context.py",
+      "sha256": "7d090702ab006608d1a6511fa647bae6f9d35f2cb2a69ba070490b2fe6896e76"
+    },
+    {
+      "module": "scripts.typing.export_qupath",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/export_qupath.py",
+      "sha256": "bd1f9b8755854a64f49c06c3f21b48b38cd5e93c3b5b3aaca7255bc37a51245b"
+    },
+    {
+      "module": "scripts.typing.export_qupath_cell_assignments",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/export_qupath_cell_assignments.py",
+      "sha256": "b05fe5b67cb936414df9b5a0989cf3542308ae0c17028f635db942be09e206aa"
+    },
+    {
+      "module": "scripts.typing.extract_qupath_fundamentals",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/extract_qupath_fundamentals.py",
+      "sha256": "893880428057a1e4b3120fb35ee144d3439bdf1e7c63b7199cadef0c3420dd9a"
+    },
+    {
+      "module": "scripts.typing.immune_subtype",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/immune_subtype.py",
+      "sha256": "330c6a72b6fdcde9a1873d04b06a9bbe23dac47f586f2e33b8974eb44c98663c"
+    },
+    {
+      "module": "scripts.typing.islet_identity",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/islet_identity.py",
+      "sha256": "a5a0526aa7f2f05938570ff4eb45fe9ff71eda8fb03c7b70e7bd4b8c62cef1ab"
+    },
+    {
+      "module": "scripts.typing.islet_identity_mixture",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/islet_identity_mixture.py",
+      "sha256": "5a9caa38f40b0bc7e604c0200fd2159680b1fe6e8e6d5e39131e28370d24b214"
+    },
+    {
+      "module": "scripts.typing.islet_membership",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/islet_membership.py",
+      "sha256": "aa6be24d0d80f9f24b8c40045ef196cb606427f73c3c1232f98cc8e4abd1a27a"
+    },
+    {
+      "module": "scripts.typing.lineages",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/lineages.py",
+      "sha256": "1e01c1a82d42b729c276a2e03240bc05e6e799909ad5af6760811feb518840e8"
+    },
+    {
+      "module": "scripts.typing.metacluster",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/metacluster.py",
+      "sha256": "c3ef4e088ae593cf12faace16cd30e1836cb6b47183d1ff612e53b8b7c0d9b9a"
+    },
+    {
+      "module": "scripts.typing.missed_islets",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/missed_islets.py",
+      "sha256": "17998331f6049b2619b3ce4fc4f9b8129219bea4d28191f741633285607a7151"
+    },
+    {
+      "module": "scripts.typing.neighborhood",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/neighborhood.py",
+      "sha256": "cee5fcfb373cd13963eaa4d3ec891f8aa5f6b8aa5ed89ff898ae78a6c0b1802a"
+    },
+    {
+      "module": "scripts.typing.plot_donor_composition_readiness",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/plot_donor_composition_readiness.py",
+      "sha256": "d1aa4cc9e1e09e06a7094553976538c65d9a91454ef6ef426ac8805ec14d3ff2"
+    },
+    {
+      "module": "scripts.typing.plot_nd_referenced_trajectories",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/plot_nd_referenced_trajectories.py",
+      "sha256": "459e3a5be767f51bd2ab589e0d099c559b0ad379cab6bc92efb36c9975f318a4"
+    },
+    {
+      "module": "scripts.typing.plot_protein_literature_endpoints",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/plot_protein_literature_endpoints.py",
+      "sha256": "fe7e627e2d57fa789264511a51673ef7731babf330f31ef0e97692b50d9f5085"
+    },
+    {
+      "module": "scripts.typing.prepare_calibration_arms",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/prepare_calibration_arms.py",
+      "sha256": "6daead4e8f8adc5013fe0a605cb4a857e81ccaf03d63325fa01a4e2b184a797a"
+    },
+    {
+      "module": "scripts.typing.protein_analysis_admission",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/protein_analysis_admission.py",
+      "sha256": "5f6ba8fa5f1804a4a6c82e9fe476f86b63c08884d9a21e38aedede92c0c6d256"
+    },
+    {
+      "module": "scripts.typing.rebuild_donor_from_revised_export",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/rebuild_donor_from_revised_export.py",
+      "sha256": "a2e01b77d06a50eac0a054c9df22a979a21d60224c0df4de217ad12d28e2fdca"
+    },
+    {
+      "module": "scripts.typing.recompute_typing_scale",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/recompute_typing_scale.py",
+      "sha256": "5db22655bc108744cbc154a6c9ee3b1219ac83572cd794f6ade340b1ef64b7e1"
+    },
+    {
+      "module": "scripts.typing.refine",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/refine.py",
+      "sha256": "3d44b2520a0b6c7c5e6d415537bd00840cc0dcb8b3aedaeca2596551c885521b"
+    },
+    {
+      "module": "scripts.typing.render_calibration_examples",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/render_calibration_examples.py",
+      "sha256": "e13c72a0cf2b3af2e2afe0421fdd7768cb66f75c0d9e2df56befb871b0469391"
+    },
+    {
+      "module": "scripts.typing.run_calibration_arm",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/run_calibration_arm.py",
+      "sha256": "258ffd7c7473eca8f2b47f8f1ec5966239bc2e7adbc2596cb71a13fcc253d745"
+    },
+    {
+      "module": "scripts.typing.subpanel",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/subpanel.py",
+      "sha256": "8e6356d955dcccb4a6c4f1f410a3f75a3a3c69ada45c9fb5c719365071543b1d"
+    },
+    {
+      "module": "scripts.typing.subpanel_io",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/subpanel_io.py",
+      "sha256": "b7dbe489815333b5dccc6e57630fe919b3818f8773735244d26a8a07581250b9"
+    },
+    {
+      "module": "scripts.typing.summarise_crossed_fraction",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/summarise_crossed_fraction.py",
+      "sha256": "4dac5fd8d9c6034184923ceb8250aa7a64472b7c591602c7ce3c869109e8856e"
+    },
+    {
+      "module": "scripts.typing.summarise_singlecell_trajectory",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/summarise_singlecell_trajectory.py",
+      "sha256": "6163e332bbddc906b34cae61b2f57c771281da95a0b47926930307d94c5f7a32"
+    },
+    {
+      "module": "scripts.typing.summarize_calibration_review",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/summarize_calibration_review.py",
+      "sha256": "fd36a8e5f659bcb280d06936096882d343df3b9156ca42dc37bf7378c151d65d"
+    },
+    {
+      "module": "scripts.typing.superseded",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/superseded.py",
+      "sha256": "279f2b73960868d1aa4a929bbaa3edf057bb9b54463c31914142a25ee6f25e63"
+    },
+    {
+      "module": "scripts.typing.trajectory_crossdonor_relation",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/trajectory_crossdonor_relation.py",
+      "sha256": "7d2f151cbc95c4fa37c58bce2175c20b2a333b903802293d6cc03801622cdc2f"
+    },
+    {
+      "module": "scripts.typing.trajectory_deployed_change",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/trajectory_deployed_change.py",
+      "sha256": "9fe0242260303dfca8979076137d8a1b650df3e7515d286f796acaa493450afb"
+    },
+    {
+      "module": "scripts.typing.trajectory_islet",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/trajectory_islet.py",
+      "sha256": "5792398719f7be21e9c7677d74281b88b148c33f9f8297d28c87ebeaba90da72"
+    },
+    {
+      "module": "scripts.typing.trajectory_reproducibility",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/trajectory_reproducibility.py",
+      "sha256": "95e854429137415323c63d973db970a1bcd4436deab2316ebb9415ab38022872"
+    },
+    {
+      "module": "scripts.typing.trajectory_singlecell_features",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/trajectory_singlecell_features.py",
+      "sha256": "34d3565442fd69e447aa2f72fae7b52f32379ca244a09b37d028283158323e63"
+    },
+    {
+      "module": "scripts.typing.validate",
+      "namespace": "catalog_working_tree",
+      "path": "core/multiplex5000/scripts/typing/validate.py",
+      "sha256": "4643aa8f346440ccf3a3954da2d669b3d41929d797b76463b6cd05763beafe44"
+    },
+    {
+      "module": "multiplex5000.positivity",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/__init__.py",
+      "sha256": "abe96bd3358412594e9ae7d1fc25567a6c9901a0aa0c920ec46bd74036ee6f81"
+    },
+    {
+      "module": "multiplex5000.positivity.canary",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/canary.py",
+      "sha256": "0f95038912122ca623557f5590c1d2b745d354c5491ad087d0a6552ae8e570c2"
+    },
+    {
+      "module": "multiplex5000.positivity.coverage",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/coverage.py",
+      "sha256": "52d315b17b0ff70e9b2527381385243691eab3f52c4783fc8f8eaf512e9ad58c"
+    },
+    {
+      "module": "multiplex5000.positivity.hierarchy",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/hierarchy.py",
+      "sha256": "b9a1c1d0df9160dad157b76e3c5b3659c75aac1069f7082e7e75eb04a434cdd5"
+    },
+    {
+      "module": "multiplex5000.positivity.identity",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/identity.py",
+      "sha256": "5c78160568eda8ac7d6ebe9b1ed6ad8d65ffbe5612bb50228e241f7337e6a28a"
+    },
+    {
+      "module": "multiplex5000.positivity.levels",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/levels.py",
+      "sha256": "527389c48b68473da7821dec73453961a2be5885a95cad3ac5882afa0fac036d"
+    },
+    {
+      "module": "multiplex5000.positivity.lineage_levels",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/lineage_levels.py",
+      "sha256": "c1fbce4ae81c101e58e4e383b67c17d9cd4c216b8cbefb717eef0b7e36d9d235"
+    },
+    {
+      "module": "multiplex5000.positivity.nulls",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/nulls.py",
+      "sha256": "f9411bd3a0fc1a89281c29ade73bd673c10ccadf528e0118cbfb1007b50f6a2c"
+    },
+    {
+      "module": "multiplex5000.positivity.registry",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/registry.py",
+      "sha256": "bec4c93a02dd23851c3960c912da1ab24eec9f64d056a152de6a1fa0bbeeadeb"
+    },
+    {
+      "module": "multiplex5000.positivity.sources",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/sources.py",
+      "sha256": "1b7d4402ee3985dd0b677778e1b6fc3e36204c8251cf4574408df1be8dd11f68"
+    },
+    {
+      "module": "multiplex5000.positivity.tissue",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/positivity/tissue.py",
+      "sha256": "5670563c19a1e64a74c80661054d92071c977453ddd330b754f5ecd12583de47"
+    },
+    {
+      "module": "multiplex5000.tissues.pancreas",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/tissues/pancreas.py",
+      "sha256": "e0a061703b7ef67683914b18ea9502918f7f7c779c194d2ea10f1a585c8a592f"
+    },
+    {
+      "module": "multiplex5000.tissues.spleen",
+      "namespace": "spleen@a9549cc",
+      "path": "outputs/dynamic_portability_20261102/remote/spleen-code/core/multiplex5000/multiplex5000/tissues/spleen.py",
+      "sha256": "3295cd6d28c2ae950b829d23d5090cc56688b143b95fd0a2b8f5e44583e56458"
+    },
+    {
+      "module": "multiplex5000.positivity",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/__init__.py",
+      "sha256": "abe96bd3358412594e9ae7d1fc25567a6c9901a0aa0c920ec46bd74036ee6f81"
+    },
+    {
+      "module": "multiplex5000.positivity.canary",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/canary.py",
+      "sha256": "59ca2433c4876ee4d3939f074f63e8270fd2a92ed524cb15c8e9abfeea9ff35b"
+    },
+    {
+      "module": "multiplex5000.positivity.coverage",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/coverage.py",
+      "sha256": "67879529938901820aff7aaa4bb11df4799c2f0526bc52895cf1cf9a1ef57ca9"
+    },
+    {
+      "module": "multiplex5000.positivity.identity",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/identity.py",
+      "sha256": "5c78160568eda8ac7d6ebe9b1ed6ad8d65ffbe5612bb50228e241f7337e6a28a"
+    },
+    {
+      "module": "multiplex5000.positivity.levels",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/levels.py",
+      "sha256": "14f5067d5858a6f9d3184b84275e65544e9d9c07d7120f42e118950c47d8e007"
+    },
+    {
+      "module": "multiplex5000.positivity.nulls",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/nulls.py",
+      "sha256": "f9411bd3a0fc1a89281c29ade73bd673c10ccadf528e0118cbfb1007b50f6a2c"
+    },
+    {
+      "module": "multiplex5000.positivity.registry",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/registry.py",
+      "sha256": "bec4c93a02dd23851c3960c912da1ab24eec9f64d056a152de6a1fa0bbeeadeb"
+    },
+    {
+      "module": "multiplex5000.positivity.sources",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/sources.py",
+      "sha256": "1b7d4402ee3985dd0b677778e1b6fc3e36204c8251cf4574408df1be8dd11f68"
+    },
+    {
+      "module": "multiplex5000.positivity.tissue",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/positivity/tissue.py",
+      "sha256": "b020f9369a2f19c9c3c461e2ceef311ae787a6556ed58c75feced7cd8b287501"
+    },
+    {
+      "module": "multiplex5000.tissues.pancreas",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/tissues/pancreas.py",
+      "sha256": "247a5b39fa8c7e9e619a6b9326f1cca2a0bfbb6e41ce8591f72fd9971d9ace7f"
+    },
+    {
+      "module": "multiplex5000.tissues.spleen",
+      "namespace": "port@df3fe1d",
+      "path": "outputs/dynamic_portability_20261102/typing_port/core/multiplex5000/multiplex5000/tissues/spleen.py",
+      "sha256": "5f05355decb1a6c7648c3ab867562739d838ec93f0be5e6bfbbb05d564a2bdce"
+    }
+  ]
+}

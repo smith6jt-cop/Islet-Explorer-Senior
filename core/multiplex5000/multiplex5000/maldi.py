@@ -14,21 +14,34 @@ What the maintainer decided (2026-10-31), and this module keeps:
   Xenium slides -- different cells, never a same-cell claim. Which tissue a Tissue_id is, and which
   slide it neighbours, is recorded from what is seen (``maldi_tissue_inspection.csv``), never
   parsed from the id;
-* only the IO60 donors are in scope; a Tissue_id whose donor the IO60 sources do not know (6426,
-  the HPAP sections) is counted as out of cohort and not ingested.
+* only donors with PhenoCycler or Xenium data are in scope (maintainer, 2026-11-03); any other
+  Tissue_id (the HPAP sections) is counted as out of cohort and not ingested.
 
 A ``Tissue_id``'s donor is the text before its first underscore (the whole id where it has none),
-through the cohort's declared donor aliases (HDL115 is donor 115); the rest of the id is kept as
-text (``id_block_token``) and never interpreted.
+through the cohort's declared donor aliases (HDL115 is donor 115), unless the maintainer has
+recorded that the id names the wrong donor (``TISSUE_DONOR_CORRECTIONS``); the rest of the id is
+kept as text (``id_block_token``) and never interpreted. The Tissue_id itself is never rewritten:
+it stays the section's key, as the export writes it.
 
 Each MALDI raster is drawn to its tissue's outline, so the tissue mask is the raster footprint:
 a spot is on the tissue unless no ion was detected in it at all (``ON_TISSUE_METHOD``). That is a
 property of the spot, never a cutoff on a feature's value.
+
+Each N-glycan feature is described by its composition, read from its name
+(``glycan_annotation``): the monosaccharide counts, the ion written after them, and the
+composition class and modification flags of the CRO N-glycan report's rules (``MALDI/
+T1D_Nglycan_CRO_Report.pdf``, 2026-07-09, section 9.1). These are descriptions of a feature,
+never of a spot's or a cell's identity, and composition only (Schymanski level 3-4): linkage,
+core versus antennary fucose and branching are not resolved by the mass. The report covers the
+same acquisition through a different glycan table (49 columns against the 38 here, the shared
+ones peak-picked slightly differently), so a feature list is always read from the file, never
+assumed.
 """
 
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -82,11 +95,96 @@ def source_files(folder: Path) -> list[SourceFile]:
     return out
 
 
+#: The monosaccharide residues an N-glycan composition is written in, as the export names them.
+RESIDUES = ("Hex", "HexNAc", "dHex", "NeuAc")
+_RESIDUE = re.compile(r"(dHex|HexNAc|NeuAc|Hex)(\d+)")
+_COMPOSITION = re.compile(r"(?:(?:dHex|HexNAc|NeuAc|Hex)\d+)+")
+#: Where the composition classes come from, recorded with them.
+COMPOSITION_RULE = ("CRO N-glycan report (2026-07-09) section 9.1, by composition only: "
+                    "high_mannose = HexNAc 2, Hex >= 5, no dHex or NeuAc; paucimannose = "
+                    "HexNAc 2, Hex <= 4; hybrid = HexNAc 3, Hex >= 5; complex = any other "
+                    "HexNAc >= 3; otherwise unclassified")
+
+
+def composition_class(hex_: int, hexnac: int, dhex: int, neuac: int) -> str:
+    """An N-glycan composition's class by ``COMPOSITION_RULE``.
+
+    The report's text bounds high-mannose at Hex 5-9, but its six high-mannose species include
+    Hex10HexNAc2 (figures A15, A28); the rule here follows the species it classified (Hex >= 5).
+    A composition no rule reaches (HexNAc 2 with Hex >= 5 and a dHex or NeuAc; HexNAc under 2) is
+    ``unclassified``, never assigned the nearest class."""
+    if hexnac == 2:
+        if hex_ <= 4:
+            return "paucimannose"
+        return "high_mannose" if not dhex and not neuac else "unclassified"
+    if hexnac == 3 and hex_ >= 5:
+        return "hybrid"
+    if hexnac >= 3:
+        return "complex"
+    return "unclassified"
+
+
+def glycan_annotation(feature: str) -> dict:
+    """What an N-glycan feature's name says: its composition (the residue counts written before
+    the first ``.``), the ion as the export writes it after them (``..Na``, ``...2Na``; R's
+    rewriting of the ion label, kept as text), the composition class and the fucosylated
+    (dHex >= 1) and sialylated (NeuAc >= 1) flags. A name that is not a composition is
+    ``unparsed`` with every count missing, never guessed."""
+    head, dot, tail = str(feature).partition(".")
+    counts = {r: 0 for r in RESIDUES}
+    if not _COMPOSITION.fullmatch(head):
+        return dict(feature=feature, composition="", ion_label=dot + tail, parsed=False,
+                    **{r: None for r in RESIDUES}, composition_class="unparsed",
+                    fucosylated=None, sialylated=None)
+    seen = []
+    for residue, n in _RESIDUE.findall(head):
+        seen.append(residue)
+        counts[residue] = int(n)
+    if len(seen) != len(set(seen)):
+        return dict(feature=feature, composition=head, ion_label=dot + tail, parsed=False,
+                    **{r: None for r in RESIDUES}, composition_class="unparsed",
+                    fucosylated=None, sialylated=None)
+    return dict(feature=feature, composition=head, ion_label=dot + tail, parsed=True, **counts,
+                composition_class=composition_class(counts["Hex"], counts["HexNAc"],
+                                                    counts["dHex"], counts["NeuAc"]),
+                fucosylated=counts["dHex"] >= 1, sialylated=counts["NeuAc"] >= 1)
+
+
+def feature_table(feats: list[tuple[str, str]]) -> list[dict]:
+    """One row per feature, in the export's order: its feature set, its name and, for an N-glycan,
+    what its composition says (``glycan_annotation``), with ``ions_of_composition`` -- how many
+    features measure the same composition as different ions, so a composition is never counted
+    twice. A glycogen feature is named by its m/z (``X689``) and carries no composition."""
+    rows = []
+    for role, name in feats:
+        row = dict(role=role, feature=name)
+        if role == "glycan":
+            row.update({k: v for k, v in glycan_annotation(name).items() if k != "feature"})
+        rows.append(row)
+    compositions = Counter(r["composition"] for r in rows if r.get("parsed"))
+    for row in rows:
+        row["ions_of_composition"] = compositions[row["composition"]] if row.get("parsed") else None
+        if row["role"] == "glycan":
+            row["composition_rule"] = COMPOSITION_RULE
+    return rows
+
+
+#: Tissue_ids whose donor label names the wrong donor: the donor the section belongs to, and the
+#: maintainer's reason. Only the donor changes; the Tissue_id stays the section's key.
+TISSUE_DONOR_CORRECTIONS: dict[str, tuple[str, str]] = {
+    "6426_02_pln": ("6436", "there is no donor 6426 in the project, so the section is 6436's "
+                            "(maintainer, 2026-11-03); the CRO N-glycan report (2026-07-09, figure "
+                            "A8) labels the same section 6436_02_pln"),
+}
+
+
 def tissue_donor(tissue_id: str, aliases: dict) -> tuple[str, str, str]:
-    """(the donor label the id carries, the donor id through the cohort aliases, the rest of the
-    id as text). Nothing in the rest is interpreted."""
+    """(the donor label the id carries, the donor id -- through the cohort aliases, or the
+    recorded correction for this exact id -- and the rest of the id as text). Nothing in the rest
+    is interpreted."""
     label, _, rest = str(tissue_id).partition("_")
-    return label, str(aliases.get(label, label)), rest
+    corrected = TISSUE_DONOR_CORRECTIONS.get(str(tissue_id))
+    return label, corrected[0] if corrected else str(aliases.get(label, label)), rest
 
 
 def _quoted(name: str) -> str:

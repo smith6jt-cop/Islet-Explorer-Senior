@@ -110,8 +110,9 @@ img {{ max-width: 100%; }} figure {{ margin: 1.5rem 0; }}
 </style></head><body>
 <h1>Gate: {html.escape(record['stage'])}</h1>
 <p>Release <code>{html.escape(record['release'])}</code>. {html.escape(record['summary'])}</p>
-<p><strong>{verdict}.</strong> Accept with
-<code>mplx5k gate accept {html.escape(record['stage'])} --by &lt;name&gt;</code>.</p>
+<p><strong>{verdict}.</strong> Review the evidence before acceptance.
+Use the project-specific show and accept commands printed by the CLI stage command;
+keep its explicit project file and releases root. Acceptance does not run downstream analysis.</p>
 <table><tr><th></th><th>check</th><th>value</th><th>must be</th><th></th><th>detail</th></tr>
 {''.join(rows)}</table>
 {figures}
@@ -172,7 +173,8 @@ def require_accepted(stage_dir: Path) -> dict:
         state = "passes" if gate["passed"] else "fails a blocking check"
         raise GateError(f"{stage}'s gate {state} and has not been accepted: read "
                         f"{Path(stage_dir) / GATE_DIR / 'gate.html'}, then "
-                        f"`mplx5k gate accept {stage} --by <name>`")
+                        "use the project-specific review command with explicit --project and "
+                        "--releases-root; acceptance requires passing blocking checks")
     return record
 
 

@@ -24,6 +24,10 @@ islet_analysis/
 literature/*
 figures/*
 
+# Workstation registry pointer and private donor notes.
+/CURRENT_DATA.txt
+/IO60panc2nd Notes.md
+
 # R workspace and environment files
 .RData
 .Rhistory
@@ -113,3 +117,12 @@ BRIEF.md
 # MALDI imaging exports as received (622 MB of raw CSV); the read-only copy MultiPlex5000 reads
 # is the site source maldi_spots (/data/io60-current/sources/maldi/...). Never commit them.
 /MALDI/
+
+# Project-local KINTSUGI recording state. Commit reviewed JSON exports and evidence
+# manifests explicitly; SQLite journals, locks and retry queues are runtime state.
+**/.claude_workflow/parameter_learning.db
+**/.claude_workflow/parameter_learning.db-journal
+**/.claude_workflow/parameter_learning.db-wal
+**/.claude_workflow/parameter_learning.db-shm
+**/.claude_workflow/observations.lock
+**/parameter_observation_outbox/

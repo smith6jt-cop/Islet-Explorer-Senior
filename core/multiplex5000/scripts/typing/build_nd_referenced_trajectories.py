@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 import hashlib
 import json
 import multiprocessing as mp
+import re
 import warnings
 from pathlib import Path
 
@@ -36,7 +37,6 @@ MIN_ND_DONORS_FOR_VALIDATION = 3
 # Input coordinate rank and graph eigenvector count are separate quantities.
 MIN_TRAJECTORY_RANK = 1
 FRACTION_ROUNDOFF_TOLERANCE = 1e-12
-EXCLUDED_FEATURE_SUFFIXES = ("unresolved_fraction",)
 BIOLOGICAL_GROUPS = ("endocrine", "vascular", "lymphatic", "neural", "stromal", "immune")
 # User-directed completion policy: retain stromal composition as unavailable, but do not block
 # an ND reference fit based on the five measured groups or replace stromal identity with a signal
@@ -81,13 +81,36 @@ def is_fraction(feature: str) -> bool:
     return feature.endswith("_fraction")
 
 
+def trajectory_feature_exclusion(feature: str) -> str | None:
+    """Keep ambiguous identities and archived macrophage splits out of the graph.
+
+    This core-only ND reference uses its own multimodal features and model; it is
+    not numerically equivalent to the CODEX log1p/cosine graph. Its composition
+    builder supplies measured Macrophage_Gal3+/- profiles, while preserving
+    unavailable profiles as missing rather than inventing negatives.
+    """
+    pieces = re.split(r"[^a-z0-9]+", feature.lower())
+    if any(x in pieces for x in ("unresolved", "unclassified", "doublet", "conflict",
+                                  "qc", "ambiguous", "unavailable", "excluded")):
+        return "qc_or_unresolved_identity"
+    prefix = "feature__immune__macrophage_profile_"
+    if feature.startswith(prefix):
+        label = feature[len(prefix):].removesuffix("_per_endocrine")
+        if label not in ("Macrophage_Gal3+", "Macrophage_Gal3-"):
+            return "legacy_or_unrecognised_macrophage_profile"
+    return None
+
+
 def select_features(objects: pd.DataFrame) -> tuple[list[str], dict]:
     nd = objects[objects["donor_status"].astype(str).str.upper().eq("ND")]
     donors = sorted(nd["donor_id"].astype(str).unique())
-    candidates = [c for c in objects if c.startswith("feature__")
-                  and not any(c.endswith(suffix) for suffix in EXCLUDED_FEATURE_SUFFIXES)]
+    candidates = [c for c in objects if c.startswith("feature__")]
     selected, rejected = [], {}
     for feature in candidates:
+        reason = trajectory_feature_exclusion(feature)
+        if reason:
+            rejected[feature] = reason
+            continue
         availability = "available__" + feature.removeprefix("feature__")
         if availability not in objects:
             rejected[feature] = "availability_field_missing"

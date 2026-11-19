@@ -343,7 +343,7 @@ def _section(seed=7, n=600):
     """Two clusters on one synthetic section, built so that the two statistics DISAGREE.
 
     `CD3e` separates cluster 0 from cluster 1 by a factor of three, with the two distributions
-    overlapping.  `EpCAM` is background on both -- 3 % apart -- but it is background with no
+    overlapping.  `E_cadherin` is background on both -- 3 % apart -- but it is background with no
     overlap at all, so its rank separation is the CLEANER of the two.  That is the whole of the
     defect in one section: a channel with no population outranks a channel with one, because a
     rank cannot see that 1.03x and 3x are different things.
@@ -352,7 +352,7 @@ def _section(seed=7, n=600):
     codes = np.array([0] * n + [1] * n)
     values = {
         "CD3e": np.concatenate([rng.normal(30.0, 9.0, n), rng.normal(10.0, 3.0, n)]),
-        "EpCAM": np.concatenate([rng.uniform(10.3, 10.4, n), rng.uniform(10.0, 10.1, n)]),
+        "E_cadherin": np.concatenate([rng.uniform(10.3, 10.4, n), rng.uniform(10.0, 10.1, n)]),
     }
     for filler in ("CD68", "CD20", "SMA", "CD31", "Caveolin", "CD34"):
         values[filler] = rng.uniform(1.0, 2.0, 2 * n)
@@ -365,9 +365,9 @@ def test_a_rank_and_a_magnitude_disagree_and_the_arbitration_reads_the_magnitude
     st["magnitude"] = builder.magnitude(pd.DataFrame(values), codes, 2, markers)
     j = {m: i for i, m in enumerate(markers)}
     # the disagreement is REAL on this section and is asserted rather than assumed
-    assert st["auc"][0, j["EpCAM"]] > st["auc"][0, j["CD3e"]], "the rank must favour the background"
-    assert st["magnitude"][0, j["CD3e"]] > st["magnitude"][0, j["EpCAM"]]
-    assert st["enriched"][0, j["CD3e"]] and st["enriched"][0, j["EpCAM"]]
+    assert st["auc"][0, j["E_cadherin"]] > st["auc"][0, j["CD3e"]], "the rank must favour the background"
+    assert st["magnitude"][0, j["CD3e"]] > st["magnitude"][0, j["E_cadherin"]]
+    assert st["enriched"][0, j["CD3e"]] and st["enriched"][0, j["E_cadherin"]]
 
     calls = builder.call_clusters("T", ["c0", "c1"], np.array([len(codes) // 2] * 2), st,
                                   builder.subpanel_membership(markers))
@@ -388,7 +388,7 @@ def test_the_panel_offset_never_protected_the_arbitration():
     j = {m: i for i, m in enumerate(markers)}
     for row in (0, 1):
         assert (np.argsort(st["auc"][row]) == np.argsort(st["rel"][row])).all()
-    assert st["rel"][0, j["EpCAM"]] > st["rel"][0, j["CD3e"]]
+    assert st["rel"][0, j["E_cadherin"]] > st["rel"][0, j["CD3e"]]
 
 
 def test_the_magnitude_is_a_ratio_inside_one_channel_and_survives_a_change_of_scale():
@@ -476,9 +476,9 @@ def test_the_epithelial_negatives_of_the_rule_table_are_not_carried_over_as_enri
     is a different statement -- carrying it across is what put 429,278 cells of a lymph node
     behind an epithelial veto.  The requirement is carried; the negatives are not."""
     for rule in builder.SUBPANEL_RULE.values():
-        assert "EpCAM" in SP.immune_rules()[rule][2]
-    calls = _call([{"CD3e": 0.4, "EpCAM": 0.9, "SMA": 0.05}],
-                  MARKERS, magnitude=[{"CD3e": 3.0, "EpCAM": 1.05, "SMA": 1.0}])
+        assert "E_cadherin" in SP.immune_rules()[rule][2]
+    calls = _call([{"CD3e": 0.4, "E_cadherin": 0.9, "SMA": 0.05}],
+                  MARKERS, magnitude=[{"CD3e": 3.0, "E_cadherin": 1.05, "SMA": 1.0}])
     assert bool(calls.loc[0, "is_immune"]) is True
     assert calls.loc[0, "immune_class"] == "T_cell"
 
@@ -490,11 +490,11 @@ def test_the_per_cell_evidence_reads_the_magnitude_and_not_the_rank():
     st = _standout(values, codes, 2, markers, offset_over=markers)
     ev = builder.cell_evidence(st, builder.subpanel_membership(markers), len(codes))
     assert set(ev) == {"immune_magnitude", "structural_magnitude", "top_immune_marker"}
-    # cluster 0 reads 3x on CD3e and 1.03x on EpCAM, so its cells lean immune on the magnitude
+    # cluster 0 reads 3x on CD3e and 1.03x on E_cadherin, so its cells lean immune on the magnitude
     assert np.nanmean(ev["immune_magnitude"][:600] > ev["structural_magnitude"][:600]) > 0.9
     # on the rank the same cells would not, which is the measurement this replaces
     rank_imm = np.vstack([st["unit_rank"][m] for m in ("CD3e", "CD20", "CD68")]).max(axis=0)
-    rank_str = np.vstack([st["unit_rank"][m] for m in ("EpCAM", "SMA", "CD31")]).max(axis=0)
+    rank_str = np.vstack([st["unit_rank"][m] for m in ("E_cadherin", "SMA", "CD31")]).max(axis=0)
     assert np.nanmean(rank_imm[:600] > rank_str[:600]) < 0.9
 
 

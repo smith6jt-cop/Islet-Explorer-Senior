@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from multiplex5000 import gates, tasks
 from multiplex5000.stages import pln_typing_pilot
@@ -25,7 +26,8 @@ def _accepted(folder: Path, stage: str) -> None:
     gates.accept(folder, by="test")
 
 
-def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path):
+@pytest.mark.parametrize("configured_fraction", [None, 0.5])
+def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path, configured_fraction):
     release = tmp_path / "release"
     _accepted(release / "03_protein_measurement", "03_protein_measurement")
     _accepted(release / "05_normalization", "05_normalization")
@@ -46,7 +48,7 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path):
         "cell_uid": [f"protein:section-1:{n}" for n in range(count)],
         "object_id": [str(n) for n in range(count)],
         "protein_eligible": eligible,
-        "marker:CD20": np.r_[np.linspace(5, 6, count - 20), np.full(20, 100.0)],
+        "marker:CD20": np.r_[np.linspace(5, 6, count - 21), 25.0, np.full(20, 100.0)],
     }), cells / f"{entry}.parquet")
     with (release / "05_normalization/scales.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["protein_entry", "marker", "scale"])
@@ -55,6 +57,8 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path):
     project = SimpleNamespace(release_dir=release, release="pilot", path=tmp_path / "p.yaml",
                               settings={"pln_export_images": [entry]},
                               previous=lambda stage: "05_normalization", automatic_gates=())
+    if configured_fraction is not None:
+        project.settings["protein_cutoff_fraction"] = configured_fraction
     result = tasks.run_stage(pln_typing_pilot, project)
     assert result.gate_passed
     table = pq.read_table(result.path / f"protein/{entry}.parquet")
@@ -64,6 +68,21 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path):
     with (result.path / "protein_candidate_status.csv").open(newline="") as handle:
         assert sum(int(row["cells"]) for row in csv.DictReader(handle)) == count
     assert (result.path / "gate/pln_candidate_status.png").is_file()
-    with (result.path / "receipt.json").open() as handle:
-        omissions = json.load(handle)["summary"]["omitted_rule_constraints"]
+    assert table["marker_call:CD20"][count - 21].as_py() == (1 if configured_fraction is None else 0)
+    parameters = json.loads((result.path / "resolved_parameters.json").read_text())
+    fraction = 0.10 if configured_fraction is None else configured_fraction
+    assert parameters["parameters"][0]["value"] == fraction
+    omissions = next(item["value"] for item in parameters["parameters"]
+                     if item["name"] == "omitted_rule_constraints")
     assert ["Neural", "EpCAM"] in omissions and ["Stromal", "EpCAM"] in omissions
+    marker = parameters["acquisitions"][0]["markers"][0]
+    assert marker["cutoff_fraction"] == fraction
+    fit = marker["fitted"]
+    assert fit["cutoff"] == fit["floor"] + fraction * (fit["top"] - fit["floor"])
+    assert parameters["acquisitions"][0]["missing_markers_by_rule"]
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert receipt["summary"]["resolved_parameters"]["status"] == "written"
+    assert any(row["path"] == "resolved_parameters.json" for row in receipt["outputs"])
+    project.settings["protein_cutoff_fraction"] = 0.25
+    with pytest.raises(tasks.TaskError, match="published settings differ"):
+        tasks.run_stage(pln_typing_pilot, project)

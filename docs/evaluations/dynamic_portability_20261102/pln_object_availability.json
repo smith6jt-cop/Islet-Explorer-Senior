@@ -1,0 +1,1491 @@
+{
+  "schema": "maldi-object-availability-audit/1",
+  "scope": "Read-only source availability and exact QuPath-entry/image/acquisition reconciliation; no active object-source routing, MALDI pairing or acceptance",
+  "acquisitions": 19,
+  "objects": 47,
+  "area_objects": 44,
+  "project_entries": [
+    1,
+    2,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21
+  ],
+  "entry_count_note": "There are19 current entries/exports; the largest entry ID is21 and IDs3/8 are absent. Entry ID is not a count.",
+  "sources": [
+    {
+      "path": "/home/smith6jt/IO60pLN/project.qpproj",
+      "sha256": "bb1a096677ffa52cf179a170706fb9c94d67149eea6a8cf5b1396b5dc0a03815"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/phenocycler/data/integration/pln_node_annotations.csv",
+      "sha256": "050af7f7ae2fd6f8fbe0b9b76808652c1b32aec2aa91c8c8072bc0632a57953c"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/dynamic_portability_20261102/inventories/io60_acquisitions.csv",
+      "sha256": "2c207e9722f09bed7a21afa49694722f5f98275064ce11a7816562e590206051"
+    },
+    {
+      "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/export_audit.tsv",
+      "sha256": "f4b55f94f1e0490bb0dbebc11acb674ed42a82a567e6fcae76f4bbb9c0b03e57"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/core/multiplex5000/profiles/platforms/phenocycler.yaml",
+      "sha256": "ad39ad507fa4669371356017fe20cdad33589517cba1cc1e9043fa235efb8535"
+    }
+  ],
+  "rows": [
+    {
+      "acquisition_id": "phenocycler:6476pLN_Scan1.er.qptiff",
+      "image_file": "6476pLN_Scan1.er.qptiff",
+      "qupath_entry": "1",
+      "donor_id": "6476",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry1.geojson",
+        "sha256": "3196271fdbf78732dbe43a9aa79b54812a6e40c1c8484b17a64d5e7e832bcdb8"
+      },
+      "native_object_ids": [
+        "d6f67f69-c6b7-4ef2-866a-1233ce2c5dff",
+        "5561914b-05ed-40f1-a997-fae90802b819",
+        "75a0b56c-0a89-40b3-aa99-72d0a8b5b4de"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        87782912.0,
+        30507687.0,
+        117501338.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "d6f67f69-c6b7-4ef2-866a-1233ce2c5dff",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "5561914b-05ed-40f1-a997-fae90802b819",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "75a0b56c-0a89-40b3-aa99-72d0a8b5b4de",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6579pLN_Scan1.er.qptiff",
+      "image_file": "6579pLN_Scan1.er.qptiff",
+      "qupath_entry": "2",
+      "donor_id": "6579",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry2.geojson",
+        "sha256": "dc8cf610ad9fe50b8c250921a6e812e47de69683be9ef2be122f0dffc8791676"
+      },
+      "native_object_ids": [
+        "a7fa3f3d-27cf-40be-9023-c8c4cbce8010",
+        "050ff99c-4faa-49f3-bc3b-c242ee5091a2",
+        "0cf63575-e91c-4aa2-b5ad-0117ede0f0e1"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        117728762.0,
+        119483122.0,
+        214274340.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "a7fa3f3d-27cf-40be-9023-c8c4cbce8010",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "050ff99c-4faa-49f3-bc3b-c242ee5091a2",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "0cf63575-e91c-4aa2-b5ad-0117ede0f0e1",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6623pLN_Scan1.er.qptiff",
+      "image_file": "6623pLN_Scan1.er.qptiff",
+      "qupath_entry": "4",
+      "donor_id": "6623",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry4.geojson",
+        "sha256": "165fb120c3c8485bd23fd702a0c847cc9cf7fd8d80843f57b21cfd7a2b505563"
+      },
+      "native_object_ids": [
+        "20e51b1a-7f8a-43a4-80ce-58b6b057cfef",
+        "91ffbaf7-c28f-42ac-9190-d08b44e27fe7"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        77461395.0,
+        77143648.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "20e51b1a-7f8a-43a4-80ce-58b6b057cfef",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "91ffbaf7-c28f-42ac-9190-d08b44e27fe7",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6380pLN_Scan1.er.qptiff",
+      "image_file": "6380pLN_Scan1.er.qptiff",
+      "qupath_entry": "5",
+      "donor_id": "6380",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry5.geojson",
+        "sha256": "c2b324101f9968253b334f3d7019da68d3a382489b58e3b96159f5d488f44129"
+      },
+      "native_object_ids": [
+        "ad19028a-070e-440f-a151-d34844e6cee4"
+      ],
+      "selected_classes": [
+        "Tissue"
+      ],
+      "objects": 1,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        47118848.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "ad19028a-070e-440f-a151-d34844e6cee4",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        false
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6523pLN_Scan1.er.qptiff",
+      "image_file": "6523pLN_Scan1.er.qptiff",
+      "qupath_entry": "6",
+      "donor_id": "6523",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry6.geojson",
+        "sha256": "729fda279734a8bbbdcefbe4f2b20e1cf94d2328a310cb1c009b067e9d9994e5"
+      },
+      "native_object_ids": [
+        "48b79d6e-93d1-4bae-9fc4-6c9f84debb36",
+        "98c2fae6-69fc-456d-801e-e909809f0377"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        236164572.0,
+        127958927.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "48b79d6e-93d1-4bae-9fc4-6c9f84debb36",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "98c2fae6-69fc-456d-801e-e909809f0377",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6534pLN_Scan1.er.qptiff",
+      "image_file": "6534pLN_Scan1.er.qptiff",
+      "qupath_entry": "7",
+      "donor_id": "6534",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry7.geojson",
+        "sha256": "25001eb33dd76d20e49baf86eda879f52fe4acdbb47375c7066aa18a525e980a"
+      },
+      "native_object_ids": [
+        "80f11336-c289-483e-8a31-75fb909a7b08",
+        "6b691448-a3c5-4e66-a502-4a9372b9dab1",
+        "267751ae-782c-44d7-b44e-511e8d583c98",
+        "4eba5bd4-e908-4eec-9aac-1ea743d89b12"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_topMid",
+        "pLN_bottomMid",
+        "pLN_bottom"
+      ],
+      "objects": 4,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        0.0,
+        0.0,
+        0.0,
+        41664279.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "80f11336-c289-483e-8a31-75fb909a7b08",
+          "valid": true,
+          "empty": false,
+          "type": "LineString",
+          "area_object_available": false,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "6b691448-a3c5-4e66-a502-4a9372b9dab1",
+          "valid": true,
+          "empty": false,
+          "type": "LineString",
+          "area_object_available": false,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "267751ae-782c-44d7-b44e-511e8d583c98",
+          "valid": true,
+          "empty": false,
+          "type": "LineString",
+          "area_object_available": false,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "4eba5bd4-e908-4eec-9aac-1ea743d89b12",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6450pLN_Scan1.er.qptiff",
+      "image_file": "6450pLN_Scan1.er.qptiff",
+      "qupath_entry": "9",
+      "donor_id": "6450",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry9.geojson",
+        "sha256": "f4f9ca584cb22bc85b3af71455ef85554440c35babfb7bc210c540b067775ac2"
+      },
+      "native_object_ids": [
+        "7c4edb01-e6b1-4640-a67d-5d00dd7ec867",
+        "93209051-482d-4a11-993e-fb9da1cac986"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        111582728.0,
+        121736876.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "7c4edb01-e6b1-4640-a67d-5d00dd7ec867",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "93209051-482d-4a11-993e-fb9da1cac986",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:HDL115pLN_Scan1.er.qptiff",
+      "image_file": "HDL115pLN_Scan1.er.qptiff",
+      "qupath_entry": "10",
+      "donor_id": "115",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry10.geojson",
+        "sha256": "735f3bd8c3accb08eb54ccfd36543ba9d54ade6680db7cae4792a7439962f572"
+      },
+      "native_object_ids": [
+        "b3b7175f-794a-4468-be34-25de6908a0cc"
+      ],
+      "selected_classes": [
+        "pLN_top"
+      ],
+      "objects": 1,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        75392310.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "b3b7175f-794a-4468-be34-25de6908a0cc",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6461pLN_Scan1.er.qptiff",
+      "image_file": "6461pLN_Scan1.er.qptiff",
+      "qupath_entry": "11",
+      "donor_id": "6461",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry11.geojson",
+        "sha256": "d716cf9296dbf924f956a219d3bf56342314267db30510ba2e24b5873f24a7fd"
+      },
+      "native_object_ids": [
+        "e2c7e2f4-25cd-440a-81e4-1b960c5a1a16",
+        "e4f9bd24-efc1-4f43-ae9a-9a4adfc252f6",
+        "3dda8602-9b68-4e19-80e3-3afb62237e1d"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        43849340.0,
+        6941106.0,
+        30998775.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "e2c7e2f4-25cd-440a-81e4-1b960c5a1a16",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "e4f9bd24-efc1-4f43-ae9a-9a4adfc252f6",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "3dda8602-9b68-4e19-80e3-3afb62237e1d",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6505pLN_Scan1.er.qptiff",
+      "image_file": "6505pLN_Scan1.er.qptiff",
+      "qupath_entry": "12",
+      "donor_id": "6505",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry12.geojson",
+        "sha256": "a487c43d95eac9ca9d41a9901b23e82407d0925b70e2b6dab7ecef6a2df21757"
+      },
+      "native_object_ids": [
+        "71312b6e-f219-4ee1-990c-13b062f0386a",
+        "01c80930-cc88-4975-be8b-92b51f113109",
+        "27282c34-9415-447c-88f6-adb61cd786bb"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        51346585.0,
+        16992828.0,
+        103395224.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "71312b6e-f219-4ee1-990c-13b062f0386a",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "01c80930-cc88-4975-be8b-92b51f113109",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "27282c34-9415-447c-88f6-adb61cd786bb",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6521pLN_Scan1.er.qptiff",
+      "image_file": "6521pLN_Scan1.er.qptiff",
+      "qupath_entry": "13",
+      "donor_id": "6521",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry13.geojson",
+        "sha256": "9594c1c2f451c4a78f260e29a501dcff670d13b7a4cf9d61d2a86535807293d5"
+      },
+      "native_object_ids": [
+        "5744c0d2-8974-419c-b68b-473e8807bb02",
+        "5046d0c3-3577-42e1-8beb-9807193c429c"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        243932475.0,
+        229722054.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "5744c0d2-8974-419c-b68b-473e8807bb02",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "5046d0c3-3577-42e1-8beb-9807193c429c",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6566pLN_Scan1.er.qptiff",
+      "image_file": "6566pLN_Scan1.er.qptiff",
+      "qupath_entry": "14",
+      "donor_id": "6566",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry14.geojson",
+        "sha256": "28fcfee69d9d9cf54561e45a047c61797883c85278609fc88bd2970752aa60f3"
+      },
+      "native_object_ids": [
+        "c9b6c763-5afd-4d29-b815-6796294d2ea0",
+        "45f0f338-431b-47d7-a7e9-71a76990a484"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        173241950.0,
+        170398886.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "c9b6c763-5afd-4d29-b815-6796294d2ea0",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "45f0f338-431b-47d7-a7e9-71a76990a484",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6493pLN_Scan1.er.qptiff",
+      "image_file": "6493pLN_Scan1.er.qptiff",
+      "qupath_entry": "15",
+      "donor_id": "6493",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry15.geojson",
+        "sha256": "c14593bcb61c49630accab2a3c2f03f3d2bc434805bafb07c8f94046a4482896"
+      },
+      "native_object_ids": [
+        "0192d254-74ef-4c5c-b24b-e52c44f9b5cb",
+        "993f2256-f432-4a9c-bf4d-8c783e37fe3e",
+        "f39c99ce-0a9a-4e46-b9ef-18e77a58c04b"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        42002404.0,
+        21753816.0,
+        14361060.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "0192d254-74ef-4c5c-b24b-e52c44f9b5cb",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "993f2256-f432-4a9c-bf4d-8c783e37fe3e",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "f39c99ce-0a9a-4e46-b9ef-18e77a58c04b",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6482pLN_Scan1.er.qptiff",
+      "image_file": "6482pLN_Scan1.er.qptiff",
+      "qupath_entry": "16",
+      "donor_id": "6482",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry16.geojson",
+        "sha256": "d5264bc9d88e02fac00af84ba0c80b780f82e30bf5c6932e16a5eb1fd4466058"
+      },
+      "native_object_ids": [
+        "cf6acb5f-12f2-4acc-9830-2394e6865dca",
+        "f8da0864-e330-464f-b777-f0327fd96f35",
+        "7875e980-4933-4a2d-b48e-dad2d68efba0"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        69992910.0,
+        48851340.0,
+        60197812.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "cf6acb5f-12f2-4acc-9830-2394e6865dca",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "f8da0864-e330-464f-b777-f0327fd96f35",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "7875e980-4933-4a2d-b48e-dad2d68efba0",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6436pLN_Scan1.er.qptiff",
+      "image_file": "6436pLN_Scan1.er.qptiff",
+      "qupath_entry": "17",
+      "donor_id": "6436",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry17.geojson",
+        "sha256": "8087ea2fe04ea740045198e17779faa170f7eed3e48f9a101411f58ac6b8b403"
+      },
+      "native_object_ids": [
+        "a1f8bbaf-69d5-45cc-a86c-6010a09944e4",
+        "85341e11-3c3a-4ab2-8638-5534b25656c1",
+        "5f79a10c-9689-4426-8b13-568e79586d52"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        86180395.0,
+        75227940.0,
+        26784788.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "a1f8bbaf-69d5-45cc-a86c-6010a09944e4",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "85341e11-3c3a-4ab2-8638-5534b25656c1",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "5f79a10c-9689-4426-8b13-568e79586d52",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6551pLN_Scan1.er.qptiff",
+      "image_file": "6551pLN_Scan1.er.qptiff",
+      "qupath_entry": "18",
+      "donor_id": "6551",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry18.geojson",
+        "sha256": "3e8b3a9a828b1b147addfb68cd24064c8082bc6f8936e34b3fa00b085141c306"
+      },
+      "native_object_ids": [
+        "0b599515-e1f3-467c-836f-cfd7ff1ce85a",
+        "aa62f32d-d0ef-405a-97d9-21fbb02ae38a",
+        "7f7d4a0e-8d57-4297-b930-2402c08d4c24"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        58692978.0,
+        60176481.0,
+        33671360.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "0b599515-e1f3-467c-836f-cfd7ff1ce85a",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "aa62f32d-d0ef-405a-97d9-21fbb02ae38a",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "7f7d4a0e-8d57-4297-b930-2402c08d4c24",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6539pLN_Scan1.er.qptiff",
+      "image_file": "6539pLN_Scan1.er.qptiff",
+      "qupath_entry": "19",
+      "donor_id": "6539",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry19.geojson",
+        "sha256": "726fdc29cb7f38154756554074b063dd7f14cf126dad0d4e56144146fa8617fc"
+      },
+      "native_object_ids": [
+        "5e057132-aa38-4b86-93d4-364d9a51c736",
+        "bf2d117b-8e7d-4716-ba1d-7e3bbbd024e5",
+        "cc9c1533-6458-4505-a5fa-a7d6acf8c50a"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_mid",
+        "pLN_bottom"
+      ],
+      "objects": 3,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        25609080.0,
+        52997832.0,
+        36840332.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "5e057132-aa38-4b86-93d4-364d9a51c736",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "bf2d117b-8e7d-4716-ba1d-7e3bbbd024e5",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "cc9c1533-6458-4505-a5fa-a7d6acf8c50a",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6593pLN_Scan1.er.qptiff",
+      "image_file": "6593pLN_Scan1.er.qptiff",
+      "qupath_entry": "20",
+      "donor_id": "6593",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry20.geojson",
+        "sha256": "20bb256255b81ac9ee1c70870b646c9839a0302871ecdaf56133e61c14627b13"
+      },
+      "native_object_ids": [
+        "90e03cf7-6629-4b91-b0f8-5d4cbf83e9b1",
+        "2c5f1dc9-4594-40ba-b163-3df094e5d590"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        211334712.0,
+        96842966.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "90e03cf7-6629-4b91-b0f8-5d4cbf83e9b1",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "2c5f1dc9-4594-40ba-b163-3df094e5d590",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    },
+    {
+      "acquisition_id": "phenocycler:6442pLN_Scan1.er.qptiff",
+      "image_file": "6442pLN_Scan1.er.qptiff",
+      "qupath_entry": "21",
+      "donor_id": "6442",
+      "source": {
+        "path": "/home/smith6jt/IO60pLN/results/v3/export/node_geojson/entry21.geojson",
+        "sha256": "0ec02acc9fde4f357c699f4258888adce741d31ad4070b77db4784a62829480f"
+      },
+      "native_object_ids": [
+        "c2da35b0-67e0-47db-b3a5-08f17882bffc",
+        "8b5f88ef-77f4-4e7e-91c1-f3ea84036567"
+      ],
+      "selected_classes": [
+        "pLN_top",
+        "pLN_bottom"
+      ],
+      "objects": 2,
+      "geometry_units": "level-zero image pixels",
+      "project_pixel_calibration": {
+        "pixelWidth": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "pixelHeight": {
+          "value": 0.5077663810243286,
+          "unit": "\u00b5m"
+        },
+        "zSpacing": {
+          "value": 1.0,
+          "unit": "z-slice"
+        },
+        "timeUnit": "SECONDS",
+        "timepoints": []
+      },
+      "registration_profile_um_per_pixel": 0.5078,
+      "calibration_note": "Project metadata and active registration profile use different documented calibrations; a future consumer must bind one target coordinate convention explicitly.",
+      "declared_by": "smith6jt",
+      "declared_on": "2026-09-16",
+      "areas_px2": [
+        58575975.0,
+        55074558.0
+      ],
+      "geometry_validity": [
+        {
+          "object_id": "c2da35b0-67e0-47db-b3a5-08f17882bffc",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        },
+        {
+          "object_id": "8b5f88ef-77f4-4e7e-91c1-f3ea84036567",
+          "valid": true,
+          "empty": false,
+          "type": "Polygon",
+          "area_object_available": true,
+          "reason": "Valid Geometry"
+        }
+      ],
+      "axis_aligned_rectangles": [
+        true,
+        true
+      ],
+      "source_identity_check": "pass",
+      "interpretation": "Existing declared node annotation ROIs; bounding rectangles are not tissue outlines or inferred follicle/islet objects.",
+      "maldi_neighbour_assignment": null,
+      "registration_acceptance": null
+    }
+  ]
+}

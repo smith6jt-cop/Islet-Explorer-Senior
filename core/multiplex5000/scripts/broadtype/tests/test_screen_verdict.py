@@ -202,7 +202,7 @@ def test_config_plan_ablates_held_out_markers_only_and_replicates_by_kind(monkey
 
 
 # --------------------------------------------------------------------------- end to end on a fake arm
-IDENTITY = {"Endocrine": ["GCG", "INS", "SST"], "Epithelial_nonendocrine": ["E_cadherin", "EpCAM"],
+IDENTITY = {"Endocrine": ["GCG", "INS", "SST"], "Epithelial_nonendocrine": ["E_cadherin", "Pan_Cytokeratin"],
             "Vascular": ["CD31", "Caveolin"], "Stromal": ["SMA", "Vimentin"], "T_NK": ["CD3e", "CD4"],
             "B_Plasma": ["CD20", "CD79a"], "Myeloid": ["CD68", "CD163"]}
 STATE = ["Ki67", "HLA_DR"]

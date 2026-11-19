@@ -5,10 +5,14 @@ Read only for a project that asks for MALDI (``settings.maldi: true``), from the
 source (a folder holding the export files and the ``SHA256SUMS`` that binds them,
 ``multiplex5000.maldi``); for every other project the Source Inventory is exactly what it was.
 
-* **acquisitions** -- one per Tissue_id whose donor the IO60 sources know (the donor notes or
-  any other acquisition), ``maldi:<Tissue_id>``; the two feature files are one acquisition, one
-  dataset. A Tissue_id whose donor they do not know (6426, the HPAP sections) is counted as out
-  of cohort and listed on the gate, not as a row.
+* **acquisitions** -- one per Tissue_id whose donor has PhenoCycler or Xenium data in this
+  inventory (an acquisition of either platform the cohort does not exclude; maintainer,
+  2026-11-03: "only use our donors that we have xenium/phenocycler data for"),
+  ``maldi:<Tissue_id>``; the two feature files are one acquisition, one dataset. A donor named
+  only by the donor notes or a pLN annotation does not qualify. Any other Tissue_id (the HPAP
+  sections) is counted as out of cohort and listed on the gate, not as a row. A Tissue_id the maintainer has recorded as naming
+  the wrong donor (``maldi.TISSUE_DONOR_CORRECTIONS``: 6426_02_pln is 6436's) is that donor's,
+  with the correction on its row and on the gate.
 * **inspection** -- which tissue each MALDI section is (pancreas or pLN/lymphoid) and which
   acquisition's slide it was cut next to are read from nothing but the maintainer's look at the
   ion images beside the donor's slides (``maldi_sections.png``), recorded in the tracked
@@ -34,6 +38,9 @@ import numpy as np
 
 from .. import gates, maldi, panel_names, profiles, relationships, roots
 from ..cohort import excluded_on
+
+#: The platforms whose data make a donor one of ours for MALDI (maintainer, 2026-11-03).
+DATA_PLATFORMS = ("phenocycler", "xenium")
 from ..integration import tissues
 from ..integration.tissues import LYMPH_NODE, PANCREAS
 from ..tasks import Input, Task
@@ -86,10 +93,18 @@ def _inspection_rows(path: Path) -> list[dict]:
         return list(csv.DictReader(line for line in handle if not line.startswith("#")))
 
 
-def collect(task: Task, aliases: dict, known_donors: set[str], acquisitions: list[dict]) -> dict:
-    """Everything the Source Inventory needs from the MALDI export: its acquisitions (IO60
-    donors), the out-of-cohort tissues, the pairing of the two files, the inspection's reading and
-    the summed-ion images."""
+def donors_with_data(acquisitions: list[dict]) -> set[str]:
+    """The donors with a PhenoCycler or Xenium acquisition the cohort does not exclude: 6457
+    through its Xenium, never through its excluded PhenoCycler."""
+    return {a["donor_id"] for a in acquisitions
+            if a.get("platform") in DATA_PLATFORMS and not excluded_on(a["donor_id"], a["platform"])}
+
+
+def collect(task: Task, aliases: dict, acquisitions: list[dict]) -> dict:
+    """Everything the Source Inventory needs from the MALDI export: its acquisitions (donors
+    with PhenoCycler or Xenium data, ``donors_with_data``), the out-of-cohort tissues, the
+    pairing of the two files, the inspection's reading and the summed-ion images."""
+    known_donors = donors_with_data(acquisitions)
     files = _files(task)
     con = maldi.connect()
     feats = maldi.features(con, files)
@@ -102,15 +117,18 @@ def collect(task: Task, aliases: dict, known_donors: set[str], acquisitions: lis
         panel_error = str(err)
     pairing = maldi.pairing_problems(con, files)
     rows, out_of_cohort = [], []
-    for index, t in enumerate(maldi.tissue_summary(con, files), start=1):
+    summaries = maldi.tissue_summary(con, files)
+    for index, t in enumerate(summaries, start=1):
         label, donor, rest = maldi.tissue_donor(t["tissue_id"], aliases)
         if donor not in known_donors:
             out_of_cohort.append(dict(tissue_id=t["tissue_id"], donor_label=label,
                                       n_spots=t["n_spots"]))
             continue
+        correction = maldi.TISSUE_DONOR_CORRECTIONS.get(t["tissue_id"])
         rows.append(dict(
             acquisition_id=f"maldi:{t['tissue_id']}", platform="maldi", tissue_id=t["tissue_id"],
-            donor_id=donor, donor_label=label, id_block_token=rest, source="maldi_spots",
+            donor_id=donor, donor_label=label, id_block_token=rest,
+            donor_correction=correction[1] if correction else "", source="maldi_spots",
             source_row=index, n_spots=t["n_spots"], rasters=t["rasters"],
             x_min_um=t["x_min_um"], x_max_um=t["x_max_um"], y_min_um=t["y_min_um"],
             y_max_um=t["y_max_um"], panel=panel or "", panel_error=panel_error or "",
@@ -130,7 +148,13 @@ def collect(task: Task, aliases: dict, known_donors: set[str], acquisitions: lis
         r["tissue"] = seen["tissue"] if seen else ""
         r["neighbour_acquisition"] = seen["neighbour_acquisition"] if seen else ""
         r["inspected_by"] = seen["inspected_by"] if seen else ""
+    exported = {t["tissue_id"] for t in summaries}
+    corrections = dict(
+        applied=sorted(f"{r['tissue_id']}: donor {r['donor_id']}, not {r['donor_label']} "
+                       f"({r['donor_correction']})" for r in rows if r["donor_correction"]),
+        unused=sorted(t for t in maldi.TISSUE_DONOR_CORRECTIONS if t not in exported))
     return dict(rows=rows, out_of_cohort=out_of_cohort, pairing=pairing, panel=panel,
+                donor_corrections=corrections,
                 panel_error=panel_error, features=feats, images=images,
                 glycogen_images=glycogen_images, glycan_images=glycan_images, **reading)
 
@@ -366,6 +390,8 @@ def summary(collected: dict) -> dict:
         "maldi_inspected": sorted(f"{t}: {v['tissue']}, next to {v['neighbour_acquisition']} "
                                   f"({v['inspected_by']})" for t, v in collected["by_tissue"].items()),
         "maldi_spots_no_ion": {r["tissue_id"]: r["spots_no_ion"] for r in rows if r["spots_no_ion"]},
+        "maldi_donor_corrections": collected["donor_corrections"]["applied"],
+        "maldi_donor_corrections_unused": collected["donor_corrections"]["unused"],
     }
 
 
@@ -391,8 +417,13 @@ def checks(summary: dict) -> list[gates.Check]:
           detail="each a serial section of the acquisition it neighbours: different cells"),
         C("MALDI tissues outside the cohort, not ingested", summary["maldi_out_of_cohort"],
           "reported", True, blocking=False,
-          detail="a Tissue_id whose donor no IO60 source knows (maintainer, 2026-10-31: IO60 "
-                 "donors only)"),
+          detail="a Tissue_id whose donor has no PhenoCycler or Xenium acquisition here "
+                 "(maintainer, 2026-11-03: only donors with Xenium or PhenoCycler data)"),
+        C("MALDI Tissue_ids recorded as naming the wrong donor", summary["maldi_donor_corrections"],
+          "reported", True, blocking=False,
+          detail="maldi.TISSUE_DONOR_CORRECTIONS, the maintainer's rulings; the Tissue_id stays "
+                 "the section's key. Recorded for an id the export does not hold: "
+                 + (", ".join(summary["maldi_donor_corrections_unused"]) or "none")),
         C("MALDI sections, by donor", f"{summary['maldi_acquisitions']} sections of "
           f"{len(summary['maldi_donors'])} donors", "reported", True, blocking=False,
           detail="the physical MALDI slide is not recorded: MALDI sections add datasets, not slides"),
@@ -406,6 +437,5 @@ def write(task: Task, collected: dict) -> None:
     from .inventory import _write_csv
 
     _write_csv(task.output("maldi_acquisitions.csv"), collected["rows"])
-    _write_csv(task.output("maldi_features.csv"),
-               [dict(role=r, feature=n) for r, n in collected["features"]])
+    _write_csv(task.output("maldi_features.csv"), maldi.feature_table(collected["features"]))
     _write_csv(task.output("maldi_out_of_cohort.csv"), collected["out_of_cohort"])

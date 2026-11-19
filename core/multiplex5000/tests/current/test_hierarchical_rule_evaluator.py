@@ -103,3 +103,26 @@ def test_batch_alias_conflicts_and_bad_shapes_are_refused():
         evaluate_rules_batch(source, {"CD3e": np.array([0]), "CD3g": np.array([0, 1])})
     with pytest.raises(RuleSourceError, match="-1, 0 or 1"):
         evaluate_rules_batch(source, {"CD3e": np.array([2])})
+
+
+def test_independent_nk_entry_and_native_lineage_competition():
+    from multiplex5000.tissues.evaluate import resolve_unique_matched_rules
+    source = load_pln(PLN, dedicated=True)
+    # No B/myeloid anchor; then an independently matched B cell; finally missing NK corroboration.
+    calls = {marker: np.zeros(3, dtype=np.int8) for rule in source.rules for marker in rule.markers}
+    calls["CD56"][:] = 1
+    calls["Granzyme B"][:] = [1, 1, -1]
+    calls["CD20"][1] = 1
+    calls["CD79a"][1] = 1
+    result = evaluate_rules_batch(source, calls)
+    resolved = resolve_unique_matched_rules(source, result)
+    assert result.states["NK_cell"].tolist() == [1, 1, -1]
+    assert result.states["Immune"].tolist() == [1, 1, -1]
+    assert result.states["B_cell"].tolist()[:2] == [0, 1]
+    assert resolved.status[:2].tolist() == ["unique_candidate", "ambiguous"]
+    assert resolved.phenotype[0] == "CD56bright_NK"
+    equivalents = {1: "matched", 0: "not_matched", -1: "unavailable"}
+    for i in range(3):
+        cell = {m: (bool(v[i]) if v[i] >= 0 else None) for m, v in calls.items()}
+        observed = evaluate_rules(source, cell)
+        assert all(observed.states[k] == equivalents[v[i]] for k, v in result.states.items())

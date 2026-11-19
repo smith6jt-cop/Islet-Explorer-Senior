@@ -1,5 +1,5 @@
 {
- "method_version": "broadtype-declarations-2026-09-17",
+ "method_version": "broadtype-declarations-2026-11-19",
  "rule": "identity = registry kind=='type' and represented in the rule table; compartments from the registry; Immune split by the rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* leaves; definitional (pos/allpos) cross-branch claims exclude; OR-membership notes",
  "labels": {
   "Endocrine": {
@@ -22,13 +22,12 @@
    "common_lineage": "Exocrine",
    "markers": [
     "E_cadherin",
-    "EpCAM",
     "Ker8_18",
     "Keratin_5",
     "Pan_Cytokeratin",
     "TP63"
    ],
-   "n_markers": 6,
+   "n_markers": 5,
    "held_out_gated": true,
    "negatives": [
     "CD68",
@@ -87,7 +86,6 @@
     "E_cadherin",
     "Ker8_18",
     "Pan_Cytokeratin",
-    "EpCAM",
     "CD20",
     "CD68"
    ],
@@ -105,7 +103,6 @@
     "E_cadherin",
     "Ker8_18",
     "Pan_Cytokeratin",
-    "EpCAM",
     "CD3e",
     "CD68"
    ],
@@ -129,7 +126,6 @@
     "E_cadherin",
     "Ker8_18",
     "Pan_Cytokeratin",
-    "EpCAM",
     "CD3e",
     "CD20"
    ],
@@ -153,7 +149,6 @@
   "CD8",
   "Caveolin",
   "E_cadherin",
-  "EpCAM",
   "FOXP3",
   "GCG",
   "INS",
@@ -220,6 +215,7 @@
   "CD45": "registry type marker absent from the rule table; no identity rule declared",
   "CD56": "registry type marker with no broad_compartment; rule-table positive rows ['Epi-endocrine', 'Imm-NK-cell']",
   "CD66": "registry Epithelial but the rule table makes a definitional claim for it under ['B_Plasma', 'Myeloid', 'T_NK'] (rows ['Imm-neutrophil'])",
+  "EpCAM": "registry type marker absent from the rule table; no identity rule declared",
   "IAPP": "registry kind=excluded",
   "Keratin_14": "registry type marker absent from the rule table; no identity rule declared",
   "b_Catenin1": "registry type marker with no broad_compartment"

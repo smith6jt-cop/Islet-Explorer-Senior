@@ -22,7 +22,7 @@ import pins
 
 PROTOCOL_LABELS = {
     "Endocrine": ["GCG", "INS", "SST"],
-    "Epithelial_nonendocrine": ["E_cadherin", "EpCAM", "Ker8_18", "Keratin_5", "Pan_Cytokeratin", "TP63"],
+    "Epithelial_nonendocrine": ["E_cadherin", "Ker8_18", "Keratin_5", "Pan_Cytokeratin", "TP63"],
     "Vascular": ["CD31", "Caveolin", "Podoplanin"],
     "Stromal": ["SMA", "Vimentin"],
     "T_NK": ["CD3e", "CD4", "CD8", "FOXP3"],
@@ -38,7 +38,7 @@ def test_declarations_json_is_derived_not_typed():
     frozen_text = declarations.DECLARATIONS_JSON.read_text()
     assert json.dumps(fresh, indent=1, sort_keys=False) + "\n" == frozen_text
     assert json.loads(frozen_text) == fresh
-    assert fresh["method_version"] == "broadtype-declarations-2026-09-17"
+    assert fresh["method_version"] == "broadtype-declarations-2026-11-19"
 
 
 def test_declarations_record_the_sha_of_both_sources():
@@ -152,7 +152,7 @@ def test_conflict_rule_exclusions_are_the_recorded_ones(dec):
     """The protocol's exclusions plus the new type measurements without identity rules: CD141 and
     CD21 (2026-09-16), and CD14, CD45 and Keratin_14 from the spleen PhenoCycler panel (2026-10-30)."""
     assert set(dec["excluded"]) == {"B3TUBB", "CD11b", "CD34", "CD56", "CD66", "IAPP", "b_Catenin1",
-                                    "CD141", "CD21", "CD14", "CD45", "Keratin_14"}
+                                    "CD141", "CD21", "CD14", "CD45", "Keratin_14", "EpCAM"}
     assert dec["excluded"]["CD11b"] == "registry kind=excluded"
     assert dec["excluded"]["IAPP"] == "registry kind=excluded"
     assert "Mes-CD34-fibroblast" in dec["excluded"]["CD34"]
@@ -170,7 +170,7 @@ def test_registry_additions_need_rule_table_support_before_entering_identity(dec
                     if spec["kind"] == pins.KIND_TYPE and m not in table.columns}
     # CD14, CD45 and Keratin_14 came with the spleen PhenoCycler panel (2026-10-30): deferred type
     # markers the 37-reference rule table has no rule for, so they stay out of identity.
-    assert absent_types == {"CD141", "CD21", "b_Catenin1", "CD14", "CD45", "Keratin_14"}
+    assert absent_types == {"CD141", "CD21", "b_Catenin1", "CD14", "CD45", "Keratin_14", "EpCAM"}
     assert absent_types <= set(dec["excluded"])
     for m in ("CD141", "CD21", "CD14", "CD45", "Keratin_14"):
         assert registry[m]["calibration_status"] == "deferred"

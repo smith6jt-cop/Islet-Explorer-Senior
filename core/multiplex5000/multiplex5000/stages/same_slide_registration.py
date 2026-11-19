@@ -69,6 +69,30 @@ def settings(project) -> dict:
             "max_dist_um": MAX_DIST_UM, "scope": "registration_review_candidate"}
 
 
+def _cell_table(task: Task, name: str, required: list[str]):
+    """Keep available frame/segmentation metadata visible to pair validation."""
+    path = task.input(name)
+    available = set(pq.read_schema(path).names)
+    optional = ["coordinate_frame", "coordinate_units", "segmentation_id", "segmentation_version"]
+    return pq.read_table(path, columns=required + [col for col in optional if col in available]).to_pandas()
+
+
+def _receipt_hashes(rows: list[dict], key: str) -> dict:
+    """Never resolve conflicting receipt bindings by their row order."""
+    names = [row.get(key) for row in rows]
+    if None in names or len(set(names)) != len(names):
+        raise SameSlideRegistrationError(f"receipt has missing or duplicate {key} bindings")
+    return {row[key]: row.get("sha256") for row in rows}
+
+
+def _typed_cells_current(task: Task, receipt: dict) -> None:
+    bound = _receipt_hashes(receipt.get("inputs", []), "name")
+    for name in ["protein_cells", "rna_cells"]:
+        path = task.input(name)
+        if bound.get(f"{name}:{path.stem}") != sha256_file(path):
+            raise SameSlideRegistrationError(f"accepted Stage 06 {name} changed or is unbound")
+
+
 def inputs(project) -> list[Input]:
     pair = _selected(project)
     sample = _sample(project, pair)
@@ -95,19 +119,21 @@ def run(task: Task) -> dict:
     acceptance = json.loads(task.input("typing_acceptance").read_text())
     if receipt.get("stage") != "06_typing" or receipt.get("status") != "complete":
         raise SameSlideRegistrationError("Stage 06 has no complete typing receipt")
-    bound = {row["name"]: row.get("sha256") for row in receipt.get("inputs", [])}
-    if (acceptance.get("receipt_sha256") != sha256_file(receipt_path)
+    bound = _receipt_hashes(receipt.get("inputs", []), "name")
+    if (acceptance.get("stage") != "06_typing"
+            or acceptance.get("receipt_sha256") != sha256_file(receipt_path)
             or bound.get("same_slide_source_manifest") != sha256_file(
                 task.input("same_slide_source_manifest"))):
         raise SameSlideRegistrationError("Stage 06 acceptance or source manifest changed")
+    _typed_cells_current(task, receipt)
     transform = Transform.load(task.input("transform_json").parent)
     validate_pair_transform(pair, transform)
-    protein = pq.read_table(task.input("protein_cells"), columns=[
+    protein = _cell_table(task, "protein_cells", [
         "cell_uid", "donor_id", "tissue", "acquisition_id", "x_um", "y_um",
-        "protein_eligible"]).to_pandas()
-    rna = pq.read_table(task.input("rna_cells"), columns=[
+        "protein_eligible"])
+    rna = _cell_table(task, "rna_cells", [
         "cell_uid", "donor_id", "tissue", "acquisition_id", "x_um", "y_um",
-        "typing_eligible"]).to_pandas()
+        "typing_eligible"])
     protein, rna = validate_pair_cells(pair, protein, rna)
     p = protein.loc[protein["protein_eligible"]].reset_index(drop=True)
     x = rna.loc[rna["typing_eligible"]].reset_index(drop=True)

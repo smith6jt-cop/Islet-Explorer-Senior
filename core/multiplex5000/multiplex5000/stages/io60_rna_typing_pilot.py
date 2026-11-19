@@ -9,6 +9,7 @@ reported as unavailable for that acquisition without stopping other regions.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -21,6 +22,7 @@ from ..artifacts import sha256_file
 from ..cohort import excluded_on
 from ..integration import tissues
 from ..integration.manifest import parse_bundle_path
+from ..resolved_parameters import write_resolved_parameters
 from ..tasks import Input, Task
 from ..tissues import lymph_node_xenium_worker as pln_worker
 from ..tissues import pancreas_xenium_worker as panc_worker
@@ -28,6 +30,7 @@ from ..tissues import rna_runtime
 from ..xenium_typing_input import load_accepted_region, write_worker_h5ad
 
 STAGE = "06_typing"
+REQUIRE_SETTINGS_MATCH_ON_REUSE = True
 PANELS = roots.REPO / "core/panels/data"
 _COLUMNS = ("acquisition_id", "sample_key", "donor_id", "tissue", "roi", "cells",
             "typing_eligible", "called_cells", "broad_cells", "unresolved_cells",
@@ -72,9 +75,17 @@ def settings(project) -> dict:
             "rna_min_median_detected_genes": _min_genes(project),
             "rna_compute_threads": _compute_threads(project),
             "rna_numerical_versions": rna_runtime.versions(),
-            "pancreas_naming_policy": "shared_er_exact_v1",
+            "pancreas_naming_policy": _naming_policy(project.settings),
             "frozen_partition_overrides": "not_applied_to_new_clusters",
             "scope": "rna_pilot_review_only"}
+
+
+def _naming_policy(settings: dict) -> str:
+    policy = settings.get("pancreas_naming_policy", "shared_er_exact_v1")
+    if not isinstance(policy, str) or policy not in panc_worker.NAMING_POLICIES:
+        raise IO60RNATypingError(
+            f"pancreas_naming_policy must be one of {panc_worker.NAMING_POLICIES}; got {policy!r}")
+    return policy
 
 
 def _min_genes(project) -> int:
@@ -250,6 +261,7 @@ def run(task: Task) -> dict:
 
 
 def _run(task: Task) -> dict:
+    naming_policy = _naming_policy(task.settings)
     inventory = _inventory(task)
     donors = _donors(task)
     with task.input("rna_regions").open(newline="") as handle:
@@ -260,6 +272,7 @@ def _run(task: Task) -> dict:
     results = []
     class_rows = []
     controls = []
+    parameter_details = {}
     for row in rows:
         acquisition = row["acquisition_id"]
         source = inventory.get(acquisition)
@@ -328,7 +341,7 @@ def _run(task: Task) -> dict:
                 panc_panels = panc_worker.load_panels()
             report = panc_worker.process_section(
                 donor, sample, h5ad, panc_panels, work,
-                naming_policy="shared_er_exact_v1", source_serial=serial,
+                naming_policy=naming_policy, source_serial=serial,
                 exact_cells=task.input(f"raw_cells:{sample}"), acquisition_id=acquisition)
         else:
             if pln_panels is None:
@@ -346,6 +359,7 @@ def _run(task: Task) -> dict:
         results.append(record)
         if report.get("acquisition_id") != acquisition:
             raise IO60RNATypingError(f"{acquisition}: worker report lacks source identity")
+        parameter_details[acquisition] = _rna_parameter_details(row, region, report, naming_policy)
         cd3 = report.get("cd3_gate_control") or {}
         controls.append({"acquisition_id": acquisition, "tissue": row["tissue"],
                          "sex": sex, "cells": region.n_cells,
@@ -366,6 +380,7 @@ def _run(task: Task) -> dict:
         writer.writeheader()
         writer.writerows(controls)
     _figure(task, results, class_rows)
+    parameter_artifact = _write_parameters(task, results, parameter_details, naming_policy)
     candidate_tissues = sorted({r["tissue"] for r in results if r["status"] == "candidate"})
     specific_cells_by_tissue = {
         tissue: sum(r["cells"] for r in class_rows
@@ -390,7 +405,67 @@ def _run(task: Task) -> dict:
             "low_signal_regions": [r["acquisition_id"] for r in results
                                    if str(r["reason"]).startswith("low RNA signal:")],
             "protein_cells_typed": 0, "paired_cell_links": 0,
-            "scope": "selected_xenium_acquisitions_only"}
+            "scope": "selected_xenium_acquisitions_only", "resolved_parameters": parameter_artifact}
+
+
+def _rna_parameter_details(row: dict, region, report: dict, naming_policy: str) -> dict:
+    """Keep emitted fits separate from fixed detection and selected naming settings."""
+    pancreas = row["tissue"] == tissues.PANCREAS
+    fitted_fields = ("cluster_meta", "refine_meta") if pancreas else ("partition",)
+    fitted = {name: report.get(name) for name in fitted_fields}
+    coverage_fields = ("wanted_genes_absent", "n_wanted_genes_present", "core_sizes",
+                       "control_features_present_in_var")
+    worker = panc_worker if pancreas else pln_worker
+    fixed_names = (("QC_MIN_COUNTS", "QC_MIN_FEATURES", "N_HVG", "N_PCS", "PCA_FIT_MAX",
+                    "LEIDEN_SUBSAMPLE", "LEIDEN_RESOLUTION", "KNN_K", "REFINE_MIN_CELLS",
+                    "REFINE_RESOLUTION", "Z_STANDOUT", "Z_SENSITIVITY") if pancreas else
+                   ("CLUSTER_MIN_COUNTS", "CLUSTER_MIN_FEATURES", "CLUSTER_SUBSAMPLE",
+                    "CLUSTER_RESOLUTION", "CLUSTER_SEED_BASE", "Z_STANDOUT", "Z_SENSITIVITY",
+                    "STAGE1_MIN_STANDOUT", "STAGE2_MIN_NAMING_STANDOUT", "NK_MIN_NAMING", "NK_SENSITIVITY"))
+    return {"selected_worker": panc_worker.__name__ if pancreas else pln_worker.__name__,
+            "selected_naming_policy": naming_policy if pancreas else None,
+            "naming_policy_scope": "pancreas_only" if pancreas else "tissue-specific pLN worker",
+            "gene_panel": {"genes": list(region.genes), "count": len(region.genes),
+                           "sha256": hashlib.sha256(json.dumps(list(region.genes), separators=(",", ":")).encode()).hexdigest(),
+                           "hash_contract": "ordered Gene Expression gene names; UTF-8 compact JSON"},
+            "panel_coverage": {name: report.get(name) for name in coverage_fields},
+            "worker_fixed_parameters": [{"name": name, "role": "fixed", "value": getattr(worker, name)}
+                                        for name in fixed_names],
+            "fixed_parameter_scope": "worker configuration; fitted diagnostics record branch-specific dimensions and seeds",
+            "fitted": fitted,
+            "unavailable_parameters": [{"name": name, "reason": "not_emitted_by_worker"}
+                                       for name, value in fitted.items() if value is None] +
+                                      ([{"name": "embedding_normalization_target", "value": None,
+                                         "reason": "pLN worker uses library-fitted target but does not emit its value; not inferred from fixed detection target"}]
+                                       if not pancreas else []),
+            "reported_naming_policy": report.get("naming_policy"),
+            "reported_detection_predicate": report.get("detection_predicate"),
+            "units": {"raw": "Gene Expression counts", "detection": "log1p(counts normalized to fixed 10000-count depth)"}}
+
+
+def _write_parameters(task: Task, rows: list[dict], details: dict, naming_policy: str) -> dict:
+    records = [{**row, **details.get(row["acquisition_id"], {
+        "fitted": None, "unavailable_parameters": [{"name": "worker_fitted_values", "value": None,
+                                                     "reason": row["reason"] or "worker did not execute"}]})}
+               for row in rows]
+    return write_resolved_parameters(
+        task, operation="rna_typing",
+        context={"modality": "RNA", "assay": "Xenium", "tissues": sorted({r["tissue"] for r in rows}),
+                 "relationship_type": None, "relationship_reason": "independent acquisition typing; no protein or pairing requirement",
+                 "scope": task.settings["scope"], "frozen_partition_overrides": "not_applied_to_new_clusters"},
+        parameters=[{"name": "pancreas_naming_policy", "role": "selected_method", "value": naming_policy,
+                     "scope": tissues.PANCREAS, "source": "task.settings"},
+                    {"name": "rna_min_median_detected_genes", "role": "fixed",
+                     "value": task.settings["rna_min_median_detected_genes"], "units": "detected genes/cell"},
+                    {"name": "rna_compute_threads", "role": "fixed", "value": task.settings["rna_compute_threads"]},
+                    *[{"name": f"{name}.{parameter}", "role": "fixed", "value": float(getattr(worker, parameter)),
+                       "units": "normalized counts/cell" if parameter == "TARGET_SUM" else "log-normalized counts"}
+                      for name, worker in (("pancreas", panc_worker), ("pLN", pln_worker))
+                      for parameter in ("TARGET_SUM", "DETECTION_MIN_LOGNORM")]],
+        acquisitions=records,
+        input_names=[name for name in task.inputs if name.startswith("panel:") or name in {
+            "inventory_receipt", "rna_receipt", "rna_regions"}],
+        producer_paths=(Path(__file__), Path(panc_worker.__file__), Path(pln_worker.__file__)))
 
 
 def _figure(task: Task, rows: list[dict], class_rows: list[dict]) -> None:

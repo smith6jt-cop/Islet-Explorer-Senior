@@ -86,11 +86,45 @@ def test_the_panel_is_named_from_the_feature_sets():
         panel_names.maldi({"glycan": 38, "glycogen": 0}, rule)
 
 
+def test_a_glycan_feature_is_described_by_its_composition_only():
+    seen = maldi.glycan_annotation("Hex5dHex1HexNAc4NeuAc1...2Na")
+    assert (seen["composition"], seen["ion_label"]) == ("Hex5dHex1HexNAc4NeuAc1", "...2Na")
+    assert (seen["Hex"], seen["HexNAc"], seen["dHex"], seen["NeuAc"]) == (5, 4, 1, 1)
+    assert seen["composition_class"] == "complex" and seen["fucosylated"] and seen["sialylated"]
+    classes = {name: maldi.glycan_annotation(name + "..Na")["composition_class"] for name in (
+        "Hex9HexNAc2", "Hex10HexNAc2", "Hex3dHex1HexNAc2", "Hex2HexNAc2", "Hex6HexNAc3",
+        "Hex5dHex1HexNAc3", "Hex4HexNAc3", "Hex3HexNAc3", "Hex5dHex1HexNAc2", "Hex3HexNAc1")}
+    assert classes == {"Hex9HexNAc2": "high_mannose", "Hex10HexNAc2": "high_mannose",
+                       "Hex3dHex1HexNAc2": "paucimannose", "Hex2HexNAc2": "paucimannose",
+                       "Hex6HexNAc3": "hybrid", "Hex5dHex1HexNAc3": "hybrid",
+                       "Hex4HexNAc3": "complex", "Hex3HexNAc3": "complex",
+                       "Hex5dHex1HexNAc2": "unclassified", "Hex3HexNAc1": "unclassified"}
+    for name in ("X689", "Hex5Hex2..Na", "HexHexNAc2..Na", ""):
+        unparsed = maldi.glycan_annotation(name)
+        assert unparsed["composition_class"] == "unparsed" and unparsed["Hex"] is None
+        assert unparsed["fucosylated"] is None, "an unread name is never a negative"
+
+
+def test_the_feature_table_counts_a_composition_measured_as_several_ions_once():
+    rows = maldi.feature_table([("glycan", "Hex5HexNAc4NeuAc1..Na"),
+                                ("glycan", "Hex5HexNAc4NeuAc1...2Na"),
+                                ("glycan", "Hex5HexNAc2..Na"), ("glycogen", "X689")])
+    assert [r["ions_of_composition"] for r in rows] == [2, 2, 1, None]
+    assert rows[-1] == dict(role="glycogen", feature="X689", ions_of_composition=None)
+    assert all(r["composition_rule"] == maldi.COMPOSITION_RULE for r in rows[:3])
+
+
 def test_a_tissue_id_gives_its_donor_and_nothing_else():
     aliases = {"HDL115": "115"}
     assert maldi.tissue_donor("HDL115", aliases) == ("HDL115", "115", "")
     assert maldi.tissue_donor("6551_03B", aliases) == ("6551", "6551", "03B")
     assert maldi.tissue_donor("6461_02_PLN", aliases) == ("6461", "6461", "02_PLN")
+
+
+def test_a_tissue_id_recorded_as_naming_the_wrong_donor_is_its_donors():
+    # maintainer, 2026-11-03: there is no donor 6426; the section is 6436's
+    assert maldi.tissue_donor("6426_02_pln", {}) == ("6426", "6436", "02_pln")
+    assert maldi.tissue_donor("6426_99", {}) == ("6426", "6426", "99"), "that exact id only"
 
 
 def test_the_two_files_must_hold_the_same_spots(tmp_path):
@@ -181,6 +215,36 @@ def test_an_inspected_inventory_passes_and_records_serial_sections(synthetic_pro
     assert coverage["6374"]["MALDI section: MALDI"] == "2"
 
 
+def test_only_donors_with_phenocycler_or_xenium_data_are_ours():
+    from multiplex5000.stages.maldi_inventory import donors_with_data
+
+    acquisitions = [dict(donor_id="6374", platform="phenocycler"),
+                    dict(donor_id="6512", platform="xenium"),
+                    dict(donor_id="6457", platform="phenocycler"),   # excluded on PhenoCycler
+                    dict(donor_id="9001", platform="if"),
+                    dict(donor_id="9002", platform="maldi")]
+    assert donors_with_data(acquisitions) == {"6374", "6512"}
+    assert donors_with_data(acquisitions + [dict(donor_id="6457", platform="xenium")]) == {
+        "6374", "6512", "6457"}, "6457 is ours through its Xenium"
+
+
+def test_a_corrected_tissue_id_joins_its_donor_and_keeps_its_key(synthetic_project, tmp_path,
+                                                                 monkeypatch):
+    monkeypatch.setattr(maldi, "TISSUE_DONOR_CORRECTIONS",
+                        {"9999_01_pln": ("6374", "synthetic ruling"), "8888_01": ("6374", "unused")})
+    export = write_export(tmp_path / "maldi", {**TISSUES, "9999_01_pln": _disk(40_000, 10_000, 2)})
+    _, folder, checks = _inventory(_with_maldi(synthetic_project(), export, INSPECTION))
+    rows = {r["acquisition_id"]: r for r in _rows(folder / "maldi_acquisitions.csv")}
+    corrected = rows["maldi:9999_01_pln"]
+    assert (corrected["tissue_id"], corrected["donor_id"], corrected["donor_label"]) == (
+        "9999_01_pln", "6374", "9999")
+    assert corrected["donor_correction"] == "synthetic ruling"
+    assert rows["maldi:6374_04"]["donor_correction"] == ""
+    reported = checks["MALDI Tissue_ids recorded as naming the wrong donor"]
+    assert reported["value"] == ["9999_01_pln: donor 6374, not 9999 (synthetic ruling)"]
+    assert "8888_01" in reported["detail"], "a ruling for an id the export lacks is shown"
+
+
 def test_an_inspection_row_must_name_the_same_donors_acquisition(synthetic_project, tmp_path):
     export = write_export(tmp_path / "maldi", TISSUES)
     wrong = (INSPECTION + "6374_04,pancreas,phenocycler:HDL112_Scan3 - resolution #1,tester,\n"
@@ -216,6 +280,12 @@ def test_ingest_keys_every_spot_and_keeps_zeros(synthetic_project, tmp_path, mon
     receipt = json.loads((result.path / "receipt.json").read_text())
     assert receipt["summary"]["missing_values"] == 2
     assert receipt["settings"]["normalization"] == "none"
+    features = {r["feature"]: r for r in _rows(result.path / "features.csv")}
+    assert list(features) == [*GLYCANS, *GLYCOGEN]
+    assert features[GLYCANS[0]]["composition_class"] == "high_mannose"
+    assert features[GLYCANS[0]]["Hex"] == "5" and features[GLYCANS[0]]["fucosylated"] == "False"
+    assert features[GLYCOGEN[0]]["composition_class"] == "", "glycogen carries no composition"
+    assert receipt["summary"]["glycan_composition_classes"] == {"high_mannose": 2}
 
 
 # -------------------------------------------------------------------------- the registration ----
@@ -278,3 +348,48 @@ def test_objects_are_evaluable_only_beyond_the_registration_error():
     assert rows["a"]["detected_fraction__f2"] == 1.0
     assert not rows["b"]["evaluable"] and rows["b"]["reason"]
     assert np.isnan(rows["b"]["detected_fraction__f1"]), "an unevaluable object carries no values"
+
+
+def test_a_spots_grid_square_cover_is_its_area_fraction_under_the_transform():
+    import shapely
+
+    from multiplex5000.integration.transform import Transform, from_rigid
+    from multiplex5000.stages.maldi_serial_integration import (
+        _cover_columns,
+        _cover_fraction,
+        _spot_squares,
+    )
+
+    xy = np.array([[25.0, 25.0], [75.0, 25.0], [125.0, 25.0], [525.0, 25.0]])
+    squares = _spot_squares(xy, Transform(affine=np.array([[1.0, 0, 0], [0, 1.0, 0]])))
+    assert np.allclose(shapely.area(squares), 2500.0)
+    # a vessel over the first square and half the second; a second object overlapping it is
+    # not counted twice; a sliver of the third
+    vessel = shapely.box(0, 0, 75, 50)
+    overlapping = shapely.box(40, 0, 75, 50)
+    sliver = shapely.box(100, 0, 105, 50)
+    cover = _cover_fraction(squares, [vessel, overlapping, sliver])
+    assert np.allclose(cover, [1.0, 0.5, 0.1, 0.0])
+    # carried by a rotation and mirror, the square keeps its area and its cover
+    moved = from_rigid(30.0, (1000.0, -400.0), mirror=True)
+    carried = _spot_squares(xy, moved)
+    assert np.allclose(shapely.area(carried), 2500.0)
+    pieces = [shapely.Polygon(moved.apply(np.asarray(g.exterior.coords)))
+              for g in (vessel, overlapping, sliver)]
+    assert np.allclose(_cover_fraction(carried, pieces), [1.0, 0.5, 0.1, 0.0])
+
+    def obj(name, geometry):
+        return dict(object_class=name, geometry=geometry)
+
+    columns = _cover_columns(squares, {"islets": ["Islet"], "structures": ["Nerve", "Lymphatic"]},
+                             {"islets": [], "structures": [obj("Nerve", sliver),
+                                                           obj("Lymphatic", None)]}, "")
+    assert np.allclose(columns["cover_fraction__islets__Islet"], 0.0), "read, none: covers nothing"
+    assert np.allclose(columns["cover_fraction__structures__Nerve"], [0, 0, 0.1, 0])
+    assert np.isnan(columns["cover_fraction__structures__Lymphatic"]).all()
+    assert columns["cover_status__structures"] == "partial_unavailable_invalid_geometry"
+    assert columns["cover_status__regions"] == "unavailable_no_object_source"
+    assert "cover_fraction__regions__Tissue" not in columns
+    nothing = _cover_columns(squares, {}, {}, "unavailable_no_object_source")
+    assert set(nothing) == {"cover_status__islets", "cover_status__regions",
+                            "cover_status__structures"}

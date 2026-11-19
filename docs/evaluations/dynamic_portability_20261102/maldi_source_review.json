@@ -1,0 +1,588 @@
+{
+  "schema": "maldi-source-visual-review/1",
+  "review_date": "2026-11-02",
+  "reviewer": "Codex agent visual inspection",
+  "scope": "All 32 IO60 MALDI sections / 18 donor rows in the inventory comparison; six overlapping full-width crops viewed individually. Complements the 32 per-section value/geometry diagnostics in inspection_ledger.json.",
+  "source_figure": {
+    "path": "/data/io60-current/releases/io60-maldi-candidate-1/00_inventory/gate/maldi_sections.png",
+    "sha256": "2308b6b219b8dba9614a2017024d1db828c99346e1e2725130c29c347772d30b",
+    "bytes": 6060744
+  },
+  "viewed_crops": [
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_1.png",
+      "sha256": "91b020f5ef9513358909329266f0f4900af801ef7e258afcf0c802c85dc188f4"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_2.png",
+      "sha256": "ec0effa153570fa383ced4579d8fe33a6edb7ea1febc2214c614721555e2f8ad"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_3.png",
+      "sha256": "87d400fbaf0e54387d6f26683b8b2f1f4a0b3691449d5d12030cac4eb131f110"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_4.png",
+      "sha256": "197c7dbd79c8b0ef825082e3f7f054ff793eca34abec6f4a753ba69ba1a338e1"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_5.png",
+      "sha256": "7605be53314e57789d44f6cfa5eda631d1ac48863f43247b86e7285b4a9e7fa2"
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/maldi_completion_20261102/inspection/source_full_6.png",
+      "sha256": "fb9feaa23e9856d1de6006a2555fb9a84320ed32b0553d219010909d75abe273"
+    }
+  ],
+  "limits": [
+    "Independent thumbnail sizing cannot establish micrometre scale.",
+    "Repeated Xenium whole-slide thumbnails cannot establish region-specific coordinates.",
+    "Morphology and block metadata are evidence for review, not exact cutting order, adjacency distance, accepted transforms or same-cell links.",
+    "No production inspection table, registry or registration acceptance was changed."
+  ],
+  "sections": [
+    {
+      "acquisition_id": "maldi:6374_01_pln",
+      "tissue_id": "6374_01_pln",
+      "donor_id": "6374",
+      "visual_review": "completed",
+      "observation": "Compact bilobed MALDI shape resembles the small paired pieces in the Xenium overview. No dedicated PhenoCycler node view is shown; the overview does not provide the exact region coordinate frame.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6374_Scan1.er.qptiff - resolution #1",
+        "xenium:0041032:Pan",
+        "xenium:0041032:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6374_04",
+      "tissue_id": "6374_04",
+      "donor_id": "6374",
+      "visual_review": "completed",
+      "observation": "Large lobulated MALDI piece is morphologically compatible with the pancreas-reference piece after orientation changes. Neither this visual similarity nor donor membership supplies section order or an accepted transform.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6374_Scan1.er.qptiff - resolution #1",
+        "xenium:0041032:Pan",
+        "xenium:0041032:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6380_01",
+      "tissue_id": "6380_01",
+      "donor_id": "6380",
+      "visual_review": "completed",
+      "observation": "Single small oval MALDI piece resembles the dedicated node view and small piece in the Xenium overview; orientations differ. Exact serial relationship remains unrecorded.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6380_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6380pLN_Scan1.er.qptiff",
+        "xenium:0037502:6380_Pan",
+        "xenium:0037502:6380_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6380_01b",
+      "tissue_id": "6380_01b",
+      "donor_id": "6380",
+      "visual_review": "completed",
+      "observation": "Large continuous MALDI piece resembles the larger reference piece after rotation. Thumbnail similarity requires full-resolution registration before any object association.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6380_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6380pLN_Scan1.er.qptiff",
+        "xenium:0037502:6380_Pan",
+        "xenium:0037502:6380_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6436_04B",
+      "tissue_id": "6436_04B",
+      "donor_id": "6436",
+      "visual_review": "completed",
+      "observation": "Broad irregular MALDI piece with a narrower extension resembles the larger reference piece after orientation change; the three separate pieces in the dedicated node thumbnail have a different arrangement.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6436_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6436pLN_Scan1.er.qptiff",
+        "xenium:0059907:Panc",
+        "xenium:0059907:PanT"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6442_02D",
+      "tissue_id": "6442_02D",
+      "donor_id": "6442",
+      "visual_review": "completed",
+      "observation": "Large elongated irregular MALDI piece is visually compatible with the larger reference specimen after rotation. Region-specific Xenium geometry is not visible in the repeated overview.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6442_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6442pLN_Scan1.er.qptiff",
+        "xenium:0059947:Panc",
+        "xenium:0059947:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6442_03",
+      "tissue_id": "6442_03",
+      "donor_id": "6442",
+      "visual_review": "completed",
+      "observation": "Two separate oval MALDI pieces resemble the two pieces in the dedicated node reference. The repeated Xenium overview does not establish the region-specific association.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6442_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6442pLN_Scan1.er.qptiff",
+        "xenium:0059947:Panc",
+        "xenium:0059947:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6457_03",
+      "tissue_id": "6457_03",
+      "donor_id": "6457",
+      "visual_review": "completed",
+      "observation": "One large lobulated MALDI silhouette; all three Xenium region entries show the same whole-slide overview. The source workbook records an embedded-node block, but this figure cannot isolate region boundaries or a unique target frame.",
+      "candidate_reference_acquisition_ids": [
+        "xenium:0037637:6457_Pan",
+        "xenium:0037637:6457_pLN1",
+        "xenium:0037637:6457_pLN2"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6461_02A",
+      "tissue_id": "6461_02A",
+      "donor_id": "6461",
+      "visual_review": "completed",
+      "observation": "Large roughly rectangular MALDI piece resembles the larger reference outline. Broad low glycogen signal is distinct from its tissue silhouette; no intensity agreement is used for registration acceptance.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6461_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6461pLN_Scan1.er.qptiff",
+        "xenium:0059847:Panc",
+        "xenium:0059847:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6461_02_PLN",
+      "tissue_id": "6461_02_PLN",
+      "donor_id": "6461",
+      "visual_review": "completed",
+      "observation": "Three separated small MALDI pieces resemble the three dedicated node pieces. Sparse glycogen detection makes signal-derived masking particularly important; boundaries need independent review.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6461_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6461pLN_Scan1.er.qptiff",
+        "xenium:0059847:Panc",
+        "xenium:0059847:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6476",
+      "tissue_id": "6476",
+      "donor_id": "6476",
+      "visual_review": "completed",
+      "observation": "Four separated MALDI pieces, including a very small fragment. Dedicated node view shows three principal pieces; the small-fragment correspondence is unresolved.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6476_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6476pLN_Scan1.er.qptiff",
+        "xenium:0037634:6476_Pan",
+        "xenium:0037634:6476_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6476_01A",
+      "tissue_id": "6476_01A",
+      "donor_id": "6476",
+      "visual_review": "completed",
+      "observation": "Large lobulated MALDI piece resembles the larger reference specimen after orientation change. Internal texture and thumbnail outline alone do not establish a transform.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6476_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6476pLN_Scan1.er.qptiff",
+        "xenium:0037634:6476_Pan",
+        "xenium:0037634:6476_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6482_02",
+      "tissue_id": "6482_02",
+      "donor_id": "6482",
+      "visual_review": "completed",
+      "observation": "Three small MALDI components resemble the three components in the dedicated node reference. Contact/gaps differ between views, requiring explicit component-level review.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6482_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6482pLN_Scan1.er.qptiff",
+        "xenium:0037354:Panc",
+        "xenium:0037354:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6482_02A",
+      "tissue_id": "6482_02A",
+      "donor_id": "6482",
+      "visual_review": "completed",
+      "observation": "Large triangular MALDI piece resembles the larger reference silhouette after rotation. Physical scale and residual error are not recoverable from independently sized thumbnails.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6482_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6482pLN_Scan1.er.qptiff",
+        "xenium:0037354:Panc",
+        "xenium:0037354:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6493_01_pln",
+      "tissue_id": "6493_01_pln",
+      "donor_id": "6493",
+      "visual_review": "completed",
+      "observation": "Three principal small components plus a narrow fragment; dedicated node view has three main components. The narrow fragment lacks an unambiguous counterpart.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6493_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6493pLN_Scan1.er.qptiff",
+        "xenium:0037191:Panc",
+        "xenium:0037191:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6493_02B",
+      "tissue_id": "6493_02B",
+      "donor_id": "6493",
+      "visual_review": "completed",
+      "observation": "Large irregular MALDI piece resembles the lobulated larger reference after orientation change. No section-distance or registration quality is established.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6493_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6493pLN_Scan1.er.qptiff",
+        "xenium:0037191:Panc",
+        "xenium:0037191:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6521_02",
+      "tissue_id": "6521_02",
+      "donor_id": "6521",
+      "visual_review": "completed",
+      "observation": "Two compact separated MALDI pieces resemble the two dedicated node pieces; one has a cavity/irregular interior. Sparse glycogen detection cannot define an independent tissue mask.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6521_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6521pLN_Scan1.er.qptiff",
+        "xenium:0037199:Panc",
+        "xenium:0037199:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6521_02D",
+      "tissue_id": "6521_02D",
+      "donor_id": "6521",
+      "visual_review": "completed",
+      "observation": "Large MALDI piece with a narrow lateral lobe resembles the larger reference specimen after rotation. Independent image scaling prevents physical-scale inference from the thumbnail.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6521_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6521pLN_Scan1.er.qptiff",
+        "xenium:0037199:Panc",
+        "xenium:0037199:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6523_01",
+      "tissue_id": "6523_01",
+      "donor_id": "6523",
+      "visual_review": "completed",
+      "observation": "Two separated oval MALDI pieces resemble the two dedicated node pieces. The Xenium region entries repeat the same overview and require distinct region metadata.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6523panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6523pLN_Scan1.er.qptiff",
+        "xenium:0037499:6523_Pan",
+        "xenium:0037499:6523_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6523_02A",
+      "tissue_id": "6523_02A",
+      "donor_id": "6523",
+      "visual_review": "completed",
+      "observation": "Large compact lobulated MALDI piece resembles the larger reference silhouette after rotation. No accepted spatial mapping is present.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6523panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6523pLN_Scan1.er.qptiff",
+        "xenium:0037499:6523_Pan",
+        "xenium:0037499:6523_pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6539_01A",
+      "tissue_id": "6539_01A",
+      "donor_id": "6539",
+      "visual_review": "completed",
+      "observation": "Large angular MALDI piece with a lateral projection resembles the larger reference specimen after orientation changes. Internal structure is visible but is not a registration acceptance criterion here.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6539_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6539pLN_Scan1.er.qptiff",
+        "xenium:0059865:Panc",
+        "xenium:0059865:PanT"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6539_02_pln",
+      "tissue_id": "6539_02_pln",
+      "donor_id": "6539",
+      "visual_review": "completed",
+      "observation": "Four vertically arranged MALDI pieces resemble four horizontally arranged dedicated node pieces after rotation. Exact component correspondence and physical frame remain unvalidated.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6539_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6539pLN_Scan1.er.qptiff",
+        "xenium:0059865:Panc",
+        "xenium:0059865:PanT"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6551_03",
+      "tissue_id": "6551_03",
+      "donor_id": "6551",
+      "visual_review": "completed",
+      "observation": "Three separated small MALDI pieces resemble the three dedicated node pieces. Outline similarity is recorded as a review observation, not an accepted serial relation.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6551_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6551pLN_Scan1.er.qptiff",
+        "xenium:0037376:Panc",
+        "xenium:0037376:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6551_03B",
+      "tissue_id": "6551_03B",
+      "donor_id": "6551",
+      "visual_review": "completed",
+      "observation": "Large compact MALDI piece resembles the larger reference specimen. Annotations in the reference do not transfer object identities to the serial MALDI section.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6551_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6551pLN_Scan1.er.qptiff",
+        "xenium:0037376:Panc",
+        "xenium:0037376:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6566",
+      "tissue_id": "6566",
+      "donor_id": "6566",
+      "visual_review": "completed",
+      "observation": "Large triangular irregular MALDI piece resembles the larger reference specimen after rotation. Internal appearance alone cannot establish scale or registration quality.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6566panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6566pLN_Scan1.er.qptiff",
+        "xenium:0059968:Panc",
+        "xenium:0059968:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6566_02",
+      "tissue_id": "6566_02",
+      "donor_id": "6566",
+      "visual_review": "completed",
+      "observation": "Two compact MALDI pieces resemble the two dedicated node pieces. The repeated Xenium overview does not distinguish region frames.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6566panc_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6566pLN_Scan1.er.qptiff",
+        "xenium:0059968:Panc",
+        "xenium:0059968:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6579_02A",
+      "tissue_id": "6579_02A",
+      "donor_id": "6579",
+      "visual_review": "completed",
+      "observation": "Large roughly rectangular MALDI piece resembles the larger reference specimen. Several smaller structures in the reference require explicit object geometry and serial eligibility.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6579_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6579pLN_Scan1.er.qptiff",
+        "xenium:0041035:Pan",
+        "xenium:0041035:pLN1",
+        "xenium:0041035:pLN2",
+        "xenium:0041035:pLN3"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6579_02_PLN",
+      "tissue_id": "6579_02_PLN",
+      "donor_id": "6579",
+      "visual_review": "completed",
+      "observation": "Three separated MALDI pieces resemble the three dedicated node pieces. Four Xenium entries repeat the same whole-slide overview; none provides a unique region frame here.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6579_Scan2.er.qptiff - resolution #1",
+        "phenocycler:6579pLN_Scan1.er.qptiff",
+        "xenium:0041035:Pan",
+        "xenium:0041035:pLN1",
+        "xenium:0041035:pLN2",
+        "xenium:0041035:pLN3"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6591_02",
+      "tissue_id": "6591_02",
+      "donor_id": "6591",
+      "visual_review": "completed",
+      "observation": "One rounded irregular MALDI piece is visually compatible with the reference outline after rotation. Glycogen texture is pronounced, but no agreement-based transform selection was performed.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6591panc_Scan1.er.qptiff - resolution #1",
+        "xenium:0041116:Region_1"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6593",
+      "tissue_id": "6593",
+      "donor_id": "6593",
+      "visual_review": "completed",
+      "observation": "One elongated lobulated MALDI piece resembles the larger reference specimen after rotation. No physical-scale or adjacency inference is made.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6593_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6593pLN_Scan1.er.qptiff",
+        "xenium:0059945:Panc",
+        "xenium:0059945:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:6593_02",
+      "tissue_id": "6593_02",
+      "donor_id": "6593",
+      "visual_review": "completed",
+      "observation": "Two separated MALDI pieces resemble the two dedicated node pieces. The larger and smaller components remain distinct; no cell or object identities are transferred.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:6593_Scan1.er.qptiff - resolution #1",
+        "phenocycler:6593pLN_Scan1.er.qptiff",
+        "xenium:0059945:Panc",
+        "xenium:0059945:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    },
+    {
+      "acquisition_id": "maldi:HDL115",
+      "tissue_id": "HDL115",
+      "donor_id": "115",
+      "visual_review": "completed",
+      "observation": "One large lobulated piece and one separate rounded piece. Both PhenoCycler views contain both pieces; the Xenium views repeat one whole-slide overview. Image-level labels do not isolate the relevant tissue ROI or establish a unique neighbour.",
+      "candidate_reference_acquisition_ids": [
+        "phenocycler:HDL115pancLN_Scan1.er.qptiff - resolution #1",
+        "phenocycler:HDL115pLN_Scan1.er.qptiff",
+        "xenium:0041117:PanT",
+        "xenium:0041117:pLN"
+      ],
+      "accepted_neighbour": null,
+      "accepted_tissue": null,
+      "accepted_transform": null,
+      "outcome": "reviewed morphology; exact neighbour/region frame and registration remain unresolved"
+    }
+  ]
+}

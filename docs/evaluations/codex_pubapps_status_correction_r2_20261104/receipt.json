@@ -1,0 +1,182 @@
+{
+  "schema": "senior.pubapps_status_correction_r2_receipt/1",
+  "recorded_utc": "2026-11-04T13:50:11.780417+00:00",
+  "disposition": "reviewed_with_one_open_prior_receipt_reference_unapplied",
+  "publication": {
+    "workstation_mirror": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261104-status-correction-r2",
+    "hpg_publication": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r2",
+    "hpg_resolved_path": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r2.content",
+    "checksum_manifest_sha256": "0b9baf8ed5c11a084e97dea64ce3f82befb48f773a7179fdc5f7988fd7a4710d",
+    "total_files": 11,
+    "total_bytes": 184972
+  },
+  "package_files": [
+    {
+      "relative_path": "CLAUDE.md",
+      "sha256": "3ad12fd446454d99b781ff5e68b8e87df621138bdc976dcf8231cf2638828c07",
+      "bytes": 54602
+    },
+    {
+      "relative_path": "PUBAPPS_UFRC_HANDOFF.md",
+      "sha256": "bfdec800412b2f29341fa55d6480fd1bfcae73a823701234f7825902ccc34714",
+      "bytes": 37606
+    },
+    {
+      "relative_path": "README.md",
+      "sha256": "3f4233b297a76558dbb9b2d46dba1edcff41d802694154a32b05a656da4544a5",
+      "bytes": 1102
+    },
+    {
+      "relative_path": "SHA256SUMS",
+      "sha256": "0b9baf8ed5c11a084e97dea64ce3f82befb48f773a7179fdc5f7988fd7a4710d",
+      "bytes": 910
+    },
+    {
+      "relative_path": "deploy/BASE_HARDENING.md",
+      "sha256": "2320914866d7a8af4ad841c91d06f73414c09d6d2a44ac18b3bde1815ecbdcfa",
+      "bytes": 19973
+    },
+    {
+      "relative_path": "evidence/pubapps_live_20261104_ui_refresh.json",
+      "sha256": "056f3a479d039aa1ef0bdb4182df3fc77e4d011f99aa9f027e12ea73055479f2",
+      "bytes": 3302
+    },
+    {
+      "relative_path": "evidence/pubapps_refresh_agent_handoff_20261104.json",
+      "sha256": "5944d77aa04f2788d699808382a3df765bf2bff35aeb1b98379b40da93397fce",
+      "bytes": 3189
+    },
+    {
+      "relative_path": "manifest.json",
+      "sha256": "6452433d2d284f4bf6daee8b9efde1cdedd071d55c14b496c5c51789d4a3271c",
+      "bytes": 621
+    },
+    {
+      "relative_path": "project-README.md",
+      "sha256": "86aa3fb46a2843ce1c0045fbdc635069a87ddaee57799f050dff170f809d002c",
+      "bytes": 27541
+    },
+    {
+      "relative_path": "status-correction.bundle",
+      "sha256": "e4dbdacfcbd9efc24d557185b4dc1a419b2017679faae8ffb14aa95235f05f60",
+      "bytes": 6614
+    },
+    {
+      "relative_path": "status-correction.patch",
+      "sha256": "6dbb0b9ef795cbb6494cc19c8af07c7246048079847ac17dcdbc13b1ae232db2",
+      "bytes": 29512
+    }
+  ],
+  "cumulative_base": "a2f945ac4c20d06a1354a38cfb93d5491f1f8cef",
+  "tip": "276822242c78c50d77d1e1323e767939db50d9b0",
+  "tip_tree": "09facf04362edc7b3e375da4b8d9213f92e45e69",
+  "git_result": {
+    "bundle_prerequisite": "a2f945ac4c20d06a1354a38cfb93d5491f1f8cef",
+    "fsck_full": "pass",
+    "commits": 4,
+    "merges": 0,
+    "incremental_objects_matching_upstream": 23,
+    "intermediate_direct_patch_replay_trees_matching": 4,
+    "paths_relative_to_r1": [
+      "README.md",
+      "docs/evidence/pubapps_refresh_agent_handoff_20261104.json"
+    ],
+    "recipient_apply": false
+  },
+  "previous_receipts": [
+    {
+      "path": "docs/evaluations/codex_pubapps_refresh_receipt_20261104/receipt.json",
+      "sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438",
+      "bytes": 7380
+    },
+    {
+      "path": "docs/evaluations/codex_pubapps_status_correction_20261104/receipt.json",
+      "sha256": "3e1e0063648654219266e701bdd2b4cce9234964ea1b77d4edfc565a2b3826a9",
+      "bytes": 6315
+    }
+  ],
+  "finding_dispositions": [
+    {
+      "id": "GUIDE-STALE-STATUS",
+      "status": "four previously corrected summaries verified at R2 tip"
+    },
+    {
+      "id": "STANDALONE-PROJECT-README",
+      "status": "closed",
+      "mapped_documents": [
+        {
+          "package_path": "project-README.md",
+          "git_path": "README.md",
+          "sha256": "86aa3fb46a2843ce1c0045fbdc635069a87ddaee57799f050dff170f809d002c",
+          "bytes": 27541
+        },
+        {
+          "package_path": "CLAUDE.md",
+          "git_path": "CLAUDE.md",
+          "sha256": "3ad12fd446454d99b781ff5e68b8e87df621138bdc976dcf8231cf2638828c07",
+          "bytes": 54602
+        },
+        {
+          "package_path": "PUBAPPS_UFRC_HANDOFF.md",
+          "git_path": "PUBAPPS_UFRC_HANDOFF.md",
+          "sha256": "bfdec800412b2f29341fa55d6480fd1bfcae73a823701234f7825902ccc34714",
+          "bytes": 37606
+        },
+        {
+          "package_path": "deploy/BASE_HARDENING.md",
+          "git_path": "deploy/BASE_HARDENING.md",
+          "sha256": "2320914866d7a8af4ad841c91d06f73414c09d6d2a44ac18b3bde1815ecbdcfa",
+          "bytes": 19973
+        }
+      ]
+    },
+    {
+      "id": "README-LOWER-SETTINGS",
+      "status": "closed",
+      "backend": {
+        "value": "10.13.41.21:3838",
+        "project_readme_line": 426
+      },
+      "production_schema": {
+        "value": 5,
+        "project_readme_line": 455
+      }
+    },
+    {
+      "id": "PRIOR-RECEIPT-DIGEST",
+      "status": "open_in_R2_snapshot",
+      "file": "evidence/pubapps_refresh_agent_handoff_20261104.json",
+      "field": "recipient_notification.read_acknowledgement.recipient_receipt_sha256",
+      "declared_sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4434",
+      "correct_sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438",
+      "recipient_commit": "1ce6007c234acfb01614d39127b14f83021b956b",
+      "recipient_file": "docs/evaluations/codex_pubapps_refresh_receipt_20261104/receipt.json"
+    }
+  ],
+  "embedded_r1_status_scope": "R1 publication snapshot at 13:42:27Z. Its subsequent recipient review is bound separately above.",
+  "live_receipt_sha256": "056f3a479d039aa1ef0bdb4182df3fc77e4d011f99aa9f027e12ea73055479f2",
+  "live_receipt_matches_original_and_r1": true,
+  "scope": "Verified the workstation and HPG package bytes, Git reconstruction and documentation/receipt consistency. All patch replay used an isolated index.",
+  "review_records": {
+    "package_read.json": {
+      "path": "outputs/codex_pubapps_status_correction_r2_20261104/package_read.json",
+      "sha256": "25eb89aca6a900124262a1ca7f73a9240d2046b4451b7fbe2dae32f83d39566f",
+      "bytes": 5352
+    },
+    "git_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_r2_20261104/git_review.json",
+      "sha256": "956373c475d82b067ea535f03b32c55413570646d877bcbd20a05cfca058a1f7",
+      "bytes": 3801
+    },
+    "status_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_r2_20261104/status_review.json",
+      "sha256": "86b9da301a568c11e29c5edb788d63ec8d251289065f3727dcbb5efd8fbf8fc9",
+      "bytes": 9501
+    },
+    "hpg_checksums.txt": {
+      "path": "outputs/codex_pubapps_status_correction_r2_20261104/hpg_checksums.txt",
+      "sha256": "6855844455de2f835ef284fa3f8f0e5adab03a3642d3df199ae7715d82ec40e1",
+      "bytes": 1494
+    }
+  }
+}

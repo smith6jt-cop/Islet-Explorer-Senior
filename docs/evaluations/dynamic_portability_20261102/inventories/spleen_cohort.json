@@ -1,0 +1,3486 @@
+{
+ "spec_version": 1,
+ "cohort_name": "spleen-phenocycler-primary",
+ "expected_donors": [
+  "hdl009spl",
+  "hdl011spl",
+  "hdl014spl",
+  "hdl034spl",
+  "hdl053spl",
+  "hdl055spl",
+  "hdl059spl",
+  "hdl063spl",
+  "hdl080spl",
+  "hdl082spl",
+  "hdl090spl",
+  "hdl104spl"
+ ],
+ "defaults": {
+  "segmentation_version": "instanseg-fnc-0.1.1-19ch",
+  "nucleus_geojson": null,
+  "pixel_size_um_x": 0.5077663810243286,
+  "pixel_size_um_y": 0.5077663810243286
+ },
+ "images": [
+  {
+   "donor_id": "hdl009spl",
+   "image_id": "HDL009_PC67_0110979-S2",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL009_PC67_0110979-S2.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL009_PC67_0110979-S2.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl011spl",
+   "image_id": "HDL011_PC33.ome.tiff",
+   "panel_id": "spleen_pc33",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL011_PC33.ome.tiff.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL011_PC33.ome.tiff.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL011SPLN_2025Aug6_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 1
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 2
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 9
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 10
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 11
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 13
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 15
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 16
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 17
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 18
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 19
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 21
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 22
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 23
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 24
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 25
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 26
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 27
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 28
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 29
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 30
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 31
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 32
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl014spl",
+   "image_id": "HDL014_PC67_0110618-S4",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL014_PC67_0110618-S4.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL014_PC67_0110618-S4.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl034spl",
+   "image_id": "HDL034_PC67_0110979-S3",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL034_PC67_0110979-S3.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL034_PC67_0110979-S3.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl053spl",
+   "image_id": "HDL053_PC33.ome.tif",
+   "panel_id": "spleen_pc33",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL053_PC33.ome.tif.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL053_PC33.ome.tif.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL053_SPLN_2025Aug5_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 1
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 2
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 9
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 10
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 11
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 13
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 15
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 16
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 17
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 18
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 19
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 21
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 22
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 23
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 24
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 25
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 26
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 27
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 28
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 29
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 30
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 31
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 32
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl055spl",
+   "image_id": "HDL055_PC33.ome.tiff",
+   "panel_id": "spleen_pc33",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL055_PC33.ome.tiff.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL055_PC33.ome.tiff.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL055_SPLN_2025Aug9_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 1
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 2
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 9
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 10
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 11
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 13
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 15
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 16
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 17
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 18
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 19
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 21
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 22
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 23
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 24
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 25
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 26
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 27
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 28
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 29
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 30
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 31
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 32
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl059spl",
+   "image_id": "HDL059_PC67_0110979-S1",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL059_PC67_0110979-S1.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL059_PC67_0110979-S1.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl063spl",
+   "image_id": "HDL063_PC33.ome.tiff",
+   "panel_id": "spleen_pc33",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL063_PC33.ome.tiff.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL063_PC33.ome.tiff.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/HDL063_SPLN_2025Aug7_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 1
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 2
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 9
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 10
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 11
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 13
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 15
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 16
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 17
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 18
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 19
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 21
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 22
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 23
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 24
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 25
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 26
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 27
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 28
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 29
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 30
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 31
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 32
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl080spl",
+   "image_id": "HDL080_PC67_0110979-S4",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL080_PC67_0110979-S4.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL080_PC67_0110979-S4.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl082spl",
+   "image_id": "HDL082_PC67_0110618-S2",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL082_PC67_0110618-S2.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL082_PC67_0110618-S2.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl090spl",
+   "image_id": "HDL090_PC67_0110618-S1",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL090_PC67_0110618-S1.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL090_PC67_0110618-S1.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  },
+  {
+   "donor_id": "hdl104spl",
+   "image_id": "HDL104_PC67_0110618-S3",
+   "panel_id": "spleen_pc67",
+   "measurement_csv": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/HDL104_PC67_0110618-S3.parquet",
+   "cell_geojson": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/geometry_slide/cells__HDL104_PC67_0110618-S3.geojson",
+   "qptiff": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+   "channel_map": [
+    {
+     "marker": "DAPI",
+     "channel_name": "DAPI",
+     "channel_index": 0
+    },
+    {
+     "marker": "Keratin_14",
+     "channel_name": "Keratin 14",
+     "channel_index": 1
+    },
+    {
+     "marker": "CD107a",
+     "channel_name": "CD107a",
+     "channel_index": 2
+    },
+    {
+     "marker": "CD4",
+     "channel_name": "CD4",
+     "channel_index": 3
+    },
+    {
+     "marker": "CD38",
+     "channel_name": "CD38",
+     "channel_index": 4
+    },
+    {
+     "marker": "SMA",
+     "channel_name": "SMA",
+     "channel_index": 5
+    },
+    {
+     "marker": "CD68",
+     "channel_name": "CD68",
+     "channel_index": 6
+    },
+    {
+     "marker": "CD44",
+     "channel_name": "CD44",
+     "channel_index": 7
+    },
+    {
+     "marker": "Vimentin",
+     "channel_name": "Vimentin",
+     "channel_index": 8
+    },
+    {
+     "marker": "CD66",
+     "channel_name": "CD66",
+     "channel_index": 9
+    },
+    {
+     "marker": "E_cadherin",
+     "channel_name": "E-cadherin",
+     "channel_index": 10
+    },
+    {
+     "marker": "IDO1",
+     "channel_name": "IDO1",
+     "channel_index": 11
+    },
+    {
+     "marker": "CD11c",
+     "channel_name": "CD11c",
+     "channel_index": 12
+    },
+    {
+     "marker": "CD45",
+     "channel_name": "CD45",
+     "channel_index": 13
+    },
+    {
+     "marker": "CD21",
+     "channel_name": "CD21",
+     "channel_index": 14
+    },
+    {
+     "marker": "CD34",
+     "channel_name": "CD34",
+     "channel_index": 15
+    },
+    {
+     "marker": "IFNG",
+     "channel_name": "IFNG",
+     "channel_index": 16
+    },
+    {
+     "marker": "HLA_DR",
+     "channel_name": "HLA-DR",
+     "channel_index": 17
+    },
+    {
+     "marker": "Histone_H3_(p_Ser28)",
+     "channel_name": "Histone H3 (p Ser28)",
+     "channel_index": 18
+    },
+    {
+     "marker": "iNOS",
+     "channel_name": "iNOS",
+     "channel_index": 19
+    },
+    {
+     "marker": "CD31",
+     "channel_name": "CD31",
+     "channel_index": 20
+    },
+    {
+     "marker": "CD45RO",
+     "channel_name": "CD45RO",
+     "channel_index": 21
+    },
+    {
+     "marker": "CD8",
+     "channel_name": "CD8",
+     "channel_index": 22
+    },
+    {
+     "marker": "PCNA",
+     "channel_name": "PCNA",
+     "channel_index": 23
+    },
+    {
+     "marker": "FOXP3",
+     "channel_name": "FOXP3",
+     "channel_index": 24
+    },
+    {
+     "marker": "HK1",
+     "channel_name": "HK1",
+     "channel_index": 25
+    },
+    {
+     "marker": "Ki67",
+     "channel_name": "Ki67",
+     "channel_index": 26
+    },
+    {
+     "marker": "Granzyme_B",
+     "channel_name": "Granzyme B",
+     "channel_index": 27
+    },
+    {
+     "marker": "HLA_A",
+     "channel_name": "HLA-A",
+     "channel_index": 28
+    },
+    {
+     "marker": "CD20",
+     "channel_name": "CD20",
+     "channel_index": 29
+    },
+    {
+     "marker": "Collagen_IV",
+     "channel_name": "Collagen IV",
+     "channel_index": 30
+    },
+    {
+     "marker": "VISTA",
+     "channel_name": "VISTA",
+     "channel_index": 31
+    },
+    {
+     "marker": "Pan_Cytokeratin",
+     "channel_name": "Pan-Cytokeratin",
+     "channel_index": 32
+    },
+    {
+     "marker": "PD_1",
+     "channel_name": "PD-1",
+     "channel_index": 33
+    },
+    {
+     "marker": "CD14",
+     "channel_name": "CD14",
+     "channel_index": 34
+    },
+    {
+     "marker": "Caveolin",
+     "channel_name": "Caveolin",
+     "channel_index": 35
+    },
+    {
+     "marker": "TCF_1",
+     "channel_name": "TCF-1",
+     "channel_index": 36
+    },
+    {
+     "marker": "TOX",
+     "channel_name": "TOX",
+     "channel_index": 37
+    },
+    {
+     "marker": "EpCAM",
+     "channel_name": "EpCAM",
+     "channel_index": 38
+    },
+    {
+     "marker": "ICOS",
+     "channel_name": "ICOS",
+     "channel_index": 39
+    },
+    {
+     "marker": "CD163",
+     "channel_name": "CD163",
+     "channel_index": 40
+    },
+    {
+     "marker": "Beta_actin",
+     "channel_name": "Beta-actin",
+     "channel_index": 41
+    },
+    {
+     "marker": "PD_L1",
+     "channel_name": "PDL1",
+     "channel_index": 42
+    },
+    {
+     "marker": "CD79a",
+     "channel_name": "CD79a",
+     "channel_index": 43
+    },
+    {
+     "marker": "M2Gal3",
+     "channel_name": "M2Gal3",
+     "channel_index": 44
+    },
+    {
+     "marker": "CD3e",
+     "channel_name": "CD3e",
+     "channel_index": 45
+    },
+    {
+     "marker": "CD141",
+     "channel_name": "CD141",
+     "channel_index": 46
+    },
+    {
+     "marker": "ATP5A",
+     "channel_name": "ATP5A",
+     "channel_index": 47
+    },
+    {
+     "marker": "Bcl_2",
+     "channel_name": "Bcl-2",
+     "channel_index": 48
+    },
+    {
+     "marker": "MPO",
+     "channel_name": "MPO",
+     "channel_index": 49
+    },
+    {
+     "marker": "GLUT1",
+     "channel_name": "GLUT1",
+     "channel_index": 50
+    },
+    {
+     "marker": "CD56",
+     "channel_name": "CD56",
+     "channel_index": 51
+    },
+    {
+     "marker": "CD39",
+     "channel_name": "CD39",
+     "channel_index": 52
+    },
+    {
+     "marker": "LDHA",
+     "channel_name": "LDHA",
+     "channel_index": 53
+    },
+    {
+     "marker": "CD209",
+     "channel_name": "CD209",
+     "channel_index": 54
+    },
+    {
+     "marker": "SOX2",
+     "channel_name": "SOX2",
+     "channel_index": 55
+    },
+    {
+     "marker": "CD11b",
+     "channel_name": "CD11b",
+     "channel_index": 56
+    },
+    {
+     "marker": "Podoplanin",
+     "channel_name": "Podoplanin",
+     "channel_index": 57
+    },
+    {
+     "marker": "TP63",
+     "channel_name": "TP63",
+     "channel_index": 58
+    },
+    {
+     "marker": "CD206",
+     "channel_name": "CD206",
+     "channel_index": 59
+    },
+    {
+     "marker": "IDH2",
+     "channel_name": "IDH2",
+     "channel_index": 60
+    },
+    {
+     "marker": "ASCT2",
+     "channel_name": "ASCT2",
+     "channel_index": 61
+    },
+    {
+     "marker": "SDHA",
+     "channel_name": "SDHA",
+     "channel_index": 62
+    },
+    {
+     "marker": "CS",
+     "channel_name": "CS",
+     "channel_index": 63
+    },
+    {
+     "marker": "LAG3",
+     "channel_name": "LAG3",
+     "channel_index": 64
+    },
+    {
+     "marker": "G6PD",
+     "channel_name": "G6PD",
+     "channel_index": 65
+    },
+    {
+     "marker": "CD57",
+     "channel_name": "CD57",
+     "channel_index": 66
+    }
+   ]
+  }
+ ]
+}

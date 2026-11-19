@@ -33,7 +33,8 @@ def test_a_gate_is_written_with_every_check_and_a_page(tmp_path):
     assert record["passed"] and record["release"] == "r1"
     assert [c["name"] for c in record["checks"]] == ["ids are unique", "files not found"]
     page = (stage / gates.GATE_DIR / "gate.html").read_text()
-    assert "coverage.png" in page and "mplx5k gate accept s1" in page
+    assert "coverage.png" in page and "project-specific show and accept commands" in page
+    assert "mplx5k gate accept s1" not in page
 
 
 def test_the_page_calls_a_reported_check_a_note_however_it_came_out(tmp_path):

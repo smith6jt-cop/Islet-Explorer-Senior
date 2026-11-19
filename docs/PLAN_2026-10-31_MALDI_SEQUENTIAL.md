@@ -1,8 +1,64 @@
 # Plan: add MALDI glycan and glycogen imaging to the IO60 sequential-slide analysis (MultiPlex5000)
 
-Status: written 2026-10-31 from the maintainer's answers. **Implemented 2026-10-31** on branch
+Historical status (2026-10-31): written from the maintainer's answers. **Implemented 2026-10-31** on branch
 `maldi/serial-platform` (not yet committed). Waiting on the maintainer's inspection rows
 (`maldi_tissue_inspection.csv`) before MALDI Ingest can run on the real export.
+
+## 2026-11-02 evaluation update
+
+The [portability evaluation](evaluations/dynamic_portability_20261102/README.md)
+pins the serial MALDI code at `00ec0322d8b8da6529283a65db9105e62e0bdf85` and
+audits all 32 IO60 sections from 18 donors. The historical implementation notes
+and proposed workflow below remain dated context; this evaluation changes no
+scientific method or acceptance.
+
+**Mask correction:** the earlier **0–2.1%** statement below is superseded by the
+full-cohort audit. With the implemented `raster_footprint_any_ion` rule, exclusions
+range from **0% to 10.81081081081081%**. The maximum is **1,372 of 12,691 spots**
+in `6461_02_PLN`; all 32 sections together exclude **12,486 of 1,666,450 spots**.
+Every excluded spot in these audited exports is all-zero across the measured
+features. These counts come from
+[`maldi/sections.csv`](../outputs/dynamic_portability_20261102/maldi/sections.csv),
+with source hashes and the all-zero probe in
+[`maldi/summary.json`](../outputs/dynamic_portability_20261102/maldi/summary.json).
+
+This is a detected-ion mask, not an independent tissue outline. It excludes
+all-zero spots, while a feature's measured zero at a retained spot still counts
+as not detected. Missing values remain unavailable. Consequently masked and
+all-raster detection fractions have different denominators. The largest audited
+difference is **10.462198217300255 percentage points**, for
+`Hex5dHex1HexNAc4..Na` in `6461_02_PLN` (10,954 detections divided by 11,319 masked
+spots versus 12,691 raster spots). Both denominators are retained in
+[`maldi/detection_denominators.csv`](../outputs/dynamic_portability_20261102/maldi/detection_denominators.csv).
+The earlier percentage does not establish that a background fit is unnecessary
+for another section or assay; no replacement masking method was introduced.
+
+The source inventory still lacks accepted tissue and exact-neighbour declarations
+for these sections, so accepted registration and object summaries remain
+unavailable. Xenium-neighbour registration is unbuilt, and dedicated-pLN object
+integration remains a remediation specification. Source availability and visual
+comparison do not establish same-cell relationships or approve a transform.
+See the [workflow guide](PORTABILITY_EVALUATION_USER_GUIDE.md) for runnable source
+audits and the distinction between supported evaluation and blocked integration.
+
+## 2026-11-03 CRO report review
+
+The contract-research N-glycan report on this acquisition (`MALDI/T1D_Nglycan_CRO_Report.pdf`,
+dated 2026-07-09) was read against the route. It covers the same acquisition (the same 2,288,540
+spots and 60 sections) but a different glycan table: **49** columns there, **38** here (12
+compositions absent here, one of our ions absent there), the 37 shared columns detected in slightly
+more pixels there (median +0.32 percentage points), and 13 sections labelled differently (12 with
+`_pln` appended; our `6426_02_pln` named `6436_02_pln`). **Ruling (maintainer, 2026-11-03):**
+"There is no 6426 donor in the project, so 6436 is correct." `6426_02_pln` is donor 6436's section
+(`maldi.TISSUE_DONOR_CORRECTIONS`; the Tissue_id is kept), so the IO60 MALDI set is **33 sections
+of 18 donors**, and every "6426 ... out of cohort" statement below is superseded: only the HPAP
+sections are out of cohort.
+Two things were taken into the code, both descriptive: each N-glycan feature's composition class
+and flags by the report's rules (MALDI Ingest `features.csv`), and each spot's grid-square cover
+fraction per object class (Serial Integration), because the report measured that at 50 um only
+islet and peri-islet masks are resolvable. Its normalization, batch correction, HPAP pooling,
+glycan-trained compartment classifier and distance bins were not taken. Details:
+`core/multiplex5000/docs/INTEGRATION.md`, "what the CRO N-glycan report changes".
 
 **Where the implementation departs from the text below, and why:**
 - `maldi_acquisitions.csv` is a Source Inventory **output**, not a tracked generated file. A tracked

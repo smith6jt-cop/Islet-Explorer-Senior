@@ -1,0 +1,93 @@
+{
+  "schema": "senior.codex_final_card_controls_handoff/1",
+  "recorded_utc": "2026-11-03T18:21:58.621125+00:00",
+  "status": "received_read_final_guides_and_saved_proofs_verified_adaptation_unapplied",
+  "recipients": [
+    "Senior monorepo",
+    "HPG adaptation reference",
+    "MultiPlex5000"
+  ],
+  "card_package_commit": "f8d79868c527cbcc5cc5f824176a421d3152674c",
+  "final_documentation_commit": "4bab4374c3e141a37e92338a6bcf8b0b2dbba7fc",
+  "app_image_producer": "3c81075307c97356cf6ded5df0ac10e810c8b9fa",
+  "image": "sha256:eb6f3c32779a22e4c1ca7a843bd9de5011de253ac42fb3fd4e574d7b34b2c920",
+  "accepted_data_producer": "5e6580fe68af12dd18bee430988bc1ed64061526",
+  "card_proof_sha256": "e8fdccb78d24f77196fd598d3e3ee4d4fd4cec9bdb6a150cd5847c3497591bce",
+  "combined_proof_sha256": "49d33cf7cd674db3ec58737892a8000e9023dcbcd463bd80ef641d9535f5a81b",
+  "evidence": {
+    "proof_capture.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_final_receipt_20261103/proof_capture.json",
+      "sha256": "d625627aa92f6ba6e6d7072c38b74152b1846c830ef19100862832a42df11614",
+      "bytes": 19926
+    },
+    "combined_proof_capture.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_final_receipt_20261103/combined_proof_capture.json",
+      "sha256": "5a8a23858098c6f5a5843f518b1813aed1848416870fd2ccf41b8cb65e70fb77",
+      "bytes": 13098
+    },
+    "source_runtime_read.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_final_receipt_20261103/source_runtime_read.json",
+      "sha256": "d2f74cd2c6a7c14ed4c88f395693abc479fb1a7c034d5d975b0fedf13e795ebc",
+      "bytes": 13069
+    },
+    "ui_evidence_read.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_final_receipt_20261103/ui_evidence_read.json",
+      "sha256": "92e09316721a94992c7a59cf2aeda8291b128514ff8d424edf8ab98541898f1b",
+      "bytes": 42905
+    }
+  },
+  "independent_verification": {
+    "card_top_level_hash_refs": 32,
+    "combined_top_level_hash_refs": 17,
+    "actual_git_app_file_comparison": 104,
+    "unchanged_app_files": 102,
+    "exact_presentation_substitutions": 3,
+    "focused_report_and_visual_json_hashes": 8,
+    "unique_png_hashes": 47,
+    "independently_inspected_images": 12,
+    "inspected_subset": {
+      "composition": 2,
+      "spatial": 4,
+      "paga": 2,
+      "plot_titles": 4
+    },
+    "both_widths_in_each_inspected_scope": true,
+    "new_blockers_in_inspected_subset": [],
+    "saved_classification_parent_leaf_arithmetic": "reconciles; no raw-data recount"
+  },
+  "saved_execution_scope": {
+    "standard_browser": {
+      "source": "3c81075307c97356cf6ded5df0ac10e810c8b9fa",
+      "passed": 49
+    },
+    "focused_current": {
+      "source": "3c81075307c97356cf6ded5df0ac10e810c8b9fa",
+      "composition": 12,
+      "spatial": 12
+    },
+    "focused_prior": {
+      "source": "ccda49712c7df0e28634d843155c98977c961eae",
+      "paga": 15,
+      "plot_titles": 20
+    },
+    "focused_total": 59,
+    "R_suite": "795assertions/121tests/36parsedfiles onccda; not rerun on3c or by recipient",
+    "production_loader": "131actual-data checks on337513e; preserved original identity",
+    "security": "Saved strict0High/0Critical and decoder0/-17; not independently rerun",
+    "standard_messages": "0page/0applicationHTTP errors;1default-favicon console entry retained"
+  },
+  "scope_limits": [
+    "Source/runtime/image identity was checked against saved metadata, not independently observed during browser execution. Runtime-identity fields in focused harness reports are caller supplied and cross-checked against separate saved inspections.",
+    "All47PNG bytes were checked; only the12specified images were independently inspected. Sender visual exclusions and partial/scrollable capture scope remain preserved.",
+    "No browser/app/test/scan/decoder execution, image build, scientific recomputation, data retyping, remote HPG action, port, service change or deployment approval.",
+    "No additional reboot or external-access check; local resource-limit and accessibility caveats remain in the supplied receipts."
+  ],
+  "recipient_adaptation": {
+    "status": "unapplied",
+    "final_proof_received": true,
+    "port_approved": false,
+    "deployment_approved": false
+  },
+  "retention": "Preserve final runtime/image backing, accepted data and native evidence directories listed in combined_proof_capture.json; earlier receipts remain unchanged.",
+  "notification": "Acknowledgement attempted separately after this local receipt commit; creation does not imply outbound delivery."
+}

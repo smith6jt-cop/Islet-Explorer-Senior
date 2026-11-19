@@ -73,6 +73,16 @@ def _pilot(tmp_path, monkeypatch):
     _table(release / f"06_typing/rna/{sample}.parquet", {
         "cell_uid": x_uid, "typing_eligible": [True, True, False],
         "gene:CD3E": [1, -1, -1]})
+    receipt = json.loads((folder / "receipt.json").read_text())
+    receipt["inputs"] += [
+        {"name": f"protein_cells:{entry}", "sha256": sha256_file(
+            release / f"03_protein_measurement/cells/{entry}.parquet")},
+        {"name": f"rna_cells:{sample}", "sha256": sha256_file(
+            release / f"04_rna_ingest/cells/{sample}.parquet")}]
+    receipt["outputs"] = [{"path": str(path.relative_to(folder)), "sha256": sha256_file(path)}
+                          for path in sorted(folder.glob("*/*.parquet"))]
+    (folder / "receipt.json").write_text(json.dumps(receipt))
+    gates.accept(folder, by="test")
     transforms = tmp_path / "transforms"
     transform = Transform(
         affine=np.array([[1, 0, 100], [0, 1, 0]]),
@@ -111,6 +121,15 @@ def test_registration_then_candidate_link_stage(tmp_path, monkeypatch):
     assert counts["candidate_links"] == 2
     assert counts["final_cell_classes"] == 0
     assert (result.path / "gate/candidate_links.png").is_file()
+    assert len(pq.read_table(result.path / "spatial_candidates.parquet")) == 2
+    assert len(pq.read_table(result.path / "cell_link_dispositions.parquet")) == 6
+    metadata = json.loads((result.path / "linking_metadata.json").read_text())
+    assert metadata["registration_uncertainty"]["status"] == "unavailable"
+    parameters = json.loads((result.path / "resolved_parameters.json").read_text())
+    assert parameters["automatic_application"] is False
+    assert {row["name"] for row in parameters["input_bindings"]} == {
+        "registration_receipt", "registration_acceptance", "typing_receipt", "typing_acceptance",
+        "transform_json"}
 
 
 def test_integration_refuses_transform_changed_after_registration_acceptance(tmp_path,
@@ -133,3 +152,100 @@ def test_integration_refuses_source_manifest_changed_after_registration(tmp_path
     with pytest.raises(integration.SameSlideIntegrationError,
                        match="source manifest changed"):
         tasks.run_stage(integration, project)
+
+
+@pytest.mark.parametrize("name", ["protein_cells", "rna_cells", "protein_calls", "rna_calls",
+                                  "rna_regions", "typing_receipt", "typing_acceptance"])
+def test_current_cells_and_independent_calls_must_match_reviewed_receipts(tmp_path, monkeypatch, name):
+    project, _ = _pilot(tmp_path, monkeypatch)
+    registered = tasks.run_stage(registration, project)
+    gates.accept(registered.path, by="test")
+    item = next(item for item in integration.inputs(project) if item.name == name)
+    if item.path.suffix == ".parquet":
+        table = pq.read_table(item.path).to_pandas()
+        table["post_review_change"] = True
+        pq.write_table(pa.Table.from_pandas(table, preserve_index=False), item.path)
+    else:
+        item.path.write_text(item.path.read_text() + "\n")
+    with pytest.raises(integration.SameSlideIntegrationError, match="changed|unbound"):
+        tasks.run_stage(integration, project)
+
+
+def test_registration_refuses_cells_changed_since_independent_typing(tmp_path, monkeypatch):
+    project, pair = _pilot(tmp_path, monkeypatch)
+    path = project.release_dir / f"03_protein_measurement/cells/{pair.protein_entry}.parquet"
+    table = pq.read_table(path).to_pandas()
+    table.loc[0, "x_um"] += 1
+    pq.write_table(pa.Table.from_pandas(table, preserve_index=False), path)
+    with pytest.raises(registration.SameSlideRegistrationError, match="protein_cells changed"):
+        tasks.run_stage(registration, project)
+
+
+def test_stage_preserves_and_rejects_mixed_source_frame_metadata(tmp_path, monkeypatch):
+    project, pair = _pilot(tmp_path, monkeypatch)
+    path = project.release_dir / f"03_protein_measurement/cells/{pair.protein_entry}.parquet"
+    table = pq.read_table(path).to_pandas()
+    table["coordinate_frame"] = ["crop_local_um", "full_slide_um", "crop_local_um"]
+    pq.write_table(pa.Table.from_pandas(table, preserve_index=False), path)
+    folder = project.release_dir / "06_typing"
+    receipt = json.loads((folder / "receipt.json").read_text())
+    next(row for row in receipt["inputs"] if row["name"].startswith("protein_cells:"))["sha256"] = sha256_file(path)
+    (folder / "receipt.json").write_text(json.dumps(receipt))
+    gates.accept(folder, by="test")
+    with pytest.raises(ValueError, match="coordinate frame"):
+        tasks.run_stage(registration, project)
+
+
+def test_duplicate_receipt_bindings_do_not_choose_an_arbitrary_row(tmp_path, monkeypatch):
+    project, _ = _pilot(tmp_path, monkeypatch)
+    registered = tasks.run_stage(registration, project)
+    receipt_path = registered.path / "receipt.json"
+    receipt = json.loads(receipt_path.read_text())
+    receipt["inputs"].append(receipt["inputs"][0])
+    receipt_path.write_text(json.dumps(receipt))
+    gates.accept(registered.path, by="test")
+    with pytest.raises(integration.SameSlideIntegrationError, match="duplicate"):
+        tasks.run_stage(integration, project)
+
+
+def test_supplied_uncertainty_is_bound_by_reviewed_transform(tmp_path, monkeypatch):
+    project, pair = _pilot(tmp_path, monkeypatch)
+    folder = project.source("same_slide_registrations") / pair.protein_entry
+    transform = Transform.load(folder)
+    transform.meta["registration_uncertainty"] = {
+        "bound_um": 0.2, "frame": "crop_local_um", "kind": "radial_displacement_bound",
+        "evidence_ref": "synthetic-reviewed-bound"}
+    transform.save(folder)
+    registered = tasks.run_stage(registration, project)
+    gates.accept(registered.path, by="test")
+    result = tasks.run_stage(integration, project)
+    links = pq.read_table(result.path / "candidate_links.parquet").to_pandas()
+    assert links.stable_under_provided_bound.all()
+    assert links.registration_uncertainty_um.tolist() == [0.2, 0.2]
+    counts = json.loads((result.path / "pairing_counts.json").read_text())
+    assert counts["registration_uncertainty"]["evidence_ref"] == "synthetic-reviewed-bound"
+
+
+def test_stage_retains_actual_rna_calls_and_explicit_level_disagreement(tmp_path, monkeypatch):
+    project, pair = _pilot(tmp_path, monkeypatch)
+    folder = project.release_dir / "06_typing"
+    path = folder / "rna/0110618__090.parquet"
+    calls = pq.read_table(path).to_pandas().drop(columns="gene:CD3E")
+    calls["cell_class"] = ["B cell", None, None]
+    calls["call_state"] = ["resolved", "unavailable", "unavailable"]
+    pq.write_table(pa.Table.from_pandas(calls, preserve_index=False), path)
+    receipt = json.loads((folder / "receipt.json").read_text())
+    next(row for row in receipt["outputs"] if row["path"] == "rna/0110618__090.parquet")["sha256"] = sha256_file(path)
+    (folder / "receipt.json").write_text(json.dumps(receipt))
+    gates.accept(folder, by="test")
+    project.settings["same_slide_hierarchy_map"] = {
+        "tissue": "spleen", "level": "lineage", "protein_column": "candidate_phenotype",
+        "rna_column": "cell_class", "protein": {"T cell": "T"}, "rna": {"B cell": "B"}}
+    registered = tasks.run_stage(registration, project)
+    gates.accept(registered.path, by="test")
+    result = tasks.run_stage(integration, project)
+    links = pq.read_table(result.path / "candidate_links.parquet").to_pandas()
+    assert links.rna_cell_class.iloc[0] == "B cell"
+    assert links.protein_candidate_phenotype.iloc[0] == "T cell"
+    assert links.identity_concordance.tolist() == ["disagree", "unavailable"]
+    assert links.comparison_level.eq("lineage").all()

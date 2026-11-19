@@ -1,0 +1,155 @@
+{
+  "schema": "senior-codex-app-fixes-receipt/1",
+  "recorded_utc": "2026-11-03T13:25:00.560146+00:00",
+  "status": "received_and_read_with_reproduced_portability_finding",
+  "recipient": "Local Senior monorepo and MultiPlex5000; no changes to separate source worktrees or services",
+  "source_repository": "/data/panc_CODEX/Islet-Explorer",
+  "requested_commits": {
+    "f673fb2": "f673fb2fb7783824d1acc54b10e7a4014ea55fa2",
+    "b5fae5c": "b5fae5cf9421579e03b089c548c92f25859577c5",
+    "899a163": "899a163235882e9d091e6545f67bc70b18a48cbc",
+    "378843e": "378843e06c0cd66d8dfff5e3b60664f8a45569ee"
+  },
+  "observed_source_head_at_receipt": "926c7aee0b6c500ad18287bc00b2cdff7b177d6e",
+  "source_scope": "Review and independent tests bind the requested f673fb2 and b5fae5c commits versus899a163. Later source commits are not covered by this receipt.",
+  "evidence": {
+    "app_review": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/app_review.json",
+      "sha256": "4e8e6622029fdd31800fdc9414289d7d91c5b2a426e427cd2420006038a5e587"
+    },
+    "security_review": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/security_review.json",
+      "sha256": "2b0941e54407159209f506357acc7221db2a5770515600182a20ee5e7cf99c03"
+    },
+    "commit_equivalence": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/security_commit_integrity.json",
+      "sha256": "8b1edd1b795801c7b3b5d85bbab17263e56f86fa3e2cbef712f1edbd63021a73"
+    },
+    "security_pure_checks": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/security_pure_checks.json",
+      "sha256": "d73ca4f1e96c5c4188f728ff5475e96cc98b923c9d6ff4130e9de5f5ed451043"
+    },
+    "app_tests": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/tests/test_review.json",
+      "sha256": "328f0c6d5b9d9ac03509b5e5b5fa59cae00454403ad656c5552e4bc3585671d5"
+    },
+    "mixed_root_regression": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/tests/edge_cases.json",
+      "sha256": "bebb97d88b6b7189c92e80cdd23beb14e5d3b7916c4e7dffa84734097d89f0d3"
+    },
+    "enrichment_regression": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/tests/enrichment_alias_probe.json",
+      "sha256": "63c49ae5111d5b9b50b2046d95b969792684d8e6578177caba0219e83e6d724c"
+    },
+    "preexisting_behavior_comparison": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/tests/parent_comparison.json",
+      "sha256": "eead39059e193aaa12bd3a25f91a4f83106d4ad7b52cba26763513b220229f63"
+    },
+    "independent_supplied_evidence_review": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/root_evidence_review.json",
+      "sha256": "ebabc1c861f5706e1e38409de9ac6a360f1231c43c4212653d8d8a581ea99c0e"
+    },
+    "unchanged_prior_delivery": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/prior_delivery_verification.json",
+      "sha256": "aa7d6cfa333dfe905416987f72621d067a96c4e0f9731f61de71f01388341f44"
+    }
+  },
+  "documentation_snapshots": [
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/app_display_fixes_20261103.md",
+      "source_git_status": "?? docs/app_display_fixes_20261103.md",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/evidence_snapshots/519f099af0ecdcbc96967e6e9d3d03d3b5700e492097a100f525f36c3d720d39/app_display_fixes_20261103.md",
+      "sha256": "519f099af0ecdcbc96967e6e9d3d03d3b5700e492097a100f525f36c3d720d39",
+      "bytes": 5289
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_donor_composition_20261103.json",
+      "source_git_status": "?? docs/evidence/app_donor_composition_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/evidence_snapshots/1dd5258424f93b20f566bc0e8672bbd5a01025dfc02d145230b544d76b3cb957/app_donor_composition_20261103.json",
+      "sha256": "1dd5258424f93b20f566bc0e8672bbd5a01025dfc02d145230b544d76b3cb957",
+      "bytes": 25947
+    },
+    {
+      "source_path": "/data/panc_CODEX/Islet-Explorer/docs/evidence/app_phenotype_hierarchy_20261103.json",
+      "source_git_status": "?? docs/evidence/app_phenotype_hierarchy_20261103.json",
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_fixes_receipt_20261103/evidence_snapshots/e9fbbd392d54a66c51fd89d11c05cbf9cc641a89a5c1def54578d3068ada4918/app_phenotype_hierarchy_20261103.json",
+      "sha256": "e9fbbd392d54a66c51fd89d11c05cbf9cc641a89a5c1def54578d3068ada4918",
+      "bytes": 1626
+    }
+  ],
+  "independent_checks": {
+    "targeted_R_expectations_passed": 273,
+    "targeted_R_test_blocks": 51,
+    "targeted_R_files": 7,
+    "Python_synthetic_trajectory_tests_passed": 3,
+    "security_pure_checks_passed": 33,
+    "app_receipt_consistency_checks_passed": 157,
+    "security_raw_patch_and_result_blob_equivalence_files": 7,
+    "root_supplied_scenario_roster_and_arithmetic": 48,
+    "root_actual_input_and_helper_byte_bindings": 8,
+    "prior_delivery_checks_passed": 8
+  },
+  "supplied_checks_not_independently_reexecuted": {
+    "full_R_assertions": 588,
+    "real_donor_composition_scenarios": 48,
+    "visual_review": "pending in the documentation snapshot; no browser review performed here",
+    "new_dev_image": "not built, installed-decoder-tested or deployed by this review"
+  },
+  "finding": {
+    "id": "APP-MACROPHAGE-MIXED-ROOT-1",
+    "status": "reproduced_in_requested_commits",
+    "source": "app/shiny_app/R/00_globals.R:805-846",
+    "condition": "A genuine raw Macrophage category occurs alongside marker-profile macrophages and no split markers are selected.",
+    "effects": [
+      "Merged peri_prop, peri_count, enrich_z and min_dist destination fields are removed by the final drop list.",
+      "The residual peri_count destination is overwritten before enrichment reconstruction reads the original member count; preserving fields alone would retain an incorrect z."
+    ],
+    "numeric_probe": {
+      "original_observed_member_counts": [
+        10,
+        20
+      ],
+      "original_expected_member_counts": [
+        5,
+        10
+      ],
+      "expected_z": 3.872983,
+      "actual_internal_z_before_drop": 3.651484
+    },
+    "current_supplied_cohort_scope": "The supplied component hierarchy has only twelve marker-profile macrophage labels; no current-cohort failure is claimed.",
+    "required_remediation": "Calculate every merged measurement from immutable original member columns, then retain all destination field families. Add a mixed residual/profile regression for exact fields, summed counts/proportions, reconstructed enrichment and minimum distance."
+  },
+  "preexisting_edge_case": "Aggregate-only donor-pair input errors in both899a163 andf673fb2; not attributed to these changes.",
+  "reviewed_presentation_semantics": [
+    "Broad residuals remain in source counts and the No subtype presentation category. Parent totals are separate single-measure queries, excluded from additive leaf choices.",
+    "Conflict counts come from original regional columns, including slash labels absent from the pair lookup, and are excluded from No subtype.",
+    "Displayed proportions and original-source denominators remain distinct; exported original-denominator shares may sum below100percent.",
+    "Tissue, Unclassified, suspected doublets and terminal anatomical labels remain distinct; display filtering does not reassign scientific identities.",
+    "Live PAGA/DPT feature filtering changes future fitted inputs/orderings; stored ratios and frozen embeddings are a separate contract."
+  ],
+  "security_scope": "The raw b5fae5c delta, stable patch ID and seven resulting blobs exactly match378843e. A fresh bounded patch reproduces the reviewed archive while changing only two decoder source payloads. Historical378843e image evidence does not verify a newb5fae5c image. Receipt hash-format checks alone are not complete artifact attestation; actual source/archive hashes and installed decoder checks remain separate.",
+  "shared_rule_adaptation_requirements": [
+    "Repair APP-MACROPHAGE-MIXED-ROOT-1 before reusing the generic/profile merge across datasets.",
+    "Represent parents, disjoint leaves, residuals and unresolved states through the recipient tissue/panel schema; do not copy CODEX label strings or hide MultiPlex5000 ambiguity evidence.",
+    "Preserve source labels and counts and record display exclusions and denominator scope separately; distinguish unique cells from repeated object-neighborhood memberships.",
+    "Record exact retained feature sets and fitted-value provenance for any new live ordering. Do not describe that computational change as styling only.",
+    "Require actual patched-source and installed-runtime evidence for any recipient security integration; do not treat a receipt alone or old image checks as verification of a new image."
+  ],
+  "mutation_scope": {
+    "recipient_scientific_code_or_labels_changed": false,
+    "source_repository_changed": false,
+    "previous_handoffs_changed": false,
+    "sealed_portability_delivery_changed": false,
+    "parameter_history_changed": false,
+    "port_applied": false,
+    "new_image_built": false,
+    "services_changed": false
+  },
+  "notification_status_at_recording": {
+    "receipt_created": true,
+    "source_thread": "01a19c87-d04f-7ff3-b64d-e4c87ab527b6",
+    "earlier_internal_send_attempts": 2,
+    "earlier_attempts": "failed: internal MCP HTTP transport unavailable",
+    "final_acknowledgement": "delivery outcome reported separately; this receipt does not claim the sender received it"
+  }
+}

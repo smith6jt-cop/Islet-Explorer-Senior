@@ -1,0 +1,18 @@
+scenario,evidence,result,limitation
+missing references,typing_port/core/multiplex5000/tests/current/test_positivity_methods.py:test_a_known_negative_level_is_the_reference_percentile_and_needs_enough_cells_above; port-tests.log,existing refusal/availability contracts pass,does not establish reference biology in another tissue
+absent markers,typing_port/core/multiplex5000/tests/current/test_positivity_methods.py:test_a_marker_without_measurements_is_unavailable_not_negative_by_level; route-tests.log,missing stays unavailable,PC33 registry remains unsupported
+absent genes,fault_probes/results.json:absent_gene_evidence; remote/rna/reports,missing evidence rejected and real panel absences retained,no gene panel can supply unmeasured identities
+mixed panels,core/multiplex5000/tests/current/test_io60_mixed_protein_pilot.py; port-tests.log,refused channels are not zero scale and unsupported registries remain explicit,no automatic cross-panel threshold transfer
+insufficient signal,core/multiplex5000/tests/current/test_io60_rna_typing_pilot.py; remote/rna/per_acquisition.json,low-signal acquisitions retain counts without classes,existing thresholds not validated as universal
+missing outlines,fault_probes/results.json:missing_tissue_outline; typing_port/core/multiplex5000/tests/current/test_positivity_nulls.py,missing required outline rejected,real MALDI relationships not inspected
+duplicate identifiers,fault_probes/results.json:duplicate_identifier,rejected before linking,does not resolve overlapping but differently named objects
+incorrect coordinate frames,fault_probes/results.json:wrong_coordinate_frame,rejected before linking,real registration error remains unmeasured
+stale transforms,core/multiplex5000/tests/current/test_same_slide_pair_stages.py; route-tests.log,changed transform/manifest rejected after acceptance,no accepted real cohort transforms available
+ambiguous links,fault_probes/results.json:segmentation_split_equal_centroid_tie,one unflagged tie survives current matching,specification gap; no fix introduced
+registration uncertainty,fault_probes/results.json:existing_5um_boundary_perturbation,synthetic link changes across existing distance cap,no empirical uncertainty or new tolerance inferred
+unsupported neighbours,fault_probes/results.json:unsupported_xenium_neighbour,explicit unavailable route,full Xenium-neighbour registration unbuilt
+all-zero MALDI spots,maldi/summary.json; maldi/detection_denominators.csv,all 12486 all-zero cohort spots excluded from mask,independent tissue-mask justification still missing
+missing MALDI values,core/multiplex5000/tests/current/test_maldi.py:test_ingest_keys_every_spot_and_keeps_zeros; route-tests.log,missing values preserved by synthetic contract; no missing values observed in cohort,not a calibration or detection-limit validation
+recording failure,core/multiplex5000/tests/current/test_parameter_observations.py; recording-tests.log,scientific output unchanged and durable retry available,outbox failure requires caller to retain input
+unacquired marker retained as NaN column,protein_primary_expected_universe.json; protein_primary/per_acquisition.json; protein_primary/pancreas/refine.log,real full25 refinement fails at0112; four panels have unavailable Ker8_18; no empty-graph guard,scientific remediation PROT-1 specified but not implemented
+same native ID with different coordinate calibration,protein_primary_coordinates.json,all25 documented scale conventions verified; maximum unconverted displacement2.194369um,no new geometric acceptance threshold; consumers need a common calibrated frame

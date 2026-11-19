@@ -1,0 +1,116 @@
+{
+  "schema": "senior.pubapps_status_correction_r3_receipt/1",
+  "recorded_utc": "2026-11-04T13:54:51.582366+00:00",
+  "disposition": "reviewed_prior_digest_finding_closed_patch_unapplied",
+  "publication": {
+    "mirror": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261104-status-correction-r3",
+    "hpg_publication": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r3",
+    "hpg_resolved_path": "/blue/maigan/smith6jt/CODEX-handoff-20261104-status-correction-r3.content",
+    "checksum_manifest_sha256": "c2e9947940bb0b86db706f75473dd9c302a94fa2a8e1b70a60a27a07b7dd5c37",
+    "total_files": 5,
+    "total_bytes": 9080
+  },
+  "package_files": [
+    {
+      "relative_path": "README.md",
+      "bytes": 559,
+      "sha256": "5a483edbe40e4331e99650c175380d699e85d28425225e932a2316133ae4e7bb"
+    },
+    {
+      "relative_path": "SHA256SUMS",
+      "bytes": 343,
+      "sha256": "c2e9947940bb0b86db706f75473dd9c302a94fa2a8e1b70a60a27a07b7dd5c37"
+    },
+    {
+      "relative_path": "manifest.json",
+      "bytes": 492,
+      "sha256": "05382f9461b7d870ea5f40d97f0b0f03751b363053803da3ee5c41b28e316439"
+    },
+    {
+      "relative_path": "status-correction-r3.bundle",
+      "bytes": 2125,
+      "sha256": "0222eca3fb3a81eb269ba544b8b993a76ba7b2b1ce179f8f563dccbf8ab2ef5a"
+    },
+    {
+      "relative_path": "status-correction-r3.patch",
+      "bytes": 5561,
+      "sha256": "08e96b92439b3aacc231db8636496e81f7284b803dacba052a7c2c1f9e03775e"
+    }
+  ],
+  "base": "276822242c78c50d77d1e1323e767939db50d9b0",
+  "tip": "532af6c982830f7f2b71f454b4cd0d4f75c5806b",
+  "tip_tree": "f4575df83b5cc76d551042fde337816683d9f3e2",
+  "git_verification": {
+    "bundle_verified_with_base": true,
+    "fsck_full_passed": true,
+    "incremental_objects": 15,
+    "patch_messages": 3,
+    "direct_replay_matches_each_commit": true,
+    "changed_path_in_all_three_commits": "docs/evidence/pubapps_refresh_agent_handoff_20261104.json"
+  },
+  "verified_embedded_receipts": [
+    {
+      "commit": "1ce6007c234acfb01614d39127b14f83021b956b",
+      "path": "docs/evaluations/codex_pubapps_refresh_receipt_20261104/receipt.json",
+      "sha256": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438",
+      "bytes": 7380
+    },
+    {
+      "commit": "f630a5a07a3d29b2fdd59292b58380aa725e767c",
+      "path": "docs/evaluations/codex_pubapps_status_correction_r2_20261104/receipt.json",
+      "sha256": "edfae112d205423e4b5ea527834bab5045a2c36377b421e5573cbaefe650ad5f",
+      "bytes": 6933
+    }
+  ],
+  "prior_finding_disposition": {
+    "id": "PRIOR-RECEIPT-DIGEST",
+    "status": "closed_in_R3",
+    "field": "recipient_notification.read_acknowledgement.recipient_receipt_sha256",
+    "base_value": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4434",
+    "corrected_value": "9404460d11edb025f60f6b4277706ac9e128f9c603374e4fdf3ede7f184b4438"
+  },
+  "r2_summary_observations": [
+    {
+      "id": "R2-REGULAR-FILE-COUNT",
+      "reported_regular_files": 10,
+      "actual_regular_files_including_SHA256SUMS": 11,
+      "listed_payload_files_excluding_SHA256SUMS": 10,
+      "same_total_bytes": 184972
+    },
+    {
+      "id": "R2-PUBLICATION-CHRONOLOGY",
+      "published_utc": "2026-11-04T14:05:00Z",
+      "checksums_verified_on_hpg_utc": "2026-11-04T14:05:00Z",
+      "reviewed_utc": "2026-11-04T13:50:11Z",
+      "publication_minus_review_seconds": 889,
+      "scope": "Comparison of supplied timestamp fields only.",
+      "earlier_hpg_mirror_comparison_recorded_utc": "2026-11-04T13:48:52Z",
+      "tip_committer_time_utc": "2026-11-04T13:50:58Z",
+      "assessment": "Publication/HPG time in the embedded block postdates the saved recipient check, review and Git commit recording it. An initial publication time cannot be established from that field."
+    }
+  ],
+  "r2_replay_wording": "All four patch trees matched their respective upstream commits. The fourth reproduced the R2 tip.",
+  "evidence_scope": "Byte and inventory comparison of HPG/workstation packages, isolated Git reconstruction and receipt cross-references. Recipient disposition is review only.",
+  "review_records": {
+    "package_read.json": {
+      "path": "outputs/codex_pubapps_status_correction_r3_20261104/package_read.json",
+      "sha256": "d117b8288ec7b4242f1c14e9193f859701cc3a1b35d876a8c6c7cf5aa2f44708",
+      "bytes": 3029
+    },
+    "hpg_checksums.txt": {
+      "path": "outputs/codex_pubapps_status_correction_r3_20261104/hpg_checksums.txt",
+      "sha256": "585be851f03691021d01c74964c331619bb600d1bc0713fe3d184aaa67ba95ca",
+      "bytes": 644
+    },
+    "git_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_r3_20261104/git_review.json",
+      "sha256": "c42776e62764d4146e0ec3cf517cb3b55aa8e144dae5ec4912e9f55ff9020cd0",
+      "bytes": 2450
+    },
+    "cross_reference_review.json": {
+      "path": "outputs/codex_pubapps_status_correction_r3_20261104/cross_reference_review.json",
+      "sha256": "65b90d702a2cd82c04af751ba5ea7d2833dbc3564b02dcc0e53685b944d1ab76",
+      "bytes": 5110
+    }
+  }
+}

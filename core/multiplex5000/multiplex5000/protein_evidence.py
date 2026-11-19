@@ -10,6 +10,7 @@ there is no pooled cutoff, positive-share target, or final cell-type call.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Real
 
 import numpy as np
 
@@ -36,19 +37,30 @@ class ProteinEvidence:
     shift_scale: float | None
     n_background_support: int
     unavailable_reason: str | None
+    cutoff_fraction: float = REQUIRE_MIN
+
+
+def validate_cutoff_fraction(value: float) -> float:
+    """Validate the domain of a configured background-to-bright-end fraction."""
+    if isinstance(value, bool) or not isinstance(value, Real) or not np.isfinite(value) or not 0 <= value <= 1:
+        raise ProteinEvidenceError("protein_cutoff_fraction must be a finite number between 0 and 1")
+    return float(value)
 
 
 def candidate_calls(section: str, marker: str, values: np.ndarray | None,
                     nucleus_eligible: np.ndarray, *,
-                    shift_scale: float | None) -> ProteinEvidence:
+                    shift_scale: float | None,
+                    cutoff_fraction: float = REQUIRE_MIN) -> ProteinEvidence:
     """Fit one marker's candidate cutoff using this section's eligible cells only.
 
     ``None`` values or shift mean unavailable, not negative. Individual null
     or negative measurements stay unavailable too. At least 1,000 positive
     finite values are needed to locate a measured background mode. The 0.10
-    fraction is a review candidate; Stage 06 controls must be reviewed before
+    fraction is the default review candidate; a configured fraction is recorded
+    in the result. Stage 06 controls must be reviewed before
     any cell classes can be accepted.
     """
+    cutoff_fraction = validate_cutoff_fraction(cutoff_fraction)
     if not section or not marker:
         raise ProteinEvidenceError("physical section and marker must be named")
     eligible = np.asarray(nucleus_eligible)
@@ -58,7 +70,7 @@ def candidate_calls(section: str, marker: str, values: np.ndarray | None,
 
     def unavailable(reason: str, support: int = 0) -> ProteinEvidence:
         return ProteinEvidence(section, marker, states, None, None, None,
-                               shift_scale, support, reason)
+                               shift_scale, support, reason, cutoff_fraction)
 
     if values is None:
         return unavailable("marker_not_measured")
@@ -86,7 +98,7 @@ def candidate_calls(section: str, marker: str, values: np.ndarray | None,
     top = float(np.percentile(aligned[valid], ROBUST_TOP_Q))
     if not (np.isfinite(floor) and np.isfinite(top) and top > floor):
         return unavailable("bright_end_not_above_background", support)
-    cutoff = floor + REQUIRE_MIN * (top - floor)
+    cutoff = floor + cutoff_fraction * (top - floor)
     states[valid] = np.where(aligned[valid] >= cutoff, DETECTED, UNDETECTED)
     return ProteinEvidence(section, marker, states, floor, top, cutoff,
-                           shift_scale, support, None)
+                           shift_scale, support, None, cutoff_fraction)

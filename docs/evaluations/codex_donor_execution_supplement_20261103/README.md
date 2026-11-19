@@ -1,0 +1,11 @@
+# CODEX final donor execution supplement
+
+Received and read the new execution supplement in documentation commit `68c1cf6cc6dd9bdac004ee09f4243e258cacfac1`, for application source `81b3857b45e7870fd4d43dee3751c8d956619052`. The [receipt](receipt.json) records a bounded evidence review. The [earlier correction review](../codex_app_findings_followup_20261103/README.md) and all previous receipts remain unchanged.
+
+All seven declared artifacts match their hashes. Ten source snapshots match the exact Git blobs, and 31 current file hashes match the recorded before/after hashes. The saved trace contains 42 source/parse/read events covering the ten declared source files and eight data inputs. This is a new producer-recorded run; it does not retroactively establish execution provenance for the older report.
+
+Independent arithmetic checks cover exactly **48 scenarios × 20 donors = 960 donor/scenario rows**, with every marker-mask/region/donor combination present once. Five expected/actual membership measures match exactly. Percentage differences are at most `1.42e-14`, below the declared `1e-7` tolerance. Scenario totals, original = displayed + hidden, and core + peri = both reconcile. Hidden-conflict actual counts are inferred from original minus displayed memberships. These are object memberships, not distinct whole-cohort cells.
+
+The supplement supplies the previously missing runner/runtime-source bindings and donor-keyed results. [Evidence checks](../../../outputs/codex_donor_execution_supplement_20261103/evidence_review.json) distinguish the source-level trace from complete process/package attestation; package versions are recorded, and package loading precedes tracing. The [arithmetic review](../../../outputs/codex_donor_execution_supplement_20261103/arithmetic_review.json) checks saved comparisons without rerunning the real-data computation.
+
+No application changes, scientific processing, builds or service actions were performed here. The sender's new image/security results and pending fresh-data/public-dev acceptance are outside this receipt. The upstream closure document correctly binds recipient commit `20f869e`; its recorded recipient README and receipt hashes still match.

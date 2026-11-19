@@ -1,5 +1,47 @@
 # The refinement pass, and what measuring it at cohort scale changed
 
+## Availability repair, 2026-11-02
+
+The package's mixed pancreas/pLN route now binds refinement to the exact Stage 03
+measurement-availability partitions and Stage 05 normalization statuses. A column
+in the union table does not establish that a marker was acquired. In particular,
+Ker8_18 is unacquired in 0112, 6347, 6533 and 6580; its retained all-NaN column is
+excluded from those sections' carried marker sets. Measured zeros remain values;
+fragment-masked hormone evidence remains unavailable and has a separate per-cell
+reason. The decision artifact uses `refinement-marker-availability/1` and records
+the producer paths and hashes for every requested marker.
+
+The numeric rule below remains K=30, concordance >=0.40, a fifth-percentile bound
+and at least 50 clear reference cells. An empty marker set, or at most 30 measurable
+cells, produces explicit unavailable refinement and no neighbour graph. K is not
+reduced to manufacture a result. The original requested defining-marker set must
+be carried before a class can receive a refinement conclusion. Missing defining
+markers also withhold a proposed fallback to that class. Thus the four Ker8_18
+panels retain their primary Exocrine calls as context, and cannot acquire new
+Exocrine calls through a partially measured refinement fallback.
+
+`cell_class` remains the primary call. `refined_class` retains that call wherever
+refinement is unavailable, following the existing sidecar convention; it is not
+evidence that refinement confirmed it. Consumers must inspect `refine_state` and
+`refine_note`. The state distinguishes evaluated results, unavailable measurements,
+fragment masks, defining/fallback markers, bounds or neighbour populations, and
+classes outside the pass. These columns survive the final mixed-tissue join.
+The declared cohort supplies the representation fit; section-specific marker
+decisions show which acquisitions actually contribute to each marker. The stage
+no longer describes this as a single-donor representation fit.
+
+Standalone callers can supply `--availability-root` and `--normalization-scales`
+together. Historical invocations without these contracts retain their column
+schema behavior and explicitly record `legacy_column_schema_only`; they are not
+evidence of validated panel availability. The availability-aware route fits a
+fresh representation instead of accepting an unbound legacy parameter cache.
+Per-section decisions, fits and unavailable counts are recorded in `refine_log.json`,
+`representation_provenance.json` and the stage's `resolved_parameters.json`.
+The isolated candidate and independent checks are under
+`outputs/blocker_remediation_20261102/protein/`. Computational checks do not grant
+biological approval or activate a release. The dated reconstruction below remains
+the record of the original method and its historical review.
+
 > **STATUS, 2026-09-23: RULED IN, WIRED THROUGH `--refine`, NOT YET RUN ON DISK.** The
 > maintainer ruled that the pass "needs to be included in the cell typing for phenocycler data"
 > and scoped it the same day to the join this file describes: `refine.py --out

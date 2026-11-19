@@ -90,7 +90,7 @@ def evaluate_rules(source: RuleSource,
         rule = rules[phenotype]
         if missing[phenotype]:
             result: RuleState = "unavailable"
-        elif rule.parent in rules and state(rule.parent) != "matched":
+        elif phenotype not in source.independent_entries and rule.parent in rules and state(rule.parent) != "matched":
             result = states[rule.parent]
         else:
             positives = [calls[marker] for marker, token in rule.constraints
@@ -107,6 +107,14 @@ def evaluate_rules(source: RuleSource,
 
     for phenotype in rules:
         state(phenotype)
+    # Add independent evidence only after sibling decisions. Other lineages
+    # retain their original parent gate and still compete with NK if supported.
+    for entry in source.independent_entries:
+        parent = rules[entry].parent
+        if states[entry] == "matched":
+            states[parent] = "matched"
+        elif states[entry] == "unavailable" and states[parent] == "not_matched":
+            states[parent] = "unavailable"
     return RuleEvaluation(states, missing)
 
 
@@ -157,7 +165,8 @@ def evaluate_rules_batch(source: RuleSource,
         unavailable = np.zeros(n, dtype=bool)
         for marker in inherited:
             unavailable |= calls.get(marker, absent) == -1
-        parent = state(rule.parent) if rule.parent in rules else np.ones(n, dtype=np.int8)
+        has_gate_parent = rule.parent in rules and phenotype not in source.independent_entries
+        parent = state(rule.parent) if has_gate_parent else np.ones(n, dtype=np.int8)
         unavailable |= parent == -1
         matched = parent == 1
         any_positive = []
@@ -177,6 +186,11 @@ def evaluate_rules_batch(source: RuleSource,
 
     for phenotype in rules:
         state(phenotype)
+    for entry in source.independent_entries:
+        parent = rules[entry].parent
+        confirmed = (states[parent] == 1) | (states[entry] == 1)
+        unknown = (states[parent] < 0) | (states[entry] < 0)
+        states[parent] = np.where(confirmed, 1, np.where(unknown, -1, 0)).astype(np.int8)
     return BatchRuleEvaluation(states, {name: int((value == -1).sum())
                                         for name, value in states.items()})
 

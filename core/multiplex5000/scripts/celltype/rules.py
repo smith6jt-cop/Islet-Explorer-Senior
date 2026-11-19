@@ -202,7 +202,10 @@ def flatten(rules: pd.DataFrame, with_source: bool = False) -> dict:
                 raise ValueError(f"cycle in the rule hierarchy at {ph}")
         ref = {}
         for a in reversed(chain):
-            ref.update({m: (t, a) for m, t in row.get(a, {}).items()})
+            # The co-detected NK phenotype is an independent route into Immune.
+            # Inherit the parent's epithelial vetoes, but no B/myeloid positive anchors.
+            ref.update({m: (t, a) for m, t in row.get(a, {}).items()
+                        if not (a == "Immune" and "Imm-NK-cell" in chain and OR_POS.match(str(t)))})
         if with_source:
             out[ph] = ref
         else:
@@ -349,6 +352,8 @@ def requirements(rules: pd.DataFrame, with_negatives: bool = False) -> dict:
                 break
         groups = []
         for anc in chain:                       # every level that declared an OR-group
+            if anc == "Immune" and "Imm-NK-cell" in chain:
+                continue
             by_token: dict = {}
             for m, t in row.get(anc, {}).items():
                 if OR_POS.match(str(t)):
