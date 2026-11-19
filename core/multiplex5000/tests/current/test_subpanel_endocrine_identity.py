@@ -147,6 +147,7 @@ def test_classify_preserves_keys_routes_and_broad_counts_while_reporting_subtype
     assert frame.drop([1,5]).cell_class.equals(corrected.drop([1,5]).cell_class)
 
 
+
 def test_builder_retains_uncertain_endocrine_admission_and_evidence_columns(tmp_path, monkeypatch):
     # Reuse the established synthetic geometry fixture to exercise the actual cell builder.
     from test_build_cells_carry import producer_frame, build

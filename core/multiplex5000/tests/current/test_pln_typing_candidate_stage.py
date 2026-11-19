@@ -68,6 +68,21 @@ def test_pln_stage_retains_unavailable_and_writes_candidate_figure(tmp_path, con
     with (result.path / "protein_candidate_status.csv").open(newline="") as handle:
         assert sum(int(row["cells"]) for row in csv.DictReader(handle)) == count
     assert (result.path / "gate/pln_candidate_status.png").is_file()
-    with (result.path / "receipt.json").open() as handle:
-        omissions = json.load(handle)["summary"]["omitted_rule_constraints"]
+    assert table["marker_call:CD20"][count - 21].as_py() == (1 if configured_fraction is None else 0)
+    parameters = json.loads((result.path / "resolved_parameters.json").read_text())
+    fraction = 0.10 if configured_fraction is None else configured_fraction
+    assert parameters["parameters"][0]["value"] == fraction
+    omissions = next(item["value"] for item in parameters["parameters"]
+                     if item["name"] == "omitted_rule_constraints")
     assert ["Neural", "EpCAM"] in omissions and ["Stromal", "EpCAM"] in omissions
+    marker = parameters["acquisitions"][0]["markers"][0]
+    assert marker["cutoff_fraction"] == fraction
+    fit = marker["fitted"]
+    assert fit["cutoff"] == fit["floor"] + fraction * (fit["top"] - fit["floor"])
+    assert parameters["acquisitions"][0]["missing_markers_by_rule"]
+    receipt = json.loads((result.path / "receipt.json").read_text())
+    assert receipt["summary"]["resolved_parameters"]["status"] == "written"
+    assert any(row["path"] == "resolved_parameters.json" for row in receipt["outputs"])
+    project.settings["protein_cutoff_fraction"] = 0.25
+    with pytest.raises(tasks.TaskError, match="published settings differ"):
+        tasks.run_stage(pln_typing_pilot, project)

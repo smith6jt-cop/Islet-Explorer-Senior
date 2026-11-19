@@ -136,8 +136,16 @@ import time
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+
+# Source-tree scripts and installed wheel snapshots must import their matching engine.
+try:
+    from multiplex5000.tissues.interior_dominance import METHOD, TYPED, measure_conflicts
+except ModuleNotFoundError as exc:
+    if exc.name not in {"multiplex5000", "multiplex5000.tissues", "multiplex5000.tissues.interior_dominance"}:
+        raise
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    from multiplex5000.tissues.interior_dominance import METHOD, TYPED, measure_conflicts
 from multiplex5000.artifacts import QuPathCohortManifest
-from multiplex5000.tissues.interior_dominance import METHOD, TYPED, measure_conflicts
 from multiplex5000.tissues.t_cell import clipped_t_tie_profile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))

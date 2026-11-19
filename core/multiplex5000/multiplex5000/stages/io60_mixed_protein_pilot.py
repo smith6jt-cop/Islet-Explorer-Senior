@@ -113,7 +113,9 @@ def settings(project) -> dict:
             "upstream_release": str(_upstream(project)),
             "pancreas_excluded_typing_markers": sorted(io60_pancreas_markers.EXCLUDED_FROM_TYPING),
             "endocrine_hormone_ties": interior_dominance.METHOD,
-            "pancreas_method": "selected_hierarchy_with_single_donor_representation_fit",
+            "pancreas_method": "selected_hierarchy_with_declared_cohort_representation_fit",
+            "representation_donors": _donors(project),
+            "refinement_availability": "stage03_and_stage05; complete requested defining-marker set",
             "pln_method": "pln_identity_6551_sheet_section_local_0.10_candidate"}
 
 
@@ -121,6 +123,7 @@ def inputs(project) -> list[Input]:
     upstream = _upstream(project)
     geometry = _source(project, "typing_geometry_root")
     found = [Input("cohort_spec", COHORT), Input("pancreas_runner", RUNNER),
+             Input("pancreas_refinement_source", RUNNER.parent / "refine.py"),
              Input("pancreas_marker_policy", Path(io60_pancreas_markers.__file__)),
              Input("pancreas_marker_rules", RUNNER.parent.parent / "celltype/rules.py"),
              Input("pancreas_lineages", RUNNER.with_name("lineages.py")),
@@ -321,7 +324,8 @@ def run(task: Task) -> dict:
         pancreas = pq.read_table(task.staging / "pancreas/cells"
                                  / f"donor_id={donor}/data.parquet",
                                  columns=["object_id", "cell_class", "refined_class",
-                                          "endocrine_subtype_status", "endocrine_interior_evidence"]).to_pandas()
+                                          "endocrine_subtype_status", "endocrine_interior_evidence",
+                                          "refine_state", "refine_note", "refine_pass"]).to_pandas()
         pln, marker_support[donor] = _protein_candidate(task, donor, aligned)
         block_path = task.input(f"pln_blocks:{donor}")
         blocks = (pd.read_parquet(block_path, columns=["object_id", "block"])

@@ -69,6 +69,46 @@ def test_inner_log_names_published_outputs_but_preserves_execution_command(tmp_p
     assert Path(result["stages"][0]["log"]).is_relative_to(release)
 
 
+def test_refinement_provenance_paths_survive_stage_publication(tmp_path):
+    release = tmp_path / "release"
+    task = Task(mixed.STAGE, "candidate", release / ".06_typing.incomplete-123", {},
+                project=SimpleNamespace(release_dir=release))
+    folder = task.staging / "pancreas/refinement"
+    folder.mkdir(parents=True)
+    old = {"parameter_path": str(folder / "representation_params.parquet"),
+           "scale_path": str(task.staging / "pancreas_scale.parquet"), "parameter_sha256": "retained"}
+    (folder / "representation_provenance.json").write_text(json.dumps(old))
+    (folder / "refine_log.json").write_text(json.dumps([{"measurement_policy": {"scale_path": old["scale_path"]}}]))
+    mixed._publish_refinement_paths(task)
+    result = json.loads((folder / "representation_provenance.json").read_text())
+    assert result["parameter_sha256"] == "retained"
+    assert result["execution_output_paths"]["parameter_path"] == old["parameter_path"]
+    assert result["parameter_path"] == str(release / "06_typing/pancreas/refinement/representation_params.parquet")
+    logs = json.loads((folder / "refine_log.json").read_text())
+    assert logs[0]["measurement_policy"]["scale_path"] == str(release / "06_typing/pancreas_scale.parquet")
+
+
+def test_marker_contract_is_bound_to_the_actual_producer_receipt(tmp_path):
+    availability, scales = tmp_path / "availability.parquet", tmp_path / "scales.csv"
+    availability.write_bytes(b"acquired marker contract")
+    scales.write_bytes(b"alignment status contract")
+    receipts = []
+    for stage, path, rel in (("03_protein_measurement", availability, "data/availability/donor_id=0112/data.parquet"),
+                             ("05_normalization", scales, "scales.csv")):
+        receipt = tmp_path / f"{stage}.json"
+        receipt.write_text(json.dumps({"stage": stage, "status": "complete", "outputs": [
+            {"path": rel, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}]}))
+        receipts.append(receipt)
+    task = Task(mixed.STAGE, "candidate", tmp_path, {
+        name: Input(name, path) for name, path in (("availability:0112", availability),
+        ("normalization_scales", scales), ("measurement_receipt", receipts[0]),
+        ("normalization_receipt", receipts[1]))}, settings={"donors": ["0112"]})
+    mixed._verify_availability_inputs(task)
+    availability.write_bytes(b"different marker contract")
+    with pytest.raises(mixed.IO60MixedPilotError, match="producer receipt"):
+        mixed._verify_availability_inputs(task)
+
+
 def test_embedded_pln_uses_node_identity_rules_and_omits_epcam_from_marker_support():
     from types import SimpleNamespace
     import pandas as pd
