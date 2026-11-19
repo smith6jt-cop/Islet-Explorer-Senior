@@ -113,7 +113,8 @@ def test_graph_policy_refuses_overlapping_prepooled_macrophages(traj):
 def test_supported_coarse_immune_and_ambiguous_senior_labels(traj):
     denominator = np.array([5.])
     labels = ["Beta_cell", "Immune", "Unresolved", "Endocrine_unresolved",
-              "Endocrine_ambiguous", "Excluded", "class_unavailable"]
+              "Endocrine_ambiguous", "Excluded", "class_unavailable",
+              "Macrophage_unavailable"]
     frame = pd.DataFrame({"count_" + label: [2.] for label in labels})
     names, values = traj.trajectory_composition_inputs(frame, labels, denominator, "core")
     assert names == ["core_Beta_cell", "core_Immune"]

@@ -191,21 +191,22 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
     # does not prove that those subtypes are disjoint or complete. Refuse it
     # rather than discarding measured parent cells or double-counting them.
     normalised = [re.sub(r"[_\s]+", " ", str(x)).strip().lower() for x in classes]
+    def is_qc_label(label):
+        return bool(set(re.findall(r"[a-z]+", label)).intersection(
+            {"conflict", "unresolved", "unclassified", "doublet", "qc",
+             "ambiguous", "unavailable", "excluded"}))
     has_immune_subtypes = any(
         "macrophage" in label or label in {
             "cd4 tcell", "cd8a tcell", "cd8 tcell", "b cell", "nk cell",
             "dendritic cell", "neutrophil", "plasma cell"}
-        for label in normalised)
+        for label in normalised if not is_qc_label(label))
     if "immune" in normalised and has_immune_subtypes:
         raise ValueError("coarse Immune and immune subtype counts overlap or have "
                          "unknown coverage; provide a non-overlapping measured schema")
     grouped = {}
     for label in classes:
         clean = re.sub(r"[_\s]+", " ", str(label)).strip().lower()
-        words = set(re.findall(r"[a-z]+", clean))
-        if clean in retired or words.intersection(
-                {"conflict", "unresolved", "unclassified", "doublet", "qc",
-                 "ambiguous", "unavailable", "excluded"}):
+        if clean in retired or is_qc_label(clean):
             continue
         if (clean in endocrine and region != "core") or (clean in exocrine and region != "peri"):
             continue
