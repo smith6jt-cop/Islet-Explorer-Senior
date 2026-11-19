@@ -1,10 +1,10 @@
 # MultiPlex5000
 
-The [workflow user guide](../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md)
-covers every evaluation route, its prerequisites and runnable commands. The
+Start with the [current workflow guide](../../docs/PORTABILITY_REMEDIATION_USER_GUIDE.md)
+for supported evaluation routes. The
+[original evaluation guide](../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md) and
 [portability report](../../docs/evaluations/dynamic_portability_20261102/README.md)
-records full-cohort evidence and remaining scientific blockers; code availability
-alone does not imply a validated tissue/panel route.
+are dated evidence. Code availability alone does not imply a validated tissue/panel route.
 
 Parameter observations are opt-in and project-only. Install the optional
 `parameter-recording` extra in a separate environment for MCP, or use the
@@ -15,17 +15,37 @@ and durable retries. Automatic application, recommendations and approval are dis
 
 ## Tissue typing workflow
 
-Install the package with its typing dependencies from this directory (or install
-the built wheel with the `typing` extra):
+On this workstation, use the existing checked environment explicitly. These
+read-only commands work from any directory and do not rebuild an environment:
 
 ```bash
-python -m pip install '.[typing]'
-mplx5k status --project io60_xenium_pilot
+export MPLX5K_PYTHON=/data/envs/multiplex5000/bin/python
+export MPLX5K_SITE_FILE=/home/smith6jt/.config/multiplex5000/site.json
+export ANALYSIS_PROJECT=io60_xenium_pilot
+export ANALYSIS_RELEASES=/data/io60-current/releases
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli context \
+  --project "$ANALYSIS_PROJECT" --releases-root "$ANALYSIS_RELEASES"
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli status \
+  --project "$ANALYSIS_PROJECT" --releases-root "$ANALYSIS_RELEASES"
 ```
+
+Inspect the context before execution: interpreter, imported source, site,
+selected project and result root must describe the intended analysis. Change
+`ANALYSIS_PROJECT` and `ANALYSIS_RELEASES` together when selecting a different
+candidate. Context does not hash raw inputs, run a stage or accept a gate.
+
+The repository `.venv` is a separate historical environment, not an alias of
+`/data/envs/multiplex5000`; a November 6 neutral-directory probe resolved older
+`phenocycler` there and no `multiplex5000`. Keep it for its existing consumers.
+Using `env -u PYTHONPATH` avoids silently overriding the selected installation.
+For a new installation on another host, use a new environment and install the
+package or wheel with its required extras; follow the [site guide](sites/README.md)
+and verify imports before using data. Do not reinstall into an active environment
+just to follow this quickstart.
 
 `mplx5k` runs the same stage functions from an installed package, the Snakemake
 graph, or the review notebooks. Project files select the tissue and assay route;
-site settings locate acquisitions and output roots. The package does not contain
+site settings locate source data and output roots. The package does not contain
 raw images or cell exports. The current bounded typing routes are:
 
 | Project | Stage 06 candidate |
@@ -65,8 +85,9 @@ typing scope document for release-backed H1–H6 claims.
 ## Legacy measurement pipeline
 
 The remainder of this guide describes the earlier `phenocycler` pipeline API.
-Its `NO_VERIFIED_TYPING` latch remains in place. That latch does not disable the
-separate `mplx5k` review-candidate routes above.
+Its dated environment examples are historical recipes, not the current setup
+instructions above. Its `NO_VERIFIED_TYPING` latch remains in place. That latch
+does not disable the separate `mplx5k` review-candidate routes above.
 
 This package currently turns an explicitly declared QuPath cohort into
 UUID-keyed, source-audited per-cell expression data. There are **no verified
@@ -147,7 +168,7 @@ contains a build snapshot of this repository's project files, tissue profiles,
 the only maintained source; the installed snapshot records the source commit
 in stage receipts. Run `mplx5k status --project spleen_pilot` from any working
 directory to check the installed workflow. A site file still names the raw
-acquisitions, release root, scratch location, and any external pinned UniFORM
+source exports, release root, scratch location, and any external pinned UniFORM
 checkout; those inputs are deliberately not bundled into the wheel.
 
 For development:
@@ -373,7 +394,8 @@ the cells are *not* the same cells, so pairing is at structure / niche / donor l
 environment:
 
 ```bash
-# On the workstation the repo .venv is the environment; the conda recipe is HPG-only.
+# Historical September recipe; use its recorded runtime for an exact replay.
+# For current modules, use the checked environment and context described above.
 ../../.venv/bin/pip install -e '.[integration]'
 ../../.venv/bin/python -m phenocycler.integration.manifest --report
 ```

@@ -3,43 +3,67 @@
 Use this guide for the implementation after the user's blocker-fix authorization.
 The [current report](evaluations/blocker_remediation_20261102/README.md),
 [readiness matrix](evaluations/blocker_remediation_20261102/readiness.json) and
-[201-acquisition ledger](evaluations/blocker_remediation_20261102/acquisitions.json)
+[201-record source ledger](evaluations/blocker_remediation_20261102/acquisitions.json)
 separate completed candidates, active checks, missing evidence and scientific
 approval. The [original guide](PORTABILITY_EVALUATION_USER_GUIDE.md) documents the
 frozen pre-remediation evaluation; its statements about absent capabilities are
 historical.
 
 A passing computational gate does not validate biological transfer. Keep donor,
-physical section, acquisition, segmentation, cell and MALDI spot identities
-separate. No relationship is inferred from a donor name. No commands in this
-guide activate a production release or approve a registry.
+instrument run, slide, physical section, region, scan, segmentation, cell and
+MALDI spot identities separate. Historical `acquisition` keys identify source
+records of several types; they do not imply one run or slide per row. No
+relationship is inferred from a donor name. No commands in this guide activate a production release or approve a registry.
 
 ## Environment and read-only inspection
 
-From the repository root on the workstation:
+Current workstation setup, corrected November 6, 2026. The explicit paths
+make the module commands independent of the starting working directory. The
+`cd` is for this guide's later repository-relative scripts and evidence paths:
 
 ```bash
-export PORTABILITY_REPO="$PWD"
-export PYTHONPATH="$PORTABILITY_REPO/core/multiplex5000"
-export MPLX5K_SITE_FILE="$PORTABILITY_REPO/core/multiplex5000/sites/sn4622120742.json"
-.venv/bin/python -m multiplex5000.cli status --project io60
-.venv/bin/python -m multiplex5000.cli status --project io60_maldi_serial
-.venv/bin/python scripts/evaluation/verify_portability_delivery.py
+export PORTABILITY_REPO=/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior
+export MPLX5K_PYTHON=/data/envs/multiplex5000/bin/python
+export MPLX5K_SITE_FILE=/home/smith6jt/.config/multiplex5000/site.json
+cd "$PORTABILITY_REPO"
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli context --project io60
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli status --project io60
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli context --project io60_maldi_serial
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli status --project io60_maldi_serial
 ```
 
-The scientific interpreter is the existing `.venv/bin/python`; do not change
-package versions merely to make a historical comparison run. The CODEX replay
-has its own explicit Python/package/thread contract. HiPerGator uses its own
-site file and source paths; workstation paths do not transfer automatically.
+Inspect the interpreter, imported package, producer, site, project and output
+root in `context` before execution. To override the output location, supply the
+same explicit `--releases-root /absolute/chosen/root` to context, stage, status
+and gate commands. The commands above inspect existing configured candidates;
+new analysis uses a new candidate below. Context is read-only and does not
+rehash raw scientific inputs, run a stage or accept a gate.
+
+The repository `.venv` is a different historical environment; a neutral-directory
+probe resolves older Senior-v3 `phenocycler` there and no `multiplex5000`.
+`env -u PYTHONPATH` prevents an inherited source override for these module
+commands. Keep historical consumers/runtimes intact and do not reinstall or
+change package versions merely to follow this guide. The CODEX replay has its
+own explicit Python/package/thread contract. HiPerGator uses its own site file,
+source paths and pinned runtimes; workstation setup does not deploy there.
 Record the commit, source diff/hashes, environment, input receipts and selected
 roster for every new run. Missing artifacts are unavailable evidence.
+
+The dated delivery check is separate from environment/context inspection:
+
+```bash
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/verify_portability_delivery.py
+```
+
+It compares preserved evidence bindings and may report unavailable or changed
+artifacts. It is not a scientific rerun or a release acceptance.
 
 Read the completed pLN and full 25 candidate status directly:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli status \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli status \
   --project outputs/blocker_remediation_20261102/config/pln_full19_candidate.yaml
-.venv/bin/python -m multiplex5000.cli status \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli status \
   --project outputs/blocker_remediation_20261102/protein/protein_availability_remediation.yaml
 ```
 
@@ -56,7 +80,7 @@ This reusable example prepares the RNA-only project:
 ```bash
 export PORTABILITY_WORK="$PORTABILITY_REPO/outputs/portability-remediation-recheck-1"
 mkdir -p "$PORTABILITY_WORK"
-.venv/bin/python - <<'PY'
+env -u PYTHONPATH "$MPLX5K_PYTHON" - <<'PY'
 import os
 from pathlib import Path
 import yaml
@@ -69,7 +93,7 @@ project.update(id='rna_only_recheck', release='rna-only-recheck-1',
 with (work / 'rna_only_recheck.yaml').open('x') as handle:
     yaml.safe_dump(project, handle, sort_keys=False)
 PY
-.venv/bin/python -m multiplex5000.cli graph-spec \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli graph-spec \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
 ```
 
@@ -92,7 +116,7 @@ git ls-files --others --exclude-standard -- core/multiplex5000 scripts/evaluatio
   > "$PORTABILITY_WORK/producer_untracked_files.txt"
 sha256sum "$PORTABILITY_WORK/rna_only_recheck.yaml" \
   > "$PORTABILITY_WORK/project.sha256"
-.venv/bin/python - <<'PY' > "$PORTABILITY_WORK/environment.json"
+env -u PYTHONPATH "$MPLX5K_PYTHON" - <<'PY' > "$PORTABILITY_WORK/environment.json"
 import importlib.metadata
 import json
 import platform
@@ -123,10 +147,10 @@ and what passed. Use `gate show STAGE --project PROJECT` to inspect it. A review
 acceptance is an action based on the actual evidence and existing criteria:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli gate show 00_inventory \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 00_inventory \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
 # Only after the actual inventory review, with the real reviewer/evidence values:
-.venv/bin/python -m multiplex5000.cli gate accept 00_inventory \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate accept 00_inventory \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml" \
   --by "YOUR_REVIEWER_NAME" --note "REVIEW_EVIDENCE_ID"
 ```
@@ -151,7 +175,7 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   --evidence outputs/handoff_completion_20261102/codex/journal_proof.json \
   --snapshot outputs/dynamic_portability_20261102/typing_port \
   --out "$PORTABILITY_WORK/codex-exact-replay"
-.venv/bin/python scripts/evaluation/audit_codex_v20.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/audit_codex_v20.py \
   --recovery-manifest outputs/blocker_remediation_20261102/codex/v20_recovered/recovery.json \
   --out "$PORTABILITY_WORK/codex-v20-bindings"
 ```
@@ -198,7 +222,7 @@ For the fresh copy named `protein_recheck.yaml`, capture the current producer
 bytes, configuration and complete declared input roster before running Stage06:
 
 ```bash
-.venv/bin/python scripts/evaluation/capture_protein_launch.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/capture_protein_launch.py \
   --project "$PORTABILITY_WORK/protein_recheck.yaml" \
   --base-snapshot outputs/blocker_remediation_20261102/protein/producer_snapshot_attempt2.json \
   --snapshot "$PORTABILITY_WORK/protein_producer_snapshot.json" \
@@ -217,9 +241,9 @@ and use new output paths for the next attempt.
 Then run the candidate:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli stage run 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 06_typing \
   --project "$PORTABILITY_WORK/protein_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 06_typing \
   --project "$PORTABILITY_WORK/protein_recheck.yaml"
 ```
 
@@ -256,13 +280,13 @@ The independent verifier checks a completed release against the preserved
 primary tables. For the fresh copy with `release: protein-recheck-1`:
 
 ```bash
-.venv/bin/python scripts/evaluation/verify_protein_remediation.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/verify_protein_remediation.py \
   --release "$PORTABILITY_WORK/releases/protein-recheck-1" \
   --baseline outputs/dynamic_portability_20261102/protein_primary_expected_universe.json \
   --producer-snapshot "$PORTABILITY_WORK/protein_producer_snapshot.json" \
   --input-bindings "$PORTABILITY_WORK/protein_input_bindings.json" \
   --out "$PORTABILITY_WORK/protein-verification"
-.venv/bin/python scripts/evaluation/check_protein_producer_snapshot.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/check_protein_producer_snapshot.py \
   --run "$PORTABILITY_WORK" \
   --snapshot "$PORTABILITY_WORK/protein_producer_snapshot.json" \
   --stage "$PORTABILITY_WORK/releases/protein-recheck-1/06_typing" \
@@ -290,7 +314,7 @@ the new reusable CLI did not create or rewrite those dated records.
 After the independent audit passes, prepare the review material:
 
 ```bash
-.venv/bin/python scripts/evaluation/build_protein_review_materials.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/build_protein_review_materials.py \
   --verification "$PORTABILITY_WORK/protein-verification"
 ```
 
@@ -334,19 +358,19 @@ no final cell classes and is not equivalent to canonical own-compartment REDSEA.
 Audit raw sources with the existing CLI:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli sources pln
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli sources pln
 ```
 
 For a fresh copy named `pln_recheck.yaml`, execute the full upstream chain:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli stage run 03_protein_measurement \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 03_protein_measurement \
   --project "$PORTABILITY_WORK/pln_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli stage run 05_normalization \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 05_normalization \
   --project "$PORTABILITY_WORK/pln_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli stage run 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 06_typing \
   --project "$PORTABILITY_WORK/pln_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 06_typing \
   --project "$PORTABILITY_WORK/pln_recheck.yaml"
 ```
 
@@ -395,26 +419,27 @@ PYTHONPATH="$SPLEEN_VERIFY_ROOT/snapshot/core/multiplex5000" \
 
 ## Xenium-only and full-cohort RNA
 
-The RNA-only project includes exact acquisitions `xenium:0041323:Region_1` and
+The RNA-only project includes exact region outputs `xenium:0041323:Region_1` and
 `xenium:0041326:Region_1`, with no protein measurement, normalization or pair
 requirement. The full roster is in `io60_xenium_full_same_release.yaml`; copy it
-to a new release before execution. Its 65 acquisitions remain 65 even when five
-are unavailable under existing damaged/low-signal rules.
+to a new release before execution. Its roster retains all 65 region outputs,
+including the five recorded as unavailable under existing damaged/low-signal
+rules in that evaluation. These are not 65 instrument runs or slides.
 
 For the fresh RNA-only copy prepared above:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli stage run 00_inventory \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 00_inventory \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
 # Inspect and accept the actual inventory before continuing.
-.venv/bin/python -m multiplex5000.cli stage run 04_rna_ingest \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 04_rna_ingest \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 04_rna_ingest \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 04_rna_ingest \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
 # Inspect and accept the actual ingest before continuing.
-.venv/bin/python -m multiplex5000.cli stage run 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 06_typing \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 06_typing \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 06_typing \
   --project "$PORTABILITY_WORK/rna_only_recheck.yaml"
 ```
 
@@ -446,12 +471,12 @@ its independent upstream receipts. Once Stage06 is actually reviewed, the
 existing stage commands are:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli stage run 07_registration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 07_registration \
   --project "$PORTABILITY_WORK/spleen_pair_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 07_registration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 07_registration \
   --project "$PORTABILITY_WORK/spleen_pair_recheck.yaml"
 # Inspect the exact geometry and create its genuine review acceptance before Stage08.
-.venv/bin/python -m multiplex5000.cli stage run 08_integration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 08_integration \
   --project "$PORTABILITY_WORK/spleen_pair_recheck.yaml"
 ```
 
@@ -486,7 +511,7 @@ matching regression suite passed 98 tests.
 Run a read-only preflight against the supplied evaluation configuration:
 
 ```bash
-.venv/bin/python -m multiplex5000.same_slide_batch preflight \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.same_slide_batch preflight \
   --config core/multiplex5000/projects/same_slide_batch_evaluation.json \
   --out "$PORTABILITY_WORK/same-slide-preflight"
 ```
@@ -505,11 +530,11 @@ copies under the new workspace, retaining the exact roster/hash and adjusting
 relative project paths. Supply each pair's actual accepted upstream evidence:
 
 ```bash
-.venv/bin/python -m multiplex5000.same_slide_batch registration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.same_slide_batch registration \
   --config "$PORTABILITY_WORK/same_slide_batch.json" \
   --out "$PORTABILITY_WORK/same-slide-registration-ledger"
 # Review each actual Stage07 result separately before accepting its gate.
-.venv/bin/python -m multiplex5000.same_slide_batch integration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.same_slide_batch integration \
   --config "$PORTABILITY_WORK/same_slide_batch.json" \
   --out "$PORTABILITY_WORK/same-slide-integration-ledger"
 ```
@@ -544,7 +569,7 @@ and from intensity normalization.
 Regenerate the display comparison only into a fresh folder:
 
 ```bash
-.venv/bin/python scripts/evaluation/plot_maldi_scaling.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/plot_maldi_scaling.py \
   --source /data/io60-current/sources/maldi/wilkes_2026-10 \
   --inventory docs/evaluations/dynamic_portability_20261102/inventories/maldi_sections.csv \
   --out "$PORTABILITY_WORK/maldi-scaling"
@@ -554,9 +579,11 @@ Current registration supports PhenoCycler pancreas outlines, dedicated pLN DAPI
 masks and exact-region Xenium morphology. Xenium uses instrument-declared DAPI,
 OME axes, micrometre calibration, region identity and native crop/orientation.
 Whole-slide repeated thumbnails cannot substitute for region-local geometry.
-The final indexed HiPerGator validation accounted for all 65 Xenium acquisitions:
-62 source frames validated and three recorded damaged regions unavailable,
-including both RNA-only acquisitions among the validated sources. Two explicitly
+The final indexed HiPerGator source-frame validation accounted for all 65
+Xenium region outputs: 62 source frames validated and three recorded damaged
+regions unavailable, including both RNA-only regions among the validated sources.
+This source-frame check has a different scope from the typing/QC availability
+counts above. Two explicitly
 relocated directories are bound through the exact acquisition/output index and
 matching experiment hash. The intermediate 60/65 result remains historical
 evidence of the repaired reader check. This selects no
@@ -565,10 +592,10 @@ MALDI neighbour and accepts no transform.
 Read-only source validation into a new root:
 
 ```bash
-.venv/bin/python scripts/evaluation/validate_maldi_xenium_sources.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/validate_maldi_xenium_sources.py \
   --inventory-release /data/io60-current/releases/io60-maldi-candidate-1 \
   --out "$PORTABILITY_WORK/maldi-xenium-sources"
-.venv/bin/python scripts/evaluation/prepare_maldi_object_sources.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/prepare_maldi_object_sources.py \
   --audit docs/evaluations/dynamic_portability_20261102/pln_object_availability.json \
   --out "$PORTABILITY_WORK/maldi-object-sources"
 ```
@@ -583,7 +610,7 @@ A fresh `io60_maldi_serial.yaml` copy needs the inspection input
 and bind its absolute path in the new project:
 
 ```bash
-.venv/bin/python - <<'PY'
+env -u PYTHONPATH "$MPLX5K_PYTHON" - <<'PY'
 import os
 from pathlib import Path
 import yaml
@@ -634,19 +661,19 @@ export; it does not invent its missing historical producer.
 After actual inspection, the scientific sequence is:
 
 ```bash
-.venv/bin/python -m multiplex5000.cli stage run 00_inventory \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 00_inventory \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 00_inventory \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 00_inventory \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
 # Genuine inventory acceptance is required before ingest.
-.venv/bin/python -m multiplex5000.cli stage run 04b_maldi_ingest \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 04b_maldi_ingest \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli stage run 07_registration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 07_registration \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
-.venv/bin/python -m multiplex5000.cli gate show 07_registration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli gate show 07_registration \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
 # Review and accept the exact registration before object integration.
-.venv/bin/python -m multiplex5000.cli stage run 08_integration \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.cli stage run 08_integration \
   --project "$PORTABILITY_WORK/maldi_recheck.yaml"
 ```
 
@@ -707,7 +734,7 @@ application disabled.
 Inspect that history directly:
 
 ```bash
-.venv/bin/python -m multiplex5000.parameter_observations \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.parameter_observations \
   --project "$PORTABILITY_REPO/outputs/blocker_remediation_20261102/parameter-history" \
   --kintsugi "$PORTABILITY_REPO/external/KINTSUGI" history
 ```
@@ -715,17 +742,17 @@ Inspect that history directly:
 For a new schema-valid observation in a fresh project:
 
 ```bash
-.venv/bin/python -m multiplex5000.parameter_observations \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.parameter_observations \
   --project "$PORTABILITY_WORK/parameter-history" \
   --kintsugi "$PORTABILITY_REPO/external/KINTSUGI" \
   record --input "$PORTABILITY_WORK/observation.json"
-.venv/bin/python -m multiplex5000.parameter_observations \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.parameter_observations \
   --project "$PORTABILITY_WORK/parameter-history" \
   --kintsugi "$PORTABILITY_REPO/external/KINTSUGI" retry
-.venv/bin/python -m multiplex5000.parameter_observations \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.parameter_observations \
   --project "$PORTABILITY_WORK/parameter-history" \
   --kintsugi "$PORTABILITY_REPO/external/KINTSUGI" history
-.venv/bin/python -m multiplex5000.parameter_observations \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m multiplex5000.parameter_observations \
   --project "$PORTABILITY_WORK/parameter-history" \
   --kintsugi "$PORTABILITY_REPO/external/KINTSUGI" export
 ```
@@ -766,7 +793,7 @@ Once the full candidate and current readiness dispositions are finalized, the
 bundle command is idempotent and uses the separate remediation history:
 
 ```bash
-.venv/bin/python scripts/evaluation/record_remediation_observations.py \
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/record_remediation_observations.py \
   --project "$PORTABILITY_REPO/outputs/blocker_remediation_20261102/parameter-history"
 ```
 
@@ -805,16 +832,16 @@ Run focused checks appropriate to the changed route; these are computational
 checks, not cohort scientific review:
 
 ```bash
-.venv/bin/python -m pytest -q -o addopts= \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m pytest -q -o addopts= \
   core/multiplex5000/tests/current/test_protein_evidence.py \
   core/multiplex5000/tests/current/test_protein_section.py \
   core/multiplex5000/tests/current/test_pln_typing_candidate_stage.py \
   core/multiplex5000/tests/current/test_io60_rna_typing_pilot.py \
   core/multiplex5000/tests/current/test_resolved_parameters.py
-.venv/bin/python -m pytest -q -o addopts= \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m pytest -q -o addopts= \
   core/multiplex5000/tests/current/test_maldi_objects.py \
   core/multiplex5000/tests/current/test_maldi_objects_stage.py
-.venv/bin/python -m pytest -q -o addopts= \
+env -u PYTHONPATH "$MPLX5K_PYTHON" -m pytest -q -o addopts= \
   core/multiplex5000/tests/current/test_paired_typing.py \
   core/multiplex5000/tests/current/test_same_slide_pair_stages.py
 ```
@@ -834,8 +861,8 @@ After all cohort verification, inspection, documentation and history are final,
 build the new typed artifact manifest and run the delivery guard again:
 
 ```bash
-.venv/bin/python scripts/evaluation/verify_remediation_delivery.py --build-manifest
-.venv/bin/python scripts/evaluation/verify_remediation_delivery.py
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/verify_remediation_delivery.py --build-manifest
+env -u PYTHONPATH "$MPLX5K_PYTHON" scripts/evaluation/verify_remediation_delivery.py
 ```
 
 The default paths target this remediation bundle. `--base` explicitly selects

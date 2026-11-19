@@ -21,6 +21,23 @@ not installed registration or object-integration capabilities.
 
 ## 1. Start with the evidence and the correct environment
 
+**Environment correction, November 6, 2026:** the dated recipe below used
+`.venv/bin/python` plus an explicit `PYTHONPATH`. The repository `.venv` is a
+separate runtime; it is not backed by `/data/envs/multiplex5000`. A fresh probe
+without `PYTHONPATH` found older Senior-v3 `phenocycler` and no `multiplex5000`
+in `.venv`. For current module use, follow the [remediation guide's environment
+setup](PORTABILITY_REMEDIATION_USER_GUIDE.md#environment-and-read-only-inspection):
+select `/data/envs/multiplex5000/bin/python` and inspect `cli context` before
+execution. Historical replay must retain its recorded producer and dependency
+contract. The commands below remain a record of the original evaluation recipe;
+they are not the current workstation quickstart.
+
+**Unit correction:** the historical ledger's 201 “acquisition” rows combine
+source-unit types. They must not be counted as 201 instrument runs or slides.
+Use each row's actual run, slide, section, region, scan and export identity;
+legacy filenames and serialized keys remain unchanged. In particular, the
+65 Xenium entries are region outputs and may share runs or slides.
+
 From the repository root on the workstation:
 
 ```bash
@@ -31,10 +48,11 @@ export MPLX5K_SITE_FILE="$PORTABILITY_REPO/core/multiplex5000/sites/sn4622120742
 .venv/bin/python -m multiplex5000.cli status --project io60_maldi_serial
 ```
 
-Here `.venv/bin/python` is the existing scientific environment, backed by
-`/data/envs/multiplex5000`. The site file names workstation `/data` and `/home`
-sources. It is not a HiPerGator site file. Python version, dependency versions,
-checkout commit and dirty diff belong in each new evaluation's provenance.
+The site file in this historical recipe names workstation `/data` and `/home`
+sources; it is not a HiPerGator site file. The original claim that this `.venv`
+was backed by `/data/envs/multiplex5000` was incorrect, as corrected above.
+Python version, dependency versions, checkout commit and dirty diff belong in
+each new evaluation's provenance.
 
 Use these entry points to inspect the delivered result:
 
