@@ -17,7 +17,7 @@ refuses to build until a non-overlapping measured schema is supplied.
 The composition graph has one column per measured class. Endocrine counts come
 from core only and exocrine counts from peri only. All other retained counts are
 summed across regions before log1p(count / max(core endocrine cells, 1)).
-The accepted CODEX table provides 14 features. Senior uses its own measured
+The CODEX pancreas release uses 56 features. Each of its 14 phenotypes contributes a count and summed nerve, lymphatic and blood vessel overlap over the same cells. The CODEX graph and its held-out tests are distributed in `analysis/shared/codex_islet_trajectory`. Run `python analysis/shared/codex_islet_trajectory/reproduce.py` in the CODEX Scanpy environment to verify the ordering by islet ID. Senior uses its own measured
 classes, cohort, Euclidean metric, root choice and validation gates. The H5AD
 records feature names in trajectory_pooled_inputs and the fitted matrix in
 X_composition_pooled. Both composition pseudotime fields use the pooled fit.
