@@ -16,17 +16,13 @@ from urllib.parse import quote
 
 import pandas as pd
 
+from multiplex5000.artifacts import sha256_file as sha
+
 
 SCHEMA = "multiplex5000-sequential-review/1"
 DECISIONS = {"unreviewed", "evidence_checked", "needs_reassessment", "uncertain"}
 
 
-def sha(path):
-    h = hashlib.sha256()
-    with Path(path).open("rb") as f:
-        for block in iter(lambda: f.read(8 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def _safe_child(root, relative):

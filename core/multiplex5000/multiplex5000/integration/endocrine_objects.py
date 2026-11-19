@@ -7,7 +7,6 @@ This module never treats an anatomical category as a cell identity.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 import uuid
@@ -21,6 +20,8 @@ from shapely.geometry import Polygon, mapping
 
 from .structures import dbscan_labels
 
+from multiplex5000.artifacts import sha256_file as digest
+
 CLASSES = ("Islet", "EndocrineCluster", "EndocrineSingle")
 
 
@@ -33,9 +34,6 @@ def area_only(g):
     return shapely.union_all(parts) if parts else Polygon()
 
 
-def digest(path):
-    with Path(path).open("rb") as f:
-        return hashlib.file_digest(f, "sha256").hexdigest()
 
 
 def verify_source(path, expected):

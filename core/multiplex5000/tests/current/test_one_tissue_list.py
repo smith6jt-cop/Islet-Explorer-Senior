@@ -37,6 +37,8 @@ SAMESLIDE = ("the HPG same-slide lane's own labels, which its outputs carry; cha
 
 #: Tissue lists that stay for now, and why.
 KEPT = {
+    ("analysis/phenocycler/notebooks/phenotype_categories.py", "QC_LABELS"):
+        "Keys route notebook display labels to tissue-specific QC categories.",
     ("analysis/xenium/scripts/benchmark/bench_common.py", "SAMPLE_TISSUE"): XENIUM,
     ("analysis/xenium/scripts/refresh_broad_umap.py", "DEFAULT_TISSUE"): XENIUM,
     ("analysis/xenium/scripts/render_stage02_phenotyping.py", "DEFAULT_TISSUE"): XENIUM,

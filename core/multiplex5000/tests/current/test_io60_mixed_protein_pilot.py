@@ -113,7 +113,7 @@ def test_embedded_pln_uses_node_identity_rules_and_omits_epcam_from_marker_suppo
     from types import SimpleNamespace
     import pandas as pd
 
-    panel = Path(__file__).resolve().parents[4] / "core/panels/data/tissues/pancreatic_lymph_node"
+    panel = mixed.PANEL.parent
     inputs = {"pln_panel": panel / "manifest.yml", "pln_rules": panel / "phenotype_rules.csv"}
     task = SimpleNamespace(input=inputs.__getitem__)
     aligned = pd.DataFrame({"object_id": ["node", "pancreas"], "cell_region": ["pLN", "tissue"],
