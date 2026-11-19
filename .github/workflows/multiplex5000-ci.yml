@@ -174,7 +174,8 @@ jobs:
           assert len(spleen_typing_pilot.GENE_SHEETS) == 4
           panels = roots.REPO / 'core/panels/data/tissues'
           assert len(pln_rules(panels / 'pancreatic_lymph_node/manifest.yml').rules) == 69
-          assert len(spleen_rules(panels / 'spleen/manifest.yml').rules) == 58
+          for panel_id in ('spleen_pc33', 'spleen_pc67'):
+              assert len(spleen_rules(panels / 'spleen/manifest.yml', panel_id=panel_id).rules) == 61
           mixed = project.load('io60_mixed_protein_pilot')
           assert typing._route(mixed) is io60_mixed_protein_pilot
           scripts = roots.REPO / 'core/multiplex5000/scripts/typing'
