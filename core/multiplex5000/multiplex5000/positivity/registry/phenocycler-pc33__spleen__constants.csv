@@ -1,0 +1,9 @@
+name,value,source,reason,proposal
+ISOLATION_UM,15.0,measured on the 4 PC33 sections (derive_spleen_typing_registry.py),three decay lengths of the slower lineage-spillover curve: CD20+ among CD3e+ cells by distance to the nearest B cell lambda 4.8 um; CD3e+ among CD20+ cells by distance to the nearest T cell lambda 3.7 um,
+LEVEL_QUANTILE,99.0,Barlow et al. eLife 2024 (owner-approved known-negative rule),positive above the 99th percentile of cells known not to express the marker,
+KNOWN_NEGATIVE_MIN_ABOVE,10,readability floor,a percentile needs at least 10 reference cells above it,
+BACKGROUND_K,1.867,measured on the 4 PC33 sections,"median (known-negative level - background mode) / half-width over 94 marker-sections, IQR 1.39-2.45",
+POSITIVE_LINEAGE_MIN,0.5,"positivity pass criterion (delegated to the agent, owner 10-28)","a level must leave most of the lineage that must carry the marker above it, or the marker is unavailable",
+CANARY_MARGIN,1,owner 2026-10-29,a group resolves at one more canary-positive marker than the runner-up,
+CANARY_MIN_DEPTH,2,owner 2026-10-28 (the Xenium canary logic),the resolving group needs two markers,
+CANARY_TIE_INTERIOR_LEAD,0.0,owner 2026-10-29: 'both are brighter and cover more cell area',no extra lead: the CODEX 0.15 was fitted on CODEX cells,

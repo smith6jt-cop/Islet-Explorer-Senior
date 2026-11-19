@@ -26,6 +26,10 @@ def _route(project):
         from . import io60_joint_typing
 
         return io60_joint_typing
+    if explicit == "spleen_protein":
+        from . import spleen_typing
+
+        return spleen_typing
     if explicit is not None:
         raise TypingRouteError(f"unknown Stage 06 typing_route: {explicit}")
     same_slide = bool(project.settings.get("same_slide_source_manifest"))

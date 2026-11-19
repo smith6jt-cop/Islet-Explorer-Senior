@@ -10,9 +10,34 @@ rule_table:
   adaptation:
     # The selected 6551 sheet remains the sole source. Its pLN adaptation already
     # removes inherited pancreas-hormone negatives from the broad parent rows.
-    drop_branches: [Endocrine, Ductal_Epithelial, Epithelial]
+    # Epithelial, dropped on 2026-10-26, is kept since 2026-11-01 (maintainer:
+    # epithelium is present in spleen).
+    drop_branches: [Endocrine, Ductal_Epithelial]
     drop_rules: [Nerve_fiber, Myofibroblast_CAF, Basement_membrane, Blood_vessel,
-                 Lymphatic_vessel, HEV]
+                 Lymphatic_vessel, HEV, DN_T_cell]
+    # Maintainer 2026-11-01: an OR-group (anypos) marker that PC67 does not
+    # acquire is left out of that group, so the rule is read on its measured
+    # members. Only these (rule, marker) pairs; each marker must be absent from
+    # the panel, and every other missing marker still makes its rule unavailable.
+    # Maintainer 2026-11-02: compare measured lineage profiles before
+    # opposing immune/CD4/CD8 signals veto a supported subtype. Original
+    # negative clauses remain recorded and missing calls stay unavailable.
+    # FOXP3 negatives remain strict for ordinary CD4 helper profiles.
+    defer_profile_exclusions:
+      Immune: [CD68, CD11c, CD20, CD79a, CD3e, CD11b, CD4, CD8]
+    # No compartment catchall, and no renaming prohibited DN profiles T_cell.
+    require_specific_profile: [Immune, T_cell]
+    # Maintainer: no double-negative T calls, including marker-qualified leaves.
+    # Put support on the ancestor so it does not inflate a competing leaf's
+    # detecting-marker set or count OR alternatives as shared depth evidence.
+    require_anypos:
+      T_cell: [CD4, CD8]
+    # Count required parent positives toward confidence without mixing them
+    # into CD4/CD8 brightness or coverage comparisons.
+    inherit_profile_depth: true
+    omit_absent_anypos:
+      Epithelial: [Ker8-18]
+      Macrophage: [Iba1]
     # These marker-qualified leaves describe measured spleen phenotypes; they do
     # not assert a marginal-zone or follicular-dendritic identity from CD21 alone.
     add_rules:
@@ -21,6 +46,47 @@ rule_table:
       - {parent: cDC, phenotype: CD141_positive_cDC, constraints: {CD141: pos}}
       - {parent: Stromal, phenotype: SMA_positive_stromal,
          constraints: {SMA: allpos, Vimentin: allpos, CD31: allneg}}
+      # Maintainer 2026-11-01: red-pulp littoral (sinusoidal lining) cells carry
+      # CD8 with CD31 and no CD3e; they are never CD8 T cells.
+      - {parent: Endothelial, phenotype: Endothelial_Sinusoidal_CD8+, constraints: {CD8: pos}}
+    # The pLN candidate lineage roots, plus Epithelial (kept above).
+    candidate_lineage_roots: [Neural, Stromal, Immune, Endothelial, Smooth_muscle, Epithelial]
+    # Maintainer 2026-11-01, the 10-30 structure-only ruling applied to spleen:
+    # these branches name a cell only inside a structure object of their class.
+    # Until such an object exists (PC67 SmallVessel is being retrained), a match
+    # in them is unavailable, never negative.
+    structure_only: [Endothelial]
+  panel_adaptations:
+    spleen_pc33:
+      rationale: >-
+        Maintainer 2026-11-03 requests typing all four PC33 donors with the same
+        spleen hierarchy. Project explicit unacquired exclusions and redundant
+        OR alternatives out of measured profiles; retain every acquired clause
+        and all defining positive requirements. An omitted exclusion is not a
+        negative measurement. Unsupported positive identities stay unavailable.
+      omit_absent_anypos:
+        Epithelial: [Pan-Cytokeratin, EpCAM]
+        Immune: [CD11b]
+        B_cell: [CD79a]
+        Myeloid: [M2Gal3, CD11b]
+        Effector_CD8: [Bcl-2]
+        Macrophage: [M2Gal3]
+        Immunosuppressive: [IDO1, VISTA]
+      omit_absent_allneg:
+        Neural: [Pan-Cytokeratin, EpCAM]
+        Stromal: [Pan-Cytokeratin, EpCAM]
+        Immune: [Pan-Cytokeratin]
+        Endothelial: [Pan-Cytokeratin]
+        Progenitor_Epithelial: [B3TUBB]
+        T_cell: [CD79a]
+        Myeloid: [CD79a]
+        Exhausted_CD8: [Granzyme B]
+        Progenitor_exhausted: [LAG3, CD39]
+        Terminally_exhausted: [Granzyme B, Bcl-2]
+        GC_B_cell: [Bcl-2]
+        Macrophage: [MPO]
+        M1_macrophage: [CD206]
+        M2_macrophage: [iNOS]
 protein_panel:
   file: pc67_export_header.tsv
   source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/*PC67*.csv.gz
@@ -29,6 +95,20 @@ protein_panel:
   aliases: {PD-L1: PDL1}
   # These exports are raw Cell means. Presence in this panel is not evidence of
   # successful normalization or marker positivity.
+protein_panels:
+  spleen_pc33:
+    file: pc33_export_header.tsv
+    source: /blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/approved/parquet/*PC33*.parquet
+    source_kind: identical accepted Parquet export schemas; all four donors checked
+    source_header_sha256: 120a3e4b009866392a46fd7b8744bc8534e2ddbc7cd4d8e1e184cad75be8f50d
+    checked_exports: 4
+    source_exports:
+    - HDL011_PC33.ome.tiff.parquet
+    - HDL053_PC33.ome.tif.parquet
+    - HDL055_PC33.ome.tiff.parquet
+    - HDL063_PC33.ome.tiff.parquet
+    aliases:
+      PD-L1: PDL1
 protein_normalization:
   # This existing HPG scale table was fitted for the 33 classifier channels,
   # not all 67 markers measured in cells_full. It is comparison evidence for
@@ -41,7 +121,8 @@ protein_normalization:
   role: existing_classifier_scale_comparison
 notes: |
   Same-slide spleen typing needs separate PhenoCycler and Xenium evidence.
-  The PC67 marker inventory is read from all eight current protein export headers.
+  PC67 inventory binds all eight exports; PC33 inventory binds all four accepted
+  Parquet export schemas. Each panel has its own recorded rule projection.
   Rules requiring B3TUBB, Iba1, CD206 or other unmeasured markers are unavailable;
   missing values are never interpreted as negatives. FollicleCounterQP remains
   an independent read-only source during the pilot. Cell-to-cell links require

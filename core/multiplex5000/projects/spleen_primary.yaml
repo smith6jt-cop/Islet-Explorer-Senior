@@ -4,8 +4,10 @@ release: spleen-primary-candidate-1
 cohort: spleen_phenocycler_primary
 # Production Protein Measurement (ingest -> geometry QC -> REDSEA -> expression), then
 # Normalization fitted per panel (stages/panel_normalization.py). No
-# same_slide_source_manifest, so neither stage takes a pilot adapter.
-stages: [03_protein_measurement, 05_normalization]
+# same_slide_source_manifest, so neither stage takes a pilot adapter. Cell Typing
+# (stages/spleen_typing.py, typing_route spleen_protein) types the PC67 sections:
+# per-image levels named by the 6551 spleen hierarchy (maintainer, 2026-11-01).
+stages: [03_protein_measurement, 05_normalization, 06_typing]
 # Maintainer, 2026-10-30: Protein Measurement and Normalization gates are automatic; the first
 # manual stop is Cell Typing. (Protein Measurement was accepted by hand on 2026-10-31, before
 # this changed.)
@@ -17,6 +19,12 @@ settings:
   measurement_jobs: 1
   # UniFORM per panel: PC67's eight sections together, PC33's four together, never mixed.
   normalization: per_panel
+  typing_route: spleen_protein
+  # level-selection and canary workers; each holds one section's REDSEA table (~0.5-1M cells)
+  typing_workers: 4
 # The site file supplies qupath_manifest, analysis_exclusions (SpleenFollicleCounterQP
 # analysis/approved/analysis_exclusions, cells outside the approved refined tissue masks) and
-# uniform_checkout (UniFORM at the commit normalize.UNIFORM_COMMIT pins).
+# uniform_checkout (UniFORM at the commit normalize.UNIFORM_COMMIT pins). Cell Typing adds
+# typing_context (SpleenFollicleCounterQP analysis/typing_context: each cell's cell-derived
+# region, its start class) and section_outlines (analysis/typing_inputs/section_outlines: each
+# PC67 section's outline in its slide's frame, bounding the empty-slide glass).

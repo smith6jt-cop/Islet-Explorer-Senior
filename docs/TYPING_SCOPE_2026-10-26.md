@@ -257,6 +257,30 @@ per-panel Normalization route, `stages/panel_normalization.py`, selected by
   Normalization is a prerequisite for typing, not its input.
 - The aligned values serve region definitions, classifier rescaling and display.
 
+**Spleen Cell Typing route (maintainer, 2026-11-01).** `typing_route: spleen_protein`
+(`stages/spleen_typing.py`) types the eight PC67 sections; the four PC33 sections are listed as
+not typed (their panel lacks the lineage roots).
+- **Positivity:** the CODEX per-image method ported into `multiplex5000.positivity`. It sets each
+  marker's level per section (`levels`), then a canary level (`canary`) and interior coverage
+  (`coverage`), which serve only the tiebreak.
+- **Names:** the 6551 spleen hierarchy, through `positivity.hierarchy`, **not** the CODEX
+  identity step. A first spleen registry named cells through that pancreas step and lost cDC;
+  the maintainer's verdict was "either a robust spleen-specific typing hasn't been created or
+  you are not using it".
+- **Adaptation of 2026-11-01** (`core/panels/data/tissues/spleen/manifest.yml`):
+  - Epithelial is kept as a candidate root.
+  - The absent Ker8-18 (Epithelial) and Iba1 (Macrophage) are left out of their OR groups.
+  - `Endothelial_Sinusoidal_CD8+` (red-pulp littoral cells) sits under Endothelial.
+  - Endothelial is structure-only, so it stays unavailable until a vessel object exists.
+  - 62 rules, 58 of them available on PC67. Neural, Schwann cell, Basal and Progenitor
+    epithelial cells need B3TUBB or Keratin 5.
+- **Tiebreak:** a cell matching two branches is settled by `identity.placed` (canary depth,
+  then brightness and interior coverage) or stays ambiguous. An unresolved subtype tie keeps the
+  shared lineage.
+- **Leukocyte checks:** their known-negative population comes from the tissue hook
+  `check_population`. Pancreas: hormone cells, as at the source. Spleen: epithelial and SMA+
+  stromal cells, isolated from leukocytes.
+
 `multiplex5000.tissues.evaluate.evaluate_rules` is the shared Boolean
 hierarchy evaluator for the selected pLN sheet and its spleen adaptation. It
 takes explicit per-cell positive, negative or unavailable marker calls; it
