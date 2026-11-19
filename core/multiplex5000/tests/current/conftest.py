@@ -266,3 +266,19 @@ def synthetic_project(tmp_path, monkeypatch):
         path.write_text(yaml.safe_dump(project, sort_keys=False))
         return path
     return build
+
+@pytest.fixture
+def raw_conflict_pixels():
+    """Construct the native-signal provider from already normalized pixel rows."""
+    from multiplex5000.positivity.interior_signal import InteriorSignal
+
+    def make(markers, rows):
+        import numpy as np
+
+        counts = [len(next(iter(row.values()))) for row in rows]
+        pixels = InteriorSignal(None, np.arange(len(rows)), counts, None, markers,
+                                np.zeros(len(markers)), np.ones(len(markers)))
+        pixels.samples = {(i, j): np.asarray(row[name]) for i, row in enumerate(rows)
+                          for j, name in enumerate(markers) if name in row}
+        return pixels
+    return make
