@@ -178,23 +178,39 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
     """
     if region not in ("core", "peri"):
         raise ValueError(f"unknown trajectory region: {region}")
-    retired = {"endocrine", "acinar", "endothelial", "immune", "unknown",
+    retired = {"endocrine", "acinar", "endothelial", "unknown",
                "ecad+", "structural", "apcs", "hematopoietic cd45+",
                "hematopoietic cd45-", "t cell", "tissue", "unclassified",
                "doublet suspected", "unresolved"}
     endocrine = {"beta cell", "alpha cell", "delta cell", "chga+ hormone-negative",
                  "chga+ hormone negative"}
     exocrine = {"exocrine", "acinar cell", "ductal cell", "ductal"}
+    # Senior's coarse Immune label represents supported lineage evidence, not
+    # CODEX's unresolved immune residual. Keep it when it is the only measured
+    # immune identity. A table containing both the parent and named subtypes
+    # does not prove that those subtypes are disjoint or complete. Refuse it
+    # rather than discarding measured parent cells or double-counting them.
+    normalised = [re.sub(r"[_\s]+", " ", str(x)).strip().lower() for x in classes]
+    has_immune_subtypes = any(
+        "macrophage" in label or label in {
+            "cd4 tcell", "cd8a tcell", "cd8 tcell", "b cell", "nk cell",
+            "dendritic cell", "neutrophil", "plasma cell"}
+        for label in normalised)
+    if "immune" in normalised and has_immune_subtypes:
+        raise ValueError("coarse Immune and immune subtype counts overlap or have "
+                         "unknown coverage; provide a non-overlapping measured schema")
     grouped = {}
     for label in classes:
         clean = re.sub(r"[_\s]+", " ", str(label)).strip().lower()
-        if clean in retired or re.match(
-                r"^(?:conflict|unresolved|unclassified|doublet|qc)(?:$|\s)", clean):
+        words = set(re.findall(r"[a-z]+", clean))
+        if clean in retired or words.intersection(
+                {"conflict", "unresolved", "unclassified", "doublet", "qc",
+                 "ambiguous", "unavailable", "excluded"}):
             continue
         if (clean in endocrine and region != "core") or (clean in exocrine and region != "peri"):
             continue
         # Normalize only explicitly identified Gal3 phenotypes. A broad macrophage
-        # or immune residual does not become a measured Gal3 subgroup.
+        # or immune class does not become a measured Gal3 subgroup.
         gal3 = re.search(r"(?:LGALS3|Gal3)([+-])", str(label), re.IGNORECASE)
         group = ("Macrophage_LGALS3" + gal3.group(1)
                  if "macrophage" in clean and gal3 else label)

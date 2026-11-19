@@ -72,7 +72,7 @@ def test_leiden_only_writes_the_table_and_never_fits_the_ordering(traj, tmp_path
 def test_graph_policy_selects_regions_and_pools_gal3_before_alr(traj):
     classes = [
         "Beta_cell", "Alpha_cell", "Exocrine", "Blood_Vessel", "Unresolved",
-        "Tissue", "Doublet_suspected", "Conflict_B_T", "Immune",
+        "Tissue", "Doublet_suspected", "Conflict_B_T",
         "CD68+CD163+Macrophage_LGALS3+CD4+",
         "CD68+CD163-Macrophage_LGALS3+CD4-",
         "CD68-CD163+Macrophage_LGALS3-CD4+",
@@ -87,7 +87,7 @@ def test_graph_policy_selects_regions_and_pools_gal3_before_alr(traj):
                           "core_Macrophage_LGALS3+", "core_Macrophage_LGALS3-"]
     assert peri_names == ["peri_Exocrine", "peri_Blood_Vessel",
                           "peri_Macrophage_LGALS3+", "peri_Macrophage_LGALS3-"]
-    expected = np.log((frame["count_" + classes[9]] + frame["count_" + classes[10]]
+    expected = np.log((frame["count_" + classes[8]] + frame["count_" + classes[9]]
                        + traj.ALR_PSEUDOCOUNT) / (denominator + traj.ALR_PSEUDOCOUNT))
     np.testing.assert_allclose(core[:, core_names.index("core_Macrophage_LGALS3+")],
                                expected, rtol=1e-6)
@@ -108,3 +108,20 @@ def test_graph_policy_refuses_overlapping_prepooled_macrophages(traj):
     frame = pd.DataFrame({"count_" + label: [1.] for label in labels})
     with pytest.raises(ValueError, match="overlapping"):
         traj.trajectory_composition_inputs(frame, labels, np.array([4.]), "core")
+
+
+def test_supported_coarse_immune_and_ambiguous_senior_labels(traj):
+    denominator = np.array([5.])
+    labels = ["Beta_cell", "Immune", "Unresolved", "Endocrine_unresolved",
+              "Endocrine_ambiguous", "Excluded", "class_unavailable"]
+    frame = pd.DataFrame({"count_" + label: [2.] for label in labels})
+    names, values = traj.trajectory_composition_inputs(frame, labels, denominator, "core")
+    assert names == ["core_Beta_cell", "core_Immune"]
+    np.testing.assert_allclose(values[0, 1], np.log(2.5 / 5.5))
+
+
+def test_unknown_coarse_immune_subtype_overlap_is_refused(traj):
+    labels = ["Beta_cell", "Immune", "B_cell"]
+    frame = pd.DataFrame({"count_" + label: [0.] for label in labels})
+    with pytest.raises(ValueError, match="unknown coverage"):
+        traj.trajectory_composition_inputs(frame, labels, np.array([5.]), "core")

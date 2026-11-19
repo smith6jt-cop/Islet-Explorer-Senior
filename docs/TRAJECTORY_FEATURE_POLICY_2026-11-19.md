@@ -8,6 +8,11 @@ classes may enter either region. When multiple measured macrophage marker
 profiles identify Gal3+ or Gal3−, their counts are pooled by sign before the
 transformation. Missing data are not imputed, and an aggregate count supplied
 alongside its component counts is refused rather than double-counted.
+Senior's coarse Immune class is a marker-supported lineage, not the CODEX
+unresolved immune residual, and is retained when it is the only immune class
+in the table. If broad Immune and named subtype columns are both supplied,
+their overlapping coverage is unknown from column names alone; the producer
+refuses to build until a non-overlapping measured schema is supplied.
 
 The existing Core mode remains core-only. The Core + Peri mode additionally
 includes eligible peri-islet classes, including exocrine. The graph feature

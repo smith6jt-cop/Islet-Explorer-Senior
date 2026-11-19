@@ -90,7 +90,8 @@ def trajectory_feature_exclusion(feature: str) -> str | None:
     unavailable profiles as missing rather than inventing negatives.
     """
     pieces = re.split(r"[^a-z0-9]+", feature.lower())
-    if any(x in pieces for x in ("unresolved", "unclassified", "doublet", "conflict", "qc")):
+    if any(x in pieces for x in ("unresolved", "unclassified", "doublet", "conflict",
+                                  "qc", "ambiguous", "unavailable", "excluded")):
         return "qc_or_unresolved_identity"
     prefix = "feature__immune__macrophage_profile_"
     if feature.startswith(prefix):
