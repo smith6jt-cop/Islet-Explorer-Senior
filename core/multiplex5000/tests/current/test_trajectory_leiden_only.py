@@ -121,8 +121,10 @@ def test_supported_coarse_immune_and_ambiguous_senior_labels(traj):
     np.testing.assert_allclose(values[0, 1], np.log(2.5 / 5.5))
 
 
-def test_unknown_coarse_immune_subtype_overlap_is_refused(traj):
-    labels = ["Beta_cell", "Immune", "B_cell"]
+@pytest.mark.parametrize("subtype", ["B_cell", "T_cell_CD8+", "CD4_Tcell",
+                                    "Imm-T-cell", "NK_cell"])
+def test_unknown_coarse_immune_subtype_overlap_is_refused(traj, subtype):
+    labels = ["Beta_cell", "Immune", subtype]
     frame = pd.DataFrame({"count_" + label: [0.] for label in labels})
     with pytest.raises(ValueError, match="unknown coverage"):
         traj.trajectory_composition_inputs(frame, labels, np.array([5.]), "core")

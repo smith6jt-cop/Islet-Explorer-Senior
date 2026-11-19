@@ -196,10 +196,9 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
             {"conflict", "unresolved", "unclassified", "doublet", "qc",
              "ambiguous", "unavailable", "excluded"}))
     has_immune_subtypes = any(
-        "macrophage" in label or label in {
-            "cd4 tcell", "cd8a tcell", "cd8 tcell", "b cell", "nk cell",
-            "dendritic cell", "neutrophil", "plasma cell"}
-        for label in normalised if not is_qc_label(label))
+        re.search(r"\b(?:macrophage|[tb]\s*-?\s*cell|dendritic|neutrophil|"
+                  r"plasma\s*-?\s*cell|natural\s+killer|nk\s*-?\s*cell)\b", label)
+        for label in normalised if label not in retired and not is_qc_label(label))
     if "immune" in normalised and has_immune_subtypes:
         raise ValueError("coarse Immune and immune subtype counts overlap or have "
                          "unknown coverage; provide a non-overlapping measured schema")
