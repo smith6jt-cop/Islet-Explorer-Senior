@@ -24,6 +24,10 @@ islet_analysis/
 literature/*
 figures/*
 
+# Workstation registry pointer and private donor notes.
+/CURRENT_DATA.txt
+/IO60panc2nd Notes.md
+
 # R workspace and environment files
 .RData
 .Rhistory
