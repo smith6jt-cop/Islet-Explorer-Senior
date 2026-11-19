@@ -1,5 +1,45 @@
 # Sequential islets, endocrine clusters and singles
 
+
+## Run and review completed results — November 7, 2026
+
+Use `mplx5k sequential` for explicit, pinned reuse of the corrected multicell
+results and the later Islet-only comparison. The native constructor below remains
+available for new construction; it is not required to review completed results.
+
+[Verified workstation commands and progress walkthrough](/home/smith6jt/Documents/papers/consolidation/sequential_workflow_20261107/WALKTHROUGH.md)
+
+The recipe binds 65,770 native objects / 39 section-modality constructions and
+3,659 corrected multicell candidates (1,009 exploratory review candidates).
+The later **Islet-only** assignment is a separate generation: 1,749 candidates,
+301 comparable relationships, 356 recorded image reviews, and 25 inventoried
+donors (14 paired; six failed and five missing exact transforms). It reuses native
+boundaries but excludes Clusters before assignment too. Its nonblinded AI
+adjudications are recorded evidence, not expert ground truth. Earlier six-WARN
+84/86 relationship sets and the historical 473 pairs retain their own scopes.
+
+`sequential inspect --recipe PATH` checks selected inputs without writing.
+`sequential run --recipe PATH --output-dir NEW --dry-run` also checks the output
+location. Remove `--dry-run` to verify saved results and create the review workspace.
+`sequential verify --recipe PATH` is read-only. `sequential replay-multicell`
+replays one explicitly selected donor's three recorded assignments into a fresh
+directory; it does not rerun construction or subsequent Islet-only adjudication.
+`sequential review-status` validates saved reviewer notes and linked evidence.
+All commands require explicit recipe/output paths; none uses the same-slide stage
+defaults or accepts a release. Use the checked interpreter and commands in the
+walkthrough. No cohort rerun is needed for normal review.
+
+The review separates original scientific assessments from new user notes, shows
+original reviewed images alongside the current display, and supports progress
+export/resume. Changed evidence or conflicting imported notes are rejected rather
+than silently applied. The joint donor-pseudotime report is linked as a distinct
+downstream analysis; it does not change correspondence membership.
+
+Terminology correction: legacy `acquisition_id` is a source join identifier.
+Counts here refer to native sections, regions, objects and processing runs;
+a run or slide can contain multiple regions. Native `source_serial`, `roi` and
+modality are preserved together rather than interpreting one field as a run count.
+
 The all-size method is `multiplex5000.integration.endocrine_workflow`. The earlier
 `xenium_islets` command remains available to replay its historical, islet-only
 centroid-hull generation. Do not use its ten-seed minimum for the all-size analysis.
@@ -38,7 +78,7 @@ Protein proposals are the original image-classifier outlines, recomputed against
 native nucleated cell segmentations. Old exported Islet/Cluster/Single labels and
 old `Whole cells` measurements are removed before construction.
 
-RNA proposals use the pinned R3 calls joined by exact acquisition/native cell ID:
+RNA proposals use the pinned R3 calls joined by exact source-scope/native cell ID:
 Endocrine lineage, lineage analysis eligibility, positive naming-gene evidence,
 positive RNA depth and a measured nucleus. No post-Xenium IF is required. DBSCAN
 uses 50 µm and `min_samples=1`, retaining isolated cells and sparse groups. The
@@ -137,7 +177,7 @@ remains a separate generation.
 
 Install the integration extra, including `ijson`, and use QuPath 0.7.0. The
 manifest schema is `sequential_whole_endocrine_v1`: pinned constructor/common
-sources, a live-workflow binding, and explicit sections with acquisition/native
+sources, a live-workflow binding, and explicit sections with source-scope/native
 source paths, SHA-256s, nucleus and cell geometry, calibration and scratch image
 entry metadata. It refuses an existing output directory or an unreviewed
 constructor generation.

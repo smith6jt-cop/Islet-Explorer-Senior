@@ -7,7 +7,7 @@
     mplx5k graph --dry-run                      # the Snakemake route (needs the workflow extra)
 
 Project/release commands take ``--project`` (an id under ``core/multiplex5000/projects`` or a path; default
-``io60``) and ``--releases-root`` (default: the site's). The notebooks call the same code. ``context`` inspects configuration without running stages.
+``io60``) and ``--releases-root`` (default: the site's). The notebooks call the same code. ``sequential`` reuses explicit pinned result packages in a fresh review workspace. ``context`` inspects configuration without running stages.
 
 MultiPlex5000 D3 (2026-10-20).
 """
@@ -262,6 +262,8 @@ def parser() -> argparse.ArgumentParser:
     common.add_argument("--releases-root", help="where releases are built (default: the site's)")
     sub = top.add_subparsers(dest="command", required=True)
 
+    sub.add_parser("sequential", help="reuse, verify and review sequential Xenium–PhenoCycler results")
+
     stage = sub.add_parser("stage", help="run one stage").add_subparsers(dest="action",
                                                                          required=True)
     run = stage.add_parser("run", parents=[common], help="run a stage through the task contract")
@@ -312,6 +314,9 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "sequential":
+        from .integration.sequential_cli import main as sequential_main
+        return sequential_main(argv[1:])
     extra: list[str] = []
     if "--" in argv:
         cut = argv.index("--")
