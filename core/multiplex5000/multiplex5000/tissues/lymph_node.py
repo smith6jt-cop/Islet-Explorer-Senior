@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import yaml
@@ -41,6 +41,8 @@ class RuleSource:
     state_root_parent: str = "any"
     candidate_lineage_roots: tuple[str, ...] = ()
     excluded_identity_markers: tuple[str, ...] = ()
+    # An independently corroborated child supplies its own parent-lineage evidence.
+    independent_entries: tuple[str, ...] = ()
 
     @property
     def by_phenotype(self) -> dict[str, Rule]:
@@ -57,6 +59,8 @@ class RuleSource:
             seen.add(current)
             rule = rules[current]
             markers.update(rule.markers)
+            if current in self.independent_entries:
+                break
             current = rule.parent
         return frozenset(markers)
 
@@ -73,7 +77,8 @@ class RuleSource:
 
 
 def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
-                     pln_identity: bool = False, dedicated: bool = False) -> RuleSource:
+                     pln_identity: bool = False, dedicated: bool = False,
+                     historical_nk: bool = False) -> RuleSource:
     """Verify the source and apply only the maintainer-approved pLN adaptation."""
     manifest_path = Path(manifest_path)
     manifest = yaml.safe_load(manifest_path.read_text())
@@ -148,8 +153,25 @@ def load_rule_source(manifest_path: Path, *, table_path: Path | None = None,
     result = RuleSource(digest, tuple(rules), tuple(omitted), aliases,
                         root_roles["lineage"], root_roles["state"],
                         tuple(candidate_roots), tuple(sorted(retired)))
+    if (pln_identity or dedicated) and not historical_nk and "nk_entry" in adaptation:
+        result = apply_nk_entry(result, adaptation["nk_entry"])
     for rule in rules:
         result.inherited_markers(rule.phenotype)
     if {marker for _, marker in omitted} != omit | retired:
         raise RuleSourceError("a declared omission did not match a marker constraint")
     return result
+
+
+def apply_nk_entry(source: RuleSource, spec: dict) -> RuleSource:
+    """Use corroborated NK evidence as an independent route into the immune lineage."""
+    name = "NK_cell"
+    current = source.by_phenotype[name]
+    if current.parent != "Immune":
+        raise RuleSourceError("expected NK_cell under the Immune lineage")
+    constraints = tuple((marker, token) for token, markers in spec.items() for marker in markers)
+    if (not constraints or set(spec) != {"allpos", "anypos", "allneg"}
+            or any(not markers for markers in spec.values())):
+        raise RuleSourceError("nk_entry requires positive, corroborating and negative evidence")
+    updated = replace(current, constraints=constraints)
+    rules = tuple(updated if rule.phenotype == name else rule for rule in source.rules)
+    return replace(source, rules=rules, independent_entries=(name,))
