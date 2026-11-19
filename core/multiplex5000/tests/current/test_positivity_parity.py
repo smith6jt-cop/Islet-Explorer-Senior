@@ -25,6 +25,7 @@ when the levels, canary or identity tables are older than 2075d31's commit time 
 from __future__ import annotations
 
 import hashlib
+from io import StringIO
 import json
 import os
 from datetime import datetime
@@ -109,6 +110,8 @@ def provenance(run, image):
 
 
 def _same(got: pd.DataFrame, pinned: pd.DataFrame, key: list[str]) -> None:
+    # The reference passed through the CSV writer and reader used for publication.
+    got = pd.read_csv(StringIO(got.to_csv(index=False)))
     got = got[list(pinned.columns)].sort_values(key).reset_index(drop=True)
     pinned = pinned.sort_values(key).reset_index(drop=True)
     pd.testing.assert_frame_equal(got, pinned, check_exact=True, check_dtype=False)
