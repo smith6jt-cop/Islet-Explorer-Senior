@@ -69,8 +69,8 @@ def test_a_project_source_wins_over_the_sites(tmp_path, synthetic_project):
 
 def test_only_built_stages_can_run_and_the_plan_keeps_its_order():
     assert stages.built() == ["00_inventory", "03_protein_measurement", "04_rna_ingest",
-                              "05_normalization", "06_typing", "07_registration",
-                              "08_integration"]
+                              "04b_maldi_ingest", "05_normalization", "06_typing",
+                              "07_registration", "08_integration"]
     with pytest.raises(stages.StageError, match="phase D11"):
         stages.get("09_spatial_analysis")
     order = [s for s, _ in stages.PLAN]

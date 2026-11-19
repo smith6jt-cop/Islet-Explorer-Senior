@@ -211,6 +211,17 @@ marker is unavailable in aligned cells, not a raw value in an aligned column. St
 is automatic in the IO60 project; Stage 06 remains the first processing-review stop. The
 replay checks establish computation parity, not biological correctness.
 
+**MALDI imaging (2026-10-31)** is the platform `maldi`: N-glycan and glycogen spots on a 50 µm grid,
+from serial sections of the same block series as the PhenoCycler and Xenium slides (maintainer:
+"sequential slides from the same series of slides we have xenium and phenocycler data for") --
+different cells, related to the neighbour's objects and the continuous signed distance to islets,
+never to cells. Project `io60_maldi_serial`: Source Inventory with a MALDI inspection gate (the
+tracked `maldi_tissue_inspection.csv`; a Tissue_id is never parsed for its tissue or neighbour),
+MALDI Ingest (0 = not detected, kept; no normalization), then the Registration and Integration
+stages' `maldi_serial` route. IO60 donors only; 6426 and HPAP are out of cohort. The raw export is
+the site source `maldi_spots`; the repo-root `MALDI/` folder is gitignored. See
+`core/multiplex5000/docs/INTEGRATION.md` and `docs/PLAN_2026-10-31_MALDI_SEQUENTIAL.md`.
+
 Ordinary execution stops after `expression`. `controls`, `calibrate`, `type` and assignment export
 are blocked by `NO_VERIFIED_TYPING`, and that latch has not moved.
 

@@ -1,0 +1,25 @@
+schema: multiplex5000-project/1
+id: io60_maldi_serial
+# MALDI imaging of serial sections from the same block series as the IO60 PhenoCycler and Xenium
+# slides (maintainer, 2026-10-31; docs/PLAN_2026-10-31_MALDI_SEQUENTIAL.md). Its own release: the
+# Source Inventory here is io60's with the MALDI sections added (the site's maldi_spots source),
+# so the accepted io60 inventory is not touched.
+release: io60-maldi-candidate-1
+cohort: io60_v3
+# Source Inventory (with its MALDI inspection gate), MALDI Ingest, then the Registration and
+# Integration stages' serial MALDI route.
+stages: [00_inventory, 04b_maldi_ingest, 07_registration, 08_integration]
+# MALDI Ingest and Serial Integration accept themselves on their integrity checks, as the
+# measurement stages do; the Source Inventory (the inspection) and Serial Registration (the
+# overlays) are review stops.
+automatic_gates: [04b_maldi_ingest, 08_integration]
+settings:
+  # Where xenium_paths.csv's relative bundle paths resolve, as in io60.
+  xenium_root: /data/xenium
+  # The Source Inventory reads the MALDI export (the site's maldi_spots) only where asked.
+  maldi: true
+  registration_route: maldi_serial
+  integration_route: maldi_serial
+# The site file supplies maldi_spots (the MALDI export and its SHA256SUMS), pancreas_annotations,
+# pln_qptiffs and typing_export_root (the islet and structure object exports), besides every
+# source io60's Source Inventory reads.
