@@ -14,8 +14,8 @@ recorded, and the count is reported rather than hidden.
 
 The 2026-11-18 islet-composition input policy excludes QC and unresolved labels;
 endocrine classes enter only in the core, exocrine classes only in the expansion,
-and measured macrophage subtypes are pooled by Gal3 before ALR. The core and
-combined modes remain distinct. This ALR/Euclidean method is not the CODEX
+and other measured classes are pooled across core and peri before log1p normalization.
+Legacy regional ALR matrices are retained for archival compatibility. This ALR/Euclidean method is not the CODEX
 log1p/cosine method; see docs/TRAJECTORY_FEATURE_POLICY_2026-11-19.md.
 
 **Two things this script deliberately does not do.**
@@ -176,7 +176,7 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
     This lane retains its own ALR and Euclidean distance, unlike the CODEX log1p/cosine
     graph. It must therefore not be described as numerically equivalent to that graph.
     """
-    if region not in ("core", "peri"):
+    if region not in ("core", "peri", "pooled"):
         raise ValueError(f"unknown trajectory region: {region}")
     retired = {"endocrine", "acinar", "endothelial", "unknown",
                "ecad+", "structural", "apcs", "hematopoietic cd45+",
@@ -207,24 +207,27 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
         clean = re.sub(r"[_\s]+", " ", str(label)).strip().lower()
         if clean in retired or is_qc_label(clean):
             continue
-        if (clean in endocrine and region != "core") or (clean in exocrine and region != "peri"):
+        if (clean in endocrine and region == "peri") or (clean in exocrine and region == "core"):
             continue
         # Normalize only explicitly identified Gal3 phenotypes. A broad macrophage
         # or immune class does not become a measured Gal3 subgroup.
         gal3 = re.search(r"(?:LGALS3|Gal3)([+-])", str(label), re.IGNORECASE)
         group = ("Macrophage_LGALS3" + gal3.group(1)
                  if "macrophage" in clean and gal3 else label)
-        grouped.setdefault(group, []).append(label)
-    prefix = "count_" if region == "core" else "peri_count_"
+        scope = region
+        if region == "pooled":
+            scope = "core" if clean in endocrine else "peri" if clean in exocrine else "combined"
+        grouped.setdefault((scope, group), []).append(label)
     names, values = [], []
-    for group, members in grouped.items():
+    for (scope, group), members in grouped.items():
         # A pre-pooled count and its individual source profiles overlap: summing
         # both silently double-counts cells. Require the input table to resolve it.
         if len(members) > 1 and any(
                 re.fullmatch(r"Macrophage_(?:LGALS3|Gal3)[+-]", x, re.IGNORECASE)
                 for x in members):
             raise ValueError(f"overlapping pre-pooled and source macrophage counts: {members}")
-        columns = [prefix + x for x in members]
+        prefixes = {"core": ("count_",), "peri": ("peri_count_",), "combined": ("count_", "peri_count_")}
+        columns = [prefix + x for prefix in prefixes[scope] for x in members]
         missing = [x for x in columns if x not in frame]
         if missing:
             raise ValueError(f"missing measured {region} trajectory counts: {missing}")
@@ -232,9 +235,11 @@ def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
         if not np.isfinite(counts).all():
             raise ValueError(f"unavailable trajectory counts in {columns}")
         pooled = counts.sum(axis=1)
-        values.append(np.log((pooled + ALR_PSEUDOCOUNT) /
-                             (denominator + ALR_PSEUDOCOUNT)))
-        names.append(f"{region}_{group}")
+        if region == "pooled":
+            values.append(np.log1p(pooled / np.maximum(denominator, 1)))
+        else:
+            values.append(np.log((pooled + ALR_PSEUDOCOUNT) / (denominator + ALR_PSEUDOCOUNT)))
+        names.append(f"{scope}_{group}")
     return (names, np.column_stack(values).astype(np.float32) if values
             else np.empty((len(frame), 0), dtype=np.float32))
 
@@ -405,6 +410,7 @@ def main() -> int:
 
     core_names, core = trajectory_composition_inputs(frame, classes, endocrine_core, "core")
     peri_names, peri = trajectory_composition_inputs(frame, classes, endocrine_core, "peri")
+    pooled_names, pooled = trajectory_composition_inputs(frame, classes, endocrine_core, "pooled")
     if not core_names:
         raise ValueError("no measured core trajectory inputs after policy selection")
     counts = np.column_stack([frame[f"count_{c}"].to_numpy(float) for c in classes])
@@ -445,7 +451,9 @@ def main() -> int:
                                         index=pd.Index(classes)))
     adata.obsm["X_composition_alr"] = core
     adata.obsm["X_composition_alr_combined"] = np.hstack([core, peri]).astype(np.float32)
-    adata.uns["trajectory_feature_policy"] = "current-typing/2026-11-18"
+    adata.obsm["X_composition_pooled"] = pooled
+    adata.uns["trajectory_pooled_inputs"] = np.asarray(pooled_names, dtype=str)
+    adata.uns["trajectory_feature_policy"] = "region-pooled/2026-11-19"
     adata.uns["trajectory_core_inputs"] = np.asarray(core_names, dtype=str)
     adata.uns["trajectory_combined_inputs"] = np.asarray(core_names + peri_names, dtype=str)
 
@@ -462,25 +470,26 @@ def main() -> int:
     if args.leiden_only:
         # The graph diffusion_pseudotime builds, without the ordering built on it.
         fitted = ordered.copy()
-        sc.pp.neighbors(fitted, n_neighbors=N_NEIGHBORS, use_rep="X_composition_alr",
+        sc.pp.neighbors(fitted, n_neighbors=N_NEIGHBORS, use_rep="X_composition_pooled",
                         metric=METRIC)
         cluster_islets(fitted)
         write_leiden(leiden_table(adata, ordered, fitted), out_dir / args.leiden_name)
         print(f"\n--leiden-only: {out_dir / args.leiden_name}; no ordering, no H5AD")
         return 0
 
-    root, root_meta = pick_root(ordered, "X_composition_alr")
+    root, root_meta = pick_root(ordered, "X_composition_pooled")
     print(f"root: {ordered.obs_names[root]} "
           f"(donor {ordered.obs['imageid'].iloc[root]}, "
           f"{int(ordered.obs['total_cells'].iloc[root])} core cells, "
           f"endocrine fraction {ordered.obs['endocrine_fraction'].iloc[root]:.3f})")
 
-    pseudotime, fitted = diffusion_pseudotime(ordered, "X_composition_alr", root, N_NEIGHBORS)
-    combined, _ = diffusion_pseudotime(ordered, "X_composition_alr_combined", root, N_NEIGHBORS)
+    pseudotime, fitted = diffusion_pseudotime(ordered, "X_composition_pooled", root, N_NEIGHBORS)
+    # Both public composition fields now describe the same pooled ordering.
+    combined = pseudotime
 
     # --- Method checks. None of these is a biological result. -------------------------------
     finite = np.isfinite(pseudotime)
-    alt_neighbors, _ = diffusion_pseudotime(ordered, "X_composition_alr", root, N_NEIGHBORS_ALT)
+    alt_neighbors, _ = diffusion_pseudotime(ordered, "X_composition_pooled", root, N_NEIGHBORS_ALT)
     both = finite & np.isfinite(alt_neighbors)
     rho_neighbors = float(spearmanr(pseudotime[both], alt_neighbors[both])[0])
 
@@ -492,7 +501,7 @@ def main() -> int:
     for candidate in root_meta["pool"]:
         if candidate == root:
             continue
-        alt, _ = diffusion_pseudotime(ordered, "X_composition_alr", candidate, N_NEIGHBORS)
+        alt, _ = diffusion_pseudotime(ordered, "X_composition_pooled", candidate, N_NEIGHBORS)
         ok = finite & np.isfinite(alt)
         if ok.sum() > 10:
             rhos.append(float(spearmanr(pseudotime[ok], alt[ok])[0]))

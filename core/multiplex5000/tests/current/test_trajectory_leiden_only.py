@@ -92,6 +92,14 @@ def test_graph_policy_selects_regions_and_pools_gal3_before_alr(traj):
     np.testing.assert_allclose(core[:, core_names.index("core_Macrophage_LGALS3+")],
                                expected, rtol=1e-6)
     assert peri.shape == (2, len(peri_names))
+    names, matrix = traj.trajectory_composition_inputs(frame, classes, denominator, "pooled")
+    assert names == ["core_Beta_cell", "core_Alpha_cell", "peri_Exocrine", "combined_Blood_Vessel",
+                     "combined_Macrophage_LGALS3+", "combined_Macrophage_LGALS3-"]
+    for i, label in enumerate(["Beta_cell", "Alpha_cell", "Exocrine", "Blood_Vessel"]):
+        counts = frame[("peri_count_" if i == 2 else "count_") + label]
+        if i == 3:
+            counts = counts + frame["peri_count_" + label]
+        np.testing.assert_allclose(matrix[:, i], np.log1p(counts / denominator), rtol=1e-6)
 
 
 def test_graph_policy_refuses_missing_measurements(traj):
