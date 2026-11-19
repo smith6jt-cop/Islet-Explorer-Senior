@@ -311,7 +311,11 @@ def test_flattening_composes_a_phenotype_with_its_ancestors():
     assert gained and max(gained) > 0, "no phenotype gained a constraint from its ancestors"
     for ph, p in par.items():
         if p in flat:
-            assert set(flat[p]) <= set(flat[ph]), f"{ph} lost a constraint of {p}"
+            inherited = set(flat[p])
+            if p == "Immune" and ph == "Imm-NK-cell":
+                # NK enters independently of the parent's B/myeloid positive anchors.
+                inherited = {m for m, token in flat[p].items() if not R.OR_POS.match(str(token))}
+            assert inherited <= set(flat[ph]), f"{ph} lost a constraint of {p}"
 
 
 @needs_rules

@@ -35,7 +35,10 @@ MIN_BYTES = 64 * 1024
 
 #: Paths whose duplication is deliberate and recorded. Empty on purpose -- add an entry only with
 #: the reason the second copy must exist, never to silence this test.
-ALLOWED: dict[str, str] = {}
+ALLOWED: dict[str, str] = {
+    "docs/evaluations/dynamic_portability_20261102/inventories/spleen_cohort.json":
+        "Frozen copy of the remote inventory used in the November 2 portability audit.",
+}
 
 
 def test_the_repo_root_is_the_repo_root():

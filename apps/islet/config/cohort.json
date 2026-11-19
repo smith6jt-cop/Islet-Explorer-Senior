@@ -1,6 +1,6 @@
 {
   "spec_version": 1,
-  "generated_at": "2026-10-23T12:16:27+00:00",
+  "generated_at": "2026-11-19T19:41:43+00:00",
   "sources": {
     "candidate_donors": "core/multiplex5000/cohort-spec.json",
     "exclusion_authority": "core/multiplex5000/multiplex5000/cohort.py"
@@ -8,7 +8,8 @@
   "platforms": [
     "phenocycler",
     "xenium",
-    "if"
+    "if",
+    "maldi"
   ],
   "all_donors": [
     "112",

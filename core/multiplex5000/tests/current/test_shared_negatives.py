@@ -19,7 +19,7 @@ import immune_subtype  # noqa: E402
 import refine  # noqa: E402
 import subpanel  # noqa: E402
 
-EPITHELIAL = ("E_cadherin", "EpCAM", "Pan_Cytokeratin")
+EPITHELIAL = ("E_cadherin", "Pan_Cytokeratin")
 
 
 def t_cell(**values) -> pd.DataFrame:
@@ -30,7 +30,7 @@ def t_cell(**values) -> pd.DataFrame:
 def test_no_immune_definition_vetoes_with_an_unshared_marker():
     for rules in (subpanel.immune_rules(), immune_subtype.immune_rules()[1], refine.immune_leaves()[0]):
         vetoes = {m for _, _, none_of in rules.values() for m in none_of}
-        assert "Ker8_18" not in vetoes
+        assert "Ker8_18" not in vetoes and "EpCAM" not in vetoes
         assert set(EPITHELIAL) <= vetoes
 
 
@@ -49,5 +49,5 @@ def test_each_shared_epithelial_marker_still_vetoes():
 
 
 def test_a_cell_missing_an_acquired_negative_stays_undecided():
-    satisfied, unavailable = subpanel.rule_evidence(t_cell(EpCAM=np.nan), subpanel.immune_rules()["Imm-T-cell"])
+    satisfied, unavailable = subpanel.rule_evidence(t_cell(E_cadherin=np.nan), subpanel.immune_rules()["Imm-T-cell"])
     assert not satisfied.any() and unavailable.all()

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -16,13 +15,9 @@ import time
 
 from ..runtime_context import path_status, runtime_context
 
+from multiplex5000.artifacts import sha256_file as sha
 
-def sha(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(8 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
+
 
 
 def parser() -> argparse.ArgumentParser:

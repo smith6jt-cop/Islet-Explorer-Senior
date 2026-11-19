@@ -21,6 +21,8 @@ import pandas as pd
 from ..cohort import excluded_on
 from .structures import dbscan_labels
 
+from multiplex5000.artifacts import sha256_file as _digest
+
 
 @dataclass(frozen=True)
 class BoundaryParams:
@@ -102,12 +104,6 @@ def cluster_boundaries(cells: pd.DataFrame, *, acquisition_id: str,
     return pd.DataFrame(objects, columns=OBJECT_COLUMNS), seeds, qc
 
 
-def _digest(path: Path):
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def read_section(spec: dict):

@@ -7,10 +7,11 @@ not interpreted as a count of runs, slides, sections or regions.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+
+from multiplex5000.artifacts import sha256_file as digest
 
 POLICY = "multicell_only_no_single_identity_v1"
 CLASSES = frozenset(("Islet", "EndocrineCluster"))
@@ -21,12 +22,6 @@ class SequentialError(ValueError):
     """A bundle cannot safely be reused under its recorded contract."""
 
 
-def digest(path):
-    h = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 def _json(path):

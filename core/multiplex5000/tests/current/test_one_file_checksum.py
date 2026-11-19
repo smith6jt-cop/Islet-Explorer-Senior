@@ -23,6 +23,54 @@ THE_ONE = ("core/multiplex5000/multiplex5000/artifacts.py", "sha256_file")
 
 #: Byte-equivalent copies that stay, and why each cannot import the one.
 KEPT = {
+    ("analysis/phenocycler/processing/donor_islet_trajectories.py", "digest"):
+        "Standalone notebook processing script.",
+    ("analysis/phenocycler/processing/islet_inflammation.py", "sha"):
+        "Standalone notebook processing script.",
+    ("analysis/phenocycler/processing/pancreas_macrophage_profiles.py", "sha"):
+        "Standalone notebook processing script.",
+    ("analysis/phenocycler/processing/pln_unmatched_review_markers.py", "_hash"):
+        "Standalone notebook processing script.",
+    ("core/multiplex5000/multiplex5000/gammadelta/extract_corrected.py", "sha"):
+        "Frozen producer recorded by source_provenance.json.",
+    ("core/multiplex5000/multiplex5000/gammadelta/select_corrected.py", "sha"):
+        "Frozen producer recorded by source_provenance.json.",
+    ("core/multiplex5000/multiplex5000/gammadelta/validate_selection.py", "sha"):
+        "Frozen producer recorded by source_provenance.json.",
+    ("core/multiplex5000/multiplex5000/integration/sequential_current.py", "_sha"):
+        "Checks file identity before and after the read.",
+    ("scripts/evaluation/audit_maldi_source_evidence.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/audit_primary_coordinates.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/audit_protein_nucleus.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/audit_spleen_rna_inputs.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/build_protein_review_materials.py", "ref"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/capture_protein_launch.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/check_protein_producer_snapshot.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/codex_replay.py", "sha256"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/manifest_portability_artifacts.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/manifest_remediation_artifacts.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/reconcile_primary_universe.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/recover_codex_v20.py", "digest"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/validate_typing_release.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/verify_portability_delivery.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/verify_protein_remediation.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
+    ("scripts/evaluation/verify_recorded_inputs.py", "sha"):
+        "Standalone evaluation producer used for cross-checkout evidence.",
     ("analysis/xenium/scripts/panc_xenium_release.py", "sha256_of"):
         "the Xenium lane is a separate system and this file never imports phenocycler",
     ("core/multiplex5000/scripts/broadtype/arms/cosine_broad8.py", "_sha"):
@@ -109,8 +157,6 @@ NOT_EQUIVALENT = {
         "answers 'dir' for a directory and 'skipped_large' above SHA_LIMIT",
     ("analysis/cohesive/common.py", "binding"):
         "answers path, digest and size, and refuses a file that changed while it was hashed",
-    ("core/multiplex5000/scripts/typing/refine.py", "_log"):
-        "builds a donor's refinement log; its one digest is of the script's own source",
 }
 
 #: The copies replaced on 2026-09-24: each binds the one to its old local name, because other

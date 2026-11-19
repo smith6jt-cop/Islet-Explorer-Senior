@@ -22,6 +22,8 @@ import threading
 from contextlib import closing
 from pathlib import Path
 
+from multiplex5000.artifacts import sha256_file as file_hash
+
 KINTSUGI_COMMIT = "716d1ebd87db916ab04910c6374e04d2d9ea508e"
 ENGINE_FILE = "src/kintsugi/claude/parameter_learning.py"
 ENGINE_SHA256 = "9c29be884f5dd9d405033a9224b998778fe3905f99093036849a0b9436be6db5"
@@ -47,9 +49,6 @@ def digest(value) -> str:
     return hashlib.sha256(canonical(value).encode()).hexdigest()
 
 
-def file_hash(path: Path) -> str:
-    with Path(path).open("rb") as handle:
-        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def load_engine(checkout: Path):
