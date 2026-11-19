@@ -83,9 +83,9 @@ REASONS = {
 NEGATIVES = {
     "Endocrine": ("CD68", "CD20", "CD3e"),
     "Epithelial_nonendocrine": ("CD68", "CD20", "CD3e", "INS", "GCG", "SST"),
-    "T_NK": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "EpCAM", "CD20", "CD68"),
-    "B_Plasma": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "EpCAM", "CD3e", "CD68"),
-    "Myeloid": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "EpCAM", "CD3e", "CD20"),
+    "T_NK": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "CD20", "CD68"),
+    "B_Plasma": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "CD3e", "CD68"),
+    "Myeloid": ("E_cadherin", "Ker8_18", "Pan_Cytokeratin", "CD3e", "CD20"),
     "Vascular": ("E_cadherin", "Pan_Cytokeratin", "CD3e"),
     "Neural": ("CD31", "E_cadherin", "CD3e"),
     "Stromal": ("CD31", "CD68", "E_cadherin", "Pan_Cytokeratin", "CD3e"),
@@ -213,7 +213,7 @@ def derive() -> dict:
     if bad:
         raise RuntimeError(f"non-type markers reached identity: {bad}")
     return {
-        "method_version": "broadtype-declarations-2026-09-17",
+        "method_version": "broadtype-declarations-2026-11-19",
         "rule": ("identity = registry kind=='type' and represented in the rule table; "
                  "compartments from the registry; Immune split by the "
                  "rule-table branch holding a positive token; Endocrine = allpos markers of the Endo-* "

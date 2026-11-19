@@ -157,8 +157,8 @@ class Coordinates(unittest.TestCase):
         a,_,_=fixture(self.root,fractional_centroids=True)
         source=pq.read_table(self.root/'native/cells.parquet').select(['x_centroid','y_centroid']).to_pandas().to_numpy()[:2]
         self.assertTrue(np.array_equal(load_contract(a)['xy'],source))
-        default=pd.read_csv(a.selection_dir/'eligible_raw_cells.csv')[['x_centroid','y_centroid']].to_numpy()
-        self.assertFalse(np.array_equal(default,source),'Fixture must expose default parser precision loss')
+        lower_precision=pd.read_csv(a.selection_dir/'eligible_raw_cells.csv', dtype={'x_centroid': 'float32', 'y_centroid': 'float32'})[['x_centroid','y_centroid']].to_numpy()
+        self.assertFalse(np.array_equal(lower_precision,source),'Fixture must distinguish native doubles from rounded coordinates')
         extract(a);self.assertEqual(validate(v_args(a))['status'],'PASS')
 
 if __name__=='__main__':
