@@ -60,6 +60,9 @@ class RedseaParams:
     comp_mode: int = 1
     alpha: float = 1.0
     gap_bridge: int = 1
+    # Median filter of every channel before measurement (kernel size in px; 0 = off). 3 == a 3x3
+    # median, Fiji's "Median... radius=1". See `despeckle`.
+    despeckle: int = 0
     # "donor" == the published Bai et al. operator (mass-conserving); "recipient" == the pre-v10 form.
     norm_form: str = "donor"
     # Skip compensation for markers with no lateral membrane spillover (marker_taxonomy.NO_SPILLOVER).
@@ -77,6 +80,7 @@ class RedseaParams:
             comp_mode=cfg.redsea_comp_mode,
             alpha=cfg.redsea_alpha,
             gap_bridge=cfg.redsea_gap_bridge,
+            despeckle=cfg.redsea_despeckle,
             norm_form=cfg.redsea_norm_form,
             exclude_no_spillover=cfg.redsea_exclude_no_spillover,
             use_gpu=cfg.use_gpu,
@@ -183,6 +187,28 @@ def qptiff_channels(qptiff: Path, level: int):
 def read_channel(pages, ch, dtype=np.float32):
     """One full-res channel as a 2D array (float32 keeps bincount weights light)."""
     return np.asarray(pages[ch].asarray(), dtype=dtype)
+
+
+def despeckle(a, size):
+    """Median filter of one channel, `size` x `size`, edges replicated; `size` <= 1 returns `a`.
+
+    Ported from CODEX Islet-Explorer (scripts/uniform/typing/redsea_cells.py, 2026-10-28, owner request:
+    speckled images measured before the filter). The array is converted to NATIVE byte order first:
+    the CODEX TIFFs are big-endian ('>u2') and OpenCV reads the raw buffer, which returned values
+    66-250x too high there. OpenCV is used when installed (uint8/uint16/float32 at 3 or 5 px), else
+    scipy's median_filter, which gives the same result (mode='nearest' == BORDER_REPLICATE).
+    """
+    if size <= 1:
+        return a
+    a = np.ascontiguousarray(a, dtype=a.dtype.newbyteorder("="))
+    try:
+        import cv2
+    except ImportError:  # pragma: no cover - depends on the environment
+        cv2 = None
+    if cv2 is not None and size in (3, 5) and a.dtype in (np.uint8, np.uint16, np.float32):
+        return cv2.medianBlur(a, size)
+    from scipy.ndimage import median_filter
+    return median_filter(a, size=size, mode="nearest")
 
 
 # --------------------------------------------------------------------------- rasterize
@@ -847,6 +873,9 @@ def process_donor(donor: str, cfg: PipelineConfig, params: RedseaParams):
     edge = np.zeros((n, nch), dtype=np.float64)
     nuc = np.zeros((n, nch), dtype=np.float64)
     nuc_edge = np.zeros((n, nch), dtype=np.float64)
+    # whole-cell sums of the unfiltered channels, for the alignment check against QuPath's (unfiltered)
+    # measurements; only kept when the despeckle changes the values.
+    data_raw = np.zeros((n, nch), dtype=np.float64) if params.despeckle > 1 else data
     t0 = time.time()
     if backend.on_gpu:  # pragma: no cover - GPU only
         mask_flat_g = backend.asarray(mask_flat)
@@ -855,7 +884,13 @@ def process_donor(donor: str, cfg: PipelineConfig, params: RedseaParams):
         nuc_flat_g = backend.asarray(nuc_flat)
         nuc_mask_band_g = backend.asarray(nuc_mask_band)
     for k in range(nch):
-        ch = read_channel(pages, k).ravel()
+        if params.despeckle > 1:
+            raw = pages[k].asarray()
+            data_raw[:, k] = np.bincount(mask_flat, weights=raw.ravel().astype(np.float32), minlength=n + 1)[1:]
+            ch = despeckle(raw, params.despeckle).astype(np.float32).ravel()
+            del raw
+        else:
+            ch = read_channel(pages, k).ravel()
         if backend.on_gpu:  # pragma: no cover - GPU only
             chg = backend.asarray(ch)
             data[:, k] = backend.asnumpy(backend.bincount(mask_flat_g, weights=chg, minlength=n + 1))[1:]
@@ -941,7 +976,7 @@ def process_donor(donor: str, cfg: PipelineConfig, params: RedseaParams):
 
     # Alignment is an input contract, not a best-effort diagnostic. A key/channel mismatch here
     # invalidates every corrected value, so fail the donor before any output is written.
-    uncorr = np.where(sizes[:, None] > 0, data / np.where(sizes[:, None] == 0, 1, sizes[:, None]), np.nan)
+    uncorr = np.where(sizes[:, None] > 0, data_raw / np.where(sizes[:, None] == 0, 1, sizes[:, None]), np.nan)
     alignment_check(cfg, donor, oids, cols, uncorr, sizes, px_um)
 
     # 6) write the sole corrected dataset (one row per object_id).

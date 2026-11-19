@@ -15,6 +15,8 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from multiplex5000.tissues import interior_dominance, io60_pancreas_markers
+from multiplex5000 import tiff_window, redsea
 
 from multiplex5000.tissues import t_cell as T_CELL
 from multiplex5000.tissues import macrophage as MACROPHAGE
