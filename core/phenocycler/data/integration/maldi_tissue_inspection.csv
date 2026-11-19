@@ -5,7 +5,9 @@
 # (maintainer, 2026-10-31): each row makes the MALDI section a serial section of the acquisition
 # it neighbours -- different cells, never a same-cell claim. The Tissue_id is never parsed for
 # either fact (6476, 6566, 6593 and HDL115 carry no block; 6380_01, 6442_03, 6482_02, 6521_02,
-# 6523_01 and 6551_03 carry a bare block number).
+# 6523_01 and 6551_03 carry a bare block number). 6426_02_pln is donor 6436's section: there is no
+# donor 6426 in the project (maintainer, 2026-11-03; multiplex5000.maldi.TISSUE_DONOR_CORRECTIONS),
+# so its neighbour is one of 6436's acquisitions. Its Tissue_id stays as the export writes it.
 #
 # Look at the Source Inventory figure maldi_sections.png: each MALDI section's summed-ion and
 # glycogen images beside the donor's PhenoCycler pancreas scan (Tissue and pLN annotations), its
@@ -25,6 +27,7 @@ tissue_id,tissue,neighbour_acquisition,inspected_by,note
 6374_04,,,,
 6380_01,,,,
 6380_01b,,,,
+6426_02_pln,,,,
 6436_04B,,,,
 6442_02D,,,,
 6442_03,,,,

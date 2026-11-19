@@ -19,7 +19,9 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from .. import cohort_scale, gates, roots
+from ..artifacts import sha256_file
 from ..identity import check_cell_keys
+from ..resolved_parameters import write_resolved_parameters
 from ..tasks import Input, Task
 from ..tissues import interior_dominance, io60_pancreas_markers
 from ..tissues.evaluate import resolve_unique_matched_rules
@@ -133,6 +135,7 @@ def inputs(project) -> list[Input]:
              Input("normalization_gate", upstream / "05_normalization/gate/gate.json"),
              Input("normalization_acceptance", upstream / "05_normalization/gate/accepted.json"),
              Input("normalization_scales", upstream / "05_normalization/scales.csv"),
+             Input("measurement_receipt", upstream / "03_protein_measurement/receipt.json"),
              Input("qupath_manifest", _source(project, "qupath_manifest")),
              Input("donor_acquisition_runs", _source(project, "donor_acquisition_runs")),
              Input("typing_registry_log", _source(project, "typing_registry_log")),
@@ -141,7 +144,9 @@ def inputs(project) -> list[Input]:
         donor = str(row["donor_id"])
         found.append(Input(f"aligned:{donor}", _aligned(project, donor)))
     for donor in _donors(project):
-        found.extend((Input(f"revised:{donor}",
+        found.extend((Input(f"availability:{donor}",
+                            upstream / f"03_protein_measurement/data/availability/donor_id={donor}/data.parquet"),
+                      Input(f"revised:{donor}",
                             geometry / f"revised_cells/donor_id={donor}/data.parquet"),
                       Input(f"crossed:{donor}", geometry / f"crossed/crossed_{donor}.parquet"),
                       Input(f"fundamentals:{donor}",
@@ -157,6 +162,21 @@ def _accepted(task: Task, name: str, stage: str) -> None:
     receipt = json.loads(task.input(name).read_text())
     if receipt.get("stage") != stage or receipt.get("status") != "complete":
         raise IO60MixedPilotError(f"upstream {stage} has no complete receipt")
+
+
+def _verify_availability_inputs(task: Task) -> None:
+    """A marker decision must use the actual measurement/normalization producer files."""
+    _accepted(task, "measurement_receipt", "03_protein_measurement")
+    measurement = json.loads(task.input("measurement_receipt").read_text())
+    normalization = json.loads(task.input("normalization_receipt").read_text())
+    expected = {r["path"]: r.get("sha256") for r in measurement["outputs"]}
+    checks = [(f"availability:{d}", expected.get(f"data/availability/donor_id={d}/data.parquet"))
+              for d in task.settings["donors"]]
+    checks.append(("normalization_scales", next((r.get("sha256") for r in normalization["outputs"]
+                                                if r["path"] == "scales.csv"), None)))
+    for name, digest in checks:
+        if not digest or sha256_file(task.input(name)) != digest:
+            raise IO60MixedPilotError(f"{name}: marker contract does not match its producer receipt")
 
 
 def _marker_roster(task: Task) -> list[str]:
@@ -229,9 +249,29 @@ def _published_inner_manifest(task: Task, record: dict) -> dict:
     return record
 
 
+def _publish_refinement_paths(task: Task) -> None:
+    """Keep fitted-output references resolvable after the stage's atomic rename."""
+    directory = task.staging / "pancreas/refinement"
+    published = task.project.release_dir / STAGE
+    path = directory / "representation_provenance.json"
+    provenance = json.loads(path.read_text())
+    provenance["execution_output_paths"] = {k: provenance[k] for k in ("parameter_path", "scale_path")}
+    provenance["parameter_path"] = str(published / "pancreas/refinement/representation_params.parquet")
+    provenance["scale_path"] = str(published / "pancreas_scale.parquet")
+    path.write_text(json.dumps(provenance, indent=2, allow_nan=False) + "\n")
+    path = directory / "refine_log.json"
+    records = json.loads(path.read_text())
+    for record in records:
+        policy = record["measurement_policy"]
+        policy["execution_scale_path"] = policy["scale_path"]
+        policy["scale_path"] = str(published / "pancreas_scale.parquet")
+    path.write_text(json.dumps(records, indent=2, allow_nan=False) + "\n")
+
+
 def run(task: Task) -> dict:
     _accepted(task, "inventory_receipt", "00_inventory")
     _accepted(task, "normalization_receipt", "05_normalization")
+    _verify_availability_inputs(task)
     gates.require_accepted(_upstream(task.project) / "00_inventory")
     gates.require_accepted(_upstream(task.project) / "05_normalization")
     markers = _marker_roster(task)
@@ -245,6 +285,8 @@ def run(task: Task) -> dict:
               "--geometry-root", str(_source(task.project, "typing_geometry_root")),
               "--registry-log", str(task.input("typing_registry_log")),
               "--shifts", str(task.input("typing_shifts")),
+              "--availability-root", str(_upstream(task.project) / "03_protein_measurement/data/availability"),
+              "--normalization-scales", str(task.input("normalization_scales")),
               "--donors", *task.settings["donors"],
               "--representation-donors", *task.settings["donors"],
               "--out", str(task.staging / "pancreas")]
@@ -263,6 +305,7 @@ def run(task: Task) -> dict:
     if inner.get("status") != "complete" or inner.get("donors") != task.settings["donors"]:
         raise IO60MixedPilotError("pancreas hierarchy did not record complete pilot scope")
     inner = _published_inner_manifest(task, inner)
+    _publish_refinement_paths(task)
     (task.staging / "pancreas/run.json").write_text(json.dumps(inner, indent=2, sort_keys=True)
                                                         + "\n")
 
@@ -271,6 +314,7 @@ def run(task: Task) -> dict:
     states: dict[str, int] = {}
     pln_states: dict[str, int] = {}
     classes: dict[str, int] = {}
+    refinement_states: dict[str, int] = {}
     marker_support: dict[str, dict[str, int]] = {}
     for donor in task.settings["donors"]:
         aligned = pq.read_table(task.input(f"aligned:{donor}")).to_pandas()
@@ -305,17 +349,39 @@ def run(task: Task) -> dict:
             pln_states[name] = pln_states.get(name, 0) + int(n)
         for name, n in pancreas.refined_class.fillna("unavailable").value_counts().items():
             classes[name] = classes.get(name, 0) + int(n)
+        for name, n in pancreas.refine_state.value_counts().items():
+            refinement_states[name] = refinement_states.get(name, 0) + int(n)
     _figures(task, totals, states, pln_states, classes, marker_support)
     legacy = sorted({str(item.path.resolve()) for item in task.inputs.values()
                      if "Islet-Explorer-Senior-v3" in str(item.path.resolve())})
     task.output("typing_counts.json").write_text(json.dumps(
         {"totals": totals, "states": states, "pln_states": pln_states,
          "pancreas_refined_classes": classes,
+         "refinement_states": refinement_states,
          "pln_marker_positive": marker_support,
          "legacy_checkout_inputs": legacy}, indent=2, sort_keys=True) + "\n")
+    refinement_log = json.loads((task.staging / "pancreas/refinement/refine_log.json").read_text())
+    representation = json.loads((task.staging / "pancreas/refinement/representation_provenance.json").read_text())
+    fitted = pd.read_parquet(task.staging / "pancreas/refinement/representation_params.parquet")
+    resolved = write_resolved_parameters(
+        task, operation="protein_typing",
+        context={"modality": "protein", "assay": "PhenoCycler", "tissue": "pancreas_with_embedded_pLN",
+                 "relationship_type": "independent_acquisition", "units": "declared aligned intensity; standardized arcsinh for refinement"},
+        parameters=[{"name": "representation_donors", "role": "selected_method", "value": task.settings["donors"], "units": None},
+                    {"name": "refinement_fixed_settings", "role": "fixed",
+                     "value": refinement_log[0]["fixed_settings"], "units": None},
+                    {"name": "representation_parameters", "role": "fitted",
+                     "value": json.loads(fitted.reset_index().to_json(orient="records")), "units": "marker-specific aligned units and standardized arcsinh"},
+                    {"name": "representation_provenance", "role": "fitted", "value": representation, "units": None},
+                    {"name": "missing_defining_markers", "role": "selected_method",
+                     "value": "preserve primary call with explicit unavailable refinement; no new class or fallback conclusion", "units": None}],
+        acquisitions=refinement_log,
+        input_names=("measurement_receipt", "normalization_receipt", "normalization_scales", "qupath_manifest", "typing_registry_log", "pln_panel", "pln_rules"),
+        producer_paths=(Path(__file__), RUNNER, RUNNER.parent / "refine.py"))
     return {**totals, "donors": task.settings["donors"], "typing_states": states,
             "pln_states": pln_states,
             "pancreas_refined_classes": classes, "candidate_only": True,
+            "refinement_states": refinement_states, "resolved_parameters": resolved,
             "final_pln_cell_classes": 0, "representation_donors": task.settings["donors"],
             "legacy_checkout_inputs": legacy}
 

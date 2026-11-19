@@ -1,0 +1,73 @@
+{
+  "schema": "received-codex-component-handoff/1",
+  "status": "received_verified_read_not_applied",
+  "checked_utc": "2026-11-02T22:48:17.056442+00:00",
+  "verification": {
+    "path": "outputs/blocker_remediation_20261102/codex/component_handoff_local_verification_v1.json",
+    "sha256": "95611091572a4bf85b425df19bbad97d6783486ea7af6b22a338145b980a10f3"
+  },
+  "local_package": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-build",
+  "checksum_manifest": {
+    "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-component-build/SHA256SUMS",
+    "sha256": "7e091cea244305ceef160c4a2d83a7b519c20604f0ca46ede40481c84223b388"
+  },
+  "source_snapshot_commit": "2150edd93ea379acd60cc36db3eb0b18eeb207d4",
+  "incremental_history_base": "29f45b35dc1566d4fce89d0e8813fa5b55743c4c",
+  "reported_scientific_build_commit": "b15f0fcb4566dcfaf8f7a02fcaa88c550e3f3beb",
+  "reported_release_preflight_commit": "92ea92c62675f958ae29499b48f16882bca41921",
+  "independently_verified": {
+    "payload_files": 17,
+    "payload_bytes": 2056899,
+    "regular_archive_source_files": 214,
+    "archive_directory_entries": 24,
+    "total_tar_entries": 238,
+    "all_payload_checksums_match": true,
+    "all_manifest_source_hashes_match": true,
+    "source_roster_exact": true,
+    "bundle_head_and_prerequisite_header_match_manifest": true,
+    "supplied_summary_arithmetic": "20 images / 3199606 cells / 78680 Ki67-positive / 4848 object files / 357658 object rows"
+  },
+  "verification_limits": [
+    "No scientific processing, source-data replay, image review or biological acceptance was performed for this package.",
+    "Supplied scientific summaries were read and their arithmetic checked; raw scientific data are not included in the package.",
+    "The Git bundle was hashed and its head/prerequisite header inspected; prerequisite history was not imported or verified in Senior.",
+    "HiPerGator delivery was reported by the sender and not independently checked in this receipt."
+  ],
+  "supplied_scientific_claims": {
+    "scope": "CODEX sender reports; not independently reproduced by this remediation",
+    "build_stages_completed": 8,
+    "donors": 20,
+    "eligible_cells": 3199606,
+    "selected_named_v19_endocrine_calls_preserved": 110721,
+    "mixed_control_to_DG_Lymphatic_only_label_changes": 351,
+    "unrelated_label_changes": 0,
+    "Ki67_positive_cells_exported": 78680,
+    "embedding_marker_count": 31,
+    "unresolved_object_class_labels": 8629,
+    "component_boundary_conflicts": 2472,
+    "populated_objects_without_positive_eligible_member": 953,
+    "single_membership_anomalies": 3,
+    "release_preflight_result": "fail",
+    "object_audit_passed": false,
+    "scientific_accuracy_established": false
+  },
+  "guidance_read": {
+    "component_selection": "Explicit source and calibration bindings, exact UUID membership, archived endocrine hormone-evidence replay, visible component-boundary conflicts, and regenerated dependent outputs; never combine version-specific aggregate denominators.",
+    "Ki67": "Preserve the binary Ki67_pos state and per-image measurement/threshold provenance through cell, donor, object and distance exports and CSV/Parquet parity; it remains a state, not identity or an added embedding marker.",
+    "calibration_and_live_geometry": "Keep fixed calibration reference populations separate from live structure membership and retain full-component invariants.",
+    "future_recipient_adaptation": "Any later port requires recipient-owned schema/registry role mapping and assay-specific evidence; CODEX numeric thresholds, selected v19 calls, tissue membership and exclusions are not shared defaults."
+  },
+  "earlier_absence_observation": {
+    "path": "outputs/blocker_remediation_20261102/codex/received_component_handoff_awaiting_delivery_v1.json",
+    "sha256": "b80bf89d3b256166d2f4b0736bd2b1924060e16838b7383872a2f2784f60f000"
+  },
+  "prior_isolation_handoff_receipt": "docs/evaluations/blocker_remediation_20261102/codex_received_handoff.json",
+  "current_run_effects": {
+    "current_protein_run_changed": false,
+    "external_port_or_current_producer_modified": false,
+    "prior_handoff_overwritten": false,
+    "scientific_approval_added": false,
+    "production_release_activated": false,
+    "package_applied": false
+  }
+}

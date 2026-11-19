@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Statistics — the bell curve, with bell"><defs><clipPath id="pl"><circle cx="256" cy="256" r="222"/></clipPath></defs><circle cx="256" cy="256" r="250" fill="#083a44"/><circle cx="256" cy="256" r="238" fill="#f0b93a"/><circle cx="256" cy="256" r="222" fill="#f6ecd0"/><path d="M86,388 L86,383.6 L96,381.2 L106,377.8 L116,373.2 L126,366.9 L136,358.8 L146,348.6 L156,336.3 L166,321.8 L176,305.4 L186,287.5 L196,269.0 L206,250.7 L216,233.7 L226,219.0 L236,207.6 L246,200.5 L256,198.0 L266,200.5 L276,207.6 L286,219.0 L296,233.7 L306,250.7 L316,269.0 L326,287.5 L336,305.4 L346,321.8 L356,336.3 L366,348.6 L376,358.8 L386,366.9 L396,373.2 L406,377.8 L416,381.2 L426,383.6 L426,388Z" fill="#1fb9b0" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<path d="M70,388 H442" stroke="#083a44" stroke-width="8" stroke-linecap="round"/>
+<path d="M256,388 V214" stroke="#083a44" stroke-width="5" stroke-dasharray="8 10"/>
+<g transform="translate(256 150)"><path d="M0,-52 V-70" stroke="#083a44" stroke-width="8" stroke-linecap="round"/>
+<path d="M-50,34 Q-40,20 -38,-10 Q-36,-52 0,-52 Q36,-52 38,-10 Q40,20 50,34Z" fill="#f0b93a" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="0" cy="44" r="11" fill="#d8452b" stroke="#083a44" stroke-width="6"/>
+<path d="M-74,-30 Q-86,-6 -74,18 M74,-30 Q86,-6 74,18 M-96,-40 Q-114,-6 -96,28 M96,-40 Q114,-6 96,28" fill="none" stroke="#d8452b" stroke-width="6" stroke-linecap="round"/></g></svg>

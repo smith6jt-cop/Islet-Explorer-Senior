@@ -1,0 +1,20 @@
+{
+  "schema": "gammadelta-maintained-source/1",
+  "historical_run_manifest_sha256": "556006d709110005a930b61ee85f71aa1e693924f632d432ca12d48c8d53a270",
+  "criteria_sha256": "b060488f17175d346277f112683c3e48805a663d3663ad16cbc81ce9d56eb1c3",
+  "source_sha256": {
+    "select_corrected.py": "43eb8fec820165d9d418c7e8909e34194316ee1ffac0572c12382bbe67518c5a",
+    "validate_selection.py": "1e2e8c93218224e090ee43e5d7895f111fb33b86ba900ab9581f610b131b2d7f",
+    "extract_corrected.py": "4271838e2902b5ecb67006b137824daab534f10f098393197a305949f23718d9",
+    "validate_coordinates.py": "7e710ec829150733c8e1b2c9336c2a3ffa2b25554a54012a9604e54b361b3780"
+  },
+  "migration": "Scientific implementation preserved; coordinate validator uses package-relative artifact-helper import. New command orchestrates these same four producers/validators.",
+  "authorization": {
+    "exact_words": "Proceed with the 15 criteria. Preserve all flagged cells, keep nucleus and tissue eligibility separate, and rerun the corrected \u03b3\u03b4 selection and coordinate extraction. Show counts and membership changes at each step.",
+    "source": "User message recorded in historical package provenance/user_authorization.json",
+    "receipt_sha256": "0659e6aad5c95d18337ee6895e3d8401ee257586661207b05846c0c2cffa435b",
+    "receipt_recorded_utc": "2026-11-05T22:15:47.144301+00:00",
+    "timestamp_scope": "Receipt timestamp, not an inferred message timestamp",
+    "interpretation": "All base candidates retained; >=2 per gene; no nucleus/tissue exclusion; alpha-beta annotation only. Historical proposal status does not supersede this later approval."
+  }
+}

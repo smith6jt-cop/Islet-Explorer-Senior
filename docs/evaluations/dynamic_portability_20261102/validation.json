@@ -1,0 +1,330 @@
+{
+  "recording_tests": {
+    "passed": 19,
+    "log": "recording-tests.log",
+    "engine": "actual pinned KINTSUGI",
+    "marks": "data or not data"
+  },
+  "existing_route_tests": {
+    "passed": 49,
+    "log": "route-tests.log"
+  },
+  "pinned_port_unit_tests": {
+    "passed": 37,
+    "log": "port-tests.log",
+    "warnings": "10 multiprocessing/fork deprecation warnings"
+  },
+  "MCP_protocol": {
+    "status": "pass",
+    "transport": "stdio",
+    "tools": [
+      "export_parameter_observations",
+      "get_parameter_observation_history",
+      "record_parameter_observation"
+    ],
+    "records": 2,
+    "checked_at_utc": "2026-11-02T16:35:18.074035+00:00",
+    "server_sha256": "c9923e211182d08b563c5be6316a63502d983ef4b2233e9ecbf73109bb9e56c3",
+    "idempotency": "pass",
+    "revision_history": "pass",
+    "approval_rejected": true,
+    "global_db_before": null,
+    "global_db_after": null,
+    "export_sha256": "aef731223d2712b4801f940c02a7c93291f0f159acf80701babed87d15d01f63"
+  },
+  "codex_parity": {
+    "image_runs": 20,
+    "tests_per_image": 3,
+    "numerical_tests_executed": 0,
+    "disposition": "blocked at provenance fixture",
+    "evidence": "codex_parity/summary.json"
+  },
+  "fault_probes": [
+    {
+      "case": "duplicate_identifier",
+      "status": "rejected",
+      "reason": "RNA: cell_uid must be present and unique"
+    },
+    {
+      "case": "wrong_coordinate_frame",
+      "status": "rejected",
+      "reason": "unsupported or missing coordinate frames"
+    },
+    {
+      "case": "absent_gene_evidence",
+      "status": "rejected",
+      "reason": "RNA identity-gene evidence is missing"
+    },
+    {
+      "case": "segmentation_split_equal_centroid_tie",
+      "status": "specification_gap",
+      "links": [
+        {
+          "moving_idx": 0,
+          "fixed_idx": 0,
+          "distance_um": 0.0
+        }
+      ],
+      "unmatched": 1,
+      "reason": "No tie/ambiguity or split/merge annotation in the returned table"
+    },
+    {
+      "case": "existing_5um_boundary_perturbation",
+      "status": "specification_gap",
+      "observations": [
+        {
+          "offset_um": 4.999,
+          "links": 1
+        },
+        {
+          "offset_um": 5.0,
+          "links": 1
+        },
+        {
+          "offset_um": 5.001,
+          "links": 0
+        }
+      ],
+      "reason": "Synthetic sensitivity demonstration only; these offsets are not proposed acceptance tolerances or empirical registration errors"
+    },
+    {
+      "case": "missing_tissue_outline",
+      "status": "rejected",
+      "reason": "synthetic: synthetic:protein has no Tissue annotation"
+    },
+    {
+      "case": "unsupported_xenium_neighbour",
+      "status": "unavailable",
+      "result": {
+        "sections": 1,
+        "registered": 0,
+        "unavailable": [
+          "synthetic: registration to a Xenium neighbour is not built"
+        ],
+        "not_physical": [],
+        "qc": {}
+      },
+      "scope": "Routing branch probe with mocked inventory, not accepted registration"
+    }
+  ],
+  "rna_identity_reconciliation": {
+    "acquisitions": 65,
+    "failures": 0
+  },
+  "rna_state_reconciliation": {
+    "acquisitions": 65,
+    "failures": 0
+  },
+  "spleen_PC67_reconciliation": {
+    "sections": 8,
+    "failures": 0
+  },
+  "pLN_pilot_reconciliation": {
+    "sections": 2,
+    "failures": 0
+  },
+  "PC33_source_bindings": [
+    {
+      "section": "hdl011spl",
+      "expected": "5ce9309e20fa9a72fcfece09e8b7ea86a98b3cca82060f927f2f6cab3317e262",
+      "actual": "5ce9309e20fa9a72fcfece09e8b7ea86a98b3cca82060f927f2f6cab3317e262",
+      "status": "pass"
+    },
+    {
+      "section": "hdl053spl",
+      "expected": "1404a99be6b1158008925b0a30070299e91fb046341ff5e170d8e722fbff5403",
+      "actual": "1404a99be6b1158008925b0a30070299e91fb046341ff5e170d8e722fbff5403",
+      "status": "pass"
+    },
+    {
+      "section": "hdl055spl",
+      "expected": "e1ab538327c1b93fc0a443e84e9df578901bec665ce7edfd402214ebbdab2e38",
+      "actual": "e1ab538327c1b93fc0a443e84e9df578901bec665ce7edfd402214ebbdab2e38",
+      "status": "pass"
+    },
+    {
+      "section": "hdl063spl",
+      "expected": "5b5f232296aefee14c1b354d38e13f4a2dd94cbac665201401cdebdbd93ab6f6",
+      "actual": "5b5f232296aefee14c1b354d38e13f4a2dd94cbac665201401cdebdbd93ab6f6",
+      "status": "pass"
+    }
+  ],
+  "scope": "Computational contracts and diagnostic audits; no biological or production acceptance",
+  "protein_primary_universe": {
+    "acquisitions": 25,
+    "primary_cells": 31385695,
+    "identity_failures": 0,
+    "hash_failures": 0,
+    "completed_full_typing_acquisitions": 0,
+    "evidence": "protein_primary_expected_universe.json",
+    "scope": "Primary-only exact eligible non-pLN native IDs. Full cohort blocked by refinement panel availability; no finished Stage 06 receipt."
+  },
+  "primary_coordinate_conventions": {
+    "acquisitions": 25,
+    "primary_cells": 31385695,
+    "maximum_displacement_um": 2.1943691017906133,
+    "maximum_declared_scale_residual_abs_um": 7.275957614183426e-12,
+    "coordinate_contract": {
+      "primary": "build_cells takes frozen revised geometry, previously rescaled by islet_export_adapter from QuPath calibration to image-manifest calibration",
+      "aligned": "Stage03 ingests current context Centroid X/Y \u00b5m verbatim; Stage05 carries coordinates unchanged",
+      "frame_relationship": "same native IDs and image origin; two explicitly documented um-per-pixel conventions",
+      "interpretation": "descriptive comparison only; matching IDs do not establish interchangeable frames or geometric acceptance; no coordinates were rewritten"
+    },
+    "evidence": "protein_primary_coordinates.json"
+  },
+  "protein_nucleus_admission": {
+    "acquisitions": 25,
+    "cells": 39394852,
+    "eligible": 32874241,
+    "primary_cells": 31385695,
+    "failures": [],
+    "unavailable": [],
+    "source_hash_limitation": "Large raw measurement files were read by selected columns; original producer SHA is retained but not recomputed. Size and mtime comparison are not content-hash verification. Geometry QC SHA rechecked; aligned/primary SHA bound by independent preceding audit.",
+    "evidence": "protein_nucleus.json"
+  },
+  "protein_full_route": {
+    "attempts": 2,
+    "completed": false,
+    "primary_sections": 25,
+    "refined_sections": 0,
+    "blocker": "unacquired Ker8_18 column included by refinement; zero measurable cells and unguarded empty NNDescent at0112",
+    "affected_missing_marker_acquisitions": [
+      "0112",
+      "6347",
+      "6533",
+      "6580"
+    ],
+    "evidence": "protein_primary/failure.json"
+  },
+  "diagnostic_inspections": 144,
+  "MCP_scientific_project": {
+    "status": "pass",
+    "checked_at_utc": "2026-11-02T19:35:16.031648+00:00",
+    "project": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/dynamic_portability_20261102/parameter-history",
+    "scientific_observation": "portability-20261102:rna:xenium:0041326:Region_1",
+    "retry_duplicate": true,
+    "read": "pass",
+    "export_sha256": "4173f2c6e501cce3e49a3bd9e581de36f7c8797bf7badccff7aedba85557237b",
+    "records": 499,
+    "global_before": null,
+    "global_after": null
+  },
+  "parameter_recording": {
+    "observations_submitted": 351,
+    "records": 499,
+    "latest_status_counts": {
+      "proposed": 41,
+      "evaluated": 150,
+      "failed": 46,
+      "blocked": 114
+    },
+    "approved_records": 0,
+    "all_retries_duplicate": true,
+    "global_before": null,
+    "global_after": null,
+    "automatic_application": false,
+    "recommendations_enabled": false,
+    "export": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/dynamic_portability_20261102/parameter-history/parameter_observations.json",
+      "sha256": "4173f2c6e501cce3e49a3bd9e581de36f7c8797bf7badccff7aedba85557237b",
+      "records": 499
+    },
+    "database_sha256": "c7cb52a6b1deeb6b4641ff115266d0633ae0aac0e8a847ed9cab3f18f9589ad5"
+  },
+  "codex_journal_validated_numerical": {
+    "schema": "codex.independent_numerical_parity/1",
+    "producer_proof": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/handoff_completion_20261102/codex/journal_proof.json",
+    "producer_proof_sha256": "0e4cdb82ab8a502ff218496c4b647bafa178e774274b1e755b251dff4228019e",
+    "images_completed": 20,
+    "expected_images": 20,
+    "assertions_passed": 20,
+    "assertions_failed": 40,
+    "comparison": "Unchanged pinned assert_frame_equal(check_exact=True, check_dtype=False) and array_equal",
+    "original_pytest_provenance_fixture": "unchanged; still fails pre-commit mtime rule",
+    "status": "complete"
+  },
+  "codex_exact_source_to_port": {
+    "schema": "codex.exact_source_port_and_csv_diagnostics/1",
+    "images_completed": 20,
+    "expected_images": 20,
+    "criterion": "Exact equality; no tolerance added or criterion relaxed.",
+    "status": "complete",
+    "note": "Round-trip CSV parsing is a diagnostic only. The original fixture was not edited."
+  },
+  "codex_producer_environment_replay": {
+    "schema": "codex.exact_source_port_and_csv_diagnostics/1",
+    "images_completed": 20,
+    "expected_images": 20,
+    "criterion": "Exact equality; no tolerance added or criterion relaxed.",
+    "computations": [
+      "levels",
+      "canary"
+    ],
+    "threads": "1",
+    "status": "complete",
+    "note": "Round-trip CSV parsing is a diagnostic only. The original fixture was not edited."
+  },
+  "codex_identity_cells": 3199606,
+  "parameter_execution_trace": {
+    "catalog_declarations": 572,
+    "catalog_source_hashes_verified": 51,
+    "classifications": {
+      "assay_specific_measurement": 45,
+      "panel_configuration": 27,
+      "registration_geometry": 112,
+      "shared_computation": 66,
+      "tissue_biology": 207,
+      "unresolved_assumption": 115
+    },
+    "declaration_dispositions": {
+      "no_resolved_read_in_inspected_sources": 23,
+      "reported_parameter_values_verified_for_recorded_invocations": 8,
+      "static_trace_runtime_unresolved": 541
+    },
+    "declarations_with_receipt_bound_reported_values": 8,
+    "fitted_artifact_groups": 4,
+    "literal_dispositions": {
+      "measurement_or_numeric_representation_candidate": 233,
+      "nonparameter_diagnostic_text_candidate": 559,
+      "nonparameter_index_candidate": 177,
+      "nonparameter_schema_key_candidate": 1681,
+      "scientific_criterion_or_reported_criterion_candidate": 17,
+      "scientific_method_argument_candidate": 30,
+      "scientific_numeric_transform_candidate": 71,
+      "tissue_gene_or_marker_literal_candidate": 34,
+      "unresolved_input_or_output_path_configuration": 360,
+      "unresolved_literal_context": 7584,
+      "unresolved_threshold_or_validation_bound": 472
+    },
+    "receipt_declared_settings": 15,
+    "registry_rows": 341,
+    "registry_tables": 13,
+    "remaining_literal_candidates": 11218,
+    "traced_declarations": 572,
+    "unique_parameter_ids": 572
+  },
+  "MALDI_source_visual_comparisons": 32,
+  "pLN_object_sources": {
+    "acquisitions": 19,
+    "objects": 47,
+    "area_objects": 44
+  },
+  "documentation_verification": {
+    "status": "pass",
+    "markdown_files": 12,
+    "local_links": 116,
+    "guide_shell_blocks": 18,
+    "gitignore_probes": {
+      "outputs/probe.csv": true,
+      "external/probe.txt": true,
+      "tmp-project/.claude_workflow/parameter_learning.db": true,
+      "tmp-project/.claude_workflow/parameter_learning.db-wal": true,
+      "tmp-project/parameter_observation_outbox/id.json": true,
+      "tmp-project/.claude_workflow/observations.lock": true,
+      "docs/evaluations/dynamic_portability_20261102/parameter_history.json": false,
+      "docs/evaluations/dynamic_portability_20261102/artifact_manifest.json": false,
+      "docs/evaluations/dynamic_portability_20261102/parameter_traces.json.gz": false
+    },
+    "scope": "Local file targets and shell syntax; not execution of example scientific stages"
+  }
+}

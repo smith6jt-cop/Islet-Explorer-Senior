@@ -1,0 +1,133 @@
+{
+  "status": "pass",
+  "pairs": [
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL090",
+      "protein_entry": "HDL090_PC67_0110618-S1",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL090_PC67_0110618-S1.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110618:090",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110618__090__20260826__224731",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        720,
+        416
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL082",
+      "protein_entry": "HDL082_PC67_0110618-S2",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL082_PC67_0110618-S2.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110618:082",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110618__082__20260826__224731",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        1904,
+        15536
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL104",
+      "protein_entry": "HDL104_PC67_0110618-S3",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL104_PC67_0110618-S3.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110618:104",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110618__104__20260826__224731",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        13456,
+        11280
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL014",
+      "protein_entry": "HDL014_PC67_0110618-S4",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL014_PC67_0110618-S4.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110618_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110618:014",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110618__014__20260826__224731",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        2016,
+        30832
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL059",
+      "protein_entry": "HDL059_PC67_0110979-S1",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL059_PC67_0110979-S1.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110979:059",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110979__059__20260826__224732",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        1552,
+        480
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL009",
+      "protein_entry": "HDL009_PC67_0110979-S2",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL009_PC67_0110979-S2.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110979:009",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110979__009__20260826__224732",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        272,
+        12432
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL034",
+      "protein_entry": "HDL034_PC67_0110979-S3",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL034_PC67_0110979-S3.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110979:034",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110979__034__20260826__224732",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        10112,
+        12480
+      ]
+    },
+    {
+      "tissue": "spleen",
+      "donor_id": "HDL080",
+      "protein_entry": "HDL080_PC67_0110979-S4",
+      "protein_export": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/analysis/uniform/cells_full/HDL080_PC67_0110979-S4.csv.gz",
+      "protein_image": "/blue/maigan/smith6jt/SpleenFollicleCounterQP/Images/0110979_SpleenPCXen_Scan1.er.qptiff",
+      "xenium_acquisition_id": "xenium:0110979:080",
+      "xenium_output": "/orange/maigan/20260826__224549__SpleenSH2B3postPheno8sample/output-XETG00298__0110979__080__20260826__224732",
+      "relationship": "same_section_after_phenocycler",
+      "protein_frame": "crop_local_um",
+      "xenium_frame": "region_local_um",
+      "crop_origin_px": [
+        1344,
+        30336
+      ]
+    }
+  ]
+}

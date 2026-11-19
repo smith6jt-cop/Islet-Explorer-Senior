@@ -40,6 +40,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+parameter-recording = ["mcp==1.30.0"]
 gpu = ["cupy-cuda12x"]
 # The selected pancreas protein hierarchy uses polygon geometry and NNDescent.
 # The pancreas and pLN Xenium workers use AnnData/Scanpy and Scanpy's igraph
@@ -66,6 +67,7 @@ workflow = [
 # `maxfuse` is deliberately absent — its only release is 0.0.2 (2023) with unpinned deps, so
 # multiplex5000.integration.crossmodal implements the algorithm directly instead.
 integration = [
+    "ijson",
     "anndata",
     "scanpy",
     "spatialdata",
@@ -132,7 +134,7 @@ mplx5k = "multiplex5000.cli:main"
 [tool.setuptools]
 # `phenocycler` is only the temporary import alias (phenocycler/__init__.py); the code is multiplex5000.
 packages = ["multiplex5000", "multiplex5000.integration", "multiplex5000.stages",
-            "multiplex5000.tissues", "phenocycler"]
+            "multiplex5000.tissues", "multiplex5000.gammadelta", "phenocycler"]
 include-package-data = true
 
 [tool.setuptools.package-data]
@@ -145,7 +147,8 @@ multiplex5000 = [
     "workflow/profiles/local/config.yaml",
     "workflow/profiles/hipergator/config.yaml",
 ]
-"multiplex5000.integration" = ["data/*.json"]
+"multiplex5000.integration" = ["data/*.json", "*.groovy"]
+"multiplex5000.gammadelta" = ["reviewed_criteria.json", "source_provenance.json"]
 
 [tool.setuptools_scm]
 # Version comes from the nearest git tag. A tagged commit gives a clean release version

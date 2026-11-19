@@ -1,0 +1,109 @@
+{
+  "schema": "senior.received_codex_handoff/1",
+  "recorded_utc": "2026-11-02T20:48:12.506136+00:00",
+  "status": "received_verified_reviewed_not_applied",
+  "package": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation",
+  "sha256sums_sha256": "67a56038efea9e03fa10f7ead0e5f620bf5d18cdcd6a425232fbe1077dbb47dc",
+  "source_commit": "29f45b35dc1566d4fce89d0e8813fa5b55743c4c",
+  "isolation_fix_commit": "a425c05167a00300c0a644a19f52751baa6ba901",
+  "verified_payload_files": 17,
+  "files": [
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/README.txt",
+      "sha256": "50568f931d95491a4183f37bb5da35a5ead14f42779002aec29e60b34d9b6376",
+      "size_bytes": 809
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/changed-files.txt",
+      "sha256": "f90c1d3b8a7a4beb0bab3d6cfdec65b1e7fc406406975597747ab415fa58eed4",
+      "size_bytes": 1609
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/code-history.git.bundle",
+      "sha256": "bf557001219e71022fc9ec0e3b614cbbb5761dadba660ebe3e6ea838292c0212",
+      "size_bytes": 120816
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/commits.txt",
+      "sha256": "ce1c918a339f5fd0ea7871403a69af4294b878399de6ef8f90de1ea03f757589",
+      "size_bytes": 1879
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/endocrine_classifier_discrepancy_20261102.md",
+      "sha256": "eefa89887ce00941fab4481a0f71d136c1c7705f345bb514321eada9dc99b46c",
+      "size_bytes": 15522
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/audit_isolated_replay_v2__summary.json",
+      "sha256": "32451f1234b9e57068b1d5cd5b0972f33208c0626c9cfdab813f5cafb18f8ebb",
+      "size_bytes": 110172
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/evidence__lymphatic_isolation_20261102.json",
+      "sha256": "2bcfff7e0cdddf98ba3cdfd6a895e66bd0706a1ae2053bfdabbe6aeb5915c373",
+      "size_bytes": 3256
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/guide_updates_20261102__existing_guides_validation.json",
+      "sha256": "f2acc3b759178796552da7dce82c8da2cda39b9d6bece1f301caeaf6a4718660",
+      "size_bytes": 7520
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/lymphatic_controlled_contrast__summary.json",
+      "sha256": "a2c30c149a20760d70133dd2ea0bf1e2e88430b0dac3230ca62b3dbc303b0c8d",
+      "size_bytes": 23912
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/lymphatic_isolated_replay_v2__integration_result.json",
+      "sha256": "fa6fa0127680c4409acf9b64807487f81a03fb140b42e0aa0d9e000cadd47895",
+      "size_bytes": 6865
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/evidence/parallel_container_security_status.md",
+      "sha256": "7e767f56eae7f31bb96732fff8c14b9222c51e30da9d170c23dcf80d5f296d04",
+      "size_bytes": 7225
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/manifest.json",
+      "sha256": "f4c580e3b241e2baa00a0c37933021e60e0e2af94bb12f5ffe25198f567e0077",
+      "size_bytes": 2586
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/recent-commits.patch",
+      "sha256": "ad29353ff4c26d1ac073a4376273e629c11af6de478648aa77665309573061bc",
+      "size_bytes": 395509
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/source.tar.gz",
+      "sha256": "caf47a2dacf296431eec547ce97296664355366c655aa4d16c848f511cbbc6ea",
+      "size_bytes": 1716230
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/typing_change_notice_20261102.md",
+      "sha256": "cf60d47cc80aa8b9917bd34cc4f5e71b0744791ec0b9279abca748e8e4350626",
+      "size_bytes": 8494
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/v19_v20_component_comparison_20261102.md",
+      "sha256": "922d9c12b048d6de1e10e86a742268f51e4d041eb876c433a82172d7ec9e6cda",
+      "size_bytes": 12878
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/CODEX-handoff-20261102-lymphatic-isolation/workflow_user_guide.md",
+      "sha256": "36cfc9aaa55283f406cb4d2547f25106e0deaa5f19abd0bd9c9fbec6a6034d20",
+      "size_bytes": 38994
+    }
+  ],
+  "reviewed_documents": [
+    "typing_change_notice_20261102.md",
+    "workflow_user_guide.md (workflow map and structure-only revision contract)",
+    "evidence/audit_isolated_replay_v2__summary.json"
+  ],
+  "upstream_audit_status": "Reported pass on all20 CODEX images; supplied artifact checked, not independently rerun in this evaluation",
+  "scientific_approval_added": false,
+  "recipient_port_completed": false,
+  "active_cohort_sources_changed": false,
+  "baseline_comparison_pin_changed": false,
+  "adaptation_specification": "codex_received_handoff.md",
+  "scope": "New reference-context isolation evidence. Keep separate from frozen method parity and actual current producers; requires an explicit assay/profile-specific structure-only route and invariant replay before use."
+}

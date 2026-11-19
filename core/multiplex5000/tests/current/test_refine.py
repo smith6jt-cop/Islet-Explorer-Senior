@@ -12,6 +12,7 @@ results -- to check that the marker set is derived and not restated.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -402,7 +403,6 @@ def _stub_donor(tmp_path, monkeypatch, rows, values, leaf=()):
 
 
 def test_object_id_is_preserved_verbatim_and_every_cell_comes_back(tmp_path, monkeypatch):
-    rng = np.random.default_rng(3)
     n_clear, n_dim = 400, 16
     rows = [(f"bv{i}", "Blood vessel", "tissue", None, True) for i in range(n_clear + n_dim)]
     rows += [(f"ex{i}", "Exocrine", "tissue", None, True) for i in range(400)]
@@ -487,3 +487,106 @@ def test_the_log_records_where_every_demoted_cell_went(tmp_path, monkeypatch):
     assert set(out.loc[dim & out["object_id"].isin(leaf), "refined_class"]) == {"Immune"}
     assert not (out["demoted"] & (out["cell_class"] == "Exocrine")
                 & (out["refined_class"] == "Immune")).any()
+
+
+@pytest.mark.parametrize("donor", ["0112", "6347", "6533", "6580"])
+def test_unacquired_union_column_is_not_a_carried_marker(donor, tmp_path, monkeypatch):
+    """The four real IO60 variant panels keep Ker8_18 as an all-NaN union column."""
+    root = tmp_path / "availability"
+    path = root / f"donor_id={donor}/data.parquet"
+    path.parent.mkdir(parents=True)
+    pd.DataFrame({"donor_id": [donor] * 3, "marker": ["Ker8_18", "INS", "CD57"],
+                  "available": [False, True, True]}).to_parquet(path, index=False)
+    scales = tmp_path / "scales.csv"
+    scales.write_text(f"donor_id,marker,status\n{donor},Ker8_18,unavailable\n"
+                      f"{donor},INS,aligned\n{donor},CD57,refused\n")
+    monkeypatch.setattr(refine, "AVAILABILITY_ROOT", root)
+    monkeypatch.setattr(refine, "NORMALIZATION_SCALES", scales)
+    got = refine.marker_availability(donor, ["Ker8_18", "INS", "CD57"],
+                                     ["object_id", "Ker8_18", "INS", "CD57"])
+    assert got["contract"] == "stage03_and_stage05"
+    decisions = {r["marker"]: r for r in got["decisions"]}
+    assert not decisions["Ker8_18"]["carried"]
+    assert decisions["Ker8_18"]["reason"] == "not_acquired"
+    assert decisions["INS"]["carried"]  # selection never tests intensity; measured zero is valid
+    assert decisions["CD57"]["reason"] == "normalization_refused"
+    assert len(got["sources"]) == 2
+    with pytest.raises(ValueError, match="absent from availability contract"):
+        refine.marker_availability(donor, ["GCG"], ["GCG"])
+
+
+@pytest.mark.parametrize("n", [0, 1, refine.K])
+def test_empty_or_insufficient_graph_preserves_calls_and_reports_unavailable(n, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("insufficient graph must not invoke NNDescent")
+    monkeypatch.setattr(refine, "neighbours", forbidden)
+    labels = np.full(n, "Exocrine", dtype=object)
+    got = refine.apply_once(np.ones((n, 1)), ["E_cadherin"], labels,
+                            np.full(n, "", dtype=object), np.zeros(n, bool))
+    assert got["labels"].tolist() == labels.tolist()
+    assert not got["demoted"].any() and not got["graph_available"]
+    assert np.isnan(got["concordance"]).all()
+    assert set(got["state"]) <= {"unavailable_neighbours"}
+    assert got["neighbours"].shape == (n, 0)
+
+
+def test_partial_defining_set_cannot_demote_or_create_fallback_class():
+    Z, labels, strata = matrix({"Blood vessel": [(400, 3.0, ""), (16, -1.0, "", "Exocrine")],
+                                "Exocrine": [(600, 2.0, "")]})
+    have = [m for m in MARKERS if m != "Ker8_18"]
+    got = refine.apply_once(Z[:, [MARKERS.index(m) for m in have]], have, labels, strata,
+                            np.zeros(len(labels), bool), required_markers=MARKERS)
+    exo = labels == "Exocrine"
+    assert not got["demoted"][exo].any()
+    assert set(got["state"][exo]) == {"unavailable_defining_markers"}
+    assert got["labels"][400:416].tolist() == labels[400:416].tolist()
+    assert set(got["state"][400:416]) == {"unavailable_fallback_markers"}
+    assert not got["demoted"][400:416].any()
+
+
+def test_empty_donor_keeps_exact_ids_and_serializable_unavailable_log(tmp_path, monkeypatch):
+    rows = [("a", "Exocrine", "tissue", None, True)]
+    values = pd.DataFrame({m: [np.nan] for m in MARKERS})
+    values.insert(0, "object_id", ["a"])
+    values["qc_analysis_eligible"] = True
+    params = _stub_donor(tmp_path, monkeypatch, rows, values)
+    out, log = refine.refine_donor("X", params, MARKERS)
+    assert out.object_id.tolist() == ["a"]
+    assert out.refined_class.tolist() == ["Exocrine"]
+    assert out.refine_state.tolist() == ["unavailable_measurement"]
+    assert out.refine_pass.tolist() == [0]
+    assert log["n_measured"] == 0 and not log["neighbours"]["available"]
+    json.dumps(log, allow_nan=False)
+
+
+def test_donor_reader_distinguishes_zero_fragment_mask_and_unacquired_column(tmp_path, monkeypatch):
+    donor = "0112"
+    aligned = tmp_path / f"aligned/donor_id={donor}/data.parquet"
+    aligned.parent.mkdir(parents=True)
+    pd.DataFrame({"object_id": ["b", "a"], "Ker8_18": [np.nan, np.nan],
+                  "INS": [0.0, 2.0]}).to_parquet(aligned, index=False)
+    geometry = tmp_path / "geometry.parquet"
+    pd.DataFrame({"object_id": ["a", "b"], "qc_analysis_eligible": [True, True]}).to_parquet(geometry, index=False)
+    available = tmp_path / f"availability/donor_id={donor}/data.parquet"
+    available.parent.mkdir(parents=True)
+    pd.DataFrame({"donor_id": [donor, donor], "marker": ["Ker8_18", "INS"],
+                  "available": [False, True]}).to_parquet(available, index=False)
+    scales = tmp_path / "scales.csv"
+    scales.write_text("donor_id,marker,status\n0112,Ker8_18,unavailable\n0112,INS,aligned\n")
+    monkeypatch.setattr(refine, "AVAILABILITY_ROOT", tmp_path / "availability")
+    monkeypatch.setattr(refine, "NORMALIZATION_SCALES", scales)
+    monkeypatch.setattr(refine.S, "ALIGNED", tmp_path / "aligned")
+    monkeypatch.setattr(refine.S, "cell_source", lambda d: (geometry, "revised"))
+
+    def fragment_mask(frame, d):
+        assert d == donor
+        frame = frame.copy()
+        frame.loc[frame.object_id.eq("a"), "INS"] = np.nan
+        return frame
+
+    monkeypatch.setattr(refine.S, "mask_fragment_hormones", fragment_mask)
+    got, have = refine.donor_values(donor, ["Ker8_18", "INS"])
+    assert have == ["INS"] and "Ker8_18" not in got
+    assert got.object_id.tolist() == ["b", "a"]
+    assert got.INS.iloc[0] == 0.0 and np.isnan(got.INS.iloc[1])
+    assert got._refinement_fragment_masked.tolist() == [False, True]

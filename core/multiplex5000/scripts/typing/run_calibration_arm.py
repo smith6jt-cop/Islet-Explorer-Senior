@@ -18,7 +18,6 @@ from pathlib import Path
 from multiplex5000.tissues import interior_dominance, io60_pancreas_markers
 from multiplex5000 import tiff_window, redsea
 
-from multiplex5000.tissues import t_cell as T_CELL
 from multiplex5000.tissues import macrophage as MACROPHAGE
 from multiplex5000.tissues import interior_dominance, io60_pancreas_markers
 from multiplex5000 import tiff_window, redsea
@@ -57,6 +56,10 @@ def main() -> int:
                     help="CD8 handling for refinement only; primary calls use --aligned")
     ap.add_argument("--shifts", type=Path,
                     help="matching UniFORM shifts for the declared aligned root")
+    ap.add_argument("--availability-root", type=Path,
+                    help="Stage 03 per-donor measurement availability")
+    ap.add_argument("--normalization-scales", type=Path,
+                    help="Stage 05 marker alignment statuses")
     ap.add_argument("--donors", nargs="*", default=None)
     ap.add_argument("--representation-donors", nargs="+", default=None,
                     help="fit refinement on these recorded donors; default is the full cohort")
@@ -71,6 +74,8 @@ def main() -> int:
     registry = args.registry_log.resolve()
     out = args.out.resolve()
     shifts = args.shifts.resolve() if args.shifts else None
+    if (args.availability_root is None) != (args.normalization_scales is None):
+        raise ValueError("availability-root and normalization-scales must be supplied together")
     if not aligned.is_dir() or not scale.is_file() or not registry.is_file():
         raise FileNotFoundError("aligned root, scale table, and registry log must all exist")
     if args.refinement_cd8_alignment == "unshifted" and (shifts is None or not shifts.is_file()):
@@ -126,6 +131,9 @@ def main() -> int:
         "scale": str(scale),
         "scale_sha256": sha256(scale),
         "refinement_cd8_alignment": args.refinement_cd8_alignment,
+        "availability_root": str(args.availability_root.resolve()) if args.availability_root else None,
+        "normalization_scales": str(args.normalization_scales.resolve()) if args.normalization_scales else None,
+        "normalization_scales_sha256": sha256(args.normalization_scales) if args.normalization_scales else None,
         "shifts_path": str(shifts) if shifts else None,
         "shifts_sha256": sha256(shifts) if shifts else None,
         "geometry_root": str(geometry),
@@ -139,6 +147,8 @@ def main() -> int:
     atomic_json(manifest_path, run)
 
     env = os.environ.copy()
+    if pixel_scales.is_file():
+        env["IO60_PIXEL_ALIGNMENT_SCALES"] = str(pixel_scales)
     env.update({
         "IO60_ALIGNED_ROOT": str(aligned),
         "IO60_SCALE_PATH": str(scale),
@@ -167,7 +177,10 @@ def main() -> int:
                     "--cd8-alignment", args.refinement_cd8_alignment,
                     *(["--representation-donors", *args.representation_donors]
                       if args.representation_donors else []),
-                    *(["--shifts", str(shifts)] if shifts else [])]),
+                    *(["--shifts", str(shifts)] if shifts else []),
+                    *(["--availability-root", str(args.availability_root.resolve()),
+                       "--normalization-scales", str(args.normalization_scales.resolve())]
+                      if args.availability_root else [])]),
         ("build_cells_with_refinement", [sys.executable, str(SCRIPTS / "build_cells.py"),
                                           *donor_args,
                                           "--calls", str(out / "subpanel_rebuilt"),

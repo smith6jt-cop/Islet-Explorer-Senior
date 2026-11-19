@@ -1,0 +1,26 @@
+{
+  "conditional_interpretation": "Within a confirmed three-section series following this order, the PhenoCycler section immediately precedes the MALDI section. The statement alone does not identify an exact acquisition pair or certify physical registration.",
+  "exact_acquisition_ids": [],
+  "exact_physical_section_ids": [],
+  "exceptions": "not_enumerated",
+  "inventory_same_slide_relationships": "preserved separately; this general serial-order statement does not overwrite exact recorded same-slide declarations",
+  "neighbour_assignments_created": false,
+  "pair_dispositions_changed": false,
+  "registration_acceptance": null,
+  "relationship_type": "typical_serial_section_cutting_order",
+  "schema": "portability-relationship-context/1",
+  "scientific_approval": false,
+  "scope": "usual_order",
+  "scope_qualifier": "For the most part",
+  "section_spacing_um": null,
+  "source": {
+    "kind": "user_message",
+    "recorded_date": "2026-11-02",
+    "verbatim": "For the most part, the sections go first=xenium, second=phenocycler, third=maldi"
+  },
+  "typical_order": [
+    "Xenium",
+    "PhenoCycler",
+    "MALDI"
+  ]
+}

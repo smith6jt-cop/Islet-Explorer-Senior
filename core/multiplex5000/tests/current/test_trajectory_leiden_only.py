@@ -67,3 +67,72 @@ def test_leiden_only_writes_the_table_and_never_fits_the_ordering(traj, tmp_path
     assert len(table) == 90
     assert table[resolutions].notna().all().all()      # every islet is above the 10-cell floor
     assert not list(tmp_path.glob("*.h5ad")), "--leiden-only wrote an H5AD"
+
+
+def test_graph_policy_selects_regions_and_pools_gal3_before_alr(traj):
+    classes = [
+        "Beta_cell", "Alpha_cell", "Exocrine", "Blood_Vessel", "Unresolved",
+        "Tissue", "Doublet_suspected", "Conflict_B_T",
+        "CD68+CD163+Macrophage_LGALS3+CD4+",
+        "CD68+CD163-Macrophage_LGALS3+CD4-",
+        "CD68-CD163+Macrophage_LGALS3-CD4+",
+    ]
+    frame = pd.DataFrame({prefix + c: [i + 1., i + 2.]
+                          for prefix in ("count_", "peri_count_")
+                          for i, c in enumerate(classes)})
+    denominator = np.array([10., 20.])
+    core_names, core = traj.trajectory_composition_inputs(frame, classes, denominator, "core")
+    peri_names, peri = traj.trajectory_composition_inputs(frame, classes, denominator, "peri")
+    assert core_names == ["core_Beta_cell", "core_Alpha_cell", "core_Blood_Vessel",
+                          "core_Macrophage_LGALS3+", "core_Macrophage_LGALS3-"]
+    assert peri_names == ["peri_Exocrine", "peri_Blood_Vessel",
+                          "peri_Macrophage_LGALS3+", "peri_Macrophage_LGALS3-"]
+    expected = np.log((frame["count_" + classes[8]] + frame["count_" + classes[9]]
+                       + traj.ALR_PSEUDOCOUNT) / (denominator + traj.ALR_PSEUDOCOUNT))
+    np.testing.assert_allclose(core[:, core_names.index("core_Macrophage_LGALS3+")],
+                               expected, rtol=1e-6)
+    assert peri.shape == (2, len(peri_names))
+    names, matrix = traj.trajectory_composition_inputs(frame, classes, denominator, "pooled")
+    assert names == ["core_Beta_cell", "core_Alpha_cell", "peri_Exocrine", "combined_Blood_Vessel",
+                     "combined_Macrophage_LGALS3+", "combined_Macrophage_LGALS3-"]
+    for i, label in enumerate(["Beta_cell", "Alpha_cell", "Exocrine", "Blood_Vessel"]):
+        counts = frame[("peri_count_" if i == 2 else "count_") + label]
+        if i == 3:
+            counts = counts + frame["peri_count_" + label]
+        np.testing.assert_allclose(matrix[:, i], np.log1p(counts / denominator), rtol=1e-6)
+
+
+def test_graph_policy_refuses_missing_measurements(traj):
+    frame = pd.DataFrame({"count_Beta_cell": [4.], "count_Blood_Vessel": [np.nan]})
+    with pytest.raises(ValueError, match="unavailable"):
+        traj.trajectory_composition_inputs(frame, ["Beta_cell", "Blood_Vessel"],
+                                           np.array([4.]), "core")
+    with pytest.raises(ValueError, match="missing measured"):
+        traj.trajectory_composition_inputs(frame, ["Exocrine"], np.array([4.]), "peri")
+
+
+def test_graph_policy_refuses_overlapping_prepooled_macrophages(traj):
+    labels = ["Macrophage_Gal3+", "CD68+CD163+Macrophage_LGALS3+CD4+"]
+    frame = pd.DataFrame({"count_" + label: [1.] for label in labels})
+    with pytest.raises(ValueError, match="overlapping"):
+        traj.trajectory_composition_inputs(frame, labels, np.array([4.]), "core")
+
+
+def test_supported_coarse_immune_and_ambiguous_senior_labels(traj):
+    denominator = np.array([5.])
+    labels = ["Beta_cell", "Immune", "Unresolved", "Endocrine_unresolved",
+              "Endocrine_ambiguous", "Excluded", "class_unavailable",
+              "Macrophage_unavailable"]
+    frame = pd.DataFrame({"count_" + label: [2.] for label in labels})
+    names, values = traj.trajectory_composition_inputs(frame, labels, denominator, "core")
+    assert names == ["core_Beta_cell", "core_Immune"]
+    np.testing.assert_allclose(values[0, 1], np.log(2.5 / 5.5))
+
+
+@pytest.mark.parametrize("subtype", ["B_cell", "T_cell_CD8+", "CD4_Tcell",
+                                    "Imm-T-cell", "NK_cell"])
+def test_unknown_coarse_immune_subtype_overlap_is_refused(traj, subtype):
+    labels = ["Beta_cell", "Immune", subtype]
+    frame = pd.DataFrame({"count_" + label: [0.] for label in labels})
+    with pytest.raises(ValueError, match="unknown coverage"):
+        traj.trajectory_composition_inputs(frame, labels, np.array([5.]), "core")

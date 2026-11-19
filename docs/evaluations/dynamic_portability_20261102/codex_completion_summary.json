@@ -1,0 +1,59 @@
+{
+  "status": "complete",
+  "completed_at_utc": "2026-11-02T19:31:03.138310+00:00",
+  "images": 20,
+  "eligible_identity_cells": 3199606,
+  "measured_objects": 3525977,
+  "all_ids_unique_and_reconciled": true,
+  "historical_producer_output_hashes_verified": 95,
+  "producer_input_bindings_verified": 247,
+  "pinned_source_registry_assertion_files_verified": 29,
+  "supplemental_code_binding": "supplemental_code_binding.json",
+  "recovered_producer_driver": "producer_driver_binding.json",
+  "original_mtime_fixture": "unchanged; still rejects all 20 historical files because output predates commit time despite matching source bytes",
+  "unchanged_artifact_assertions": {
+    "identity_exact_pass": 20,
+    "levels_exact_fail": 20,
+    "canary_exact_fail": 20
+  },
+  "unchanged_source_to_port_assertions": {
+    "exact_pass": 60,
+    "fail": 0
+  },
+  "controlled_table_precision_diagnostic": {
+    "images": 20,
+    "tables_per_image": [
+      "levels",
+      "levels_differentiation",
+      "canary_levels"
+    ],
+    "tables_with_any_difference_vs_roundtrip_csv": 0,
+    "thread_count": 1,
+    "interpreter": "/home/smith6jt/miniconda3/envs/scvi-env/bin/python",
+    "default_csv_comparisons_still_fail": true
+  },
+  "max_absolute_default_csv_differences_four_threads": {
+    "center": 2.842170943040401e-14,
+    "width": 2.220446049250313e-16,
+    "level_log": 1.0658141036401503e-14,
+    "level_raw": 7.275957614183426e-11,
+    "positive_fraction": 9.8879238130678e-17,
+    "zero_fraction": 9.8879238130678e-17,
+    "background_width": 2.220446049250313e-16,
+    "canary_log": 1.7763568394002505e-15,
+    "canary_fold_over_level": 7.105427357601002e-15,
+    "null_rate_at_level": 9.974659986866641e-17,
+    "background_center": 1.7763568394002505e-15
+  },
+  "input_and_baseline_files_unchanged_during_comparisons": {
+    "checked": 129,
+    "changed": []
+  },
+  "criteria": "Exact equality throughout; no new tolerance. Round-trip parsing and thread settings are diagnostic, not production or original-fixture edits.",
+  "limitations": [
+    "Original producer did not lock historical packages. Current interpreter versions are recorded separately.",
+    "Established endocrine calls are historically bound by exact filesystem identity, not historical SHA256; new content hashes are recorded.",
+    "Coverage TIFFs retain the producer path/size/mtime contract.",
+    "Biological acceptance, scientific refactoring and v20 compatibility are separate."
+  ]
+}

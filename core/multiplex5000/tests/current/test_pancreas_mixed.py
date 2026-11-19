@@ -41,6 +41,20 @@ def test_mixed_slide_preserves_all_cells_without_cross_tissue_calls():
     assert result.loc["pancreas-unfit", "typing_state"] == "unavailable_qc"
 
 
+def test_mixed_slide_preserves_unavailable_refinement_beside_original_calls():
+    aligned, pancreas, pln, blocks = _inputs()
+    pancreas["refined_class"] = pancreas.cell_class
+    pancreas["refine_state"] = "unavailable_defining_markers"
+    pancreas["refine_note"] = "missing Ker8_18"
+    pancreas["refine_pass"] = 1
+    result = assemble(aligned, pancreas, pln, donor_id="6450", acquisition_id="scan",
+                      segmentation_id="v3", pln_blocks=blocks).set_index("object_id")
+    assert result.loc["shared", "refine_state"] == "unavailable_defining_markers"
+    assert result.loc["shared", "refine_note"] == "missing Ker8_18"
+    assert result.loc["shared", "cell_class"] == result.loc["shared", "refined_class"]
+    assert pd.isna(result.loc["node", "refine_state"])
+
+
 def test_mixed_slide_refuses_a_pancreas_call_on_pln_and_missing_node_cells():
     aligned, pancreas, pln, blocks = _inputs()
     wrong = pancreas.copy()

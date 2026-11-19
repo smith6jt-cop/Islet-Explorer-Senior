@@ -1,0 +1,126 @@
+{
+  "schema": "portability-remediation-provenance/1",
+  "launch_base": "610a6a1140427ebfd67b8bac86bbaa69b46ac739",
+  "launch_branch": "fix/portability-blockers-20261102",
+  "delivery_worktree_git_head": "96339e4a6298b5b1ba069c5bd8fc94ceb8adb93c",
+  "delivery_commit_is_execution_producer": false,
+  "producer_policy": "Execution identities come from each actual receipt and immutable producer snapshot; later delivery commits are not execution producers.",
+  "original_scientific_pins": {
+    "binding": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/dynamic_portability_20261102/pins.json",
+      "sha256": "b8f51d4e5592f502203a3a3aabdd581ad53bf261c10d32e827190ecd842a3c09"
+    },
+    "pins": {
+      "main": "9b75b75ed812b68718704708b89309401edd4732",
+      "origin_main": "1e98a4de48832828be7e2e16c6e7b7e6f8bcf16e",
+      "maldi_branch": "00ec0322d8b8da6529283a65db9105e62e0bdf85",
+      "typing_port": "df3fe1d6ecfe534bc1eaf9e1cf94b8ef6d3a7018",
+      "older_tissue_pilot_branch": "22d144483eb76863789c90d95368e5d2e57decc3",
+      "originating_CODEX_method": "578767eeaf0f95bb1df7272238f361888a0ae75d",
+      "CODEX_checkout_now": "b45a64b525535117c943e65d89fdd7508f7da290",
+      "remote_spleen_producer": "a9549cce6674d7a7536a325ae650c7210b1a9bf7",
+      "remote_RNA_producer": "7fe0d32119687fe7f68792598e429678e7023284",
+      "KINTSUGI": "716d1ebd87db916ab04910c6374e04d2d9ea508e",
+      "python": "3.12.3",
+      "packages": {
+        "numpy": "2.5.1",
+        "pandas": "3.0.5",
+        "scipy": "1.18.0",
+        "pyarrow": "25.0.0",
+        "duckdb": "1.5.5",
+        "shapely": "2.1.2",
+        "scanpy": "1.12.3",
+        "anndata": "0.13.2",
+        "pytest": "9.1.1"
+      },
+      "MCP_environment": "external/.venv-parameter-recording; mcp 1.30.0; separate from scientific interpreter",
+      "pin_policy": "local refs pinned without moving scientific branches; newer HPG producer audited independently, not merged",
+      "v20_release_producer": "9b1da13016bf9c9a1266c3ce212f087399a5e264",
+      "KINTSUGI_origin": "https://github.com/smith6jt-cop/KINTSUGI.git",
+      "CODEX_inventory_producer": "fd3c4dedbddafaa9abd292068fe87a1ad5096051",
+      "sqlite_version": "3.45.1",
+      "KINTSUGI_engine_sha256": "9c29be884f5dd9d405033a9224b998778fe3905f99093036849a0b9436be6db5"
+    }
+  },
+  "KINTSUGI_current": "716d1ebd87db916ab04910c6374e04d2d9ea508e",
+  "runtime_evidence": {
+    "CODEX_replay": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/codex/exact_replay/replay.json",
+      "sha256": "812e770d2e4c1f07fefcf4c42b5c579bf3b46b892ec4da7bb8a99e2879bf0908"
+    },
+    "MALDI_Xenium_sources": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/hpg_maldi_xenium/results_relocated/source_validation.json",
+      "sha256": "5bf63a55e67087a987dc895116ec42a376d8960a621a41d2c104d27a50594a7d"
+    },
+    "protein": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/releases/protein-availability-candidate/06_typing/receipt.json",
+      "sha256": "79b79c3735d59b31da19c4f141a1856f484f9daed25f16e46d417c0903f015da"
+    },
+    "protein_producer_snapshot": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_snapshot_attempt2.json",
+      "sha256": "f84d34df56cde90896cad2b6a4005afe7a99ab1a72d69ac1dd867d15a2f89a16"
+    },
+    "protein_prelaunch_input_bindings": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/attempt2_input_bindings.json",
+      "sha256": "5541b3d375016325640ca48ff3bd28e2c1c5236cb628f13997353c22c2cb848f"
+    },
+    "protein_independent_verification": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/verification/remediation_checks.json",
+      "sha256": "bf1bee18997af6d421fcee1dec991ee282a83d9c7903f8804250df2aecf990a3"
+    },
+    "protein_source_stability": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_stability.json",
+      "sha256": "0c8defa0e13a31f74344461c5c36e743c0c1d67e48bb9c8e0b9232be7d162b8a"
+    },
+    "dedicated_pLN": {
+      "path": "/data/io60-current/evaluations/blocker_remediation_20261102/pln-full19-candidate-20261102/06_typing/receipt.json",
+      "sha256": "3fb05aa0b51a4742e63ba42f717df338bfff70e3ab45946628eb61c558ab6d3f"
+    },
+    "pLN_source_stability": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/config/pln_source_stability.json",
+      "sha256": "fb81d04bc6345c39d44f298756a50ed7eaafedda990c8eb284f485d28ff49edb"
+    }
+  },
+  "protein_source_validation": {
+    "audit": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_stability.json",
+      "sha256": "0c8defa0e13a31f74344461c5c36e743c0c1d67e48bb9c8e0b9232be7d162b8a"
+    },
+    "snapshot": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_snapshot_attempt2.json",
+      "sha256": "f84d34df56cde90896cad2b6a4005afe7a99ab1a72d69ac1dd867d15a2f89a16"
+    },
+    "runner_manifest": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/releases/protein-availability-candidate/06_typing/pancreas/run.json",
+      "sha256": "3492759c4b4ea5152adc6975d2ad1b76ceb25e650ccd7199b9b7e35349ed1a57"
+    },
+    "closure_sources": 49,
+    "declared_runner_sources": 7,
+    "checker_current_source": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/scripts/evaluation/check_protein_producer_snapshot.py",
+      "sha256": "d3bf4483a9a10b9d9a0c157c1899df7982e8710332519074db3a77b97212d318"
+    },
+    "checker_binding_scope": "current delivery-time checker source; report schema does not self-identify its producer",
+    "scope": "declared protein producers and conservative static local-import closure; not a runtime trace",
+    "limitations": "Conditional imports may overinclude files. File comparison proves equality at launch and audit; it does not continuously monitor intermediate writes. Dataset and registry inputs are checked by stage receipts separately."
+  },
+  "failed_attempt_evidence": {
+    "protein_original_launch_snapshot": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/blocker_remediation_20261102/protein/producer_snapshot.json",
+      "sha256": "a3da0ac4f6ace3e1344b685599ee36231a515d985af18a10d7daf879a5c86a19"
+    }
+  },
+  "delivery_verification_environment": {
+    "scope": "current delivery checks only; not substituted for producer environments",
+    "executable": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/.venv/bin/python",
+    "python": "3.12.3",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "2.5.1",
+      "pandas": "3.0.5",
+      "scipy": "1.18.0",
+      "pyarrow": "25.0.0",
+      "pytest": "9.1.1"
+    }
+  }
+}

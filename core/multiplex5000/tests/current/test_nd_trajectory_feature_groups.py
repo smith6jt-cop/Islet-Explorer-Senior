@@ -9,6 +9,25 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import build_nd_referenced_trajectories as trajectories  # noqa: E402
 
 
+def test_qc_and_archived_macrophage_splits_are_not_graph_features():
+    labels = [
+        "feature__endocrine__unresolved_fraction",
+        "feature__immune__doublet_suspected_per_endocrine",
+        "feature__immune__macrophage_profile_CD68+CD163+Macrophage_LGALS3+CD4+_per_endocrine",
+        "feature__immune__macrophage_profile_Macrophage_Gal3+_per_endocrine",
+        "feature__immune__macrophage_profile_Macrophage_Gal3-_per_endocrine",
+    ]
+    frame = pd.DataFrame({"donor_id": ["1", "2"], "donor_status": ["ND", "ND"]})
+    for f in labels:
+        frame[f] = [0.1, 0.2]
+        frame["available__" + f.removeprefix("feature__")] = [True, True]
+    selected, audit = trajectories.select_features(frame)
+    assert selected == labels[-2:]
+    assert audit["rejected_features"][labels[0]] == "qc_or_unresolved_identity"
+    assert audit["rejected_features"][labels[1]] == "qc_or_unresolved_identity"
+    assert audit["rejected_features"][labels[2]] == "legacy_or_unrecognised_macrophage_profile"
+
+
 def test_unavailable_stromal_identity_does_not_block_measured_group_trajectory():
     gate = trajectories.feature_group_gate(
         ["endocrine", "vascular", "lymphatic", "neural", "immune"])

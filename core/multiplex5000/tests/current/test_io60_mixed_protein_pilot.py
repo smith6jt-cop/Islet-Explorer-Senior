@@ -1,12 +1,39 @@
 """The bounded IO60 Stage 06 route keeps unavailable channels and paths honest."""
 
+import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from multiplex5000 import project
+import pytest
+
+from multiplex5000 import project, tasks
 from multiplex5000.stages import io60_mixed_protein_pilot as mixed
 from multiplex5000.stages import typing
 from multiplex5000.tasks import Input, Task
+
+
+def test_parameter_producer_hashes_obey_actual_stage_read_audit(tmp_path, monkeypatch):
+    """Producer hashing is a real file read and must be declared before execution."""
+    monkeypatch.setattr(mixed, "_cohort_rows", lambda: [])
+    monkeypatch.setattr(mixed, "_donors", lambda project: [])
+    monkeypatch.setattr(mixed, "_source", lambda project, name: tmp_path / name)
+    selected = SimpleNamespace(settings={})
+    declared = mixed.inputs(selected)
+    staging = tmp_path / "stage"
+    staging.mkdir()
+    task = Task(mixed.STAGE, "candidate", staging,
+                {item.name: item for item in declared}, project=selected)
+    opened = set()
+    token = tasks._OPENED.set(opened)
+    try:
+        result = mixed.write_resolved_parameters(
+            task, operation="protein_typing", context={}, parameters=[], acquisitions=[],
+            producer_paths=(Path(mixed.__file__), mixed.RUNNER, mixed.RUNNER.parent / "refine.py"))
+    finally:
+        tasks._OPENED.reset(token)
+    assert result["status"] == "written"
+    assert tasks._undeclared(opened, declared, staging) == []
 
 
 def test_tracked_mixed_project_selects_the_single_stage_module():

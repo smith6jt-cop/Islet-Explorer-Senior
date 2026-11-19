@@ -11,6 +11,28 @@ The big-data, multimodal successor to Islet Explorer — an interactive R Shiny 
 
 ## Overview
 
+For source inventory, protein/RNA typing, same-slide comparison, serial MALDI,
+parameter recording and evaluation, start with the
+[current workflow user guide](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md) and
+[blocker-remediation report](docs/evaluations/blocker_remediation_20261102/README.md).
+The follow-up preserves all 201 declared acquisitions and separates implemented
+repairs, completed candidates and missing scientific evidence.
+The [original portability evaluation](docs/evaluations/dynamic_portability_20261102/README.md)
+remains frozen historical evidence. Candidate processing and evaluation do not
+activate either app's production release.
+
+- Protein: [CODEX replay](docs/evaluations/blocker_remediation_20261102/codex.md),
+  [received CODEX handoff](docs/evaluations/blocker_remediation_20261102/codex_received_handoff.md),
+  [received component/Ki67 handoff](docs/evaluations/blocker_remediation_20261102/codex_received_component_handoff.md),
+  [IO60 and dedicated pLN candidates](docs/evaluations/blocker_remediation_20261102/README.md#results-and-scope),
+  [spleen provenance](docs/evaluations/blocker_remediation_20261102/spleen_provenance.md).
+- RNA: [Xenium-only and full-cohort workflow](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md#xenium-only-and-full-cohort-rna).
+- Same-slide: [batch coordination](docs/evaluations/blocker_remediation_20261102/geom1.md)
+  and [candidate-link contracts](docs/evaluations/blocker_remediation_20261102/geom2.md).
+- MALDI: [registration/object contracts](docs/evaluations/blocker_remediation_20261102/maldi.md)
+  and the local [32-section scaling plots](outputs/blocker_remediation_20261102/maldi_scaling/index.html).
+- Parameters: [recording, MCP, retry and export](docs/PORTABILITY_REMEDIATION_USER_GUIDE.md#parameters-inspect-record-retry-and-export).
+
 Islet Explorer is a modular R Shiny application serving **two deliberately separate datasets**, one
 at a time, selected by the `ISLET_DOMAIN_CONFIG` environment variable. They share five donors and no
 vocabulary, so they are **never merged**: a cross-donor comparison spanning both would compare
@@ -234,8 +256,11 @@ above.
 The upstream source workflow is the manifest-controlled
 QuPath → ingest → geometry QC → REDSEA → expression pipeline in
 [core/multiplex5000/README.md](core/multiplex5000/README.md). It stops after
-expression: marker calling and typing are blocked until a verified typing
-workflow exists (root `CLAUDE.md`). Run it from `core/multiplex5000/`, which owns
+expression: this legacy measurement API keeps marker calling and typing blocked.
+The separate receipt-backed `mplx5k` projects provide candidate typing routes;
+their supported scope and remaining blockers are documented in the
+[workflow guide](docs/PORTABILITY_EVALUATION_USER_GUIDE.md). Run the legacy API
+from `core/multiplex5000/`, which owns
 the only `config.ini`:
 
 ```bash

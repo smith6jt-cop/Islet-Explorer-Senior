@@ -1,0 +1,36 @@
+{
+  "schema": "senior.codex_card_controls_handoff_receipt/1",
+  "recorded_utc": "2026-11-03T18:02:50.741511+00:00",
+  "status": "received_and_read_adaptation_unapplied",
+  "grouped_source_documentation_commit": "ccda49712c7df0e28634d843155c98977c961eae",
+  "reported_accessible_label_successor": "d6405d659af957681651ce579ac5ff2e6cf5c2d7",
+  "document_capture": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_handoff_20261103/document_capture.json",
+    "sha256": "b869414b8b9076c0fcd3e7c6cb8c5a862bb7d25093739a330ca8ad9ad5ccd707",
+    "bytes": 2750
+  },
+  "guide_semantics_read": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_card_controls_handoff_20261103/guide_read.json",
+    "sha256": "13b6b8861d86eed801703f1f38960fa3deb41e293108ed81e6f415cd5ea86c51",
+    "bytes": 8897
+  },
+  "read_scope": "Card update and exact committed user/workflow/Unclassified guidance; no code implementation audit, tests, browser or runtime verification.",
+  "semantic_contracts": [
+    "Composition Include selection stays empty when empty; selected bars and CSV selected percentages retain separate original denominators.",
+    "PAGA and UMAP coloring join stable object identities without refitting or moving their shared/saved coordinates.",
+    "Macrophage master selects displayed disjoint children only; palettes and marker splitting stay synchronized across cards and details.",
+    "Unclassified parent is distinct from literal raw Unclassified. Its four leaves are display evidence states; raw labels and hidden-conflict denominator membership remain preserved.",
+    "Both loading routes compute biological aggregates from original labels before display projection. All T cells retains raw unresolved T cells; CD45-negative residual is not added to All immune cells.",
+    "Source documentation counts and diagnostic assertions remain supplied claims; prior18df/1596 runtime evidence is not finald640 native acceptance."
+  ],
+  "recipient_adaptation": {
+    "status": "unapplied",
+    "final_native_runtime_proof": "pending",
+    "port_approval": false,
+    "production_activation": false
+  },
+  "scientific_mutation": false,
+  "source_or_service_actions": false,
+  "prior_receipts_changed": false,
+  "retention": "Prior protected preview backing resources remain preserved; no cleanup or runtime successor activation performed."
+}

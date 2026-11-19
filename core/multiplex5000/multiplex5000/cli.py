@@ -6,8 +6,9 @@
     mplx5k gate accept 00_inventory --by NAME   # refused while a blocking check fails
     mplx5k graph --dry-run                      # the Snakemake route (needs the workflow extra)
 
-Every command takes ``--project`` (an id under ``core/multiplex5000/projects`` or a path; default
-``io60``) and ``--releases-root`` (default: the site's). The notebooks call the same code.
+Project/release commands take ``--project`` (an id under ``core/multiplex5000/projects`` or a path; default
+``io60``) and ``--releases-root`` (default: the site's). The notebooks call the same code. ``gammadelta`` instead binds a frozen input contract
+and an explicit new output directory. ``sequential`` reuses explicit pinned result packages in a fresh review workspace. ``context`` inspects configuration without running stages.
 
 MultiPlex5000 D3 (2026-10-20).
 """
@@ -15,8 +16,10 @@ MultiPlex5000 D3 (2026-10-20).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +27,7 @@ from pathlib import Path
 from . import __version__, gates, roots, stages, tasks
 from . import project as projects
 from .pln_sources import PLNSourceError, load_exports
+from .runtime_context import runtime_context, path_status
 
 WORKFLOW = Path(__file__).resolve().parent / "workflow"
 
@@ -33,11 +37,62 @@ def _project(args) -> projects.Project:
     return projects.load(args.project, releases_root=root)
 
 
+def _followup_command(project: projects.Project, action: str, stage: str) -> str:
+    """Pin the effective context, including defaults, so changing cwd cannot retarget a gate."""
+    # Make the imported producer explicit, even if a later shell sets PYTHONPATH
+    # to another checkout. This does not make a mutable checkout immutable.
+    command = ["env", f"PYTHONPATH={Path(__file__).resolve().parents[1]}"]
+    if roots.SITE is not None:
+        command.append(f"{roots.SITE_FILE_ENV}={roots.SITE['path'].resolve()}")
+    command += [sys.executable, "-m", "multiplex5000.cli", "gate", action, stage,
+                "--project", str(project.path.resolve()),
+                "--releases-root", str(project.releases_root.absolute())]
+    if action == "accept":
+        command += ["--by", "REVIEWER_NAME"]
+    return shlex.join(command)
+
+
+def _review_commands(project: projects.Project, stage: str) -> None:
+    print(f"  show: {_followup_command(project, 'show', stage)}")
+    try:
+        accepted = gates.accepted(project.release_dir / stage)
+    except gates.GateError:
+        accepted = None
+    if accepted is None and stage not in project.automatic_gates:
+        print("  replace REVIEWER_NAME with your name; acceptance requires passing blocking checks")
+        print(f"  accept after review: {_followup_command(project, 'accept', stage)}")
+
+
+def _context(args) -> int:
+    project = _project(args)
+    sources = dict(roots.SITE.get("sources", {})) if roots.SITE else {}
+    sources.update(project.sources)
+    print(json.dumps({
+        "schema": "multiplex5000-context/1", "side_effects": False,
+        "receipt_freshness_checked": False,
+        "runtime": runtime_context(),
+        "project": {"id": project.id, "path": str(project.path),
+                    "sha256": hashlib.sha256(project.path.read_bytes()).hexdigest(),
+                    "release": project.release, "cohort": project.cohort,
+                    "releases_root": str(project.releases_root.absolute()),
+                    "release_dir": str(project.release_dir.absolute()),
+                    "stages": list(project.stages),
+                    "automatic_gates": list(project.automatic_gates)},
+        "configured_sources": {name: {**path_status(Path(path)),
+                               "binding": "project" if name in project.sources else "site"}
+                               for name, path in sorted(sources.items())},
+        "scope": "Configuration and path availability only; not full source hashing, "
+                 "receipt freshness, scientific acceptance or a release activation.",
+    }, indent=2))
+    return 0
+
+
 def _stage_run(args) -> int:
     project = _project(args)
     result = tasks.run_stage(stages.get(args.stage), project, force=args.force)
     if result.status == "complete":
         print(f"{result.stage}: already complete at {result.path} (use --force to run it again)")
+        _review_commands(project, result.stage)
         return 0
     verdict = "passes" if result.gate_passed else "FAILS a blocking check"
     print(f"{result.stage}: published {result.path}; its gate {verdict}")
@@ -46,8 +101,8 @@ def _stage_run(args) -> int:
     if result.accepted_automatically:
         print("  accepted automatically (the project file marks this gate automatic)")
     else:
-        print(f"  read {result.path / 'gate' / 'gate.html'}, then: mplx5k gate accept "
-              f"{result.stage} --by <name>")
+        print(f"  read {result.path / 'gate' / 'gate.html'}")
+    _review_commands(project, result.stage)
     return 0
 
 
@@ -208,6 +263,9 @@ def parser() -> argparse.ArgumentParser:
     common.add_argument("--releases-root", help="where releases are built (default: the site's)")
     sub = top.add_subparsers(dest="command", required=True)
 
+    sub.add_parser("sequential", help="reuse, verify and review sequential Xenium–PhenoCycler results")
+    sub.add_parser("gammadelta", help="select and validate native RNA candidates and coordinates")
+
     stage = sub.add_parser("stage", help="run one stage").add_subparsers(dest="action",
                                                                          required=True)
     run = stage.add_parser("run", parents=[common], help="run a stage through the task contract")
@@ -215,6 +273,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="store_true",
                      help="run again and replace the published output (moved aside, not deleted)")
     run.set_defaults(handler=_stage_run)
+
+    context = sub.add_parser("context", parents=[common],
+                             help="read-only runtime, project and output-location inspection (JSON)")
+    context.set_defaults(handler=_context)
 
     status = sub.add_parser("status", parents=[common], help="where the release stands")
     status.set_defaults(handler=_status)
@@ -254,6 +316,12 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "sequential":
+        from .integration.sequential_cli import main as sequential_main
+        return sequential_main(argv[1:])
+    if argv and argv[0] == "gammadelta":
+        from .gammadelta.cli import main as gammadelta_main
+        return gammadelta_main(argv[1:])
     extra: list[str] = []
     if "--" in argv:
         cut = argv.index("--")

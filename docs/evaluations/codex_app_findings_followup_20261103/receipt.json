@@ -1,0 +1,100 @@
+{
+  "schema": "senior.codex_app_findings_followup/1",
+  "recorded_utc": "2026-11-03T14:09:29.400353+00:00",
+  "status": "both_reported_findings_resolved_no_remaining_concrete_correctness_blocker_in_reviewed_correction",
+  "reviewed_source_commit": "81b3857b45e7870fd4d43dee3751c8d956619052",
+  "source_parent": "99bb82c87f4449c034d3c24276c7ebb2eb343e9d",
+  "prior_review": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/evaluations/codex_app_layout_addendum_20261103/receipt.json",
+    "sha256": "9fd19cfd9c3442b8f67aa83d860d4a847f99223bfa0b51ba81df7e458cd7f439",
+    "bytes": 10116
+  },
+  "evidence": {
+    "helper_review/helper_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/helper_review/helper_review.json",
+      "sha256": "4851a32798f93628b52c33163fcc2c019764650f7baa0dff7b62daf4994b78be",
+      "bytes": 12237
+    },
+    "evidence_review/evidence_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/evidence_review/evidence_review.json",
+      "sha256": "87c0caedd3513e5681431ffed7d6a484e59e2d6c463b78f2f81ec9838207bc7c",
+      "bytes": 21349
+    },
+    "spatial_review/spatial_review.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/spatial_review/spatial_review.json",
+      "sha256": "7f16840abf02ed6a024f45b794f55260194c051e1cc56a48a7d057ab85b87be5",
+      "bytes": 20122
+    },
+    "final_commit_binding.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/final_commit_binding.json",
+      "sha256": "b74b590850dc32a24f42a83178f6673e79aab146ca0011cc4eaee9fe0c92eb39",
+      "bytes": 1614
+    },
+    "artifact_manifest.json": {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/artifact_manifest.json",
+      "sha256": "ee441f62e8031979c17b7339e7e56673e079682207700e1057162e557bc6283d",
+      "bytes": 22996
+    }
+  },
+  "resolved_findings": [
+    {
+      "id": "APP-MACROPHAGE-MIXED-ROOT-1",
+      "resolution": "All five destination families retained; original member columns used throughout. Original reproduction peri_count30,z3.8729833462074152; input unchanged and repeat call idempotent."
+    },
+    {
+      "id": "LAYOUT-1200-AXIS-TICK",
+      "resolution": "Complete5000 tick and full legends in both1200 screenshots; both1600 views remain complete. Light/dark margin inheritance checked."
+    }
+  ],
+  "independent_validation": {
+    "focused_assertions": 138,
+    "focused_test_cases": 23,
+    "separate_overlapping_helper_assertions": 88,
+    "helper_test_blocks": 13,
+    "profile_only_synthetic_cases": 1024,
+    "mixed_synthetic_cases": 1024,
+    "unexpected_synthetic_results": 0,
+    "supplied_input_helper_hashes_checked": 9,
+    "scenario_rosters_checked": [
+      16,
+      48
+    ],
+    "screenshots_inspected": 4,
+    "launch_source_hashes_matching_current": {
+      "tracked": 73,
+      "untracked_generated": 2
+    },
+    "prior_layout_artifacts_reverified_unchanged": 52
+  },
+  "measurement_limits": {
+    "panel_heights_px": {
+      "default1200": 400.80333467378364,
+      "all27_1200": 400.80237596550626,
+      "default1600": 454.1760002278794,
+      "all27_1600": 482.5363404328895
+    },
+    "brush_reset": "Sender-run all27/1600 only; saved exact reset equality checked.",
+    "downloads": "Link presence and position, not file contents.",
+    "real_release_numerical_results": "Supplied-run16/48scenario evidence reviewed, not independently recomputed.",
+    "supplied_full_suite": "Sender reports601pass and35parsedfiles; recipient independently ran focused suites.",
+    "warning_scope": "Zero focused framework warnings; tibble package-build-version warning emitted outside framework count.",
+    "provenance": "48scenario report omits runner and six loaded runtime-source execution hashes and donor-keyed intermediate results; current copies archived without asserting past execution closure."
+  },
+  "mutation_scope": {
+    "source_repository_changed": false,
+    "scientific_outputs_changed": false,
+    "parameter_history_changed": false,
+    "prior_receipts_changed": false,
+    "services_changed": false,
+    "image_built": false,
+    "deployment_approved": false
+  },
+  "remaining_acceptance": "New immutable-image/runtime/Viewer/Range/public-dev checks remain outside this source and saved-visual closure. No scientific generalization is implied.",
+  "notification": "Upstream delivery attempted separately after local commit; receipt creation is not a claim of message delivery.",
+  "final_documentation_commit": "c122e59c056d4b1eebc8c4c27eb6e7d249fd75e7",
+  "final_documentation_evidence": {
+    "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/outputs/codex_app_findings_followup_20261103/final_documentation_binding.json",
+    "sha256": "7a1c9c4e455cde32a5004353d018e7c5184738c5c5508fa4afd80f44769e8efe",
+    "bytes": 13239
+  }
+}

@@ -14,7 +14,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..protein_evidence import ProteinEvidence, candidate_calls
+from ..protein_evidence import (
+    REQUIRE_MIN,
+    ProteinEvidence,
+    candidate_calls,
+    validate_cutoff_fraction,
+)
 from .evaluate import BatchRuleEvaluation, evaluate_rules_batch
 from .lymph_node import RuleSource
 
@@ -33,7 +38,8 @@ class ProteinSectionEvidence:
 def evaluate_protein_section(source: RuleSource, section: str,
                              measurements: Mapping[str, np.ndarray],
                              nucleus_eligible: np.ndarray,
-                             shifts: Mapping[str, float | None]) -> ProteinSectionEvidence:
+                             shifts: Mapping[str, float | None], *,
+                             cutoff_fraction: float = REQUIRE_MIN) -> ProteinSectionEvidence:
     """Produce per-cell marker and hierarchy states in this section's units.
 
     ``measurements`` is keyed by actual panel marker names; the rule source
@@ -41,6 +47,7 @@ def evaluate_protein_section(source: RuleSource, section: str,
     marker are rejected. An unscaled measured marker is reported unavailable.
     Rule results are matches and evidence gaps, not a final served cell class.
     """
+    cutoff_fraction = validate_cutoff_fraction(cutoff_fraction)
     if not measurements:
         raise ProteinSectionError("a protein section needs measured marker columns")
     if set(shifts) - set(measurements):
@@ -50,7 +57,7 @@ def evaluate_protein_section(source: RuleSource, section: str,
         raise ProteinSectionError("nucleus admission must be one Boolean per cell")
     markers = {
         marker: candidate_calls(section, marker, values, eligible,
-                                shift_scale=shifts.get(marker))
+                                shift_scale=shifts.get(marker), cutoff_fraction=cutoff_fraction)
         for marker, values in sorted(measurements.items())
     }
     evaluated = evaluate_rules_batch(source, {marker: item.states

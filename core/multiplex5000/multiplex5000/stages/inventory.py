@@ -1173,7 +1173,7 @@ def run(task: Task) -> dict:
 
     found_maldi = None
     if maldi_inventory.enabled(task):
-        found_maldi = maldi_inventory.collect(task, cohort.donor_aliases, donors, acquisitions)
+        found_maldi = maldi_inventory.collect(task, cohort.donor_aliases, acquisitions)
         maldi_inventory.extend_coverage(coverage, found_maldi)
         reading.relationships.extend(maldi_inventory.relationships_for(task, found_maldi))
         maldi_inventory.write(task, found_maldi)

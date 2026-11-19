@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Spatial — you are here"><defs><clipPath id="pl"><circle cx="256" cy="256" r="222"/></clipPath></defs><circle cx="256" cy="256" r="250" fill="#083a44"/><circle cx="256" cy="256" r="238" fill="#f0b93a"/><circle cx="256" cy="256" r="222" fill="#f6ecd0"/><path d="M96,170 L196,140 L316,176 L416,146 L416,372 L316,402 L196,366 L96,396Z" fill="#fffaf0" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<path d="M196,140 V366 M316,176 V402" stroke="#083a44" stroke-opacity=".35" stroke-width="5"/>
+<path d="M130,350 Q170,270 230,300 T330,250" fill="none" stroke="#d8452b" stroke-width="7" stroke-dasharray="3 16" stroke-linecap="round"/>
+<path d="M124,338 l14,24 M138,338 l-14,24" stroke="#d8452b" stroke-width="7" stroke-linecap="round"/>
+<path d="M340,262 Q286,190 286,150 A54,54 0 1 1 394,150 Q394,190 340,262Z" fill="#d8452b" stroke="#083a44" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="340" cy="150" r="22" fill="#f6ecd0" stroke="#083a44" stroke-width="7"/><path fill="#f0b93a" d="M150,196 Q150,210 164,210 Q150,210 150,224 Q150,210 136,210 Q150,210 150,196Z"/></svg>

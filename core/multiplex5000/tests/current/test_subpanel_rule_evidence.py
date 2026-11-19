@@ -140,3 +140,13 @@ def test_unavailable_rule_evidence_is_audited_without_inventing_a_type():
     assert unavailable_count.tolist() == [1, 0]
     assert audit["Imm-fixture"]["n_unavailable"] == 1
     assert audit["Imm-fixture"]["n_firing"] == 0
+
+
+def test_nk_coexpression_does_not_require_an_unrelated_positive_lineage():
+    import immune_subtype
+    import rules
+    expected = (["CD56"], [["CD57", "Granzyme_B"]], ["CD3e", "E_cadherin", "Pan_Cytokeratin"])
+    assert SUB.immune_rules()["Imm-NK-cell"] == expected
+    assert immune_subtype.immune_rules()[1]["Imm-NK-cell"] == expected
+    flat = rules.flatten(rules.load_rules())["Imm-NK-cell"]
+    assert {"CD68", "CD20", "CD11b", "CD209", "CD66", "CD79a", "Iba1", "MPO"}.isdisjoint(flat)

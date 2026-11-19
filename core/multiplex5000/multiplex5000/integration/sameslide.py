@@ -48,15 +48,14 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from ..config import PipelineConfig, load_config
+from . import modes
 from .contract import read_cell_table
 from .manifest import load_manifest, paired_rows, rows_for_scope
-from . import modes
 from .register import registration_dir
 from .transform import Transform
 
@@ -71,8 +70,8 @@ class ModeError(RuntimeError):
     """Called in the wrong integration mode."""
 
 
-def require_same_slide(cfg: PipelineConfig, donor: Optional[str] = None,
-                      roi: str = "panc", serial: Optional[str] = None) -> None:
+def require_same_slide(cfg: PipelineConfig, donor: str | None = None,
+                      roi: str = "panc", serial: str | None = None) -> None:
     """Hard guard. Cell-to-cell pairing is only valid for one physical section.
 
     The mode is resolved per (donor, roi, xenium_serial) from
@@ -100,8 +99,8 @@ def require_same_slide(cfg: PipelineConfig, donor: Optional[str] = None,
         )
 
 
-def require_sequential(cfg: PipelineConfig, what: str, donor: Optional[str] = None,
-                       roi: str = "panc", serial: Optional[str] = None) -> None:
+def require_sequential(cfg: PipelineConfig, what: str, donor: str | None = None,
+                       roi: str = "panc", serial: str | None = None) -> None:
     """The mirror-image guard, for steps whose semantics assume distinct sections."""
     effective = modes.mode_for(cfg, donor, roi, serial) if donor else cfg.integration_mode
     if effective != "sequential":
@@ -119,18 +118,25 @@ def match_by_centroid(
     *,
     max_dist_um: float = DEFAULT_MAX_DIST_UM,
 ) -> pd.DataFrame:
-    """Mutual-nearest centroid pairing within a distance cap."""
+    """Unique mutual-nearest candidates within a distance cap.
+
+    Equal nearest distances are ambiguous in either direction. KD-tree row order
+    must never decide a link between independently segmented cells.
+    """
     empty = pd.DataFrame(columns=["moving_idx", "fixed_idx", "distance_um"])
     if len(moving_xy) == 0 or len(fixed_xy) == 0:
         return empty
     from scipy.spatial import cKDTree
 
     t_fixed, t_moving = cKDTree(fixed_xy), cKDTree(moving_xy)
-    d_mf, i_mf = t_fixed.query(moving_xy, k=1)
-    _d_fm, i_fm = t_moving.query(fixed_xy, k=1)
+    d_mf, i_mf = t_fixed.query(moving_xy, k=2)
+    d_fm, i_fm = t_moving.query(fixed_xy, k=2)
+    moving_unique = d_mf[:, 0] < d_mf[:, 1]
+    fixed_unique = d_fm[:, 0] < d_fm[:, 1]
+    d_mf, i_mf, i_fm = d_mf[:, 0], i_mf[:, 0], i_fm[:, 0]
 
     mutual = i_fm[i_mf] == np.arange(len(moving_xy))
-    keep = mutual & (d_mf <= max_dist_um)
+    keep = mutual & moving_unique & fixed_unique[i_mf] & (d_mf <= max_dist_um)
     if not keep.any():
         return empty
     idx = np.flatnonzero(keep)
@@ -236,7 +242,7 @@ def match_tables_by_iou(mv_poly, fx_poly, moving, fixed, *, min_iou):
     fx_pos = {c: i for i, c in enumerate(fixed.df["cell_id"])}
     mv = [mv_pos.get(mv_poly.index[int(i)]) for i in pairs["moving_idx"]]
     fx = [fx_pos.get(fx_poly.index[int(i)]) for i in pairs["fixed_idx"]]
-    keep = [j for j, (a, b) in enumerate(zip(mv, fx)) if a is not None and b is not None]
+    keep = [j for j, (a, b) in enumerate(zip(mv, fx, strict=False)) if a is not None and b is not None]
     pairs = pairs.iloc[keep].reset_index(drop=True)
     return pairs.assign(moving_idx=[mv[j] for j in keep], fixed_idx=[fx[j] for j in keep])
 
@@ -270,7 +276,7 @@ def pair_donor(
     method: str = "auto",
     min_iou: float = 0.25,
     pheno_base=None,
-    serial: Optional[str] = None,
+    serial: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     """Pair one donor's cells across modalities on the same section.
 
@@ -382,10 +388,10 @@ def build_paired_matrix(
 
 def run_sameslide(
     cfg: PipelineConfig,
-    donors: Optional[list[str]] = None,
+    donors: list[str] | None = None,
     *,
-    roi: Optional[str] = None,
-    tissue: Optional[str] = None,
+    roi: str | None = None,
+    tissue: str | None = None,
     max_dist_um: float = DEFAULT_MAX_DIST_UM,
 ) -> pd.DataFrame:
     """Stage entry point for same-slide mode. One call covers the whole selection."""
@@ -435,7 +441,7 @@ def run_sameslide(
     return stats_df
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Same-slide cell-to-cell pairing")
     ap.add_argument("--config", default=None)
     ap.add_argument("--donor", action="append", dest="donors")

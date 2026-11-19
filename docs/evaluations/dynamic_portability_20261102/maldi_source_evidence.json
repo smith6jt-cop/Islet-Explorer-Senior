@@ -1,0 +1,1941 @@
+{
+  "schema": "maldi-source-evidence/1",
+  "scope": "read-only source audit before new visual inspection",
+  "sources": [
+    {
+      "path": "/data/io60-current/sources/maldi/wilkes_2026-10/README.txt",
+      "sha256": "4f2ffa8ac416e0d2041e2585603b183fc1e19ff7c0c944d17fe6758486056831",
+      "bytes": 293
+    },
+    {
+      "path": "/data/io60-current/sources/maldi/wilkes_2026-10/SHA256SUMS",
+      "sha256": "0115d927b86794d281b387674a69ad19d590d3d9e7ccb44ff002b296de2380b3",
+      "bytes": 196
+    },
+    {
+      "path": "/home/smith6jt/Downloads/wilkes_pancreas_glyc.zip",
+      "sha256": "fb262b2a3fb626cb30afda99f2ba46ca319b3ed0daca654e0a97d9ee52f7a658",
+      "bytes": 174554364
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/Xenium_Visium request.xlsx",
+      "sha256": "23c85b33fa54137a168da8a0548b02bd46fd896fc85e00ee81605b6f614011f6",
+      "bytes": 210782
+    },
+    {
+      "path": "/data/io60-current/releases/io60-maldi-candidate-1/00_inventory/receipt.json",
+      "sha256": "e6ab030be2f160b24743e0427738a3922951a3a5f1f9c68bbdb44ab4478a28a6",
+      "bytes": 172347
+    },
+    {
+      "path": "/data/io60-current/releases/io60-maldi-candidate-1/00_inventory/acquisitions.csv",
+      "sha256": "bb230b3b64a085ac00f10d171d72740fe08c56bafe2212c8ee430bbbde32a89a",
+      "bytes": 80113
+    },
+    {
+      "path": "/data/io60-current/releases/io60-maldi-candidate-1/00_inventory/maldi_acquisitions.csv",
+      "sha256": "be128e1a852b0cea1916f1366ae0a232a4cd041adc6974e2be8f50a8028290ac",
+      "bytes": 12264
+    },
+    {
+      "path": "/home/smith6jt/IO60panc2nd/Islet-Explorer-Senior/docs/PLAN_2026-10-31_MALDI_SEQUENTIAL.md",
+      "sha256": "9a0019940d76e4e589d45d6048a919c39f82571057a12441d2f345471287228b",
+      "bytes": 19977
+    }
+  ],
+  "supplier_archive_members": [
+    {
+      "name": "wilkes_pancreas_glycogen_pbp.csv",
+      "bytes": 218439698
+    },
+    {
+      "name": "wilkes_pancreas_glycan_pbp.csv",
+      "bytes": 433070758
+    }
+  ],
+  "supplier_archive_has_optical_images_or_section_manifest": false,
+  "raw_metadata_columns": [
+    "spotId",
+    "raster",
+    "x",
+    "y",
+    "z",
+    "Tissue_id",
+    "Date"
+  ],
+  "source_directory_members": [
+    "README.txt",
+    "SHA256SUMS",
+    "wilkes_pancreas_glycan_pbp.csv",
+    "wilkes_pancreas_glycogen_pbp.csv"
+  ],
+  "recorded_serial_scope": "Maintainer declaration in the dated plan: MALDI sections are sequential slides from the same series as PhenoCycler and Xenium; different cells.",
+  "inspection_authority": "The dated plan specifies visual comparison of ion images with candidate reference slides, never Tissue_id parsing.",
+  "unrecorded": [
+    "MALDI physical slide identifiers",
+    "exact cutting order or section-to-section distances",
+    "MALDI block-to-acquisition manifest",
+    "independent MALDI optical scan"
+  ],
+  "comparison_figure": {
+    "path": "/data/io60-current/releases/io60-maldi-candidate-1/00_inventory/gate/maldi_sections.png",
+    "sha256": "2308b6b219b8dba9614a2017024d1db828c99346e1e2725130c29c347772d30b",
+    "bytes": 6060744
+  },
+  "xenium_block_records": [
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 1,
+      "cells": {
+        "A1": "Donor_ID",
+        "B1": "Batch",
+        "M1": "Panc Block",
+        "N1": "Notes",
+        "O1": "PLN block",
+        "P1": "Notes",
+        "Q1": "Processing Notes"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 2,
+      "cells": {
+        "A2": "HDL115",
+        "B2": "1.0",
+        "M2": "PT02",
+        "N2": "tissue is 14 x 10mm",
+        "O2": "3.0",
+        "P2": "3 node area is 7mmH x 12mmW",
+        "Q2": "MM035: Batch1. Tissues sectioned on 09/16/2024. Processing initiated on 09/17/2024. \nO/N probe hybridization for approx. 18 hours. Cell segmentation staining for approx. 18 hours. \nXenium instrument run initiated 09/19/2024. Approx. 4 day run time (~85 hours). "
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 3,
+      "cells": {
+        "A3": "6591.0",
+        "B3": "1.0",
+        "M3": "PO 02",
+        "N3": "tissue is 14x11, has LN",
+        "O3": "1.0",
+        "P3": "whole tissue area with 2 nodes is 6mmHx8mmW, larger node is 6mmHx4mmW"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 8,
+      "cells": {
+        "A8": "6457.0",
+        "B8": "4.0",
+        "M8": "PH02A/PT03",
+        "O8": "2.0",
+        "Q8": "MM038: Batch4. Tissue section on 11/17/2024. \nO/N probe hybridization approx. 18 hours. Cell segmentation staining for approx. 18 hours. \nXenium run initiated on 11/20/2024. \nData looks fairly good. Stored in PBS until 12/4/2024 when IF staining was performed."
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 9,
+      "cells": {
+        "A9": "6476.0",
+        "B9": "4.0",
+        "M9": "PT01A",
+        "O9": "2.0"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 10,
+      "cells": {
+        "A10": "6380.0",
+        "B10": "5.0",
+        "M10": "PH01B",
+        "O10": "1.0",
+        "Q10": "MM039: Batch5. Tissue section on 11/17/2024. Run initiated on 11/25/2024.\nO/N probe hybridization approx. 18 hours. Cell segmentation staining for approx. 18 hours. \nXenium run initiated on 11/27/2024. \nData looks fairly good. Stored in PBS until 12/4/2024 when IF staining was performed."
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 11,
+      "cells": {
+        "A11": "6523.0",
+        "B11": "5.0",
+        "M11": "PB03A",
+        "O11": "3.0",
+        "P11": "PT02A and PLN 01 were cut for this batch"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 12,
+      "cells": {
+        "A12": "6579.0",
+        "B12": "6.0",
+        "M12": "PH02A",
+        "O12": "2.0",
+        "Q12": "MM040: Batch6. Tissue section on 12/13/2024. Run initiated on 12/16/2024.\nO/N probe hybridization approx. 18 hours. Cell segmentation staining for approx. 18 hours. \nXenium run initiated on 12/19/2024. \nData looks fairly good. "
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 13,
+      "cells": {
+        "A13": "6374.0",
+        "B13": "6.0",
+        "M13": "PT04",
+        "O13": "?"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 14,
+      "cells": {
+        "A14": "6461.0",
+        "B14": "7.0",
+        "M14": "PT02A",
+        "O14": "2.0",
+        "P14": "Slides recut 4/14/2025",
+        "Q14": "MM041: Batch 7. Xenium instrument failure. Attempt to repeat at a later date if possible.\nBatch 7 to be repeated. Scheduled to section 04/14/2025."
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 15,
+      "cells": {
+        "A15": "6566.0",
+        "B15": "7.0",
+        "M15": "PT05",
+        "O15": "2.0",
+        "P15": "Slides recut 4/14/2025"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 16,
+      "cells": {
+        "A16": "6493.0",
+        "B16": "8.0",
+        "M16": "PB02B",
+        "O16": "1.0",
+        "Q16": "MM042: Batch 8. Tissue sectioned on 02/17/25. Run initiated on 02/18/2025.\nO/N probe hyrbidization approx. 18.5 hours. Cell segmentation for approx. 18 hours.\nXenium instrument run initiated on 02/21/2025. \nOn 02/22/2025 experienced a software error which prematurely stopped the run. Was able to restart. To monitor.\nUpon completing the run it was determined that data quality is good and comparable to others. 02/25/25\nBegan Post-Xenium IF on 02/25/2025. Completed 02/26/2025. Imaged on 02/28/2025"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 17,
+      "cells": {
+        "A17": "6521.0",
+        "B17": "8.0",
+        "M17": "PH02D",
+        "O17": "2.0"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 18,
+      "cells": {
+        "A18": "6482.0",
+        "B18": "9.0",
+        "M18": "PT02A",
+        "O18": "2.0",
+        "Q18": "MM043: Batch 9. Tissue sectioned on 03/04/25. Run initiated on 03/05/2025.\nO/N probe hyrbidization approx. 18.5 hours. Cell segmentation for approx. 18 hours.\nXenium instrument run initiated on 03/07/2025. \n"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 19,
+      "cells": {
+        "A19": "6551.0",
+        "B19": "9.0",
+        "M19": "PT03B",
+        "O19": "3.0"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 20,
+      "cells": {
+        "A20": "6539.0",
+        "B20": "10.0",
+        "M20": "PH03",
+        "O20": "2.0",
+        "P20": "PH03 is unavailable. We would like to suggest PH01A, which has a lot of islets and an embedded PLN. - Amanda\nAcknowledged. Please go ahead and use the alternative.",
+        "Q20": "MM044: Batch 10. Tissue sectioned on 03/25/2025. Run initiated on 03/26/2025.\nO/N probe hybridization initiated at 11:45am. Approx. 18 hours. Resumed at 6am on 03/27/2025.\nXenium instrument run initiated on 03/28/2025."
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 21,
+      "cells": {
+        "A21": "6436.0",
+        "B21": "10.0",
+        "M21": "PT04B",
+        "O21": "2.0"
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 22,
+      "cells": {
+        "A22": "6593.0",
+        "B22": "11.0",
+        "M22": "PT09",
+        "O22": "2.0",
+        "Q22": "MM045: Batch 11. Tissue sectioned on 03/25/2025. Kept under desiccator until run initiated. Run initated on 03/30/2025.\nO/N probe hybridization began at 3:20pm on 03/30/2025 for approx. 18 hours.  Resumed at ~9:30 am on 03/31/2025."
+      }
+    },
+    {
+      "sheet": "Xenium 5k Donor Cohort",
+      "row": 23,
+      "cells": {
+        "A23": "6442.0",
+        "B23": "11.0",
+        "M23": "PT02D",
+        "O23": "pLN 0301?"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 1,
+      "cells": {
+        "A1": "Donor_ID",
+        "B1": "Batch",
+        "C1": "Tissue",
+        "D1": "Sample ID",
+        "E1": "Xenium Slide SN#:"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 2,
+      "cells": {
+        "A2": "HDL115",
+        "B2": "1.0",
+        "C2": "PT02/PLN03",
+        "D2": "HDL115PT02/PLN03",
+        "E2": "0041117"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 3,
+      "cells": {
+        "A3": "6591.0",
+        "B3": "1.0",
+        "C3": "PO02 (No pLN)",
+        "D3": "6591PO02 (No pLN)",
+        "E3": "0041116"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 8,
+      "cells": {
+        "A8": "6457.0",
+        "B8": "4.0",
+        "C8": "PT03 (Embedded pLN)",
+        "D8": "6457PT03 (Embedded pLN)",
+        "E8": "0037637"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 9,
+      "cells": {
+        "A9": "6476.0",
+        "B9": "4.0",
+        "C9": "PT01A/PLN02",
+        "D9": "6476PT01A/PLN02",
+        "E9": "0037634"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 10,
+      "cells": {
+        "A10": "6380.0",
+        "B10": "5.0",
+        "C10": "PH01B/PLN01",
+        "D10": "6380PH01B/PLN01",
+        "E10": "0037502"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 11,
+      "cells": {
+        "A11": "6523.0",
+        "B11": "5.0",
+        "C11": "PT02A/PLN01",
+        "D11": "6523PT02A/PLN01",
+        "E11": "0037499"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 12,
+      "cells": {
+        "A12": "6374.0",
+        "B12": "6.0",
+        "C12": "PT04/PLN01",
+        "D12": "6374PT04/PLN01",
+        "E12": "0041032"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 13,
+      "cells": {
+        "A13": "6579.0",
+        "B13": "6.0",
+        "C13": "PH02A/PLN02",
+        "D13": "6579PH02A/PLN02",
+        "E13": "0041035"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 14,
+      "cells": {
+        "A14": "6461.0",
+        "B14": "7.0",
+        "C14": "PT02A/PLN02",
+        "D14": "6461PT02A/PLN02",
+        "E14": "0059847"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 15,
+      "cells": {
+        "A15": "6566.0",
+        "B15": "7.0",
+        "C15": "PT05/PLN02",
+        "D15": "6566PT05/PLN02",
+        "E15": "0059968"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 16,
+      "cells": {
+        "A16": "6493.0",
+        "B16": "8.0",
+        "C16": "PB02B/PLN01",
+        "D16": "6493PB02B/PLN01",
+        "E16": "0037191"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 17,
+      "cells": {
+        "A17": "6521.0",
+        "B17": "8.0",
+        "C17": "PH02D/PLN02",
+        "D17": "6521PH02D/PLN02",
+        "E17": "0037199"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 18,
+      "cells": {
+        "A18": "6482.0",
+        "B18": "9.0",
+        "C18": "PT02A/PLN2",
+        "D18": "6482PT02A/PLN2",
+        "E18": "0037354"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 19,
+      "cells": {
+        "A19": "6551.0",
+        "B19": "9.0",
+        "C19": "PT03B/PLN3",
+        "D19": "6551PT03B/PLN3",
+        "E19": "0037376"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 20,
+      "cells": {
+        "A20": "6436.0",
+        "B20": "10.0",
+        "C20": "PT04B/PLN02",
+        "D20": "6436PT04B/PLN02",
+        "E20": "0059907"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 21,
+      "cells": {
+        "A21": "6539.0",
+        "B21": "10.0",
+        "C21": "PH01A/PLN02",
+        "D21": "6539PH01A/PLN02",
+        "E21": "0059865"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 22,
+      "cells": {
+        "A22": "6442.0",
+        "B22": "11.0",
+        "C22": "PT02D/PLN03",
+        "D22": "6442PT02D/PLN03",
+        "E22": "0059947"
+      }
+    },
+    {
+      "sheet": "PanTissue5k",
+      "row": 23,
+      "cells": {
+        "A23": "6593.0",
+        "B23": "11.0",
+        "C23": "PT09/PLN02",
+        "D23": "6593PT09/PLN02",
+        "E23": "0059945"
+      }
+    }
+  ],
+  "xenium_block_record_limit": "Run-sheet rows record Xenium blocks and serials, not MALDI block identity or physical adjacency. Some proposal/current run-sheet block values differ; preserve source sheet and cell.",
+  "sections": [
+    {
+      "tissue_id": "6374_01_pln",
+      "donor_id": "6374",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6374_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6374_Scan1.er.qptiff",
+          "qptiff": "6374_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041032:Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041032__Pan__20241219__201934",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041032"
+        },
+        {
+          "acquisition_id": "xenium:0041032:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041032__pLN__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0041032"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6374_04",
+      "donor_id": "6374",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6374_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6374_Scan1.er.qptiff",
+          "qptiff": "6374_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041032:Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041032__Pan__20241219__201934",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041032"
+        },
+        {
+          "acquisition_id": "xenium:0041032:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041032__pLN__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0041032"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6380_01",
+      "donor_id": "6380",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6380_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6380_Scan1.er.qptiff",
+          "qptiff": "6380_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6380pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6380pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037502:6380_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037502__6380_Pan__20241127__193857",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037502"
+        },
+        {
+          "acquisition_id": "xenium:0037502:6380_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037502__6380_pLN__20241127__193857",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037502"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6380_01b",
+      "donor_id": "6380",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6380_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6380_Scan1.er.qptiff",
+          "qptiff": "6380_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6380pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6380pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037502:6380_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037502__6380_Pan__20241127__193857",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037502"
+        },
+        {
+          "acquisition_id": "xenium:0037502:6380_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037502__6380_pLN__20241127__193857",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037502"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6436_04B",
+      "donor_id": "6436",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6436_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6436_Scan1.er.qptiff",
+          "qptiff": "6436_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6436pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6436pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059907:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059907__Panc__20250328__202338",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059907"
+        },
+        {
+          "acquisition_id": "xenium:0059907:PanT",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059907__pLN__20250328__202338",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059907"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6442_02D",
+      "donor_id": "6442",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6442_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6442_Scan1.er.qptiff",
+          "qptiff": "6442_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6442pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6442pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059947:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059947__Panc__20250401__152313",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059947"
+        },
+        {
+          "acquisition_id": "xenium:0059947:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059947__pLN__20250401__152313",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059947"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6442_03",
+      "donor_id": "6442",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6442_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6442_Scan1.er.qptiff",
+          "qptiff": "6442_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6442pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6442pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059947:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059947__Panc__20250401__152313",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059947"
+        },
+        {
+          "acquisition_id": "xenium:0059947:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059947__pLN__20250401__152313",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059947"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6457_03",
+      "donor_id": "6457",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "xenium:0037637:6457_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037637__6457_Pan__20241121__213623",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037637"
+        },
+        {
+          "acquisition_id": "xenium:0037637:6457_pLN1",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037637__6457_pLN1__20241121__213623",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037637"
+        },
+        {
+          "acquisition_id": "xenium:0037637:6457_pLN2",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037637__6457_pLN2__20241121__213623",
+          "qptiff": "",
+          "roi": "pln_2",
+          "recorded_slide": "0037637"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6461_02A",
+      "donor_id": "6461",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6461_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6461_Scan1.er.qptiff",
+          "qptiff": "6461_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6461pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6461pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059847:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059847__Panc__20250417__164438",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059847"
+        },
+        {
+          "acquisition_id": "xenium:0059847:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059847__pLN__20250417__164439",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059847"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6461_02_PLN",
+      "donor_id": "6461",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6461_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6461_Scan1.er.qptiff",
+          "qptiff": "6461_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6461pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6461pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059847:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059847__Panc__20250417__164438",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059847"
+        },
+        {
+          "acquisition_id": "xenium:0059847:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059847__pLN__20250417__164439",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059847"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6476",
+      "donor_id": "6476",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6476_Scan2.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6476_Scan2.er.qptiff",
+          "qptiff": "6476_Scan2.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6476pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6476pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037634:6476_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037634__6476_Pan__20241121__213622",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037634"
+        },
+        {
+          "acquisition_id": "xenium:0037634:6476_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037634__6476_pLN__20241121__213623",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037634"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6476_01A",
+      "donor_id": "6476",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6476_Scan2.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6476_Scan2.er.qptiff",
+          "qptiff": "6476_Scan2.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6476pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6476pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037634:6476_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037634__6476_Pan__20241121__213622",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037634"
+        },
+        {
+          "acquisition_id": "xenium:0037634:6476_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM038_Xenium_nPodBatch4/output-XETG00298__0037634__6476_pLN__20241121__213623",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037634"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6482_02",
+      "donor_id": "6482",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6482_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6482_Scan1.er.qptiff",
+          "qptiff": "6482_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6482pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6482pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037354:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037354__Panc__20250307__145542",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037354"
+        },
+        {
+          "acquisition_id": "xenium:0037354:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037354__pLN__20250307__145542",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037354"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6482_02A",
+      "donor_id": "6482",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6482_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6482_Scan1.er.qptiff",
+          "qptiff": "6482_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6482pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6482pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037354:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037354__Panc__20250307__145542",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037354"
+        },
+        {
+          "acquisition_id": "xenium:0037354:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037354__pLN__20250307__145542",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037354"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6493_01_pln",
+      "donor_id": "6493",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6493_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6493_Scan1.er.qptiff",
+          "qptiff": "6493_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6493pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6493pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037191:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037191__Panc__20250221__194233",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037191"
+        },
+        {
+          "acquisition_id": "xenium:0037191:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037191__pLN__20250221__194233",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037191"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6493_02B",
+      "donor_id": "6493",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6493_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6493_Scan1.er.qptiff",
+          "qptiff": "6493_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6493pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6493pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037191:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037191__Panc__20250221__194233",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037191"
+        },
+        {
+          "acquisition_id": "xenium:0037191:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037191__pLN__20250221__194233",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037191"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6521_02",
+      "donor_id": "6521",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6521_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6521_Scan1.er.qptiff",
+          "qptiff": "6521_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6521pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6521pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037199:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037199__Panc__20250221__194233",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037199"
+        },
+        {
+          "acquisition_id": "xenium:0037199:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037199__pLN__20250221__194233",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037199"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6521_02D",
+      "donor_id": "6521",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6521_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6521_Scan1.er.qptiff",
+          "qptiff": "6521_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6521pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6521pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037199:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037199__Panc__20250221__194233",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037199"
+        },
+        {
+          "acquisition_id": "xenium:0037199:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM042_Xenium_nPODBatch8/output-XETG00298__0037199__pLN__20250221__194233",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037199"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6523_01",
+      "donor_id": "6523",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6523panc_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6523panc_Scan1.er.qptiff",
+          "qptiff": "6523panc_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6523pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6523pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037499:6523_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037499__6523_Pan__20241127__193857",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037499"
+        },
+        {
+          "acquisition_id": "xenium:0037499:6523_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037499__6523_pLN__20241127__193857",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037499"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6523_02A",
+      "donor_id": "6523",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6523panc_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6523panc_Scan1.er.qptiff",
+          "qptiff": "6523panc_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6523pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6523pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037499:6523_Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037499__6523_Pan__20241127__193857",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037499"
+        },
+        {
+          "acquisition_id": "xenium:0037499:6523_pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM039_Xenium_nPODBatch5/output-XETG00298__0037499__6523_pLN__20241127__193857",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037499"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6539_01A",
+      "donor_id": "6539",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6539_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6539_Scan1.er.qptiff",
+          "qptiff": "6539_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6539pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6539pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059865:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059865__Panc__20250328__202338",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059865"
+        },
+        {
+          "acquisition_id": "xenium:0059865:PanT",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059865__pLN__20250328__202338",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059865"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6539_02_pln",
+      "donor_id": "6539",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6539_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6539_Scan1.er.qptiff",
+          "qptiff": "6539_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6539pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6539pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059865:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059865__Panc__20250328__202338",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059865"
+        },
+        {
+          "acquisition_id": "xenium:0059865:PanT",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM044_Xenium_nPODBatch10/output-XETG00298__0059865__pLN__20250328__202338",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059865"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6551_03",
+      "donor_id": "6551",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6551_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6551_Scan1.er.qptiff",
+          "qptiff": "6551_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6551pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6551pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037376:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037376__Panc__20250307__145542",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037376"
+        },
+        {
+          "acquisition_id": "xenium:0037376:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037376__pLN__20250307__145542",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037376"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6551_03B",
+      "donor_id": "6551",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6551_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6551_Scan1.er.qptiff",
+          "qptiff": "6551_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6551pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6551pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0037376:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037376__Panc__20250307__145542",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0037376"
+        },
+        {
+          "acquisition_id": "xenium:0037376:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM043_Xenium_nPODBatch9/output-XETG00298__0037376__pLN__20250307__145542",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0037376"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6566",
+      "donor_id": "6566",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6566panc_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6566panc_Scan1.er.qptiff",
+          "qptiff": "6566panc_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6566pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6566pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059968:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059968__Panc__20250417__164439",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059968"
+        },
+        {
+          "acquisition_id": "xenium:0059968:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059968__pLN__20250417__164439",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059968"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6566_02",
+      "donor_id": "6566",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6566panc_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6566panc_Scan1.er.qptiff",
+          "qptiff": "6566panc_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6566pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6566pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059968:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059968__Panc__20250417__164439",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059968"
+        },
+        {
+          "acquisition_id": "xenium:0059968:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM041_Xenium_nPODBatch7_ReRun/output-XETG00298__0059968__pLN__20250417__164439",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059968"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6579_02A",
+      "donor_id": "6579",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6579_Scan2.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6579_Scan2.er.qptiff",
+          "qptiff": "6579_Scan2.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6579pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6579pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041035:Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__Pan__20241219__201934",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN1",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN1__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN2",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN2__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_2",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN3",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN3__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_3",
+          "recorded_slide": "0041035"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6579_02_PLN",
+      "donor_id": "6579",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6579_Scan2.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6579_Scan2.er.qptiff",
+          "qptiff": "6579_Scan2.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6579pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6579pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041035:Pan",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__Pan__20241219__201934",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN1",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN1__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN2",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN2__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_2",
+          "recorded_slide": "0041035"
+        },
+        {
+          "acquisition_id": "xenium:0041035:pLN3",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM040_Xenium_nPODBatch6/output-XETG00298__0041035__pLN3__20241219__201934",
+          "qptiff": "",
+          "roi": "pln_3",
+          "recorded_slide": "0041035"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6591_02",
+      "donor_id": "6591",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6591panc_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/6591panc_Scan1.er.qptiff",
+          "qptiff": "6591panc_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041116:Region_1",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM035_Xenium_nPODBatch1/output-XETG00298__0041116__Region_1__20240919__203848",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041116"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6593",
+      "donor_id": "6593",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6593_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6593_Scan1.er.qptiff",
+          "qptiff": "6593_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6593pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6593pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059945:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059945__Panc__20250401__152313",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059945"
+        },
+        {
+          "acquisition_id": "xenium:0059945:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059945__pLN__20250401__152313",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059945"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "6593_02",
+      "donor_id": "6593",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:6593_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/scratch/io60/Images/6593_Scan1.er.qptiff",
+          "qptiff": "6593_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:6593pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "6593pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0059945:Panc",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059945__Panc__20250401__152313",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0059945"
+        },
+        {
+          "acquisition_id": "xenium:0059945:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/Y9QRJ6/MM045_Xenium_nPODBatch11/output-XETG00298__0059945__pLN__20250401__152313",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0059945"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    },
+    {
+      "tissue_id": "HDL115",
+      "donor_id": "115",
+      "neighbour_acquisition": null,
+      "tissue": null,
+      "reference_candidates": [
+        {
+          "acquisition_id": "phenocycler:HDL115pancLN_Scan1.er.qptiff - resolution #1",
+          "platform": "phenocycler",
+          "tissue": "pancreas",
+          "path": "/home/smith6jt/IO60panc2nd/Images/HDL115pancLN_Scan1.er.qptiff",
+          "qptiff": "HDL115pancLN_Scan1.er.qptiff",
+          "roi": "panc",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "phenocycler:HDL115pLN_Scan1.er.qptiff",
+          "platform": "phenocycler",
+          "tissue": "pancreatic_lymph_node",
+          "path": "",
+          "qptiff": "HDL115pLN_Scan1.er.qptiff",
+          "roi": "pln_1",
+          "recorded_slide": ""
+        },
+        {
+          "acquisition_id": "xenium:0041117:PanT",
+          "platform": "xenium",
+          "tissue": "pancreas",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM035_Xenium_nPODBatch1/output-XETG00298__0041117__PanT__20240919__203848",
+          "qptiff": "",
+          "roi": "panc",
+          "recorded_slide": "0041117"
+        },
+        {
+          "acquisition_id": "xenium:0041117:pLN",
+          "platform": "xenium",
+          "tissue": "pancreatic_lymph_node",
+          "path": "/data/xenium/HuPrime5kPanTissue/6KTRAF/MM035_Xenium_nPODBatch1/output-XETG00298__0041117__pLN__20240919__203848",
+          "qptiff": "",
+          "roi": "pln_1",
+          "recorded_slide": "0041117"
+        }
+      ],
+      "interpretation": "same-donor inventory candidates only; not established serial neighbours"
+    }
+  ],
+  "decision": "The source files support spot identity and same-series scope. Exact tissue/reference correspondence requires the specified image inspection; visual ambiguity cannot be resolved by donor or Tissue_id text."
+}
