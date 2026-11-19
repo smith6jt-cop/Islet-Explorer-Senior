@@ -108,8 +108,7 @@ def main() -> int:
     manifest_path = out / "run.json"
     if manifest_path.exists() and not args.force:
         raise FileExistsError(f"{manifest_path} exists; use --force to replace the run")
-    script_paths = [Path(io60_pancreas_markers.__file__), SCRIPTS / "lineages.py",
-                    SCRIPTS.parent / "celltype/rules.py", Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
+    script_paths = [Path(__file__), SCRIPTS / "subpanel.py", SCRIPTS / "build_cells.py",
                     SCRIPTS / "refine.py", SCRIPTS / "immune_subtype.py",
                     Path(T_CELL.__file__).resolve(), Path(MACROPHAGE.__file__).resolve()]
     from multiplex5000.tissues import io60_pancreas_markers
