@@ -7,3 +7,4 @@ POSITIVE_LINEAGE_MIN,0.5,"positivity pass criterion (delegated to the agent, own
 CANARY_MARGIN,1,owner 2026-10-29,a group resolves at one more canary-positive marker than the runner-up,
 CANARY_MIN_DEPTH,2,owner 2026-10-28 (the Xenium canary logic),the resolving group needs two markers,
 CANARY_TIE_INTERIOR_LEAD,0.0,owner 2026-10-29: 'both are brighter and cover more cell area',no extra lead: the CODEX 0.15 was fitted on CODEX cells,
+SPATIAL_SCALE_TOP_QUANTILE,99.9,Islet Explorer per-image marker scale,uncapped brightness calibration for exclusive native interior pixel comparisons,

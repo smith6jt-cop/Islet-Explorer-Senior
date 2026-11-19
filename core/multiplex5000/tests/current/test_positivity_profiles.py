@@ -19,7 +19,7 @@ MARKERS = ("CD45", "CD3e", "CD20", "CD4", "CD8", "FOXP3")
 POLICY = {"Immune": ["CD20", "CD3e", "CD4", "CD8"]}
 
 
-def classify(positive, *, stronger=None, unavailable=(), inherit_depth=True):
+def classify(positive, *, stronger=None, unavailable=(), inherit_depth=True, raw_pixels=None):
     calls = {m: np.array([-1 if m in unavailable else int(m in positive)], np.int8) for m in MARKERS}
     states = H.evaluate_profiles(RULES, calls, defer_exclusions=POLICY)
     p = np.column_stack([calls[m] == 1 for m in MARKERS])
@@ -30,6 +30,8 @@ def classify(positive, *, stronger=None, unavailable=(), inherit_depth=True):
         cover[0, MARKERS.index(stronger)] = .8
     ev = {"columns": MARKERS, "typing": ["CD3e", "CD20", "CD4", "CD8"],
           "P": p, "C": p.copy(), "F": f, "COV": cover, "interior_valid": np.ones(1, bool)}
+    if raw_pixels is not None:
+        ev["pixels"] = raw_pixels(MARKERS, [{m: np.repeat(f[0, j], 10) for j, m in enumerate(MARKERS)}])
     result = H.name_cells(RULES, states, ev, 1, 2, 0, require_specific=["Immune", "T_cell"],
                           inherit_depth=inherit_depth)
     return result.iloc[0], calls, states
@@ -43,16 +45,16 @@ def test_cd3_cd4_profile_reaches_subtyping_despite_a_competing_b_marker():
     assert dict(RULES.by_phenotype["T_cell"].constraints)["CD20"] == "allneg"
 
 
-def test_cd8_is_compared_with_cd4_instead_of_both_subtypes_being_vetoed():
-    row, _, _ = classify({"CD45", "CD3e", "CD20", "CD4", "CD8"}, stronger="CD8")
+def test_cd8_is_compared_with_cd4_instead_of_both_subtypes_being_vetoed(raw_conflict_pixels):
+    row, _, _ = classify({"CD45", "CD3e", "CD20", "CD4", "CD8"}, stronger="CD8", raw_pixels=raw_conflict_pixels)
     assert row.refined_class == "CD8_T" and row.status == "tie_settled"
     without_parent, _, _ = classify({"CD45", "CD3e", "CD20", "CD4", "CD8"},
                                     stronger="CD8", inherit_depth=False)
     assert without_parent.refined_class == ""
 
 
-def test_supported_foxp3_cd4_profile_is_not_lost_to_cd8_exclusion():
-    row, _, _ = classify({"CD45", "CD3e", "CD20", "CD4", "CD8", "FOXP3"}, stronger="CD4")
+def test_supported_foxp3_cd4_profile_is_not_lost_to_cd8_exclusion(raw_conflict_pixels):
+    row, _, _ = classify({"CD45", "CD3e", "CD20", "CD4", "CD8", "FOXP3"}, stronger="CD4", raw_pixels=raw_conflict_pixels)
     assert row.refined_class == "Treg"
 
 

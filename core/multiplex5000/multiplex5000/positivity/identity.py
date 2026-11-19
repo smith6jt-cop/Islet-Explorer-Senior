@@ -19,7 +19,7 @@ This module names compartments and lineages, never markers.
   the runner-up) / lineage_ambiguous (2 otherwise) / doublet_suspected (>= 3). Groups rank by depth x 1000 + the summed
   log fold over level of their canary-positive markers; the margin is taken between compartments (plan: fixes Xenium's
   margin between lineages of one group); CANARY_MARGIN is 1 (owner 2026-10-29: this panel has 1-3 markers per group).
-  Two groups of equal depth: the one whose detecting markers are both brighter and cover more of the cell (area_coverage.py)
+  Two groups of equal depth: the one with higher median calibrated brightness and the required exclusive interior area lead
   is placed, else the conflict stays (owner 2026-10-29). The same rule runs between the lineages of the cell's compartment: lineage-
   specific markers detect a lineage; markers on several lineages, the compartment's pan marker and its shared markers add
   depth to every detected lineage. A cell with no canary-positive defining marker is placed the same way by its positive
@@ -27,7 +27,7 @@ This module names compartments and lineages, never markers.
   defining marker positive below its canary level; the owner's rule admits names from positive markers; Xenium types
   cells before its canary step and uses the canary only for conflicts).
 3 Identity by the labels file. Endocrine (owner 2026-10-29): inside the endocrine objects the unique highest scaled hormone
-  above its level names the cell, as Senior (subpanel step 5), no margin; an exact tie keeps the start class
+  above its level names the cell, as Senior (subpanel step 5), no margin; an unresolved spatial tie keeps the start class
   (tied_highest_hormones). The established path below is kept for a labels row named_by 'established' (none now): owner
   2026-10-28: "The endocrine typing didn't need to change", "If the singles were already found and verified, don't undo
   that"): its decisions inside the islets, clusters and singles (Beta / Alpha / Delta, CHGA+ hormone-negative, unresolved
@@ -50,10 +50,11 @@ This module names compartments and lineages, never markers.
 
 Readings (owner 2026-10-30: "Use membrane for differentiating, but then the whole cell still needs to be used for
 positivity"): positivity and canary positivity are read on each marker's positivity measurement (whole cell; Ki67 the
-nucleus); the fold over level that ranks and compares groups competing for a cell (groups' scores and brightness, the
+nucleus); the fold over level that ranks and compares groups competing for a cell (groups' scores, the
 conflict order, the tie rule's brightness, the structure step's top marker; fold__<marker> in the output) is read on the
 marker's differentiation measurement where the registry gives one (typing/levels_differentiation.csv). The tie rule's
-coverage stays the whole cell's interior pixels against the whole-cell level (area_coverage.py reads typing/levels.csv).
+Native conflict resolution measures both groups on the same cell-interior pixels.
+The median calibrated intensity must favor the group with the qualifying exclusive area lead.
 Structure-defined compartments (owner 2026-10-30): a compartment whose labels are all structure rows (Neural; Endothelial,
 whose blood-vessel and lymphatic cells come from their objects) is reached only through the structure step. Outside a
 structure call its markers place no cell (they still add depth where the registry has another compartment carry them);
@@ -65,11 +66,13 @@ its start class with status structure_marker_only; tag <compartment>_marker_outs
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import ExitStack
 
 import numpy as np
 import pandas as pd
 
 from . import coverage as AC
+from .interior_signal import InteriorSignal
 from . import registry as RG
 
 STATUSES = ('none', 'single', 'resolved', 'lineage_ambiguous', 'doublet_suspected')
@@ -148,8 +151,7 @@ def group_status(detected: np.ndarray, depth: np.ndarray, score: np.ndarray, mar
                  interior_valid: np.ndarray | None = None):
     """Per row: status, top group, runner-up group, their depths, the number of groups detected, and whether a tie in
     depth was settled. Two groups of equal depth (at least min_depth): the group whose detecting markers are brighter
-    (mean fold over level) and cover at least `lead` more of the cell's interior (mean interior coverage,
-    area_coverage.py) is placed, resolved; otherwise the cell stays lineage_ambiguous (owner 2026-10-29: "both are
+    (median normalized interior signal) and win at least `lead` more of the cell's interior pixels is placed, resolved; otherwise the cell stays lineage_ambiguous (owner 2026-10-29: "both are
     brighter and cover more cell area"; later the same day "Interior coverage, clear lead", CANARY_TIE_INTERIOR_LEAD)."""
     n = len(detected)
     rows = np.arange(n)
@@ -175,27 +177,33 @@ def group_status(detected: np.ndarray, depth: np.ndarray, score: np.ndarray, mar
     return status, top, np.where(ng > 1, runner, -1), td, rd, ng, settled
 
 
-def groups_matrix(X: np.ndarray, F: np.ndarray, COV: np.ndarray, detect: list[list[int]], count: list[list[int]]):
-    """detected / depth / score for groups given as column-index lists (detect: markers that detect the group, count:
-    markers that add depth once it is detected), and the mean brightness (fold over level) and area coverage of each
-    group's positive detecting markers."""
-    n = len(X)
-    det = np.column_stack([X[:, d].any(axis=1) if d else np.zeros(n, bool) for d in detect])
-    dep = np.column_stack([X[:, c].sum(axis=1) for c in count]) * det
-    sc = np.column_stack([np.where(X[:, c], F[:, c], 0.0).sum(axis=1) for c in count]) * det
+def placed(P, C, F, detect, count, margin, min_depth, lead, pixels, source_rows, stage):
+    """Use canary depth first, plain detection as fallback, and spatial evidence for eligible equal depths."""
+    def assess(active, allowed, basis):
+        detected = np.column_stack([active[:, d].any(axis=1) for d in detect])
+        depth = np.column_stack([active[:, c].sum(axis=1) for c in count]) * detected
+        score = np.column_stack([np.where(active[:, c], F[:, c], 0.).sum(axis=1) for c in count]) * detected
+        eligible = (allowed & (detected.sum(axis=1) == 2) & (depth.max(axis=1) >= min_depth)
+                    & ((depth == depth.max(axis=1)[:, None]).sum(axis=1) == 2))
+        bright = np.full(score.shape, np.nan)
+        cover = np.full(score.shape, np.nan)
+        requests = []
+        pair = {}
+        for i in np.flatnonzero(eligible):
+            a, b = np.flatnonzero(detected[i])
+            row = source_rows[i]
+            pair[row] = (i, a, b)
+            requests.append((row, [m for m in detect[a] if active[i, m]],
+                                  [m for m in detect[b] if active[i, m]]))
+        measured = pixels.measure(requests, stage + '_' + basis) if pixels is not None else {}
+        for row, (n, na, nb, ma, mb) in measured.items():
+            i, a, b = pair[row]
+            bright[i, [a, b]] = ma, mb
+            cover[i, [a, b]] = na / n, nb / n
+        return group_status(detected, depth, score, margin, min_depth, bright, cover, lead)
 
-    def mean_positive(A):
-        return np.column_stack([np.where(X[:, d], A[:, d], 0.0).sum(axis=1) / np.maximum(X[:, d].sum(axis=1), 1)
-                                if d else np.zeros(n) for d in detect])
-    return det, dep, sc, mean_positive(F), mean_positive(COV)
-
-
-def placed(P, C, F, COV, detect, count, margin, min_depth, lead=0.0, interior_valid=None):
-    """Canary status, and the group a cell is placed in: by the canary level, else (status none) by plain positivity."""
-    det, dep, sc, br, cv = groups_matrix(C, F, COV, detect, count)
-    status, top, runner, td, rd, ng, settled = group_status(det, dep, sc, margin, min_depth, br, cv, lead, interior_valid)
-    detp, depp, scp, brp, cvp = groups_matrix(P, F, COV, detect, count)
-    statusp, topp, _, _, _, ngp, settledp = group_status(detp, depp, scp, margin, min_depth, brp, cvp, lead, interior_valid)
+    status, top, runner, td, rd, ng, settled = assess(C, np.ones(len(C), bool), 'canary')
+    statusp, topp, _, _, _, ngp, settledp = assess(P, ng == 0, 'plain')
     group = np.where(ng > 0, top, np.where(ngp > 0, topp, -1))
     basis = np.where(ng > 0, 'canary', np.where(ngp > 0, 'plain', '')).astype(object)
     # a cell placed below the canary level keeps its plain-level conflict visible (review 2026-10-28)
@@ -249,6 +257,11 @@ class IdentityError(ValueError):
 def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_from: str = ESTABLISHED,
                    start_class: Callable[[pd.DataFrame], np.ndarray] = default_start_class) -> tuple[pd.DataFrame, dict]:
     """`tables`: levels, levels_differentiation, selection (levels.choose) and canary_levels (canary.levels)."""
+    with ExitStack() as stack:
+        return _classify_image(source, tag, reg_name, tables, endocrine_from, start_class, stack)
+
+
+def _classify_image(source, tag, reg_name, tables, endocrine_from, start_class, stack):
     reg = RG.load(*reg_name)
     markers = used_markers(tables['selection'], reg)
     state = reg.markers('state')
@@ -283,8 +296,6 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
     # area coverage (area_coverage.py): proportion of the cell's pixels at or above the level, per marker
     cov_frame = source.coverage(tag)
     cov = AC.read_validated(cov_frame, source.redsea_ids(tag), tag, d['object_id'], markers)
-    # the tie rule reads the interior coverage (owner 2026-10-29, "Interior coverage, clear lead")
-    COV = cov[[COV_INTERIOR_PREFIX + m for m in markers]].to_numpy(float)
     interior_count = cov[AC.INTERIOR_COUNT].to_numpy(np.int64)
     interior_valid = interior_count > 0
     lead = reg.const('CANARY_TIE_INTERIOR_LEAD')
@@ -296,14 +307,33 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
     top = np.percentile(raw, reg.const('HORMONE_SCALE_TOP_QUANTILE'), axis=0)
     SC = np.clip((raw - Lraw) / np.where(top > Lraw, top - Lraw, np.nan), 0, None)
 
+    window = source.native_window(tag) if hasattr(source, "native_window") else None
+    pixels = (InteriorSignal(lambda: stack.enter_context(window), d["object_id"], interior_count, reg,
+                             markers, Lraw, top) if window is not None else None)
+    hormone_settled = np.zeros(n, dtype=bool)
+
     def highest_hormone(rows: np.ndarray, cols: list) -> tuple:
         """Senior subpanel step 5: the unique highest scaled hormone among those above their levels names the cell
-        (owner 2026-10-29, no margin); an exact tie names no subtype. Returns (any positive, unique, winner index)."""
+        (owner 2026-10-29, no margin). Two positive hormones tied at the top can be resolved from native pixels."""
         Fs = np.where(P[np.ix_(rows, cols)], np.nan_to_num(SC[np.ix_(rows, cols)], nan=0.0), -np.inf)
         order = np.sort(Fs, axis=1)
         any_pos = np.isfinite(order[:, -1])
         unique = any_pos & (order[:, -1] > order[:, -2]) if len(cols) > 1 else any_pos
-        return any_pos, unique, Fs.argmax(axis=1)
+        winner = Fs.argmax(axis=1)
+        tied = (Fs == order[:, -1, None]) & np.isfinite(Fs)
+        requests = []
+        positions = {}
+        for i in np.flatnonzero(any_pos & (tied.sum(axis=1) == 2)):
+            a, b = np.flatnonzero(tied[i])
+            positions[rows[i]] = (i, a, b)
+            requests.append((rows[i], [cols[a]], [cols[b]]))
+        measured = pixels.measure(requests, 'hormone') if pixels is not None else {}
+        for row, (size, na, nb, ma, mb) in measured.items():
+            i, a, b = positions[row]
+            if abs(na - nb) + 1e-12 < lead * size or (na - nb) * (ma - mb) <= 0:
+                continue
+            unique[i], winner[i], hormone_settled[row] = True, a if na > nb else b, True
+        return any_pos, unique, winner
     start = np.asarray(start_class(d), dtype=object)
     margin, min_depth = reg.const('CANARY_MARGIN'), reg.const('CANARY_MIN_DEPTH')
 
@@ -312,7 +342,7 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
     # a structure-defined compartment is reached only through the structure step: its markers detect nothing here
     detect = [[] if plan['comp'][c]['structure_only'] else [ix[m] for m in plan['comp'][c]['defining']] for c in comps]
     count = [[ix[m] for m in plan['comp'][c]['defining'] + plan['comp'][c]['carried']] for c in comps]
-    cp = placed(P, C, F, COV, detect, count, margin, min_depth, lead, interior_valid)
+    cp = placed(P, C, F, detect, count, margin, min_depth, lead, pixels, np.arange(n), 'compartment')
     compartment = np.where(cp['group'] >= 0, np.asarray(comps, dtype=object)[np.maximum(cp['group'], 0)], '')
     comp_status = cp['status'].astype(object)
 
@@ -332,8 +362,8 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
         extra = info['pan'] + info['carried']
         det_cols = [[ix[m] for m in info['lineages'][lin]['specific']] for lin in lins]
         cnt_cols = [[ix[m] for m in dict.fromkeys(info['lineages'][lin]['members'] + extra)] for lin in lins]
-        lp = placed(P[rows], C[rows], F[rows], COV[rows], det_cols, cnt_cols, margin, min_depth, lead,
-                    interior_valid[rows])
+        lp = placed(P[rows], C[rows], F[rows], det_cols, cnt_cols, margin, min_depth, lead,
+                    pixels, rows, 'lineage_' + c)
         lin_settled[rows] = lp['settled']
         has = lp['group'] >= 0
         lineage[rows[has]] = np.asarray(lins, dtype=object)[lp['group'][has]]
@@ -439,7 +469,7 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
         # per marker and each hormone's per-image level (owner 2026-10-28: an SST-high cell excluded "under 2x the
         # runner-up"; the established comparison used cohort-scaled cytoplasm values, the "two ways of typing" the
         # 10-28 ruling ended). The unique highest scaled hormone names the cell (highest_hormone; owner 2026-10-29), an
-        # exact tie keeps the start class (tied_highest_hormones); no hormone above its level -> the lineage label when
+        # unresolved spatial tie keeps the start class (tied_highest_hormones); no hormone above its level -> the lineage label when
         # the broad marker is positive (CHGA+ hormone-negative), else the start class.
         info = plan['comp'][r.compartment]
         L_ = info['lineages'][r.lineage]
@@ -621,6 +651,9 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
             if hit.any():
                 confirming[i] = ';'.join(names[np.asarray(use)[hit]])
 
+    for i in np.flatnonzero(hormone_settled):
+        tags[i].append("hormone_tie_brightness_coverage")
+
     out = pd.DataFrame({
         'object_id': d['object_id'].to_numpy(), 'start_class': start, 'label': label, 'excluded_reason': reason,
         'named_by': named_by, 'compartment': compartment, 'compartment_basis': comp_basis,
@@ -633,6 +666,7 @@ def classify_image(source, tag: str, reg_name: tuple, tables: dict, endocrine_fr
         'n_positive': P.sum(axis=1).astype(np.int16),
         AC.INTERIOR_COUNT: interior_count,
         'n_canary': C.sum(axis=1).astype(np.int16)})
+    out["spatial_conflict_evidence"] = pixels.audit(n) if pixels is not None else ""
     for m in state:
         x = np.log1p(np.clip(np.nan_to_num(d[d.attrs['columns'][m]].to_numpy(float), nan=0.0), 0, None))
         out[f'{m}_pos'] = (x > lv.loc[m, 'level_log']).astype(np.int8)

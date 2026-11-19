@@ -14,8 +14,8 @@ identity step (``identity.py`` and a labels file). The per-image method supplies
   rule (``identity.placed``): the groups are the branches diverging at the matches' lowest common ancestor, and each
   group's detecting markers are the positive-clause markers on its rules that have a typing role and a canary level.
   The canary basis comes first: the canary depth margin (CANARY_MARGIN, CANARY_MIN_DEPTH), then at equal depth the
-  group that is both brighter (fold over level, on the differentiation reading) and covers at least
-  CANARY_TIE_INTERIOR_LEAD more of the cell's interior. A tie only plain positivity can see is settled by the same
+  group with higher median calibrated interior brightness and an exclusive pixel lead of at least
+  CANARY_TIE_INTERIOR_LEAD across all native interior pixels. A tie only plain positivity can see is settled by the same
   rule on plain positivity. A tie that stays unresolved at either basis is not settled ("otherwise the cell stays
   ambiguous", maintainer 2026-11-01). CODEX itself places the top plain group below the canary level, so this route is
   stricter there. The winner's own subtype tie, if any, is settled the same way, one level down.
@@ -189,8 +189,7 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
     """One row per cell: cell_class, refined_class, status, tie_basis, n_matched, states.
 
     ``evidence``: ``columns`` (sheet marker names, in matrix order), ``P`` and ``C`` (plain and canary positive, cells x
-    markers), ``F`` (fold over level on the differentiation reading), ``COV`` (interior coverage), ``interior_valid``
-    (cells with interior pixels), and ``typing`` (the sheet markers with a typing role and a canary level; only these
+    markers), ``F`` (fold over level on the differentiation reading), ``pixels`` (native interior conflict measurements), and ``typing`` (the sheet markers with a typing role and a canary level; only these
     detect a group)."""
     rules = source.by_phenotype
     required = set(require_specific)
@@ -213,8 +212,7 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
 
     col = {m: i for i, m in enumerate(evidence['columns'])}
     typing = set(evidence['typing'])
-    P, C, F, COV = (np.asarray(evidence[k]) for k in ('P', 'C', 'F', 'COV'))
-    valid = np.asarray(evidence['interior_valid'], bool)
+    P, C, F = (np.asarray(evidence[k]) for k in ('P', 'C', 'F'))
 
     def detecting(group: str, members: list[str]) -> list[int]:
         """Positive-clause markers on the rules from the group's root down to its matched members."""
@@ -252,7 +250,8 @@ def name_cells(source: RuleSource, evaluation: BatchRuleEvaluation, evidence: Ma
                     if token in ('pos', 'allpos') and marker in typing and marker in col:
                         shared.add(col[marker])
         count = [sorted(set(markers) | shared) for markers in det]
-        res = ID.placed(P[rows], C[rows], F[rows], COV[rows], det, count, margin, min_depth, lead, valid[rows])
+        res = ID.placed(P[rows], C[rows], F[rows], det, count, margin, min_depth, lead,
+                        evidence.get('pixels'), rows, 'hierarchy:' + '|'.join(gnames))
         st = res['status'].astype(str)
         ok = np.where(res['basis'] == 'canary', np.isin(st, ID.PLACED),
                       (res['n_plain'] == 1) | (st == 'below_canary_resolved')) & (res['group'] >= 0)

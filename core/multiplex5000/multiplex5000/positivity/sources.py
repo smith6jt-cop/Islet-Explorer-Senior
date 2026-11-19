@@ -22,7 +22,10 @@ object-based options are not evaluable there rather than invented.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+import json
+import numpy as np
 from pathlib import Path
 
 import pandas as pd
@@ -72,6 +75,31 @@ class CodexRunSource:
 
     def coverage(self, tag: str) -> pd.DataFrame:
         return pd.read_parquet(Path(self.run) / 'typing' / 'coverage' / f'{tag}.parquet')
+
+    @contextmanager
+    def native_window(self, tag):
+        import tifffile
+
+        root = Path(self.run)
+        entries = json.loads((root / "project_manifest.json").read_text())["entries"]
+        entry, = (e for e in entries if e["image_name"] == tag)
+        metadata = root / "qupath/data" / str(entry["entry_id"]) / "server.json"
+        channels = [c["name"] for c in json.loads(metadata.read_text())["metadata"]["channels"]]
+        data = json.loads((root / "cell_geojson" / f"{tag}.geojson").read_text())
+        features = data["features"] if isinstance(data, dict) else data
+        features = [{"id": f["id"], "geometry": f["geometry"]} for f in features]
+        del data
+        with tifffile.TiffFile(entry["image_path"]) as tf:
+            level = tf.series[0].levels[0]
+            if len(level.shape) != 3 or level.shape[0] != len(channels) or len(set(channels)) != len(channels):
+                raise SourceError(f"{tag}: native image and channel map differ")
+            mapped = None
+            if len(level.pages) == 1 and len(channels) > 1:
+                mapped = tifffile.memmap(entry["image_path"], series=0, level=0, mode="r")
+            def read(name):
+                i = channels.index(name)
+                return np.asarray(mapped[i]) if mapped is not None else level.pages[i].asarray()
+            yield features, level.shape[-2:], read, channels
 
     def redsea_ids(self, tag: str) -> pd.Series:
         return pd.read_parquet(Path(self.run) / 'typing' / 'redsea' / f'{tag}.parquet', columns=['object_id'])['object_id']
@@ -168,6 +196,15 @@ class ProteinMeasurementSource:
         if self.coverage_dir is None:
             raise SourceError(f'{tag}: no coverage directory; run coverage.compute first')
         return pd.read_parquet(Path(self.coverage_dir) / f'{tag}.parquet')
+
+    def native_window(self, tag):
+        if self.manifest is None:
+            return None
+        from ..artifacts import QuPathCohortManifest
+        from ..stages.spleen_typing import native_window
+
+        image, = (i for i in QuPathCohortManifest.read_json(Path(self.manifest)).images if i.donor_id == tag)
+        return native_window(image, image.cell_geojson.path, image.qptiff.path)
 
     def redsea_ids(self, tag: str) -> pd.Series:
         return pq.read_table(self._partition('redsea', tag), columns=['object_id']).to_pandas()['object_id']

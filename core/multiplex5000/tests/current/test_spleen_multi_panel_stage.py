@@ -164,6 +164,35 @@ def test_coverage_reads_the_declared_channel_from_an_ome_tiff(tmp_path):
     assert (tmp_path / "data/coverage/pc33.parquet").is_file()
 
 
+def test_spatial_vote_uses_native_channel_dominance_and_owned_interior(tmp_path):
+    from contextlib import ExitStack
+    import tifffile
+    from multiplex5000.positivity.interior_signal import InteriorSignal
+
+    planes = np.ones((3, 30, 30), np.uint16) * 60
+    planes[0] = 90
+    planes[1, :, :17] = 100
+    path = tmp_path / "native.ome.tiff"
+    tifffile.imwrite(path, planes, metadata={"axes": "CYX"}, photometric="minisblack")
+    def box(x0, y0, x1, y1):
+        return {"type": "Polygon", "coordinates": [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]]}
+    features = [{"type": "Feature", "id": "conflict", "geometry": box(3, 3, 25, 25)},
+                {"type": "Feature", "id": "neighbor", "geometry": box(20, 1, 28, 28)}]
+    geo = tmp_path / "native.geojson"
+    geo.write_text(json.dumps({"type": "FeatureCollection", "features": features}))
+    image = SimpleNamespace(donor_id="native", channel_map=[
+        SimpleNamespace(channel_name=name, channel_index=i) for i, name in enumerate(["A", "B", "shared"])])
+    reg = SimpleNamespace(table=pd.DataFrame({"channel": ["A", "B", "shared"]}, index=["A", "B", "shared"]))
+    # Cell owns x=3..19 and y=3..25 after the neighbor is painted. Its two-pixel interior is 13 x 19.
+    with ExitStack() as stack:
+        pixels = InteriorSignal(lambda: stack.enter_context(stage.native_window(image, geo, path)), ["conflict"],
+                                [247], reg, ["A", "B", "shared"], np.full(3, 50), np.full(3, 100))
+        n, a, b, ma, mb = pixels.measure([(0, [0, 2], [1, 2])], "lineage")[0]
+        assert (n, a, b) == (247, 19, 228)
+        assert ma == 0.8 and mb == 1.
+        assert json.loads(pixels.audit(1)[0])[0]["markers"] == [["A"], ["B"]]
+
+
 @pytest.mark.parametrize("include_excluded,dirty,tamper", [(False, False, False), (True, False, False),
                                                            (False, True, False), (False, False, True)])
 def test_provisional_ready_marker_requires_exact_eligible_uuids_and_binds_finished_files(tmp_path, include_excluded, dirty, tamper):

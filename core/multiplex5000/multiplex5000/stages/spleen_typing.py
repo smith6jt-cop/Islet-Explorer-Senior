@@ -31,6 +31,7 @@ selections, levels, canary levels) and the gate figures.
 from __future__ import annotations
 
 import json
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -126,7 +127,7 @@ def settings(project) -> dict:
     return {"registries": {p: list(REGISTRIES[p]) for p in panels}, "panels": panels, "typed": _typed(project),
             "not_typed": {}, "workers": int(project.settings.get("typing_workers", 4)),
             "naming_policy": {p: spleen.naming_policy(PANEL_FILES["panel_manifest"], panel_id=p) for p in panels},
-            "method": "per-panel, per-image levels, canary, coverage (positivity) -> 6551 spleen hierarchy (hierarchy)"}
+            "method": "per-panel, per-image levels, canary, exclusive native-interior area and median brightness -> 6551 spleen hierarchy"}
 
 
 def inputs(project) -> list[Input]:
@@ -222,27 +223,44 @@ def _coverage_channel_index(image, array_shape: tuple[int, ...], axes: str) -> d
     return dict(zip(names, indices))
 
 
-def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids) -> pd.DataFrame:
-    """coverage.compute on the section's window of its qptiff, from the cell geometry the manifest names."""
+@contextmanager
+def native_window(image, cell_geojson, image_path):
+    """Open the same section window, geometry and channel mapping for coverage and spatial conflicts."""
     import tifffile
-    import zarr
+    from ..tiff_window import read_window
 
     from ..artifacts import iter_qupath_geojson_features
-    from ..positivity import coverage as AC
 
     feats = [{"id": f.get("id"), "geometry": f["geometry"]}
-             for f in iter_qupath_geojson_features(task.input(f"cell_geojson:{tag}"))]
-    qptiff = Path(image.qptiff.path)
-    with tifffile.TiffFile(task.input(f"qptiff:{qptiff.name.split('.')[0]}")) as tf:
-        z = zarr.open(tf.series[0].aszarr(level=0), mode="r")
-        index = _coverage_channel_index(image, z.shape, tf.series[0].axes)
-        H, W = z.shape[-2:]
+             for f in iter_qupath_geojson_features(cell_geojson)]
+    with tifffile.TiffFile(image_path) as tf:
+        level = tf.series[0].levels[0]
+        index = _coverage_channel_index(image, level.shape, level.axes)
+        H, W = level.shape[-2:]
         x0, y0, x1, y1 = _window(feats, (H, W))
-
+        mapped = None
+        if len(level.pages) == 1 and level.shape[0] > 1:
+            mapped = tifffile.memmap(image_path, series=0, level=0, mode="r")
         def read(name):
-            return np.asarray(z[index[name], y0:y1, x0:x1])
+            if mapped is not None:
+                return np.asarray(mapped[index[name], y0:y1, x0:x1])
+            frame = level.pages[index[name]]
+            page = tf.pages.get(frame.index, aspage=True)
+            return read_window(page, y0, y1, x0, x1)
 
-        frame = AC.compute(tag, _shifted(feats, x0, y0), (y1 - y0, x1 - x0), read, list(index), levels, reg)
+        yield _shifted(feats, x0, y0), (y1 - y0, x1 - x0), read, list(index)
+
+
+def _section_window(task, image, tag):
+    stem = Path(image.qptiff.path).name.split(".")[0]
+    return native_window(image, task.input(f"cell_geojson:{tag}"), task.input(f"qptiff:{stem}"))
+
+
+def _coverage(task: Task, image, tag: str, levels: pd.DataFrame, reg, redsea_ids) -> pd.DataFrame:
+    from ..positivity import coverage as AC
+
+    with _section_window(task, image, tag) as window:
+        frame = AC.compute(tag, *window, levels, reg)
     # every geometry object is drawn (each cell's pixels are its own), but the table keeps the canonical cells, as
     # REDSEA does: the GeoJSON can hold objects the measurement table does not
     frame = frame[frame["object_id"].isin(set(redsea_ids))].reset_index(drop=True)
@@ -295,11 +313,20 @@ def _named(task: Task, source, tag: str, image, reg, tables: dict, canary: pd.Da
             F[:, j] = value(m, ld.loc[m, "measurement"]) - float(ld.loc[m, "level_log"])
     cov = AC.read_validated(source.coverage(tag), source.redsea_ids(tag), tag, d["object_id"], ev_markers)
     evidence = {"columns": [names[m] for m in ev_markers], "P": np.column_stack([calls[m] == 1 for m in ev_markers]),
-                "C": V > Lc, "F": F, "COV": cov[[AC.INTERIOR_PREFIX + m for m in ev_markers]].to_numpy(float),
-                "interior_valid": cov[AC.INTERIOR_COUNT].to_numpy(np.int64) > 0, "typing": [names[m] for m in ev_markers]}
-    out = H.name_cells(rules, ev, evidence, reg.const("CANARY_MARGIN"), reg.const("CANARY_MIN_DEPTH"),
-                       reg.const("CANARY_TIE_INTERIOR_LEAD"), require_specific=policy["require_specific"],
-                       inherit_depth=policy["inherit_depth"])
+                "C": V > Lc, "F": F, "typing": [names[m] for m in ev_markers]}
+    from ..positivity.interior_signal import InteriorSignal
+
+    levels = lv.loc[ev_markers, "level_raw"].to_numpy(float)
+    raw = d[[reg.column(m, lv.loc[m, "measurement"]) for m in ev_markers]].to_numpy(float)
+    tops = np.nanpercentile(raw, reg.const("SPATIAL_SCALE_TOP_QUANTILE"), axis=0)
+    with ExitStack() as stack:
+        pixels = InteriorSignal(lambda: stack.enter_context(_section_window(task, image, tag)), d["object_id"],
+                                cov[AC.INTERIOR_COUNT], reg, ev_markers, levels, tops)
+        evidence["pixels"] = pixels
+        out = H.name_cells(rules, ev, evidence, reg.const("CANARY_MARGIN"), reg.const("CANARY_MIN_DEPTH"),
+                           reg.const("CANARY_TIE_INTERIOR_LEAD"), require_specific=policy["require_specific"],
+                           inherit_depth=policy["inherit_depth"])
+    out["spatial_conflict_evidence"] = pixels.audit(len(d))
     out.insert(0, "cell_uid", [cell_uid(image.image_id, image.segmentation_version, str(o)) for o in d["object_id"]])
     out.insert(1, "object_id", d["object_id"].to_numpy())
     out.insert(2, "start_class", spleen.start_class(d))
@@ -370,12 +397,12 @@ def _file_record(path: Path) -> dict:
 
 def _review_code_identity() -> dict:
     from ..tasks import code_identity
-    from ..positivity import coverage, hierarchy, identity, lineage_levels, registry, sources
+    from ..positivity import coverage, hierarchy, identity, interior_signal, lineage_levels, registry, sources
     from ..tissues import lymph_node, spleen
 
     code = code_identity()
     code["files"] = {module.__name__: _file_record(Path(module.__file__))
-                     for module in (coverage, hierarchy, identity, lineage_levels, registry, sources, lymph_node, spleen)}
+                     for module in (coverage, hierarchy, identity, interior_signal, lineage_levels, registry, sources, lymph_node, spleen)}
     code["files"][__name__] = _file_record(Path(__file__))
     return code
 

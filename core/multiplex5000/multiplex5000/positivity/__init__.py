@@ -1,13 +1,14 @@
 """Per-image positivity and cell identity, ported from the CODEX Islet-Explorer typing method.
 
 Source: Islet-Explorer ``scripts/uniform/typing/`` at commit :data:`SOURCE_COMMIT` (branch
-``spatial-review-20261020``, owner sign-off 2026-11-01). The method moved intact: each marker's level
+``spatial-review-20261020``, owner sign-off 2026-11-01). The port originally contained each marker's level
 per section from its own background or known-negative reference (``levels``), a stricter canary level
 (``canary``), the share of a cell's pixels above a level (``coverage``), and the canary-ranked
 compartment, lineage and label of every cell (``identity``). What the code may use comes from a
 registry per panel and tissue (``registry``); the code names compartments and lineages, never markers.
 
-What changed in the move is input and output only:
+Identity now resolves eligible two-way ties from exclusive native interior pixel votes and median calibrated brightness.
+Stage inputs and outputs:
 - inputs come from a :class:`~multiplex5000.positivity.sources.Source`. IES runs read Protein Measurement
   (``redsea`` and ``expression`` partitions, the manifest's geometry and qptiff); a CODEX run directory
   can be read for the computation-parity check;

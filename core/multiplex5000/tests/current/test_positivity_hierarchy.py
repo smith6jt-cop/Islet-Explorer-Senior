@@ -93,7 +93,7 @@ def test_a_plain_only_tie_must_resolve_too():
     assert out.loc[0, "status"] == "lineage_ambiguous"
 
 
-def test_a_subtype_tie_uses_brightness_and_interior_coverage_else_keeps_the_shared_lineage():
+def test_a_subtype_tie_uses_brightness_and_interior_coverage_else_keeps_the_shared_lineage(raw_conflict_pixels):
     calls = cells(*[{"CD45", "CD3e", "CD8", "GZMB", "CD57"}] * 3)
     canary = [(i, m) for i in range(3) for m in ("GZMB", "CD57")]
     ev = evidence(3, canary=canary,
@@ -101,6 +101,12 @@ def test_a_subtype_tie_uses_brightness_and_interior_coverage_else_keeps_the_shar
                         (2, "GZMB", 2.0), (2, "CD57", 1.0)],
                   cover=[(0, "GZMB", 0.8), (0, "CD57", 0.3), (1, "GZMB", 0.3), (1, "CD57", 0.8),
                          (2, "GZMB", 0.5), (2, "CD57", 0.45)])            # brighter but no clear interior lead
+    assert list(name(calls, ev, min_depth=1)["refined_class"]) == ["CD8_T"] * 3
+    # Shared positive pixels vote once. All three cells have 100% independent coverage for both markers.
+    ev["pixels"] = raw_conflict_pixels(MARKERS, [
+        {"GZMB": [2.] * 8 + [1.] * 2, "CD57": [1.] * 8 + [2.] * 2},
+        {"GZMB": [1.] * 8 + [2.] * 2, "CD57": [2.] * 8 + [1.] * 2},
+        {"GZMB": [2.] * 10 + [1.] * 9 + [1.5], "CD57": [1.] * 10 + [2.] * 9 + [1.5]}])
     out = name(calls, ev, min_depth=1)
     assert list(out["refined_class"]) == ["CD8_a", "CD8_b", "CD8_T"]
     assert list(out["status"]) == ["tie_settled", "tie_settled", "subtype_ambiguous"]
