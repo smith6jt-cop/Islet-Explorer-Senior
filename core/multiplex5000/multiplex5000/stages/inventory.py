@@ -23,6 +23,9 @@ What the release is built from, before anything is computed from it:
 * **known damage** -- the damage the maintainer recorded, by acquisition and tissue, in the
   tracked ``tissue_condition.csv``; marked on exactly the damaged sections in the coverage, in the
   acquisitions and runs, and listed on the gate.
+* **MALDI** -- for a project with ``settings.maldi: true``, each MALDI section of
+  an IO60 donor, its inspection (tissue and neighbouring slide, ``maldi_tissue_inspection.csv``)
+  and a MALDI section group in the coverage (``stages.maldi_inventory``, 2026-10-31).
 * **relationships** -- what ``multiplex5000.relationships`` reads from the donor notes,
   ``pln_blocks.csv`` and ``section_modes.csv``, with every disagreement between them.
 * **blocks** -- the block each section was cut from, as the maintainer stated it (2026-10-21):
@@ -98,11 +101,13 @@ PANCREAS_SECTION = "pancreas"
 PLN_SECTION = "pLN/lymphoid"         # a dedicated pLN slide's sections, counted
 DATASETS = "datasets"
 SLIDES = "slides"
+MALDI = "MALDI"
 ACQUISITION_COLUMNS = (PHENOCYCLER, XENIUM, POST_XENIUM_IF)
 #: The platform of each acquisition column, as the cohort's exclusions name them, and as the
 #: coverage writes them.
-PLATFORM_OF = {PHENOCYCLER: "phenocycler", XENIUM: "xenium", POST_XENIUM_IF: "if"}
-PLATFORM_NAMES = {"phenocycler": "PhenoCycler", "xenium": "Xenium", "if": "IF"}
+PLATFORM_OF = {PHENOCYCLER: "phenocycler", XENIUM: "xenium", POST_XENIUM_IF: "if",
+               MALDI: "maldi"}
+PLATFORM_NAMES = {"phenocycler": "PhenoCycler", "xenium": "Xenium", "if": "IF", "maldi": "MALDI"}
 #: Columns that are not a section of the slide, so recorded damage never falls on them.
 NOT_SECTIONS = (*ACQUISITION_COLUMNS, SLIDE_NUMBER)
 #: The block a section was cut from: the pancreas block (a pLN in it is same-block) or another --
@@ -133,7 +138,8 @@ STATUS_SOURCES = (("donor_metadata", "donor_id", "disease.status"),
 #: Xenium outputs this machine holds only in part.
 QPTIFF_FOLDERS = ("pancreas_qptiffs", "pln_qptiffs")
 #: The platform profile that names each platform's panels.
-PANEL_PROFILES = {"phenocycler": "phenocycler", "xenium": "xenium", "if": "post_xenium_if"}
+PANEL_PROFILES = {"phenocycler": "phenocycler", "xenium": "xenium", "if": "post_xenium_if",
+                  "maldi": "maldi"}
 XENIUM_RECORDS = ("experiment.xenium", "gene_panel.json", "metrics_summary.csv")
 #: The Xenium instrument's scan of the whole slide, every section on it -- the coverage's thumbnail
 #: of a Xenium slide; read from the output's aux_outputs, else from the copy beside its records.
@@ -230,6 +236,9 @@ def inputs(project) -> list[Input]:
     if project.source("npod_cases"):
         found.append(Input("npod_cases", project.source("npod_cases"), required=False))
     found += _instrument_inputs(project, found)
+    from . import maldi_inventory
+
+    found += maldi_inventory.inputs(project)
     return found
 
 
@@ -308,7 +317,10 @@ def settings(project) -> dict:
         from . import pilot_inventory
 
         return pilot_inventory.settings(project)
-    return {"xenium_root": project.settings.get("xenium_root")}
+    found = {"xenium_root": project.settings.get("xenium_root")}
+    if project.settings.get("maldi"):
+        found["maldi"] = True
+    return found
 
 
 def _rows(path: Path, delimiter: str = ",") -> list[dict]:
@@ -1140,7 +1152,8 @@ def run(task: Task) -> dict:
     reading = relationships.load(
         notes=task.input("donor_notes"), notes_copy=copy if copy.exists() else False,
         pln_blocks=task.input("pln_blocks"), section_modes=task.input("section_modes"),
-        aliases=cohort.donor_aliases, cohort_donors=spec.get("expected_donors", []))
+        aliases=cohort.donor_aliases, cohort_donors=spec.get("expected_donors", []),
+        maldi_inspection=False)     # the MALDI part reads it, against the acquisitions
     records = _instrument_records(task)
     acquisitions = _acquisitions(task, spec, manifest, cohort.donor_aliases, records)
     unmatched = _conditions(acquisitions, _rows(task.input("tissue_condition")))
@@ -1156,6 +1169,16 @@ def run(task: Task) -> dict:
     statuses, status_disagree, status_unknown = _statuses(task, cohort, donors)
     coverage = _coverage(acquisitions, reading, spec, statuses)
     coverage["thumbs"], unthumbed = _thumbnails(task, coverage["cells"])
+    from . import maldi_inventory
+
+    found_maldi = None
+    if maldi_inventory.enabled(task):
+        found_maldi = maldi_inventory.collect(task, cohort.donor_aliases, donors, acquisitions)
+        maldi_inventory.extend_coverage(coverage, found_maldi)
+        reading.relationships.extend(maldi_inventory.relationships_for(task, found_maldi))
+        maldi_inventory.write(task, found_maldi)
+        maldi_inventory.figure(task, found_maldi, acquisitions)
+        acquisitions = acquisitions + found_maldi["rows"]
     _write_csv(task.output("acquisitions.csv"), acquisitions)
     _write_csv(task.output("coverage.csv"), coverage["table"])
     _write_csv(task.output("runs.csv"), [dict(
@@ -1188,6 +1211,7 @@ def run(task: Task) -> dict:
                         if n.xenium_design == relationships.SEQUENTIAL},
                        shared_slides)
     platforms = Counter(a["platform"] for a in acquisitions)
+    maldi_summary = maldi_inventory.summary(found_maldi) if found_maldi else {}
     pheno = [a for a in acquisitions if a["platform"] == "phenocycler"]
     xenium = [a for a in acquisitions if a["platform"] == "xenium" and a.get("output")]
     cassettes_differ = [a for a in xenium if a.get("cassette_name")
@@ -1229,10 +1253,11 @@ def run(task: Task) -> dict:
         "markers_not_manifest_panel": sorted(a["acquisition_id"] for a in pheno
                                              if a.get("markers_match_manifest_panel") is False),
         "panels_unnamed": sorted(f"{a['acquisition_id']}: {a['panel_error']}"
-                                 for a in acquisitions if a.get("panel_error")),
+                                 for a in acquisitions
+                                 if a.get("panel_error") and a["platform"] != "maldi"),
         "panels": {p: dict(sorted(Counter(a["panel"] for a in acquisitions
                                           if a["platform"] == p and a.get("panel")).items()))
-                   for p in PANEL_PROFILES},
+                   for p in PANEL_PROFILES if p != "maldi" or platforms.get("maldi")},
         "xenium_records_missing": sorted(f"{k}: {', '.join(v)}"
                                          for k, v in records["missing"].items()),
         "xenium_records_unreadable": sorted(f"{k}: {v}" for k, v in records["unreadable"].items()
@@ -1294,12 +1319,13 @@ def run(task: Task) -> dict:
         "partners_outside_this_inventory": sorted(
             f"{s['label']}, run with {', '.join(o['label'] for o in r['slides'] if o is not s)}"
             for r in runs for s in r["slides"] if not s["acquisitions"]),
+        **maldi_summary,
     }
 
 
 #: Fills: a platform colours an acquisition, a block colours a section -- never a quantity.
 FILLS = {PHENOCYCLER: "#cfe0f3", XENIUM: "#cdebe2", POST_XENIUM_IF: "#e4dcf3",
-         PANCREAS: "#a9d18e", LYMPH_NODE: "#f4b183"}
+         MALDI: "#f7e3b5", PANCREAS: "#a9d18e", LYMPH_NODE: "#f4b183"}
 DAMAGED = "#b3261e"
 #: The coverage figure's layout, in inches.
 _HEADERS = {SAME_BLOCK: "same-block\npLN/lymphoid", DIFFERENT_BLOCK: "different-block\npLN/lymphoid",
@@ -1397,6 +1423,7 @@ def _figure(task: Task, layout: dict) -> None:
             if cell is None:
                 continue
             platform = PLATFORM_OF.get(column) or ("xenium" if group == XENIUM_SLIDE
+                                                   else "maldi" if group == "MALDI section"
                                                    else "phenocycler")
             faded = excluded_on(donor, platform)
             cell_ink = "0.5" if faded else "black"
@@ -1466,6 +1493,8 @@ def _figure(task: Task, layout: dict) -> None:
                 fontweight="bold")
 
     handles = [Patch(facecolor=FILLS[k], label=k) for k in (PHENOCYCLER, XENIUM, POST_XENIUM_IF)]
+    if any(c == MALDI for (_, _, c) in cells):
+        handles.append(Patch(facecolor=FILLS[MALDI], label=MALDI))
     handles += [Patch(facecolor=FILLS[PANCREAS], label=tissues.DISPLAY_NAME[PANCREAS]),
                 Patch(facecolor=FILLS[LYMPH_NODE], label=PLN_SECTION)]
     if layout["damage_when"]:
@@ -1878,6 +1907,12 @@ def gate(task: Task, summary: dict) -> gates.Gate:
         C("Xenium output folders renamed, with their known reason",
           summary["xenium_folders_renamed_known"], "reported", True, blocking=False),
     ]
+    figures = ["coverage.png", "runs.png", "xenium_slides.png"]
+    if "maldi_acquisitions" in summary:
+        from . import maldi_inventory
+
+        checks += maldi_inventory.checks(summary)
+        figures.append("maldi_sections.png")
     return gates.Gate(STAGE, "What the release is built from: every acquisition, every recorded "
                       "relationship and what is missing, before anything is computed.",
-                      checks, ["coverage.png", "runs.png", "xenium_slides.png"])
+                      checks, figures)

@@ -109,3 +109,7 @@ BRIEF.md
 /results/
 /output/
 /outputs/
+
+# MALDI imaging exports as received (622 MB of raw CSV); the read-only copy MultiPlex5000 reads
+# is the site source maldi_spots (/data/io60-current/sources/maldi/...). Never commit them.
+/MALDI/

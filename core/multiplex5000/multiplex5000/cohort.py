@@ -29,13 +29,15 @@ EXCLUDED_PLATFORMS: dict[str, tuple[str, ...]] = {
 }
 
 
-#: The platforms an exclusion can cover, in the spelling :func:`excluded_on` takes.
-PLATFORMS: tuple[str, ...] = ("phenocycler", "xenium", "if")
+#: The platforms an exclusion can cover, in the spelling :func:`excluded_on` takes. ``maldi`` is the
+#: MALDI imaging of serial sections from the same block series (maintainer, 2026-10-31); 6457's
+#: exclusion names PhenoCycler only, so its MALDI stands, as its Xenium does.
+PLATFORMS: tuple[str, ...] = ("phenocycler", "xenium", "if", "maldi")
 
 
 def excluded_on(donor: str, platform: str) -> bool:
-    """Whether a donor's acquisitions on one platform (``phenocycler``, ``xenium``, ``if``) are
-    centrally excluded.
+    """Whether a donor's acquisitions on one platform (``phenocycler``, ``xenium``, ``if``,
+    ``maldi``) are centrally excluded.
 
     A platform not in :data:`PLATFORMS` is refused rather than answered: a misspelling such as
     ``"PhenoCycler"`` matches no scoped exclusion, so answering it would readmit the donor.
