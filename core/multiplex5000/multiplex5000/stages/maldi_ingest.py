@@ -18,6 +18,11 @@ and ``images/<Tissue_id>.npz``: the summed-ion image and the on-tissue mask on t
 50 um spot grid, with that grid -- what Serial Registration reads. No intensity is normalized
 here; MALDI normalization is a separate, later decision.
 
+``features.csv`` describes every feature (``maldi.feature_table``): its set and, for an N-glycan,
+its composition, the ion the export names, the composition class and the fucosylated and
+sialylated flags of the CRO N-glycan report's rules, and how many features measure the same
+composition as different ions.
+
 Its gate is automatic, as the measurement stages' are: integrity checks block, and the
 indicators (spots on and off the tissue, detection per feature, missing values) are reported.
 """
@@ -26,6 +31,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -167,7 +173,8 @@ def run(task: Task) -> dict:
                                   missing=int((~np.isfinite(column[on])).sum())))
     _write(task.output("sections.csv"), sections)
     _write(task.output("detection.csv"), detection)
-    _write(task.output("features.csv"), [dict(role=r, feature=n) for r, n in feats])
+    described = maldi.feature_table(feats)
+    _write(task.output("features.csv"), described)
     _figure(task, sections)
     return {"sections": len(sections), "spots": sum(s["spots"] for s in sections),
             "spots_on_tissue": sum(s["on_tissue"] for s in sections),
@@ -175,6 +182,13 @@ def run(task: Task) -> dict:
                                       if s["off_tissue"]},
             "missing_values": sum(s["missing_values"] for s in sections),
             "features": len(feats), "inventoried": len(listed),
+            "glycan_composition_classes": dict(sorted(Counter(
+                r["composition_class"] for r in described if r["role"] == "glycan").items())),
+            "glycan_flags": {"fucosylated": sum(bool(r.get("fucosylated")) for r in described),
+                             "sialylated": sum(bool(r.get("sialylated")) for r in described)},
+            "compositions_measured_as_several_ions": sorted({
+                f"{r['composition']}: {r['ions_of_composition']} ions" for r in described
+                if r.get("parsed") and r["ions_of_composition"] > 1}),
             "lowest_detected_fraction": sorted(
                 (f"{d['tissue_id']} {d['feature']}: {d['detected_fraction']:.3f}"
                  for d in detection if np.isfinite(d["detected_fraction"])
@@ -242,6 +256,13 @@ def gate(task: Task, summary: dict) -> gates.Gate:
                     or "none")),
         C("values missing from the export", summary["missing_values"], "reported", True,
           blocking=False, detail="unavailable, never filled; a 0 is not detected and is kept"),
+        C("N-glycan features by composition class", summary["glycan_composition_classes"],
+          "reported", True, blocking=False,
+          detail=f"{maldi.COMPOSITION_RULE}. Fucosylated {summary['glycan_flags']['fucosylated']}, "
+                 f"sialylated {summary['glycan_flags']['sialylated']}. Measured as more than one "
+                 "ion: " + ("; ".join(summary["compositions_measured_as_several_ions"]) or "none")
+                 + ". Composition only; a description of the feature, never of a spot or cell "
+                 "(features.csv)"),
         C("features detected in under 5% of a section's on-tissue spots",
           summary["lowest_detected_fraction"], "reported", True, blocking=False,
           detail="detection.csv has every feature in every section; nothing is dropped for it"),

@@ -237,8 +237,15 @@ different cells, related to the neighbour's objects and the continuous signed di
 never to cells. Project `io60_maldi_serial`: Source Inventory with a MALDI inspection gate (the
 tracked `maldi_tissue_inspection.csv`; a Tissue_id is never parsed for its tissue or neighbour),
 MALDI Ingest (0 = not detected, kept; no normalization), then the Registration and Integration
-stages' `maldi_serial` route. IO60 donors only; 6426 and HPAP are out of cohort. The raw export is
-the site source `maldi_spots`; the repo-root `MALDI/` folder is gitignored. See
+stages' `maldi_serial` route. Only donors with PhenoCycler or Xenium data in the project are in scope (maintainer, 2026-11-03;
+`maldi_inventory.donors_with_data`); the HPAP sections are out of cohort. Tissue_id `6426_02_pln` is donor 6436's
+section -- there is no donor 6426 in the project (maintainer, 2026-11-03;
+`maldi.TISSUE_DONOR_CORRECTIONS`) -- so the IO60 MALDI set is 33 sections of 18 donors. The raw export is
+the site source `maldi_spots`; the repo-root `MALDI/` folder is gitignored. The CRO N-glycan report
+there (2026-07-09) covers the same acquisition but a different glycan table (49 columns, not our
+38, the shared ones peak-picked slightly differently) and labels 13 sections differently; only its
+composition rules (feature descriptions) and its 50 µm resolution finding (spot cover fractions)
+were taken — not its normalization, batch correction or classifier. See
 `core/multiplex5000/docs/INTEGRATION.md` and `docs/PLAN_2026-10-31_MALDI_SEQUENTIAL.md`.
 
 The legacy `multiplex5000.pipeline` API stops after `expression`. `controls`, `calibrate`, `type` and assignment export

@@ -41,6 +41,25 @@ comparison do not establish same-cell relationships or approve a transform.
 See the [workflow guide](PORTABILITY_EVALUATION_USER_GUIDE.md) for runnable source
 audits and the distinction between supported evaluation and blocked integration.
 
+## 2026-11-03 CRO report review
+
+The contract-research N-glycan report on this acquisition (`MALDI/T1D_Nglycan_CRO_Report.pdf`,
+dated 2026-07-09) was read against the route. It covers the same acquisition (the same 2,288,540
+spots and 60 sections) but a different glycan table: **49** columns there, **38** here (12
+compositions absent here, one of our ions absent there), the 37 shared columns detected in slightly
+more pixels there (median +0.32 percentage points), and 13 sections labelled differently (12 with
+`_pln` appended; our `6426_02_pln` named `6436_02_pln`). **Ruling (maintainer, 2026-11-03):**
+"There is no 6426 donor in the project, so 6436 is correct." `6426_02_pln` is donor 6436's section
+(`maldi.TISSUE_DONOR_CORRECTIONS`; the Tissue_id is kept), so the IO60 MALDI set is **33 sections
+of 18 donors**, and every "6426 ... out of cohort" statement below is superseded: only the HPAP
+sections are out of cohort.
+Two things were taken into the code, both descriptive: each N-glycan feature's composition class
+and flags by the report's rules (MALDI Ingest `features.csv`), and each spot's grid-square cover
+fraction per object class (Serial Integration), because the report measured that at 50 um only
+islet and peri-islet masks are resolvable. Its normalization, batch correction, HPAP pooling,
+glycan-trained compartment classifier and distance bins were not taken. Details:
+`core/multiplex5000/docs/INTEGRATION.md`, "what the CRO N-glycan report changes".
+
 **Where the implementation departs from the text below, and why:**
 - `maldi_acquisitions.csv` is a Source Inventory **output**, not a tracked generated file. A tracked
   copy of facts derived from the export would be a second copy that can go stale. The tracked

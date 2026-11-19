@@ -582,8 +582,12 @@ spots on a 50 µm grid in the instrument's stage frame) enters as platform `mald
   `maldi_sections.png`; the `Tissue_id` is never parsed for either. The Source Inventory gate blocks
   until every IO60 MALDI section is inspected.
 - The registration images are the ion images themselves. A 0 is *not detected*, kept as a measured
-  value; a missing value stays missing. IO60 donors only: 6426 and the HPAP sections are counted out
-  of cohort. 6457's exclusion covers its PhenoCycler data only, so its MALDI stands.
+  value; a missing value stays missing. Only donors with PhenoCycler or Xenium data are in scope
+  (maintainer, 2026-11-03: "only use our donors that we have xenium/phenocycler data for";
+  `maldi_inventory.donors_with_data`, an acquisition of either platform the cohort does not
+  exclude, so 6457 counts through its Xenium): the HPAP sections are counted out of cohort. (Until 2026-11-03 so was `6426_02_pln`; the maintainer ruled it donor 6436's section --
+  there is no donor 6426 in the project -- recorded in `maldi.TISSUE_DONOR_CORRECTIONS`, which
+  changes only the donor, never the Tissue_id. The IO60 set is 33 sections of 18 donors.) 6457's exclusion covers its PhenoCycler data only, so its MALDI stands.
 
 The route, in project `io60_maldi_serial` (its own release; the accepted io60 inventory is not
 touched):
@@ -594,7 +598,10 @@ touched):
 2. **MALDI Ingest** (`stages/maldi_ingest.py`, code id `04b_maldi_ingest`): per section, spots keyed
    `identity.cell_uid("maldi:<Tissue_id>", "spot50", spotId)`, every feature as measured, `on_tissue`
    (the raster footprint with at least one ion detected), and the summed-ion image on the section's
-   spot grid. No normalization. Automatic gate.
+   spot grid. No normalization. Automatic gate. `features.csv` describes each N-glycan feature by
+   its composition (`maldi.glycan_annotation`): residue counts, the ion as the export names it,
+   the composition class and fucosylated/sialylated flags of the CRO N-glycan report's rules, and
+   how many features measure the same composition as different ions.
 3. **Serial Registration** (`stages/maldi_serial_registration.py`, the Registration stage's
    `maldi_serial` route): the MALDI outline onto the neighbour's outline — the `Tissue` or `pLN`
    annotation of a PhenoCycler pancreas scan, or the DAPI tissue mask of a dedicated pLN slide — by
@@ -606,9 +613,56 @@ touched):
    `maldi_serial` route): each spot in the neighbour's frame with `signed_dist_islet_um`, its islet,
    structure and annotation region by centre; per object, detection fraction and median among
    detecting spots, only where the object still holds a spot centre after shrinking it by the
-   registration RMSE plus half a spot pitch (else `unavailable`, with the reason). Every table
-   carries `relationship = serial_section`.
+   registration RMSE plus half a spot pitch (else `unavailable`, with the reason). Each spot also
+   carries `cover_fraction__<role>__<class>`: the fraction of its 50 µm grid square, carried by the
+   accepted transform, that each declared object class covers (NaN where that class's objects are
+   unavailable, with `cover_status__<role>`). Every table carries `relationship = serial_section`.
 
 On a synthetic pose with a 37° rotation and a mirror, the registration recovers the spots to a
 median 22–32 µm, under one spot pitch (`tests/current/test_maldi.py`). That is computation, not a
 claim about any real section.
+
+### 2026-11-03 — what the CRO N-glycan report changes, and what it does not
+
+The contract-research report on the same MALDI acquisition (`MALDI/T1D_Nglycan_CRO_Report.pdf`,
+dated 2026-07-09, gitignored with the export) was read against this route.
+
+- **Same acquisition, not the same table.** The report covers our 2,288,540 spots and 60 sections
+  in the same stage frame (6539_01A spans x 236,256–248,456, y −42,469 to −30,569 µm in both), and
+  its per-section median ion totals rank the sections as ours do. Measured differences (2026-11-03,
+  from our CSVs and the report's QC figure A1 and per-core figure A8):
+  - **Glycan columns:** 49 there, 38 here. The report has 12 compositions ours lacks
+    (Hex10HexNAc2, Hex2HexNAc2, Hex3HexNAc5, Hex4HexNAc4NeuAc1, Hex4dHex2HexNAc3, Hex4dHex2HexNAc5,
+    Hex5dHex1HexNAc3, Hex5dHex2HexNAc5, Hex5dHex3HexNAc5, Hex6HexNAc4, Hex6dHex1HexNAc4,
+    Hex6dHex4HexNAc5) and lacks our `Hex5HexNAc4NeuAc1...Na..Na` ion.
+  - **Shared columns' values:** each of the 37 shared glycans is detected in as many or more pixels
+    there (median +0.32 percentage points, largest +1.8 for Hex4HexNAc4), by a gap that varies by
+    feature, so it is not a denominator effect: the shared columns were peak-picked differently.
+    Per-section median summed glycan is about 2.6% higher there (0.98–1.07 by rank).
+  - **Empty pixels:** 23,123 there with no glycan, 25,655 here; 6539_01A 36,078 there, 36,071 here.
+  - **Section labels (13 of 60):** the report appends `_pln` to 6380_01, 6442_03, 6476, 6521_02,
+    6523_01, 6551_03, 6566_02, HPAP_019_8_2, HPAP_020_8, HPAP_032, HPAP_043_8_2 and HPAP_048_6_2,
+    and names our `6426_02_pln` as `6436_02_pln` (same section by shape). HPAP_016_1_3 and HPAP_112_6
+    are unmatched there. Its `_pln` labels are metadata the CRO received, not an inspection, and
+    settle no tissue here. The donor was settled by the maintainer (2026-11-03): no donor 6426 is
+    in the project, so `6426_02_pln` is 6436's.
+  - **Glycogen:** not analysed by the report.
+  Nothing here assumes a feature count; the report's table, if delivered, would be read as it is.
+- **Taken:** its composition rules (section 9.1) as a *description* of each feature
+  (`maldi.COMPOSITION_RULE`; they reproduce its 36/6/4/3 classes and 26 fucosylated, 5 sialylated on
+  its 49 names). Its text bounds high-mannose at Hex 5–9, but its six high-mannose species include
+  Hex10HexNAc2; the rule follows the species. Composition only: core versus antennary fucose and
+  linkage are not resolved.
+- **Taken:** its masking-fidelity result — at 50 µm only islet and peri-islet masks reach Dice
+  0.73–0.80, vessels, lymphatics and nerves ≤ 0.41 (one section, 6539_01A) — is why each spot now
+  carries its grid square's cover fraction beside the centre-in label. No cover cutoff is set.
+- **Not taken:** TIC normalization, log1p and ComBat (normalization is a separate, later decision;
+  values stay as measured); HPAP (out of cohort); its glycan-trained compartment classifier
+  and APPNP smoothing (objects come from the neighbour's QuPath export, never from glycan
+  profiles); 20 µm peri-islet regions and distance bins (continuous signed distance only); its
+  disease contrasts (no comparison is run here).
+- **Registration:** it fitted 6539_01A to the PhenoCycler 6539 annotations by footprint
+  shape-matching, 236° with a mirror, IoU 0.59, at 0.552 µm per scan pixel — 8.7% above the
+  profile's 0.5078, outside `scale_is_physical`'s 5% bound. Its scale came from the RMS radius of
+  the annotation points, which do not fill the section, so it is not evidence of a real size
+  difference; the inspection and the review stop decide the neighbour and the transform.

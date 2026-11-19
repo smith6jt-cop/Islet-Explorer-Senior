@@ -9,6 +9,8 @@ pixel_size_um: 50
 # How a MALDI panel is named: the number of features in each feature set the acquisition
 # exports, in this order, joined by " + ". The 2026-10 export is two files over the same spots:
 # 38 sodiated N-glycan compositions and 10 glycogen m/z features, so "38 N-glycans + 10 glycogen".
+# The CRO N-glycan report (2026-07-09) analysed a 49-glycan table of the same acquisition; the
+# count is always read from the file.
 # Applied by multiplex5000.panel_names.maldi; the wording is confirmed at the Source Inventory gate.
 panel_names:
   sets:

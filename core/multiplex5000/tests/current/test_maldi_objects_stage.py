@@ -46,7 +46,7 @@ def _accept(folder: Path) -> None:
     gates.accept(folder, by="synthetic test fixture")
 
 
-def _fixture(tmp_path: Path, *, platform: str = "phenocycler"):
+def _fixture(tmp_path: Path, *, platform: str = "phenocycler", with_line: bool = True):
     release = tmp_path / "release"
     tid = "synthetic-section"
     aid = ("phenocycler:exact-node.qptiff" if platform == "phenocycler"
@@ -87,7 +87,7 @@ def _fixture(tmp_path: Path, *, platform: str = "phenocycler"):
 
     geometries = [("node-a", shapely.box(100, 200, 400, 500)),
                   ("node-b", shapely.box(300, 200, 500, 500)),
-                  ("nonarea-line", shapely.LineString([(100, 200), (400, 500)]))]
+                  ("nonarea-line", shapely.LineString([(100, 200), (400, 500)]))][:3 if with_line else 2]
     export = tmp_path / "objects.geojson"
     export.write_text(json.dumps({"type": "FeatureCollection", "features": [
         {"type": "Feature", "id": identifier, "geometry": shapely.geometry.mapping(geometry),
@@ -143,6 +143,11 @@ def test_stage08_publishes_serial_objects_with_finite_denominators(tmp_path, pla
     assert spots.loc[5, "region_membership_state"] == "outside_or_unavailable"
     assert spots.signed_dist_islet_um.isna().all()
     assert set(spots.signed_dist_islet_status) == {"unavailable_no_islet_objects"}
+    # The declared Node class holds a line that has no area: its cover is unavailable, never 0.
+    assert spots["cover_fraction__regions__Node"].isna().all()
+    assert set(spots.cover_status__regions) == {"unavailable_invalid_geometry"}
+    assert set(spots.cover_status__islets) == {"unavailable_no_object_source"}
+    assert "cover_fraction__islets__Islet" not in spots.columns
     assert set(spots.object_evidence_state) == {"partial_unavailable_objects"}
 
     objects = pq.read_table(result.path / "data/objects" / relative).to_pandas().set_index("object_id")
@@ -177,6 +182,18 @@ def test_stage08_publishes_serial_objects_with_finite_denominators(tmp_path, pla
     parameters = json.loads((result.path / "resolved_parameters.json").read_text())
     assert parameters["context"]["relationship_type"] == "serial_section"
     assert parameters["automatic_application"] is False
+
+
+def test_stage08_reports_each_spots_grid_square_cover(tmp_path):
+    project, fixture = _fixture(tmp_path, with_line=False)
+    result = tasks.run_stage(integration, project)
+    spots = pq.read_table(result.path / f"data/spots/tissue_id={fixture['tid']}/data.parquet").to_pandas()
+    # Squares carried by +(100, 200): spot 3's lies inside both nodes and is counted once; spot
+    # 5's lies beyond them. Partial squares are tested on the helper itself.
+    assert spots["cover_fraction__regions__Node"].tolist() == pytest.approx([1, 1, 1, 1, 1, 0, 1, 1])
+    assert set(spots.cover_status__regions) == {"available"}
+    sections = list(csv.DictReader((result.path / "sections.csv").open()))
+    assert sections[0]["spots_touching_islets"] == ""
 
 
 @pytest.mark.parametrize("changed", ["transform", "source", "source_receipt", "receipt", "gate", "spots"])

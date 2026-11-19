@@ -13,8 +13,13 @@ For each registered section, on a PhenoCycler pancreas neighbour (the site's
 
 * **per spot** (``data/spots/tissue_id=*/data.parquet``) -- its position in the neighbour's frame
   (um), ``signed_dist_islet_um`` (negative inside an islet object, as QuPath's signed distance is),
-  the islet and the structure object its centre falls in, the annotation region, and the
-  registration's outline RMSE as its uncertainty;
+  the islet and the structure object its centre falls in, the annotation region, the
+  registration's outline RMSE as its uncertainty, and ``cover_fraction__<role>__<class>``: how
+  much of the spot's 50 um grid square, carried by the transform, each object class covers (0 to
+  1; NaN where that class's objects are unavailable, with ``cover_status__<role>``). At 50 um
+  vessels, lymphatics, nerves and most islets are smaller than a spot (CRO N-glycan report,
+  2026-07-09: only islet and peri-islet masks reach Dice 0.73-0.80, the rest <= 0.41), so the
+  centre-in label alone would overstate them; the fraction is reported, never thresholded;
 * **per object** (``data/objects/tissue_id=*/data.parquet``) -- the spots whose centre falls in it,
   and, where it is ``evaluable``, each feature's detection fraction (a 0 is not detected and
   counts) and its median among the spots that detected it. An object is evaluable only if it
@@ -149,7 +154,9 @@ def settings(project) -> dict:
             "overlap_policy": "ambiguous unique assignment; nonexclusive object summaries",
             "denominators": "finite signal-mask spots plus explicit all-acquired-raster comparison; zeros retained",
             "evaluable": "a spot centre remains after shrinking the object by the outline RMSE "
-                         "plus half a spot pitch"}
+                         "plus half a spot pitch",
+            "spot_cover": "fraction of each spot's 50 um grid square, carried by the accepted "
+                          "transform, covered by each declared object class; geometric, no cutoff"}
 
 
 def inputs(project) -> list[Input]:
@@ -303,6 +310,79 @@ def _signed_distance(points, islets: list[dict]) -> np.ndarray:
     return np.where(inside, -distance, distance)
 
 
+def _spot_squares(spots_xy: np.ndarray, transform: Transform):
+    """Each spot's 50 um grid square (the area of the raster the spot stands for, centred on it
+    in the MALDI stage frame), its corners carried by the accepted transform into the
+    neighbour's frame. The laser's own ablation footprint is not recorded; the grid square is."""
+    import shapely
+
+    half = maldi.SPOT_PITCH_UM / 2
+    xy = np.asarray(spots_xy, float)
+    corners = np.stack([xy + (-half, -half), xy + (half, -half), xy + (half, half),
+                        xy + (-half, half)], axis=1)
+    carried = transform.apply(corners.reshape(-1, 2)).reshape(corners.shape)
+    return shapely.polygons(carried)
+
+
+def _cover_fraction(squares, geometries: list) -> np.ndarray:
+    """The fraction of each square's area that the union of ``geometries`` covers, 0 to 1.
+
+    Exact without a whole-section union (85,690 vessel objects on one section take minutes to
+    union): each square is intersected with the objects it touches, and only a square touched by
+    more than one object has its pieces unioned, so touching or overlapping objects are never
+    counted twice."""
+    import shapely
+
+    out = np.zeros(len(squares))
+    if not len(squares) or not geometries:
+        return out
+    objects = np.asarray(geometries, dtype=object)
+    object_index, square_index = shapely.STRtree(squares).query(objects, predicate="intersects")
+    if not len(square_index):
+        return out
+    pieces = shapely.intersection(objects[object_index], squares[square_index])
+    area = shapely.area(pieces)
+    count = np.bincount(square_index, minlength=len(squares))
+    single = count[square_index] == 1
+    out += np.bincount(square_index[single], weights=area[single], minlength=len(squares))
+    shared = np.flatnonzero(~single)
+    if shared.size:
+        order = shared[np.argsort(square_index[shared], kind="stable")]
+        groups = np.split(order, np.flatnonzero(np.diff(square_index[order])) + 1)
+        for group in groups:
+            out[square_index[group[0]]] = shapely.area(shapely.union_all(pieces[group]))
+    return np.clip(out / shapely.area(squares), 0.0, 1.0)
+
+
+def _cover_columns(squares, classes: dict[str, list[str]], objects: dict[str, list[dict]],
+                   unavailable: str) -> dict:
+    """``cover_fraction__<role>__<class>`` for every declared role and class, and
+    ``cover_status__<role>`` for all three roles. A role with no object source (or every role,
+    when ``unavailable`` names why) is unavailable; a class with an object whose geometry could
+    not be read is unavailable (NaN), because its coverage would be understated where that object
+    lies; a class read with no objects of it covers nothing (0)."""
+    out = {}
+    for role in sorted(OBJECT_ROLES):
+        if unavailable or role not in classes:
+            out[f"cover_status__{role}"] = unavailable or "unavailable_no_object_source"
+            continue
+        statuses = set()
+        for name in classes[role]:
+            mine = [o for o in objects.get(role, []) if o["object_class"] == name]
+            if any(o["geometry"] is None for o in mine):
+                out[f"cover_fraction__{role}__{name}"] = np.full(len(squares), np.nan)
+                statuses.add("unavailable_invalid_geometry")
+            else:
+                out[f"cover_fraction__{role}__{name}"] = _cover_fraction(
+                    squares, [o["geometry"] for o in mine])
+        out[f"cover_status__{role}"] = (
+            "available" if not statuses
+            else "unavailable_invalid_geometry" if all(
+                np.isnan(out[f"cover_fraction__{role}__{name}"]).all() for name in classes[role])
+            else "partial_unavailable_invalid_geometry")
+    return out
+
+
 def _containing(points, objects: list[dict]) -> np.ndarray:
     """Unique object index, -1 outside, or -2 for overlapping/ambiguous membership."""
     import shapely
@@ -409,10 +489,14 @@ def run(task: Task) -> dict:
                                                               if k != "tissue_id"}))
         objects, islets, structures, regions = [], [], [], []
         reason = ""
+        classes: dict[str, list[str]] = {}
         explicit = declarations.get(row["neighbour_acquisition"])
         if explicit is not None:
             loaded = _declared_objects(task, row, transform, explicit)
             islets, structures, regions = loaded["islets"], loaded["structures"], loaded["regions"]
+            for source in explicit["sources"]:
+                mine = classes.setdefault(source["role"], [])
+                mine += [c for c in source["classes"] if c not in mine]
         elif f"islets:{tid}" in task.inputs:
             if transform.meta.get("fixed_geometry", {}).get("pixel_um") != pixel_um:
                 raise MaldiIntegrationError(f"{tid}: legacy object calibration differs from registration frame")
@@ -420,6 +504,9 @@ def run(task: Task) -> dict:
             structures = [o for s in STRUCTURES
                           for o in _objects(task.input(f"{s}:{tid}"), pixel_um)]
             regions = _objects(task.input(f"annotations:{tid}"), pixel_um, set(REGIONS))
+            classes = {"islets": ["Islet"],
+                       "structures": sorted(set(STRUCTURES) | {o["object_class"] for o in structures}),
+                       "regions": list(REGIONS)}
         else:
             reason = "no object sources declared for this exact neighbour acquisition"
         if not islets and not structures and not regions and not reason:
@@ -440,6 +527,16 @@ def run(task: Task) -> dict:
         out["region"] = [regions[i]["object_class"] if i >= 0 else "" for i in index]
         out["region_object_id"] = [regions[i]["object_id"] if i >= 0 else "" for i in index]
         out["region_membership_state"] = np.where(index == -2, "ambiguous_overlap", np.where(index >= 0, "unique", "outside_or_unavailable"))
+        # How much of each spot's grid square each object class covers: at 50 um vessels,
+        # lymphatics, nerves and most islets are smaller than a spot, so a centre-in label alone
+        # overstates them (CRO N-glycan report, 2026-07-09, sections 5.3 and 9.4). Geometric,
+        # under the accepted transform; the registration RMSE is carried beside it.
+        squares = _spot_squares(spots[["x_um", "y_um"]].to_numpy(float), transform)
+        for key, column in _cover_columns(
+                squares, classes, {"islets": islets, "structures": structures, "regions": regions},
+                ("unavailable_no_object_source" if not classes
+                 else "unavailable_no_area_objects" if reason else "")).items():
+            out[key] = column
         values = spots[names].to_numpy(float)
         # Existing pancreas summaries remain islets/structures. Explicit region exports may
         # additionally summarize their declared ROIs without becoming biological structures.
@@ -464,6 +561,10 @@ def run(task: Task) -> dict:
             tissue_id=tid, donor_id=row["donor_id"], neighbour=row["neighbour_acquisition"],
             spots=len(out), spots_on_tissue=int(on.sum()),
             spots_in_islets=int((out["islet_object_id"][on] != "").sum()),
+            spots_touching_islets=(int((out["cover_fraction__islets__Islet"][on] > 0).sum())
+                                   if "cover_fraction__islets__Islet" in out
+                                   and np.isfinite(out["cover_fraction__islets__Islet"]).all()
+                                   else ""),
             islets=len(islet_rows), islets_evaluable=sum(o["evaluable"] for o in islet_rows),
             structures=sum(o["object_role"] == "structures" for o in objects),
             structures_evaluable=sum(o["evaluable"] for o in objects
@@ -495,7 +596,8 @@ def run(task: Task) -> dict:
         context={"modality": "maldi", "relationship_type": RELATIONSHIP, "units": "um and exported feature intensity"},
         parameters=[{"name": "object_uncertainty", "role": "selected_method", "value": "outline RMSE + half spot pitch", "units": "um"},
                     {"name": "overlap_policy", "role": "selected_method", "value": "no unique assignment for overlapping objects; nonexclusive object summaries", "units": None},
-                    {"name": "denominator_policy", "role": "selected_method", "value": settings(task.project)["denominators"], "units": "finite spots"}],
+                    {"name": "denominator_policy", "role": "selected_method", "value": settings(task.project)["denominators"], "units": "finite spots"},
+                    {"name": "spot_cover", "role": "selected_method", "value": settings(task.project)["spot_cover"], "units": "fraction of grid-square area"}],
         acquisitions=sections + [{"tissue_id": r["tissue_id"], "unavailable_reason": r.get("reason", "")} for r in unavailable],
         input_names=tuple(name for name in ("04b_maldi_ingest_receipt", "07_registration_receipt", "object_sources_manifest") if name in task.inputs),
         producer_paths=(Path(__file__),))
