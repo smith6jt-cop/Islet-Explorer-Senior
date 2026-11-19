@@ -1,0 +1,752 @@
+{
+  "schema": "gammadelta-review-criteria/1",
+  "status": "PROPOSED_EXCLUSIONS_REVIEW_REQUIRED",
+  "base_status": "USER_APPROVED_PER_GENE_THRESHOLD_AND_INCLUSIVE_BOOLEAN",
+  "base_expression": "(CD3E>=2 OR CD3G>=2) AND (TRDC>=2 OR TRGC2>=2)",
+  "base_predicate": {
+    "op": "all",
+    "args": [
+      {
+        "op": "any",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CD3E",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CD3G",
+            "ge": 2
+          }
+        ]
+      },
+      {
+        "op": "any",
+        "args": [
+          {
+            "op": "count",
+            "gene": "TRDC",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "TRGC2",
+            "ge": 2
+          }
+        ]
+      }
+    ]
+  },
+  "positivity": "P(g) := native assigned Gene Expression count for g >=2, individually in the same native cell. Unmeasured is NA, never zero.",
+  "foreign_programs": [
+    {
+      "id": "B_program",
+      "label": "Corroborated B-lineage RNA",
+      "expression": "CD79A AND CD79B AND (MS4A1 OR CD19)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CD79A",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CD79B",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "MS4A1",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "CD19",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "myeloid_program",
+      "label": "Corroborated mononuclear-myeloid RNA",
+      "expression": "CSF1R AND SPI1 AND (CD14 OR CD163 OR FCGR1A)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CSF1R",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "SPI1",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "CD14",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "CD163",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "FCGR1A",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "ductal_epithelial_program",
+      "label": "Corroborated ductal/epithelial RNA",
+      "expression": "EPCAM AND KRT19 AND (CFTR OR MUC1 OR SOX9)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "EPCAM",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "KRT19",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "CFTR",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "MUC1",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "SOX9",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "acinar_program",
+      "label": "Corroborated acinar-associated RNA",
+      "expression": "CUZD1 AND CTRL AND (AQP8 OR PDIA2)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CUZD1",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CTRL",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "AQP8",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "PDIA2",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "endocrine_program",
+      "label": "Corroborated endocrine-associated RNA",
+      "expression": "(INSM1 OR NEUROD1 OR ISL1) AND at_least_2_of(CHGA, SCG2, SCG5, PCSK1)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "INSM1",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "NEUROD1",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "ISL1",
+                "ge": 2
+              }
+            ]
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "CHGA",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "SCG2",
+                    "ge": 2
+                  }
+                ]
+              },
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "CHGA",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "SCG5",
+                    "ge": 2
+                  }
+                ]
+              },
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "CHGA",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "PCSK1",
+                    "ge": 2
+                  }
+                ]
+              },
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "SCG2",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "SCG5",
+                    "ge": 2
+                  }
+                ]
+              },
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "SCG2",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "PCSK1",
+                    "ge": 2
+                  }
+                ]
+              },
+              {
+                "op": "all",
+                "args": [
+                  {
+                    "op": "count",
+                    "gene": "SCG5",
+                    "ge": 2
+                  },
+                  {
+                    "op": "count",
+                    "gene": "PCSK1",
+                    "ge": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "endothelial_program",
+      "label": "Corroborated endothelial-associated RNA",
+      "expression": "CDH5 AND CLDN5 AND (KDR OR PLVAP OR ADGRL4)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CDH5",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CLDN5",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "KDR",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "PLVAP",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "ADGRL4",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "plasma_program",
+      "label": "Plasma-associated mixed RNA",
+      "expression": "MZB1 AND SDC1 AND TNFRSF17",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "MZB1",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "SDC1",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "TNFRSF17",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "mural_stromal_program",
+      "label": "Mural/stellate-associated mixed RNA",
+      "expression": "PDGFRB AND RGS5 AND (CSPG4 OR ACTA2)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "PDGFRB",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "RGS5",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "CSPG4",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "ACTA2",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "fibroblast_program",
+      "label": "Fibroblast-associated mixed RNA",
+      "expression": "PDGFRA AND DPT AND (COL5A1 OR COL5A2 OR FAP)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "PDGFRA",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "DPT",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "COL5A1",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "COL5A2",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "FAP",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "mast_basophil_program",
+      "label": "Mast/basophil-associated mixed RNA",
+      "expression": "MS4A2 AND HDC AND (KIT OR GATA2)",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "MS4A2",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "HDC",
+            "ge": 2
+          },
+          {
+            "op": "any",
+            "args": [
+              {
+                "op": "count",
+                "gene": "KIT",
+                "ge": 2
+              },
+              {
+                "op": "count",
+                "gene": "GATA2",
+                "ge": 2
+              }
+            ]
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "neutrophil_program",
+      "label": "Neutrophil-associated mixed RNA",
+      "expression": "CSF3R AND FCGR3B AND CXCR2",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CSF3R",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "FCGR3B",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CXCR2",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "neural_program",
+      "label": "Schwann-associated mixed RNA",
+      "expression": "SOX10 AND MPZ AND PMP22",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "SOX10",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "MPZ",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "PMP22",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "local_evidence/proposal.json",
+      "source_sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "cDC1_program",
+      "label": "cDC1-associated RNA",
+      "expression": "CLEC9A>=2 AND XCR1>=2 AND BATF3>=2",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CLEC9A",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "XCR1",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "BATF3",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "literature/dc_supplement.json",
+      "source_sha256": "778509e0371d6ac8b9064a68d4b2463f4aeea7081e2c43a84b3a532f67814936",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "cDC2_program",
+      "label": "CD1C-positive DC-associated RNA (cDC2/DC3)",
+      "expression": "CD1C>=2 AND CLEC10A>=2 AND FCER1A>=2",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CD1C",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "CLEC10A",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "FCER1A",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "literature/dc_supplement.json",
+      "source_sha256": "778509e0371d6ac8b9064a68d4b2463f4aeea7081e2c43a84b3a532f67814936",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    },
+    {
+      "id": "pDC_program",
+      "label": "pDC-associated RNA",
+      "expression": "CLEC4C>=2 AND TCF4>=2 AND IL3RA>=2",
+      "predicate": {
+        "op": "all",
+        "args": [
+          {
+            "op": "count",
+            "gene": "CLEC4C",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "TCF4",
+            "ge": 2
+          },
+          {
+            "op": "count",
+            "gene": "IL3RA",
+            "ge": 2
+          }
+        ]
+      },
+      "review_status": "PROPOSED_NOT_ACCEPTED",
+      "minimum_distinct_positive_genes": 3,
+      "source": "literature/dc_supplement.json",
+      "source_sha256": "778509e0371d6ac8b9064a68d4b2463f4aeea7081e2c43a84b3a532f67814936",
+      "proposed_action": "retain_with_all_flags_and_counts; separate_from_primary_summary_when_any_complete_program_is_true; no_definitive_non_T_label"
+    }
+  ],
+  "foreign_flag_union": "any complete foreign_program predicate; preserve all overlapping flags",
+  "primary_summary": "base-screen candidates without a detected complete foreign program, stratified by receptor and technical/tissue review flags; no purity or receptor-confirmed identity claim",
+  "alpha_beta": {
+    "expression": "TRAC>=2 AND TRBC2>=2",
+    "action": "mixed_receptor_review_flag_only; never an automatic exclusion",
+    "missing_gene": "TRBC1 is not measured in any of these 25 panels; do not substitute a zero.",
+    "note": "Neither TRAC alone nor TRBC2 alone establishes mutually exclusive lineage. RNA co-detection does not establish productive receptor pairing."
+  },
+  "no_veto": [
+    "No source lineage label or Immune_T gate.",
+    "No summed CD3 or summed receptor threshold.",
+    "No NKG7/KLRD1/FCGR3A/PRF1/granzyme/other NK-cytotoxic program veto.",
+    "No isolated inflammatory, antigen-presentation, stress, hormone or ambient acinar transcript veto.",
+    "No single foreign-program gene at >=2 automatically removes a candidate.",
+    "No disease, endocrine distance, cytokine result or expected cell count selects or tunes a gate."
+  ],
+  "technical_eligibility_proposal": {
+    "status": "proposed_for_review_not_already_implemented",
+    "valid_cell_key": "Exact native bundle/region identifier plus cell_id; preserve native row index. Never pool bare cell_id strings across bundles.",
+    "single_nucleus": "Use measured nucleus_count ==1 for the primary single-cell population; nucleus_count==0 and >1 remain separate technical/segmentation-review strata, not biological non-T labels. Missing nucleus count is unknown, not zero.",
+    "geometry": "Finite native coordinates and available valid segmentation metadata; do not invent an area/UMI threshold. Single nucleus does not guarantee a pure singlet.",
+    "tissue": "Use a frozen independent pancreas tissue mask/annotation only for pancreas-specific inference. Preserve whole-bundle candidate evidence; mixed or unresolved regions retain tissue_unknown and are not silently called pancreas. Do not exclude based on endocrine proximity.",
+    "missing_predicates": "All proposed genes are measured in current 25 native panels. If future input lacks a required gene, mark the relevant predicate unavailable and halt final contract evaluation for that input; do not treat missing as false or auto-pass."
+  },
+  "coverage_limits": [
+    "Native metadata verified for original25region bundles on25slides from13experiments, not an asserted65region release validation.",
+    "Dendritic predicates added after a metadata/literature coverage challenge; not exhaustive DC classification.",
+    "Insufficient queried erythroid and platelet corroborating genes; no automatic exclusion for those lineages.",
+    "Every named predicate requires present measured features; missing is unmeasured, not zero."
+  ],
+  "source_digests": [
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/decision.json",
+      "sha256": "deb1ced970883ebf3870e4bfb3db2a88fcce55811bda7d355426e52898677ffb"
+    },
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/local_evidence/proposal.json",
+      "sha256": "9e525e97af18cea085b5b33088a653685b1695315c2c8c269cf4910f4bc5a1ac"
+    },
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/local_evidence/gene_availability.csv",
+      "sha256": "14fb52e003ce192c02446062bf092074116d39830922bb9b1419fa0b2e608185"
+    },
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/local_evidence/supplemental_coverage.json",
+      "sha256": "9034b5024b2eed9af3fa5096dc1c2e3e3030e379a680f78946896818dd5f2f36"
+    },
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/literature/criteria_review.json",
+      "sha256": "745dfcee1fcef07a0f22d72740fac02bddec54f977594694adb8edf1bc52842f"
+    },
+    {
+      "path": "/home/smith6jt/Documents/papers/consolidation/gammadelta_criteria_review_20261105/literature/dc_supplement.json",
+      "sha256": "778509e0371d6ac8b9064a68d4b2463f4aeea7081e2c43a84b3a532f67814936"
+    }
+  ],
+  "candidate_counts_evaluated": false,
+  "rerun_authorized": false
+}

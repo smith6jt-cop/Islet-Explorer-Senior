@@ -51,8 +51,8 @@ had no Stage 00 release: do not repeat its setup or RNA execution on that basis.
 Before a new Stage 04 execution, its own selected release still needs the
 required accepted Stage 00 output. The two-region workstation pilot and
 65-region HiPerGator execution remain separate processing records. Recorded
-remote paths do not establish deployment of today's workstation source; verify
-that site's actual producer/runtime before using it.
+remote paths do not establish deployment of today's workstation source or γδ
+module; verify that site's actual producer/runtime before using it.
 
 The [dedicated pLN v3 export index](pln_qupath_exports_v3.csv) binds each of the
 19 recorded images in `pln_node_annotations.csv` to one QuPath cell-export filename

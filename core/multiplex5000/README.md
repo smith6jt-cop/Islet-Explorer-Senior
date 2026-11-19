@@ -1,7 +1,8 @@
 # MultiPlex5000
 
 Start with the [current workflow guide](../../docs/PORTABILITY_REMEDIATION_USER_GUIDE.md)
-for supported evaluation routes. The
+for supported evaluation routes and the [native γδ workflow](docs/GAMMADELTA_NATIVE_SCREEN.md)
+for selection, independent validation and coordinate extraction. The
 [original evaluation guide](../../docs/PORTABILITY_EVALUATION_USER_GUIDE.md) and
 [portability report](../../docs/evaluations/dynamic_portability_20261102/README.md)
 are dated evidence. Code availability alone does not imply a validated tissue/panel route.
