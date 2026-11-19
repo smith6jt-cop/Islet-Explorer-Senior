@@ -12,6 +12,12 @@ this islet per endocrine cell in it" rather than a fraction of a peri-zone whose
 islet with no core endocrine cell has no defined ratio: it is ``Unavailable`` with its reason
 recorded, and the count is reported rather than hidden.
 
+The 2026-11-18 islet-composition input policy excludes QC and unresolved labels;
+endocrine classes enter only in the core, exocrine classes only in the expansion,
+and measured macrophage subtypes are pooled by Gal3 before ALR. The core and
+combined modes remain distinct. This ALR/Euclidean method is not the CODEX
+log1p/cosine method; see docs/TRAJECTORY_FEATURE_POLICY_2026-11-19.md.
+
 **Two things this script deliberately does not do.**
 
 *It does not gate on a biological result.*  The legacy ``compute_trajectory_senior.py`` requires
@@ -74,6 +80,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import sys
 
 import anndata as ad
@@ -158,6 +165,62 @@ def alr_matrix(frame: pd.DataFrame, classes: list[str], prefix: str,
     counts = np.column_stack([frame[f"{prefix}count_{c}"].to_numpy(float) for c in classes])
     return np.log((counts + ALR_PSEUDOCOUNT)
                   / (denominator + ALR_PSEUDOCOUNT)[:, None]).astype(np.float32)
+
+
+def trajectory_composition_inputs(frame: pd.DataFrame, classes: list[str],
+                                  denominator: np.ndarray, region: str):
+    """Select graph inputs by biological class and region, then apply this lane's ALR.
+
+    Display proportions and raw counts are not filtered. Gal3 profiles are pooled at
+    the count level before ALR; absence of a measured profile is never filled with zero.
+    This lane retains its own ALR and Euclidean distance, unlike the CODEX log1p/cosine
+    graph. It must therefore not be described as numerically equivalent to that graph.
+    """
+    if region not in ("core", "peri"):
+        raise ValueError(f"unknown trajectory region: {region}")
+    retired = {"endocrine", "acinar", "endothelial", "immune", "unknown",
+               "ecad+", "structural", "apcs", "hematopoietic cd45+",
+               "hematopoietic cd45-", "t cell", "tissue", "unclassified",
+               "doublet suspected", "unresolved"}
+    endocrine = {"beta cell", "alpha cell", "delta cell", "chga+ hormone-negative",
+                 "chga+ hormone negative"}
+    exocrine = {"exocrine", "acinar cell", "ductal cell", "ductal"}
+    grouped = {}
+    for label in classes:
+        clean = re.sub(r"[_\s]+", " ", str(label)).strip().lower()
+        if clean in retired or re.match(
+                r"^(?:conflict|unresolved|unclassified|doublet|qc)(?:$|\s)", clean):
+            continue
+        if (clean in endocrine and region != "core") or (clean in exocrine and region != "peri"):
+            continue
+        # Normalize only explicitly identified Gal3 phenotypes. A broad macrophage
+        # or immune residual does not become a measured Gal3 subgroup.
+        gal3 = re.search(r"(?:LGALS3|Gal3)([+-])", str(label), re.IGNORECASE)
+        group = ("Macrophage_LGALS3" + gal3.group(1)
+                 if "macrophage" in clean and gal3 else label)
+        grouped.setdefault(group, []).append(label)
+    prefix = "count_" if region == "core" else "peri_count_"
+    names, values = [], []
+    for group, members in grouped.items():
+        # A pre-pooled count and its individual source profiles overlap: summing
+        # both silently double-counts cells. Require the input table to resolve it.
+        if len(members) > 1 and any(
+                re.fullmatch(r"Macrophage_(?:LGALS3|Gal3)[+-]", x, re.IGNORECASE)
+                for x in members):
+            raise ValueError(f"overlapping pre-pooled and source macrophage counts: {members}")
+        columns = [prefix + x for x in members]
+        missing = [x for x in columns if x not in frame]
+        if missing:
+            raise ValueError(f"missing measured {region} trajectory counts: {missing}")
+        counts = frame[columns].to_numpy(float)
+        if not np.isfinite(counts).all():
+            raise ValueError(f"unavailable trajectory counts in {columns}")
+        pooled = counts.sum(axis=1)
+        values.append(np.log((pooled + ALR_PSEUDOCOUNT) /
+                             (denominator + ALR_PSEUDOCOUNT)))
+        names.append(f"{region}_{group}")
+    return (names, np.column_stack(values).astype(np.float32) if values
+            else np.empty((len(frame), 0), dtype=np.float32))
 
 
 def cluster_islets(fitted: ad.AnnData) -> None:
@@ -324,8 +387,10 @@ def main() -> int:
     frame = frame[defined].reset_index(drop=True)
     endocrine_core = endocrine_core[defined]
 
-    core = alr_matrix(frame, classes, "", endocrine_core)
-    peri = alr_matrix(frame, classes, "peri_", endocrine_core)
+    core_names, core = trajectory_composition_inputs(frame, classes, endocrine_core, "core")
+    peri_names, peri = trajectory_composition_inputs(frame, classes, endocrine_core, "peri")
+    if not core_names:
+        raise ValueError("no measured core trajectory inputs after policy selection")
     counts = np.column_stack([frame[f"count_{c}"].to_numpy(float) for c in classes])
     # X is what the Trajectory tab plots against pseudotime, under the axis label
     # "normalized expression (mean per islet, 0-1)". Counts there run to ~1,500 and make that
@@ -364,6 +429,9 @@ def main() -> int:
                                         index=pd.Index(classes)))
     adata.obsm["X_composition_alr"] = core
     adata.obsm["X_composition_alr_combined"] = np.hstack([core, peri]).astype(np.float32)
+    adata.uns["trajectory_feature_policy"] = "current-typing/2026-11-18"
+    adata.uns["trajectory_core_inputs"] = np.asarray(core_names, dtype=str)
+    adata.uns["trajectory_combined_inputs"] = np.asarray(core_names + peri_names, dtype=str)
 
     # The graph is built on the islets above the floor only; the rest carry an Unavailable
     # pseudotime.  Including them poisons the graph for everyone, which is what the floor-0 row

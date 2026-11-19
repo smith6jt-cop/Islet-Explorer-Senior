@@ -67,3 +67,44 @@ def test_leiden_only_writes_the_table_and_never_fits_the_ordering(traj, tmp_path
     assert len(table) == 90
     assert table[resolutions].notna().all().all()      # every islet is above the 10-cell floor
     assert not list(tmp_path.glob("*.h5ad")), "--leiden-only wrote an H5AD"
+
+
+def test_graph_policy_selects_regions_and_pools_gal3_before_alr(traj):
+    classes = [
+        "Beta_cell", "Alpha_cell", "Exocrine", "Blood_Vessel", "Unresolved",
+        "Tissue", "Doublet_suspected", "Conflict_B_T", "Immune",
+        "CD68+CD163+Macrophage_LGALS3+CD4+",
+        "CD68+CD163-Macrophage_LGALS3+CD4-",
+        "CD68-CD163+Macrophage_LGALS3-CD4+",
+    ]
+    frame = pd.DataFrame({prefix + c: [i + 1., i + 2.]
+                          for prefix in ("count_", "peri_count_")
+                          for i, c in enumerate(classes)})
+    denominator = np.array([10., 20.])
+    core_names, core = traj.trajectory_composition_inputs(frame, classes, denominator, "core")
+    peri_names, peri = traj.trajectory_composition_inputs(frame, classes, denominator, "peri")
+    assert core_names == ["core_Beta_cell", "core_Alpha_cell", "core_Blood_Vessel",
+                          "core_Macrophage_LGALS3+", "core_Macrophage_LGALS3-"]
+    assert peri_names == ["peri_Exocrine", "peri_Blood_Vessel",
+                          "peri_Macrophage_LGALS3+", "peri_Macrophage_LGALS3-"]
+    expected = np.log((frame["count_" + classes[9]] + frame["count_" + classes[10]]
+                       + traj.ALR_PSEUDOCOUNT) / (denominator + traj.ALR_PSEUDOCOUNT))
+    np.testing.assert_allclose(core[:, core_names.index("core_Macrophage_LGALS3+")],
+                               expected, rtol=1e-6)
+    assert peri.shape == (2, len(peri_names))
+
+
+def test_graph_policy_refuses_missing_measurements(traj):
+    frame = pd.DataFrame({"count_Beta_cell": [4.], "count_Blood_Vessel": [np.nan]})
+    with pytest.raises(ValueError, match="unavailable"):
+        traj.trajectory_composition_inputs(frame, ["Beta_cell", "Blood_Vessel"],
+                                           np.array([4.]), "core")
+    with pytest.raises(ValueError, match="missing measured"):
+        traj.trajectory_composition_inputs(frame, ["Exocrine"], np.array([4.]), "peri")
+
+
+def test_graph_policy_refuses_overlapping_prepooled_macrophages(traj):
+    labels = ["Macrophage_Gal3+", "CD68+CD163+Macrophage_LGALS3+CD4+"]
+    frame = pd.DataFrame({"count_" + label: [1.] for label in labels})
+    with pytest.raises(ValueError, match="overlapping"):
+        traj.trajectory_composition_inputs(frame, labels, np.array([4.]), "core")
