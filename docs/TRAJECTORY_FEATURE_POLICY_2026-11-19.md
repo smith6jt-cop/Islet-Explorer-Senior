@@ -14,17 +14,13 @@ in the table. If broad Immune and named subtype columns are both supplied,
 their overlapping coverage is unknown from column names alone; the producer
 refuses to build until a non-overlapping measured schema is supplied.
 
-The existing Core mode remains core-only. The Core + Peri mode additionally
-includes eligible peri-islet classes, including exocrine. The graph feature
-names are recorded in H5AD metadata; raw class counts and displayed per-islet
-proportions are not removed.
-
-This is a feature policy, not a claim that all pipelines use the same fit.
-The Senior composition method retains its additive log ratio with pseudocount
-0.5, Euclidean distance, root policy, cohort and validation gates. CODEX uses a
-different log1p/cosine calculation. Legacy input tables can contain only broad
-immune classes without measured Gal3 subtypes; those subtypes cannot be
-invented from the available columns.
+The composition graph has one column per measured class. Endocrine counts come
+from core only and exocrine counts from peri only. All other retained counts are
+summed across regions before log1p(count / max(core endocrine cells, 1)).
+The accepted CODEX table provides 14 features. Senior uses its own measured
+classes, cohort, Euclidean metric, root choice and validation gates. The H5AD
+records feature names in trajectory_pooled_inputs and the fitted matrix in
+X_composition_pooled. Both composition pseudotime fields use the pooled fit.
 
 The separate core-only ND-reference method retains its modality-specific
 features and model; it excludes QC-like features and archived split macrophage

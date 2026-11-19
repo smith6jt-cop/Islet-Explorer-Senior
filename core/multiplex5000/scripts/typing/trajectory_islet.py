@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
 """Islet-level trajectory on composition -- the pooled islet-composition ordering and its H5AD.
 
-The ordering is over **what an islet is made of**, not over marker averages.  For islet *i* and
-class *t*, in region *r*:
-
-    alr[i, r, t] = log( (n[i, r, t] + c) / (n_core_endocrine[i] + c) )        c = 0.5
-
-The denominator is the islet's own **core endocrine count** in every region, because the hormone
-question is only asked inside the islet.  That makes the expansion axis read "immune cells around
-this islet per endocrine cell in it" rather than a fraction of a peri-zone whose size varies.  An
-islet with no core endocrine cell has no defined ratio: it is ``Unavailable`` with its reason
-recorded, and the count is reported rather than hidden.
-
-The 2026-11-18 islet-composition input policy excludes QC and unresolved labels;
-endocrine classes enter only in the core, exocrine classes only in the expansion,
-and other measured classes are pooled across core and peri before log1p normalization.
-Legacy regional ALR matrices are retained for archival compatibility. This ALR/Euclidean method is not the CODEX
-log1p/cosine method; see docs/TRAJECTORY_FEATURE_POLICY_2026-11-19.md.
+Each measured cell class supplies one graph column. Endocrine counts come from the core,
+exocrine counts from the peri band, and all other retained counts are summed across both.
+Measured macrophage profiles are pooled by Gal3 sign. The graph uses
+log1p(count / max(core_endocrine_count, 1)). Senior retains its eligibility rules,
+Euclidean graph, root policy and validation gates. Legacy regional ALR matrices
+remain available to older readers. All composition DPT and Leiden fits use X_composition_pooled.
 
 **Two things this script deliberately does not do.**
 
@@ -68,7 +58,7 @@ So what this script owns is:
 decide which script owns a deployed path.
 
 ``--leiden-only`` writes the clustering and nothing else.  It builds the same neighbourhood graph
-the ordering is built on -- ``X_composition_alr`` of the islets above the composition floor,
+the ordering is built on -- ``X_composition_pooled`` of the islets above the composition floor,
 ``N_NEIGHBORS``, ``METRIC`` -- and runs UMAP and Leiden on it, but picks no root, fits no
 pseudotime, runs no method check and writes no H5AD, so it cannot fail on the pooled ordering's
 own gate.  The layer driver's ``islet_leiden`` node runs it this way (2026-09-24): the gate judges
