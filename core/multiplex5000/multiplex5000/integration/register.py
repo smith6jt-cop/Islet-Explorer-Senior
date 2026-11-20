@@ -35,7 +35,8 @@ contribute a plausible-looking alignment to it.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
+from contextlib import contextmanager
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -975,6 +976,14 @@ def register_image(
         f"{float(refine_set[-1].meta.get('coarse_corr', float('nan'))):.4f})")
     if moving_mask is not None:
         res.stages.append("masked_ecc")
+        from .partial_section import regional_texture_seed
+
+        texture_seed = regional_texture_seed(
+            moving, fixed, moving_mask, grid, step_deg=coarse_step_deg,
+            max_rotation_deg=max_rotation_deg)
+        if texture_seed is not None:
+            refine_set.append(texture_seed)
+            res.notes.append("Added a linear-correlation seed from internal tissue structure")
 
     # Refine a RESIDUAL, never the whole transform. ECC linearises around its current estimate,
     # so a seed far from identity is not merely slow to converge -- it diverges outright. Donor
@@ -1003,8 +1012,8 @@ def register_image(
     if best is None:
         # Every ECC seed diverged; keep the best correlating coarse candidate so the caller
         # still gets a usable starting point rather than the identity.
-        res.transform = candidates[0]
-        res.mirrored = candidates[0].is_mirrored
+        res.transform = refine_set[0]
+        res.mirrored = refine_set[0].is_mirrored
         res.notes.append("ECC did not converge from any coarse seed; using coarse only")
         return res
     res.stages.append("ecc_euclidean")
@@ -1485,6 +1494,53 @@ def registration_dir(cfg: PipelineConfig, donor: str, roi: str) -> Path:
     return base
 
 
+@contextmanager
+def _donor_lock(directory: Path):
+    import fcntl
+    import os
+
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def _reviewed_registration(directory: Path, row: pd.Series, fixed_modality: str):
+    """Reuse a landmark-reviewed section only for the acquisition and direction reviewed."""
+    import json
+
+    qc_file = directory / "qc.json"
+    if not qc_file.is_file():
+        return None
+    qc = json.loads(qc_file.read_bytes())
+    if "section_landmark_validation" not in qc:
+        return None
+    review = qc["section_landmark_validation"]
+    source = review["source"]
+    bundle, image = row.get("xenium_bundle"), row.get("pheno_image")
+    if (fixed_modality != "phenocycler" or not bundle or not image
+            or Path(source["pc"]).resolve() != Path(image).resolve()
+            or Path(bundle).resolve() not in Path(source["xenium"]).resolve().parents):
+        raise ValueError(f"Reviewed registration belongs to different inputs or direction: {directory}")
+    if json.loads((directory / "transform.json").read_bytes()) != qc["transform"]:
+        raise ValueError(f"Reviewed QC and saved transform disagree: {directory}")
+    tf = Transform.load(directory)
+    landmarks = review["landmarks"]
+    moving = np.asarray([p["xenium_native_um"] for p in landmarks], dtype=float)
+    fixed = np.asarray([p["pc_native_um"] for p in landmarks], dtype=float)
+    expected = np.asarray([p["updated_error_um"] for p in landmarks], dtype=float)
+    if (not landmarks or moving.shape != (len(landmarks), 2) or fixed.shape != moving.shape
+            or expected.shape != (len(landmarks),) or not np.isfinite(expected).all()
+            or not np.allclose(np.linalg.norm(tf.apply(moving) - fixed, axis=1),
+                               expected, rtol=0, atol=1e-3)):
+        raise ValueError(f"Saved transform fails its recorded section landmarks: {directory}")
+    values = {f.name: qc[f.name] for f in fields(RegistrationResult)
+              if f.name in qc and f.name not in {"transform", "grid"}}
+    return RegistrationResult(transform=tf, **values)
+
+
 def run_register(
     cfg: PipelineConfig,
     donors: Optional[list[str]] = None,
@@ -1511,13 +1567,23 @@ def run_register(
     rows = []
     for _, r in man.iterrows():
         donor, roi = r["donor_id"], r["roi"]
-        res = register_donor(cfg, donor, roi, use_images=use_images)
-        if res is None:
-            continue
         out = registration_dir(cfg, donor, roi)
-        out.mkdir(parents=True, exist_ok=True)
-        res.transform.save(out)
-        (out / "qc.json").write_text(json.dumps(res.to_dict(), indent=2))
+        # The review publisher locks this stable parent when exchanging the ROI
+        # directory. Hold the same lock during the final check and both writes.
+        donor_dir = cfg.registration_dir / f"donor_id={donor}"
+        donor_dir.mkdir(parents=True, exist_ok=True)
+        with _donor_lock(donor_dir):
+            res = _reviewed_registration(out, r, cfg.fixed_modality)
+        if res is None:
+            candidate = register_donor(cfg, donor, roi, use_images=use_images)
+            if candidate is None:
+                continue
+            with _donor_lock(donor_dir):
+                res = _reviewed_registration(out, r, cfg.fixed_modality)
+                if res is None:
+                    res = candidate
+                    res.transform.save(out)
+                    (out / "qc.json").write_text(json.dumps(res.to_dict(), indent=2))
 
         rows.append({
             "donor_id": donor, "roi": roi, "tissue": r.get("tissue", ""),
