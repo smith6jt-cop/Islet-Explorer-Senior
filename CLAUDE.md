@@ -10,7 +10,7 @@ cross-repository exchange contract.
 
 Three related but separate systems in one repository:
 
-1. **`core/multiplex5000/`** — MultiPlex5000, the PhenoCycler source workflow, from QuPath exports
+1. **`core/multiplex5000/`** — *(frozen at `fd114ff`; new pipeline work goes to `smith6jt-cop/MultiPlex5000`, see `docs/HANDOFF_2026-11-23_MULTIPLEX5000_STANDALONE.md`)* MultiPlex5000, the PhenoCycler source workflow, from QuPath exports
    to one authoritative intensity per marker, plus the development lanes under `scripts/`. It was
    `core/phenocycler/` until 2026-10-20; see *The rename* below.
 2. **`analysis/xenium/`** — the Xenium 5K lane (absorbed 2026-08-28). Two-tier identity-core →
