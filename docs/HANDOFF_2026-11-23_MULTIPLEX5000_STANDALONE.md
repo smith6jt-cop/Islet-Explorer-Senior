@@ -26,7 +26,10 @@ Snapshot: 2026-11-23. Supersedes the "pipeline stays in Senior" statements of th
 
 Each caller needs a tested replacement that uses the installed wheel:
 
-- the editable pipeline install in `.github/workflows/xenium-analysis.yml` and `script-tests.yml`
+- the editable pipeline install in `.github/workflows/xenium-analysis.yml` (`pip install --no-deps -e ../../core/multiplex5000`)
+- `.github/workflows/script-tests.yml`: it installs only third-party dependencies; its checkout dependency is the
+  `sys.path` insertion of `core/multiplex5000/scripts/typing` in `scripts/senior/build_tissuumaps_regions.py`
+  (lines 63-67), which imports `build_islet_geometry`, `cohort` and `subpanel_io` directly. That import migration is separate from an install change
 - `scripts/senior/*` layer builders that import typing helpers from the checkout
 - the same-slide lane scripts (`core/multiplex5000/scripts/sameslide`)
 - a staged `mplx5k-display plan/export/verify` run read by the Senior reader with hash verification
